@@ -296,7 +296,9 @@ Identity = `{a:1, b:0, c:0, d:1, e:0, f:0}`
 
 ### Blend modes
 
-"normal"|"darken"|"multiply"|"color-burn"|"lighten"|"screen"|"color-dodge"|"overlay"|"soft-light"|"hard-light"|"difference"|"exclusion"|"hue"|"saturation"|"color"|"luminosity"
+"normal"|"darken"|"multiply"|"color-burn"|"lighten"|"screen"|
+"color-dodge"|"overlay"|"soft-light"|"hard-light"|"difference"|
+"exclusion"|"hue"|"saturation"|"color"|"luminosity"
 
 ## Media JSON (`files/{fileId}/media/{mediaId}.json`)
 

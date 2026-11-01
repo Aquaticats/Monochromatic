@@ -116,9 +116,9 @@ export function readonlyCallableEvidence({
    Parameters whose exact marker provenance reaches foreign ownership.
    */
   const foreignBorrowedParameters = parameterFacts
-      .some(function verdictReadsForeign(facts: ReadonlyParameterFacts,): boolean {
-        return factsNeedForeignProof(facts,);
-      },)
+    .some(function verdictReadsForeign(facts: ReadonlyParameterFacts,): boolean {
+      return factsNeedForeignProof(facts,);
+    },)
     ? proveForeignBorrowed()
     : new Set<ParameterIndex>();
 

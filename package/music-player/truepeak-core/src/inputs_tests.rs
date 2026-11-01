@@ -39,9 +39,9 @@ fn synthetic_flac(payload_sizes: &[usize]) -> Vec<u8> {
 #[test]
 fn flac_bytes_yield_lossless_with_bones() {
     let bytes = synthetic_flac(&[300, 3000, 300]);
-    let (provenance, bones) = probe_inputs_from_bytes(&bytes, &default_policy());
+    let (provenance, maybe_bones) = probe_inputs_from_bytes(&bytes, &default_policy());
     assert!(provenance.lossless);
-    let bones = bones.expect("a walkable flac yields bones");
+    let bones = maybe_bones.expect("a walkable flac yields bones");
     assert_eq!(bones.first(), Some(&1));
 }
 

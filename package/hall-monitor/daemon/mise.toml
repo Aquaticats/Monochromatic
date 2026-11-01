@@ -1,0 +1,22 @@
+[tasks.build]
+description = "Compile hall-monitor to a standalone binary"
+run = "bun build src/index.ts --compile --minify --bytecode --sourcemap --outfile hall-monitor"
+
+[tasks.run]
+description = "Run hall-monitor directly"
+run = "node src/index.ts"
+
+[tasks."run:dev"]
+description = "Run hall-monitor with file-watch auto-restart"
+run = "mise watch -w src -r -- node src/index.ts"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+[tasks."format:oxlint"]
+extends = "format:oxlint"

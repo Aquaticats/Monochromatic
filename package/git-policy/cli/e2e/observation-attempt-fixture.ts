@@ -71,9 +71,33 @@ const HOOK_TRAILER = 'E2E-Hook-Checked: yes';
 const NON_FAST_FORWARD = 'non-fast-forward';
 
 /**
- Note the wrapper prints after every failed auto-push (`PUSH_FAILED_NOTE` in `src/auto-push.ts`).
+ Note the wrapper prints after every failed auto-push (`PUSH_FAILED_NOTE` in `src/native/auto_push.rs`).
  */
 const PUSH_FAILED_NOTE = 'auto-push to origin failed';
+
+/**
+ Line the wrapper prints instead of that note when its reconcile of a stale push cannot publish, for example after a
+ conflicting merge (`RECONCILE_FAILED_PREFIX` in `src/native/auto_push_reconcile.rs`).
+ */
+const RECONCILE_FAILED_LINE = 'auto-push: not published:';
+
+/**
+ Whether an attempt's stderr shows Git's non-fast-forward refusal together with one of the two ways the wrapper says
+ the commit was not published.
+
+ @param stderr - complete stderr of the attempt
+
+ @returns whether the rejection was surfaced
+ */
+function surfacesPushRejection(stderr: string,): boolean {
+  return stderr.includes(NON_FAST_FORWARD,)
+    && [
+      PUSH_FAILED_NOTE,
+      RECONCILE_FAILED_LINE,
+    ].some(function mentioned(note,) {
+      return stderr.includes(note,);
+    },);
+}
 
 //endregion Types
 
@@ -240,16 +264,16 @@ async function laterCaptureContents({
     return (other.startedAt > attempt.startedAt)
       && (other.mode === 'explicit')
       && other.captured
-      .some(function samePathAndBytes(entry,) {
-        return (entry.path === captured.path) && sameContent({
-          left: contentOf(entry.bytes,),
-          right: current,
-        },);
-      },)
+        .some(function samePathAndBytes(entry,) {
+          return (entry.path === captured.path) && sameContent({
+            left: contentOf(entry.bytes,),
+            right: current,
+          },);
+        },)
       && history.some(function carriesToken(commit,) {
         return moved.has(commit.oid,)
           && commit.message
-          .includes(`[${other.token}]`,);
+            .includes(`[${other.token}]`,);
       },);
   },);
   return landedLater ? [current,] : [];
@@ -300,9 +324,12 @@ export async function postCommitRuns(repository: ScenarioRepository,): Promise<R
   return new Map([...Map.groupBy(
     tokens,
     function byToken(token,) {
-    return token;
-  },
-  ),].map(function runCount([token, tokenRuns,],) {
+      return token;
+    },
+  ),].map(function runCount([token, tokenRuns,]: readonly [
+    string,
+    readonly string[]
+  ],) {
     return [
       token,
       tokenRuns.length,
@@ -368,8 +395,8 @@ export async function observeAttempt({
    */
   const landedEventOid = extraction.events
     .find(function isLanded(event,) {
-    return event.type === 'commit-landed';
-  },)
+      return event.type === 'commit-landed';
+    },)
     ?.oid;
   /**
    Landing observations.
@@ -380,32 +407,32 @@ export async function observeAttempt({
      */
     const paths = await Promise.all(attempt.captured
       .map(async function landPath(captured,): Promise<PathLanding> {
-      return {
-        path: captured.path,
-        landed: stateOf(await treeBytes({
-          repository,
-          commit: commit.oid,
+        return {
           path: captured.path,
-        },),),
-        acceptable: [
-          ...await acceptableContents({
+          landed: stateOf(await treeBytes({
             repository,
-            captured,
+            commit: commit.oid,
+            path: captured.path,
+          },),),
+          acceptable: [
+            ...await acceptableContents({
+              repository,
+              captured,
             // An amend replaces the commit HEAD named at invocation, so its captured bytes are the only acceptable content.
-            ...(attempt.mode === 'amend' ? { parent: attempt.headBefore, } : (commit.parent === undefined ? {} : { parent: commit.parent, })),
-            headBefore: attempt.headBefore,
-          },),
-          ...await laterCaptureContents({
-            repository,
-            attempt,
-            captured,
-            ...(commit.parent === undefined ? {} : { parent: commit.parent, }),
-            attempts,
-            history,
-          },),
-        ],
-      };
-    },),);
+              ...(attempt.mode === 'amend' ? { parent: attempt.headBefore, } : (commit.parent === undefined ? {} : { parent: commit.parent, })),
+              headBefore: attempt.headBefore,
+            },),
+            ...await laterCaptureContents({
+              repository,
+              attempt,
+              captured,
+              ...(commit.parent === undefined ? {} : { parent: commit.parent, }),
+              attempts,
+              history,
+            },),
+          ],
+        };
+      },),);
     /**
      Signature verification when commits are signed.
      */
@@ -476,12 +503,8 @@ export async function observeAttempt({
       ],
     ...(landedEventOid === undefined ? {} : { landedEventOid, }),
     requiresRemote: attempt.requiresRemote,
-    pushRejectionSurfaced: attempt.outcome
-      .stderr
-      .includes(NON_FAST_FORWARD,)
-      && attempt.outcome
-      .stderr
-      .includes(PUSH_FAILED_NOTE,),
+    pushRejectionSurfaced: surfacesPushRejection(attempt.outcome
+      .stderr,),
   };
 }
 

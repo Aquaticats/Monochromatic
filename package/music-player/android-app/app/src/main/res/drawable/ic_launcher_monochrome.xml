@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer of the launcher icon: the same ring and triangle in one color, which the system tints. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,28A26,26 0 1,1 54,80A26,26 0 1,1 54,28ZM54,34A20,20 0 1,0 54,74A20,20 0 1,0 54,34Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M49,42L49,66L69,54Z" />
+</vector>

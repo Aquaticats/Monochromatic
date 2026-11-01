@@ -2,11 +2,11 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   findRootCached,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import {
   JSON_RPC_INVALID_PARAMS,
   JSON_RPC_UNSUPPORTED_PROTOCOL_VERSION,

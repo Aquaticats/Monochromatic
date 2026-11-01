@@ -55,7 +55,7 @@ const configPresenceByDirectory = new Map<string, boolean>();
  
  @example
  ```ts
- declaresProject('/repo/package/module/logger');
+ declaresProject('/repo/package/logger/core');
  ```
  */
 function declaresProject(directory: string,): boolean {
@@ -93,7 +93,7 @@ function declaresProject(directory: string,): boolean {
  a wrong answer for most projects. It does not catch this one: the root `tsconfig.json` declares
  no `include`, so its program holds package sources too and the check passes.
  
- Measured on `package/module/logger/src/create-logger.ts`. Its own project analyses 117 sources
+ Measured on `package/logger/core/src/create-logger.ts`. Its own project analyses 117 sources
  and the root project 196, but 62 of the 117 are absent from the root. Those 62 are callers, and
  a caller that is not read is a mutation that is not charged, which is exactly how a wrong
  read-only offer is minted.

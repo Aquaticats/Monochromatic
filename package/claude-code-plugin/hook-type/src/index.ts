@@ -84,23 +84,23 @@ export type * from './transcript.ts';
  */
 type HookInput =
   | SessionStartInput
-  | InstructionsLoadedInput
-  | UserPromptSubmitInput
-  | PreToolUseInput
-  | PermissionRequestInput
-  | PostToolUseInput
-  | PostToolUseFailureInput
-  | NotificationInput
-  | SubagentStartInput
-  | SubagentStopInput
-  | StopInput
-  | TeammateIdleInput
-  | TaskCompletedInput
-  | ConfigChangeInput
-  | WorktreeCreateInput
-  | WorktreeRemoveInput
-  | PreCompactInput
-  | SessionEndInput;
+    | InstructionsLoadedInput
+    | UserPromptSubmitInput
+    | PreToolUseInput
+    | PermissionRequestInput
+    | PostToolUseInput
+    | PostToolUseFailureInput
+    | NotificationInput
+    | SubagentStartInput
+    | SubagentStopInput
+    | StopInput
+    | TeammateIdleInput
+    | TaskCompletedInput
+    | ConfigChangeInput
+    | WorktreeCreateInput
+    | WorktreeRemoveInput
+    | PreCompactInput
+    | SessionEndInput;
 
 export type { HookInput, };
 

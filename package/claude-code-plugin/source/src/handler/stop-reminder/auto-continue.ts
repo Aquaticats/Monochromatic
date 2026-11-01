@@ -44,7 +44,8 @@ const UNSET_SETTING = '' as const;
  
  An unset variable means disabled, so the guard is opt-in. It was opt-out while
  `claude-opus-5` ended turns on announced-but-undone work; `claude-opus-5-5`
- does not, so the reason became a distraction on every stop.
+ reduced it without removing it, so the reason became a distraction when it fired on every stop;
+ the Luna check in `luna-situation.ts` now decides when it applies.
  */
 const ENABLING_VALUES: ReadonlySet<string> = new Set([
   '1',

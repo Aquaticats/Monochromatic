@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-17T16:05:08.661Z",
+  "report": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-17.md",
+  "creationFingerprint": {
+    "input": {
+      "schemaVersion": 1,
+      "subject": "Depot complete CI trial",
+      "scope": "Evaluate the frozen four-case complete affected CI workload; no migration or adoption.",
+      "hardConstraints": [
+        "Complete applicable gate and real artifact-consumer accounting",
+        "No account-wide access",
+        "No new cohort or application source fixes",
+        "Preserve four historical source cases and six frozen harnesses"
+      ],
+      "deployment": {
+        "providers": [
+          "depot",
+          "github-actions",
+          "local"
+        ],
+        "cohort": "complete-20261017T111555806Z"
+      },
+      "trustBoundary": "CI execution, artifacts and scoped provider credentials",
+      "incumbent": "GitHub Actions hosted service",
+      "baseCategories": [
+        "Inspectable open-source local technology",
+        "Managed service or SaaS"
+      ],
+      "overlays": [
+        "CI high-trust execution",
+        "Incumbent replacement parity",
+        "Multi-platform and browser claims",
+        "Native and prebuilt artifact boundaries"
+      ]
+    },
+    "canonicalInput": "{\"baseCategories\":[\"Inspectable open-source local technology\",\"Managed service or SaaS\"],\"deployment\":{\"cohort\":\"complete-20261017T111555806Z\",\"providers\":[\"depot\",\"github-actions\",\"local\"]},\"hardConstraints\":[\"Complete applicable gate and real artifact-consumer accounting\",\"No account-wide access\",\"No new cohort or application source fixes\",\"Preserve four historical source cases and six frozen harnesses\"],\"incumbent\":\"GitHub Actions hosted service\",\"overlays\":[\"CI high-trust execution\",\"Incumbent replacement parity\",\"Multi-platform and browser claims\",\"Native and prebuilt artifact boundaries\"],\"schemaVersion\":1,\"scope\":\"Evaluate the frozen four-case complete affected CI workload; no migration or adoption.\",\"subject\":\"Depot complete CI trial\",\"trustBoundary\":\"CI execution, artifacts and scoped provider credentials\"}",
+    "sha256": "9c4a914216d017284ed9db714fe5df27b848be7f7445388e32ef57a0d4727a5c",
+    "governingSkillCommit": "37117e36397e30233062828581a5e38217da9458",
+    "governingSkillSha256": "552ac9955299b65a9f921a4e836b60a3fabc15d3477eeb8ec2bfb3f400647f9b"
+  },
+  "independentChecks": {
+    "checkedAt": "2026-10-17T16:04:29.837Z",
+    "primary": 770,
+    "external": 33,
+    "githubExecuted": 21,
+    "sourceAliasedWindowsChargedTwice": false,
+    "commonRequestToTerminalMs": 5851263,
+    "markdownSections": 6,
+    "missingInternalLinks": [],
+    "reportSha256": "98825877b9a6d9ed0eb43f520c52ff5295d2793a22c50daf19e3edeb26e56f21"
+  },
+  "renderInspection": {
+    "report": "Read full CommonMark HTML in three bounded sections",
+    "metadataTroubleshooting": "Read full CommonMark HTML",
+    "githubCommentTroubleshooting": "Read full newly added incident section",
+    "handover": "Read current checkpoint HTML"
+  },
+  "correctedPublishedDigestIssue": {
+    "createdAt": "2026-10-17T16:02:05.306Z",
+    "number": 1765,
+    "exactBodyReadback": true,
+    "correctedArtifactVerified": true,
+    "issue": {
+      "body": "## Observed artifact mismatch\n\nThe first published logger primary-failure artifact redacted personal home paths after retaining original output hashes.\nThe public text was therefore not always the byte sequence described by its adjacent original byte count and SHA-256.\n\nFor `package.pi-plugin.auto-mode.test.unit`,\nthe original output contains 137798 bytes;\nthe retained redacted text contains 137763 bytes.\nThe artifact checker rejected `137763 !== 137798`.\nThis was a published evidence-construction defect,\nnot a provider result or application-source change.\n\n## Exercised correction\n\nCommit `0825ca672a` separates original output provenance from retained public text in\n`doc/audit/depot-logger-primary-failures-2026-10-17.evidence.json`.\nEvery row now records original byte count and hash,\nverification before redaction,\nretained text byte count and hash,\nand whether personal home paths were redacted.\n\nAll 105 private original files were rehashed against their original observation records.\nAll 105 public retained texts independently pass their own byte-count and SHA-256 checks.\nOne row changes under home-path redaction.\nOriginal outputs total 10496598 bytes;\nretained public texts total 10496563 bytes.\n\n## Resolution boundary\n\nThe corrected artifact and its actual consumer checker pass.\nThe final evaluation distinguishes original hashes from retained-text hashes.\nThis closes the verified schema error for this artifact only.\nIt makes no claim that every older artifact or every future redaction path has been audited.\n\nTracking marker: `depot-primary-retained-output-digest-20261017`.\n",
+      "comments": [],
+      "number": 1765,
+      "state": "CLOSED",
+      "title": "Published primary-failure evidence paired redacted text with original output digests",
+      "url": "https://github.com/Aquaticats/Monochromatic/issues/1765"
+    }
+  },
+  "limitations": [
+    "The report is a no-adoption evaluation; failed acceptance conditions remain explicit.",
+    "Verification does not manufacture missing physical shard receipts, assertions, provenance or historical billing."
+  ]
+}

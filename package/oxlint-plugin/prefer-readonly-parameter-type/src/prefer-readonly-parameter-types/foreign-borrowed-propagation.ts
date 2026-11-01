@@ -116,7 +116,7 @@ function initializeCandidates({
       for (let position = 0;
         position
           < summary.slots
-          .parameterCount;
+            .parameterCount;
         position++) {
         callableCandidates.add(asParameterIndex(position,),);
       }
@@ -204,7 +204,7 @@ export function propagateForeignBorrowed(
       for (let position = 0;
         position
           < summary.slots
-          .parameterCount;
+            .parameterCount;
         position++) {
         /**
          Current parameter under test.

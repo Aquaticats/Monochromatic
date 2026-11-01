@@ -202,8 +202,8 @@ $ sudo ip netns delete wgq-fib
 
 ### Translate only the exact occupancy-probe response
 
-`package/cli/wg-quicker/src/tunnel-table-diagnostic.ts:9-12` records both exact family diagnostics.
-`package/cli/wg-quicker/src/tunnel-table-diagnostic.ts:34-46` treats a result as absence only when:
+`package/wg/cli-quicker/src/tunnel-table-diagnostic.ts:9-12` records both exact family diagnostics.
+`package/wg/cli-quicker/src/tunnel-table-diagnostic.ts:34-46` treats a result as absence only when:
 
 - exit status is exactly `2`;
 - stderr after terminal whitespace removal equals the selected family's two-line diagnostic.
@@ -215,7 +215,8 @@ A future `iproute2` diagnostic change fails closed and requires an intentional u
 ### Instantiate a fail-closed route in the missing family
 
 Adding `unreachable default` creates the family table and makes subsequent listing succeed.
-`wg-quicker` uses this after claiming a table so exempt traffic cannot fall through to VPN routing when one physical family is absent.
+`wg-quicker` uses this after claiming a table so exempt traffic cannot fall through to VPN routing
+when one physical family is absent.
 The tradeoff is semantic:
 the family no longer has an absent table,
 it has an explicit unreachable default owned by `wg-quicker`.

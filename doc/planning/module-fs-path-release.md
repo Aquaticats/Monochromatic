@@ -12,7 +12,7 @@ Mechanism and prior art:
 
 ## Driver
 
-`@monochromatic-dev/module-test` cannot publish while it depends on private packages.
+`@monochromatic-dev/test-harness-core` cannot publish while it depends on private packages.
 The logger shipped on 2026-09-06 (0.4.0 today);
  `module-fs-path` is the other private dependency,
  so it gets the same treatment next.
@@ -25,7 +25,7 @@ After this release,
 ## Settled decisions (2026-09-07)
 
 - The published artifact follows the logger's platform split
-   (`package/module/logger/DECISIONS.md`,
+   (`package/logger/core/DECISIONS.md`,
    "Platform-specific sinks live behind `./node` and `./browser`"):
    the root entry `.` is platform-neutral (POSIX path ops,
    trims,
@@ -44,7 +44,8 @@ After this release,
    confirmed by the extraction commit `894c84a5d`,
    the `dom` tsconfig,
    and the OPFS backend)
-   and a single entry with dynamic imports (the logger decision measured that every `import()` leaks into every downstream bundle).
+   and a single entry with dynamic imports
+   (the logger decision measured that every `import()` leaks into every downstream bundle).
 - Backends are chosen at resolution time through `package.json` `imports` entries:
    `#posix-path` (`node`:
    `node:path/posix`;
@@ -109,13 +110,13 @@ After this release,
    the owner typing the one-time password;
    later versions publish from CI with provenance.
 - Records:
-   `package/module/fs-path/DECISIONS.md` for the split (package docs stay beside code),
+   `package/fs-path/core/DECISIONS.md` for the split (package docs stay beside code),
    this file for the release,
    README rewritten.
 
 ## Measured state (2026-09-07)
 
-- `package/module/fs-path/package.json`:
+- `package/fs-path/core/package.json`:
    `private: true`,
    version 0.0.1,
    404 on the registry;
@@ -134,8 +135,9 @@ After this release,
    34 import lines in 30 files,
    every one a Node context;
    no built client bundle in the repo contains fs-path code;
-   `doc/troubleshooting/css-tooling.md` records done-postcss routing around fs-path because its imports dragged Node builtins into the client bundle.
-   Only `dev-script/deps-cube` (2 files) imports a Node-only helper (`findPackageRootCached`);
+   `doc/troubleshooting/css-tooling.md` records done-postcss routing around fs-path
+   because its imports dragged Node builtins into the client bundle.
+   Only `dependency-catalog/cli-cube` (2 files) imports a Node-only helper (`findPackageRootCached`);
    nothing in the repo imports the `ensure*` or `empty*` helpers.
 - Gates:
    `lint:types` green;
@@ -149,7 +151,8 @@ After this release,
    `emptyPath`,
    `removeEmptyFilesInDir`,
    and `GitRepositoryRootNotFoundError` have no test.
-- README claims the package is source-only and lists `./find-monorepo-root` and `./find-package-root` subpaths removed in commit `06cceaa67` (2026-05-29).
+- README claims the package is source-only and lists `./find-monorepo-root`
+   and `./find-package-root` subpaths removed in commit `06cceaa67` (2026-05-29).
 - `npm pack --dry-run`:
    22 files,
    347 kB unpacked,
@@ -203,7 +206,8 @@ After this release,
    and lockfile;
    deps-cube imports moved to `/ts/node.ts`).
    The lockfile was regenerated with the committed pnpm 11.21.0 through `mise exec pnpm@11.21.0`:
-   the uncommitted pnpm 12.3.4 bump in `mise.lock` (another session's change) fails every `pnpm install` in this checkout,
+   the uncommitted pnpm 12.3.4 bump in `mise.lock` (another session's change)
+   fails every `pnpm install` in this checkout,
    pristine or not,
    while re-verifying the lockfile:
    `ERR_PNPM_META_FETCH_FAIL` fetching `@jsr/std__path` from `registry.npmjs.org`.
@@ -256,12 +260,13 @@ After this release,
    `ensureDir`,
    and `findPackageRootCached` work from the installed package;
    `/ts` refused with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
-   The consumer's fixture put `[monorepo]` on line 1 of `mise.toml` and the finder missed it (the marker required a newline before the header):
+   The consumer's fixture put `[monorepo]` on line 1 of `mise.toml`
+   and the finder missed it (the marker required a newline before the header):
    fixed in `a7876a2a2` with three regression cases.
 
 ## Result (2026-09-07)
 
-- `@monochromatic-dev/module-fs-path@0.1.0` is on the registry
+- `@monochromatic-dev/fs-path-core@0.1.0` is on the registry
    (`npm view` prints the version and a `registry.npmjs.org` tarball URL);
    published from a linked worktree of the version branch with `npm publish --otp`,
    no provenance.
@@ -271,7 +276,7 @@ After this release,
    so the registration is verified by the next CI publish rather than here).
 - Version pull request #499 merged as `3e46e38df`;
    the release run it triggered (34111678810) found nothing to version or publish;
-   tag and GitHub release `@monochromatic-dev/module-fs-path@0.1.0` created through the API on the merge commit.
+   tag and GitHub release `@monochromatic-dev/fs-path-core@0.1.0` created through the API on the merge commit.
 - A throwaway Node 26 project installed 0.1.0 from the registry and ran the mise finder,
    `ensureDir`,
    and `findPackageRootCached`;
@@ -283,9 +288,60 @@ After this release,
 
 ## Next action
 
+Historical next action after the 2026-09-07 release:
+
 None for this release.
-The next changeset merged to `main` for this package exercises the CI publish path with provenance for the first time and proves the trusted publisher.
+The next changeset merged to `main` for this package exercises the CI publish path
+with provenance for the first time and proves the trusted publisher.
 `module-test` still waits on `module-async-time`,
  `module-caught-value`,
  `module-const`,
  and `module-numeric-format`.
+
+## Trusted publisher validation release, 2026-10-16
+
+The owner requested a version bump and npm publication to validate the newly added trusted publisher
+for `Aquaticats/Monochromatic` and `npm-publish.yml`.
+The registry already held `0.2.0`,
+published on 2026-09-08 with provenance;
+the package directory had no changes since its release tag.
+A disposable registry installation passed root discovery on disk and in memory,
+Node directory and file helpers,
+path joining,
+and rejection of the unpublished `/ts` entry.
+
+Release `0.2.1` updates the repository URL to the transferred GitHub owner and keeps the public API unchanged.
+Commit `499ab653de` holds the version and changelog update on `release/fs-path-npm-20261016`.
+The dedicated manual workflow builds and tests only this package,
+packs it with pnpm,
+and publishes the tarball with npm OIDC and provenance in a separate job.
+It runs from the release branch so the workflow revision matches the source revision.
+Publishing before bringing the bump to `main` prevents the existing `npm-release.yml` workflow
+from publishing the version before the new trusted publisher can validate.
+
+Local checks passed:
+`mise run //package/fs-path/core:buildAndTest`,
+`lint:types`,
+and `lint:oxlint` (zero warnings and errors).
+[Release run 38837297263](https://github.com/Aquaticats/Monochromatic/actions/runs/38837297263)
+builds commit `704f1a1586a5ef37c8dc597d1fcb0434dfb7a71a`.
+The run succeeded and npm made `0.2.1` available at `2026-10-16T01:53:24.576Z`.
+The registry's `latest` tag resolves to `0.2.1`.
+Its publisher is GitHub Actions,
+with trusted publisher configuration `b5559568-84c4-4539-93bd-c623048cd565`.
+The SLSA provenance identifies `Aquaticats/Monochromatic`,
+`.github/workflows/npm-publish.yml`,
+and source commit `704f1a1586a5ef37c8dc597d1fcb0434dfb7a71a`.
+This successful OIDC publication exercised the newly configured publisher.
+
+A disposable consumer with its own `package.json` installed `0.2.1` from npm and passed the same runtime checks,
+plus assertions of the installed version and repository URL.
+Commit `d71ed3b6d4` records the matching version and changelog on `main`.
+Tag `@monochromatic-dev/fs-path-core@0.2.1` preserves the exact published source commit.
+The initial consumer fixture omitted its own manifest and caused npm to select the parent scratch directory;
+the affected temporary Markdown dependencies were restored and compiled successfully.
+Details:
+[npm parent prefix selection](../troubleshooting/npm-scratch-parent-prefix.md).
+
+Next action:
+none for `0.2.1`.

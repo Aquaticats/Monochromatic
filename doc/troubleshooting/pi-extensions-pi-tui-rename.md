@@ -319,7 +319,8 @@ patch) and the auto-prototype audit in
 ### Versions under test
 
 - Failing pi binary:
-   `/var/home/user/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin/pi` (`pi --version` = `0.75.4`)
+   `/var/home/user/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin/pi`
+   (`pi --version` = `0.75.4`)
 - Failing extension:
    `@ifi/pi-plan@0.5.1`,
    installed at `~/.pi/agent/npm/node_modules/@ifi/pi-plan/`,

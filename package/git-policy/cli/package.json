@@ -1,61 +1,23 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/git-policy-cli",
-  "description": "Policy-aware Git wrapper and side-effect-free policy authoring API.",
+  "description": "Verification harness of the native Git policy wrapper (the Rust crate monochromatic-git-policy-cli).",
   "type": "module",
-  "sideEffects": false,
-  "private": false,
-  "main": "dist/final/node/index.mjs",
-  "types": "dist/final/node/index.d.mts",
-  "exports": {
-    ".": {
-      "types": "./dist/final/node/index.d.mts",
-      "import": "./dist/final/node/index.mjs"
-    },
-    "./ts": "./src/authoring.ts"
-  },
+  "private": true,
   "bin": {
-    "git": "dist/final/node/index.mjs"
-  },
-  "files": [
-    "dist/final/node",
-    "src",
-    "!src/**/*.unit.test.ts",
-    "!src/maintenance",
-    "!src/trust/fixture",
-    "!src/**/*.host-evidence.ts",
-    "LICENSES",
-    "README.md"
-  ],
-  "engines": {
-    "node": "^24.11.0 || ^26.0.0"
-  },
-  "publishConfig": {
-    "access": "public"
+    "git-policy-native-test": "bin/test-native-container.ts",
+    "git-policy-native-mutation": "bin/mutate-native-container.ts",
+    "git-policy-native-interop": "bin/interop-native-container.ts",
+    "git-policy-native-e2e": "bin/e2e-native-container.ts",
+    "git-policy-test-git-image": "bin/build-git-test-image.ts"
   },
   "devDependencies": {
-    "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/git-executable": "workspace:*",
-    "@monochromatic-dev/git-policy-repository": "workspace:*",
-    "@monochromatic-dev/module-async-time": "workspace:*",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-fs-id": "workspace:*",
-    "@monochromatic-dev/module-fs-path": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
-  },
-  "dependencies": {
-    "ignore": "catalog:",
-    "nano-spawn": "catalog:",
-    "rolldown": "catalog:",
-    "type-fest": "catalog:",
-    "typescript": "catalog:",
-    "valibot": "catalog:",
-    "yuku-ast": "catalog:",
-    "yuku-parser": "catalog:"
   },
   "version": "0.0.1",
   "repository": {

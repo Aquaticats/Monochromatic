@@ -102,7 +102,8 @@ or deployment.
 
 ## Preserved evidence and scope
 
-The [prior audit](tech-pi-auto-mode-axiom-migration-vet-2026-09-28-ef5701a1.md) remains unchanged under its original fingerprint.
+The [prior audit](tech-pi-auto-mode-axiom-migration-vet-2026-09-28-ef5701a1.md)
+remains unchanged under its original fingerprint.
 Task #16 closed only specification and collection admission.
 Actual SDK source-view cases and collector adapter checks are retained as bounded evidence,
 not human-origin or production qualification.

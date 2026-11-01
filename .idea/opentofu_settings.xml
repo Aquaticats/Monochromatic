@@ -3,7 +3,7 @@
   <component name='OpenTofuProjectSettings'>
     <option
       name='toolPath'
-      value='$PROJECT_DIR$/../.local/share/mise/installs/opentofu/latest/tofu'
+      value='$PROJECT_DIR$/.cache/toolchain-bin/tofu'
     />
   </component>
 </project>

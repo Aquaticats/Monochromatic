@@ -116,7 +116,7 @@ else {
    */
   const cwd = args.cwd
     ?? process
-    .cwd();
+      .cwd();
 
   /**
    Extra args split on whitespace, filtering empty strings.

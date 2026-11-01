@@ -1,6 +1,6 @@
 // Dispatches tools/call requests to registered tool handlers.
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   JSON_RPC_INVALID_PARAMS,

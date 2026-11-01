@@ -1,4 +1,5 @@
-# macOS release builds warn `stripping debug info with rust-objcopy failed: SIGABRT` (libLLVM.dylib), but the binary is still stripped
+# macOS release builds warn `stripping debug info with rust-objcopy failed: SIGABRT`
+(libLLVM.dylib), but the binary is still stripped
 
 ## Symptom
 

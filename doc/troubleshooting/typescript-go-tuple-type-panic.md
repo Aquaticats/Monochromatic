@@ -19,11 +19,14 @@ During `mise run lint:oxlint` at the repository root:
 ```
 
 The message is followed by a Go stack and then `Error running tsgolint: "exit status: exit status: 2"`.
-The report is attached to `package/webapp-productivity/rss/src/index.ts`,
+The report is attached to `package/rss/app/src/index.ts`,
  at `1:1`,
  which is the file whose analysis is lost.
 
-An earlier reading of mine named `package/module/test/src/expect-matchers.ts` instead,
+The historical `package/test-harness/core/src/expect-matchers.ts` moved on 2026-10-04
+ to `package/test-harness/core-expect/src/expect-matchers.ts`.
+
+An earlier reading of mine named `package/test-harness/core/src/expect-matchers.ts` instead,
  inferred from diagnostics printed near the panic in an interleaved log.
 That was wrong,
  and it is why the reproduction below looked unavailable for so long:
@@ -58,8 +61,8 @@ Measured at `94af5da15`,
  reading the cause `effect-demand-index.ts` logs beside each omission:
 
 ```text
-omitting package/webapp-productivity/rss/src/index.ts:2646:3443:219 ... Error: panic: interface conversion
-omitting package/webapp-productivity/rss/src/index.ts:3500:4182:263 ... Error: panic: interface conversion
+omitting package/rss/app/src/index.ts:2646:3443:219 ... Error: panic: interface conversion
+omitting package/rss/app/src/index.ts:3500:4182:263 ... Error: panic: interface conversion
 omitting node_modules/.../@optique/core@1.2.0/.../dist/facade.js:12673:15456:263 ... Error: panic: interface conversion
 ```
 
@@ -209,17 +212,18 @@ Does not reproduce,
  each run completing with findings and no panic:
 
 ```bash
+# Historical command; the file moved to package/test-harness/core-expect/src/expect-matchers.ts on 2026-10-04.
 # 7 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module/test/src/expect-matchers.ts
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/test-harness/core/src/expect-matchers.ts
 
 # 52 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module/test
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/test-harness/core
 
 # 422 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/module
 
 # 52 findings, no panic
-mise run //package/module/test:lint:oxlint
+mise run //package/test-harness/core:lint:oxlint
 ```
 
 The file the run is working through when it panics therefore does not trigger it on its
@@ -336,7 +340,8 @@ if (hit !== LAYERED_SUMMARY_CACHE_MISS) {
 }
 ```
 
-The warm completeness assertion consequently sees the caller edge but neither the callee summary nor its omission identity.
+The warm completeness assertion consequently sees the caller edge
+ but neither the callee summary nor its omission identity.
 It throws the secondary `Owned effect edge lacks callee summary` error.
 
 The fix needs either:
@@ -370,6 +375,16 @@ tuple data,
  which an instantiated type does not carry.
  So the shape to look for when this fires elsewhere is a `?? []` or `: []` fallback beside a non-tuple array type,
 not a declared tuple.
+
+This site no longer exists.
+ On 2026-10-12 the statusline package replaced both of its regex sites with linear scanners,
+ so `findGerundInText` moved to
+`package/claude-code-plugin/statusline/src/gerund.ts`
+ and takes its matches from a scanner that returns a plain array,
+ with no `?? []` fallback beside a `RegExpMatchArray`.
+`mise run //package/claude-code-plugin/statusline:lint` now reports no omitted callable summaries for that package,
+ which is the same warning quoted from the run that found this trigger.
+ The trigger shape is unchanged and is what to look for in other packages.
 
 A narrower catch would recover the 16.
  The panic surfaces when a type crosses the sync bridge,
@@ -447,7 +462,8 @@ and the Oxlint summary does not disclose the missing analysis.
 
 Until omission metadata round-trips,
 extracted-rule acceptance cannot use warm output or compare worker counts.
-The acceptance harness needs fresh-process versus warm-process diagnostic equality and one-worker versus default-worker equality.
+The acceptance harness needs fresh-process versus warm-process diagnostic equality
+ and one-worker versus default-worker equality.
 
 ## Minimal reproduction
 
@@ -524,7 +540,8 @@ Once a persisted summary is read,
 the analyzer can abort category evidence,
 continue with partially loaded state,
 and lose findings.
-The verified cold/warm differential under "Warm-cache verification" supersedes earlier workspace counts in this document.
+The verified cold/warm differential under "Warm-cache verification" supersedes earlier workspace counts
+ in this document.
 
 ## Verified workarounds
 
@@ -546,7 +563,8 @@ the next unchanged run is damaged again,
 and clearing user cache is not an acceptable operational fix.
 
 The earlier claim that every per-package task avoids the panic is superseded.
-`mise run //package/module/translation-repair:lint:oxlint` reproduces both the fresh omission and warm-cache failure when the extracted rules are enabled.
+`mise run //package/translation-repair/<package>:lint:oxlint` reproduces both the fresh omission and warm-cache failure
+ when the extracted rules are enabled.
 
 ## What does not work
 
@@ -565,7 +583,8 @@ The earlier claim that every per-package task avoids the panic is superseded.
 - Passing paths through the root mise task,
   as in `mise run lint:oxlint -- <path>`.
   That task has no usage spec,
-  so mise splices the argument into the script body and the run dies with `ERR_INVALID_TYPESCRIPT_SYNTAX` before Oxlint starts.
+  so mise splices the argument into the script body and the run dies with `ERR_INVALID_TYPESCRIPT_SYNTAX`
+   before Oxlint starts.
 
 ## Upstream filing decision
 

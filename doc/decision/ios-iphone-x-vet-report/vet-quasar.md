@@ -20,7 +20,9 @@ run,
 
 - iOS runtime model:
    Split model.
-   The Quasar app's UI is a Vue 3 single-page app that runs as JavaScript inside an out-of-process WKWebView (Apple JavaScriptCore + JIT in the WebKit "Web Content Process"),
+   The Quasar app's UI is a Vue 3 single-page app
+   that runs as JavaScript inside an out-of-process WKWebView
+   (Apple JavaScriptCore + JIT in the WebKit "Web Content Process"),
    not in the app process.
    Quasar ships no native iOS runtime of its own:
    its iOS build mode scaffolds a standard Capacitor (`@capacitor/ios`,
@@ -97,9 +99,11 @@ Feasible:
 Mechanism:
  Not provided by Quasar;
  inherited from the Capacitor substrate.
- A Capacitor iOS plugin is a Swift class extending CAPPlugin + CAPBridgedPlugin that registers methods (pluginMethods array of CAPPluginMethod) exposed to JS over the CAPBridge (CAPPluginCall.
+ A Capacitor iOS plugin is a Swift class extending CAPPlugin + CAPBridgedPlugin
+ that registers methods (pluginMethods array of CAPPluginMethod) exposed to JS over the CAPBridge (CAPPluginCall.
 resolve/reject).
- That Swift plugin links a Rust/Go/C static library or XCFramework as a normal Xcode dependency declared via CocoaPods (.
+ That Swift plugin links a Rust/Go/C static library
+ or XCFramework as a normal Xcode dependency declared via CocoaPods (.
 podspec s.
 dependency) or Swift Package Manager (Package.
 swift),
@@ -125,7 +129,9 @@ xcworkspace)
 
 Inherited from the Capacitor/iOS substrate;
  no long-running foreground service exists.
- A multi-hour kopia snapshot cannot run as a continuous task and must be restructured around background URLSession (out-of-process uploads/downloads to pCloud that survive suspension) plus BGProcessingTask (short,
+ A multi-hour kopia snapshot cannot run as a continuous task
+ and must be restructured around background URLSession
+ (out-of-process uploads/downloads to pCloud that survive suspension) plus BGProcessingTask (short,
  idle/charging windows) driven from a native Capacitor plugin.
  The WKWebView/JS layer cannot keep work alive in the background;
  the transfer must live in the Swift plugin calling URLSession background sessions and BGTaskScheduler.
@@ -145,7 +151,9 @@ Feasible:
 Mechanism:
  Not in the WebView;
  in a native Capacitor plugin.
- The in-app S3/HTTP endpoint kopia targets is run by Swift/ObjC native code (e.g. an embedded HTTP server library or the Go/Rust static lib's own listener bound to 127.0.0.1) inside the app process,
+ The in-app S3/HTTP endpoint kopia targets is run by Swift/ObjC native code
+ (e.g. an embedded HTTP server library or the Go/Rust static lib's own listener bound to 127.0.0.1) inside the app
+ process,
  exposed to JS only for control.
  The Vue UI cannot host a socket server itself;
  it orchestrates the native plugin over the CAPBridge.
@@ -169,7 +177,8 @@ Mechanism:
  background URLSession for the streaming/resumable transfer to pCloud),
  which is the correct path for multi-GB streamed uploads.
  (2) WebView:
- fetch/XHR/WebSocket from the Vue layer works for foreground requests but cannot stream in the background and is subject to WKWebView networking.
+ fetch/XHR/WebSocket from the Vue layer works for foreground requests but cannot stream in the background
+ and is subject to WKWebView networking.
  For kopia-to-pCloud the native URLSession path is required.
  Note Quasar's Cordova mode injects a CDVWKWebViewEngine TLS-trust override (accepts server trust unconditionally),
  which is a security smell to avoid in the production HTTPS-to-pCloud path.
@@ -200,7 +209,8 @@ Output:
 Rust core reuse:
  Reused via FFI,
  NOT rewritten on AVAudioEngine.
- The entire Rust core (symphonia decode + libopus + true-peak normalization + peak cache + cpal RemoteIO output) is kept behind a Capacitor native plugin and called through Swift<->Rust C FFI.
+ The entire Rust core (symphonia decode + libopus + true-peak normalization + peak cache + cpal RemoteIO output) is
+ kept behind a Capacitor native plugin and called through Swift<->Rust C FFI.
  What does NOT carry over is the Slint UI:
  the player's UI is a from-scratch rewrite in Vue/Quasar,
  and the Rust core is reached through two bridges (JS<->Swift Capacitor bridge,
@@ -208,7 +218,8 @@ Rust core reuse:
  So 'reuse' means the audio/business core reuses;
  the app itself is a UI rewrite,
  not a port of the Slint app.
- The Slint master-rev pin with winit/femtovg/software renderers is irrelevant on this stack since rendering becomes WKWebView/Vue.
+ The Slint master-rev pin with winit/femtovg/software renderers is irrelevant on this stack
+ since rendering becomes WKWebView/Vue.
 
 Source:
  /tmp/agent/cpal-audit-20260612/src/host/coreaudio/ios/`mod.rs`:
@@ -226,7 +237,9 @@ AVAudioSession;
 
 Minimal app:
  scaffold a Quasar Capacitor app (quasar dev/build -m capacitor -T ios),
- add one native Capacitor plugin (Swift CAPPlugin) that links a trivial Rust staticlib/XCFramework exporting a C function (e.g. returns a number or echoes a string over FFI),
+ add one native Capacitor plugin (Swift CAPPlugin)
+ that links a trivial Rust staticlib/XCFramework exporting a C function
+ (e.g. returns a number or echoes a string over FFI),
  register one pluginMethod,
  and call it from a Vue page.
  Build the generated App.
@@ -234,7 +247,8 @@ xcworkspace with xcodebuild,
  sign,
  install on the iPhone X.
  Exact on-device signal:
- the Vue WebView renders the value returned by the Rust FFI round-trip (JS -> CAPBridge -> Swift -> Rust staticlib -> back),
+ the Vue WebView renders the value returned by the Rust FFI round-trip
+ (JS -> CAPBridge -> Swift -> Rust staticlib -> back),
  proving wall 1 (link + call a native static lib from app code) on a real device.
  Wall 2 needs no probe:
  the UI JS JITs in the WKWebView content process by construction.
@@ -249,7 +263,8 @@ Toolchain:
  Node.
 js + a package manager (pnpm/npm) with @quasar/cli and @quasar/app-vite;
  @capacitor/cli + @capacitor/ios;
- Rust toolchain with the aarch64-apple-ios target (rustup target add aarch64-apple-ios) plus cargo-lipo or cbindgen / `cargo build --target aarch64-apple-ios` to produce the staticlib/XCFramework;
+ Rust toolchain with the aarch64-apple-ios target (rustup target add aarch64-apple-ios) plus cargo-lipo
+ or cbindgen / `cargo build --target aarch64-apple-ios` to produce the staticlib/XCFramework;
  for kopia,
  the Go toolchain with gomobile to emit the c-archive .
 xcframework.
@@ -276,7 +291,8 @@ xcframework.
    Cypress/Playwright or Capacitor's WebDriver for e2e on device),
    native-plugin Swift unit tests (XCTest),
    Rust core property/fuzz/mutation tests at the FFI boundary,
-   and adversarial boundary tests for the JS<->native marshaling (CAPPluginCall getString/getObject) and the in-app HTTP endpoint
+   and adversarial boundary tests for the JS<->native marshaling (CAPPluginCall getString/getObject)
+   and the in-app HTTP endpoint
 
 ## Cited sources
 
@@ -333,7 +349,8 @@ xcframework.
    confirmed
 - Corrections:
    WALL-2 (load-bearing citation gap):
-   The pillar of the "wkwebview-jit" verdict is the parenthetical attributed to Apple's WKWebView class-reference page (developer.
+   The pillar of the "wkwebview-jit" verdict is the parenthetical attributed to Apple's WKWebView class-reference page
+   (developer.
   apple.
   com/documentation/webkit/wkwebview),
    namely that the "out-of-process Web Content Process runs JS JIT".
@@ -362,7 +379,8 @@ xcframework.
    and the other two wall-2 citations only establish peripheral facts (Capacitor uses WKWebView-not-UIWebView;
    the Cordova engine plugin name),
    the wall-2 verdict is not supported by its cited sources as written.
-   Locating a valid Apple source that actually documents the WKWebView out-of-process/JIT architecture (e.g. a WWDC session or WebKit security doc) was outside the scope of this cite-check;
+   Locating a valid Apple source that actually documents the WKWebView out-of-process/JIT architecture
+   (e.g. a WWDC session or WebKit security doc) was outside the scope of this cite-check;
    I do not assert such a source here,
    only that the CITED page does not support the claim.
    WALL-1 (minor over-specification,
@@ -391,7 +409,8 @@ xcframework.
    capacitor-builder.
   js #buildIos runs xcrun xcodebuild -workspace App.
   xcworkspace -scheme App.
-   The iosRuntimeModel claim that the iOS mode scaffolds a @capacitor/ios project is further grounded by capacitor-installation.
+   The iosRuntimeModel claim that the iOS mode scaffolds a @capacitor/ios project is further grounded by
+   capacitor-installation.
   js:
   131 installing @capacitor/${target}.
 - Sources checked:

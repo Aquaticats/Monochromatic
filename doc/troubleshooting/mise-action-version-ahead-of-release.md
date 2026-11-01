@@ -1,4 +1,5 @@
-# mise-action 4.0.1 installs the version `mise.jdx.dev/VERSION` advertises and fails every job while that version has no GitHub release
+# mise-action 4.0.1 installs the version `mise.jdx.dev/VERSION` advertises
+and fails every job while that version has no GitHub release
 
 ## Symptom
 
@@ -35,8 +36,8 @@ The version file names a release that does not exist on GitHub yet.
 Every workflow in this repository that used `jdx/mise-action` without a `version` input
  (`npm-release.yml`,
  `cargo-publish.yml`,
- `cli-git-performance.yml`,
- `cli-git-trust.yml`,
+ `cli-git-performance.yml` (deleted on 2026-10-13 in commit `724d70bfa7`),
+ `cli-git-trust.yml` (deleted on 2026-10-13 in commit `642b6d72cb`),
  `kotlin-linter-publish.yml`,
  `logger-fuzz.yml`,
  `readonly-semantic-bridge.yml`,
@@ -231,6 +232,77 @@ Without the input,
  `latestMiseVersion` still reads the version file,
  so the release age is what switches the resolution path.
 
+### The release-age lookup can fail with 403
+
+Run 38688512043 (`music-player-release.yml`,
+ a push to `main`,
+ 2026-10-15) failed attempt 1 in two jobs with
+ `##[error]GitHub releases API returned 403 Forbidden`:
+ the Android job at "Set up mise (skip auto-install of all tools)" (05:46:17Z)
+ and the macOS desktop job at "Install node (runs the repository's bundle:macos task)" (05:51:20Z).
+Attempt 2 passed,
+ and its Android job logged
+ `Selected mise 2026.10.9, released 2026-10-13T14:53:38Z, with minimum_release_age=1d`.
+The cause of the 403 (a rate limit,
+ a secondary limit,
+ or the token) was not established:
+ the job logs carry no response headers.
+
+The same diagnostic recurred in Depot runner-sizing run `38821765989` at 23:09 UTC on 2026-10-15.
+All six jobs stopped in the mise action before compilation.
+Trial commit `764194142b` selected published version `2026.10.9` and removed `minimum_release_age`.
+The next run,
+`38822116503`,
+passed setup in every job and reached the compilation task.
+This is an executed check of the pinned-version path;
+it does not identify the server's reason for the original 403 or establish permanent service recovery.
+
+The action treats the response as final.
+In `githubMiseReleases` (`src/index.ts:985` at `c2a87611a18de5b3828c5652fe268e992400cb5c`):
+
+```ts
+    if (!response.ok) {
+      const message = `GitHub releases API returned ${response.status} ${response.statusText}`
+      if (
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 429
+      ) {
+        throw new NonRetryableError(message)
+      }
+```
+
+so any 4xx except 429 fails the step without a retry.
+That function is called only from `latestMiseVersion` (`src/index.ts:1013`),
+ which `setupMise` calls only when no
+ `version` input is given (`src/index.ts:413`):
+
+```ts
+  let resolvedVersion = cleanVersion(version)
+  if (
+    !resolvedVersion &&
+    (!fs.existsSync(miseBinPath) || useMinimumReleaseAge)
+  ) {
+```
+
+and `useMinimumReleaseAge` is `!version && Boolean(minimumReleaseAge.trim())` (`src/index.ts:407`).
+With `version` set,
+ the action logs "`minimum_release_age` is ignored because an explicit mise version was provided"
+ (`src/index.ts:408`),
+ so `minimum_release_age` does nothing and the pinned workflow does not set it.
+The remaining requests go to `github.com/jdx/mise/releases/download/` (the archive and `SHASUMS256.txt`
+ with its `.minisig`,
+ `src/index.ts:685` to `src/index.ts:740`);
+ `rg api.github.com src/index.ts` finds the releases
+ lookup as the only API call.
+The pinned version must be a published release with its assets:
+ `gh release view v2026.10.9 --repo jdx/mise` shows `isDraft` false and the `linux-x64`,
+ `macos-arm64` and
+ `windows-*` assets.
+The pin was checked only by reading the source and by the dry run of the pin's branch (recorded in
+ `doc/decision/music-player-releases.md`);
+ it has not met a 403 since.
+
 ## Verification
 
 Version under test:
@@ -271,7 +343,7 @@ Patterns that work:
    the rerun of 34228368589 at 13:57Z installed `2026.9.3`).
 - Every `jdx/mise-action` step at `v4.3.0` with `minimum_release_age: 1d`:
    commit `02fe85b3d` (2026-09-08) triggered `npm-release.yml`,
-   `cli-git-trust.yml` (Linux and Windows),
+   `cli-git-trust.yml` (Linux and Windows; deleted on 2026-10-13 in commit `642b6d72cb`),
    `readonly-semantic-bridge.yml` (Linux and Windows),
    `logger-fuzz.yml`,
    and `toml-edit-fuzz.yml`.
@@ -311,12 +383,18 @@ Patterns that work:
      and the window length is upstream's;
      a run that must happen now cannot.
 3.   Pin `version:` to a release known to exist.
-     The action builds the GitHub URL from the pinned value and never reads the version file.
-     Not applied.
+     The action builds the GitHub URL from the pinned value and never reads the version file
+     and never calls the releases API (see "The release-age lookup can fail with 403").
+     Applied on 2026-10-15 to the two `jdx/mise-action` steps of `.github/workflows/music-player-release.yml`
+     (`version: 2026.10.9`,
+      without `minimum_release_age`).
+     Not applied to the other workflows.
      Tradeoff:
      the pin needs a maintenance rule (the repository's `PIN` rule wants a comment saying why),
      no bot in this repository bumps action inputs,
-     and thirteen steps would carry it.
+     so the owner of the workflow updates it by hand:
+     the steps are in `doc/runbook/release-the-music-player.md`,
+      section "The mise version pin".
 
 ## What does not work
 
@@ -423,3 +501,64 @@ The stale CDN archives (see "The CDN archives are not a way out") are a separate
  `jdx/mise`'s own installer downloads from GitHub releases (`packaging/standalone/install.envsubst:300`),
  and `mise-action` 4.3.0 no longer downloads them,
  so constraint 3 fails.
+
+## Upstream filing decision for the releases API 403
+
+Checked 2026-10-15 for the failure in "The release-age lookup can fail with 403".
+
+`.out-of-scope/` holds no entry for mise or mise-action (`rg -i mise .out-of-scope` matched only unrelated text in
+ `typescript-project-references.md` and `cargo-workspace.md`).
+Duplicate search with `gh search issues --repo jdx/mise-action`:
+ `"releases API"` found nothing;
+ `"403"` found [jdx/mise-action#200](https://github.com/jdx/mise-action/issues/200) (closed 2025-06-25),
+ which is about `mise` itself making unauthenticated requests and hitting the rate limit,
+ not about the action's
+ release lookup;
+ `"minimum_release_age"` found #603,
+ #617,
+ #641,
+ #664 and #538,
+ none about a 403 from the lookup.
+So no existing report covers it.
+
+Walking the six constraints:
+
+1.   Is it really upstream's fault?
+     Not established.
+     The cause of the 403 is unknown:
+      the job logs carry no response headers and no message body.
+     GitHub's documentation (`content/rest/using-the-rest-api/rate-limits-for-the-rest-api.md` in `github/docs`,
+     read 2026-10-15) says that exceeding either the primary or a secondary rate limit returns `403` or `429`.
+     If the 403 was a rate limit,
+      the action's classification (any 4xx except 429 is final) turns a retryable
+     condition into a failure;
+      if it was a token or permission problem,
+      the action behaved correctly.
+2.   Can upstream fix it?
+     Yes:
+      retry a 403 that carries rate-limit headers,
+      or fall back to the version file.
+3.   Are they supporting this use case?
+     Yes:
+      `minimum_release_age` is a shipped input and its lookup is the documented path.
+4.   Would the repo welcome our contribution?
+     `jdx/mise-action` has a `CLAUDE.md` for agent work and no `CONTRIBUTING.md` and no issue template in
+     its root or `.github` (checked by listing both);
+      no ban on outside or AI-assisted reports was found.
+5.   Will they likely fix it?
+     No signal.
+     On #616 the maintainer defended the version file over the releases API for rate-limit reasons.
+6.   Have we prototyped a minimal fix?
+     No,
+      and none is possible without knowing what the 403 was.
+
+Decision:
+ do not file,
+ and keep no draft.
+A report needs the response status text,
+ `x-ratelimit-remaining`,
+ `retry-after` and the body of a failing call,
+ which no log of this repository holds;
+ the action does not print them.
+If the 403 recurs for a workflow that does not pin `version`,
+ capture those headers first.

@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T16:41:45.205Z",
+  "application": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "originalRun": "gb01kjx2qk",
+  "correctedRun": "fnvwqfg0bb",
+  "independentWrapperPreflight": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.evidence.json",
+  "correction": "Native-only verified noninteractive rootful Podman invocation; original absolute binary, commands, plan, application inputs and run resource caps retained",
+  "samples": [
+    {
+      "cohort": "original",
+      "key": "native-1",
+      "run": "gb01kjx2qk",
+      "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+      "job": "hq5g8cjcnh",
+      "attempt": "9xhp6c4zn3",
+      "startedAt": "2026-10-18T15:51:10Z",
+      "finishedAt": "2026-10-18T15:57:33Z",
+      "attemptSeconds": 383,
+      "cpuCount": 4,
+      "memoryBytes": 16779534336,
+      "artifact": {
+        "id": "01a14fbb-8c51-7956-9475-b1a3433fac67",
+        "bytes": 209026,
+        "sha256": "ce1ea1e2cb32c6b82fad0a33e656e8b1f3e3b02ac18f5a8189c3831ef4126c1d",
+        "apiDigestReturned": false,
+        "originalUploadActionDigest": "ce1ea1e2cb32c6b82fad0a33e656e8b1f3e3b02ac18f5a8189c3831ef4126c1d"
+      },
+      "graphMilliseconds": 348353,
+      "scheduledOwnerCommands": 222,
+      "verifiedOriginalCommandLogs": 222,
+      "states": {
+        "succeeded": 194,
+        "failed_requires_classification": 28
+      },
+      "nodes": [
+        {
+          "id": "shared-node-producer",
+          "durationMilliseconds": 61660,
+          "states": {
+            "succeeded": 42
+          }
+        },
+        {
+          "id": "rust",
+          "durationMilliseconds": 283541,
+          "states": {
+            "succeeded": 2
+          }
+        },
+        {
+          "id": "modules-a",
+          "durationMilliseconds": 284284,
+          "states": {
+            "succeeded": 72,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "modules-b",
+          "durationMilliseconds": 276238,
+          "states": {
+            "succeeded": 76,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "browser",
+          "durationMilliseconds": 9363,
+          "states": {
+            "succeeded": 2,
+            "failed_requires_classification": 6
+          }
+        }
+      ],
+      "remainingOwnedDriverGroups": 0,
+      "changedTrackedApplicationFiles": [],
+      "strictOriginalGraphJsonParsed": true
+    },
+    {
+      "cohort": "original",
+      "key": "native-2",
+      "run": "gb01kjx2qk",
+      "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+      "job": "prf7m37qfm",
+      "attempt": "qn2bg45g19",
+      "startedAt": "2026-10-18T15:57:35Z",
+      "finishedAt": "2026-10-18T16:04:03Z",
+      "attemptSeconds": 388,
+      "cpuCount": 4,
+      "memoryBytes": 16779534336,
+      "artifact": {
+        "id": "01a14fc1-800d-7cc3-a708-200d03ef9e0d",
+        "bytes": 208410,
+        "sha256": "9f3f1e78ccb82d1133a40eb7ff49f56ba1feb95738d8aee87e0f9f3c9f18fe49",
+        "apiDigestReturned": false,
+        "originalUploadActionDigest": "9f3f1e78ccb82d1133a40eb7ff49f56ba1feb95738d8aee87e0f9f3c9f18fe49"
+      },
+      "graphMilliseconds": 352248,
+      "scheduledOwnerCommands": 222,
+      "verifiedOriginalCommandLogs": 222,
+      "states": {
+        "succeeded": 194,
+        "failed_requires_classification": 28
+      },
+      "nodes": [
+        {
+          "id": "shared-node-producer",
+          "durationMilliseconds": 61439,
+          "states": {
+            "succeeded": 42
+          }
+        },
+        {
+          "id": "rust",
+          "durationMilliseconds": 296024,
+          "states": {
+            "succeeded": 2
+          }
+        },
+        {
+          "id": "modules-a",
+          "durationMilliseconds": 286884,
+          "states": {
+            "succeeded": 72,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "modules-b",
+          "durationMilliseconds": 288493,
+          "states": {
+            "succeeded": 76,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "browser",
+          "durationMilliseconds": 10296,
+          "states": {
+            "succeeded": 2,
+            "failed_requires_classification": 6
+          }
+        }
+      ],
+      "remainingOwnedDriverGroups": 0,
+      "changedTrackedApplicationFiles": [],
+      "strictOriginalGraphJsonParsed": true
+    },
+    {
+      "cohort": "corrected",
+      "key": "native-2",
+      "run": "fnvwqfg0bb",
+      "source": "72af18d5b130dabef7ff5b656ffdc1b58df4fcde",
+      "job": "wdftqf7lj0",
+      "attempt": "hd8lkfppqb",
+      "startedAt": "2026-10-18T16:30:14Z",
+      "finishedAt": "2026-10-18T16:36:42Z",
+      "attemptSeconds": 388,
+      "cpuCount": 4,
+      "memoryBytes": 16779534336,
+      "artifact": {
+        "id": "01a14fdf-623d-7e5f-a98c-46fd4af9f77f",
+        "bytes": 221539,
+        "sha256": "b592ab28d0e6e05dacb3cc20ec1e3761e5dac10e4b0ba3cec7b546a0197b6cfc",
+        "apiDigestReturned": false,
+        "originalUploadActionDigest": "b592ab28d0e6e05dacb3cc20ec1e3761e5dac10e4b0ba3cec7b546a0197b6cfc"
+      },
+      "graphMilliseconds": 352175,
+      "scheduledOwnerCommands": 222,
+      "verifiedOriginalCommandLogs": 222,
+      "states": {
+        "succeeded": 198,
+        "failed_requires_classification": 24
+      },
+      "nodes": [
+        {
+          "id": "shared-node-producer",
+          "durationMilliseconds": 62011,
+          "states": {
+            "succeeded": 42
+          }
+        },
+        {
+          "id": "rust",
+          "durationMilliseconds": 331160,
+          "states": {
+            "succeeded": 2
+          }
+        },
+        {
+          "id": "modules-a",
+          "durationMilliseconds": 288919,
+          "states": {
+            "succeeded": 73,
+            "failed_requires_classification": 10
+          }
+        },
+        {
+          "id": "modules-b",
+          "durationMilliseconds": 280324,
+          "states": {
+            "succeeded": 76,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "browser",
+          "durationMilliseconds": 111963,
+          "states": {
+            "succeeded": 5,
+            "failed_requires_classification": 3
+          }
+        }
+      ],
+      "remainingOwnedDriverGroups": 0,
+      "changedTrackedApplicationFiles": [],
+      "strictOriginalGraphJsonParsed": true
+    },
+    {
+      "cohort": "corrected",
+      "key": "native-1",
+      "run": "fnvwqfg0bb",
+      "source": "72af18d5b130dabef7ff5b656ffdc1b58df4fcde",
+      "job": "19j3026gt3",
+      "attempt": "jjl310vs31",
+      "startedAt": "2026-10-18T16:23:42Z",
+      "finishedAt": "2026-10-18T16:30:12Z",
+      "attemptSeconds": 390,
+      "cpuCount": 4,
+      "memoryBytes": 16779534336,
+      "artifact": {
+        "id": "01a14fd9-700d-7d50-8080-c6c7862dfc3c",
+        "bytes": 222971,
+        "sha256": "43aac6170114e63ee919467462dc95e0ba5c3761e23d507923da26e3c1ae3786",
+        "apiDigestReturned": false,
+        "originalUploadActionDigest": "43aac6170114e63ee919467462dc95e0ba5c3761e23d507923da26e3c1ae3786"
+      },
+      "graphMilliseconds": 354405,
+      "scheduledOwnerCommands": 222,
+      "verifiedOriginalCommandLogs": 222,
+      "states": {
+        "succeeded": 197,
+        "failed_requires_classification": 25
+      },
+      "nodes": [
+        {
+          "id": "shared-node-producer",
+          "durationMilliseconds": 62589,
+          "states": {
+            "succeeded": 42
+          }
+        },
+        {
+          "id": "rust",
+          "durationMilliseconds": 322278,
+          "states": {
+            "succeeded": 2
+          }
+        },
+        {
+          "id": "modules-a",
+          "durationMilliseconds": 290664,
+          "states": {
+            "succeeded": 72,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "modules-b",
+          "durationMilliseconds": 283542,
+          "states": {
+            "succeeded": 76,
+            "failed_requires_classification": 11
+          }
+        },
+        {
+          "id": "browser",
+          "durationMilliseconds": 111183,
+          "states": {
+            "succeeded": 5,
+            "failed_requires_classification": 3
+          }
+        }
+      ],
+      "remainingOwnedDriverGroups": 0,
+      "changedTrackedApplicationFiles": [],
+      "strictOriginalGraphJsonParsed": true
+    }
+  ],
+  "completedPhaseMeasurements": [
+    {
+      "id": "shared-node-producer",
+      "nativeCorrected": {
+        "valuesMilliseconds": [
+          62011,
+          62589
+        ],
+        "minimumMilliseconds": 62011,
+        "maximumMilliseconds": 62589,
+        "spreadMilliseconds": 578,
+        "meanMilliseconds": 62300
+      },
+      "github": {
+        "samples": 2,
+        "valuesMilliseconds": [
+          206729,
+          213691
+        ],
+        "minimumMilliseconds": 206729,
+        "maximumMilliseconds": 213691,
+        "spreadMilliseconds": 6962,
+        "meanMilliseconds": 210210
+      },
+      "githubMeanOverNativeCorrectedMean": 3.3741573033707866,
+      "wholePipelineMultiplier": false
+    },
+    {
+      "id": "rust",
+      "nativeCorrected": {
+        "valuesMilliseconds": [
+          331160,
+          322278
+        ],
+        "minimumMilliseconds": 322278,
+        "maximumMilliseconds": 331160,
+        "spreadMilliseconds": 8882,
+        "meanMilliseconds": 326719
+      },
+      "github": {
+        "samples": 2,
+        "valuesMilliseconds": [
+          715204,
+          725835
+        ],
+        "minimumMilliseconds": 715204,
+        "maximumMilliseconds": 725835,
+        "spreadMilliseconds": 10631,
+        "meanMilliseconds": 720519.5
+      },
+      "githubMeanOverNativeCorrectedMean": 2.2053186377284457,
+      "wholePipelineMultiplier": false
+    }
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
+    "bytes": 173906,
+    "sha256": "86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9",
+    "records": 24
+  },
+  "limitations": [
+    "Original native browser invocations stop at the documented rootless group-identity prerequisite failure; no browser-case credit.",
+    "Corrected browser preparation succeeds in both repetitions; source WebKit and root E2E discovery failures remain.",
+    "Source/test gate failures and randomized property seeds differ; no whole-graph or whole-repository speed multiplier.",
+    "Raw command stdout/stderr can interleave reporter JSON; a derived cleaned report is not a strict native JSON consumer.",
+    "Attempt intervals are nominal compute inputs, not demonstrated VM lifetime, deallocation or invoices."
+  ],
+  "rawProviderActionsLogsPublished": false
+}

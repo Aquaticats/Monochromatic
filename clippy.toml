@@ -1,6 +1,14 @@
 # Clippy lint-parameter config.
-# What: ban panic-on-error Result::unwrap without also banning Option::unwrap.
-# Why: callers should propagate errors with ? or document intentional panics with expect.
+# What: ban panic-on-error Result::unwrap without also banning Option::unwrap,
+#  and ban every constructor that places scratch under the system temporary directory.
+# Why: callers should propagate errors with ? or document intentional panics with expect;
+#  the device behind /tmp is unknowable (a tmpfs quota filled in issue 1809), so scratch goes in a transaction
+#  directory under `.git/cli-git` or in the build directory, and a remaining use needs an `#[expect]` with a reason.
 disallowed-methods = [
   { path = "std::result::Result::unwrap", reason = "handle errors with ? or explain intentional panic with expect" },
+  { path = "std::env::temp_dir", reason = "the device behind /tmp is unknowable; use a directory under the build directory or .git/cli-git" },
+  { path = "tempfile::tempdir", reason = "creates under std::env::temp_dir; use tempfile::tempdir_in with a directory under the build directory" },
+  { path = "tempfile::tempfile", reason = "creates under std::env::temp_dir; use tempfile::tempfile_in with a directory under the build directory" },
+  { path = "tempfile::TempDir::new", reason = "creates under std::env::temp_dir; use TempDir::new_in with a directory under the build directory" },
+  { path = "tempfile::NamedTempFile::new", reason = "creates under std::env::temp_dir; use NamedTempFile::new_in with a directory under the build directory" },
 ]

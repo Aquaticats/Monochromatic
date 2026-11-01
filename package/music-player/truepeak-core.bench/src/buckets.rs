@@ -1,12 +1,24 @@
-//! The bucket-first composite: per-provenance coverage and margin, with the FLAC
+//! The bucket-first composite:
+//!  per-provenance coverage and margin,
+//!  with the FLAC
 //! bones-guided probe.
 //!
-//! Buckets come from embedded tags only (codec, store IDs, iTunNORM, youtube provenance;
-//! never path text). Their zoom tails diverge hard: FLAC's frame sizes track signal level
-//! (lossless bits follow residual entropy), so a bones-guided probe keeps FLAC accurate at
-//! a fraction of the decode cost, and the freed seconds buy the risky untagged-lossy
-//! bucket more coverage. Perceptual codecs' byte profiles were measured useless for this
-//! (bits follow busyness, not height), so lossy buckets use the plain frontier zoom.
+//! Buckets come from embedded tags only (codec,
+//!  store IDs,
+//!  iTunNORM,
+//!  youtube provenance;
+//! never path text).
+//!  Their zoom tails diverge hard:
+//!  FLAC's frame sizes track signal level
+//! (lossless bits follow residual entropy),
+//!  so a bones-guided probe keeps FLAC accurate at
+//! a fraction of the decode cost,
+//!  and the freed seconds buy the risky untagged-lossy
+//! bucket more coverage.
+//!  Perceptual codecs' byte profiles were measured useless for this
+//! (bits follow busyness,
+//!  not height),
+//!  so lossy buckets use the plain frontier zoom.
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
@@ -25,16 +37,22 @@ use std::path::Path;
 use anyhow::{Context, Result};
 /// Imports serde's derive so side-file rows parse straight from each JSON line.
 use serde::Deserialize;
-/// Imports the shared dB conversion, the policy, and the engine's bucket types.
+/// Imports the shared dB conversion,
+///  the policy,
+///  and the engine's bucket types.
 use truepeak_core::{BucketProbe, Policy, TrackProvenance, peak_dbtp};
 
 /// One row of the embedded-tag sweep (analysis/tags-sweep.mjs output).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TagRow {
-    /// Track path, the join key against the corpus.
+    /// Track path,
+    ///  the join key against the corpus.
     path: String,
-    /// Audio codec name from ffprobe (`flac`, `opus`, `aac`, `mp3`).
+    /// Audio codec name from ffprobe (`flac`,
+    ///  `opus`,
+    ///  `aac`,
+    ///  `mp3`).
     codec: Option<String>,
     /// Whether store identifiers (ISRC/UPC/content ids) are embedded.
     #[serde(default)]
@@ -50,7 +68,8 @@ struct TagRow {
 /// One row of the FLAC frame-size profile file (analysis/flac-bones.mjs output).
 #[derive(Deserialize)]
 struct ProfileRow {
-    /// Track path, the join key against the corpus.
+    /// Track path,
+    ///  the join key against the corpus.
     path: String,
     /// Compressed bytes per 0.1 s slot from the CRC-verified frame walk.
     bytes: Vec<u64>,
@@ -59,21 +78,31 @@ struct ProfileRow {
 /// The provenance bucket a track probes under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Bucket {
-    /// Lossless FLAC: thin tail, bones-guided probe.
+    /// Lossless FLAC:
+    ///  thin tail,
+    ///  bones-guided probe.
     Flac,
-    /// Store-tagged lossy (ISRC/UPC/iTunNORM): mastered releases.
+    /// Store-tagged lossy (ISRC/UPC/iTunNORM):
+    ///  mastered releases.
     Store,
-    /// Youtube-provenance lossy: loudness-normalized sources.
+    /// Youtube-provenance lossy:
+    ///  loudness-normalized sources.
     Purl,
-    /// Untagged lossy: the risk bucket that gets the freed coverage.
+    /// Untagged lossy:
+    ///  the risk bucket that gets the freed coverage.
     Bare,
 }
 
 /// The probe dial the SHIPPED policy assigns this bucket.
 ///
-/// What: maps the bench bucket to the engine's provenance selection, so the bench
-/// evaluates exactly the table `truepeak_core::default_policy` ships. Why: one source
-/// of truth; the bench validates the engine's dials instead of carrying its own copy.
+/// What:
+///  maps the bench bucket to the engine's provenance selection,
+///  so the bench
+/// evaluates exactly the table `truepeak_core::default_policy` ships.
+///  Why:
+///  one source
+/// of truth;
+///  the bench validates the engine's dials instead of carrying its own copy.
 fn bucket_probe(policy: &Policy, bucket: Bucket, bones_present: bool) -> BucketProbe {
     let provenance = match bucket {
         Bucket::Flac => TrackProvenance { lossless: true, ..TrackProvenance::unknown() },
@@ -84,22 +113,27 @@ fn bucket_probe(policy: &Policy, bucket: Bucket, bones_present: bool) -> BucketP
     return provenance.select(&policy.buckets, bones_present)
 }
 
-/// Read the tag sweep into a per-path bucket map; tracks missing from the sweep fall
+/// Read the tag sweep into a per-path bucket map;
+///  tracks missing from the sweep fall
 /// back to their file extension.
 ///
-/// What: joins tags-full.jsonl rows to buckets. Why: bucket assignment must be
-/// reproducible from committed side files, never from path text heuristics.
+/// What:
+///  joins tags-full.jsonl rows to buckets.
+///  Why:
+///  bucket assignment must be
+/// reproducible from committed side files,
+///  never from path text heuristics.
 pub fn load_buckets(path: &Path) -> Result<HashMap<String, Bucket>> {
     // Stream rows and reduce each to its bucket.
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut map = HashMap::new();
     for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+        let text = line?;
+        if text.trim().is_empty() {
             continue;
         }
-        let row: TagRow = serde_json::from_str(&line)?;
+        let row: TagRow = serde_json::from_str(&text)?;
         let bucket = if row.codec.as_deref() == Some("flac") {
             Bucket::Flac
         } else if row.has_store_ids || row.has_itun_norm {
@@ -125,19 +159,23 @@ fn bucket_from_extension(path: &str) -> Bucket {
 
 /// Read the FLAC frame-size profiles into a per-path top-slot list.
 ///
-/// What: keeps only each profile's `top` largest byte slots (the policy's
-/// `bones_top_slots`). Why: the probe needs the slot indices, not the raw profile.
+/// What:
+///  keeps only each profile's `top` largest byte slots (the policy's
+/// `bones_top_slots`).
+///  Why:
+///  the probe needs the slot indices,
+///  not the raw profile.
 pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>> {
     // Stream rows, sort slot indices by byte count, keep the top few.
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut map = HashMap::new();
     for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+        let text = line?;
+        if text.trim().is_empty() {
             continue;
         }
-        let row: ProfileRow = serde_json::from_str(&line)?;
+        let row: ProfileRow = serde_json::from_str(&text)?;
         let mut order: Vec<usize> = (0..row.bytes.len()).collect();
         order.sort_by(|&a, &b| return row.bytes[b].cmp(&row.bytes[a]));
         order.truncate(top);
@@ -146,7 +184,8 @@ pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>
     return Ok(map)
 }
 
-/// Convert a linear peak to dBTP, treating silence as a very negative level.
+/// Convert a linear peak to dBTP,
+///  treating silence as a very negative level.
 fn db(peak: f64) -> f64 {
     if peak <= 0.0 {
         return f64::NEG_INFINITY
@@ -155,11 +194,20 @@ fn db(peak: f64) -> f64 {
     }
 }
 
-/// The hybrid probe: optional bones seed slots (each ±1), an even pass, then frontier
-/// zoom until the bin budget is spent; returns the loudest decoded bin and decoded secs.
+/// The hybrid probe:
+///  optional bones seed slots (each ±1),
+///  an even pass,
+///  then frontier
+/// zoom until the bin budget is spent;
+///  returns the loudest decoded bin and decoded secs.
 ///
-/// What: the same climb as `zoom.rs`, seeded by byte-rate hot spots when a profile
-/// exists. Why: for lossless codecs the byte profile points at loud passages, so the
+/// What:
+///  the same climb as `zoom.rs`,
+///  seeded by byte-rate hot spots when a profile
+/// exists.
+///  Why:
+///  for lossless codecs the byte profile points at loud passages,
+///  so the
 /// climb starts on the right hills at a fraction of the coverage.
 fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<&Vec<usize>>) -> (f64, f64) {
     let bins = &track.bin_peaks;
@@ -171,16 +219,16 @@ fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<
     let mut used = 0usize;
     let mut peak = 0.0f32;
     let decode = |index: usize,
-                  decoded: &mut Vec<bool>,
-                  heap: &mut BinaryHeap<(u32, usize)>,
-                  used: &mut usize,
-                  peak: &mut f32| {
-        decoded[index] = true;
-        *used += 1;
-        if bins[index] > *peak {
-            *peak = bins[index];
+                  decoded_flags: &mut Vec<bool>,
+                  loud_heap: &mut BinaryHeap<(u32, usize)>,
+                  used_count: &mut usize,
+                  peak_value: &mut f32| {
+        decoded_flags[index] = true;
+        *used_count += 1;
+        if bins[index] > *peak_value {
+            *peak_value = bins[index];
         }
-        heap.push((bins[index].to_bits(), index));
+        loud_heap.push((bins[index].to_bits(), index));
     };
     if let Some(slots) = bones {
         for &slot in slots {
@@ -222,7 +270,10 @@ fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<
     return (f64::from(peak), used as f64 * track.bin_seconds)
 }
 
-/// One probed long track under the composite: levels, margin, and its bucket.
+/// One probed long track under the composite:
+///  levels,
+///  margin,
+///  and its bucket.
 #[derive(Clone, Debug)]
 pub struct BucketRow {
     /// Full-track true peak in dBTP.
@@ -231,14 +282,25 @@ pub struct BucketRow {
     pub probe_db: f64,
     /// The margin its bucket assigns in dB.
     pub margin_db: f64,
-    /// The bucket, for clamp breakdowns.
+    /// The bucket,
+    ///  for clamp breakdowns.
     pub bucket: Bucket,
 }
 
-/// Print the decided composite's report: budget, three measures, clamp breakdown.
+/// Print the decided composite's report:
+///  budget,
+///  three measures,
+///  clamp breakdown.
 ///
-/// What: loads the two side files (tag sweep, FLAC profiles), evaluates the decided
-/// assignment, and prints the letter's measures. Why: the committed, reproducible
+/// What:
+///  loads the two side files (tag sweep,
+///  FLAC profiles),
+///  evaluates the decided
+/// assignment,
+///  and prints the letter's measures.
+///  Why:
+///  the committed,
+///  reproducible
 /// evaluation of the bucket-first answer.
 pub fn report_buckets(
     tracks: &[Track],
@@ -305,9 +367,14 @@ pub fn report_buckets(
 
 /// Evaluate the shipped composite over the corpus.
 ///
-/// What: short tracks full-scan; each long track probes under the SHIPPED policy's
+/// What:
+///  short tracks full-scan;
+///  each long track probes under the SHIPPED policy's
 /// bucket coverage (FLAC hybrid when a profile exists) and carries its bucket's
-/// margin. Why: one row per track is everything the report needs, and every dial comes
+/// margin.
+///  Why:
+///  one row per track is everything the report needs,
+///  and every dial comes
 /// from `truepeak_core::default_policy`.
 pub fn evaluate_buckets(
     tracks: &[Track],

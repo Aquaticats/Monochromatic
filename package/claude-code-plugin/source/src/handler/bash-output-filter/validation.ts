@@ -260,8 +260,8 @@ function commandHasTtyContainerInvoke(command: ShellCommandInfo,): boolean {
 function commandHasOutputRedirect(command: ShellCommandInfo,): boolean {
   return command.redirects
     .some(function redirectWritesFile(redirect,): boolean {
-    return redirect.writesFile;
-  },);
+      return redirect.writesFile;
+    },);
 }
 
 /**
@@ -367,15 +367,15 @@ function commandIsDetachWrapper(command: ShellCommandInfo,): boolean {
 function analysisHasCommandSkip(analysis: ShellCommandAnalysis,): boolean {
   return analysis.commands
     .some(function commandShouldSkip(command,): boolean {
-    return commandIsBinaryTool(command,)
-      || commandHasOutputRedirect(command,)
-      || commandInvokesFilterScript(command,)
-      || commandIsDetachWrapper(command,)
-      || commandHasTtyContainerInvoke(command,)
-      || commandIsBunBuild(command,)
-      || commandIsStateBuiltin(command,)
-      || (command.name === 'eval');
-  },);
+      return commandIsBinaryTool(command,)
+        || commandHasOutputRedirect(command,)
+        || commandInvokesFilterScript(command,)
+        || commandIsDetachWrapper(command,)
+        || commandHasTtyContainerInvoke(command,)
+        || commandIsBunBuild(command,)
+        || commandIsStateBuiltin(command,)
+        || (command.name === 'eval');
+    },);
 }
 
 /**

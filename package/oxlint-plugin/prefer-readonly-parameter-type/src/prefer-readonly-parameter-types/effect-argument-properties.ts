@@ -19,7 +19,7 @@
 import type {
   Node,
   ObjectLiteralExpression,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isAssertionExpression,
   isFunctionLikeDeclaration,
@@ -33,8 +33,8 @@ import {
   isSetAccessorDeclaration,
   isShorthandPropertyAssignment,
   isSpreadAssignment,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { parameterIndexes, } from './effect-call-resolution.ts';
 import { packagedCallableOrigins, } from './effect-packaged-callable-origins.ts';
@@ -247,10 +247,10 @@ function propertyContribution({
      Caller origins the shorthand value carries.
      */
     const shorthandOrigins = ((valueSymbol === undefined)
-        || (!expressionCanCarryMutableState({
-          checker,
-          node: property.name,
-        },)))
+      || (!expressionCanCarryMutableState({
+        checker,
+        node: property.name,
+      },)))
       ? NO_SLOT_ORIGIN
       : bindingOriginBySymbolId.get(valueSymbol.id,) ?? NO_SLOT_ORIGIN;
     return {

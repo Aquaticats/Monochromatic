@@ -1,0 +1,106 @@
+warning: this closure captures `s`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/known_gaps.rs:29:23
+   |
+LL |     keep_arc(Arc::new(move || { let _ = &s; }));
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+   = note: `#[warn(avoidable_closure)]` on by default
+
+warning: this closure captures `s`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/known_gaps.rs:40:31
+   |
+LL |     keep_generic_arc(Arc::new(move || { let _ = &s; }));
+   |                               ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:47:26
+   |
+LL |     let w = TupleWrapper(move || drop(s));
+   |                          ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/known_gaps.rs:55:21
+   |
+LL |     keep_rc(Rc::new(move || { let _ = &s; }));
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:62:22
+   |
+LL |     keep_option(Some(move || drop(s)));
+   |                      ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but it is not a direct argument of a call or method call
+  --> $DIR/known_gaps.rs:69:36
+   |
+LL |     let h = FieldBox { f: Box::new(move || { let _ = &s; }) };
+   |                                    ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but it is not a direct argument of a call or method call
+  --> $DIR/known_gaps.rs:77:31
+   |
+LL |     let h = FieldGeneric { f: move || { let _ = &s; } };
+   |                               ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:85:37
+   |
+LL |     keep_optional_box(Some(Box::new(move || drop(s))));
+   |                                     ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/known_gaps.rs:92:46
+   |
+LL |     keep_static_reference(Box::leak(Box::new(move || s.len())));
+   |                                              ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:99:16
+   |
+LL |     g(Box::new(move || drop(s)));
+   |                ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:106:16
+   |
+LL |     g(Box::new(move || drop(s)));
+   |                ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `s`, but the callee is not a declared function, so no parameter bound can be read from it
+  --> $DIR/known_gaps.rs:113:16
+   |
+LL |     g(Box::new(move || drop(s)));
+   |                ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures no variables, so a named function can take its place; also, it is not a direct argument of a call or method call
+  --> $DIR/known_gaps.rs:120:28
+   |
+LL |     keep_static_reference(&|| 1);
+   |                            ^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: 13 warnings emitted

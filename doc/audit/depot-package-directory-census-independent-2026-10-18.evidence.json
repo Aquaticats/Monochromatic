@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-18T16:59:07.034Z",
+  "reviewer": "/root",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "input": {
+    "path": "doc/planning/depot-complete-coverage-packages.json.gz",
+    "bytes": 1143058,
+    "sha256": "67b48d151904ab676116033a1866ffbde9cf48d7ac9c896f19d34185af5587d5"
+  },
+  "method": "Independent git ls-tree -r -t -z --full-tree frozen-source object types; compare every third-level package tree to candidate directories, retain excluded blob identities",
+  "originalCandidates": 227,
+  "packageDirectories": 223,
+  "states": {
+    "archived_excluded_from_active_mise_roots": 2,
+    "paused_excluded_from_active_mise_roots": 13,
+    "active_tree_root": 208
+  },
+  "excludedDocumentationBlobs": [
+    {
+      "path": "package-paused/webapp-forge/PHASE-2-DEFERRED.md",
+      "mode": "100644",
+      "type": "blob",
+      "oid": "b654292650aa743329bafc9a7b984103d3d26c67"
+    },
+    {
+      "path": "package/claude-code-plugin/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "oid": "aed6e8b7747bfd284d0eb6fc23c056007192bea8"
+    },
+    {
+      "path": "package/music-player/PROPOSAL.shared-core.md",
+      "mode": "100644",
+      "type": "blob",
+      "oid": "3856c70ef5d76b0e74fee38fc5b3b2bee2d1b4ce"
+    },
+    {
+      "path": "package/music-player/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "oid": "40c13bc773c2a363a9df20e2ff1bde855b41969e"
+    }
+  ],
+  "independentTreeSetEquality": true,
+  "taskAndExecutionCountsRecomputed": false
+}

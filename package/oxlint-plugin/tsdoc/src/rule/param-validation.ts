@@ -57,16 +57,16 @@ export const requireParamName: CreateOnceRule = {
           .params
           .blocks
           .forEach(function checkBlock(block,): void {
-          if (block.parameterName
-            .trim()
-            .length
-            === 0) {
-            context.report({
-              loc: commentReportLoc(result.comment,),
-              messageId: 'missingName',
-            },);
-          }
-        },);
+            if (block.parameterName
+              .trim()
+              .length
+              === 0) {
+              context.report({
+                loc: commentReportLoc(result.comment,),
+                messageId: 'missingName',
+              },);
+            }
+          },);
       },
     },);
   },
@@ -124,14 +124,14 @@ export const requireParamDescription: CreateOnceRule = {
           .params
           .blocks
           .forEach(function checkBlock(block,): void {
-          if (!block.hasDescription) {
-            context.report({
-              loc: commentReportLoc(result.comment,),
-              messageId: 'missingDescription',
-              data: { paramName: block.parameterName, },
-            },);
-          }
-        },);
+            if (!block.hasDescription) {
+              context.report({
+                loc: commentReportLoc(result.comment,),
+                messageId: 'missingDescription',
+                data: { paramName: block.parameterName, },
+              },);
+            }
+          },);
       },
     },);
   },

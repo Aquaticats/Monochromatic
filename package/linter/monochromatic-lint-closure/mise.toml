@@ -1,0 +1,75 @@
+[env]
+# Bound compiler fan-out during local iteration, matching the sibling Rust packages.
+CARGO_BUILD_JOBS = "2"
+
+[tasks.build]
+description = "Build the Dylint library"
+run = "cargo build"
+
+[tasks.test]
+description = "Run the UI tests and the unit tests"
+run = "cargo nextest run --all-targets"
+
+[tasks."lint:clippy"]
+description = "Run Clippy over the library and tests, denying warnings"
+run = "cargo clippy --all-targets -- --deny warnings"
+
+[tasks."lint:rustfmt"]
+description = "Check formatting"
+run = "cargo fmt --check"
+
+[tasks."format:rust"]
+description = "Format the Rust sources"
+run = "cargo fmt"
+
+[tasks.lint]
+description = "Run every static check of the library"
+run = ["cargo check --all-targets", "cargo clippy --all-targets -- --deny warnings", "cargo fmt --check"]
+
+[tasks.bless]
+description = "Rewrite tests/ui/*.stderr from the lint's current output; review the diff against the verdict markers before committing"
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+// compiletest writes each differing actual output next to its scratch files in TMPDIR, so a fresh TMPDIR collects exactly them.
+const scratch = mkdtempSync(join(tmpdir(), 'bless-'));
+const run = spawnSync('cargo', ['nextest', 'run', 'ui_tests::ui', '--no-fail-fast'], {
+  env: { ...process.env, TMPDIR: scratch },
+  stdio: 'inherit',
+});
+if (run.error) throw run.error;
+for (const name of readdirSync(scratch)) {
+  if (name.endsWith('.stage-id.stderr')) {
+    // The harness pads each golden file with a blank line; the commit policy trims it again, and the test pads it back.
+    copyFileSync(join(scratch, name), join('tests/ui', name.replace('.stage-id.stderr', '.stderr')));
+    console.log('blessed ' + name);
+  }
+}
+'''
+
+[tasks.run]
+description = "Lint another package with every target compiled: mise run //package/linter/monochromatic-lint-closure:run <package directory>"
+# --path makes Dylint build this library with the active toolchain and load it, so no staged copy is needed
+# (measured on 2026-10-19 under the shared build-dir setting; the earlier task staged a copy named lib<name>@<toolchain>.so).
+# monochromatic-lint runs the same lint for every package without --all-targets; this task shows what the exemption of
+# tests, examples and benchmarks leaves out.
+# mise appends raw arguments to an inline script's text, so the directory is declared as a usage argument and read from the environment.
+usage = 'arg "<directory>" help="Directory of the package to lint; relative paths resolve against the directory the command was typed in"'
+
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+const directory = process.env.usage_directory;
+if (directory === undefined) throw new Error('Pass the directory of the package to lint');
+// mise runs a task in this package's directory, so a relative argument is resolved against the directory it was typed in.
+const manifest = join(resolve(process.env.MISE_ORIGINAL_CWD ?? process.cwd(), directory), 'Cargo.toml');
+if (!existsSync(manifest)) throw new Error('No Cargo.toml at ' + manifest);
+const result = spawnSync('cargo', ['dylint', '--path', process.cwd(), '--manifest-path', manifest, '--', '--all-targets'], { stdio: 'inherit' });
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;
+'''

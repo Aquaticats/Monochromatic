@@ -19,11 +19,11 @@ import spawn, { type Result, } from 'nano-spawn';
 import {
   findRootCached,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import type { Logger, } from './types.ts';
 
@@ -264,10 +264,10 @@ async function gitLogDates(
   ],);
   return stdout.split('\n',)
     .filter(function keepNonEmpty(line,) {
-    return line.trim()
-      .length
-      > 0;
-  },);
+      return line.trim()
+        .length
+        > 0;
+    },);
 }
 
 //endregion Local git lookups

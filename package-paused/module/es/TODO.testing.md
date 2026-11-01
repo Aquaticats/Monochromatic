@@ -91,8 +91,10 @@
 
 **Type Constants**:
 
-- [ ] **Numeric types**: [`Int`](src/numeric.type.int.ts:1), [`PositiveInt`](src/numeric.type.int.ts:1), [`NegativeInt`](src/numeric.type.int.ts:1), etc.
-- [ ] **Array types**: [`Tuple`](src/array.type.tuple.ts:17), [`ArrayFixedLength`](src/array.type.fixedLength.ts:1), etc.
+- [ ] **Numeric types**: [`Int`](src/numeric.type.int.ts:1),
+  [`PositiveInt`](src/numeric.type.int.ts:1), [`NegativeInt`](src/numeric.type.int.ts:1), etc.
+- [ ] **Array types**: [`Tuple`](src/array.type.tuple.ts:17), [`ArrayFixedLength`](src/array.type.fixedLength.ts:1),
+  etc.
 - [ ] **String types**: [`DigitString`](src/string.digits.ts:1), [`LangString`](src/string.language.ts:1), etc.
 
 **Value Constants**:
@@ -336,8 +338,10 @@ Based on implementation files that have no corresponding `.unit.test.ts`:
 
 #### Files That Need Browser Testing
 
-- [ ] **[`dom.redirectingTo.ts`](src/dom.redirectingTo.ts:33)**: Has browser test: ✓ [`dom.redirectingTo.browser.test.ts`](src/dom.redirectingTo.browser.test.ts:1)
-- [ ] **[`fs.ensurePath.ts`](src/fs.ensurePath.ts:17)**: Has browser test: ✓ [`fs.ensurePath.browser.test.ts`](src/fs.ensurePath.browser.test.ts:1)
+- [ ] **[`dom.redirectingTo.ts`](src/dom.redirectingTo.ts:33)**:
+  Has browser test: ✓ [`dom.redirectingTo.browser.test.ts`](src/dom.redirectingTo.browser.test.ts:1)
+- [ ] **[`fs.ensurePath.ts`](src/fs.ensurePath.ts:17)**:
+  Has browser test: ✓ [`fs.ensurePath.browser.test.ts`](src/fs.ensurePath.browser.test.ts:1)
 
 #### DOM Functions Needing Browser Tests
 
@@ -446,5 +450,6 @@ Based on implementation files that have no corresponding `.unit.test.ts`:
 ## Cross-References
 
 - [**Build System Todo**](../../TODO.build-system.md#validation-and-testing): Related build system testing
-- [**Code Quality Todo**](../../TODO.code-quality.md#testing-requirements-and-standards): Testing standards and requirements
+- [**Code Quality Todo**](../../TODO.code-quality.md#testing-requirements-and-standards):
+  Testing standards and requirements
 - [**Performance Todo**](../../TODO.performance.md#testing-automation): Performance testing integration

@@ -16,8 +16,9 @@ import {
 } from 'node:fs';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 import type { MutableEffectSummary, } from './effect-summary-model.ts';
 import {
   ENVELOPE_INVALID,
@@ -34,6 +35,7 @@ import {
   EFFECT_CACHE_SCHEMA,
 } from './effect-summary-cache-identity.ts';
 import type { EffectProjectSurfaces, } from './effect-project-fingerprint.ts';
+import { recordSharedStore, } from './shared-analysis-telemetry.ts';
 import {
   deserializeEffectSummaries,
   serializeEffectSummaries,
@@ -79,13 +81,22 @@ export const PERSISTENT_EFFECT_CACHE_MISS: unique symbol = Symbol(
  `projectKey` carries the configured project path plus analysis-scope
  policy; per-project content identity lives in each envelope's dependency
  snapshot rather than the address, so one changed file relocates nothing.
+ 
+ `sharedKeyDigest` addresses a cross-project entry by file and key instead of by
+ project; `projectKey` then only locates the cache root and names the writer.
  */
 export type PersistentEffectCacheAddress = {
   readonly projectKey: string;
   readonly fileName: string;
   readonly sourceText: string;
+  readonly sharedKeyDigest?: string;
   readonly cacheRootOverride?: string;
 };
+
+/**
+ Directory under the cache root that holds cross-project entries.
+ */
+const SHARED_ENTRY_DIRECTORY = 'shared';
 
 /**
  Dependency-closure snapshot written into one entry.
@@ -103,11 +114,14 @@ export type EffectDependencyClosure = {
  Validated persistent hit: rehydrated summaries plus recorded closure edges.
  */
 export type PersistentEffectCacheHit = {
+  readonly shared: boolean;
+  readonly writerProject: string;
   readonly summaries: ReadonlyMap<string, MutableEffectSummary>;
   readonly dependenciesResolved: boolean;
   readonly directDependencies: readonly string[];
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 };
 
 /**
@@ -154,13 +168,20 @@ function cacheIdentity(
       : { override: address.cacheRootOverride, },
   },);
   /**
-   Content-addressed directory for project scope and source path.
+   Content-addressed directory for project scope and source path,
+   or for source path alone when the entry is shared.
    */
-  const directory = join(
-    root,
-    projectDirectoryName,
-    fileDirectoryName,
-  );
+  const directory = address.sharedKeyDigest === undefined
+    ? join(
+      root,
+      projectDirectoryName,
+      fileDirectoryName,
+    )
+    : join(
+      root,
+      SHARED_ENTRY_DIRECTORY,
+      fileDirectoryName,
+    );
   return {
     analyzer,
     source,
@@ -168,7 +189,9 @@ function cacheIdentity(
     root,
     path: join(
       directory,
-      `${source}-${analyzer}.json`,
+      address.sharedKeyDigest === undefined
+        ? `${source}-${analyzer}.json`
+        : `${address.sharedKeyDigest}.json`,
     ),
   };
 }
@@ -236,17 +259,24 @@ export function readPersistentEffectSummaries({
         projectKey: address.projectKey,
         fileName: address.fileName,
         sourceDigest: identity.source,
+        ...(address.sharedKeyDigest === undefined) ? {} : { sharedKeyDigest: address.sharedKeyDigest, },
       },
       state,
     },);
-    if (envelope === ENVELOPE_INVALID)
+    if (envelope === ENVELOPE_INVALID) {
+      if (address.sharedKeyDigest !== undefined)
+        recordSharedStore('invalid',);
       return PERSISTENT_EFFECT_CACHE_MISS;
+    }
     return {
+      shared: address.sharedKeyDigest !== undefined,
+      writerProject: envelope.projectKey,
       summaries: deserializeEffectSummaries(envelope.payload,),
       dependenciesResolved: envelope.dependenciesResolved,
       directDependencies: envelope.directDependencies,
       omittedCallableKeys: envelope.omittedCallableKeys,
       omissionReasons: envelope.omissionReasons,
+      externalOmissions: envelope.externalOmissions,
     };
   }
   catch (error) {
@@ -274,6 +304,8 @@ export function readPersistentEffectSummaries({
  
  @param omissionReasons - Bounded reasons encountered while scanning source.
  
+ @param externalOmissions - Omissions met inside installed package implementations during the scan.
+ 
  @example
  ```ts
  writePersistentEffectSummaries({
@@ -283,6 +315,7 @@ export function readPersistentEffectSummaries({
    closure,
    omittedCallableKeys,
    omissionReasons,
+   externalOmissions,
  });
  ```
  */
@@ -293,6 +326,7 @@ export function writePersistentEffectSummaries({
   closure,
   omittedCallableKeys,
   omissionReasons,
+  externalOmissions,
 }: {
   readonly address: PersistentEffectCacheAddress;
   readonly summaries: ReadonlyMap<string, MutableEffectSummary>;
@@ -300,6 +334,7 @@ export function writePersistentEffectSummaries({
   readonly closure: EffectDependencyClosure;
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 },): void {
   /**
    Current content-addressed cache path.
@@ -323,7 +358,9 @@ export function writePersistentEffectSummaries({
     dependencyDigests: closure.dependencyDigests,
     omittedCallableKeys: [...omittedCallableKeys,].toSorted(),
     omissionReasons: [...omissionReasons,].toSorted(),
+    externalOmissions,
     payload: serializeEffectSummaries(summaries,),
+    ...(address.sharedKeyDigest === undefined) ? {} : { sharedKeyDigest: address.sharedKeyDigest, },
   };
   /**
    Unique sibling temporary file for atomic rename.

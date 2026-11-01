@@ -30,8 +30,8 @@ It must not infer `0.0.0.0/0` or `::/0` from a disallowed entry.
 
 Create the package with these identities:
 
-- Path is `package/cli/wg-allowedips`.
-- Package name is `@monochromatic-dev/cli-wg-allowedips`.
+- Path is `package/wg/cli-allowedips`.
+- Package name is `@monochromatic-dev/wg-cli-allowedips`.
 - Executable name is `wg-allowedips`.
 
 The command contract is:

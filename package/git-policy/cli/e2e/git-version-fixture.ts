@@ -60,8 +60,8 @@ export function compareVersions({
       part,
       index,
     ) {
-    return difference === 0 ? part - ((rightParts ?? [])[index] ?? 0) : difference;
-  },
+      return difference === 0 ? part - ((rightParts ?? [])[index] ?? 0) : difference;
+    },
     0,
   );
 }

@@ -48,14 +48,14 @@ export type NotebookEditToolInput = {
  */
 export type LspOperation =
   | 'goToDefinition'
-  | 'findReferences'
-  | 'hover'
-  | 'documentSymbol'
-  | 'workspaceSymbol'
-  | 'goToImplementation'
-  | 'prepareCallHierarchy'
-  | 'incomingCalls'
-  | 'outgoingCalls';
+    | 'findReferences'
+    | 'hover'
+    | 'documentSymbol'
+    | 'workspaceSymbol'
+    | 'goToImplementation'
+    | 'prepareCallHierarchy'
+    | 'incomingCalls'
+    | 'outgoingCalls';
 
 /**
  Input shape for the `LSP` tool.

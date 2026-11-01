@@ -84,11 +84,11 @@ export function synthesizeLine(random: SeededRandom,): string {
       max: 7,
     },), },
     function word() {
-    return random.next() < NUMBER_WORD_SHARE ? String(random.integer({
-      min: 0,
-      max: NUMBER_WORD_MAX,
-    },),) : random.pick(WORDS,);
-  },
+      return random.next() < NUMBER_WORD_SHARE ? String(random.integer({
+        min: 0,
+        max: NUMBER_WORD_MAX,
+      },),) : random.pick(WORDS,);
+    },
   )
     .join(' ',);
 }
@@ -166,8 +166,8 @@ export function synthesizeText({
   return joinLines(Array.from(
     { length: lines, },
     function line() {
-    return synthesizeLine(random,);
-  },
+      return synthesizeLine(random,);
+    },
   ),);
 }
 
@@ -231,11 +231,11 @@ export function editText({
       ),
     ), },
     function line() {
-    return `${synthesizeLine(random,)} ${String(random.integer({
+      return `${synthesizeLine(random,)} ${String(random.integer({
       min: 0,
       max: 1_000_000,
     },),)}`;
-  },
+    },
   );
   return joinLines([
     ...lines.slice(
@@ -288,11 +288,11 @@ export function synthesizeBinary({
       _unused,
       index,
     ) {
-    return index === 0 ? 0 : random.integer({
-      min: 0,
-      max: BYTE_MAX,
-    },);
-  },
+      return index === 0 ? 0 : random.integer({
+        min: 0,
+        max: BYTE_MAX,
+      },);
+    },
   ),);
 }
 

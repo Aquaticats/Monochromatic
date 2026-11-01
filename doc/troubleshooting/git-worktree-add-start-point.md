@@ -6,6 +6,24 @@
 
 ## Symptom
 
+### Git 2.56.0 branch-option recurrence
+
+On 2026-10-18,
+creating the Depot graph research worktree with `git worktree add --branch` failed before creation.
+Git `2.56.0` returned exit `129` and the exact diagnostic:
+
+```text
+error: unknown option `branch'
+```
+
+Fresh `git worktree add --help` lists `-b` and `-B` without a long branch-option spelling.
+The corrected `-b` form created the isolated worktree at the explicit frozen commit.
+A parser-only invocation without a destination reproduced the diagnostic without creating another worktree.
+Use the documented short option here;
+do not derive a long option from the separate `git branch` command's name.
+
+### Start-point selection
+
 A caller wants to copy ignored files from an existing worktree into every worktree created by
 `git worktree add`.
 The intuitive rule is that a fresh worktree starts from the invoking worktree's branch,

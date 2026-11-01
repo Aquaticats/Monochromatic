@@ -1,5 +1,10 @@
 # Image processing library vet
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/wc` is now `package/wc/app`.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
@@ -260,7 +265,7 @@ Spot-read paths and behavior:
      x64,
      and Wasm-related targets.
 - `jimp`
-  - `package/jimp/src/index.ts`:
+  - `packages/jimp/src/index.ts`:
      default formats are BMP,
      GIF,
      JPEG,
@@ -276,7 +281,7 @@ Spot-read paths and behavior:
      print,
      quantize,
      etc.
-  - `package/core/src/index.ts`:
+  - `packages/core/src/index.ts`:
      `Jimp.read` accepts Buffer,
      ArrayBuffer,
      path,
@@ -293,10 +298,10 @@ Spot-read paths and behavior:
      test,
      and browser tests.
 - `@napi-rs/image`
-  - `package/binding/index.js`:
+  - `packages/binding/index.js`:
      generated NAPI-RS native binding loader with platform optional packages
     and version checks.
-  - `package/binding/src/transformer.rs`:
+  - `packages/binding/src/transformer.rs`:
      decodes HEIC,
      AVIF,
      SVG,
@@ -306,15 +311,15 @@ Spot-read paths and behavior:
      resize,
      fast resize,
      encode paths.
-  - `package/binding/src/jpeg.rs`:
+  - `packages/binding/src/jpeg.rs`:
      JPEG optimize/compress via `mozjpeg_sys` with unsafe FFI and cleanup.
-  - `package/binding/src/png.rs`:
+  - `packages/binding/src/png.rs`:
      PNG encode,
      oxipng lossless compression,
      quantization.
-  - `package/binding/src/avif.rs`:
+  - `packages/binding/src/avif.rs`:
      AVIF encode via libavif.
-  - `package/binding/__test__/transformer.spec.mjs`:
+  - `packages/binding/__test__/transformer.spec.mjs`:
      metadata,
      PNG/JPEG/SVG,
      orientation,
@@ -988,7 +993,7 @@ Upstream validation commands and outcomes:
   - Retried with `--memory=2g --cpus=2 --userns=keep-id --security-opt label=disable`.
   - Native `@napi-rs/image` release build then succeeded.
   - Whole-monorepo `build:ts` failed on an unrelated TypeScript 6 diagnostic:
-    `package/rollup-plugin/tsconfig.json` still uses deprecated `moduleResolution=node10`.
+    `packages/rollup-plugin/tsconfig.json` still uses deprecated `moduleResolution=node10`.
   - Root AVA test command `node .yarn/releases/yarn-4.17.0.cjs test` passed after native build.
   - Scratch integration also passed.
 - `imgkit`

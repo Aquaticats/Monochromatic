@@ -1,5 +1,12 @@
 # Vet the parser foundation for a native Rust jsonc-edit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit.conformance` is now `package/jsonc-edit/core-ts.conformance`;
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:
@@ -66,9 +73,12 @@
 The delegated research froze its literal initial queries before discovery:
 
 - In-repo:
-   `rg --files doc package | rg 'rust-structured-edits|jsonc|json-five|biome_json|edikt'` and `rg --line-number 'jsonc-parser|edikt-jsonc|json-five|biome_json_parser|attached.comment|surrogate' doc package`.
+   `rg --files doc package | rg 'rust-structured-edits|jsonc|json-five|biome_json|edikt'` and
+   `rg --line-number 'jsonc-parser|edikt-jsonc|json-five|biome_json_parser|attached.comment|surrogate' doc package`.
 - Registry/web:
-   `site:crates.io/crates/ jsonc-parser edikt-jsonc json-five biome_json_parser latest version repository` and `Rust JSONC parser lossless comments tokens raw string escapes exact numeric literals crates source` via Exa fast/Linkup fallback.
+   `site:crates.io/crates/ jsonc-parser edikt-jsonc json-five biome_json_parser latest version repository` and
+   `Rust JSONC parser lossless comments tokens raw string escapes exact numeric literals crates source` via Exa
+   fast/Linkup fallback.
 - Repository host:
    targeted official source linked from crates and repository decision records;
    broad GitHub query and registry pagination remain to be run.
@@ -101,7 +111,8 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `jsonc-parser` 0.33.2
 
 - Discovery:
-   [versioned source and API](https://docs.rs/jsonc-parser/0.33.2/jsonc_parser/) and prior in-repo [Rust edit survey](../planning/monorepo-manager-route-research/rust-structured-edits.md).
+   [versioned source and API](https://docs.rs/jsonc-parser/0.33.2/jsonc_parser/) and prior in-repo
+   [Rust edit survey](../planning/monorepo-manager-route-research/rust-structured-edits.md).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -127,16 +138,19 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `edikt-jsonc` 0.4.0
 
 - Discovery:
-   [crates.io entry](https://crates.io/crates/edikt-jsonc) and [lexer source](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/lexer.rs).
+   [crates.io entry](https://crates.io/crates/edikt-jsonc) and
+   [lexer source](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/lexer.rs).
 - Category:
    inspectable open-source Rust lexer/CST with native and multi-platform overlays.
 - Screening:
    raw comments,
    strings,
    and numbers are available.
-   [Comment projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/comments.rs) puts key-side and value-side comments together on the value,
+   [Comment projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/comments.rs) puts key-side and value-side
+   comments together on the value,
    so an attachment layer is still needed.
-   [Value projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/project.rs) uses `f64` for some numbers and Rust `String`;
+   [Value projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/project.rs) uses `f64` for some numbers and
+   Rust `String`;
    bypassing it may allow a compliant projection from raw tokens.
    JSON5 and malformed-input acceptance requires strict validation.
    Excluded at the regex hard gate:
@@ -146,7 +160,8 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `json-five` 0.3.1
 
 - Discovery:
-   [round-trip token source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/tokenize.rs) and [parser source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/parser.rs).
+   [round-trip token source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/tokenize.rs) and
+   [parser source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/parser.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -164,14 +179,17 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `biome_json_parser` 0.5.7
 
 - Discovery:
-   [lexer source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lexer/mod.rs) and [parser source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lib.rs).
+   [lexer source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lexer/mod.rs) and
+   [parser source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lib.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
    lossless trivia and raw scalar ranges may support an adapter.
-   [Prior repository research](../planning/monorepo-manager-route-research/rust-structured-edits.md) corrected its build pin count to three exact companion crates.
+   [Prior repository research](../planning/monorepo-manager-route-research/rust-structured-edits.md) corrected its
+   build pin count to three exact companion crates.
    Strict container-root validation and the attached-comment layer remain repository work.
-   The published `src/lexer/mod.rs:494-607,635-683` scans an escaped `\uXXXX` as four hex digits without decoding it into a Rust `char`;
+   The published `src/lexer/mod.rs:494-607,635-683` scans an escaped `\uXXXX` as four hex digits without decoding it
+   into a Rust `char`;
    `src/syntax.rs:151-230` parses nested sequences with an explicit `Vec` stack.
    `src/parser.rs:16-29` exposes comment and trailing-comma options.
    This source shape is a promising raw-syntax adapter,
@@ -180,8 +198,10 @@ Both local delegated `rg` queries were blocked by its security guardrail,
    deep tree lifecycle and full validation remain unproven.
    `cargo info biome_json_parser` resolved published 0.5.7 on 2026-09-24,
    while the shallow upstream checkout at `2f629c5` has `version = "0.7.0"` in root `Cargo.toml:7`.
-   The [crates.io version record](https://crates.io/api/v1/crates/biome_json_parser) dates the latest published 0.5.7 to 2024-03-12.
-   The separate GitHub release `@biomejs/biome@2.5.14` was published 2026-09-16 according to the repository releases API;
+   The [crates.io version record](https://crates.io/api/v1/crates/biome_json_parser) dates the latest published 0.5.7
+   to 2024-03-12.
+   The separate GitHub release `@biomejs/biome@2.5.14` was published 2026-09-16 according to the repository releases
+   API;
    that application release is not a publication of this Rust crate.
    A GitHub commits API query filtered to `crates/biome_json_parser` since 2025-09-24 returned 18 path-touching commits,
    including `chore(tooling): publish crates` at `9dcc25547` on 2026-09-19.
@@ -197,7 +217,8 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `jwc` 0.1.0
 
 - Discovery:
-   [AST source](https://docs.rs/crate/jwc/0.1.0/source/src/ast.rs) and [parser source](https://docs.rs/crate/jwc/0.1.0/source/src/single_pass_parser.rs).
+   [AST source](https://docs.rs/crate/jwc/0.1.0/source/src/ast.rs) and
+   [parser source](https://docs.rs/crate/jwc/0.1.0/source/src/single_pass_parser.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -232,16 +253,19 @@ The literal GitHub issue query `json parser` with repository and updated-since-2
    A maintainer asked for a reduced reproduction,
    traced the final case to another tool's override configuration,
    and the reporter agreed.
-- [#11426](https://github.com/biomejs/biome/issues/11426) combined JSON recovery diagnostics with editor refresh behavior.
+- [#11426](https://github.com/biomejs/biome/issues/11426) combined JSON recovery diagnostics with editor refresh
+- behavior.
    A maintainer responded,
    but the issue was automatically closed for lack of the requested reproduction;
    it does not prove a fix to the published parser.
-- [#7728](https://github.com/biomejs/biome/issues/7728) remains open and confirmed for a malformed JSON file causing a Biome worker stack overflow.
+- [#7728](https://github.com/biomejs/biome/issues/7728) remains open and confirmed for a malformed JSON file causing a
+- Biome worker stack overflow.
    A contributor suggested recursive syntax-node destruction as a theory,
    not a verified root cause.
    The reported Biome application version and worker boundary differ from the published 0.5.7 parser probe;
    the bounded successful 512-depth cases do not resolve that incident.
-- [#10684](https://github.com/biomejs/biome/issues/10684) reported a formatter worker overflow around 2000 nested arrays.
+- [#10684](https://github.com/biomejs/biome/issues/10684) reported a formatter worker overflow around 2000 nested
+- arrays.
    The issue was closed with a contributor response rather than a source fix in that thread.
    This formatter boundary is distinct from the library parser and this port's emitter;
    do not transfer either the failure or the closure to those surfaces.
@@ -257,14 +281,17 @@ The [crate-publishing PR #11850](https://github.com/biomejs/biome/pull/11850) wa
 
 ### Malformed external fixture control
 
-The public [issue #7728](https://github.com/biomejs/biome/issues/7728) reports a worker stack overflow on malformed JSON in a Biome 2.2.5 application run.
+The public [issue #7728](https://github.com/biomejs/biome/issues/7728) reports a worker stack overflow on malformed
+JSON in a Biome 2.2.5 application run.
  The reporter's fixture repository `gc/biome-crash` was cloned read-only at `bea9583`;
  `src/evil.json` is 665123 bytes of log-like invalid JSON,
  SHA-256 `8490581e9b29f474beedf09c72a9930d0103a694bc430a8408828c53a4340109`.
  The issue's recursive-drop explanation is a contributor hypothesis,
  not a confirmed source diagnosis.
- The revised `~/temp/agent/biome-execution-manifest.md` recorded the read-only fixture mount and stop conditions before execution.
- Bounded debug and optimized release runs of the published 0.5.7 parser library both reported syntax errors on the input,
+ The revised `~/temp/agent/biome-execution-manifest.md` recorded the read-only fixture mount and stop conditions before
+ execution.
+ Bounded debug and optimized release runs of the published 0.5.7 parser library both reported syntax errors on the
+ input,
  traversed 236856 syntax tokens,
  and dropped the syntax tree without an abort.
  These positive cleanup results are specific to the direct library path and that one fixture;
@@ -404,7 +431,8 @@ Saturation here means the frozen schedule and page rule completed.
  not a validated finalist;
  `edikt-jsonc` is excluded by the regex hard gate.
  The repository-owned parser translation remains a baseline.
- `biome_json_parser` has source-level lexical and grammar evidence but still lacks a runtime surrogate and comment-boundary probe;
+ `biome_json_parser` has source-level lexical and grammar evidence but still lacks a runtime surrogate and
+ comment-boundary probe;
  other discovered candidates remain unscreened against those requirements;
  no elimination or ranking is justified yet.
 
@@ -429,8 +457,10 @@ Web searches discovered `jwc`,
  most lack evidence of the attached JSONC comment model.
  A delegated broader `jsonc` registry query exposed a first page but its 100-result web response was truncated;
  this is not a saturation result.
- The [crates.io data-access policy](https://crates.io/data-access) permits an identifying user-agent with at most one API request per second.
- A direct `curl --head` with this repository's identifying user-agent returned HTTP 200 for the `jsonc` alphabetical page.
+ The [crates.io data-access policy](https://crates.io/data-access) permits an identifying user-agent with at most one
+ API request per second.
+ A direct `curl --head` with this repository's identifying user-agent returned HTTP 200 for the `jsonc` alphabetical
+ page.
  Before fetching the rest,
  `~/temp/agent/jsonc-registry-enumeration.mjs` fixed the query list,
  serial request delay,
@@ -485,7 +515,8 @@ Additional crates.io API terms yielded `jsonc lexer` eight results with no next 
  This establishes secondary-query pagination,
  not full candidate screening or saturation.
 
-Source leads for that screening include `jsonc_lexer` from [richplastow/jsonc-lexer](https://github.com/richplastow/jsonc-lexer),
+Source leads for that screening include `jsonc_lexer` from
+[richplastow/jsonc-lexer](https://github.com/richplastow/jsonc-lexer),
  [`fracturedjson` 0.1.1](https://crates.io/crates/fracturedjson/0.1.1),
  [`json-with-comments` 0.1.5](https://github.com/hayas1/json-with-comments),
  and [`json5format` 0.2.6](https://crates.io/crates/json5format/0.2.6).
@@ -561,7 +592,8 @@ Besides already-ledgered parsers,
 The published `zetch` 0.1.0 JSON path calls `fjson::ast::parse`
  (`src/read_write/langs/manager.rs:12-26`,
  `src/read_write/langs/json.rs:245`),
- and its reading path converts compact formatted data through `serde_json::Value` (`src/read_write/langs/json.rs:20-32`).
+ and its reading path converts compact formatted data through `serde_json::Value`
+ (`src/read_write/langs/json.rs:20-32`).
  Its YAML path uses `nondestructive`;
  that dependency is not an independent JSONC parser in this implementation.
  `zetch` therefore adds a mutable editor wrapper over the separately evaluated `fjson` parser,
@@ -628,7 +660,8 @@ No candidate code was executed for these source screens.
 
 ### `fig` 4.1.0 as-is contract exit
 
-The published `fig` 4.1.0 source in the local Cargo registry exposes an editor whose public comment operations take `&mut self`
+The published `fig` 4.1.0 source in the local Cargo registry exposes an editor whose public comment operations take
+`&mut self`
  (`src/editor.rs:342-423`) and a value model with `Int(i64)`,
  `Uint(u64)` and `Float(f64)` (`src/value.rs:85-116`).
  `src/value.rs:493-522` converts numeric literals that exceed its integer variants or are fractional into `f64`.
@@ -638,8 +671,10 @@ The published `fig` 4.1.0 source in the local Cargo registry exposes an editor w
  unlike independently queryable normalized comments on every key and value.
 
 `fig` depends on `fig-sys` 4.1.0,
- whose `build.rs:18-40,104-148` links target-specific prebuilt native archives for default features or invokes Zig for source builds.
- The target packages and Zig build/source-to-artifact mapping would require a separate native safety and provenance audit for any proposed raw-token adapter.
+ whose `build.rs:18-40,104-148` links target-specific prebuilt native archives for default features or invokes Zig for
+ source builds.
+ The target packages and Zig build/source-to-artifact mapping would require a separate native safety and provenance
+ audit for any proposed raw-token adapter.
  A targeted scan of its production Zig/Rust source found regex words in sample strings and comments,
  not an observed production regex lexer;
  regex is **not** the as-is exit reason.
@@ -654,7 +689,8 @@ The published `Cargo.toml:28-42` depends on `jsonc-parser` in the 0.15 range.
  not a public raw-token or independently queryable key/value-comment editor.
  Consuming its private parser would be a fork or another custom composition,
  not adoption of the published formatter as-is.
- The separately audited `jsonc-parser` 0.33.2 surrogate failure is **not** attributed to the older 0.15 dependency without a versioned source check.
+ The separately audited `jsonc-parser` 0.33.2 surrogate failure is **not** attributed to the older 0.15 dependency
+ without a versioned source check.
  No upstream code was executed for this category screen.
 
 ### `prim-fmt` 0.9.1 as-is category exit
@@ -663,7 +699,8 @@ The published `prim-fmt` library exposes file classification and `format()` at `
  not a comment-query or immutable edit-state API.
  Its JSONC implementation `src/json.rs:1-43` calls `dprint-plugin-json::format_text` and applies whitespace hygiene;
  `:59-65` tests that formatting removes a trailing comma.
- Preserving source comments while formatting is not the attached key/value comment model or canonical trailing-comma output of this port.
+ Preserving source comments while formatting is not the attached key/value comment model or canonical trailing-comma
+ output of this port.
  Its private formatter parser would be a separate adapter/fork candidate rather than the published interface as-is.
  No candidate code was executed for this screen.
 
@@ -672,7 +709,8 @@ The published `prim-fmt` library exposes file classification and `format()` at `
 The published `jcfmt` manifest declares only a `[[bin]]` target at `src/main.rs`,
  not a consumable Rust library (`Cargo.toml:18-35`).
  It is a JSONC formatting command,
- so calling it as a subprocess would not expose independently queryable key/value comments or a native immutable edit-state API.
+ so calling it as a subprocess would not expose independently queryable key/value comments or a native immutable
+ edit-state API.
  Its `nojson` dependency is a distinct potential parsing component and remains subject to separate source screening.
  No command was executed.
 
@@ -738,7 +776,8 @@ The published Rust library does expose `RawJson::parse_jsonc` and comment byte r
  Its parser sets `MAX_NESTING_DEPTH` to 128 (`src/parse.rs:7-24`),
  below the supported 512-container boundary.
  More decisively,
- `src/parse.rs:376-403` explicitly rejects an escaped unpaired high or low UTF-16 surrogate before a `RawJson` value exists.
+ `src/parse.rs:376-403` explicitly rejects an escaped unpaired high or low UTF-16 surrogate before a `RawJson` value
+ exists.
  The comment-range formatter cannot recover that required accepted string domain from a rejected parse.
  The published parser therefore fails both hard constraints as-is;
  a fork or own string scanner/parser is a separate custom candidate.
@@ -793,7 +832,8 @@ The published `serde_jsonc` 1.0.108 and `serde_jsonc2` 0.1.2 parse line and bloc
 The published `src/parser/json5.rs:104-152,222-239` exposes a JSON5/JSONC parse entry that also admits JSON5-only syntax
  and fixes a private recursive-descent depth ceiling at 256 with no public setter.
  The maintained TypeScript structured parser accepts 512 containers (`package/module/jsonc-edit/src/parse.ts:21,54`).
- The selected JSON5 parser's `skip_whitespace_and_comments` consumes trivia without retaining it (`src/parser/json5.rs:176-220`);
+ The selected JSON5 parser's `skip_whitespace_and_comments` consumes trivia without retaining it
+ (`src/parser/json5.rs:176-220`);
  the separate `strip_comments` helper is **not** evidence that this parse entry calls it.
  The public `src/nodes/types.rs:10-29` projects to strings,
  numbers,
@@ -853,7 +893,8 @@ The published single-file `src/lib.rs:3-68` exports JSONC-to-JSON normalization 
  `lintel-validate` 0.0.12 likewise exposes JSONC schema validation through
  `jsonc_parser::parse_to_serde_value` (`src/parsers/jsonc.rs:1-38`).
  These wrappers introduce no distinct exposed comment-bearing parser foundation;
- do not transfer the separately audited 0.33.2 `jsonc-parser` surrogate verdict to an unverified older dependency version.
+ do not transfer the separately audited 0.33.2 `jsonc-parser` surrogate verdict to an unverified older dependency
+ version.
 
 `jsonc-to-json` 0.1.1 exports a JSONC-to-JSON transformation and iterator
  (`src/lib.rs:151,207,238`),
@@ -891,7 +932,9 @@ The published single-file `src/lib.rs:3-68` exports JSONC-to-JSON normalization 
  the shallow clone initially pointed at `fe5a04a` despite its `Cargo.toml` still saying 0.3.1.
  Its scanner and AST SHA-256 hashes differed from the published 0.3.1 Cargo archive.
  After fetching `v0.3.1` (`e658f8a`),
- `src/scanner.rs` and `src/ast.rs` hashes match the published archive (`e44b66674c937f76909afb404b20c739ec16438772137b9c61b32e53c4c740be` and `d225e656d8b040a4eeac93661b86659980e7fc82cd18a37fbf2b94a5cf6ed62a`).
+ `src/scanner.rs` and `src/ast.rs` hashes match the published archive
+ (`e44b66674c937f76909afb404b20c739ec16438772137b9c61b32e53c4c740be` and
+ `d225e656d8b040a4eeac93661b86659980e7fc82cd18a37fbf2b94a5cf6ed62a`).
  All current source citations in this section target the tag.
  The newer checkout added a leading-zero check to the scanner;
  do not attribute that check to published 0.3.1.
@@ -971,15 +1014,18 @@ The published Rust parser is excluded as-is on a safety hard gate,
  four hex digits after `\u` are accepted without excluding surrogates;
  `rust/src/tokens.rs:119-140` produces a string token;
  and `rust/src/parse.rs:326-351` feeds the decoded `0xD800` to `unsafe { char::from_u32_unchecked(char_code) }`.
- The source in private clone `~/temp/agent/momoa-2026-09-24` at `8dfb563` matched the published 3.2.6 `parse.rs` and `readers.rs` SHA-256 hashes.
- [Rust documentation](https://doc.rust-lang.org/std/primitive.char.html#method.from_u32_unchecked) says a surrogate is not a valid `char`,
+ The source in private clone `~/temp/agent/momoa-2026-09-24` at `8dfb563` matched the published 3.2.6 `parse.rs` and
+ `readers.rs` SHA-256 hashes.
+ [Rust documentation](https://doc.rust-lang.org/std/primitive.char.html#method.from_u32_unchecked) says a surrogate is
+ not a valid `char`,
  and constructing it is undefined behavior.
  Full source trace,
  safe checked pre-fix control,
  bounded patched prototype,
  targeted public-entry checks,
  upstream Rust suite output,
- and reproducible patch are in [`momoa-rust-unpaired-surrogate.md`](../troubleshooting/momoa-rust-unpaired-surrogate.md).
+ and reproducible patch are in
+ [`momoa-rust-unpaired-surrogate.md`](../troubleshooting/momoa-rust-unpaired-surrogate.md).
  The original unsafe parser was never run on this input.
  The patched prototype rejects isolated surrogates,
  while this port explicitly requires retaining them as UTF-16 values;
@@ -997,7 +1043,8 @@ The user requested early regex culling.
  not merely a dev-only regex dependency.
  See [versioned lexer source](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/lexer.rs).
  Stop its audit at this hard gate.
- The `tokora` 0.11.0 [JSON CST example](https://docs.rs/crate/tokora/0.11.0/source/examples/json_cst.rs) likewise uses `logos` with `#[regex(...)]` for whitespace,
+ The `tokora` 0.11.0 [JSON CST example](https://docs.rs/crate/tokora/0.11.0/source/examples/json_cst.rs) likewise uses
+ `logos` with `#[regex(...)]` for whitespace,
  number and string tokens;
  exclude that example as a proposed foundation,
  not the combinator crate in every possible configuration.
@@ -1064,7 +1111,8 @@ A disposable set of exact-version manifests under `~/temp/agent/jsonc-regex-audi
  its `ROME_LICENSE` also carries an MIT notice.
  `unicode-ident-1.0.26/LICENSE-UNICODE` permits redistribution with its notice in copies or documentation,
  and `unicode-bom-2.0.3/LICENSE` contains Apache-2.0 terms.
- The [Apache Software Foundation compatibility note](https://www.apache.org/licenses/GPL-compatibility.html) states that Apache-2.0 software can be included in GPLv3 works.
+ The [Apache Software Foundation compatibility note](https://www.apache.org/licenses/GPL-compatibility.html) states
+ that Apache-2.0 software can be included in GPLv3 works.
  This source review found no license-expression exit for the prospective LGPL-3.0-or-later crate,
  but full product notice assembly and legal interpretation remain to be validated before publication.
 
@@ -1132,7 +1180,8 @@ The published `biome_json_parser` 0.5.7 archive SHA-256
  `src/lexer/mod.rs:67-90` gates token dispatch on a present byte,
  `:268-289,315-350` advances non-ASCII text by UTF-8 character length,
  and `biome_unicode_table-0.5.7/src/bytes.rs:103-125` declares a 256-entry dispatch table indexed by a byte.
- The scratch probe parsed and rejected selected multibyte strings and comments in bounded debug and optimized release runs.
+ The scratch probe parsed and rejected selected multibyte strings and comments in bounded debug and optimized release
+ runs.
  Additional bounded debug and optimized release tests exercised truncated escapes,
  multibyte invalid digits,
  unterminated strings and comments,
@@ -1141,7 +1190,8 @@ The published `biome_json_parser` 0.5.7 archive SHA-256
  and destruction without a crash.
  These checks support the inspected invariants but do not establish safety for every lexer and transitive-code path.
  Separately,
- `biome_json_parser-0.5.7/src/lexer/mod.rs:91-96` converts the source offset to `TextSize` with an `expect` for inputs beyond its representable range;
+ `biome_json_parser-0.5.7/src/lexer/mod.rs:91-96` converts the source offset to `TextSize` with an `expect` for inputs
+ beyond its representable range;
  `biome_text_size-0.5.8/src/size.rs:24-25,85-90` stores that offset as `u32`.
  The disposable adapter now checks source length before Biome runs.
  A synthetic boundary test accepted `u32::MAX - 1` and rejected `u32::MAX` in bounded debug and optimized release runs.
@@ -1165,7 +1215,8 @@ A separate scratch consumer `~/temp/agent/jsonc-foundation-diff/` depends on bot
  bounded source mutations,
  positive mismatch control,
  and stop conditions before execution.
- Bounded debug and optimized release runs passed named accepted/rejected JSONC controls and checked a deliberately mismatching BOM case **before** interpreting the generated comparison.
+ Bounded debug and optimized release runs passed named accepted/rejected JSONC controls and checked a deliberately
+ mismatching BOM case **before** interpreting the generated comparison.
  The fixed single-character mutation corpus contained 5635 distinct inputs;
  both parser boundaries admitted 1577,
  and no syntax-admission difference was measured within that corpus in either build.
@@ -1174,7 +1225,8 @@ A separate scratch consumer `~/temp/agent/jsonc-foundation-diff/` depends on bot
  key/value comment parity,
  or value equality.
  Consumer-level comment projection remains unverified.
- The owned scratch crate now exposes its tested UTF-16 quoted-token decoder and ordered comment merger for a separate Biome-to-value projection experiment;
+ The owned scratch crate now exposes its tested UTF-16 quoted-token decoder and ordered comment merger for a separate
+ Biome-to-value projection experiment;
  `mise run lint:clippy` and its bounded debug suite passed after that extraction.
  This is prototype reuse,
  not a dependency or product API decision.
@@ -1254,15 +1306,18 @@ The separate scratch differential consumer now imports the Biome-to-value adapte
  for `{"a":1\n, //inline\n"b":2}`,
  the owned parser attaches `inline` to the following key `b`,
  while the Biome prototype placed it on the previous value `a`.
- Separate bounded named tests for object and array separators on a later line both failed the Biome adapter's owner assertion.
- The maintained TypeScript structured parser rejects the object source due its separately measured comma-after-trivia defect;
+ Separate bounded named tests for object and array separators on a later line both failed the Biome adapter's owner
+ assertion.
+ The maintained TypeScript structured parser rejects the object source due its separately measured comma-after-trivia
+ defect;
  its documented same-line trailing rule and the owned parser's continuation support the following-key reading.
  The prototype's previous `src/children.rs` routed every comma's trailing comment to the preceding value;
  Biome's raw syntax tree had retained the comment.
  The scratch adapter now checks for a line break between the value and comma
  (`src/children.rs:105-136`) and carries the comma's following comments to the next key or element when present.
  Both named owner regressions passed in bounded debug and optimized release suites.
- Reruns of the positive-controlled debug and optimized release differential each admitted 1577 of the 5635 generated inputs in both parsers
+ Reruns of the positive-controlled debug and optimized release differential each admitted 1577 of the 5635 generated
+ inputs in both parsers
  and found no syntax or editor-node difference within that corpus.
  The intentionally mismatching BOM and moved-comment controls passed before interpreting either null result.
  This does not prove semantic equality outside the corpus.
@@ -1619,12 +1674,14 @@ These are outcomes for published implementations **as-is**,
  or new parser implementation is impossible.
 
 - `jsonc-parser` 0.33.2:
-   `src/scanner.rs:175-201` calls `parse_string_with_char_provider` for escapes and `src/string.rs:214-261` rejects an unpaired high or low surrogate.
+   `src/scanner.rs:175-201` calls `parse_string_with_char_provider` for escapes and `src/string.rs:214-261` rejects an
+   unpaired high or low surrogate.
    This is a hard failure for the required accepted string domain.
    It also does not supply the normalized,
    attached-comment model as-is.
 - `jwc` 0.1.0:
-   the published `src/single_pass_parser.rs:201-222` explicitly errors on a low surrogate or a high surrogate not followed by a low one.
+   the published `src/single_pass_parser.rs:201-222` explicitly errors on a low surrogate or a high surrogate not
+   followed by a low one.
    It fails the string-domain hard gate as-is,
    regardless of its regex-free production dependency graph.
 - `fjson` 0.3.1:
@@ -1636,7 +1693,8 @@ These are outcomes for published implementations **as-is**,
    A scanner-only use paired with our own grammar/parser is a distinct composition,
    not an as-is editor.
 - `json-five` 0.3.1:
-   [prior corpus probes](../planning/monorepo-manager-route-research/rust-structured-edits.md) show JSON5-only syntax and scalar roots accepted,
+   [prior corpus probes](../planning/monorepo-manager-route-research/rust-structured-edits.md) show JSON5-only syntax
+   and scalar roots accepted,
    where the TypeScript JSONC conformance tests reject them;
    it is not a strict JSONC parser as-is.
    Its [block-comment tokenizer defect](../troubleshooting/json-five-unterminated-block-comment.md)
@@ -1649,7 +1707,8 @@ These are outcomes for published implementations **as-is**,
    It is not a ready-to-use implementation of this editor;
    coupling its scalar lexer to an owned comment scanner is a distinct composition.
 
-The documented hard exits make the owned-parser translation eligible for serious evaluation under the existing-tools-first rule;
+The documented hard exits make the owned-parser translation eligible for serious evaluation under the
+existing-tools-first rule;
  they do not establish it as a validated winner.
  `biome_json_parser` 0.5.7,
  `fjson` scanner-only,
@@ -1673,14 +1732,16 @@ A disposable Rust crate was written under `~/temp/agent/jsonc-parser-probe-2026-
  external crate,
  or unsafe code was introduced by this prototype.
 
-- `cd -- ~/temp/agent/jsonc-parser-probe-2026-09-24 && mise run test` passed the initial bounded parser suite over valid/invalid syntax,
+- `cd -- ~/temp/agent/jsonc-parser-probe-2026-09-24 && mise run test` passed the initial bounded parser suite over
+- valid/invalid syntax,
    key and value comments,
    line-comment merging,
    unpaired/paired UTF-16 values,
    raw exact number text,
    and reparsable canonical output.
    `mise run lint:clippy` also passed with warnings denied after structural lint fixes.
-- `cd -- ~/temp/agent/jsonc-parser-consumer-2026-09-24 && mise run test` imported the library by path and printed `JSONC consumer parse and emit passed`,
+- `cd -- ~/temp/agent/jsonc-parser-consumer-2026-09-24 && mise run test` imported the library by path and printed
+- `JSONC consumer parse and emit passed`,
    checking attached key/value comments,
    unchanged `1e0`,
    decoded lone surrogate,
@@ -1698,11 +1759,13 @@ A disposable Rust crate was written under `~/temp/agent/jsonc-parser-probe-2026-
    read-only Podman container capped at 2 GiB memory,
    2 CPUs,
    128 PIDs and 600 seconds.
-   The 513-level case aborted the test process with `thread 'tests::excessive_nesting_is_rejected' has overflowed its stack` (SIGABRT,
+   The 513-level case aborted the test process with
+   `thread 'tests::excessive_nesting_is_rejected' has overflowed its stack` (SIGABRT,
    exit 101) before returning the intended depth error.
    The other test names printed `ok`,
    but the suite failed and the owned parser candidate is **not validated**.
-   Structural recursion needs an explicit work stack or another measured stack-safe shape before this depth contract can be claimed.
+   Structural recursion needs an explicit work stack or another measured stack-safe shape before this depth contract
+   can be claimed.
    Never reproduce this case outside a bounded container.
 
 This is a partial parser/emitter probe with a demonstrated stack-safety failure,
@@ -1714,12 +1777,14 @@ This is a partial parser/emitter probe with a demonstrated stack-safety failure,
  cross-platform native check,
  release packaging,
  or performance comparison is provided.
- The comment attachment rule for blank-line-separated comments still needs the agreed correction and tests in both maintained implementations.
+ The comment attachment rule for blank-line-separated comments still needs the agreed correction and tests in both
+ maintained implementations.
  Do not use this prototype as publication evidence.
 
 ### Accepted-depth positive control also failed
 
-A separate filtered probe `mise run test:depth-512` generated a valid array document with 512 nested containers and a scalar leaf.
+A separate filtered probe `mise run test:depth-512` generated a valid array document with 512 nested containers and a
+scalar leaf.
  It ran solely inside the same 2 GiB/2 CPU,
  network-free container with a 600-second ceiling.
  The test process aborted with `thread 'tests::depth_512_is_accepted' has overflowed its stack` (SIGABRT,
@@ -1737,7 +1802,8 @@ The accepted-depth test was instrumented with unbuffered markers before parse,
  after parse,
  and before/after drop.
  `mise run test:depth-512` was rerun inside the 2 GiB/2 CPU bounded container with Cargo test output uncaptured.
- It printed `depth control: before parse` and then aborted with `thread 'tests::depth_512_is_accepted' has overflowed its stack` (SIGABRT,
+ It printed `depth control: before parse` and then aborted with
+ `thread 'tests::depth_512_is_accepted' has overflowed its stack` (SIGABRT,
  exit 101).
  Neither the after-parse nor drop markers appeared.
  This localizes the observed failure to parser execution,
@@ -1747,7 +1813,8 @@ The accepted-depth test was instrumented with unbuffered markers before parse,
 
 ### Separate TypeScript JSONC comma discrepancy
 
-A direct call through the current TypeScript neutral bundle (`package/module/jsonc-edit/dist/final/neutral/index.mjs`) measured the `JSON.parse` fast path and structured parser separately.
+A direct call through the current TypeScript neutral bundle (`package/module/jsonc-edit/dist/final/neutral/index.mjs`)
+measured the `JSON.parse` fast path and structured parser separately.
  Clean `[1\n,2]` parsed as a positive control.
  `[1\n,2,]` forced the structured path and threw `JsoncParseError: expected , or ] in array (at offset 3)`;
  `[1 /* c */\n,2]` also threw at offset 11.
@@ -1794,7 +1861,8 @@ The result does **not** yet prove stack-safe emission,
 
 ### Separate multi-line value-comment ownership failure
 
-The isolated scratch test `multiline_value_comment_stays_on_value` failed under the same bounded container while the other parser tests passed.
+The isolated scratch test `multiline_value_comment_stays_on_value` failed under the same bounded container while the
+other parser tests passed.
  Source `{"k":/*value\ncomment*/1}` parsed with its block comment on the value;
  the scratch emitter wrote `/*value\ncomment*/` before the key,
  and reparse attached it to the key.
@@ -1802,16 +1870,20 @@ The isolated scratch test `multiline_value_comment_stays_on_value` failed under 
  This is not the earlier stack overflow:
  both 512-level and 513-level depth tests completed under the explicit-frame parser in this run.
 
-A separate direct probe of the built TypeScript library in `package/module/jsonc-edit/dist/final/neutral/index.mjs` reproduced the same user-visible change.
+A separate direct probe of the built TypeScript library in `package/module/jsonc-edit/dist/final/neutral/index.mjs`
+reproduced the same user-visible change.
  Before emission,
- `jsoncGetKeyComment({ path: ['k'] })` returned `COMMENT_ABSENT` and `jsoncGetComment` returned `{ type: 'block', text: 'value\ncomment' }`;
+ `jsoncGetKeyComment({ path: ['k'] })` returned `COMMENT_ABSENT` and `jsoncGetComment` returned
+ `{ type: 'block', text: 'value\ncomment' }`;
  `jsoncStringify` placed that block before `"k"`;
  after reparse the key carried that comment and the value returned `COMMENT_ABSENT`.
  The source `package/module/jsonc-edit/src/stringify.ts` emits `valLead` before the key.
  This is a confirmed ownership bug in both implementations,
  not a whitespace-only difference.
- The accepted shared-behavior contract requires the same regression fixture and a fix in both maintained packages after foundation adoption.
- The Rust prototype needs to emit multi-line value comments after the key's colon so the parser attaches them to the value;
+ The accepted shared-behavior contract requires the same regression fixture and a fix in both maintained packages after
+ foundation adoption.
+ The Rust prototype needs to emit multi-line value comments after the key's colon so the parser attaches them to the
+ value;
  that remedy has not yet been applied or measured.
 
 ### After-state: Rust scratch value-comment owner retained
@@ -1819,17 +1891,20 @@ A separate direct probe of the built TypeScript library in `package/module/jsonc
 The scratch emitter was changed to write a multi-line value comment **after the object key's colon**,
  so the parser's between-colon-and-value trivia channel owns it.
  In the same 2 GiB/2 CPU offline container,
- `mise run test:isolated` exited 0 with the `multiline_value_comment_stays_on_value` regression passing alongside the rest of the bounded parser suite.
+ `mise run test:isolated` exited 0 with the `multiline_value_comment_stays_on_value` regression passing alongside the
+ rest of the bounded parser suite.
  `mise run lint:clippy` passed with warnings denied before the isolated run.
  This measures the Rust scratch fix at parse/emit/reparse,
  not merely a predicted effect from source.
- The maintained TypeScript bundle still demonstrates the original migration and needs the corresponding fix and shared fixture after foundation adoption.
+ The maintained TypeScript bundle still demonstrates the original migration and needs the corresponding fix and shared
+ fixture after foundation adoption.
  The scratch parser remains incomplete until deep emission,
  lifecycle and other required branches pass.
 
 ### Accepted-depth lifecycle after-state
 
-The scratch parser's explicit frame stack passed the full `mise run test:isolated` suite in a pinned offline Rust container with 2 GiB memory,
+The scratch parser's explicit frame stack passed the full `mise run test:isolated` suite in a pinned offline Rust
+container with 2 GiB memory,
  2 CPUs,
  128 PIDs,
  and a 600-second ceiling.
@@ -1850,7 +1925,8 @@ The same bounded suite covered valid comma-after-newline JSONC,
  empty-container comment order,
  exact raw numbers,
  and UTF-16 lone surrogate strings.
- A previous failing `multiline_value_comment_stays_on_value` test became passing only after the scratch emitter moved the multi-line value comment after its key's colon.
+ A previous failing `multiline_value_comment_stays_on_value` test became passing only after the scratch emitter moved
+ the multi-line value comment after its key's colon.
  The TypeScript production package remains unfixed on the independently measured comma and comment-owner incidents.
  This is still a feasibility prototype,
  not an immutable edit API,
@@ -1887,7 +1963,8 @@ A later bounded debug run and optimized release run each reported 18 passing uni
  and malformed-string cases.
  These are selected syntax and attachment checks,
  not a full semantic comparison of the TypeScript conformance or property corpus.
- Subsequent bounded debug and optimized release runs also passed adversarial edited comment bodies on both key and value owners,
+ Subsequent bounded debug and optimized release runs also passed adversarial edited comment bodies on both key and
+ value owners,
  including block terminators,
  quotes,
  escapes,

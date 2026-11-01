@@ -49,7 +49,7 @@ The scanner has no notion of a file that is exempt from scanning,
  so it reads its own rule file as ordinary
 content.
  Stated in the tool's own README,
- `package/cli/forbidden-strings/README.md:95`:
+ `package/forbidden-strings/cli/README.md:95`:
 
 ```md
 - **Per-rule path scoping**.
@@ -67,7 +67,7 @@ The policy is registered without any path exclusion,
     'security/forbidden-strings': [
       'error',
       {
-        executable: './package/cli/forbidden-strings/target/release/forbidden-strings',
+        executable: './package/forbidden-strings/cli/target/release/forbidden-strings',
         builtinRules: true,
       },
     ],
@@ -97,7 +97,7 @@ that the reported line number pointed at existing content.
 Version under test:
  `forbidden-strings 0.3.0`,
  built at
-`package/cli/forbidden-strings/target/release/forbidden-strings`.
+`package/forbidden-strings/cli/target/release/forbidden-strings`.
 
 Harness,
  run against a disposable directory rather than the repository:
@@ -109,12 +109,12 @@ printf 'const Oxc[C]omment = 1;\n' > "$D/hit-one.ts"
 printf 'const ParsedComment = 3;\n' > "$D/clean.ts"
 for f in hit-one clean; do
   printf '%-12s ' "$f"
-  ./package/cli/forbidden-strings/target/release/forbidden-strings \
+  ./package/forbidden-strings/cli/target/release/forbidden-strings \
     --rules "$D/rules.txt" "$D/$f.ts" > /dev/null 2>&1 \
     && echo "exit 0 (no violation)" || echo "exit 1 (violation)"
 done
 printf '%-12s ' "appendix"
-./package/cli/forbidden-strings/target/release/forbidden-strings \
+./package/forbidden-strings/cli/target/release/forbidden-strings \
   --rules "$D/rules.txt" forbidden-strings.append.txt > /dev/null 2>&1 \
   && echo "exit 0 (no violation)" || echo "exit 1 (violation)"
 rm --recursive --force "$D"
@@ -193,7 +193,7 @@ sections have the same exposure the moment that file is scanned.
 
 ## Upstream filing decision
 
-`forbidden-strings` is a repository-owned package under `package/cli/forbidden-strings`,
+`forbidden-strings` is a repository-owned package under `package/forbidden-strings/cli`,
  not third-party,
  so the
 six-constraint upstream check does not apply and there is nothing to file on an external tracker.
@@ -213,3 +213,38 @@ attempted here because it changes a security scanner's skip logic,
 a file being a rule source should ever exempt its content:
  a rule file that legitimately contains a real secret
 as a pattern is exactly the case the current behaviour catches.
+
+## Update 2026-10-29: a rename or merge of unchanged content is no longer rescanned
+
+The same class of failure refused moving the scanner package itself.
+Renaming `package/cli/forbidden-strings` to a new directory re-lists every file under it as an addition at the new path,
+and the policy scanned each one again.
+Three files match the scanner's own rules by design:
+
+- `data/builtin-rules.txt`, rule `aws-amazon-bedrock-api-key-short-lived` (line 118 at the time),
+   whose body is a literal that the rule matches;
+- `data/betterleaks-default-config.toml`, whose vendored `gcp-api-key` allowlist holds example key values;
+- `src/port-betterleaks-relaxations.ts`, whose comments hold an example connection string.
+
+They passed at the old paths only because `SCANNER_SELF_MATCH_PATHS` in `src/native/scanner_selection.rs`
+names those old paths as unscanned.
+At the new paths the exemption no longer applied, and no `--no-enforce-*` flag reaches this policy.
+
+Fixed in the source of `monochromatic-git-policy-cli` (`src/native/candidate_known_content.rs`):
+the policy no longer reads the bytes of a candidate whose exact blob a parent commit's tree already holds.
+A pure rename, a copy of an existing blob, and a merge that brings a file only one parent has are therefore allowed.
+The rule is by blob object name, not by path or similarity, so a rename with one changed byte is scanned in full.
+`package/git-policy/cli/SPEC.md` ("Content already in history") has the rule and its security reasoning.
+The controls are in `src/native/policy_forbidden_strings_known_content_tests.rs`
+and `src/native/binary_known_content_tests.rs`;
+the rename, staged-rename and merge controls failed on unchanged code before the rule existed.
+
+What this does not change:
+
+- The fix takes effect only in an installed wrapper built from a release that carries it.
+   Releases of this crate are cut by bumping its version on `main`
+   (see `doc/runbook/cli-git-global-install.md` for the install side).
+- An edit that changes the bytes of one of those files is still scanned.
+   After the move, `SCANNER_SELF_MATCH_PATHS` must name the new paths before the first edit to any of the three.
+- A literal rule body in the appendix still matches itself the moment its bytes change, as the sections above describe.
+   The workaround there stands.

@@ -15,8 +15,8 @@
  @module
  */
 
-import type { CallExpression, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { CallExpression, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import {
   argumentCapturedOrigins,
@@ -303,92 +303,92 @@ export function addOwnedCallEdge({
     },);
   summary.calls
     .push({
-    callSiteKey: callSiteKey(call,),
-    calleeKey: callableKey(callee,),
-    calleeFileName: callee.getSourceFile()
-      .fileName,
-    originsByCalleeSlot,
+      callSiteKey: callSiteKey(call,),
+      calleeKey: callableKey(callee,),
+      calleeFileName: callee.getSourceFile()
+        .fileName,
+      originsByCalleeSlot,
     /* Driven by `callbacks`, the declarations already resolved above, rather than by argument
      * syntax. That is what makes `retain(producer,)` behave like the inline form: the
      * resolver follows a local bound to a function expression where a syntax test would see
      * an identifier and stop. */
-    capturedOriginsByFormal: capturedOriginsByFormal({
-      positionsByFormal,
-      argumentCaptures: argumentCapturedOrigins({
-        project,
-        bindingOriginBySymbolId: summary.bindingOriginBySymbolId,
-        callables: callbacks,
-        actuals: call.arguments,
+      capturedOriginsByFormal: capturedOriginsByFormal({
+        positionsByFormal,
+        argumentCaptures: argumentCapturedOrigins({
+          project,
+          bindingOriginBySymbolId: summary.bindingOriginBySymbolId,
+          callables: callbacks,
+          actuals: call.arguments,
+        },),
       },),
-    },),
     /* Foreign ownership is a marker on a whole parameter, and its consumer compares against
      * caller parameters, so caller slots collapse to the parameters that own them here rather
      * than at the point of use. */
-    foreignOriginsByFormal: originsWithReceiver
-      .map(function foreignOriginsForFormal(origins,): readonly ParameterIndex[] {
-        return [
-          ...parametersOfSlots({
-            ownership: summary.slots,
-            slots: new Set(origins,),
-          },),
-        ];
-      },),
+      foreignOriginsByFormal: originsWithReceiver
+        .map(function foreignOriginsForFormal(origins,): readonly ParameterIndex[] {
+          return [
+            ...parametersOfSlots({
+              ownership: summary.slots,
+              slots: new Set(origins,),
+            },),
+          ];
+        },),
     /* Every covered actual must carry the marker for the formal to count as foreign,
      * because a foreign formal suppresses the readonly offer. Claiming foreignness for a
      * formal that might receive an ordinary argument would suppress an offer this
      * analysis never proved safe, so an unfilled or multiply-filled formal claims
      * nothing. */
-    directForeignByFormal: positionsByFormal
-      .map(function foreignForFormal(positions,): boolean {
-        return (positions.length > 0)
-          && positions.every(function positionIsForeign(position,): boolean {
+      directForeignByFormal: positionsByFormal
+        .map(function foreignForFormal(positions,): boolean {
+          return (positions.length > 0)
+            && positions.every(function positionIsForeign(position,): boolean {
             /**
              Actual argument at this position, absent when the call supplies none.
              */
-            const argument = call.arguments[position];
-            return (argument !== undefined)
-              && expressionContainsForeignBorrowed({
-                project,
-                node: argument,
-              },);
-          },);
-      },),
-    foreignInbound,
+              const argument = call.arguments[position];
+              return (argument !== undefined)
+                && expressionContainsForeignBorrowed({
+                  project,
+                  node: argument,
+                },);
+            },);
+        },),
+      foreignInbound,
     /* Callback identities are read with an index drawn from the callee's own invoked set,
      * which names slots, so they are indexed by slot too. A property slot repeats its
      * formal's identity for now: naming the callback a caller packaged into one property
      * needs the packaged-callable scan to report which property it came from, which task
      * #27 covers. */
-    callbackKeysByCalleeSlot: calleeSlots.parameterOfSlot
-      .map(function callbackKeyForSlot(owner,) {
+      callbackKeysByCalleeSlot: calleeSlots.parameterOfSlot
+        .map(function callbackKeyForSlot(owner,) {
         /**
          Resolved callback at the sole filling position, when there is one.
          */
-        const candidate = soleCallback({
-          soleByFormal,
-          callbacks,
-          formalIndex: owner,
-        },);
-        return candidate === OWNED_CALLABLE_UNAVAILABLE
-          ? OWNED_CALLABLE_UNAVAILABLE
-          : callableKey(candidate,);
-      },),
-    callbackFileNamesByCalleeSlot: calleeSlots.parameterOfSlot
-      .map(function callbackFileNameForSlot(owner,) {
+          const candidate = soleCallback({
+            soleByFormal,
+            callbacks,
+            formalIndex: owner,
+          },);
+          return candidate === OWNED_CALLABLE_UNAVAILABLE
+            ? OWNED_CALLABLE_UNAVAILABLE
+            : callableKey(candidate,);
+        },),
+      callbackFileNamesByCalleeSlot: calleeSlots.parameterOfSlot
+        .map(function callbackFileNameForSlot(owner,) {
         /**
          Resolved callback at the sole filling position, when there is one.
          */
-        const candidate = soleCallback({
-          soleByFormal,
-          callbacks,
-          formalIndex: owner,
-        },);
-        return candidate === OWNED_CALLABLE_UNAVAILABLE
-          ? OWNED_CALLABLE_UNAVAILABLE
-          : candidate.getSourceFile()
-            .fileName;
-      },),
-  },);
+          const candidate = soleCallback({
+            soleByFormal,
+            callbacks,
+            formalIndex: owner,
+          },);
+          return candidate === OWNED_CALLABLE_UNAVAILABLE
+            ? OWNED_CALLABLE_UNAVAILABLE
+            : candidate.getSourceFile()
+              .fileName;
+        },),
+    },);
 }
 
 /**

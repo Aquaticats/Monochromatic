@@ -158,7 +158,7 @@ function setTerminalTitle(
 ): void {
   ctx.ui
     .setTitle(
-      safeTerminalTitlePayload({ value: title, },),
+    safeTerminalTitlePayload({ value: title, },),
     );
 }
 
@@ -303,9 +303,12 @@ export default function terminalTitle(pi: ForeignBorrowed<ExtensionAPI>,): void 
   pi.on(
     'before_agent_start',
     function handleBeforeAgentStart(
-      event: Readonly<Pick<BeforeAgentStartEvent, 'prompt'>>,
+      event: Readonly<BeforeAgentStartEvent>,
       ctx: TitleContext,
     ) {
+      // Only user-triggered runs carry a prompt; custom-triggered runs get no prompt title.
+      if (event.messageType !== 'user')
+        return;
       setTerminalTitle({
         ctx,
         title: titleForEvent({

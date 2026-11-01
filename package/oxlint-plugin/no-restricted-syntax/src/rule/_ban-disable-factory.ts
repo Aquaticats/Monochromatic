@@ -93,17 +93,17 @@ export function banDisableRule({
           context.sourceCode
             .getAllComments()
             .forEach(function checkComment(comment: ForeignBorrowed<Comment>,) {
-            if (hasOxlintDisableDirective({ value: comment.value, },)
-              && comment
-              .value
-              .includes(ruleId,))
-            {
-              context.report({
-                node: comment,
-                messageId: 'forbidden',
-              },);
-            }
-          },);
+              if (hasOxlintDisableDirective({ value: comment.value, },)
+                && comment
+                  .value
+                  .includes(ruleId,))
+                {
+                context.report({
+                  node: comment,
+                  messageId: 'forbidden',
+                },);
+              }
+            },);
         },
       };
     },

@@ -1,0 +1,149 @@
+{
+  "schema": 2,
+  "scope": "Consumer verification of the template editor review as decided: the editor (D89 to D96, D98) and the two lines that get a template (D99). It verifies this page and its checks, not production behaviour, a parser, or native accessibility.",
+  "supersedes": "The record of the same 72 views shown with the D97 version for approval, before the human approved it (D99), and before that the 64-view record, whose consumer line said six rejected pages while the test ran five.",
+  "verified": "2026-10-06",
+  "noDigests": "This record holds no digest of the page, template, builder, test, manifest or any report. Nothing is locked by hash (D88); later edits to those files are allowed and are not covered by this record.",
+  "build": {
+    "task": "//package/music-player/design:verify:template-editor",
+    "result": "Built the offline template editor review with 72 inspected native views. Validated the offline template editor review against its evidence and the template reference."
+  },
+  "consumerTest": {
+    "task": "//package/music-player/design:test:template-editor",
+    "result": "Template editor review consumer: positive, 20 rejected manifests, 8 rejected pages and a changed-output check passed."
+  },
+  "referenceTests": {
+    "task": "//package/music-player/design:test:template-reference",
+    "result": "Template reference: 94 cases passed. Template editor scenes: 9 states and their drawn text passed."
+  },
+  "guardRemovalProofs": [
+    {
+      "removed": "without-header-title",
+      "testThenFailedOn": "page-title is in the header but is not in view"
+    },
+    {
+      "removed": "without-cohort",
+      "testThenFailedOn": "requires every authored scene under every condition"
+    },
+    {
+      "removed": "without-keyboard-edge",
+      "testThenFailedOn": "do not share one keyboard edge"
+    },
+    {
+      "removed": "without-view-edges",
+      "testThenFailedOn": "edges of the visible page are absent or differ from the panel"
+    }
+  ],
+  "browser": {
+    "engine": "Chromium, offline, in a container bounded to 2 GiB of memory and 2 CPUs",
+    "imagesEmbedded": 72,
+    "imagesDecodedAndOpened": 72,
+    "contexts": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "mode": "light",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "asksNothing": true,
+        "optionalNotes": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "mode": "dark",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "asksNothing": true,
+        "optionalNotes": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "mode": "light",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "asksNothing": true,
+        "optionalNotes": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "mode": "dark",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "asksNothing": true,
+        "optionalNotes": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      }
+    ],
+    "consoleErrors": 0,
+    "renderedStatements": [
+      "Every state is authored",
+      "Typing is not connected",
+      "No production implementation is authorized",
+      "What is decided",
+      "$tf(mi(len), m:ss)$ $mi(peak)$",
+      "Which lines get a template",
+      "$mi(track)$ of $mi(total)$ $mi(peak)$",
+      "No digest of an image is recorded, and nothing is compared with a digest (D88)"
+    ],
+    "renderedAbsent": [
+      "SHA-256",
+      "an unfilled slot",
+      "if("
+    ],
+    "screenshotsLookedAt": [
+      "decided-1440-light.png",
+      "review-390-dark.png"
+    ],
+    "limits": "Every embedded view was opened once in the first context; controls, the notes and one modal were exercised in all four contexts. Axe audits are of the closed page only, not native acceptance. Firefox and an open-dialog accessibility audit were not run."
+  },
+  "visualInspection": "All 72 published views were read in full on eight sheets, one per panel, text size and theme, below their native size: no status strip, system dialog, notification or keyboard notice. The deck line on the inner panel was checked in all 36 inner hierarchies: each draws 1 of 16 −1.2 dBTP and none the earlier fixed text. Small text was checked from each view's hierarchy, not by eye.",
+  "notExercised": [
+    "Real typing and caret movement by touch",
+    "Scrolling by hand",
+    "Inserting a field and resetting to the default",
+    "TalkBack, focus order, speech and contrast"
+  ],
+  "ownedBrowserContainerAbsent": true
+}

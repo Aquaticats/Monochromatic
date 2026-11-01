@@ -10,8 +10,9 @@
 
   <!-- Background playback runs in a mediaPlayback foreground service. At targetSdk 36 (>= 34) both
          the base permission and the typed FOREGROUND_SERVICE_MEDIA_PLAYBACK are mandatory or
-         startForeground throws. POST_NOTIFICATIONS is requested for completeness; the media-session
-         notification itself is exempt from that gate and shows without it. -->
+         startForeground throws. POST_NOTIFICATIONS is asked for once, when the first true-peak analysis starts
+         (decision D107), because the analysis progress notification needs it on Android 13 and later; the
+         media-session notification itself is exempt from that gate and shows without it. -->
   <uses-permission android:name='android.permission.FOREGROUND_SERVICE' />
   <uses-permission android:name='android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK' />
   <!-- The initial parallel peak index runs as a dataSync foreground service (PeakSweepService). -->
@@ -19,7 +20,10 @@
   <uses-permission android:name='android.permission.POST_NOTIFICATIONS' />
 
   <application
+    android:name='.MusicPlayerApplication'
     android:allowBackup='true'
+    android:icon='@mipmap/ic_launcher'
+    android:roundIcon='@mipmap/ic_launcher'
     android:label='Music Player'
     android:supportsRtl='true'
     android:theme='@android:style/Theme.Material.NoActionBar'>
@@ -51,6 +55,13 @@
       android:name='.PeakSweepService'
       android:exported='false'
       android:foregroundServiceType='dataSync'
+    />
+
+    <!-- Receives the Pause and Resume buttons of the analysis notification (decision D107). Not exported:
+             only this app's own explicit, immutable pending intents reach it. -->
+    <receiver
+      android:name='.AnalysisActionReceiver'
+      android:exported='false'
     />
   </application>
 </manifest>

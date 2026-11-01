@@ -147,7 +147,7 @@ export function createBinaryReader(
     get eof(): boolean {
       return state.cursor
         >= data
-        .length;
+          .length;
     },
     /**
      Remaining unread byte count.
@@ -178,7 +178,7 @@ export function createBinaryReader(
         .subarray(
         start,
         start + count,
-      );
+        );
     },
     readString(): string {
       /**
@@ -195,7 +195,7 @@ export function createBinaryReader(
         .subarray(
         state.cursor,
         end,
-      ),);
+        ),);
       state.cursor = end + 1;
       return value;
     },

@@ -8,7 +8,7 @@ import { noOpaqueParameterEffects, } from './no-opaque-parameter-effects.ts';
 import { noReadonlyParameterMutations, } from './no-readonly-parameter-mutations.ts';
 import { preferReadonlyParameterTypes, } from './prefer-readonly-parameter-types.ts';
 import { initializeExternalImplementationApi, } from './prefer-readonly-parameter-types/external-implementation-project.ts';
-import { initializeSemanticBridge, } from './prefer-readonly-parameter-types/typescript-sync-adapter.ts';
+import { initializeSemanticBridge, } from './prefer-readonly-parameter-types/semantic-bridge-lifecycle.ts';
 
 export {
   classifyReadonlyType,
@@ -17,8 +17,16 @@ export {
 } from './prefer-readonly-parameter-types/readonly-classifier.ts';
 
 export {
+  isTerminalSemanticChannelFailure,
+} from './prefer-readonly-parameter-types/semantic-channel-failure.ts';
+
+export {
   closeSemanticBridge,
   initializeSemanticBridge,
+  retireSemanticBridgeAfterChannelFailure,
+} from './prefer-readonly-parameter-types/semantic-bridge-lifecycle.ts';
+
+export {
   openSemanticFile,
   semanticBridgeCacheStats,
   type SemanticBridgeCacheStats,
@@ -56,6 +64,8 @@ export {
   type SemanticBridgeFailureReason,
 } from './prefer-readonly-parameter-types/semantic-bridge-error.ts';
 
+export { configuredProjectConfigFileName, } from './prefer-readonly-parameter-types/semantic-file-name.ts';
+
 export {
   findNodeAtOffset,
   typescriptOffset,
@@ -91,10 +101,40 @@ initializeExternalImplementationApi();
  @internal
  */
 export {
+  readonlyTypeOriginEvidence,
   readonlyTypeOriginEvidenceFromResolution,
   type ReadonlyTypeOriginEvidence,
   type ReadonlyTypeOriginResolution,
 } from './prefer-readonly-parameter-types/readonly-type-origin.ts';
+
+/**
+ Records of omissions inside installed packages and the ledger answering which a summary depends on,
+ exported for their built-artifact branch tests.
+
+ @internal
+ */
+export {
+  EXTERNAL_OMISSIONS_INVALID,
+  type ExternalOmissionRecord,
+  mergeExternalOmissions,
+  parseExternalOmissionRecords,
+} from './prefer-readonly-parameter-types/effect-external-omission.ts';
+
+/**
+ Ledger of loaded sources and the edges expansion followed,
+ exported for its built-artifact branch tests.
+
+ @internal
+ */
+export { createOmissionLedger, } from './prefer-readonly-parameter-types/effect-omission-ledger.ts';
+
+/**
+ Guidance text chosen from origin evidence,
+ exported for the built-artifact origin classification test.
+
+ @internal
+ */
+export { readonlyPreferenceGuidance, } from './prefer-readonly-parameter-types/readonly-preference-guidance.ts';
 
 /**
  Oxlint plugin separating readonly preference, mutation, opacity, and contract policies.
@@ -152,11 +192,33 @@ export {
 export { formalArgumentIndexes, } from './prefer-readonly-parameter-types/effect-external-application.ts';
 
 /**
+ Per-snapshot request memo, exported so its test can exercise built output.
+
+ @internal
+ */
+export {
+  MAXIMUM_MEMOIZED_RESPONSES_PER_SNAPSHOT,
+  MEMOIZED_SNAPSHOT_REQUESTS,
+  memoizeApiSnapshotRequests,
+  memoizeSnapshotRequests,
+  type SnapshotRequestClient,
+  type SnapshotRequestMemo,
+  type SnapshotRequestMemoStats,
+} from './prefer-readonly-parameter-types/semantic-request-memo.ts';
+
+/**
  Ancestor directory walk, exported so its test can exercise built output.
  
  @internal
  */
 export { ancestorDirectories, } from './prefer-readonly-parameter-types/ancestor-directories.ts';
+
+/**
+ Persistent cache bound enforcement, exported so its test can exercise built output.
+
+ @internal
+ */
+export { maintainPersistentEffectCache, } from './prefer-readonly-parameter-types/effect-summary-cache-maintenance.ts';
 
 /**
  Reachability of the structural projection helper, exported for its built-artifact test.
@@ -186,3 +248,26 @@ export {
   RESULT_RELATION_RECEIVER_VALUE,
   VERIFIED_RESULT_RELATION_COUNT,
 } from './prefer-readonly-parameter-types/effect-result-provenance-authority.ts';
+
+/**
+ Cross-project analysis key, project fingerprint and shared-hit verification,
+ exported so the sharing tests can read a key's fallback reason and components from built output.
+ 
+ @internal
+ */
+export {
+  createSharedKeyResolver,
+  type SharedKey,
+} from './prefer-readonly-parameter-types/shared-analysis-key.ts';
+
+export {
+  type EffectProjectFingerprint,
+  effectProjectFingerprint,
+} from './prefer-readonly-parameter-types/effect-project-fingerprint.ts';
+
+export { verifySharedHit, } from './prefer-readonly-parameter-types/shared-analysis-verification.ts';
+
+export {
+  VERIFY_SHARED_DIRECTORY_ENVIRONMENT_VARIABLE,
+  VERIFY_SHARED_ENVIRONMENT_VARIABLE,
+} from './prefer-readonly-parameter-types/shared-analysis-telemetry.ts';

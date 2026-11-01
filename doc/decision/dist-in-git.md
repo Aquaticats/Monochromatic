@@ -253,7 +253,7 @@ free of any committed dist.
 Rejected because:
 
 - The plugins depend on workspace packages
-  (`@monochromatic-dev/module-logger`,
+  (`@monochromatic-dev/logger-core`,
    internal config packages,
    shared types) that exist only in this
   monorepo.

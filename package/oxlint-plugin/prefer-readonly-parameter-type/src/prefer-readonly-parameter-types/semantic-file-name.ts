@@ -9,6 +9,10 @@ import {
   resolve,
 } from 'node:path';
 
+import type { Project, } from 'typescript/sync';
+
+import { SemanticBridgeError, } from './semantic-bridge-error.ts';
+
 /**
  Normalizes source path for overlay and project lookup.
  
@@ -50,9 +54,44 @@ export function normalizeSemanticFileName(fileName: string,): string {
  
  @example
  ```ts
- semanticProjectRootKey('/repo/package/module/logger/tsconfig.json');
+ semanticProjectRootKey('/repo/package/logger/core/tsconfig.json');
  ```
  */
 export function semanticProjectRootKey(configFileName: string,): string {
   return dirname(normalizeSemanticFileName(configFileName,),);
+}
+
+/**
+ Config file path a configured project was loaded from.
+ 
+ Configured-only analysis keys caches and paths by this value. The bridge refuses inferred projects before analysis
+ starts (`typescript-sync-adapter` throws `project-not-found` first), so a project without one here means a snapshot
+ slipped an inferred or synthetic project into configured-only work, where an undefined key would silently collide.
+ 
+ @param project - Project handed to configured-only analysis.
+ 
+ @returns config file path for the project, spelled the way TypeScript spells it.
+ 
+ @throws {@link SemanticBridgeError} when the project has no config file.
+ 
+ @example
+ ```ts
+ const configFileName = configuredProjectConfigFileName({ project, },);
+ ```
+ */
+export function configuredProjectConfigFileName({
+  project,
+}: {
+  readonly project: Project;
+},): string {
+  /**
+   Config file name TypeScript resolved for the project.
+   */
+  const { configFileName, } = project;
+  if (configFileName === undefined)
+    throw new SemanticBridgeError({
+      reason: 'project-not-found',
+      message: 'TypeScript project reached configured-only analysis without a config file.',
+    },);
+  return configFileName;
 }

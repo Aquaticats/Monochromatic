@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T00:52:00Z",
+  "purpose": "Test whether adding .depot/workflows to the default branch automatically registers a native Depot workflow and produces a native run for a matching push.",
+  "documentedRegistrationPath": "The deployed docs require the workflow file under .depot/workflows on the default branch, a trigger matching the event, and the GitHub Code Access connection. They describe merging or pushing the content to the default branch; they do not state that a direct push is excluded or that a pull-request merge event is required. Native pull_request registration is already observed on a non-default base in this repository. The open path is push on main.",
+  "repo": "Aquaticats/Monochromatic",
+  "orgId": "l4zncjjbj5",
+  "probe": {
+    "workflow": ".depot/workflows/registration-probe.yml",
+    "githubCopy": ".github/workflows/registration-probe.yml",
+    "triggerPath": "probe/registration-marker.txt",
+    "sideEffects": "none; both copies echo the commit SHA and upload no artifacts",
+    "addCommit": "a2feb0d0d545b6ad3c17a131e3170f10722ddabb",
+    "triggerCommit": "6523bcaeddfc3648cb66543ea94ca9ad2d932a34",
+    "cleanupCommit": "f8bc2d6c67"
+  },
+  "observations": {
+    "githubRun": {
+      "databaseId": 39182515195,
+      "event": "push",
+      "headSha": "6523bcaeddfc3648cb66543ea94ca9ad2d932a34",
+      "conclusion": "success",
+      "createdAt": "2026-10-19T00:49:40Z"
+    },
+    "depotWorkflowList": {
+      "queriedAt": "2026-10-19T00:51:00Z",
+      "filter": "name=registration-probe",
+      "result": "empty",
+      "queryCommand": "depot ci workflow list --repo Aquaticats/Monochromatic --name registration-probe --org l4zncjjbj5 --output json",
+      "oracleLimit": "This command lists workflow executions, not registered triggers; an empty result cannot prove that registration is absent."
+    },
+    "depotAddPushRun": {
+      "runId": "ps_hf4mk4q5l6",
+      "startedAt": "2026-10-19T00:49:30Z",
+      "endedAt": "2026-10-19T00:50:03Z"
+    },
+    "markerPushAt": "2026-10-19T00:49:35Z"
+  },
+  "result": "The GitHub copy ran. No native run record was observed for the marker commit. The probe is not a valid negative: the marker arrived five seconds after the add push's native run started and while that run was still open, and the listing command observes executions rather than registered triggers. The probe does not establish whether push registration works.",
+  "cleanup": "The probe workflows and marker were removed in commit f8bc2d6c67; the workflow list was empty before cleanup.",
+  "nextPositiveControl": "Arm 1: land the push-trigger workflow by pull-request merge, wait five minutes, then push a separate marker commit and query depot ci run list for the marker SHA. Run Arm 2 (direct push landing) only if Arm 1 passes. Use a local depot ci run as the YAML/oracle control.",
+  "limits": [
+    "One direct-push observation; the marker raced the add push's native run.",
+    "The workflow was removed about two minutes after it was added, before a later registration could be exercised.",
+    "The query used as the oracle lists executions, not registrations.",
+    "The probe does not prove push registration is absent or broken."
+  ]
+}

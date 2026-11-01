@@ -73,16 +73,16 @@ type StructuredReviewInitialResult =
      */
     readonly arguments: unknown;
   }
-  | {
+    | {
     /**
      Missing-tool discriminant.
      */
-    readonly kind: 'noToolCall';
+      readonly kind: 'noToolCall';
     /**
      Finalized text used to construct caller-specific retry instructions.
      */
-    readonly textContent: string;
-  };
+      readonly textContent: string;
+    };
 
 /**
  Isolated model identity recorded at provider request seam.

@@ -1,0 +1,33 @@
+{
+  "format": "translation-repair-document-link-controls-v1",
+  "checkerSha256": "b140d3060547a2a1eddd342ecd380f3668d12872807bc2507a9cdc8f568d1f70",
+  "cases": [
+    {
+      "name": "missing-file",
+      "expectedStatus": 1,
+      "actualStatus": 1,
+      "expectedDiagnostic": "missing-file",
+      "diagnosticDetected": true,
+      "launchErrorAbsent": true,
+      "signalAbsent": true
+    },
+    {
+      "name": "missing-fragment",
+      "expectedStatus": 1,
+      "actualStatus": 1,
+      "expectedDiagnostic": "missing-anchor",
+      "diagnosticDetected": true,
+      "launchErrorAbsent": true,
+      "signalAbsent": true
+    },
+    {
+      "name": "valid-file-and-fragment",
+      "expectedStatus": 0,
+      "actualStatus": 0,
+      "expectedDiagnostic": null,
+      "diagnosticDetected": true,
+      "launchErrorAbsent": true,
+      "signalAbsent": true
+    }
+  ]
+}

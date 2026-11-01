@@ -1,5 +1,10 @@
 # Pi auto-mode axiom evaluation handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/shim/proper-lockfile` is now `package/pnpm-override/shim-proper-lockfile`.
+
 ## Current continuation pointer
 
 The [current frontier](pi-auto-mode-current-frontier.md) records the 2026-10-01 requirements and results:
@@ -305,7 +310,8 @@ Actual Ghostty/Nano detachment and genuine response remain unqualified.
 The original launch budget is consumed.
 The user has authorized a new attempt;
 no second window has yet been opened by this correction.
-The [human handoff](../runbook/pi-auto-mode-confirmation-fixture.md) remains fixture-only and is not a replay instruction.
+The [human handoff](../runbook/pi-auto-mode-confirmation-fixture.md) remains fixture-only
+ and is not a replay instruction.
 Task #68 is now complete only at private Q23-A concrete-host workflow admission.
 Actual controller `proc_7c5f` completed with `approved-fixture`,
 original document privately captured,
@@ -2095,7 +2101,8 @@ not scoring entitlement or quality.
 
 Official API documentation describes a 4,096-token v1.1 path and v1.0 handling of longer requests,
 while also making general pinned-version statements.
-The completed full-policy canary recorded the returned model without truncating policy or crediting v1.0 evidence to v1.1.
+The completed full-policy canary recorded the returned model without truncating policy or crediting v1.0 evidence
+ to v1.1.
 `proc_bb2d` made two calls with all 42,677 policy bytes,
 both requesting v1.1 and reporting v1.0.
 The shared preparation-through-freshness clock was `1984.5333979999998` ms,
@@ -3681,7 +3688,8 @@ The original failing command stopped before combined-wheel preparation or inspec
 hash-checked against five reviewed files,
 under a 128-MiB/one-CPU/ten-second model-free manifest.
 All six inspected WHEEL tag sets matched;
-positive native/ABI3/compressed-pure controls and negative free-threaded/newer-glibc/other-architecture/older-specific-ABI controls passed.
+positive native/ABI3/compressed-pure controls
+ and negative free-threaded/newer-glibc/other-architecture/older-specific-ABI controls passed.
 New-release filename matching selected no runtime dependency,
 but identified matching `ml-dtypes` and `flatbuffers` files for further inspection.
 Results are committed at private `cb6c69b`.
@@ -4366,7 +4374,8 @@ Todo #11 completed interface and raw-feature fit work only.
 It did not qualify an axiom probability mapping,
 auxiliary role,
 or the entire service.
-Keep relevance scores distinct from truth probabilities and explicitly state which remaining questions affect eligibility.
+Keep relevance scores distinct from truth probabilities and explicitly state
+ which remaining questions affect eligibility.
 Do not treat the withdrawn final-verdict pilot as quality evidence or silently introduce training.
 
 ### Deferred integration work

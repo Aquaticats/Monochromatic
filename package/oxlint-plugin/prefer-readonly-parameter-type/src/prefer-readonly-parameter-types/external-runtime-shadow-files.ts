@@ -6,7 +6,7 @@
 
 import { existsSync, } from 'node:fs';
 
-import type { Project, } from 'typescript/unstable/sync';
+import type { Project, } from 'typescript/sync';
 
 /**
  Declaration suffix and possible shipped runtime siblings.
@@ -95,7 +95,7 @@ export function externalRuntimeShadowFiles({
         0,
         fileName.length
           - rule.declarationSuffix
-          .length,
+            .length,
       );
       return rule.runtimeSuffixes
         .map(function runtimePath(suffix,): string {
@@ -106,8 +106,8 @@ export function externalRuntimeShadowFiles({
           return existsSync(runtimePath,);
         },)
         .slice(
-          0,
-          1,
+        0,
+        1,
         );
     },)
     .toSorted();

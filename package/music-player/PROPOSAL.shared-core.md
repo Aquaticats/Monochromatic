@@ -124,7 +124,7 @@ no shared source of truth,
  and the
 two copies quietly diverge between those moments.
 
-The original Android port decision (`../../doc/decisions/music-player-android-port.md`,
+The original Android port decision (`../../doc/decision/music-player-android-port.md`,
  2026-06-12)
 already planned the fix:
  ship the whole engine,
@@ -360,14 +360,24 @@ These are correctness contracts,
  Breaking one breaks both apps.
 
 - **Fingerprint bit-parity.
-  ** Keep the `gxhash` major version,
-   the fixed seed,
-   the exact
-  (path,
-   size,
-   mtime) byte layout,
-   and the AES target feature both `.cargo/config.toml` files set.
-  Any change re-keys both peak caches.
+  ** Both apps call the one `track_fingerprint` function in `truepeak-core`
+  (XXH3-64 from `twox-hash` with the default seed 0,
+   over a domain tag,
+   the length-prefixed path,
+   the size,
+   and the mtime nanoseconds),
+   so identical inputs hash identically by construction.
+  The known-answer tests in `truepeak-core/src/fingerprint_tests.rs` pin the digests to the
+  xxHash reference C implementation,
+   and `NativeBridgeTest` asserts the same constants through the Android JNI entry.
+  No `-C target-feature` flag is involved.
+  Any change to the tag,
+   the seed,
+   the layout,
+   or the hash re-keys both peak caches and needs a `SCHEMA_VERSION` bump.
+  (Until 2026-10-14 this contract was `gxhash` major 3 plus an AES target feature in both
+  `.cargo/config.toml` files;
+   see `doc/decision/music-player-fingerprint-hash.md`.)
 
 - **True-peak normalization:
    both apps are wrong today;

@@ -1,0 +1,11 @@
+[core]
+	repositoryformatversion = "0"
+	hooksPath = "/work/scratch/fixture/phase-landing-locked/repository/.git/hooks"
+[include]
+	path = "/work/scratch/fixture/phase-landing-locked/repository/.git/config"
+[core]
+	worktree = "/work/scratch/fixture/phase-landing-locked/repository"
+[gc]
+	auto = 0
+[maintenance]
+	auto = false

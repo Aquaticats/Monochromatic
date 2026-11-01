@@ -16,7 +16,7 @@ error: missing `return` statement
    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#implicit_return
 ```
 
-`package/desktop-app/terminal/Cargo.toml:9-12` and
+`package/terminal/app/Cargo.toml:9-12` and
 `package/music-player/desktop-app/Cargo.toml:9-12` keep the lint denied for package-owned Rust.
 The failure appears only when each binary includes Slint's generated bindings.
 
@@ -180,10 +180,13 @@ mise run lint
 
 ### Isolate generated bindings in a private module
 
-Both affected binaries use this consumer-owned boundary:
+Both affected binaries use this consumer-owned boundary
+(the allowance list grew when the shadow lints were denied fleet-wide;
+see "The shadow lints reach the same generated code"):
 
 ```rust
 #[allow(clippy::implicit_return)]
+#[allow(clippy::shadow_reuse, clippy::shadow_same, clippy::shadow_unrelated)]
 mod slint_generated {
     slint::include_modules!();
 }
@@ -191,9 +194,13 @@ mod slint_generated {
 use slint_generated::*;
 ```
 
-`package/desktop-app/terminal/src/main.rs:8-37` and
-`package/music-player/desktop-app/src/main.rs:6-35` apply the allowance only to Slint output.
-Their `Cargo.toml` files continue denying `implicit_return` for every maintained module.
+The two crates apply it in their own shapes:
+`package/terminal/app/src/main.rs` keeps the boundary inline in `main.rs`
+with one wrapped `#[allow(...)]` listing all four lints,
+and `package/music-player/desktop-app` carries the boundary in the sibling module file
+`src/slint_generated.rs` with two stacked `#![allow(...)]` inner attributes.
+Both `Cargo.toml` files continue denying `implicit_return` and the three shadow lints
+for every maintained module.
 
 Tradeoff:
 generated bindings gain one namespace and a root import.
@@ -212,9 +219,69 @@ diff --git a/internal/compiler/generator/rust.rs b/internal/compiler/generator/r
 
 The path-dependency probe failed before this patch and passed after it.
 
+The same generated-header location would carry the three shadow lints
+named in "The shadow lints reach the same generated code".
+
 Tradeoff:
 consumers need a patched Slint build or a release containing the change.
 The repository therefore keeps the private-module workaround while using crates.io Slint `1.17.0`.
+
+## The shadow lints reach the same generated code
+
+Commit `53c1e01a9` denied `clippy::shadow_reuse`,
+`clippy::shadow_same`,
+and `clippy::shadow_unrelated` in the canonical `[lints.clippy]` policy,
+and issue #604 tracked the fallout.
+Slint's generated Rust
+(resolved at `1.17.0` in both include-based crates' `Cargo.lock` files)
+rebinds its own helpers over each other
+(`self_rc`,
+`_self`,
+`self_weak`,
+`the_struct`,
+`window`,
+`order`,
+`visitor`,
+`r#repeated_indices`),
+so the included `out/app.rs` failed the new policy exactly like it failed `implicit_return`.
+160 deduplicated generated findings sat behind `package/terminal/app/src/main.rs`.
+The `package/music-player/desktop-app` include fails the same way:
+a 2026-10-08 probe temporarily narrowed the boundary's shadow allowance
+and watched the bin compile fail with 1884 errors dominated by the same binding families,
+then pass again with the allowance restored.
+While each crate's lib target failed to compile,
+its bin target was never linted in those runs,
+so the bin findings,
+maintained and generated alike,
+surfaced only once the lib was clean.
+
+The private-module boundary absorbs these too:
+both include-based boundaries allow the same lint set,
+each in the shape its crate needs.
+`package/terminal/app/src/main.rs` keeps the inline `mod slint_generated`
+with one wrapped `#[allow(...)]` listing all four lints.
+`package/music-player/desktop-app` carries the boundary in the sibling module file
+`src/slint_generated.rs` with two stacked `#![allow(...)]` inner attributes.
+The inline wrapped-list shape first used there pushed `main.rs`
+past the 300-code-line `builtin(max-lines)` budget
+(measured 2026-10-08:
+304 code lines,
+rejected),
+and AGENTS.md `MXL` prescribes splitting into sibling files over compressing code to fit;
+after the split,
+`main.rs` measures 296 of 300 code lines.
+
+`package/ide/app/src/native.rs` needs no shadow allowance.
+Since commit `8e471dba6` (2026-10-04) its `mod ui` uses the `slint::slint!` re-export macro
+instead of `slint::include_modules!()`,
+so the generated code reaches the crate as a procedural-macro expansion rather than an included file,
+and with Slint resolved at `1.18.1` in its `Cargo.lock`,
+the 2026-10-08 run of `mise run //package/ide/app:lint:clippy`
+reports no shadow findings in generated or maintained source.
+
+Verified with `rustc 1.100.0-nightly (1303417c4 2026-09-21)`:
+after these boundary allowances and the maintained-source renames tracked in issue #604,
+each of the crates whose manifest carries the shadow policy passes its own Clippy task.
 
 ## What does not work
 

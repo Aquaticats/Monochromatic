@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:18:08.422Z",
+  "scope": "Conditional value of completed shared-build phase duration differences only",
+  "inputs": [
+    {
+      "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.evidence.json",
+      "bytes": 15408,
+      "sha256": "f3f62865ce323d30279fb3099f6dc46a029bb6946d4704ae6cb2c9b6d8243451"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.evidence.json",
+      "bytes": 10818,
+      "sha256": "142df7b31c3cdee97decbf4ac5e84581c50937388bd663a974e2ba96cb35fa59"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-critical-path-2026-10-18.evidence.json",
+      "bytes": 3826,
+      "sha256": "ddd4e04563e60298ce255244a82dc32cd8de10d94609e8792a4d387e9d277746"
+    }
+  ],
+  "waitingInput": {
+    "cadPerHour": 8.975,
+    "source": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-18.md",
+    "cadPerUsd": 1.4154,
+    "fxObservationDate": "2026-10-16",
+    "fxSource": {
+      "url": "https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?start_date=2026-10-16&end_date=2026-10-16",
+      "bytes": 695,
+      "sha256": "79c25d3d98b9cefc668601e0b9ddbe9ab7ae2b742d2ceb29abc69dbe50db83e1"
+    },
+    "usdPerHour": 6.340963685177335
+  },
+  "comparisons": [
+    {
+      "provider": "depot-github-actions",
+      "meanMilliseconds": 73288.5,
+      "referenceMeanMilliseconds": 210210,
+      "observedPhaseDeltaMilliseconds": 136921.5,
+      "conditionalUsdAtBlockedFractionOne": 0.24117062756111343
+    },
+    {
+      "provider": "depot-native-corrected",
+      "meanMilliseconds": 62300,
+      "referenceMeanMilliseconds": 210210,
+      "observedPhaseDeltaMilliseconds": 147910,
+      "conditionalUsdAtBlockedFractionOne": 0.2605255385207165
+    }
+  ],
+  "blockedFraction": "Unmeasured; multiply conditional values by the fraction of this phase during which the human actually waits",
+  "overlapPolicy": "Shared-build phase is one interval; do not add overlapping Rust or consumer branch time",
+  "wholeCiWaitingBenefit": null,
+  "actualHumanWaitingMeasured": false,
+  "roiClaim": false,
+  "limits": [
+    "Only two repetitions per provider; observed phase differences are not causal guarantees.",
+    "Source/test failures, different generated inputs and public GitHub budget stops prevent an equal-completion whole-CI benefit.",
+    "This conditional phase valuation is not an invoice or a claim that overnight unattended execution costs human waiting time."
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz",
+    "bytes": 5704,
+    "sha256": "254a0f69763e8cccfe6bd0f4d2785e757c8d4fde48e02edf232715a11876c5e5",
+    "records": 4
+  }
+}

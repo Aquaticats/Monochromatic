@@ -7,7 +7,7 @@
 Status note (forbidden-strings 0.2.0):
  the `resharp` dependency is gone.
  The engine swap replaced resharp with the in-house `forbidden-regex` engine
-(`package/rust-module/forbidden-regex`),
+(`package/forbidden-strings/core`),
  so the scanner no longer exercises the resharp APIs described here.
  This document stays as a durable record of the upstream bugs found and filed.
 

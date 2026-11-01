@@ -149,7 +149,7 @@ export function extractNodeName(node: ForeignBorrowed<Span>,): string {
       === 'PropertyDefinition')
     || (typed.type
       === 'Property'))
-  {
+    {
     /**
      Member name read from the node's `key` (`foo` in `class C { foo() {} }`).
      */

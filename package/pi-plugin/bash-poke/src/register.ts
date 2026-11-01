@@ -12,7 +12,7 @@ import type {
   UserBashEventResult,
 } from '@earendil-works/pi-coding-agent';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { BashPokeSettings, } from './config-types.ts';

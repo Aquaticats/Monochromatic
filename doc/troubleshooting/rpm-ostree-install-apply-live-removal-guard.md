@@ -300,7 +300,8 @@ and `install --apply-live` option behavior.
 
 [coreos/rpm-ostree#3728](https://github.com/coreos/rpm-ostree/issues/3728)
 already tracks the misleading stage-then-error result for `install -A`.
-A maintainer explains there that live apply always applies accumulated changes from the pending deployment to the current one.
+A maintainer explains there that live apply always applies accumulated changes
+from the pending deployment to the current one.
 The current investigation adds no installed-version result or minimal reproduction absent from that issue,
 so there is nothing additive to post.
 
@@ -330,4 +331,5 @@ so there is nothing additive to post.
    Constraints 1 and 5 do not trigger an upstream prototype.
 
 Nothing to add to issue #3728:
-no comment draft is retained because repeating the same behavior without the affected binary version would not advance the thread.
+no comment draft is retained because repeating the same behavior
+without the affected binary version would not advance the thread.

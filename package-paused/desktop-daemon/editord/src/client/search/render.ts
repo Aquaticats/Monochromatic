@@ -6,7 +6,7 @@
  * to keep each file under the effective line limit.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { SearchResult, } from '../../../protocol.ts';
 import { middleOut, } from '../middle-out.ts';

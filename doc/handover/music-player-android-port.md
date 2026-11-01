@@ -799,7 +799,10 @@ Android package (`package/music-player/android-app/`),
    source selection + `reloadFromRoot` in the service,
    picker in the activity.
 - `1ef469de` fix:
-   deliver folder picks via an activity-scoped launcher (composition teardown when the picker opened was dropping the result) and show a loading notice during scans (was flashing "No music found" for the whole scan);
+   deliver folder picks via an activity-scoped launcher
+   (composition teardown when the picker opened was dropping the result)
+   and show a loading notice during scans
+   (was flashing "No music found" for the whole scan);
    both found on device.
 - `ef90fd1a` fix:
    cancel a superseded library load so a folder re-pick is not overwritten by a slow concurrent self-load.

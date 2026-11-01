@@ -16,13 +16,13 @@ import type {
   CallExpression,
   Expression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isElementAccessExpression,
   isNonNullExpression,
   isParenthesizedExpression,
   isPropertyAccessExpression,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Sentinel when a call names no receiver, so there is no member call at all.

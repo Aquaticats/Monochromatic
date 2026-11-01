@@ -32,20 +32,37 @@ Cloned `isomorphic-git/isomorphic-git` (depth=1) to inspect:
 
 ## Capability matrix
 
-| Operation                                                          | Status                                                                            | Path                                                                |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Read git object (`readObject`)                                     | available                                                                         | `internal-apis` -> `_readObject`                                    |
-| Write git object (`writeObject`)                                   | available                                                                         | `internal-apis` -> `_writeObject`                                   |
-| Resolve ref to OID                                                 | available                                                                         | `internal-apis` -> `GitRefManager.resolve`                          |
-| List refs                                                          | available                                                                         | `internal-apis` -> `GitRefManager.listRefs`                         |
-| Build packfile from OID set                                        | available                                                                         | `internal-apis` -> `_pack` (`commands/pack.js`)                     |
-| Index/apply received packfile                                      | available via public API                                                          | `indexPack({fs, dir, gitdir, filepath})` writes `.idx` next to pack |
-| Write `info/refs` advertisement                                    | available                                                                         | `internal-apis` -> `writeRefsAdResponse`                            |
-| Parse `git-upload-pack` request (server reads wants/haves)         | available                                                                         | `internal-apis` -> `parseUploadPackRequest`                         |
-| Write `git-upload-pack` response (NAK + sideband pack)             | **missing on server side** (only client-side parser)                              | must vendor                                                         |
-| Parse `git-receive-pack` request (server reads ref updates + pack) | **missing**                                                                       | must vendor                                                         |
-| Write `git-receive-pack` response (unpack + ref-update report)     | **missing** (only client-side parser)                                             | must vendor                                                         |
-| Sideband multiplex (pack/progress/error onto channels 1/2/3)       | **missing: `GitSideBand.mux` is commented out** at `src/models/GitSideBand.js:82` | must vendor                                                         |
+| Operation                                                          | Status
+| Path                                                                |
+| ------------------------------------------------------------------ |
+--------------------------------------------------------------------------------- |
+------------------------------------------------------------------- |
+| Read git object (`readObject`)                                     | available
+| `internal-apis` -> `_readObject`                                    |
+| Write git object (`writeObject`)                                   | available
+| `internal-apis` -> `_writeObject`                                   |
+| Resolve ref to OID                                                 | available
+| `internal-apis` -> `GitRefManager.resolve`                          |
+| List refs                                                          | available
+| `internal-apis` -> `GitRefManager.listRefs`                         |
+| Build packfile from OID set                                        | available
+| `internal-apis` -> `_pack` (`commands/pack.js`)                     |
+| Index/apply received packfile                                      | available via public API
+| `indexPack({fs, dir, gitdir, filepath})` writes `.idx` next to pack |
+| Write `info/refs` advertisement                                    | available
+| `internal-apis` -> `writeRefsAdResponse`                            |
+| Parse `git-upload-pack` request (server reads wants/haves)         | available
+| `internal-apis` -> `parseUploadPackRequest`                         |
+| Write `git-upload-pack` response (NAK + sideband pack)             | **missing on server side**
+(only client-side parser)                              | must vendor
+|
+| Parse `git-receive-pack` request (server reads ref updates + pack) | **missing**
+| must vendor                                                         |
+| Write `git-receive-pack` response (unpack + ref-update report)     | **missing** (only client-side parser)
+| must vendor                                                         |
+| Sideband multiplex (pack/progress/error onto channels 1/2/3)       | **missing:
+`GitSideBand.mux` is commented out** at `src/models/GitSideBand.js:82` | must vendor
+|
 
 Source citation for the missing pieces:
 
@@ -98,8 +115,10 @@ deployment, which is Phase 3+ scope.
 ## Verification plan (pre-merge)
 
 1. `git clone http://localhost:3000/x/y.git /tmp/clone` against a freshly seeded repo, assert exit 0 and matching tree.
-2. `git push http://localhost:3000/x/y.git HEAD:refs/heads/feat-abc` from a local clone, assert exit 0 and assert the `push` event hits the event log.
-3. Round-trip a binary blob (e.g. a 5 MB random file) to confirm sideband-64k chunking handles the 65,519 byte payload limit correctly.
+2. `git push http://localhost:3000/x/y.git HEAD:refs/heads/feat-abc` from a local clone,
+   assert exit 0 and assert the `push` event hits the event log.
+3. Round-trip a binary blob (e.g. a 5 MB random file) to confirm sideband-64k chunking handles the 65,519 byte payload
+   limit correctly.
 4. Push 100 small refs in one POST to confirm the ref-update parser handles batched updates.
 
 ## Draft GitHub issue (to file upstream against isomorphic-git)

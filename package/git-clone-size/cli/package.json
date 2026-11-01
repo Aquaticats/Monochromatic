@@ -1,0 +1,42 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/git-clone-size-cli",
+  "description": "CLI that estimates a git repo's shallow-to-full clone size ratio and savings, streaming a JSONL range with confidence, without ever doing a full clone.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "bin": {
+    "git-clone-size": "dist/final/node/index.mjs"
+  },
+  "exports": {
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/numeric-format-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@optique/core": "catalog:",
+    "@optique/run": "catalog:",
+    "nano-spawn": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/git-clone-size/cli"
+  },
+  "sideEffects": true
+}

@@ -186,8 +186,8 @@ function hasLineNumberSuffix(line: string,): boolean {
     let count = 0;
     while (
       (count < LINE_NUMBER_MAX_DIGITS)
-      && ((at + count) < line
-        .length)
+        && ((at + count) < line
+          .length)
         && isDigit(line.charAt(at + count,),)
     ) {
       count += 1;
@@ -213,7 +213,7 @@ function hasLineNumberSuffix(line: string,): boolean {
     const digitCount = countDigits(colonIdx + 1,);
     if ((digitCount >= LINE_NUMBER_MIN_DIGITS)
       && (digitCount <= LINE_NUMBER_MAX_DIGITS))
-    {
+      {
       /**
        Position one past the digit run; checked for a word boundary below.
        */

@@ -9,8 +9,8 @@ import type {
   Fixer,
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import type { ParameterDeclaration, } from 'typescript/unstable/ast';
-import { isArrayTypeNode, } from 'typescript/unstable/ast/is';
+import type { ParameterDeclaration, } from 'typescript/ast';
+import { isArrayTypeNode, } from 'typescript/ast/is';
 
 import { classifyReadonlyType, } from './readonly-classifier.ts';
 import { readonlyCollectionSuggestions, } from './readonly-collection-suggestions.ts';

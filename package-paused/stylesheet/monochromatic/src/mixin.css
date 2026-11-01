@@ -2,18 +2,18 @@
    Note that since I'm using this class as a pure composition class :not(:focus) and :not(:active) needs to be accounted for everywhere it's used.
  */
 @mixin --sr-only {
-  /* stylelint-disable-next-line property-disallowed-list,property-no-deprecated -- copypaste */
+  /* copypaste */
   clip: rect(0 0 0 0);
 
   position: absolute;
 
-  /* stylelint-disable-next-line property-disallowed-list,unit-disallowed-list -- copypaste */
+  /* copypaste */
   width: 1px;
 
-  /* stylelint-disable-next-line property-disallowed-list,unit-disallowed-list -- copypaste */
+  /* copypaste */
   height: 1px;
 
-  /* stylelint-disable-next-line property-disallowed-list -- copypaste */
+  /* copypaste */
   overflow: hidden;
 
   white-space: nowrap;
@@ -272,7 +272,6 @@
     }
   }
 
-  /* stylelint-disable-next-line no-descending-specificity -- Cannot fix */
   ul {
     list-style-type: dash;
 

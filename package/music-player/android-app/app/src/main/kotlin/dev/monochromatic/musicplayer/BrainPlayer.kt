@@ -62,6 +62,8 @@ package dev.monochromatic.musicplayer
 import android.os.Handler
 
 // What:     `import android.os.Looper`. A `Looper` is the object that OWNS a
+
+import android.util.Log
 //           thread's message loop (the forever-running "take next message,
 //           run it" loop). Each thread that processes posted work has exactly
 //           one Looper; the app's main/UI thread's Looper is the "main looper".
@@ -73,6 +75,17 @@ import android.os.Handler
 // import { Looper } from "android/os";
 // ```
 import android.os.Looper
+
+// What:     `import android.os.SystemClock` pulls in the monotonic clock. `SystemClock.elapsedRealtime()` counts
+//           milliseconds since boot and never jumps with the wall clock.
+// Why:      media3 extrapolates a pulled position with this same clock, so `SessionPositionAnchor` must use it to
+//           predict what the session reports.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // performance.now() is the nearest monotonic clock.
+// ```
+import android.os.SystemClock
 
 // What:     `import androidx.annotation.OptIn`. This is the ANNOTATION class
 //           used to say "yes, I knowingly use an API that the library marked
@@ -300,6 +313,42 @@ class BrainPlayer(
      */
     private val handler: Handler = Handler(looper)
 
+    /** Posts one state refresh per burst of brain changes onto the main looper. */
+    private val invalidateTrigger: CoalescedTrigger = CoalescedTrigger(
+        schedule = { task -> handler.post { task() } },
+        action = { invalidateState() },
+    )
+
+    // What:     `anchor` remembers the position the last `getState()` handed to media3; `positionCheck` compares it
+    //           with the engine a moment after each pull and while playing, and pulls again when they disagree.
+    // Why:      The engine applies a seek on its worker thread after `getState()` has read the old position, so the
+    //           session extrapolated from a stale position (the notification scrubber showed a different time from
+    //           the app) until an unrelated change pulled again. See `SessionPositionAnchor`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private readonly anchor = new SessionPositionAnchor(() => performance.now());
+    // private readonly positionCheck = () => { ... };
+    // ```
+    /** Position the last pulled state reported, checked against the engine by [positionCheck]. */
+    private val anchor: SessionPositionAnchor = SessionPositionAnchor(now = { SystemClock.elapsedRealtime() })
+
+    /** Pulls the state again when the engine has moved away from the position the session extrapolates. */
+    private val positionCheck: Runnable = Runnable {
+        /** The engine's position now, in milliseconds. */
+        val actualMs: Long = (controller.positionSec() * MILLIS_PER_SEC).toLong()
+        /** Whether the engine still agrees with the anchor, and when to look again. */
+        val result: SessionPositionAnchor.Check = anchor.check(actualMs)
+        when (result) {
+            SessionPositionAnchor.Check.Resync -> {
+                Log.d(LOG_TAG, "position anchor ${anchor.expectedMs()} ms differs from engine $actualMs ms; resync")
+                invalidateState()
+            }
+            is SessionPositionAnchor.Check.CheckAgainIn -> handler.postDelayed(positionCheck, result.delayMs)
+            SessionPositionAnchor.Check.Settled -> Unit
+        }
+    }
+
     // What:     `init { ... }` is Kotlin's INITIALIZER BLOCK: code that runs as
     //           part of constructing every instance, after the primary
     //           constructor's field assignments. There is no method name; the
@@ -337,9 +386,7 @@ class BrainPlayer(
         //   handler.post(() => this.invalidateState());
         // };
         // ```
-        controller.onStateChanged = {
-            handler.post { invalidateState() }
-        }
+        controller.onStateChanged = { invalidateTrigger.request() }
     }
 
     // What:     `override fun getState(): State` declares a method named
@@ -379,260 +426,28 @@ class BrainPlayer(
          * its source and use.
          */
         val snapshot: PlaybackSnapshot = controller.snapshot()
-        // What:     `val playlist: List<MediaItemData> = snapshot.items.mapIndexed { index, item -> ... }`
-        //           declares a read-only local `playlist` typed as
-        //           `List<MediaItemData>` (an immutable, read-only list; the
-        //           sibling `MutableList<T>` is the growable/editable one we
-        //           deliberately do NOT use here). `<MediaItemData>` is a
-        //           generic type argument (the element type). It is filled by
-        //           `snapshot.items.mapIndexed { index, item -> ... }`, which
-        //           maps each item to a new value WHILE also handing the
-        //           position. `mapIndexed`'s `{ index, item -> ... }` is a
-        //           LAMBDA whose parameters are written before `->` (Kotlin
-        //           lambda syntax), the body being everything up to the closing
-        //           brace; the lambda's last expression is its result.
-        // Why:      We turn each track in the brain's scope into one media3
-        //           timeline row, building the player's reported timeline.
-        // Gotcha:   Argument order is flipped vs JS `.map`: here `index` comes
-        //           first, then `item`.
+        // What:     `val playlist: List<MediaItemData> = playlistFor(snapshot)` returns the timeline rows, built
+        //           again only for the positions that changed since the previous call.
+        // Why:      Building a row per queue position on every pull made a track change cost time proportional to the
+        //           queue size; only the row that stopped being current and the row that became current differ.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const playlist: ReadonlyArray<MediaItemData> = snapshot.items.map(
-        //   (item, index) => { /* ...build one row... */ },
-        // );
+        // const playlist: readonly MediaItemData[] = this.playlistFor(snapshot);
         // ```
-        /**
-         * Defines playlist value for this music-player component; the TypeScript-oriented notes above explain
-         * its source and use.
-         */
-        val playlist: List<MediaItemData> = snapshot.items.mapIndexed { index, item ->
-            // What:     `val durationUs: Long = if (cond) { a } else { b }`
-            //           declares a read-only local `durationUs` of type `Long`
-            //           (a 64-bit signed integer; siblings the reader might
-            //           expect: `Int` = 32-bit, `Short` = 16-bit). Crucially,
-            //           in Kotlin `if/else` is an EXPRESSION that produces a
-            //           value, so the whole `if (...) { ... } else { ... }` is
-            //           the right-hand side that initialises `durationUs`. The
-            //           condition checks "this is the current track AND its
-            //           duration is known (> 0)". `0L` is a `Long` literal (the
-            //           `L` suffix forces 64-bit, vs a bare `0` which is `Int`).
-            // Why:      Microseconds is the unit media3 wants for a timeline
-            //           row's duration. We choose `Long` (not `Int`) because
-            //           durations in microseconds can exceed the ~2.1 billion
-            //           range of a 32-bit `Int` (35 minutes already overflows).
-            // Gotcha:   `if/else` here RETURNS a value (Kotlin), unlike TS where
-            //           `if` is a statement.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const durationUs: number =
-            //   (index === snapshot.currentIndex && snapshot.durationMs > 0)
-            //     ? snapshot.durationMs * MICROS_PER_MILLI
-            //     : C.TIME_UNSET;
-            // ```
-            /**
-             * Defines duration us value for this music-player component; the TypeScript-oriented notes above
-             * explain its source and use.
-             */
-            val durationUs: Long = if (index == snapshot.currentIndex && snapshot.durationMs > 0L) {
-                // What:     `snapshot.durationMs * MICROS_PER_MILLI` is the
-                //           TRUE branch's last expression, so it becomes the
-                //           branch's value (the value the `if` yields). It
-                //           multiplies milliseconds by 1000 to get microseconds.
-                //           Both operands are `Long`, so the result is `Long`.
-                // Why:      Convert the brain's milliseconds to the microseconds
-                //           media3 reports.
-                // Gotcha:   `Long * Long` is 64-bit integer multiply that WRAPS
-                //           silently on overflow — there is no auto-promotion to
-                //           a bigger type, unlike JS numbers.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // snapshot.durationMs * MICROS_PER_MILLI
-                // ```
-                snapshot.durationMs * MICROS_PER_MILLI
-            } else {
-                // What:     `C.TIME_UNSET` is the FALSE branch's value: a
-                //           sentinel `Long` constant from media3 meaning "the
-                //           duration is unknown." It is the branch's last
-                //           expression, so it is what the `if` yields here.
-                // Why:      For non-current tracks (or when duration isn't known
-                //           yet) we report "unknown" rather than a wrong number.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // C.TIME_UNSET
-                // ```
-                C.TIME_UNSET
-            }
-            // What:     `MediaItemData.Builder(item.loadIndex) ... .build()` is a
-            //           BUILDER CHAIN: `MediaItemData.Builder(item.loadIndex)`
-            //           constructs a fresh builder seeded with this row's UID
-            //           (`item.loadIndex`, the stable load-order index), then
-            //           each `.setX(...)` returns the same builder so calls
-            //           chain, and `.build()` produces the immutable
-            //           `MediaItemData`. This whole chain is the LAMBDA's last
-            //           expression, so it is the value `mapIndexed` collects for
-            //           this element (an implicit "return this row").
-            // Why:      Assemble one fully-described timeline row for this track.
-            // Gotcha:   No `return` keyword: the last expression in a lambda is
-            //           automatically its result.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return new MediaItemData.Builder(item.loadIndex)
-            //   .setMediaItem(/* ...inner builder... */)
-            //   .setIsSeekable(true)
-            //   .setDurationUs(durationUs)
-            //   .build();
-            // ```
-            MediaItemData.Builder(item.loadIndex)
-                // What:     `.setMediaItem( MediaItem.Builder()...build() )` sets
-                //           this row's media item to a freshly built `MediaItem`.
-                //           The argument is its own nested builder chain (see the
-                //           inner `.setUri/.setMediaId/.setMediaMetadata/.build`).
-                // Why:      Each timeline row needs the actual playable item (URI
-                //           + id + metadata) attached.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // .setMediaItem(new MediaItem.Builder()/* ... */.build())
-                // ```
-                .setMediaItem(
-                    // What:     `MediaItem.Builder()` constructs an empty
-                    //           `MediaItem` builder (no `new` keyword in Kotlin).
-                    // Why:      Start assembling the playable item for this row.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // new MediaItem.Builder()
-                    // ```
-                    MediaItem.Builder()
-                        // What:     `.setUri(item.uri)` puts this track's playback
-                        //           URI (a `content://` or `file://` string) onto
-                        //           the builder.
-                        // Why:      The engine needs the URI to open and decode
-                        //           the audio.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // .setUri(item.uri)
-                        // ```
-                        .setUri(item.uri)
-                        // What:     `.setMediaId(item.loadIndex.toString())` sets
-                        //           the media id. `item.loadIndex` is an `Int`;
-                        //           `.toString()` is a TYPE-CONVERSION call that
-                        //           produces a fresh `String` from the number
-                        //           (media3 wants a String id, not an int).
-                        // Why:      The id must be a stable String key; we derive
-                        //           it from the integer load index.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // .setMediaId(String(item.loadIndex))
-                        // ```
-                        .setMediaId(item.loadIndex.toString())
-                        // What:     `.setMediaMetadata( MediaMetadata.Builder().setTitle(item.title).build() )`
-                        //           attaches metadata. The argument is yet another
-                        //           builder chain: `MediaMetadata.Builder()`
-                        //           constructs the metadata builder,
-                        //           `.setTitle(item.title)` sets the display title,
-                        //           and `.build()` finalises the immutable
-                        //           `MediaMetadata`.
-                        // Why:      The notification/lockscreen read the title from
-                        //           here to show the current track's name.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // .setMediaMetadata(
-                        //   new MediaMetadata.Builder().setTitle(item.title).build(),
-                        // )
-                        // ```
-                        .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).build())
-                        // What:     `.build()` finalises the INNER `MediaItem`
-                        //           builder into an immutable `MediaItem` value.
-                        // Why:      We need the finished item to hand to
-                        //           `.setMediaItem(...)` on the outer row builder.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // .build()
-                        // ```
-                        .build(),
-                )
-                // What:     `.setIsSeekable(true)` marks this timeline row as
-                //           seekable (the scrubber/seek-bar may move within it).
-                // Why:      We support scrubbing, so every row reports seekable.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // .setIsSeekable(true)
-                // ```
-                .setIsSeekable(true)
-                // What:     `.setDurationUs(durationUs)` records this row's
-                //           duration (in microseconds) computed above; for
-                //           non-current tracks it is the `C.TIME_UNSET` sentinel.
-                // Why:      The framework needs a per-row duration to render the
-                //           scrubber and timeline.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // .setDurationUs(durationUs)
-                // ```
-                .setDurationUs(durationUs)
-                // What:     `.build()` finalises the OUTER `MediaItemData` builder
-                //           into one immutable timeline row. This is the LAMBDA's
-                //           tail expression, so its value is what `mapIndexed`
-                //           collects for this element.
-                // Why:      Yield the finished row for this track into `playlist`.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // .build()  // returned from the .map callback
-                // ```
-                .build()
-        }
-        // What:     `val builder: State.Builder = State.Builder() ... ` declares
-        //           a read-only local `builder` of type `State.Builder`,
-        //           initialised by calling `State.Builder()` and then chaining
-        //           `.setX(...)` calls. `State.Builder` is media3's mutable
-        //           assembler for an immutable `State`.
-        // Why:      We accumulate the full playback picture (commands, playlist,
-        //           play/pause, position, volume, repeat) before building it.
+        /** Timeline rows, the same list instance as the previous pull when no row changed. */
+        val playlist: List<MediaItemData> = playlistFor(snapshot)
+        // What:     `stateWith(playlist).buildUpon()` starts the state from a base that already holds this playlist.
+        // Why:      `setPlaylist` checks every id and builds a timeline over the whole queue; the base is built once
+        //           per distinct playlist and `buildUpon()` keeps its timeline, so a pull that changes only the
+        //           position or the play intent costs nothing per queue row.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const builder: State.Builder = new State.Builder()
-        //   .setAvailableCommands(AVAILABLE_COMMANDS)
-        //   .setPlaylist(playlist)
-        //   /* ...etc... */;
+        // const builder = this.stateWith(playlist).buildUpon();
         // ```
-        /**
-         * Defines builder value for this music-player component; the TypeScript-oriented notes above explain its
-         * source and use.
-         */
-        val builder: State.Builder = State.Builder()
-            // What:     `.setAvailableCommands(AVAILABLE_COMMANDS)` tells the
-            //           framework which commands this player supports (the
-            //           precomputed set in the companion object below).
-            // Why:      Controls which buttons/actions the notification offers.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // .setAvailableCommands(AVAILABLE_COMMANDS)
-            // ```
-            .setAvailableCommands(AVAILABLE_COMMANDS)
-            // What:     `.setPlaylist(playlist)` hands the framework the list of
-            //           timeline rows we built above (the current scope).
-            // Why:      This is the timeline the notification/Next-Previous logic
-            //           operates over.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // .setPlaylist(playlist)
-            // ```
-            .setPlaylist(playlist)
+        /** State builder that carries [playlist] and its timeline; every other field is set below. */
+        val builder: State.Builder = stateWith(playlist).buildUpon()
             // What:     `.setPlayWhenReady(snapshot.playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)`
             //           sets the play INTENT (true = should be playing) plus the
             //           REASON constant explaining why it changed (here "the user
@@ -759,6 +574,21 @@ class BrainPlayer(
             // ```
             builder.setCurrentMediaItemIndex(current)
         }
+        // What:     `anchor.record(...)` notes the position this pull reports and whether media3 will run it forward on
+        //           its own (it does while a loaded track plays); the two lines after it replace any waiting check
+        //           with a first one `FIRST_CHECK_DELAY_MS` from now.
+        // Why:      The engine may not have applied a seek or a track change yet, so this pull can carry a stale
+        //           position; the check pulls again if the engine disagrees (see `SessionPositionAnchor`).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.anchor.record(snapshot.positionMs, snapshot.playWhenReady && playlist.length > 0);
+        // clearTimeout(this.positionCheckTimer);
+        // this.positionCheckTimer = setTimeout(this.positionCheck, FIRST_CHECK_DELAY_MS);
+        // ```
+        anchor.record(positionMs = snapshot.positionMs, advancing = snapshot.playWhenReady && playlist.isNotEmpty())
+        handler.removeCallbacks(positionCheck)
+        handler.postDelayed(positionCheck, SessionPositionAnchor.FIRST_CHECK_DELAY_MS)
         // What:     `return builder.build()` finalises the accumulated builder
         //           into the immutable `State` and RETURNS it from `getState()`.
         //           `.build()` is the builder-to-value conversion.
@@ -769,6 +599,94 @@ class BrainPlayer(
         // return builder.build();
         // ```
         return builder.build()
+    }
+
+    /** Rows handed to the base player by the previous pull. */
+    private var rows: List<MediaItemData> = emptyList()
+
+    /** Snapshot rows the [rows] were built from, compared by identity. */
+    private var rowItems: List<SnapshotItem> = emptyList()
+
+    /** Position of the current track when [rows] were built, or null. */
+    private var rowsCurrent: Int? = null
+
+    /** Duration of the current track in milliseconds when [rows] were built. */
+    private var rowsDurationMs: Long = 0L
+
+    /** State that holds [rows] as its playlist and nothing else, or null before the first pull. */
+    private var baseState: State? = null
+
+    /** Playlist that [baseState] was built from. */
+    private var keptPlaylist: List<MediaItemData>? = null
+
+    // What:     `private fun playlistFor(snapshot: PlaybackSnapshot): List<MediaItemData>` returns the timeline rows of
+    //           [snapshot], reusing the row of the previous pull at every position that did not change.
+    // Why:      Only the row that stopped being current and the row that became current carry different data (the
+    //           duration is reported for the current track only), and a changed artist tag arrives as a new
+    //           `SnapshotItem` at its own positions.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private playlistFor(snapshot: PlaybackSnapshot): readonly MediaItemData[] { /* reuseRows(...) */ }
+    // ```
+    /** Returns the timeline rows of [snapshot] and remembers them for the next pull. */
+    private fun playlistFor(snapshot: PlaybackSnapshot): List<MediaItemData> {
+        /** Positions whose row can differ although their item is unchanged: the previous and the new current track. */
+        val rebuilt: Set<Int> = currentRowPositions(
+            previousCurrent = rowsCurrent,
+            previousDurationMs = rowsDurationMs,
+            current = snapshot.currentIndex,
+            durationMs = snapshot.durationMs,
+        )
+        /** Rows for the new snapshot, sharing every row that did not change. */
+        val next: List<MediaItemData> = reuseRows(
+            previousItems = rowItems,
+            previousRows = rows,
+            items = snapshot.items,
+            rebuilt = rebuilt,
+            build = { position, item -> rowOf(position = position, item = item, snapshot = snapshot) },
+        )
+        Log.d(LOG_TAG, "getState rows=${next.size} sameList=${next === rows} rebuiltCurrent=${rebuilt.size}")
+        rows = next
+        rowItems = snapshot.items
+        rowsCurrent = snapshot.currentIndex
+        rowsDurationMs = snapshot.durationMs
+        return next
+    }
+
+    /** Returns a state that holds [playlist], building it only when the playlist is a different list than last time. */
+    private fun stateWith(playlist: List<MediaItemData>): State {
+        /** State kept from the previous pull. */
+        val kept: State? = baseState
+        if (kept != null && keptPlaylist === playlist) {
+            return kept
+        }
+        /** Fresh state over [playlist]; the base player validates the ids and builds the timeline here. */
+        val built: State = State.Builder().setAvailableCommands(AVAILABLE_COMMANDS).setPlaylist(playlist).build()
+        baseState = built
+        keptPlaylist = playlist
+        return built
+    }
+
+    /** Builds the timeline row of the track at [position], reporting a duration only for the current track. */
+    private fun rowOf(position: Int, item: SnapshotItem, snapshot: PlaybackSnapshot): MediaItemData {
+        /** Duration in microseconds for the current track once known, otherwise the unset marker. */
+        val durationUs: Long = if (position == snapshot.currentIndex && snapshot.durationMs > 0L) {
+            snapshot.durationMs * MICROS_PER_MILLI
+        } else {
+            C.TIME_UNSET
+        }
+        return MediaItemData.Builder(item.entryId)
+            .setMediaItem(
+                MediaItem.Builder()
+                    .setUri(item.uri)
+                    .setMediaId(item.loadIndex.toString())
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist).build())
+                    .build(),
+            )
+            .setIsSeekable(true)
+            .setDurationUs(durationUs)
+            .build()
     }
 
     // What:     `override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*>`
@@ -1032,6 +950,15 @@ class BrainPlayer(
         // this.controller.onStateChanged = null;
         // ```
         controller.onStateChanged = null
+        // What:     `handler.removeCallbacks(positionCheck)` drops a queued position check.
+        // Why:      A check that ran after the release would read a released engine and pull state from a player
+        //           that is going away.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // clearTimeout(this.positionCheckTimer);
+        // ```
+        handler.removeCallbacks(positionCheck)
         // What:     `controller.release()` tells the brain to release its
         //           resources (the native engine), freeing audio focus, buffers,
         //           worker threads, and file handles.
@@ -1079,6 +1006,9 @@ class BrainPlayer(
     // // (the static members of class BrainPlayer)
     // ```
     companion object {
+        /** Tag of this class in the device log. */
+        private const val LOG_TAG: String = "BrainPlayer"
+
         // What:     `private const val MICROS_PER_MILLI: Long = 1000L` declares a
         //           private COMPILE-TIME constant (`const val` = inlined at
         //           compile time, must be a primitive/String literal) of type

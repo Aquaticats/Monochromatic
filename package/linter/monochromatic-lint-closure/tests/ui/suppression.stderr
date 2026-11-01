@@ -1,0 +1,59 @@
+warning: unknown lint: `avoidable_closur`
+  --> $DIR/suppression.rs:60:66
+   |
+LL |     #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closur, reason = "misspelled"))]
+   |                                                                  ^^^^^^^^^^^^^^^^ help: did you mean: `avoidable_closure`
+   |
+   = note: `#[warn(unknown_lints)]` on by default
+
+warning: this closure captures `v`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/suppression.rs:10:26
+   |
+LL |     let _ = v.iter().map(|x| x + v.len()).count();
+   |                          ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+   = note: `#[warn(avoidable_closure)]` on by default
+
+warning: this closure captures `v`, but it is the initializer of a `let` statement, not a direct call argument
+  --> $DIR/suppression.rs:62:13
+   |
+LL |     let g = |x: usize| x + v.len();
+   |             ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass the closure directly to the call that needs it, or restructure with a named function or a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the `let` statement or to an enclosing item (rustc rejects an attribute on a closure in a `let` initializer with E0658)
+
+warning: this closure captures `v`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/suppression.rs:64:24
+   |
+LL |     let _ = (1..3).map(|x| x + v.len()).count();
+   |                        ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures `v`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/suppression.rs:73:9
+   |
+LL |         |x| x + v.len(),
+   |         ^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this lint expectation is unfulfilled
+  --> $DIR/suppression.rs:45:62
+   |
+LL | #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "nothing to suppress here"))]
+   |                                                              ^^^^^^^^^^^^^^^^^
+   |
+   = note: nothing to suppress here
+   = note: `#[warn(unfulfilled_lint_expectations)]` on by default
+
+warning: this lint expectation is unfulfilled
+  --> $DIR/suppression.rs:54:88
+   |
+LL |     let _ = thread::spawn(#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "stale"))] move |...
+   |                                                                                        ^^^^^^^^^^^^^^^^^
+   |
+   = note: stale
+
+warning: 7 warnings emitted

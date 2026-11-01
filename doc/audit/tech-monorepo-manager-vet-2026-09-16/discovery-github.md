@@ -61,7 +61,9 @@ Read-only; nothing under the Monochromatic worktree was modified.
 - Per-page new candidates: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
 - Per-page new screening survivors: p1 14, p2 5, p3 4, p4 2, p5 3, p6 1, p7 2, p8 4, p9 3, p10 2
 - Per-page survivors on page, including repeats: p1 14, p2 5, p3 4, p4 2, p5 3, p6 1, p7 2, p8 4, p9 3, p10 2
-- Stop reason: blocked by 1000-result cap: `total_count` 9379, pages 1 to 10 all added at least one new screening survivor, so two consecutive empty pages never occurred before page 10 (the last page the API serves)
+- Stop reason: blocked by 1000-result cap: `total_count` 9379,
+   pages 1 to 10 all added at least one new screening survivor,
+   so two consecutive empty pages never occurred before page 10 (the last page the API serves)
 
 #### Independent narrowing for q1: `topic:monorepo stars:>=50`
 
@@ -74,11 +76,16 @@ Read-only; nothing under the Monochromatic worktree was modified.
 - Per-page new candidates (schedule-global): p1 0, p2 0, p3 0, p4 0, p5 0
 - Per-page survivors on page: p1 14, p2 5, p3 4, p4 2, p5 1
 - Per-page new survivors (query-local): p1 14, p2 5, p3 4, p4 2, p5 1
-- Stop reason: exhausted after 5 pages; every page held query-local new survivors, so no saturation inside the narrowed set either; 0 candidates were new to the schedule because the stars-sorted `topic:monorepo` pages 1 to 10 already reached 13 stars
+- Stop reason: exhausted after 5 pages; every page held query-local new survivors,
+   so no saturation inside the narrowed set either;
+   0 candidates were new to the schedule
+   because the stars-sorted `topic:monorepo` pages 1 to 10 already reached 13 stars
 - Finding:
   with stars-descending sort this narrowing is a subset of pages already screened,
   so it cannot probe the capped tail.
-  The unscreened tail is roughly 8379 repositories at 13 stars or fewer; reaching it needs slices such as `stars:<=13` combined with `created:` date ranges small enough to stay under 1000 results each.
+  The unscreened tail is roughly 8379 repositories at 13 stars or fewer;
+  reaching it needs slices such as `stars:<=13` combined
+  with `created:` date ranges small enough to stay under 1000 results each.
 
 ### q2: `topic:build-system`
 
@@ -104,11 +111,13 @@ Read-only; nothing under the Monochromatic worktree was modified.
 - Per-page new candidates (schedule-global): p1 0, p2 0
 - Per-page survivors on page: p1 22, p2 5
 - Per-page new survivors (query-local): p1 22, p2 5
-- Stop reason: exhausted after 2 pages; both pages held survivors; 0 new candidates because stars-sorted `topic:build-system` pages already reached 0 stars
+- Stop reason: exhausted after 2 pages; both pages held survivors;
+   0 new candidates because stars-sorted `topic:build-system` pages already reached 0 stars
 - Finding:
   with stars-descending sort this narrowing is a subset of pages already screened,
   so it cannot probe the capped tail.
-  The unscreened tail is roughly 125 repositories at 0 stars; `stars:0` plus a `created:` or `pushed:` range split reaches it.
+  The unscreened tail is roughly 125 repositories at 0 stars;
+  `stars:0` plus a `created:` or `pushed:` range split reaches it.
 
 ### q3: `topic:build-tool`
 
@@ -134,11 +143,13 @@ Read-only; nothing under the Monochromatic worktree was modified.
 - Per-page new candidates (schedule-global): p1 0, p2 0, p3 0, p4 0
 - Per-page survivors on page: p1 24, p2 11, p3 11, p4 1
 - Per-page new survivors (query-local): p1 24, p2 11, p3 11, p4 1
-- Stop reason: exhausted after 4 pages; every page held survivors; 0 new candidates because stars-sorted `topic:build-tool` pages already reached 3 stars
+- Stop reason: exhausted after 4 pages; every page held survivors;
+   0 new candidates because stars-sorted `topic:build-tool` pages already reached 3 stars
 - Finding:
   with stars-descending sort this narrowing is a subset of pages already screened,
   so it cannot probe the capped tail.
-  The unscreened tail is roughly 1466 repositories at 3 stars or fewer; `stars:<=3` plus `created:` date ranges reaches it.
+  The unscreened tail is roughly 1466 repositories at 3 stars or fewer;
+  `stars:<=3` plus `created:` date ranges reaches it.
 
 ### q4: `topic:task-runner`
 
@@ -151,7 +162,8 @@ Read-only; nothing under the Monochromatic worktree was modified.
 - Per-page new candidates: p1 83, p2 82, p3 82, p4 94, p5 96, p6 97, p7 99, p8 100, p9 98, p10 72
 - Per-page new screening survivors: p1 26, p2 24, p3 25, p4 14, p5 20, p6 33, p7 17, p8 18, p9 18, p10 11
 - Per-page survivors on page, including repeats: p1 39, p2 38, p3 35, p4 19, p5 23, p6 35, p7 17, p8 18, p9 20, p10 11
-- Stop reason: exhausted: `total_count` 972 fits under the cap, page 10 returned the final 72 results; not saturated, pages 9 and 10 added 18 and 11 new screening survivors
+- Stop reason: exhausted: `total_count` 972 fits under the cap, page 10 returned the final 72 results; not saturated,
+   pages 9 and 10 added 18 and 11 new screening survivors
 
 ### q5: `"watch mode" daemon build`
 
@@ -177,7 +189,8 @@ Field notes:
 
 - "Discovered by" lists every schedule query whose fetched pages contained the repository.
 - "Workspace-aware" is a heuristic:
-  description, topics, or screening note mention monorepo, workspace, multi-project, multi-module, multi-repo, Lerna, or Yarn,
+  description, topics, or screening note mention monorepo, workspace, multi-project, multi-module, multi-repo, Lerna,
+  or Yarn,
   plus manual tags for Bazel, Buck, Gradle, Mill, sbt, cargo-make, and colcon.
   A general runner may still support workspaces without saying so.
 - Taxonomy terms are keyword hits in description, topics, and screening note, not verified features.
@@ -186,14 +199,18 @@ Field notes:
 
 - sgaunet/runq
   - https://github.com/sgaunet/runq; stars 0; archived: false; pushed_at 2026-09-03
-  - discovered by: q4 (first screened q4 p7); category guess: component (persistent process with a control or inspection channel)
+  - discovered by: q4 (first screened q4 p7); category guess:
+     component (persistent process with a control or inspection channel)
   - taxonomy terms: socket
-  - screening note: README: `runq serve` keeps a per-user Unix socket listener alive; later invocations forward commands; `runq stop` graceful shutdown
+  - screening note: README: `runq serve` keeps a per-user Unix socket listener alive;
+     later invocations forward commands; `runq stop` graceful shutdown
 - standardbeagle/brummer
   - https://github.com/standardbeagle/brummer; stars 0; archived: true; pushed_at 2026-08-01
-  - discovered by: q4 (first screened q4 p9); category guess: component (persistent process with a control or inspection channel)
+  - discovered by: q4 (first screened q4 p9); category guess:
+     component (persistent process with a control or inspection channel)
   - taxonomy terms: server, mcp, tui, monorepo, workspace
-  - screening note: README: TUI script and process manager with MCP server exposing logs, async command execution, process status; monorepo workspace detection
+  - screening note: README: TUI script and process manager with MCP server exposing logs, async command execution,
+     process status; monorepo workspace detection
 
 ### Workspace-aware monorepo manager guesses
 
@@ -328,7 +345,8 @@ Field notes:
   - https://github.com/nickolaj-jepsen/fnug; stars 60; archived: false; pushed_at 2026-03-14
   - discovered by: q4 (first screened q4 p1); category guess: monorepo manager
   - taxonomy terms: watch, tui, workspace
-  - screening note: README: TUI command runner selecting commands by git changes or file watching, depends_on, workspace .fnug.yaml discovery
+  - screening note: README: TUI command runner selecting commands by git changes or file watching, depends_on,
+     workspace .fnug.yaml discovery
 - run-z/run-z
   - https://github.com/run-z/run-z; stars 59; archived: true; pushed_at 2024-11-26
   - discovered by: q3 (first screened q3 p3); category guess: monorepo manager
@@ -483,7 +501,8 @@ Field notes:
 - chaitanya-archive/obelisk.build
   - https://github.com/chaitanya-archive/obelisk.build; stars 0; archived: true; pushed_at 2026-01-03
   - discovered by: q2 (first screened q2 p10); category guess: monorepo manager
-  - taxonomy terms: remote execution, remote-execution, build-cache, distributed, continuous, hermetic, reproducible, content-addressable, cache, caching, sandbox, monorepo
+  - taxonomy terms: remote execution, remote-execution, build-cache, distributed, continuous, hermetic, reproducible,
+     content-addressable, cache, caching, sandbox, monorepo
 - gmullerb/jko
   - https://github.com/gmullerb/jko; stars 0; archived: false; pushed_at 2025-05-10
   - discovered by: q4 (first screened q4 p7); category guess: monorepo manager
@@ -510,7 +529,8 @@ Field notes:
   - https://github.com/albahq/alba; stars 0; archived: false; pushed_at 2026-09-10
   - discovered by: q4 (first screened q4 p9); category guess: monorepo manager
   - taxonomy terms: watch, affected, caching, tui, monorepo
-  - screening note: README: Beamfile task runner with beam dependencies; description lists caching, affected runs, watch mode, TUI
+  - screening note: README: Beamfile task runner with beam dependencies; description lists caching, affected runs,
+     watch mode, TUI
 - jdarais/cobble
   - https://github.com/jdarais/cobble; stars 0; archived: false; pushed_at 2026-05-16
   - discovered by: q4 (first screened q4 p10); category guess: monorepo manager
@@ -530,7 +550,8 @@ Field notes:
   - https://github.com/oxequa/realize; stars 4434; archived: false; pushed_at 2021-05-14
   - discovered by: q2, q3, q4 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
   - taxonomy terms: watch, watcher, live reload
-  - screening note: README: Go live reload and task runner, multiple projects, custom commands on change, panel showing build output; Go-centric
+  - screening note: README: Go live reload and task runner, multiple projects, custom commands on change,
+     panel showing build output; Go-centric
 - cake-build/cake
   - https://github.com/cake-build/cake; stars 4192; archived: false; pushed_at 2026-09-16
   - discovered by: q3 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
@@ -1407,7 +1428,8 @@ Field notes:
   - https://github.com/neural-chilli/qp; stars 1; archived: false; pushed_at 2026-03-26
   - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
   - taxonomy terms: dag, mcp
-  - screening note: README: local-first task runner and workflow runtime for humans and agents; description lists DAG execution and MCP
+  - screening note: README: local-first task runner and workflow runtime for humans and agents;
+     description lists DAG execution and MCP
 - hopenbuild/App-hopen
   - https://github.com/hopenbuild/App-hopen; stars 1; archived: false; pushed_at 2026-05-07
   - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
@@ -1641,7 +1663,8 @@ Field notes:
 - reisraff/phulp (293 stars; q4 p1): gulp-like PHP
 - liudng/dogo (274 stars; q3 p2): watcher
 - MansaGroup/nrwl-nx-action (228 stars; q1 p2): GitHub Action wrapper for Nx
-- loadingalias/cargo-rail (228 stars; q1 p2): README: Cargo-only affected-work planner; Cargo, nextest, Just remain the executors
+- loadingalias/cargo-rail (228 stars; q1 p2): README: Cargo-only affected-work planner; Cargo, nextest,
+   Just remain the executors
 - brunojppb/turbo-cache-server (220 stars; q1 p2): Turborepo remote cache server
 - AlexB52/retest (220 stars; q4 p1): test watcher
 - rharkor/caching-for-turbo (211 stars; q1 p2): GitHub Action Turborepo cache
@@ -2073,8 +2096,10 @@ with their current topics from `gh api repos/<owner>/<repo>`:
 - `jdx/mise` (33993 stars): topics none
 - `magefile/mage` (4690 stars): topics `buildscript`, `go`, `golang`, `mage`, `magefile`, `make`
 - `batect/batect` (671 stars, archived): topics `batect`, `developer-experience`, `docker`
-- `dagger/dagger` (16256 stars): topics `agents`, `caching`, `ci-cd`, `containers`, `continuous-deployment`, `continuous-integration`, `devops`, `docker`, `graphql`, `workflows`
-- `watchexec/watchexec` (7187 stars): topics `command-line`, `developer-tools`, `file-watchers`, `linux`, `macos`, `rust`, `windows`
+- `dagger/dagger` (16256 stars): topics `agents`, `caching`, `ci-cd`, `containers`, `continuous-deployment`,
+   `continuous-integration`, `devops`, `docker`, `graphql`, `workflows`
+- `watchexec/watchexec` (7187 stars): topics `command-line`, `developer-tools`, `file-watchers`, `linux`, `macos`,
+   `rust`, `windows`
 
 Six of these (Buck2, Wireit, Lage, Watchman, just, Mise) carry no topics at all,
 so no `topic:` query can return them.
@@ -2084,4 +2109,5 @@ Expansion seeds this suggests:
   `"task runner" in:description`, `"command runner" in:description`, `monorepo in:description`
 - topics seen on absent tools: `file-watchers`, `buildscript`, `magefile`, `make`, `caching`, `workflows`,
   `development-environment`, `developer-experience`
-- component-side topics not in the schedule: `watcher`, `file-watcher`, `live-reload`, `process-manager`, `mcp-server`, `build-server`
+- component-side topics not in the schedule: `watcher`, `file-watcher`, `live-reload`, `process-manager`, `mcp-server`,
+   `build-server`

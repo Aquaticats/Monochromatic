@@ -1,0 +1,72 @@
+# Cross-compile the music-player for x86_64-pc-windows-gnu on Linux and run the result under Wine.
+# Used by the `image:windows-gnu`, `build:windows-gnu` and `test:windows-gnu` mise tasks. This is a
+# proof of the GNU target on a machine without Windows; it is NOT the shipped build (the release
+# binary is built natively on a Windows runner, see the build-desktop job of
+# .github/workflows/music-player-release.yml).
+#
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
+
+# Build toolchain:
+#   mingw-w64-gcc, mingw-w64-binutils  the cross gcc driver and GNU ld (x86_64-w64-mingw32-gcc / -ld),
+#                          plus dlltool and windres, which the `windows` crates (raw-dylib) and
+#                          winresource call. Arch's mingw-w64 packages default to the UCRT C runtime (the executable
+#                          imports api-ms-win-crt-* DLLs), the one the release build also uses. mingw-w64-crt, mingw-w64-headers and mingw-w64-winpthreads are the C runtime,
+#                          headers and threads library the cross compiler links against.
+#   gcc, cmake, ninja, make  opusic-sys cmake-builds libopus 1.6.1; its build script picks the
+#                          Ninja generator when `ninja` runs, and the cmake crate then passes
+#                          CMAKE_SYSTEM_NAME=Windows and the cross windres to cmake.
+#   clang                  libclang is not needed for this target (bindgen is Linux-only, via
+#                          pipewire), so it is deliberately absent.
+# Run time:
+#   wine                   the Windows API layer that runs the .exe files; headless console tests need no display.
+#   noto-fonts             system fonts for Slint's software renderer; without them it finds no font under Wine and three
+#                          UI tests panic in `systemfonts.rs` (Arch's wine ships Tahoma but not the Arial and Times New
+#                          Roman files that Fedora's winefonts packages added, and ttf-liberation alone did not help).
+#   xorg-server-xvfb       a virtual X11 display, because Wine's graphics driver talks to X11;
+#                          only the app launch check uses it.
+#   xdotool                drives the app launch check.
+#   mesa                   software OpenGL for Wine's opengl32, for the femtovg renderer.
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+      gcc cmake ninja make \
+      mingw-w64-gcc mingw-w64-binutils mingw-w64-crt mingw-w64-headers mingw-w64-winpthreads \
+      wine noto-fonts \
+      xorg-server-xvfb xdotool mesa \
+      curl tar gzip which file \
+    && rm --recursive --force /var/cache/pacman/pkg/*
+
+# The turso_sdk_kit build script (a dependency of the peak cache) runs a bare `windres` for every non-MSVC Windows target, but
+# the distro installs the cross tools only under their triple prefix; on Windows with MSYS2 the bare name exists. Without this
+# link the cross build stops with "compile Windows version resource: No such file or directory".
+RUN ln --symbolic "$(command -v x86_64-w64-mingw32-windres)" /usr/local/bin/windres
+
+# Rust through rustup, as in the Linux Containerfile. The toolchain is the dated nightly the repository
+# root toolchain.lock.json pins (`.tools.rust.version`, read with `jq --raw-output '.tools.rust.version'
+# toolchain.lock.json`), so the proof builds with what developers and the workflow build with. The image
+# build context is this package directory, not the repository root, so the lock cannot be read at build
+# time: this default is kept in sync with that key, and `--build-arg RUST_TOOLCHAIN=` overrides it.
+# The Windows GNU standard library is added as a target; the host stays x86_64-unknown-linux-gnu.
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
+ENV RUSTUP_HOME=/rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
+          --default-toolchain "${RUST_TOOLCHAIN}" --target x86_64-pc-windows-gnu
+
+# cargo-nextest prebuilt binary, as in the Linux Containerfile.
+RUN curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail \
+      "https://get.nexte.st/latest/linux" | tar zxf - -C /usr/local/bin
+
+ENV CARGO_HOME=/cargo
+ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+# The cross linker and the Wine test runner, read by cargo for this target only. Arch's wine package installs one `wine`
+# binary (new WoW64 mode runs 64-bit programs too) and no `wine64`.
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine
+# A throwaway Wine prefix in the image's writable layer; WINEDEBUG keeps Wine's own trace quiet.
+ENV WINEPREFIX=/tmp/wineprefix
+ENV WINEDEBUG=-all
+WORKDIR /work

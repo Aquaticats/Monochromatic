@@ -1,11 +1,21 @@
-import { readFileSync, } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   classifyReadonlyType,
@@ -36,6 +46,62 @@ const FOREIGN_SOURCE = readFileSync(
   FOREIGN_FIXTURE_PATH,
   'utf8',
 );
+
+/** Source of the project that imports a workspace package through a `node_modules` symbolic link. */
+const LINKED_IMPORTER_SOURCE = "import type { LinkedConfig, } from 'linked-workspace-package';\nexport function read(config: LinkedConfig,): string { return config.value; }\n";
+
+/** Source of the workspace package, whose real path carries no `node_modules` segment. */
+const LINKED_PACKAGE_SOURCE = 'export type LinkedConfig = { value: string; };\n';
+
+/** Disposable directory removed after the test scope. */
+type DisposableLinkedRoot = {
+  readonly path: string;
+  readonly [Symbol.dispose]: () => void;
+};
+
+/**
+ Creates the disposable directory holding the importer and the linked package.
+ 
+ @returns directory removed after the test scope.
+ */
+function disposableLinkedRoot(): DisposableLinkedRoot {
+  /** Directory created for one case. */
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-owner-link-',),);
+  return {
+    path,
+    [Symbol.dispose](): void {
+      rmSync(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
+ Writes a project importing a workspace package through a `node_modules` symbolic link.
+ 
+ TypeScript resolves the import through the link, so the package's real source path is a
+ workspace path while the program flags the file as an external-library module.
+ 
+ @param root - Disposable directory receiving the importer and the package.
+ 
+ @returns real path of the importer.
+ */
+function writeLinkedWorkspaceFixture(root: string,): string {
+  /** Real directory of the importing project. */
+  const importer = join(root, 'importer',);
+  /** Real directory of the workspace package. */
+  const workspacePackage = join(root, 'workspace-package',);
+  mkdirSync(join(importer, 'node_modules',), { recursive: true, },);
+  mkdirSync(workspacePackage, { recursive: true, },);
+  writeFileSync(join(importer, 'tsconfig.json',), '{"compilerOptions":{"strict":true},"include":["*.ts"]}\n',);
+  writeFileSync(join(importer, 'input.ts',), LINKED_IMPORTER_SOURCE,);
+  writeFileSync(
+    join(workspacePackage, 'package.json',),
+    '{"name":"linked-workspace-package","version":"1.0.0","types":"index.ts","main":"index.ts"}\n',
+  );
+  writeFileSync(join(workspacePackage, 'index.ts',), LINKED_PACKAGE_SOURCE,);
+  symlinkSync(workspacePackage, join(importer, 'node_modules', 'linked-workspace-package',), 'dir',);
+  return join(realpathSync(importer,), 'input.ts',);
+}
 
 await describe({
   name: classifyReadonlyType.name,
@@ -157,6 +223,41 @@ await describe({
           return path.declarationOwners.includes('workspace',)
             && (!path.declarationOwners.includes('default-library',));
         },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'classifies a workspace package reached through a node_modules symbolic link as workspace',
+      fn: async () => {
+        using root = disposableLinkedRoot();
+        /** Importer whose parameter type is declared in the linked package. */
+        const inputPath = writeLinkedWorkspaceFixture(root.path,);
+        const session = openSemanticFile({
+          fileName: inputPath,
+          sourceText: LINKED_IMPORTER_SOURCE,
+          hasBOM: false,
+        },);
+        const parameterNode = session.nodeAtOffset(LINKED_IMPORTER_SOURCE.indexOf('config:',),);
+        const type = session.checker.getTypeAtLocation(parameterNode,);
+        if (type === undefined)
+          throw new Error('Expected the linked package type.',);
+        /** Source file of the type, which the program holds under the real workspace path. */
+        const declarationFile = session.project.program
+          .getSourceFile(join(realpathSync(root.path,), 'workspace-package', 'index.ts',),);
+        if (declarationFile === undefined)
+          throw new Error('Expected the linked package source in the program.',);
+        /* The premise of the case: the program flags a workspace file reached through the link as external. */
+        expect(session.project.program.isSourceFileFromExternalLibrary(declarationFile,),).toBe(true,);
+        const classification = classifyReadonlyType({
+          checker: session.checker,
+          project: session.project,
+          type,
+        },);
+        closeSemanticBridge();
+        if (classification.kind !== 'mutable')
+          throw new Error('Expected the linked package type to be mutable.',);
+        expect(classification.writablePaths.map(function owners(path,): readonly string[] {
+          return path.declarationOwners;
+        },),).toEqual([['workspace',],],);
       },
     },),
     it({

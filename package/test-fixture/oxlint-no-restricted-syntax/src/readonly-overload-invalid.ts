@@ -30,7 +30,7 @@ export function invokedStepOverload(
 /**
  * Implements by invoking the supplied step and writing nothing.
  *
- * The shape `package/module/pipe` has. Nothing here mutates: the body destructures a
+ * The shape `package/pipe/core` has. Nothing here mutates: the body destructures a
  * callable out of its parameter and calls it, which records an invoked capability
  * against parameter zero. A bodyless overload can seed `mutated` from an authored
  * contract and can never seed `invoked`, so the two sides of the overload comparison

@@ -1,0 +1,37 @@
+// monochromatic-lint.config.jsonc
+// Shell rules for the run steps of the repository composite actions.
+//
+// This file governs only the YAML in this directory: the nearest configuration wins, so the root
+// configuration does not apply here, and the repository-pinned monochromatic-lint, which does not
+// read YAML, never loads it. A binary that knows the shell rules checks every step's script.
+// Each ratchet block below holds one file at the worst step it has today: lower its numbers as the
+// scripts move into TypeScript, and delete the block once the file passes the default budgets
+// (2 lines and no banned construct). Raising a number needs the repository owner's approval.
+// Design and measurements: doc/planning/workflow-shell-line-limit.md.
+[
+  {
+    "name": "shell-steps",
+    "files": ["**/action.yml/*", "**/action.yaml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error" },
+      "shell/no-pipe": { "severity": "error" },
+      "shell/no-and-chain": { "severity": "error" },
+      "shell/no-or-chain": { "severity": "error" },
+      "shell/no-pipe-stderr": { "severity": "error" },
+      "shell/no-semicolon": { "severity": "error" },
+      "shell/no-dollar-paren": { "severity": "error" },
+      "shell/no-backtick": { "severity": "error" },
+      "shell/no-ampersand": { "severity": "error" },
+    },
+  },
+  {
+    "name": "shell-ratchet-task-cli-setup-action-yml",
+    "files": ["task-cli-setup/action.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 22 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 2 },
+      "shell/no-pipe": { "severity": "error", "max": 2 },
+      "shell/no-semicolon": { "severity": "error", "max": 7 },
+    },
+  },
+]

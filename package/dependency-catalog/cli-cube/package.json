@@ -1,0 +1,51 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/dependency-catalog-cli-cube",
+  "description": "Catalog dependency audit report: interactive 3D scatter (deck.gl WebGL) rendering each catalog package as a feature vector across TS-ratio, source size, install size, staleness, downloads, and dep count.",
+  "type": "module",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "main": "dist/final/node/index.mjs",
+  "typings": "dist/final/node/index.d.mts",
+  "exports": {
+    ".": "./dist/final/node/index.mjs",
+    "./ts": "./src/index.ts"
+  },
+  "bin": {
+    "deps-cube": "./dist/final/node/cli.mjs"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "string-dedent": "catalog:",
+    "@deck.gl/core": "catalog:",
+    "@deck.gl/layers": "catalog:",
+    "@deck.gl/mesh-layers": "catalog:",
+    "@luma.gl/engine": "catalog:",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/dependency-catalog-core-pnpm": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "nano-spawn": "catalog:",
+    "p-limit": "catalog:",
+    "rolldown": "catalog:",
+    "type-fest": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dependency-catalog/cli-cube"
+  },
+  "sideEffects": true
+}

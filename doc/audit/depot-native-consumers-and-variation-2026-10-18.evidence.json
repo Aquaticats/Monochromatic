@@ -1,0 +1,965 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-10-18T04:21:19.795Z",
+  "firstCohortId": "native-runners-20261018T034256508Z",
+  "recoveryCohortId": "native-recovery-20261018T035939491Z",
+  "allSixWorkflowRunsTerminal": true,
+  "workflowRuns": 6,
+  "observedJobAllocations": 12,
+  "depotJobAllocations": 10,
+  "githubArmAllocations": 2,
+  "sourceCasesAndOriginalConsumersPreserved": true,
+  "unknownNewNextestFailureIdentities": 0,
+  "proofs": [
+    {
+      "routeId": "native.hosts",
+      "jobId": 117581375857,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Build release artifact through the package task",
+          "number": 13,
+          "conclusion": "success",
+          "logSha256": "fe50a4146096ad9f8992f1473acee27f465fee908bd1276166c296c1c20aecd7"
+        },
+        {
+          "name": "Exercise the built release command",
+          "number": 16,
+          "conclusion": "success",
+          "logSha256": "f8b08fde8de6b4bfec5caa915973777b6a5aaff6e9f6ca3121597b373890b23a"
+        },
+        {
+          "name": "Verify source remained immutable",
+          "number": 17,
+          "conclusion": "success",
+          "logSha256": "b0877a1ea02d677c4a63114255f3b7de46b3ea9c1ce69049b33412524eb5d6b1"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "db873e69d184029ea1edd47309c918aaea7e340b5ab4b7d5adb2ed5350dd9daa"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "cebbe0084353b52e9518ba2b6063217237f306a51cd15089476a3d2d5d8a27d1"
+        }
+      ],
+      "unchangedHarnessRevision": true,
+      "measuredVariation": {
+        "firstJobId": 117578770694,
+        "secondJobId": 117581375857,
+        "firstGithubIntervalMs": 496000,
+        "secondGithubIntervalMs": 421000,
+        "firstHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "cpus": 7,
+          "memoryBytes": 18253611008,
+          "runnerName": "depot-ccj8tdz94h",
+          "runnerOs": "macOS",
+          "runnerArchitecture": "ARM64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "secondHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "cpus": 7,
+          "memoryBytes": 18253611008,
+          "runnerName": "depot-x94mb2q3nd",
+          "runnerOs": "macOS",
+          "runnerArchitecture": "ARM64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "sameReportedCpuCount": true,
+        "sameReportedMemory": true,
+        "cacheFirst": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T03:46:55Z",
+              "completed_at": "2026-10-18T03:46:55Z"
+            },
+            "logSha256": "4aa8bbfcaf48e406658b47f822ead2b6bb8d7403f42837b8c635c24e9bafa9da",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T03:54:09Z",
+              "completed_at": "2026-10-18T03:54:09Z"
+            }
+          }
+        ],
+        "cacheSecond": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T04:02:08Z",
+              "completed_at": "2026-10-18T04:02:08Z"
+            },
+            "logSha256": "107f6612277fac630c717972351b4aa21b190712c0a822643ec700e350296871",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T04:08:16Z",
+              "completed_at": "2026-10-18T04:08:16Z"
+            }
+          }
+        ],
+        "providerOnlyPerformanceEffectEstablished": false
+      },
+      "identicalAssertionOutcomesOnRepeat": true
+    },
+    {
+      "routeId": "native.hosts",
+      "jobId": 117581376058,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Build release artifact through the package task",
+          "number": 13,
+          "conclusion": "success",
+          "logSha256": "1ec1473b95f9d0705595e4c785bfc804dd412666ba1c1d3369c9ea906dc4bcb3"
+        },
+        {
+          "name": "Exercise the built release command",
+          "number": 16,
+          "conclusion": "success",
+          "logSha256": "54f6af4af85f1b2d1dc7b8b878ccc5527a7d3ff91a7573070320f89e23578087"
+        },
+        {
+          "name": "Verify source remained immutable",
+          "number": 17,
+          "conclusion": "success",
+          "logSha256": "8cbfb3b885471ad294128eac23484347394f26b68ff51bc3ad59eec4739adf9a"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "87036ad0ff4ece4abc3a54646a54d53210c527ac527336613f0f671e7720040f"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "9ff1537d4dfada97f47a867b58ac35a05cfd1ebe3e754c7ba9c59ee8683363d3"
+        }
+      ],
+      "unchangedHarnessRevision": true,
+      "measuredVariation": {
+        "firstJobId": 117578770519,
+        "secondJobId": 117581376058,
+        "firstGithubIntervalMs": 830000,
+        "secondGithubIntervalMs": 772000,
+        "firstHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "win32",
+          "architecture": "x64",
+          "cpus": 4,
+          "memoryBytes": 16827592704,
+          "runnerName": "depot-vgpqjdcpgm",
+          "runnerOs": "Windows",
+          "runnerArchitecture": "X64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "secondHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "win32",
+          "architecture": "x64",
+          "cpus": 4,
+          "memoryBytes": 16827592704,
+          "runnerName": "depot-mk7h8j022l",
+          "runnerOs": "Windows",
+          "runnerArchitecture": "X64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "sameReportedCpuCount": true,
+        "sameReportedMemory": true,
+        "cacheFirst": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T03:48:57Z",
+              "completed_at": "2026-10-18T03:48:57Z"
+            },
+            "logSha256": "69d457782f6be4166ccef986eb784a7f3ea4c5e2657db73ae83cda38ba6da73b",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T03:59:39Z",
+              "completed_at": "2026-10-18T03:59:39Z"
+            }
+          }
+        ],
+        "cacheSecond": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T04:03:52Z",
+              "completed_at": "2026-10-18T04:03:52Z"
+            },
+            "logSha256": "fdcb45ce296e00477adab68e7d052bd045bdf2af37986d5e1ef90a6d8e0c3577",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T04:14:02Z",
+              "completed_at": "2026-10-18T04:14:02Z"
+            }
+          }
+        ],
+        "providerOnlyPerformanceEffectEstablished": false
+      }
+    },
+    {
+      "routeId": "desktop.macos",
+      "jobId": 117581391515,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Build release artifact through the package task",
+          "number": 13,
+          "conclusion": "success",
+          "logSha256": "09b9fb80ffeee73de457db32121c5931cfabb78c2daa2beac259158ff09f3a3b"
+        },
+        {
+          "name": "Exercise the built release command",
+          "number": 16,
+          "conclusion": "success",
+          "logSha256": "921e70399516af716736e6285f29299a16755d907f8ee75be9fa97fdfee2bc50"
+        },
+        {
+          "name": "Verify source remained immutable",
+          "number": 17,
+          "conclusion": "success",
+          "logSha256": "af7168455ad71edf15dd7f1b44d98d62b05cc0eed210f3e93327f15f4f451a6f"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "8d618ab1f6e6157154c326004c21eb451d72e4bda3cbce75ccf35dad5c0cd291"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "28c10b9afa664887cef02d9303a59a0485dcf4a9bcb9a72af769bde4b7b2d4b7"
+        }
+      ],
+      "unchangedHarnessRevision": true,
+      "measuredVariation": {
+        "firstJobId": 117578785599,
+        "secondJobId": 117581391515,
+        "firstGithubIntervalMs": 566000,
+        "secondGithubIntervalMs": 355000,
+        "firstHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "cpus": 7,
+          "memoryBytes": 18253611008,
+          "runnerName": "depot-3q2wn6p4hj",
+          "runnerOs": "macOS",
+          "runnerArchitecture": "ARM64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "secondHardware": {
+          "event": "depot-runner-hardware",
+          "platform": "darwin",
+          "architecture": "arm64",
+          "cpus": 9,
+          "memoryBytes": 18253611008,
+          "runnerName": "depot-rpsw893l3p",
+          "runnerOs": "macOS",
+          "runnerArchitecture": "ARM64",
+          "githubSha": "3e51a06848ba363a90d4ce30816760042153f349"
+        },
+        "sameReportedCpuCount": false,
+        "sameReportedMemory": true,
+        "cacheFirst": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T03:46:57Z",
+              "completed_at": "2026-10-18T03:46:57Z"
+            },
+            "logSha256": "f17a933e960ad53c85dfb3038c7bba69ba4170795eaafe708478100bc0902fb9",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T03:55:23Z",
+              "completed_at": "2026-10-18T03:55:23Z"
+            }
+          }
+        ],
+        "cacheSecond": [
+          {
+            "step": {
+              "name": "Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T04:02:15Z",
+              "completed_at": "2026-10-18T04:02:15Z"
+            },
+            "logSha256": "e01afee2f5f74ede84b19d04eeb60289de1809315db3ba803cdd783b2a3e2e21",
+            "cacheMiss": true,
+            "cacheHit": false
+          },
+          {
+            "step": {
+              "name": "Post Restore exact-source native artifacts",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 36,
+              "started_at": "2026-10-18T04:07:18Z",
+              "completed_at": "2026-10-18T04:07:18Z"
+            }
+          }
+        ],
+        "providerOnlyPerformanceEffectEstablished": false
+      },
+      "identicalAssertionOutcomesOnRepeat": true
+    },
+    {
+      "routeId": "desktop.windows",
+      "jobId": 117581406598,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Enable and verify Git long paths before checkout",
+          "number": 2,
+          "conclusion": "success",
+          "logSha256": "2f3b80da6dd53be4821b8fbd92ddc87c136561c1b6ac22332f24ef72fec02caa"
+        },
+        {
+          "name": "Checkout",
+          "number": 4,
+          "conclusion": "success",
+          "logSha256": "35567d7f13493f9373f13120b35fac9030257be6afe7e626450e400dfd6968b4"
+        },
+        {
+          "name": "Checkout frozen trial provenance harness",
+          "number": 5,
+          "conclusion": "success",
+          "logSha256": "7c1a4c8724f0ea69b2cdb0500556b79d0f3de223ee3fe3f75bccaeed2870500f"
+        },
+        {
+          "name": "Build the tests (cargo nextest)",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "4f578e03c19cde8baaabbe3f61aef0b3f699a38db81085ea9e53973d7866c0f8"
+        },
+        {
+          "name": "Build the binary",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "2537d34744e29b2118cdcbea2d0463abdb9f3b73303dff83f823faa4a0741908"
+        },
+        {
+          "name": "Print the linker rustc ran",
+          "number": 23,
+          "conclusion": "success",
+          "logSha256": "d2fc7f3cfaf3b0b9093a141438eb531290cf3c81ab9a159519e5a859e13a9852"
+        },
+        {
+          "name": "Inspect the PE file",
+          "number": 24,
+          "conclusion": "success",
+          "logSha256": "1c303b5ffd22aaef110475113fbe957cc1c14af118e38e411fa2fd566e703002"
+        },
+        {
+          "name": "Run the binary (--version and a bad argument, bash)",
+          "number": 25,
+          "conclusion": "success",
+          "logSha256": "fee82b243bea189d067830685a8cc05eddb9603a527caf4d0c88634cb5e3973f"
+        },
+        {
+          "name": "Launch the program and check it stays up",
+          "number": 27,
+          "conclusion": "success",
+          "logSha256": "26034804f8e0e78c4cb0b4a04e6862eb0521e3d66f0cfb4f9a6487f9ed71f85b"
+        },
+        {
+          "name": "Run the tests (cargo nextest)",
+          "number": 28,
+          "conclusion": "success",
+          "logSha256": "9614f3076af654c305ccf2ab83d59340d2ac15aab5aa4591839cc3e613dab97c"
+        },
+        {
+          "name": "Run independent original PowerShell merged-stream probe",
+          "number": 29,
+          "conclusion": "success",
+          "logSha256": "d3f2ec01dd773d100ccccafea271ba458dab6e82c2a95aea3024935875ccac15"
+        },
+        {
+          "name": "Run independent original PowerShell uncaptured-console probe",
+          "number": 30,
+          "conclusion": "success",
+          "logSha256": "145cb2058f3a66fe912264371952296322eb060548c5ae0c0aa931f158def91c"
+        },
+        {
+          "name": "Record frozen source provenance before consumers",
+          "number": 8,
+          "conclusion": "success",
+          "logSha256": "302616ba77bd97a43a7c64410532d0a1b7af8a65976d093624ac0843e954c293"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 31,
+          "conclusion": "success",
+          "logSha256": "92d8d6020fc65d7d1a3059b8b523d3b5b017350df3cdf39092af772eb7d9187e"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 32,
+          "conclusion": "success",
+          "logSha256": "09e7a6fabca0a99d53db18fec672489cb55a7bc2236945979ad45a0ebd73ffeb"
+        }
+      ],
+      "longPaths": [
+        {
+          "event": "windows-long-path-before",
+          "status": 1,
+          "value": "",
+          "diagnostic": ""
+        },
+        {
+          "event": "windows-long-path-after",
+          "value": "true"
+        }
+      ],
+      "originalPowerShellFileAssertion": {
+        "conclusion": "failure",
+        "logSha256": "0f3bda8d905d56472364d6f2caa40fdb879b5dd25d59096d78e4abb163b054d7",
+        "diagnostic": [
+          "$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value",
+          "$expected = \"music-player $version\"",
+          "$captured = (& $exe --version | Out-String).Trim()",
+          "if ($captured -cne $expected) { throw \"captured '$captured', expected '$expected'\" }",
+          "& $exe --version > $file",
+          "if ($fromFile -cne $expected) { throw \"out.txt holds '$fromFile', expected '$expected'\" }",
+          "$merged = (& $exe --version 2>&1 | Out-String).Trim()",
+          "if ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }",
+          "& $exe --version",
+          "##[error]Process completed with exit code 1."
+        ]
+      },
+      "independentPowerShell": [
+        {
+          "member": "powershell-uncaptured-console.json",
+          "record": {
+            "cohortId": "native-recovery-20261018T035939491Z",
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+            "originalProbeSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "beforeProvenance": "before.json",
+            "probe": "powershell-uncaptured-console",
+            "expectedVersion": "music-player 0.1.3",
+            "afterProvenance": "after.json",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "requiresStepLogVersionCheck": true,
+            "schemaVersion": 1,
+            "event": "independent-consumer-result",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "powershellVersion": "7.6.6",
+            "actualCaptured": null,
+            "status": "completed"
+          },
+          "runtimeVersion": "music-player 0.1.3",
+          "runtimeLogSha256": "145cb2058f3a66fe912264371952296322eb060548c5ae0c0aa931f158def91c"
+        },
+        {
+          "member": "powershell-merged-stream.json",
+          "record": {
+            "schemaVersion": 1,
+            "requiresStepLogVersionCheck": false,
+            "powershellVersion": "7.6.6",
+            "originalProbeSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "event": "independent-consumer-result",
+            "cohortId": "native-recovery-20261018T035939491Z",
+            "probe": "powershell-merged-stream",
+            "expectedVersion": "music-player 0.1.3",
+            "status": "passed",
+            "beforeProvenance": "before.json",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "afterProvenance": "after.json",
+            "actualCaptured": "music-player 0.1.3",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8"
+          }
+        }
+      ]
+    },
+    {
+      "routeId": "desktop.windows",
+      "jobId": 117581406754,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Enable and verify Git long paths before checkout",
+          "number": 2,
+          "conclusion": "success",
+          "logSha256": "9bc30388e58538a4943a6ddc4aad5d49f0ead6adfa1ca4e2e78f41ed78376749"
+        },
+        {
+          "name": "Checkout",
+          "number": 4,
+          "conclusion": "success",
+          "logSha256": "5ee6c81c1e4cbb733dbfeb2c1ee6734060b55a634f1a8bab8b98954f3ca8f450"
+        },
+        {
+          "name": "Checkout frozen trial provenance harness",
+          "number": 5,
+          "conclusion": "success",
+          "logSha256": "ec038c34f0e59b5257da6088b631728d99151818d45fae641e683a91a5b137ea"
+        },
+        {
+          "name": "Build the tests (cargo nextest)",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "df46402d31d5daab8c4ff5a55b420f8cf003eeb819f579609dc2e6a8f12d7709"
+        },
+        {
+          "name": "Build the binary",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "97c40a3eaabfca4899a684723d03783b4dca9b8a819b18a92cf8255b70c46e6c"
+        },
+        {
+          "name": "Print the linker rustc ran",
+          "number": 23,
+          "conclusion": "success",
+          "logSha256": "af13e6ab917f0731aa719ea78f09d25156d0716857d7ebd752683a3bde412ac7"
+        },
+        {
+          "name": "Inspect the PE file",
+          "number": 24,
+          "conclusion": "success",
+          "logSha256": "68baaca7ac8727e42feaaacbea7d6681ab20df74457ab0de0d1b27d3e06e8a96"
+        },
+        {
+          "name": "Run the binary (--version and a bad argument, bash)",
+          "number": 25,
+          "conclusion": "success",
+          "logSha256": "b08b2bc43a3ab7241999195b7ec7289e7918a2be8ca51db6665886fadeaa80fd"
+        },
+        {
+          "name": "Launch the program and check it stays up",
+          "number": 27,
+          "conclusion": "success",
+          "logSha256": "e371c404c3464bcde690c4110b48ae36fa23b72480228dabd925c9aba5e43bea"
+        },
+        {
+          "name": "Run the tests (cargo nextest)",
+          "number": 28,
+          "conclusion": "success",
+          "logSha256": "56ba43f9f17b0f6b96b29a7574ef8770df43ed956fbf0845ce91256593ffe100"
+        },
+        {
+          "name": "Run independent original PowerShell merged-stream probe",
+          "number": 29,
+          "conclusion": "success",
+          "logSha256": "bd6c70606a7864d4ede6546902fe1e478130e22ac9248e3d8190a49663c958a6"
+        },
+        {
+          "name": "Run independent original PowerShell uncaptured-console probe",
+          "number": 30,
+          "conclusion": "success",
+          "logSha256": "96c479bc1f993c62627711dfe10d05963b0b69c2c223e5a036a2ee6b52d85a6e"
+        },
+        {
+          "name": "Record frozen source provenance before consumers",
+          "number": 8,
+          "conclusion": "success",
+          "logSha256": "51151de554dd7d38d73723b8f8527e0a15f618936671b1a6c016278731c0c471"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 31,
+          "conclusion": "success",
+          "logSha256": "2d15d089ab120a6374309f0727707670ab384b1bb4869747e6a99ad713afb5d1"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 32,
+          "conclusion": "success",
+          "logSha256": "48edb248d64ed14cb2452f0210ab91ad303aaf92e421bcc9128a043ff0c7b233"
+        }
+      ],
+      "longPaths": [
+        {
+          "event": "windows-long-path-before",
+          "status": 1,
+          "value": "",
+          "diagnostic": ""
+        },
+        {
+          "event": "windows-long-path-after",
+          "value": "true"
+        }
+      ],
+      "originalPowerShellFileAssertion": {
+        "conclusion": "failure",
+        "logSha256": "fe5befff125fa94b08c8555a8eaf4c010ee0ffdcd3c7e5fa01aed44b41a10c56",
+        "diagnostic": [
+          "$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value",
+          "$expected = \"music-player $version\"",
+          "$captured = (& $exe --version | Out-String).Trim()",
+          "if ($captured -cne $expected) { throw \"captured '$captured', expected '$expected'\" }",
+          "& $exe --version > $file",
+          "if ($fromFile -cne $expected) { throw \"out.txt holds '$fromFile', expected '$expected'\" }",
+          "$merged = (& $exe --version 2>&1 | Out-String).Trim()",
+          "if ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }",
+          "& $exe --version",
+          "##[error]Process completed with exit code 1."
+        ]
+      },
+      "independentPowerShell": [
+        {
+          "member": "powershell-uncaptured-console.json",
+          "record": {
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+            "expectedVersion": "music-player 0.1.3",
+            "originalProbeSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "requiresStepLogVersionCheck": true,
+            "afterProvenance": "after.json",
+            "cohortId": "native-recovery-20261018T035939491Z",
+            "schemaVersion": 1,
+            "actualCaptured": null,
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "powershellVersion": "7.6.6",
+            "beforeProvenance": "before.json",
+            "event": "independent-consumer-result",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "status": "completed",
+            "probe": "powershell-uncaptured-console"
+          },
+          "runtimeVersion": "music-player 0.1.3",
+          "runtimeLogSha256": "96c479bc1f993c62627711dfe10d05963b0b69c2c223e5a036a2ee6b52d85a6e"
+        },
+        {
+          "member": "powershell-merged-stream.json",
+          "record": {
+            "actualCaptured": "music-player 0.1.3",
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+            "beforeProvenance": "before.json",
+            "schemaVersion": 1,
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "status": "passed",
+            "cohortId": "native-recovery-20261018T035939491Z",
+            "afterProvenance": "after.json",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "expectedVersion": "music-player 0.1.3",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "originalProbeSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "probe": "powershell-merged-stream",
+            "requiresStepLogVersionCheck": false,
+            "powershellVersion": "7.6.6",
+            "event": "independent-consumer-result"
+          }
+        }
+      ]
+    },
+    {
+      "routeId": "desktop.windows",
+      "jobId": 117581406755,
+      "sourceAndCommonPaired": true,
+      "originalSteps": [
+        {
+          "name": "Enable and verify Git long paths before checkout",
+          "number": 2,
+          "conclusion": "success",
+          "logSha256": "4230f7cf07c439ce740a115fc799ae3626a14b33a12aa32a82760dd6969d9023"
+        },
+        {
+          "name": "Checkout",
+          "number": 4,
+          "conclusion": "success",
+          "logSha256": "00055233f1016248a9af53440e0849818e884f5fa387a0b46ab99ab75c07f3ef"
+        },
+        {
+          "name": "Checkout frozen trial provenance harness",
+          "number": 5,
+          "conclusion": "success",
+          "logSha256": "f03599b1791352fd8402ea79335b200556377076816561990ef326618507409b"
+        },
+        {
+          "name": "Build the tests (cargo nextest)",
+          "number": 18,
+          "conclusion": "success",
+          "logSha256": "a14327e7fd7a612047fcae0325669a0ef224556ee49d8af46e80a3aa698143ab"
+        },
+        {
+          "name": "Build the binary",
+          "number": 19,
+          "conclusion": "success",
+          "logSha256": "fc924679918f90ad59a85d75be0ca834875589340edf37d3b6c8301fc99a6b75"
+        },
+        {
+          "name": "Print the linker rustc ran",
+          "number": 23,
+          "conclusion": "success",
+          "logSha256": "713bedd0058c9fef424e9c0b1b8672df94390b020b91589f831cf03711e6a7b0"
+        },
+        {
+          "name": "Inspect the PE file",
+          "number": 24,
+          "conclusion": "success",
+          "logSha256": "8a6740d9cd24fd9cc04a431f4c70ecfa6fb9f0786aee37076208a5074d46aa4e"
+        },
+        {
+          "name": "Run the binary (--version and a bad argument, bash)",
+          "number": 25,
+          "conclusion": "success",
+          "logSha256": "819aa9afecf921b0c6e71ec79a64f8df1af0614ddddc4099002dd64d81779302"
+        },
+        {
+          "name": "Launch the program and check it stays up",
+          "number": 27,
+          "conclusion": "success",
+          "logSha256": "85f5722c67ce04d6c428d0b702fe47247762123950a7d9eed3e490342a34de0e"
+        },
+        {
+          "name": "Run the tests (cargo nextest)",
+          "number": 28,
+          "conclusion": "success",
+          "logSha256": "66768702880330a218280dbafa01994537fd927e88529e347e8e018b657f6775"
+        },
+        {
+          "name": "Run independent original PowerShell merged-stream probe",
+          "number": 29,
+          "conclusion": "success",
+          "logSha256": "3f98bac170518e25d7ef2c9eb8f485ddf751cef36a38e56edc43241543859b3a"
+        },
+        {
+          "name": "Run independent original PowerShell uncaptured-console probe",
+          "number": 30,
+          "conclusion": "success",
+          "logSha256": "fc321eb435d5ca7d803edb652e0e43c1821a0cdb6a59e37582f8befad215e14b"
+        },
+        {
+          "name": "Record frozen source provenance before consumers",
+          "number": 8,
+          "conclusion": "success",
+          "logSha256": "538cbd1ad5f506765bd82cf9b7c390d2274a20c0141c66fce8336cf5419e9d14"
+        },
+        {
+          "name": "Record frozen source provenance after consumers",
+          "number": 31,
+          "conclusion": "success",
+          "logSha256": "e24d6ea7f2d7361451642030b900fc4948c4fa6a18ad5beb7c32402a304157c3"
+        },
+        {
+          "name": "Preserve frozen source provenance",
+          "number": 32,
+          "conclusion": "success",
+          "logSha256": "e394bc1545648237836b2781be4d0837f528edeb5dd7ec4b479cc2c202f72830"
+        }
+      ],
+      "longPaths": [
+        {
+          "event": "windows-long-path-before",
+          "status": 1,
+          "value": "",
+          "diagnostic": ""
+        },
+        {
+          "event": "windows-long-path-after",
+          "value": "true"
+        }
+      ],
+      "originalPowerShellFileAssertion": {
+        "conclusion": "failure",
+        "logSha256": "9af735a63d4e8cf62d552929f2129b9cc487e39521002743c8d3c9ee2e45ee88",
+        "diagnostic": [
+          "$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value",
+          "$expected = \"music-player $version\"",
+          "$captured = (& $exe --version | Out-String).Trim()",
+          "if ($captured -cne $expected) { throw \"captured '$captured', expected '$expected'\" }",
+          "& $exe --version > $file",
+          "if ($fromFile -cne $expected) { throw \"out.txt holds '$fromFile', expected '$expected'\" }",
+          "$merged = (& $exe --version 2>&1 | Out-String).Trim()",
+          "if ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }",
+          "& $exe --version",
+          "##[error]Process completed with exit code 1."
+        ]
+      },
+      "independentPowerShell": [
+        {
+          "member": "powershell-uncaptured-console.json",
+          "record": {
+            "beforeProvenance": "before.json",
+            "requiresStepLogVersionCheck": true,
+            "originalProbeSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "probe": "powershell-uncaptured-console",
+            "cohortId": "native-recovery-20261018T035939491Z",
+            "powershellVersion": "7.6.6",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "afterProvenance": "after.json",
+            "status": "completed",
+            "expectedVersion": "music-player 0.1.3",
+            "schemaVersion": 1,
+            "event": "independent-consumer-result",
+            "actualCaptured": null
+          },
+          "runtimeVersion": "music-player 0.1.3",
+          "runtimeLogSha256": "fc321eb435d5ca7d803edb652e0e43c1821a0cdb6a59e37582f8befad215e14b"
+        },
+        {
+          "member": "powershell-merged-stream.json",
+          "record": {
+            "originalProbeSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "requestedAt": "2026-10-18T04:01:09.841Z",
+            "harnessRevision": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+            "event": "independent-consumer-result",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "probe": "powershell-merged-stream",
+            "expectedVersion": "music-player 0.1.3",
+            "powershellVersion": "7.6.6",
+            "requiresStepLogVersionCheck": false,
+            "schemaVersion": 1,
+            "actualCaptured": "music-player 0.1.3",
+            "status": "passed",
+            "manifestSha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+            "beforeProvenance": "before.json",
+            "afterProvenance": "after.json",
+            "cohortId": "native-recovery-20261018T035939491Z"
+          }
+        }
+      ]
+    }
+  ],
+  "cohortCostEstimates": [
+    {
+      "cohortId": "native-runners-20261018T034256508Z",
+      "routes": 3,
+      "jobs": 6,
+      "depotJobs": 5,
+      "labelProrationFromGithubJobIntervalsUsd": 1.7165333333333335,
+      "labelProrationFromFirstStepIntervalsUsd": 1.6405333333333334
+    },
+    {
+      "cohortId": "native-recovery-20261018T035939491Z",
+      "routes": 3,
+      "jobs": 6,
+      "depotJobs": 5,
+      "labelProrationFromGithubJobIntervalsUsd": 1.5149333333333335,
+      "labelProrationFromFirstStepIntervalsUsd": 1.4493333333333336
+    }
+  ],
+  "totalLabelProrationFromGithubJobIntervalsUsd": 3.231466666666667,
+  "totalLabelProrationFromFirstStepIntervalsUsd": 3.089866666666667,
+  "invoice": false,
+  "publishedMacLabel": {
+    "label": "depot-macos-15",
+    "cpus": 8,
+    "memory": "24 GB"
+  },
+  "observedMacHardware": [
+    {
+      "jobId": 117578770694,
+      "cpus": 7,
+      "memoryBytes": 18253611008
+    },
+    {
+      "jobId": 117578785599,
+      "cpus": 7,
+      "memoryBytes": 18253611008
+    },
+    {
+      "jobId": 117581375857,
+      "cpus": 7,
+      "memoryBytes": 18253611008
+    },
+    {
+      "jobId": 117581391515,
+      "cpus": 9,
+      "memoryBytes": 18253611008
+    }
+  ],
+  "monitorFailures": [
+    {
+      "routeId": "native.hosts",
+      "sha256": "4e0a38565e20c71d16b32527c53ce281bf02ed90c24d3e89bdd459ea0a332259",
+      "terminalDiagnostic": "failed to get run: Get \"https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39095637308?exclude_pull_requests=true\": net/http: TLS handshake timeout",
+      "runContinuedAfterWatcherExited": true,
+      "readOnlyWatchResumedWithoutRedispatch": true
+    },
+    {
+      "routeId": "desktop.macos",
+      "sha256": "2d7a95f96423035c2117e009c36c2decd3dbe5e1949754969920de1a32793654",
+      "terminalDiagnostic": "failed to get run: Get \"https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39095642563?exclude_pull_requests=true\": net/http: TLS handshake timeout",
+      "runContinuedAfterWatcherExited": true,
+      "readOnlyWatchResumedWithoutRedispatch": true
+    },
+    {
+      "routeId": "desktop.windows",
+      "sha256": "69524d67e709837397d566f1a87cdd0f561fa134f78bc0e3bb0d6fd8c8c47cd5",
+      "terminalDiagnostic": "failed to get run: Get \"https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39095647113?exclude_pull_requests=true\": net/http: TLS handshake timeout",
+      "runContinuedAfterWatcherExited": true,
+      "readOnlyWatchResumedWithoutRedispatch": true
+    }
+  ],
+  "limitations": [
+    "Two executions per native route describe observed variation, not a p50/p95 distribution.",
+    "The desktop macOS executions reported different CPU counts, so their timing difference is not measured noise on identical hardware.",
+    "A full-graph waiting reduction and a command dependency critical path are not established.",
+    "Costs prorate the priced label over two observable GitHub timestamp windows; actual Depot billing, allowances and storage are not reconciled.",
+    "Source failures in frozen cases remain source failures even when an issue is fixed on a later source revision."
+  ]
+}

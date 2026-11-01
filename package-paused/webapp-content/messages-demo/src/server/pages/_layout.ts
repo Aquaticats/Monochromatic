@@ -7,7 +7,7 @@
  * the layout wraps that string inside `<body><header>...</header><main>...</main><footer>composer</footer></body>`.
  */
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { all, } from '../../lib/db.ts';
 

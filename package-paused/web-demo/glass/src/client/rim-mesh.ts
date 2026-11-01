@@ -7,7 +7,7 @@
  * true position, concatenated into single position/normal/index buffers.
  * Pure typed-array math, so the whole module unit-tests in node.
  */
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { PaneCell, } from './fracture.ts';
 import {

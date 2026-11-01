@@ -175,7 +175,7 @@ export function extractTypeFromOptions(
         && (innerValue !== NON_STRING_NODE)
         && (HANDLERS[innerValue]
           !== undefined))
-      {
+        {
         return innerValue;
       }
     }

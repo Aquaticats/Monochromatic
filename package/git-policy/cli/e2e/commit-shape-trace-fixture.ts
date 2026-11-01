@@ -216,13 +216,13 @@ export function collectBlobOids(commits: readonly ParsedCommit[],): readonly str
         /**
          Side whose size the shape records.
          */
-        const oid = change.status === 'D' ? change.srcOid : change.dstOid;
+          const oid = change.status === 'D' ? change.srcOid : change.dstOid;
         /**
          Mode of that side.
          */
-        const mode = change.status === 'D' ? change.srcMode : change.dstMode;
-        return isZeroOid(oid,) || (mode === '160000') ? [] : [oid,];
-      },);
+          const mode = change.status === 'D' ? change.srcMode : change.dstMode;
+          return isZeroOid(oid,) || (mode === '160000') ? [] : [oid,];
+        },);
     },),),
   ];
 }
@@ -363,40 +363,40 @@ export function anonymizeCommitShapes({
         /**
          Whether the recorded side is the pre-image.
          */
-        const deleted = change.status === 'D';
+          const deleted = change.status === 'D';
         /**
          Recorded side's mode.
          */
-        const mode = shapeMode(deleted ? change.srcMode : change.dstMode,);
+          const mode = shapeMode(deleted ? change.srcMode : change.dstMode,);
         /**
          Recorded side's blob.
          */
-        const oid = deleted ? change.srcOid : change.dstOid;
+          const oid = deleted ? change.srcOid : change.dstOid;
         /**
          Recorded side's size; gitlinks have no blob.
          */
-        const size = mode === 'gitlink' ? 0 : blobSizes.get(oid,);
-        if (size === undefined)
-          throw new CommitShapeTraceError(`missing blob size for a ${change.status} change`,);
+          const size = mode === 'gitlink' ? 0 : blobSizes.get(oid,);
+          if (size === undefined)
+            throw new CommitShapeTraceError(`missing blob size for a ${change.status} change`,);
         /**
          Rename source ID assigned before the destination.
          */
-        const from = (change.status === 'R') && (change.fromPath !== undefined) ? pathId(change.fromPath,) : undefined;
+          const from = (change.status === 'R') && (change.fromPath !== undefined) ? pathId(change.fromPath,) : undefined;
         /**
          Whether numstat reported a binary change.
          */
-        const binary = change.added === 'binary';
-        return {
-          kind: shapeKind(change.status,),
-          path: pathId(change.path,),
-          ...(from === undefined ? {} : { from, }),
-          mode,
-          size,
-          binary,
-          added: change.added === 'binary' ? 0 : change.added,
-          deleted: binary ? 0 : change.deleted,
-        };
-      },),
+          const binary = change.added === 'binary';
+          return {
+            kind: shapeKind(change.status,),
+            path: pathId(change.path,),
+            ...(from === undefined ? {} : { from, }),
+            mode,
+            size,
+            binary,
+            added: change.added === 'binary' ? 0 : change.added,
+            deleted: binary ? 0 : change.deleted,
+          };
+        },),
     };
   },);
   return {
@@ -430,8 +430,8 @@ export function serializeCommitShapeTrace(trace: CommitShapeTrace,): string {
    */
   const commitLines = trace.commits
     .map(function commitLine(commit,) {
-    return `    ${JSON.stringify(commit,)}`;
-  },);
+      return `    ${JSON.stringify(commit,)}`;
+    },);
   return [
     '{',
     `  "schemaVersion": ${JSON.stringify(trace.schemaVersion,)},`,
@@ -556,7 +556,7 @@ function isCommitShape(value: unknown,): value is CommitShape {
   return isRecord(value,)
     && isUnknownArray(value.changes,)
     && value.changes
-    .every(isShapeChange,);
+      .every(isShapeChange,);
 }
 
 /**
@@ -603,11 +603,11 @@ export function assertCommitShapeTrace(value: unknown,): CommitShapeTrace {
   const ids = commits.flatMap(function commitIds(commit,) {
     return commit.changes
       .flatMap(function changeIds(change,) {
-      return change.from === undefined ? [change.path,] : [
-        change.path,
-        change.from,
-      ];
-    },);
+        return change.from === undefined ? [change.path,] : [
+          change.path,
+          change.from,
+        ];
+      },);
   },);
   if (ids.some(function outOfRange(id,) {
     return id >= pathCount;

@@ -16,7 +16,8 @@ A consumer calling the apparently checked `json_number::Number::new("1")` or
  not `#[repr(transparent)]`.
  The [Rust Reference][layout-rust] does not guarantee that its byte field starts at the slice's address.
  Consequently,
- the published source does not establish the portable layout proof required before accepting this crate as a memory-safe dependency.
+ the published source does not establish the portable layout proof
+required before accepting this crate as a memory-safe dependency.
  This is **not** a claim that a particular rustc build crashes or demonstrably produces undefined behavior;
  there is no runtime error message to quote.
 
@@ -168,11 +169,13 @@ No matching entry exists in this repository's `.out-of-scope/` list.
 1. **Upstream fault**:
    unresolved.
    The public docs do not establish the needed layout guarantee,
-   but this audit has not proved a concrete invalid result or checked a formal compiler guarantee outside the cited Reference.
+   but this audit has not proved a concrete invalid result
+   or checked a formal compiler guarantee outside the cited Reference.
    Do not equate an unproved safety case with demonstrated undefined behavior.
 2. **Fixability**:
    yes in principle.
-   A separately reviewed transparent representation and justified pointer conversion could supply a documented layout boundary.
+   A separately reviewed transparent representation
+   and justified pointer conversion could supply a documented layout boundary.
 3. **Supported use case**:
    yes for checked raw JSON-number token storage (`src/lib.rs:110-128`).
    Mathematical equality is explicitly **not** claimed by upstream.

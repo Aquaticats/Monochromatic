@@ -120,7 +120,8 @@ against any other Standard-Schema-implementing library,
 
 Cheapest option,
  and our local pattern (`zod/mini` + concrete `z.ZodMini*` annotations under `isolatedDeclarations`) works.
-Rejected because the rejection-lane governance pattern is unlikely to improve while colinhacks' attention is on Pullfrog,
+Rejected because the rejection-lane governance pattern is unlikely to improve
+while colinhacks' attention is on Pullfrog,
 and writing the migration off as "later" tends to mean "much later" once download volume keeps growing the lock-in.
 
 ### Reject: ArkType
@@ -401,9 +402,11 @@ as top-level:
    Five package.
   jsons swapped zod->valibot,
    two (`module/es`,
-   `module/image-diff`) had unused zod entries dropped.
+   `llm/image-diff`) had unused zod entries dropped.
    zod removed from catalog.
    PHILOSOPHY.
   `tool-choices.md` updated.
    The recount note:
-   original 13 missed `auto-mode/src/config-schemas.ts` because it imports zod with double-quoted `"zod/mini"` whereas every other consumer uses single quotes.
+   original 13 missed `auto-mode/src/config-schemas.ts`
+   because it imports zod with double-quoted `"zod/mini"`
+   whereas every other consumer uses single quotes.

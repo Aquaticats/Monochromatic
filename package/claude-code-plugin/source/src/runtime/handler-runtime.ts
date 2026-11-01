@@ -80,6 +80,14 @@ async function runHookPlugin<TInput, TOutput,>(
   },
 ): Promise<void> {
   /**
+   Console-sink routing for the hook process. The writer's bytes are the host
+   protocol on stdout (Codex parses them strictly, so a trailing log line
+   fails every event as `invalid ... JSON output`), so diagnostics go to
+   stderr. An explicit `MONOCHROMATIC_LOG_CONSOLE` value still wins.
+   */
+  process.env
+    .MONOCHROMATIC_LOG_CONSOLE ??= 'stderr';
+  /**
    Full stdin payload from Claude Code, awaited to EOF before parsing.
    */
   const raw = await text(process.stdin,);

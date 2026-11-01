@@ -39,15 +39,15 @@ export type ImportOutcome =
   /**
    Relative specifier reaching package source rather than built output.
    */
-  | 'relative-source'
+    | 'relative-source'
   /**
    Bare specifier reaching the package's own source through its `/ts` subpath.
    */
-  | 'own-source-subpath'
+    | 'own-source-subpath'
   /**
    Specifier naming another package or a runtime module; outside this rule.
    */
-  | 'unchecked';
+    | 'unchecked';
 
 /**
  Classifies one import specifier appearing in a checked file.
@@ -109,7 +109,7 @@ export function classifyImport({
 
   if ((specifier === `${owner.name}${SOURCE_SUBPATH}`)
     || specifier.startsWith(`${owner.name}${SOURCE_SUBPATH_PREFIX}`,))
-  {
+    {
     return 'own-source-subpath';
   }
 

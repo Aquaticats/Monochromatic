@@ -20,6 +20,7 @@ import {
 } from './git-read-fixture.ts';
 import type {
   AuxiliaryObservation,
+  ContentState,
   RunObservation,
   StagedDifference,
 } from './invariant-model-fixture.ts';
@@ -91,8 +92,8 @@ async function findLeftovers(repository: ScenarioRepository,): Promise<readonly 
     ...refs,
     ...classifyLeftovers(entries,)
       .map(function relative(entry,) {
-      return `.git/${entry}`;
-    },),
+        return `.git/${entry}`;
+      },),
   ];
 }
 
@@ -317,16 +318,16 @@ export async function observeRun({
    */
   const attempts = await Promise.all(snapshot.attempts
     .map(async function observe(attempt,) {
-    return await observeAttempt({
-      repository,
-      attempt,
-      attempts: snapshot.attempts,
-      history,
-      checks,
-      runs,
-      amendedPublished,
-    },);
-  },),);
+      return await observeAttempt({
+        repository,
+        attempt,
+        attempts: snapshot.attempts,
+        history,
+        checks,
+        runs,
+        amendedPublished,
+      },);
+    },),);
   /**
    Parent-side contents replaced by landed commits, per path.
    */
@@ -340,15 +341,15 @@ export async function observeRun({
       .flatMap(function replacedPaths(attempt,) {
         return attempt.selectedPaths
           .map(async function replacedContent(path,) {
-          return [
-            path,
-            stateOf(await treeBytes({
-              repository,
-              commit: commit.parent ?? commit.oid,
+            return [
               path,
-            },),),
-          ] as const;
-        },);
+              stateOf(await treeBytes({
+                repository,
+                commit: commit.parent ?? commit.oid,
+                path,
+              },),),
+            ] as const;
+          },);
       },);
   },),);
   /**
@@ -357,14 +358,14 @@ export async function observeRun({
   const replaced = new Map([...Map.groupBy(
     replacedEntries,
     function byPath([path,],) {
-    return path;
-  },
+      return path;
+    },
   ),].map(function contents([path, entries,],) {
     return [
       path,
       entries.map(function content([, state,],) {
-      return state;
-    },),
+        return state;
+      },),
     ] as const;
   },),);
   /**
@@ -375,27 +376,30 @@ export async function observeRun({
     /**
      Decoded events for wrapper commands.
      */
-    const extraction = extractPolicyEvents(auxiliary.wrapper ? auxiliary.outcome
-      .stderr : '',);
-    return {
-      label: auxiliary.label,
-      exitCode: auxiliary.outcome
-        .exitCode,
-      mustSucceed: auxiliary.mustSucceed,
-      eventIssues: [
-        ...extraction.issues,
-        ...checkExitConsistency({
-          exitCode: auxiliary.outcome
-            .exitCode,
-          events: extraction.events,
-        },),
-      ],
-    };
-  },);
+      const extraction = extractPolicyEvents(auxiliary.wrapper ? auxiliary.outcome
+        .stderr : '',);
+      return {
+        label: auxiliary.label,
+        exitCode: auxiliary.outcome
+          .exitCode,
+        mustSucceed: auxiliary.mustSucceed,
+        eventIssues: [
+          ...extraction.issues,
+          ...checkExitConsistency({
+            exitCode: auxiliary.outcome
+              .exitCode,
+            events: extraction.events,
+          },),
+        ],
+      };
+    },);
   /**
    Final worktree contents of tracked harness paths.
    */
-  const worktree = await Promise.all([...snapshot.worktree,].map(async function compare([path, expected,],) {
+  const worktree = await Promise.all([...snapshot.worktree,].map(async function compare([path, expected,]: readonly [
+    string,
+    ContentState
+  ],) {
     return {
       path,
       expected,

@@ -41,8 +41,31 @@ Do not treat unverified behavior as a reopened visual decision or schedule
 an IME experiment.
 The stopped disposable emulator and bounded inner speech evidence are
 recorded in `evidence/search-talkback-native-baseline.md`.
-The next design-only investigation is filename presentation,
-recorded in `evidence/search-filename-presentation-frontier.md`.
+The completed filename investigation is recorded in
+`evidence/search-filename-presentation-frontier.md`.
+The human directed continued design work;
+the completed first-run/no-library queue is in
+`doc/planning/music-player-first-run-access.md`.
+The whole-map keyboard proposal is verified without new accepted defaults.
+`doc/planning/music-player-light-error-undo.md` records the completed D83
+state-family study and inspected offline publication.
+`doc/planning/music-player-light-context-menu.md` records the completed D7
+study and verified 24-pose viewer at `questions/track-menu.html`,
+without production callbacks or a replacement action-list ballot.
+`doc/planning/music-player-light-scan-indicator.md` records the completed
+D26 scan-F study and verified 32-view viewer at
+`questions/scan-indicator.html`,
+without real analysis,
+revised consent defaults or a scan-policy ballot.
+`doc/planning/music-player-light-settings.md` records the completed
+Settings-pane study and verified 24-view viewer at
+`questions/settings-pane.html`,
+without stored preferences,
+a template entry or a Settings-template ballot.
+It draws D11's two remaining rows:
+D84 removed the true-peak analysis row and D85 the closing sentence.
+The template editor design remains an independent queue item.
+Neither work item reopens the filename ballot.
 Ordinary-player source retains suffixes,
 but neither that incumbent nor D11's shortened Settings example selects
 Search's extension display.
@@ -79,13 +102,16 @@ The authored comparisons remain valid measurements,
 not template-engine output or implemented presets.
 Default-template design and customization/disambiguation interactions remain
 open without a replacement policy vote.
+These entries are not a request for another filename review round.
+The human rejected inconsequential decisions;
+apply the comparison plan's consequence gate before asking about them.
 The runtime's fresh settings were restored and it was stopped.
 `doc/planning/music-player-search-filename-comparison.md` selects no policy
 and authorizes no dependent implementation.
 All filename investigations exclude matcher choices,
 new IME work and native accessibility acceptance.
 
-- **PROVISIONAL: folded-cover picker P4 (D46).**
+- **PROVISIONAL, revisit in another major version (D46, D104): folded-cover picker P4 with an upward caret while open.**
   The app-bar folder title and caret
   open the picker in the list slot while the deck remains visible.
   The P comparison
@@ -108,7 +134,13 @@ new IME work and native accessibility acceptance.
   with D41/D42 dark structure and D45
   light seams.
   Selection does not authorize production work.
-- **OPEN: revisit the folded-cover picker before 1.x (D46).**
+- **SETTLED (D104), further improvement deferred to another major version: the folded-cover picker (D46).**
+  The human approved P5 without its container: P4 with the caret pointing up while open.
+  They are still unsatisfied and will deal with it in another major version.
+  The built P5 is shown beside P4 in `questions/cover-picker-revisit.html`;
+  the plan is `doc/planning/music-player-cover-picker-revisit.md`.
+  On 2026-10-10 the human asked for the exploration now and left the angle to the agent
+  (one alternative built from the best of the agent's design judgment, then asked to approve).
   The user chose P4 while
   believing a better solution exists.
   Explore alternatives at a future design round,
@@ -350,7 +382,8 @@ new IME work and native accessibility acceptance.
   their activation was settled as D72 to D74 under review task 129,
   but native behavior remains unverified.
   See `evidence/search-result-overflow.md` for bounds and test limitations.
-- **OPEN: remaining Search behavior after D51/D52.**
+- **CLOSED as a design item (D103): remaining Search behavior after D51/D52.**
+  What is left is native verification, which waits for an implementation.
   Keep positive results,
   no-results/unavailable states and open/back behavior distinct;
   do not
@@ -420,7 +453,7 @@ new IME work and native accessibility acceptance.
   the broad debug unavailable wording was rejected.
   D72 to D74 settle the desired Search result effects:
   folder hits open their folder without autoplay,
-  other track hits start playback,
+  other track hits start playback (changed by D127 on 2026-10-14: they select the track paused, as a row click does),
   already-current track hits toggle play/pause,
   and successful track actions return to player.
   See `evidence/search-result-activation-frontier.md` and the archived
@@ -444,7 +477,7 @@ new IME work and native accessibility acceptance.
   do not transfer to Search.
   D25 still reserves Ctrl+F for search and Ctrl+O for the
   picker,
-  pending the whole keyboard map.
+  and D102 accepted the whole keyboard map.
   Cover-specific accessibility remains open;
   D39/D40 settled only the unfolded
   screen.
@@ -508,24 +541,43 @@ new IME work and native accessibility acceptance.
   with information clear of the dent,
   preserve D34/D41 color treatments,
   and do not silently retain fixed 414dp content panes or a blank 24dp stripe.
-- **OPEN: keyboard map revision (section 6):**
-  one revised IntelliJ-aligned map,
-  including what ↑/↓ does after D43 removed the volume popover.
-- **OPEN: Android media notification.**
-- **OPEN: light surfaces not yet drawn (11d):**
-  error bar,
-  undo toast,
-  settings pane,
- context menu,
+- Keyboard map revision (section 6) is settled by D102:
+  the IntelliJ-aligned map is accepted as built,
+  and bare ↑/↓ keep their native behavior after D43 removed the volume popover.
+- Android media notification presentation is settled by D82.
+  Accept what Android provides;
+  no special notification design or variant round remains.
+- D83 replaces the error bar with transient dismissible overlays.
+  Messages target two lines;
+  longer detail directs users to Android logs.
+  Feedback must not resize the player.
+  Its native light/dark overlay study is complete (11d).
+- Every light surface in the original queue now has its own inspected native
+  study (11d):
+  the context menu,
   first-run prompt,
-  scan bar.
-- **OPEN: D10 empty state redrawn for the no-system-library case (8b).**
+  scan bar and Settings pane.
+  The Settings placement on the Fold was adopted from D50,
+  D51 and existing Settings behaviour,
+  not separately chosen;
+  its viewer says how to object.
+- D10 no-system-library/declined-source states now have built design evidence.
+  `evidence/first-run-access-boundaries.md` records the scoped authored
+  native study and `questions/first-run-access.html` is verified evidence,
+  not a new preference ballot.
+  Since D95 and D100 (2026-10-06) only the declined state remains,
+  shown as an open but unreadable library;
+  its wording and layout were approved as built (D101).
+  Production source-status/recovery binding and native accessibility
+  acceptance remain separate.
 - **DEVELOPER-OWNED: desktop window default size (11c, D49).**
   Choose an
   implementation window frame around the Fold-derived treatments;
   do not use it as
   a separate visual design target.
-- **OPEN: custom display templating round (11e).**
+- Custom display templating (11e) is settled:
+  the editor (D89 to D96,
+  D98) and the two lines that get a template (D99).
 - **DEVELOPER-OWNED: MD3-on-Slint feasibility (A4).**
   The user assigned feasibility and
  porting studies to developers on 2026-09-17;
@@ -752,6 +804,7 @@ what the deck’s subtitle shows when the playing track is not in the visible fo
 
 ## 3b. Scrollbars — SETTLED (D22): desktop bar always visible, letter rail has none
 The per-surface table in candidate scroll-a stands otherwise.
+ Amended by D125 (2026-10-14): the desktop folder names list has none either.
  Original note kept:
 
 ### (history) SPEC PROPOSED, awaiting verdict (candidate scroll-a)
@@ -806,7 +859,7 @@ not a prerequisite design questionnaire or permission to replace Slint.
 
 ---
 
-## 6. The keyboard map — partially settled (D25), needs an IntelliJ pass
+## 6. The keyboard map: D25 settled assignments and a verified whole-map proposal
 
 Settled:
  Ctrl+F reserved for search,
@@ -822,13 +875,19 @@ single revised map rather than binding-by-binding questions.
 volume;
  decide what ↑/↓ does instead (system volume session, or nothing);
  and the
-Android media notification has never been designed.
-**Status (2026-09-17):**
- the design deliverable is a single revised map brought back as a
-whole;
- implementing it is developer work.
- The media notification is tracked in the
-0b backlog.
+Android media notification appearance is settled by D82:
+accept the platform presentation with no special design.
+**Status (2026-10-10): SETTLED (D102).**
+ The human accepted the whole-map proposal at
+`questions/keyboard-map.prototype.html` as built,
+including the playback-area scope for Space, previous, next and `Ctrl+M`,
+and bare arrows keeping native behavior.
+`evidence/keyboard-map-boundaries.md` separates actual browser behavior
+from unverified OS/native delivery.
+Implementing the map is developer work;
+there is no production implementation authority.
+ The custom media-notification design item is closed by D82;
+ functional integration remains separate.
 
 ---
 
@@ -900,6 +959,14 @@ of decisions.md.
    D10's empty state now only applies when
   there is no system library,
    and has not been redrawn for that narrower case.
+  D84 (2026-10-05) supersedes the ask-before-analysing part:
+  true-peak analysis is automatic and not optional,
+  so the four answers no longer apply.
+  When analysis runs is still open,
+  and the first-run study's sentence `After opening a library, choose whether to analyse it.`
+  contradicted D84.
+  The study was rebuilt without it on 2026-10-05;
+  `evidence/first-run-access-boundaries.md` describes the rebuilt study.
 
 ## 9. Smaller loose ends
 
@@ -945,14 +1012,14 @@ of decisions.md.
 - **Command bar surface** (D21) — superseded by D47;
    the Search page is active in
    section 0b.
-- **Keyboard map / IntelliJ alignment pass** (D25):
-   see section 6;
-   one revised map is the
-  design deliverable.
+- **Keyboard map / IntelliJ alignment pass** — SETTLED (D102):
+   see section 6.
 - **Accessibility pass — SETTLED for the unfolded screen (D39, D40).**
    Other surfaces
   get their accessibility treatment inside their own rounds.
-- **Android media notification** — never designed.
+- **Android media notification presentation** is settled by D82:
+  accept the platform's standard presentation,
+  without a custom design round.
 - **MD3-on-Slint feasibility (A4) — DEVELOPER-OWNED.**
    Feasibility and porting studies are
   developer work per user instruction 2026-09-17;
@@ -1066,9 +1133,9 @@ surface with a Search button and page.
  acceptance.
  Reconsidering the picker
 remains a separate pre-1.x question, not a promise to replace it;
- the keyboard-map pass,
- Android media notification,
- and undrawn light surfaces remain open;
+ the whole-map keyboard proposal is verified but not adopted;
+ the remaining light surfaces are listed in section 11d;
+ Android notification presentation is settled by D82;
   desktop
   window sizing follows the Fold design as developer-owned work (D49).
 
@@ -1077,8 +1144,34 @@ D45 settles the cover's flat L3 surface with hairlines at both seams, and the P2
 was captured in that scheme.
  P4, the provisional D46 choice, now has its own L3
 captures at 100% and 200% text.
- The error bar, undo toast, settings pane, context menu, first-run prompt and
-scan bar remain undrawn in light; do not credit the cover decision as evidence for them.
+The first-run/no-library study now has its own inspected native evidence.
+D83's error/Undo overlays also have a completed light/dark study:
+`questions/feedback-overlay.html` presents 48 inspected held poses,
+with native expiry and action results recorded separately.
+The layout-reserving error bar is superseded,
+not still awaiting a light version.
+D7's track menu now has its own 24-pose light/dark native publication in
+`questions/track-menu.html`,
+with seven action intents and input/dismissal checks recorded separately.
+D26's scan indicator now has its own 32-view light/dark native publication
+in `questions/scan-indicator.html`.
+Native Pause/Resume and authored progress/completion checks are recorded
+separately in `evidence/scan-indicator-boundaries.md`,
+with the inspected cover ellipsis and large-text Resume clearance stated
+as observations.
+The Settings pane now has its own 24-view light/dark native publication
+in `questions/settings-pane.html`,
+with two rows after D84 and D85.
+Row toggles,
+the Back target,
+system Back and the return to an unchanged player are recorded separately
+in `evidence/settings-pane-boundaries.md`.
+The mostly empty page below the two rows,
+the orphaned `off` and the narrowed left browser are stated as observations.
+D84 answered whether the third row reflects a D27 first-run answer by
+removing the row,
+and D85 removed the closing sentence;
+only the template entry itself stays with the 11e design round.
 
 ### 11e. Custom display templating: Settings requirement settled, details open
 
@@ -1097,6 +1190,40 @@ other row-type coverage and title customization remain undesigned.
 Default templates and their interaction with required visible distinction
 need a dedicated design round.
 Do not replace this requirement with a fixed supporting-text policy vote.
+
+That round opened on 2026-10-05.
+The human named KWGT as precedent,
+and D89 records which of its language and editor features the player keeps
+and omits;
+`doc/planning/music-player-template-editor.md` holds the observations.
+Still open after D89:
+the field inventory,
+row-type coverage,
+defaults,
+fallback,
+exact spelling of the grammar,
+and the editor's layout on the Fold.
+D90 records the agent's picks for the entries D89 left open,
+which the human delegated.
+That study was built and its layout question answered on 2026-10-06:
+the preview scrolls with the page (D91),
+the language has no conditional (D92),
+an empty field is plain substitution with the unit inside the peak field (D93),
+and the page rests where Android puts a focused field (D94).
+The study is rebuilt for those decisions;
+`evidence/template-editor-boundaries.md` describes it,
+and `questions/template-editor.html` shows the decided editor and asks nothing.
+Shown that page,
+the human answered on 2026-10-06 that a library is always open (D95),
+that scrolling suffices to reach the field list (D96),
+and that the agent should build one version of which other rows get templates
+and ask for approval (D97).
+That version (two templates,
+`Track rows` and `Playing track`)
+was built into the review page,
+and the human accepted the editor (D98) and approved that version as built (D99).
+The design round for templates is closed;
+no production implementation is authorized.
 
 ## 12. Existing-screen refinement, 3B settled and accepted
 
@@ -1136,7 +1263,7 @@ question remains in this round.
 No absent control or future feature is part of this round.
  The Search page (formerly the command-bar frontier),
  cover screen,
- notification,
+ notification (now standard platform presentation under D82),
  custom display templating,
  and every other unbuilt item remain
 outside the active form.

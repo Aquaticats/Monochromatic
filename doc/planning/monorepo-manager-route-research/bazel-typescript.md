@@ -66,7 +66,7 @@ The details and the full candidate list are in "Yikes candidates".
    `packageExtensions` for `mitata` (355),
    `supportedArchitectures` for darwin and linux, x64 and arm64, glibc and musl (389).
 - `.pnpmfile.mjs` `readPackage` hook (line 190) rewrites blocked transitive dependencies to
-   `workspace:@monochromatic-dev/stub-throwing@*` or `stub-silent` (`STUB_SPECIFIER`, line 90),
+   `workspace:@monochromatic-dev/pnpm-override-stub-throwing@*` or `stub-silent` (`STUB_SPECIFIER`, line 90),
    driven by `.pnpmfile.policies.json` (for example `js-yaml` at line 56 and `sax` at line 80).
 - No `.npmrc` at the root (`ls --all` of the repository root).
 - `prepare:pnpm:install` runs `pnpm install` (`mise.no-env.toml:1012`).
@@ -89,11 +89,11 @@ The details and the full candidate list are in "Yikes candidates".
    43 carry `hasBin`;
    every registry package has an `integrity`.
 - Five snapshot dependencies point at workspace directories with no importer linking that directory under the same name:
-  - `cosmiconfig@9.0.2(typescript@7.0.2)` to `js-yaml: link:package/stub/throwing` (`pnpm-lock.yaml:9217`);
-  - `xml2js@0.6.2` to `sax: link:package/stub/throwing` (`:11120`);
-  - `@earendil-works/pi-coding-agent@0.85.1` to `proper-lockfile: link:package/shim/proper-lockfile` (`:8027`);
+  - `cosmiconfig@9.0.2(typescript@7.0.2)` to `js-yaml: link:package/pnpm-override/stub-throwing` (`pnpm-lock.yaml:9217`);
+  - `xml2js@0.6.2` to `sax: link:package/pnpm-override/stub-throwing` (`:11120`);
+  - `@earendil-works/pi-coding-agent@0.85.1` to `proper-lockfile: link:package/pnpm-override/shim-proper-lockfile` (`:8027`);
   - `mdast-util-to-hast@13.2.1` and `rehype-autolink-headings@7.1.0` to
-     `@ungap/structured-clone: link:package/shim/ungap-structured-clone` (`:10025`, `:10554`).
+     `@ungap/structured-clone: link:package/pnpm-override/shim-ungap-structured-clone` (`:10025`, `:10554`).
 
 ### How rules_js would do it
 
@@ -109,7 +109,8 @@ The details and the full candidate list are in "Yikes candidates".
   - pnpm 12's lockfile is covered by the `e2e/pnpm_lockfiles/v120` case on `main`
      (verified: `e2e/pnpm_lockfiles/v120/pnpm-lock.yaml`),
      but that case is absent at tag v3.4.1
-     (verified: `gh api repos/aspect-build/rules_js/contents/e2e/pnpm_lockfiles?ref=v3.4.1` lists only `v101`, `v110`, `v90`).
+     (verified: `gh api repos/aspect-build/rules_js/contents/e2e/pnpm_lockfiles?ref=v3.4.1` lists only `v101`, `v110`,
+     `v90`).
 - Catalogs:
    no special handling exists or is needed,
    because importer entries already carry the resolved `version`
@@ -147,7 +148,8 @@ The details and the full candidate list are in "Yikes candidates".
    rules_js maps `os` and `cpu` to constraints
    (verified: `pnpm.bzl:55-98`)
    and has no libc handling
-   (verified: `rg --ignore-case 'libc|musl' npm/private --glob '*.bzl'` matched only pnpm binary checksums in `versions.bzl`),
+   (verified: `rg --ignore-case 'libc|musl' npm/private --glob '*.bzl'` matched only pnpm binary checksums in
+   `versions.bzl`),
    so glibc and musl variants of native bindings both link on Linux.
   Unverified whether any binding misloads because of that.
 - Native pnpm 12 executables for `bazel run @pnpm` exist on `main`
@@ -185,9 +187,9 @@ The details and the full candidate list are in "Yikes candidates".
    (verified: `utils.bzl:96-103`).
 - Third-party packages reference their dependencies' stores by that name
    (verified: `npm_import.bzl:741-745` and `:783-786`).
-- No importer links `package/stub/throwing`,
-   `package/shim/proper-lockfile`,
-   or `package/shim/ungap-structured-clone`
+- No importer links `package/pnpm-override/stub-throwing`,
+   `package/pnpm-override/shim-proper-lockfile`,
+   or `package/pnpm-override/shim-ungap-structured-clone`
    (verified: `targetcount.ts` output "importer aliases: none" for all five edges).
 - Inference, unverified by execution:
    `cosmiconfig`, `xml2js`, `pi-coding-agent`, `mdast-util-to-hast`, and `rehype-autolink-headings`
@@ -201,8 +203,8 @@ The details and the full candidate list are in "Yikes candidates".
    (verified: `npm/extensions.bzl:74-82`, `npm_translate_lock_helpers.bzl:500-572`),
    and these names are absent there.
 - Candidate fixes, all unprototyped:
-   root `devDependencies` aliases such as `"proper-lockfile": "link:package/shim/proper-lockfile"`;
-   for `stub/throwing`,
+   root `devDependencies` aliases such as `"proper-lockfile": "link:package/pnpm-override/shim-proper-lockfile"`;
+   for `pnpm-override/stub-throwing`,
    which serves two aliases while stores are keyed by directory (`npm_translate_lock_generate.bzl:143-181`),
    one stub directory per alias;
    or a rules_js patch.
@@ -221,11 +223,11 @@ The details and the full candidate list are in "Yikes candidates".
    which is built output for most packages:
    181 bare self-reference import statements (mostly tests importing their own package),
    and 28 cross-package bare import statements resolving to `dist/final/...`,
-   16 of them to `@monochromatic-dev/module-logger`,
-   whose `"."` export is `./dist/final/node/index.mjs` (`package/module/logger/package.json`) (`bareimports.ts`).
+   16 of them to `@monochromatic-dev/logger-core`,
+   whose `"."` export is `./dist/final/node/index.mjs` (`package/logger/core/package.json`) (`bareimports.ts`).
   The `claude-code-plugin-source` subpath imports (17 statements) resolve to `src/*.ts` instead.
 - Package-internal `imports` also point at source,
-   for example `#default-sinks` to `./src/default-sinks.node.ts` (`package/module/logger/package.json`).
+   for example `#default-sinks` to `./src/default-sinks.node.ts` (`package/logger/core/package.json`).
 - The decision and its measured costs:
    `doc/decision/workspace-ts-source-imports.md`.
   It relies on pnpm links resolving to real paths outside `node_modules`
@@ -233,7 +235,8 @@ The details and the full candidate list are in "Yikes candidates".
 
 ### How Bazel would do it
 
-- Each linked package gets `js_library(name = "pkg", srcs = ["package.json"], types = glob(["src/**/*.ts"]), deps = [":node_modules/..."])`.
+- Each linked package gets
+`js_library(name = "pkg", srcs = ["package.json"], types = glob(["src/**/*.ts"]), deps = [":node_modules/..."])`.
   `js_library` copies sources to the output tree
    (verified: `js/private/js_library.bzl:43-45`, `:156-158`).
   `.ts` files in `srcs` are classified as sources, not types;
@@ -241,7 +244,8 @@ The details and the full candidate list are in "Yikes candidates".
    (verified: `js_library.bzl:160-179`);
    the `types` attribute forces any file to be a type
    (verified: `js_library.bzl:79-91`, `:204-213`).
-- A first-party package store backed by `JsInfo` is a directory symlink to the target's package directory in `bazel-bin`,
+- A first-party package store backed by `JsInfo` is a directory symlink to the target's package directory in
+`bazel-bin`,
    and carries the target's transitive sources and types
    (verified: `npm/private/npm_package_store.bzl:320-340`);
    the store also links the package's own dependencies
@@ -284,9 +288,9 @@ The details and the full candidate list are in "Yikes candidates".
 - `lint:types` runs `task-util tsc-filter --build`
    (`mise.no-env.toml:605`),
    which deletes `.tsbuildinfo` caches and filters `node_modules` diagnostics
-   (`package/dev-script/task-util/src/tsc-filter.ts`, header and `removeStaleBuildInfo`),
+   (`package/monorepo-task/core-exec/src/tsc-filter.ts`, header and `removeStaleBuildInfo`),
    adding `--singleThreaded` under `TSC_SINGLE_THREADED`
-   (`package/dev-script/task-util/src/tsc-args.ts:32-53`).
+   (`package/monorepo-task/core-exec/src/tsc-args.ts:32-53`).
 - TypeScript is 7.0.2 native
    (`pnpm-lock.yaml` importer `typescript` resolves 7.0.2;
    the npm package's `lib/tsc.js` execs the native binary through `process.execve` or `execFileSync`,
@@ -384,14 +388,17 @@ The details and the full candidate list are in "Yikes candidates".
 - The wrapper forces `--format=default`,
    honours `OXLINT_THREADS`,
    and loops `--fix` to a fixpoint
-   (`package/dev-script/task-util/src/oxlint-wrapper.ts`).
+   (`package/monorepo-task/core-exec/src/oxlint-wrapper.ts`).
 - Per-package cwd is load-bearing:
    type-aware mode finds the nearest `tsconfig.json` upward from cwd,
    and `ignorePatterns` resolve from cwd
    (`doc/troubleshooting/oxlint.md`, Bug 1 and the `ignorePatterns` report).
 - `prefer-readonly-parameter-type` (`package/oxlint-plugin/prefer-readonly-parameter-type`):
   - uses the TypeScript 7 native API
-     (`typescript/unstable/sync`, `typescript/unstable/ast` imports across `src/prefer-readonly-parameter-types/`),
+     (`typescript/unstable/sync`,
+     `typescript/unstable/ast` imports across `src/prefer-readonly-parameter-types/`;
+     renamed `typescript/sync` and `typescript/ast` in 7.1.0-beta,
+     2026-10-20),
      spawning `tsgo --api` children
      (`typescript-sync-native-shutdown.ts:137-147`);
   - analyzes workspace callees live from sibling source,
@@ -516,17 +523,18 @@ The details and the full candidate list are in "Yikes candidates".
      spawns `pagefind` from the mise tool set (`mise.toml:170-173`),
      and rewrites `dist` files in place (`src/build/postprocess.ts:326-352`).
 - Other TypeScript-side custom builds:
-   Electron staging in `desktop-app/electron-counter` and `desktop-app/file-manager-electron`,
+   Electron staging in `electron-infra/app-counter` and `file-manager/variant-electron`,
    Node SEA in `kwin/key-helper` (`sea`, `binary`),
    `typeface/aquaticat` `build:font`,
-   `webapp-productivity/done-postcss` `build:css`,
-   `module/logger.fuzz` `bundle:browser-properties`,
-   and `desktop-daemon/hall-monitor` using `bun build --compile`
+   `done/variant-postcss` `build:css`,
+   `logger/core.fuzz` `bundle:browser-properties`,
+   and `hall-monitor/daemon` using `bun build --compile`
    (`misecensus.ts` and `rg '^\[tasks\."?(build|...)'` over package `mise.toml` files).
 
 ### How Bazel would do it
 
-- `js_run_binary(tool = ":rolldown", srcs = [...], out_dirs = ["dist/final/node"], chdir = package_name(), args = ["--configLoader", "native", "--config", "rolldown.node.config.ts"])`
+-
+`js_run_binary(tool = ":rolldown", srcs = [...], out_dirs = ["dist/final/node"], chdir = package_name(), args = ["--configLoader", "native", "--config", "rolldown.node.config.ts"])`
    (verified attributes: `js/private/js_run_binary.bzl:19-45`, `chdir` guidance at `:95-123`).
 - `srcs` must include `package.json`,
    the config file,
@@ -561,12 +569,13 @@ The details and the full candidate list are in "Yikes candidates".
   No Node flags are passed,
    so tests rely on Node 26's default type stripping.
 - Harness:
-   `@monochromatic-dev/module-test` is a self-executing `describe` and `it` API over chai and sinon;
+   `@monochromatic-dev/test-harness-core` is a self-executing `describe` and `it` API over chai and sinon;
    failures throw and set a non-zero exit
-   (`package/module/test/README.md`, "API").
-  Its logger's file sink writes `node_modules/.monochromatic/<timestamp>.log.jsonl` under the nearest ancestor `node_modules`
+   (`package/test-harness/core/README.md`, "API").
+  Its logger's file sink writes `node_modules/.monochromatic/<timestamp>.log.jsonl` under the nearest ancestor
+  `node_modules`
    and degrades to unavailable on any error
-   (`package/module/logger/src/sink/file.ts:168-238`).
+   (`package/logger/core/src/sink/file.ts:168-238`).
 - The `test-import` oxlint rule requires tests to import the shipped artifact
    (`package/config/oxlint/src/index.ts` comment on `oxlint-plugin-test-import`).
 - Census (`testcensus.ts`, regex heuristics):
@@ -576,15 +585,17 @@ The details and the full candidate list are in "Yikes candidates".
    62 files in 30 packages spawn children.
 - Environment-bound tests (targeted `rg`, heuristic):
   - network:
-     `oxlint-plugin/prefer-readonly-parameter-type/src/external-consumer.unit.test.ts` runs `pnpm pack` and `pnpm install --ignore-workspace` (lines 77-110);
+     `oxlint-plugin/prefer-readonly-parameter-type/src/external-consumer.unit.test.ts` runs `pnpm pack`
+     and `pnpm install --ignore-workspace` (lines 77-110);
      `config/pnpr/src/publish-plan.unit.test.ts` matched the network pattern;
   - containers or other runtimes:
-     `module/matrix` (`container.unit.test.ts`, `runtime.unit.test.ts`, `self.unit.test.ts`, podman plus bun and deno per its README),
-     `cli/vmsync/src/lifecycle.expensive.unit.test.ts`,
-     `cli/mvm/src/cli.unit.test.ts`;
+     `test-harness/core-matrix` (`container.unit.test.ts`, `runtime.unit.test.ts`, `self.unit.test.ts`,
+     podman plus bun and deno per its README),
+     `vmsync/cli/src/lifecycle.expensive.unit.test.ts`,
+     `mvm/cli/src/cli.unit.test.ts`;
   - real home:
      `homedir()` or `process.env.HOME` in `claude-code-plugin/statusline`, `figma/to-penpot`, `git-policy/cli`,
-     `pi-plugin/auto-mode`, `module/wg-allowedips`, `module/fs-path`;
+     `pi-plugin/auto-mode`, `wg/core-allowedips`, `fs-path/core`;
   - repository layout:
      35 files use `findRoot` or `MISE_MONOREPO`,
      including the shared oxlint plugin test root (`package/oxlint-plugin/test-support/src/index.ts:37-40`);
@@ -596,7 +607,8 @@ The details and the full candidate list are in "Yikes candidates".
 
 ### How Bazel would do it
 
-- `js_test(name = "<file>", entry_point = "src/<file>.unit.test.ts", chdir = package_name(), data = [":pkg", ":dist", ":node_modules/..."])`,
+-
+`js_test(name = "<file>", entry_point = "src/<file>.unit.test.ts", chdir = package_name(), data = [":pkg", ":dist", ":node_modules/..."])`,
    one per file to keep today's process isolation (694 targets),
    or a per-package runner (109 targets).
 - Built-artifact imports make each test depend on its package's rolldown action,
@@ -605,7 +617,8 @@ The details and the full candidate list are in "Yikes candidates".
    plus data dependencies for root markers and env such as a `PATH` entry for `oxlint`.
 - Node toolchain:
    rules_nodejs mirrors Node up to 24.21.0 and no 25 or 26 release
-   (verified: `gh api repos/bazel-contrib/rules_nodejs/contents/nodejs/private/node_versions.bzl` searched for `"25.` and `"26.` with no match);
+   (verified: `gh api repos/bazel-contrib/rules_nodejs/contents/nodejs/private/node_versions.bzl` searched for `"25.`
+   and `"26.` with no match);
    the toolchain tag accepts `node_repositories` and `node_urls` for unmirrored versions
    (verified: `rules_nodejs nodejs/extensions.bzl:108-136`),
    so Node 26.8.2 needs hand-maintained checksums.
@@ -639,9 +652,9 @@ The details and the full candidate list are in "Yikes candidates".
    and each language batch is invoked separately (`format.sh:291-339`).
 - dprint 0.57.4 exits 14 when every given path lacks a plugin
    and exits 0 for a mixed batch
-   (verified by running `dprint check package/module/logger/src/index.ts`,
+   (verified by running `dprint check package/logger/core/src/index.ts`,
    "No files found to format with the specified plugins",
-   and `dprint check package/module/logger/src/index.ts package/module/logger/package.json` with no output).
+   and `dprint check package/logger/core/src/index.ts package/logger/core/package.json` with no output).
   So mapping dprint to `javascript` needs `--allow-no-files` in both argument sets.
 - Language attributes exist for CSS, HTML, YAML, TOML
    (verified: `formatter_binary.bzl:5-38`).
@@ -795,7 +808,7 @@ Ordered by how likely each is to block or reshape the design.
 - `npm_translate_lock` over the real lockfile,
    then `bazel build` of one stylelint consumer (candidate 1).
 - One `ts_project(no_emit)` plus one `js_test` for a package with `/ts` siblings,
-   for example `package/dev-script/file-enforcer` (candidates 6 and Area 6 type stripping).
+   for example `package/file-enforcer/core` (candidates 6 and Area 6 type stripping).
 - One oxlint aspect action for `package/pi-plugin/auto-mode` under `linux-sandbox` and under `no-sandbox`,
    diffing JSON findings against today's `mise run //package/pi-plugin/auto-mode:lint:oxlint`
    and timing both (candidates 2 and 3).

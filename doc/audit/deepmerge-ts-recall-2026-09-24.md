@@ -1,5 +1,10 @@
 # deepmerge-ts historical recall audit, 2026-09-24
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`.
+
 ## Question
 
 Would the sidecar in `package/module/deepmerge-ts.fuzz`,
@@ -51,16 +56,19 @@ every commit whose subject starts with `fix`,
 every closed issue labelled `Type: Bug`,
 and both published advisories (`gh api /advisories?affects=deepmerge-ts`):
 `GHSA-r9w3-g83q-m6hq` (prototype pollution, fixed in 4.0.2)
-and `GHSA-ggr8-5vv4-36mx` (stack exhaustion on cyclic input, fixed in 8.0.0 by a `feat` commit, so absent from `Bug Fixes`).
+and `GHSA-ggr8-5vv4-36mx` (stack exhaustion on cyclic input, fixed in 8.0.0 by a `feat` commit,
+so absent from `Bug Fixes`).
 
 34 rows:
 8 runtime,
 14 result-type,
 12 packaging, install, engines, compiler-cost, and repo-internal.
-Two repo-internal rows (`df4add2` missing dev dependency, `be28290` eslint comment) have no consumer effect and are excluded,
+Two repo-internal rows (`df4add2` missing dev dependency, `be28290` eslint comment) have no consumer effect
+and are excluded,
 leaving 32.
 
-Closed bug issues that were never fixed (`#22` `PartialDeep` inputs, `#488` `index.d.cts` with `skipLibCheck: false`, `#416` Safari and `Array.prototype.at`)
+Closed bug issues that were never fixed (`#22` `PartialDeep` inputs, `#488` `index.d.cts` with `skipLibCheck: false`,
+`#416` Safari and `Array.prototype.at`)
 are outside the recall question;
 `#488` does not reproduce against 8.0.2 in the `nodenext` CommonJS probe below.
 
@@ -162,7 +170,8 @@ The fresh declared-type draw counts as the campaign layer, not the bounded layer
    The sidecar's own type check did not finish against that release either.
 - `944b428` (5.0.0, `#304`) `DeepMergeMergeFunctionUtils` required a generic:
    missed.
-   The sidecar imports two exported types (`DeepMergeLeafURI`, `DeepMergeNoFilteringURI`) and never names the utils type.
+   The sidecar imports two exported types (`DeepMergeLeafURI`,
+   `DeepMergeNoFilteringURI`) and never names the utils type.
 - `fa9ace2` (6.0.0, `#451`) optional over required:
    detected in every type layer,
    but 5.1.0 to 6.0.0 is a major release whose other commits include two breaking type changes,
@@ -176,7 +185,8 @@ The fresh declared-type draw counts as the campaign layer, not the bounded layer
 - `ca94270` (7.0.3, `#482`) bundled declarations gave `utils.defaultMergeFunctions` the into signatures:
    missed.
    No sidecar custom merge function calls `utils.defaultMergeFunctions`.
-   The concurrent surface workstream's `src/surface-docs-example.unit.test.ts` (added after `e4237dc8f`) does catch it (4 buggy-only TS2554).
+   The concurrent surface workstream's `src/surface-docs-example.unit.test.ts` (added after `e4237dc8f`) does catch it
+   (4 buggy-only TS2554).
 - `6d85163` (7.1.4, `#524`) leaf unions with `undefined` ignored filtering:
    detected by the committed declared-type corpus (2) and hand-written `expectTypeOf` (3).
 - `349fd14` (7.1.5, `#529`) nested optional over required:
@@ -192,12 +202,15 @@ The fresh declared-type draw counts as the campaign layer, not the bounded layer
    Detected by one TS2321 (excessive stack depth) in `src/options.property.unit.test.ts`.
 
 Unmeasured:
-`ee59064` (2.0.0, `#17`), `fc85dfa` (3.0.1, `#60`), and `9a881d3` (4.0.0, `#61`) have no consumer-level assertion upstream,
-and probes of readonly records, tuples, Sets, and Maps under TypeScript 7.0.2 found no program that separates the releases.
+`ee59064` (2.0.0, `#17`), `fc85dfa` (3.0.1, `#60`), and `9a881d3` (4.0.0,
+`#61`) have no consumer-level assertion upstream,
+and probes of readonly records, tuples, Sets, and Maps under TypeScript 7.0.2 found no program that separates the
+releases.
 
 Release pairs are not single commits:
 `git log` between each pair lists only the fix plus renames and style commits,
-except 5.0.0 (repo re-initialisation chores), the 6.0.0 major above, and 7.1.6, which also carries a build maintenance update.
+except 5.0.0 (repo re-initialisation chores), the 6.0.0 major above, and 7.1.6,
+which also carries a build maintenance update.
 
 ### Packaging and metadata, 0 of 4 measured rows detected
 
@@ -209,7 +222,8 @@ except 5.0.0 (repo re-initialisation chores), the 6.0.0 major above, and 7.1.6, 
    both sidecar-way probes pass on both.
 - `a5f334b` (1.1.2, `#10`) current and legacy declarations overwrote each other:
    `node10` fails on 1.1.1 and passes on 1.1.2;
-   the sidecar-way `bundler` probe fails on every 1.x release (TS7016, no `exports` types condition), so it cannot separate them.
+   the sidecar-way `bundler` probe fails on every 1.x release (TS7016, no `exports` types condition),
+   so it cannot separate them.
 - `ef54ea6` (8.0.2) `engines` allowed Node 16.0 to 16.8:
    8.0.1 declares `node >=16.0.0` while `dist/index.mjs` calls `Object.hasOwn` twice;
    the sidecar runs on one Node release and never reads `engines`.
@@ -236,7 +250,8 @@ each touches shared files or adds tasks.
    weight draws toward 3+ record inputs sharing a key where a middle value is `undefined`.
 - Exported type surface:
    type tests that instantiate every exported type with its defaults,
-   and custom merge functions typed through `utils` that call every `utils.defaultMergeFunctions` member with its documented signature,
+   and custom merge functions typed through `utils` that call every `utils.defaultMergeFunctions` member with its
+   documented signature,
    covering `944b428` and `ca94270`.
    Every documented `deepmergeCustom` example compiled verbatim covers `ca94270` too.
 - Declared-type bounded corpus:
@@ -253,8 +268,10 @@ each touches shared files or adds tasks.
 - Tasks to add to the package `mise.toml`
    (the audit ran these as scratch drivers with the same `podman` arguments):
    `recall:setup` (`node src/recall-setup.ts <clone>` on the host),
-   `recall:runtime` (mutation image, trees read-only at `/trees`, `dist/recall/runtime` at `/out`, `node src/recall-runtime.ts [ids]`),
-   `recall:types` (`node:<major>-slim`, repo read-only, `dist/recall/types` writable at its host path, npm releases read-only with `RECALL_NPM_DIR`, `node src/recall-types.ts corpus|check|control`),
+   `recall:runtime` (mutation image, trees read-only at `/trees`, `dist/recall/runtime` at `/out`,
+   `node src/recall-runtime.ts [ids]`),
+   `recall:types` (`node:<major>-slim`, repo read-only, `dist/recall/types` writable at its host path,
+   npm releases read-only with `RECALL_NPM_DIR`, `node src/recall-types.ts corpus|check|control`),
    and `recall:packaging` (mutation image, same mounts, `node src/recall-packaging.ts <versions>`).
    Reports: `node src/recall-runtime-report.ts` and `node src/recall-types-report.ts`.
 - Formatting:

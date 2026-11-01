@@ -1,0 +1,146 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/archive:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/corpus-pass:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/lane-contest:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-check:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/reference:build:js:node", "//package/translation-repair/rendering-audit:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-lane:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."draw-sample"]
+description = "Draw the stratified precision sample from settled artifacts into a grading sheet outside the repo (append -- --final for the gate sheet)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "draw-sample"
+run = "node dist/final/node/draw-sample.mjs"
+
+[tasks."score-attribution"]
+description = "Report per-critic calibration from a run's settled artifacts: what each critic was asked, what it raised, and how often an accepted issue rested on it alone"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "score-attribution"
+run = "node dist/final/node/score-attribution.mjs"
+
+[tasks."score-agreement"]
+description = "Report precision off a graded sheet, plus agreement against blind pre-grades when they exist (override with -- --sheet PATH --manifest PATH --pre-grades PATH)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "score-agreement"
+run = "node dist/final/node/score-agreement.mjs"
+
+[tasks."score-crosscheck"]
+description = "Report the population a judge crosscheck would run over, per author and per arm, spending no quota"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "score-crosscheck"
+run = "node dist/final/node/score-crosscheck.mjs"
+
+[tasks."score-probe"]
+description = "Report what the shadow-mode introduced-defect probe found across a run's settled artifacts, over distinct shipped regions (pass --repair-sheet PATH --manifest PATH after -- to score it against the human grades; both or neither)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "score-probe"
+run = "node dist/final/node/score-probe.mjs"
+
+[tasks."recall-benchmark"]
+description = "Measure recall: plant known omissions into clean translations, run the repair loop, and grade restoration against the deletions (append -- --plan for a zero-quota setup check)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "recall-benchmark"
+run = "node dist/final/node/recall-benchmark.mjs"
+
+[tasks."probe-sensitivity"]
+description = "Ask whether the introduced-defect probe can detect damage at all, each region under three prior-issue lists (none, withheld from the prompt as production sends, rendered as the abandoned prompt did), cat-themed fixtures only; SPENDS QUOTA"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "probe-sensitivity"
+run = "node dist/final/node/probe-sensitivity.mjs"
+
+[tasks."audit-sensitivity"]
+description = "Ask whether the rendering audit can detect a planted defect at all, and whether it invents one: one flipped rendering and one faithful, cat-themed fixtures only; SPENDS QUOTA"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "audit-sensitivity"
+run = "node dist/final/node/audit-sensitivity.mjs"
+
+[tasks."rendering-audit-settled"]
+description = "Run the rendering audit over every decided slice of every settled version 2 artifact in an archive, reading retained and replaced slices apart; TELEMETRY ONLY, nothing it says gates what ships; SPENDS QUOTA unless --cap 0 (pass --archive dir, --clone dir, --only ids, --cap n after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "rendering-audit-settled"
+run = "node dist/final/node/rendering-audit-settled.mjs"
+
+[tasks."rendering-audit-settled-report"]
+description = "Read a persisted settled-audit run: the archive and fresh halves apart, what each auditor thought was worth a claim, and the relocation candidates; SPENDS NO QUOTA (pass --run path after -- to read a run other than the newest, and --against path to print the across-run band against an earlier run)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "rendering-audit-settled-report"
+run = "node dist/final/node/rendering-audit-settled-report.mjs"
+
+[tasks."judge-fidelity-probe"]
+description = "Judge fixed source-reviewed references against hash-verified damage; SPENDS QUOTA (pass --only reviewed-entry-ids, --cap n, --damage deletion|insertion|alteration, --candidates seatable,ids, --candidates-alone, --context to show judges the neighbouring sections' original, after --; --cap 0 is metadata-only preflight)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "judge-fidelity-probe"
+run = "node dist/final/node/judge-fidelity-probe.mjs"
+
+[tasks."editor-fidelity-probe"]
+description = "Seat named Claude cards alone as the editor of hash-verified seeded defects that have a known fix and score each patched text by comparison with the clean reference text, over the frozen pool of at least forty trials; SPENDS QUOTA on the named cards only, each call held to --max-usd by the measured spend, an arm the guard caps ends as capped with the rows it finished (pass --only pool-entry-ids, --cap n or --trials n for the leading units to walk, --passes n for the number of times the pool is walked, --damage insertion|alteration, --candidates seatable,ids, --candidates-alone, --max-usd dollars, --bench-spent-usd dollars, after --; --cap 0 is metadata-only preflight)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-probe"
+run = "node dist/final/node/editor-fidelity-probe.mjs"
+
+[tasks."editor-fidelity-read"]
+description = "Check the logs of the editor fidelity arms before any figure of them is read, one PASS or FAIL line for each check, and refuse when any fails; spends nothing (pass the arm logs after --, each beside an arm.exit file holding the status its launch returned)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-read"
+run = "node dist/final/node/editor-fidelity-read.mjs"
+
+[tasks."editor-fidelity-pool-draw"]
+description = "Draw the editor fidelity pool from the pinned corpus clone by a seeded rule, keyless: writes only ids, offsets and hashes (pass --seed text, --want trials, --out directory, --check to compare the files in --out with a fresh draw and replay the committed pool against the clone, after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-pool-draw"
+run = "node dist/final/node/editor-fidelity-pool-draw.mjs"
+
+[tasks."damage-sample"]
+description = "Draw shipped regions at random and ask a human the same source-anchored damage question the probe asks, with the probe's verdict kept in the manifest"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "damage-sample"
+run = "node dist/final/node/damage-sample.mjs"
+
+[tasks."probe-verify"]
+description = "Probe damaged and unread regions with the accepted issues withheld, and write one blind sheet asking whether each flagged edit really damaged the text"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "probe-verify"
+run = "node dist/final/node/probe-verify.mjs"
+
+[tasks."score-verify"]
+description = "Join the graded blind verification sheet to its manifest and report what the unlabelled probe's flags are worth on regions nobody had read"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "score-verify"
+run = "node dist/final/node/score-verify.mjs"
+
+[tasks."probe-relabel"]
+description = "Re-probe the regions a human read as damaged under three arms (the production disclosure, the other prompt, no list at all), to separate a suppressing prompt from a dismissing screen from a hard judgement; SPENDS QUOTA"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "probe-relabel"
+run = "node dist/final/node/probe-relabel.mjs"

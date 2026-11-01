@@ -1,0 +1,137 @@
+{
+  "schema": 2,
+  "scope": "Consumer verification of the first-run evidence review rebuilt for D100: the declined state as an open but unreadable library, and no state without a source (D95). It verifies this page and its checks, not source recovery, production behaviour or native accessibility.",
+  "verified": "2026-10-06",
+  "supersedes": "The record of the rebuild after D84 (32 views, four states), whose declined state asked to choose a folder and whose fourth state had no source open.",
+  "noDigests": "This record holds no digest of the page, template, builder, test, manifest or any report. Nothing is locked by hash (D88); later edits to those files are allowed and are not covered by this record.",
+  "build": {
+    "task": "//package/music-player/design:verify:first-run:access",
+    "result": "Built offline first-run state evidence with 28 inspected native views, 4 of them end views. Validated offline first-run review, optional observations and the absence of the withdrawn analysis choice."
+  },
+  "consumerTest": {
+    "task": "//package/music-player/design:test:first-run:access",
+    "result": "First-run review consumer: positive, 14 rejected manifests, a synthetic end view, ballot, withdrawn-sentence, 4 rejected pages and changed-output checks passed."
+  },
+  "guardRemovalProofs": [
+    {
+      "removed": "without-withdrawn-text",
+      "testThenFailedOn": "offers the withdrawn analysis choice"
+    },
+    {
+      "removed": "without-cohort",
+      "testThenFailedOn": "requires every authored state under every condition"
+    },
+    {
+      "removed": "without-drag-outcome",
+      "testThenFailedOn": "end view and the recorded drag outcome disagree"
+    },
+    {
+      "removed": "without-declined-actions",
+      "testThenFailedOn": "does not draw both ways on and Settings"
+    },
+    {
+      "removed": "without-visit-count",
+      "testThenFailedOn": "does not name its"
+    }
+  ],
+  "browser": {
+    "engine": "Chromium, offline, in a container bounded to 2 GiB of memory and 2 CPUs",
+    "imagesEmbedded": 28,
+    "imagesDecodedAndOpened": 28,
+    "contexts": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "mode": "light",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "optionalObservations": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "mode": "dark",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "optionalObservations": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "mode": "light",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "optionalObservations": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "mode": "dark",
+        "axeCounts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "followsSystemTheme": true,
+        "optionalObservations": true,
+        "inertNotes": true,
+        "staleReplyInvalidation": true,
+        "modalZoomPanResetFocus": true,
+        "shownViewsMatchCohort": true,
+        "overflow": false
+      }
+    ],
+    "consoleErrors": 0,
+    "renderedStatements": [
+      "True-peak analysis is automatic and not optional (D84)",
+      "offer no choice about analysis",
+      "Allow access",
+      "The declined state, as approved",
+      "visits contributed views",
+      "No digest of an image is recorded, and nothing is compared with a digest (D88)"
+    ],
+    "renderedAbsent": [
+      "choose whether to analyse",
+      "No source opened",
+      "SHA-256"
+    ],
+    "screenshotsLookedAt": [
+      "review-1440-light.png",
+      "details-390-dark.png"
+    ],
+    "limits": "Every embedded view was opened once in the first context; controls, observations, drag status and one modal were exercised in all four contexts. Axe audits are of the closed page only, not native acceptance. Firefox and an open-dialog accessibility audit were not run."
+  },
+  "visualInspection": "All 28 published views were read in full as light and dark pairs before publication: authored content only, no status strip, dialog or notice, and a gesture handle in every view. At 200% text the declined state scrolls on both panels and its end view is kept; the no-audio states do not scroll.",
+  "ownedBrowserContainerAbsent": true
+}

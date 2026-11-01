@@ -21,7 +21,11 @@ All three formats share the same ZIP-based container:
 
 - `canvas.fig`:
    Binary blob:
-   16-byte header + deflate-compressed Kiwi schema + zstd-compressed document data
+   16-byte header (8-byte prelude `fig-kiwi`,
+   `fig-deck`,
+   or `fig-jam.`,
+   then a little-endian uint32 format version,
+   then the schema chunk length) + deflate-compressed Kiwi schema + zstd-compressed document data
 - `meta.json`:
    File metadata (background color,
    render bounds,
@@ -42,7 +46,12 @@ console.log(file.fileType,); // "fig" | "deck" | "jam"
 console.log(file.meta.fileName,);
 console.log(file.document?.nodeChanges?.length,);
 console.log(file.images.size,);
+console.log(file.canvasVersion,); // e.g. 101 or 106
 ```
+
+Any `canvas.fig` format version is accepted and reported as `canvasVersion`;
+ only the 8-byte prelude selects the file type.
+An unrecognized prelude throws an error that quotes it and lists the accepted ones.
 
 ## Decoded document structure
 

@@ -7,7 +7,7 @@
  ```
  */
 
-import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   FIGMA_DOCUMENT_ABSENT,
@@ -131,8 +131,8 @@ async function verifyOne(
      */
     const docField = nodeType.fields
       .find(function documentField(field,): boolean {
-      return field.name === 'DOCUMENT';
-    },);
+        return field.name === 'DOCUMENT';
+      },);
     if ((docField === undefined) || (docField.value !== 1))
       return fail({ message: `NodeType.DOCUMENT not found or wrong value: ${docField?.value}`, },);
 
@@ -184,8 +184,8 @@ function logSchemaSummary(
   const enums = file.schema
     .definitions
     .filter(function isEnum(definition,): boolean {
-    return definition.kind === 'ENUM';
-  },)
+      return definition.kind === 'ENUM';
+    },)
     .length;
   /**
    Struct definition count.
@@ -193,8 +193,8 @@ function logSchemaSummary(
   const structs = file.schema
     .definitions
     .filter(function isStruct(definition,): boolean {
-    return definition.kind === 'STRUCT';
-  },)
+      return definition.kind === 'STRUCT';
+    },)
     .length;
   /**
    Message definition count.
@@ -202,8 +202,8 @@ function logSchemaSummary(
   const messages = file.schema
     .definitions
     .filter(function isMessage(definition,): boolean {
-    return definition.kind === 'MESSAGE';
-  },)
+      return definition.kind === 'MESSAGE';
+    },)
     .length;
   console.log(`  Schema: ${totalDefs} definitions (${enums} enums, ${structs} structs, ${messages} messages)`,);
 }

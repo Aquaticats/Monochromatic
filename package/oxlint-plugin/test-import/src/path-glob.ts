@@ -147,7 +147,7 @@ function scanSegment({
     }
     if ((cursor.pattern < pattern.length)
       && (pattern.charAt(cursor.pattern,) === text.charAt(cursor.subject,)))
-    {
+      {
       cursor.pattern += 1;
       cursor.subject += 1;
       continue;
@@ -241,7 +241,7 @@ function scanSegments({
         pattern: patternSegment,
         text: pathSegments[cursor.subject] ?? '',
       },))
-    {
+      {
       cursor.pattern += 1;
       cursor.subject += 1;
       continue;

@@ -1,11 +1,31 @@
 # Unified linter handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/rust-module/forbidden-regex.fuzz` is now `package/forbidden-strings/core.fuzz`;
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`.
+
 ## Status
 
 Design interview (grilling) complete:
-the user confirmed [`doc/planning/unified-linter.md`](../planning/unified-linter.md) as the shared understanding on 2026-09-23.
-No product code;
-implementation awaits the user's go-ahead.
+the user confirmed [`doc/planning/unified-linter.md`](../planning/unified-linter.md)
+as the shared understanding on 2026-09-23.
+On 2026-10-04,
+the user assigned the cli-git rewrite agent ownership of this implementation too,
+changed configuration to JSONC,
+and explicitly required container tests,
+mutation testing,
+and fuzzing.
+The user authorized implementation on 2026-10-04 with "Do it."
+Current execution state:
+[`cli-git-rust-implementation.md`](cli-git-rust-implementation.md).
 Goal (user,
 2026-09-23):
 replace the self-maintained Rust linter and Markdown linter with one unified linter,
@@ -21,6 +41,43 @@ Keep this handover current after every answer,
 correction,
 decision,
 and verification (`AGENTS.md` DCK).
+
+## Current amendments from the cli-git rewrite session
+
+User instructions on 2026-10-04:
+
+- This agent owns the unified linter as well as cli-git;
+  there is no separate owner to wait for.
+- Both tools use JSONC through `package/rust-module/jsonc-edit`.
+  The linter uses `monochromatic-lint.config.jsonc`,
+  replacing `monochromatic-lint.config.hcl` on 2026-10-04.
+- The linter's ordered blocks become an ordered JSONC array.
+  Lookup,
+  matching,
+  merge semantics,
+  rules,
+  processors,
+  JSONL,
+  and CLI behavior remain as previously agreed.
+- Container tests,
+  mutation testing,
+  and fuzzing are explicit acceptance gates for both tools and their integration.
+- Cli-git supports latest stable Git only;
+  its older-Git compatibility matrix is not carried into the rewrite.
+
+The current designs are
+[`unified-linter.md`](../planning/unified-linter.md)
+and
+[`cli-git-rust-implementation.md`](../planning/cli-git-rust-implementation.md).
+The dated interview answers retain historical HCL choices as history,
+not current implementation instructions.
+The user later authorized simple handwritten merging for now on 2026-10-04.
+That supersedes the separate deepmerge-port and fork-test prerequisite.
+The first-publication approval remains required.
+The earlier exclusion of a public linter library interface,
+`--rule`,
+and a production parse-time budget remains in force;
+container/fuzz time limits do not change the production behavior.
 
 ## Incumbents
 
@@ -94,9 +151,11 @@ Round 2 answers (user,
 - Rule plugin loading (A):
    compile-time crates plus the declarative `[[pattern]]` rules,
    which stay Rust-only.
-- Configuration format (B):
+- Configuration format (B),
+   historical:
    HCL,
    against the agent's TOML recommendation.
+  Superseded by the user's JSONC selection on 2026-10-04.
 - Processors (B):
    ship both in the first version.
   Rust fences in Markdown are linted by the Rust rules,
@@ -145,14 +204,16 @@ Round 3 answers (user,
    and a fragment without `fn main` is wrapped in a synthetic one
    that is never reported or counted.
   Precedent:
-   `package/rust-module/rust-linter-pattern/src/fragment.rs:70-72` already wraps statements in a function body to parse them.
+   `package/rust-module/rust-linter-pattern/src/fragment.rs:70-72` already wraps statements in a function body
+to parse them.
 - Every snippet needs a `//!` opening line (A),
    the same file-level `require-rustdoc` requirement as real files.
 
 Round 4 answers so far (user,
 2026-09-23):
 
-- HCL front end:
+- HCL front end,
+   historical and superseded by the repository JSONC package on 2026-10-04:
    reuse meow's vet,
    [`doc/audit/tech-meow-hcl-front-end-vet-2026-09-17.md`](../audit/tech-meow-hcl-front-end-vet-2026-09-17.md)
    (`hcl-edit` 0.9.7 with two local patches).
@@ -243,7 +304,8 @@ Round 5 answers (user,
    and Rust under `doc/audit/**` is exempt from `max-lines` and `require-rustdoc` (Q33 A and A).
 - Descriptive rule ids such as `markdown/heading-increment` (Q34 A).
 - Configuration file:
-   `monochromatic-lint.config.hcl`.
+   `monochromatic-lint.config.hcl`
+   (renamed to `monochromatic-lint.config.jsonc` on 2026-10-04).
 - Binary:
    "mise supports cargo-binstall",
    so the linter is published like `forbidden-strings`
@@ -258,7 +320,9 @@ Round 5 answers (user,
 Adopted by the agent from settled answers,
 not vetoed in round 3:
 
-- HCL shape follows meow:
+- HCL shape follows meow
+   (historical;
+   superseded by ordered JSONC configuration objects on 2026-10-04):
    OpenTofu's one-label block form,
    one block per ESLint config object,
    the label serving as ESLint's `name`.
@@ -309,9 +373,9 @@ not vetoed in round 3:
 - Surface parity and compatibility aliases (round 2,
    options B and C).
 - Runtime WebAssembly plugins and dynamic-library plugins.
-- TOML,
-   JSONC,
-   and an embedded JavaScript engine for configuration.
+- TOML and an embedded JavaScript engine for configuration.
+  JSONC was initially rejected,
+  then selected by the user on 2026-10-04.
 - Processors deferred or absent.
 
 ## Evidence
@@ -475,6 +539,9 @@ Round 7 answers (user,
 - No built-in rule defaults (A):
    the repository's `monochromatic-lint.config.hcl` turns on every rule
    and carries the exemptions `default.toml` compiles in today.
+  Current filename:
+   `monochromatic-lint.config.jsonc`,
+   changed 2026-10-04.
 - A file is linted only when some block's `files` matches it;
    its extension picks the language;
    every block except an ignores-only block needs `files` (A).
@@ -576,6 +643,8 @@ Round 11 answers about the deepmerge-ts port (user,
 - Value model:
    a trait the caller implements for its own tree,
    so the linter merges `hcl-edit` values and keeps positions.
+  This was the historical caller model;
+   the linter adapter now targets the repository JSONC value model after the 2026-10-04 format change.
 - Name and location:
    `monochromatic-deepmerge` in `package/rust-module/monochromatic-deepmerge`.
 - Licence:
@@ -693,8 +762,11 @@ Final answers (user,
 
 ## Next action
 
-Implementation starts only on the user's go-ahead,
-following "Build order" in `doc/planning/unified-linter.md`:
-steps 1 to 4 do not depend on the deepmerge-ts fork;
-configuration merging waits for `monochromatic-deepmerge`;
-re-check bruits/satteri#306 before the first publish.
+Follow the combined plan in `doc/planning/cli-git-rust-implementation.md`
+and the amended JSONC build order in `doc/planning/unified-linter.md`.
+Implement the handwritten JSONC merge module without waiting for or porting deepmerge-ts.
+Keep the explicit container,
+mutation,
+and fuzz gates.
+Re-check bruits/satteri#306 before the first publish,
+which still requires the user's approval.

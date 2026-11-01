@@ -68,7 +68,7 @@ Variants:
 - Either kind inside a `require` in a `try` block:
   externalized with no diagnostic at all.
 
-In issue #570 the unresolved bare specifier was `@monochromatic-dev/module-logger/ts`,
+In issue #570 the unresolved bare specifier was `@monochromatic-dev/logger-core/ts`,
 and the resulting `import` failed at lint time with `ERR_MODULE_NOT_FOUND`.
 
 ### Root cause
@@ -430,7 +430,8 @@ Any mtime-based freshness check must not treat a file written by a failed build 
   no issue found.
   Neighbours,
    none a duplicate:
-  [#9922](https://github.com/rolldown/rolldown/issues/9922) (errors thrown from `onLog` swallowed for native-plugin warnings,
+  [#9922](https://github.com/rolldown/rolldown/issues/9922) (errors thrown from `onLog` swallowed
+for native-plugin warnings,
    closed),
   [#8640](https://github.com/rolldown/rolldown/issues/8640) (circular-dependency severity;
    maintainer recommends `onLog`,
@@ -514,7 +515,8 @@ Disposable clone of `rolldown/rolldown` at `v1.2.9`
  push URL disabled).
 Diff:
 [`rolldown-unresolved-import-external.patch`](rolldown-unresolved-import-external.patch).
-It and the Bug 2 docs diff also apply cleanly (`git apply --check`) to rolldown `main` at `b3b93d950575f7fea39880e4892355a113ebc640`.
+It and the Bug 2 docs diff also apply cleanly (`git apply --check`)
+to rolldown `main` at `b3b93d950575f7fea39880e4892355a113ebc640`.
 
 The change adds `crates/rolldown/src/utils/deliver_warnings.rs`
 (a copy of the binding's `handle_warnings` logic placed where `Bundle` can call it;

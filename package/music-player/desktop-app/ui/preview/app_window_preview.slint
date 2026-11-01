@@ -1,0 +1,116 @@
+// Preview windows for the composed AppWindow, with authored sample data (a Camellia-like folder). Each window
+// fixes the scheme through Theme.scheme-override (1 light, 2 dark) and the width the layout is checked at:
+// 443 px is the folded cover width and 850 px the unfolded two-pane width.
+import { Theme } from "../theme.slint";
+import { AppWindow, FolderRailCell, FolderName, TrackListRow, SearchRow, SearchSegment } from "../app.slint";
+
+// Sample data shared by every preview: one folder with a subfolder header, the playing track and the picker cells.
+component CamelliaWindow inherits AppWindow {
+    folder-title: "Camellia";
+    current-folder: "Camellia";
+    current-cell: "A";
+    rail-cells: [
+        { key: "A", label: "A" },
+        { key: "B", label: "B" },
+        { key: "D", label: "D" },
+        { key: "E", label: "E" },
+        { key: "G", label: "G" },
+        { key: "H", label: "H" },
+        { key: "I", label: "I" },
+        { key: "K", label: "K" },
+        { key: "N", label: "N" },
+    ];
+    folder-names: [
+        { name: "", section-start: true, heading: "A" },
+        { name: "Camellia", section-start: false, heading: "A" },
+        { name: "Another Sample", section-start: false, heading: "A" },
+        { name: "", section-start: true, heading: "B" },
+        { name: "Burning Aquamarine", section-start: false, heading: "B" },
+        { name: "", section-start: true, heading: "D" },
+        { name: "Dokuhebi", section-start: false, heading: "D" },
+        { name: "", section-start: true, heading: "E" },
+        { name: "ENÛMAVELIŠ", section-start: false, heading: "E" },
+        { name: "", section-start: true, heading: "G" },
+        { name: "Ghost", section-start: false, heading: "G" },
+        { name: "", section-start: true, heading: "H" },
+        { name: "Hyperflux", section-start: false, heading: "H" },
+        { name: "", section-start: true, heading: "I" },
+        { name: "Idol Corruption", section-start: false, heading: "I" },
+        { name: "", section-start: true, heading: "K" },
+        { name: "KillerToy", section-start: false, heading: "K" },
+        { name: "", section-start: true, heading: "N" },
+        { name: "Nacreous Snowmelt", section-start: false, heading: "N" },
+    ];
+    track-rows: [
+        { kind: 0, title: "Another Xronixle", supporting: "4:35 · −1.2 dBTP", current: true, index: 0 },
+        { kind: 0, title: "Burning Aquamarine", supporting: "5:12 · −0.8 dBTP", current: false, index: 1 },
+        { kind: 0, title: "Dokuhebi", supporting: "4:01 · −1.4 dBTP", current: false, index: 2 },
+        { kind: 0, title: "ENÛMAVELIŠ", supporting: "9:47 · −0.3 dBTP", current: false, index: 3 },
+        { kind: 0, title: "Ghost", supporting: "3:22 · −1.1 dBTP", current: false, index: 4 },
+        { kind: 0, title: "Hyperflux", supporting: "4:44 · −0.9 dBTP", current: false, index: 5 },
+        { kind: 1, title: "Live", supporting: "3 tracks", current: false, index: -1 },
+        { kind: 0, title: "Ghost (Live)", supporting: "", current: false, index: 6 },
+        { kind: 0, title: "Hyperflux (Live)", supporting: "", current: false, index: 7 },
+    ];
+    deck-title: "Another Xronixle";
+    deck-subtitle: "1 of 9";
+    shuffle-folder-label: "Camellia";
+    position: 62;
+    duration: 275;
+    position-text: "1:02";
+    duration-text: "4:35";
+    playing: true;
+    playback-mode: 1;
+    current-index: 0;
+    track-name: "Camellia/Another Xronixle.flac";
+    library-available: true;
+}
+
+// Folded cover at 443 px, dark.
+export component CoverDark inherits CamelliaWindow {
+    width: 443px;
+    height: 900px;
+    init => { Theme.scheme-override = 2; }
+}
+
+// Folded cover at 443 px, light.
+export component CoverLight inherits CamelliaWindow {
+    width: 443px;
+    height: 900px;
+    init => { Theme.scheme-override = 1; }
+}
+
+// Folded cover with the folder picker open, dark.
+export component CoverPickerDark inherits CamelliaWindow {
+    width: 443px;
+    height: 900px;
+    picker-open: true;
+    init => { Theme.scheme-override = 2; }
+}
+
+// Unfolded two-pane layout at 850 px, dark.
+export component UnfoldedDark inherits CamelliaWindow {
+    width: 850px;
+    height: 900px;
+    init => { Theme.scheme-override = 2; }
+}
+
+// Unfolded two-pane layout at 850 px, light.
+export component UnfoldedLight inherits CamelliaWindow {
+    width: 850px;
+    height: 900px;
+    init => { Theme.scheme-override = 1; }
+}
+
+// Search route over the folded cover, light, with a query and two results.
+export component CoverSearchLight inherits CamelliaWindow {
+    width: 443px;
+    height: 900px;
+    route: 1;
+    search-query: "an";
+    search-rows: [
+        { kind: 1, title-segments: [{ text: "An", emphasized: true }, { text: "other Xronixle", emphasized: false }], parent-segments: [{ text: "Camellia", emphasized: false }], has-parent: true, current: true, playing: true, index: 0 },
+        { kind: 0, title-segments: [{ text: "Ca", emphasized: false }, { text: "n", emphasized: true }, { text: "tle", emphasized: false }], parent-segments: [], has-parent: false, current: false, playing: false, index: 1 },
+    ];
+    init => { Theme.scheme-override = 1; }
+}

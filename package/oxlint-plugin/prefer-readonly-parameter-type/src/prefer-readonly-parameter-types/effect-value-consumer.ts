@@ -15,7 +15,7 @@
 import {
   type Node,
   SyntaxKind,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isAssertionExpression,
   isBinaryExpression,
@@ -29,8 +29,8 @@ import {
   isShorthandPropertyAssignment,
   isSpreadAssignment,
   isSpreadElement,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 /**
  Operators whose value may be either operand's.

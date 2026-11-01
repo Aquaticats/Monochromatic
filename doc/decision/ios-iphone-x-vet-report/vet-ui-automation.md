@@ -6,7 +6,12 @@ Scope:
  the external,
  out-of-process "Playwright for iOS" layer,
  the iOS analog of
-`../kotlin-android-kopia-pcloud-vet-reports/vet-android-e2e.md`.
+`../kotlin-android-kopia-pcloud-vet-report/vet-android-e2e.md`.
+
+The analogy path spelled `../kotlin-android-kopia-pcloud-vet-reports/` when this vet was recorded on 2026-06-13.
+The folder became `kotlin-android-kopia-pcloud-vet-report/` on 2026-07-15 (`bd19d57e20`),
+so the `../kotlin-android-kopia-pcloud-vet-reports/` spelling no longer resolves.
+
 A driver that launches an installed app on a real device or simulator and drives it (taps,
  reads UI
 state,

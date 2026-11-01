@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -15,12 +15,13 @@ import {
 import { fileURLToPath, } from 'node:url';
 
 import spawn from 'nano-spawn';
+import { version as typescriptVersion, } from 'typescript';
 
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 /** Package root whose built publication artifact is staged. */
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url,),);
@@ -38,7 +39,7 @@ type ExternalConsumer = {
  */
 function createExternalConsumer(): ExternalConsumer {
   /** Unique consumer directory under operating-system temporary root. */
-  const path = mkdtempSync(join(tmpdir(), 'readonly-rule-consumer-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-rule-consumer-',),);
   return {
     path,
     [Symbol.dispose]: function removeExternalConsumer(): void {
@@ -73,9 +74,13 @@ await describe({
           join(stagingPackage, 'package.json',),
           `${JSON.stringify({ ...sourceManifest, devDependencies: {}, }, null, 2,)}\n`,
         );
+        /* The staging catalog pins the compiler to the exact version this repository ships
+         * against. A range such as `>=7.0.2` cannot match a prerelease under semver's
+         * prerelease-tuple rule, so it resolves the old stable compiler, whose export map
+         * lacks the entry points the packed bundle imports. */
         writeFileSync(
           join(stagingRoot, 'pnpm-workspace.yaml',),
-          "packages:\n  - 'package'\ncatalog:\n  '@oxlint/plugins': '>=1.73.0'\n  'typescript': '>=7.0.2'\n",
+          `packages:\n  - 'package'\ncatalog:\n  '@oxlint/plugins': '>=1.73.0'\n  'typescript': '${typescriptVersion}'\n`,
         );
         await spawn(
           'pnpm',

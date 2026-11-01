@@ -22,7 +22,7 @@ import { join, } from 'node:path';
 import { parseArgs, } from 'node:util';
 import { text as consumeText, } from 'node:stream/consumers';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   COMMIT_RECORD_SEPARATOR,

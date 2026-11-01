@@ -1,0 +1,304 @@
+{
+  "sourceArchiveSha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
+  "archiveSha256": "c11ce61387c8675f99c303cad6093d444a13bc7c42adf24eb77f2bdd1f1677b7",
+  "archiveBytes": 14207447,
+  "hostComparisons": {
+    "pairs": [
+      {
+        "id": "macos-arm",
+        "publicCase": "macos15-arm-current",
+        "depotCase": "depot-macos15-arm-current",
+        "publicEnvironment": {
+          "runtime": {
+            "node": "v26.12.0",
+            "arch": "arm64",
+            "platform": "darwin",
+            "availableCpu": 3,
+            "memoryBytes": 7516192768
+          },
+          "runnerName": "GitHub Actions 1000002823",
+          "requestedLabel": "macos-15",
+          "operatingSystem": [
+            "macOS",
+            "15.7.9",
+            "24G830"
+          ],
+          "operatingSystemBuildObserved": true,
+          "cpuModelObserved": false,
+          "cpuModel": null,
+          "catalogChipForDepotMac": null,
+          "providerSetup": [
+            {
+              "label": "Operating System",
+              "lines": [
+                "macOS",
+                "15.7.9",
+                "24G830"
+              ]
+            },
+            {
+              "label": "Runner Image",
+              "lines": [
+                "Image: macos-15-arm64",
+                "Version: 20260907.0337.1",
+                "Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260907.0337/images/macos/macos-15-arm64-Readme.md",
+                "Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260907.0337"
+              ]
+            }
+          ]
+        },
+        "depotEnvironment": {
+          "runtime": {
+            "node": "v26.12.0",
+            "arch": "arm64",
+            "platform": "darwin",
+            "availableCpu": 7,
+            "memoryBytes": 18253611008
+          },
+          "runnerName": "depot-2dsj7bp6rj",
+          "requestedLabel": "depot-macos-15",
+          "operatingSystem": null,
+          "operatingSystemBuildObserved": false,
+          "cpuModelObserved": false,
+          "cpuModel": null,
+          "catalogChipForDepotMac": "Apple M2 per captured runner catalog, not a measured CPU model",
+          "providerSetup": []
+        },
+        "nextest": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": [],
+          "sameRecordedBinaryCaseIdentitySets": true,
+          "sameRecordedStatusForSharedIdentities": true,
+          "publicSummary": {
+            "testsRun": 1495,
+            "passed": 1468,
+            "failed": 27,
+            "skipped": 1
+          },
+          "depotSummary": {
+            "testsRun": 1495,
+            "passed": 1468,
+            "failed": 27,
+            "skipped": 1
+          },
+          "summaryOnlySkippedIdentityNotInvented": true
+        },
+        "logger": {
+          "publicFailures": [
+            {
+              "identity": "file sink batch completion::captures same-frame records before their shared durable completion",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::serializes reentrant multi-write records without interleaving",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion",
+              "kind": "aggregate",
+              "status": "FAIL"
+            }
+          ],
+          "depotFailures": [
+            {
+              "identity": "file sink batch completion::captures same-frame records before their shared durable completion",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::serializes reentrant multi-write records without interleaving",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion",
+              "kind": "aggregate",
+              "status": "FAIL"
+            }
+          ],
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "passingIndividualCaseCountUnmeasured": true
+        }
+      },
+      {
+        "id": "windows-msvc-x64",
+        "publicCase": "windows2025-msvc-x64-current",
+        "depotCase": "depot-windows2025-msvc-x64-current",
+        "publicEnvironment": {
+          "runtime": {
+            "node": "v26.12.0",
+            "arch": "x64",
+            "platform": "win32",
+            "availableCpu": 4,
+            "memoryBytes": 17174360064
+          },
+          "runnerName": "GitHub Actions 1000002844",
+          "requestedLabel": "windows-2025",
+          "operatingSystem": [
+            "Microsoft Windows Server 2025",
+            "10.0.26100",
+            "Datacenter"
+          ],
+          "operatingSystemBuildObserved": true,
+          "cpuModelObserved": false,
+          "cpuModel": null,
+          "catalogChipForDepotMac": null,
+          "providerSetup": [
+            {
+              "label": "Operating System",
+              "lines": [
+                "Microsoft Windows Server 2025",
+                "10.0.26100",
+                "Datacenter"
+              ]
+            },
+            {
+              "label": "Runner Image",
+              "lines": [
+                "Image: windows-2025-vs2026",
+                "Version: 20261007.264.1",
+                "Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261007.264/images/windows/Windows2025-VS2026-Readme.md",
+                "Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261007.264"
+              ]
+            }
+          ]
+        },
+        "depotEnvironment": {
+          "runtime": {
+            "node": "v26.12.0",
+            "arch": "x64",
+            "platform": "win32",
+            "availableCpu": 4,
+            "memoryBytes": 16827592704
+          },
+          "runnerName": "depot-n40gsg4tcb",
+          "requestedLabel": "depot-windows-2025-4",
+          "operatingSystem": null,
+          "operatingSystemBuildObserved": false,
+          "cpuModelObserved": false,
+          "cpuModel": null,
+          "catalogChipForDepotMac": null,
+          "providerSetup": []
+        },
+        "nextest": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": [],
+          "sameRecordedBinaryCaseIdentitySets": true,
+          "sameRecordedStatusForSharedIdentities": true,
+          "publicSummary": {
+            "testsRun": 1494,
+            "passed": 1493,
+            "failed": 1,
+            "skipped": 1
+          },
+          "depotSummary": {
+            "testsRun": 1494,
+            "passed": 1493,
+            "failed": 1,
+            "skipped": 1
+          },
+          "summaryOnlySkippedIdentityNotInvented": true
+        },
+        "logger": {
+          "publicFailures": [
+            {
+              "identity": "logger startup initialization::delivers startup records to file sink without awaiting initPromise",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "logger startup initialization::writes debug startup records to stderr when process stderr is available",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "logger startup initialization",
+              "kind": "aggregate",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::captures same-frame records before their shared durable completion",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::serializes reentrant multi-write records without interleaving",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion",
+              "kind": "aggregate",
+              "status": "FAIL"
+            }
+          ],
+          "depotFailures": [
+            {
+              "identity": "logger startup initialization::delivers startup records to file sink without awaiting initPromise",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "logger startup initialization::writes debug startup records to stderr when process stderr is available",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "logger startup initialization",
+              "kind": "aggregate",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::captures same-frame records before their shared durable completion",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion::serializes reentrant multi-write records without interleaving",
+              "kind": "child",
+              "status": "FAIL"
+            },
+            {
+              "identity": "file sink batch completion",
+              "kind": "aggregate",
+              "status": "FAIL"
+            }
+          ],
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "passingIndividualCaseCountUnmeasured": true
+        }
+      }
+    ],
+    "boundary": "Equality of recorded finite binary/case/status identities is not assertion/branch, exact OS-image, CPU-model or performance equivalence. Summary-only skips and logger aggregate/child emissions remain separate."
+  },
+  "provenance": {
+    "originalZipPngToolImageAndBinaryPayloadsPublished": false,
+    "allSelectedMembersUtf8RoundTripVerified": true,
+    "mediaAndCredentialMarkerControlsPassed": true,
+    "absoluteKnownRunnerWorkspacePrefixesNormalized": true,
+    "privateOriginalMemberHashesRetained": true,
+    "members": 312,
+    "actualOriginalTextBytes": 64943052,
+    "originalProviderArchivesRemainPrivate": true,
+    "scope": "Exactly the selected receipt members, not a universal secret or media inspection claim.",
+    "derivedNormalizedViewCount": 312,
+    "originalTextBytesFieldMeaning": "Sum of privately hashed original member sizes; publishedText fields are derived normalized views, not a claim to embed original text bytes.",
+    "originalSourceArchivePreservedAtOriginalPath": true
+  },
+  "qualificationContainer": {
+    "cpu": 2,
+    "memoryGiB": 2,
+    "pids": 128,
+    "secondsCap": 120,
+    "network": "none",
+    "containerAbsent": true
+  },
+  "sourceArchivePath": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+  "archivePath": "doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz"
+}

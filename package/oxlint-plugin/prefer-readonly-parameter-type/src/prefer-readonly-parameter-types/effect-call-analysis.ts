@@ -7,12 +7,12 @@
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
-import { isIdentifier, } from 'typescript/unstable/ast/is';
+} from 'typescript/ast';
+import { isIdentifier, } from 'typescript/ast/is';
 
 import { recordArgumentRetentions, } from './effect-argument-retention.ts';
 import { applyExternalEffect, } from './effect-external-application.ts';
@@ -313,7 +313,7 @@ export function inspectEffectCall({
    How much of a default-library collection call the derivation answered.
    */
   const collectionCoverage = (resolvedDeclaration !== undefined)
-      && (collectionReceiver !== NO_MEMBER_RECEIVER)
+    && (collectionReceiver !== NO_MEMBER_RECEIVER)
     ? recordCollectionMemberEffect({
       project,
       checker,

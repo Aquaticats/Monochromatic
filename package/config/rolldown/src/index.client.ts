@@ -101,9 +101,12 @@ export function clientConfig(
         'main',
       ],
       alias: {
+        // jspdf lazy-imports canvg inside addSvgAsImage(); client apps never
+        // call it, so resolve the dynamic import to the empty stub instead of
+        // bundling canvg and its custom-licensed rgbcolor dependency.
         canvg: join(
           import.meta.dirname,
-          'stubs',
+          'stub',
           'canvg.ts',
         ),
       },

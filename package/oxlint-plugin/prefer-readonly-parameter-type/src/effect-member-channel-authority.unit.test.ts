@@ -1,9 +1,9 @@
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   ITERATOR_MEMBER_NAMES,
@@ -300,21 +300,21 @@ function instrumentedReceiver({
   const receiver: unknown = (ownerName === 'DataView')
     ? new DataView(new ArrayBuffer(PROBE_BUFFER_BYTES,),)
     : (ownerName === 'Date')
-    ? dateReceiver({ hits, },)
-    : ownerName.endsWith('Map',)
-    ? new Map([
-      [element, element,],
-      [other, other,],
-    ],)
-    : ownerName.endsWith('Set',)
-    ? new Set([
-      element,
-      other,
-    ],)
-    : [
-      element,
-      other,
-    ];
+      ? dateReceiver({ hits, },)
+      : ownerName.endsWith('Map',)
+        ? new Map([
+          [element, element,],
+          [other, other,],
+        ],)
+        : ownerName.endsWith('Set',)
+          ? new Set([
+            element,
+            other,
+          ],)
+          : [
+            element,
+            other,
+          ];
   Object.defineProperty(receiver, 'constructor', {
     value: speciesRecorder,
     configurable: true,

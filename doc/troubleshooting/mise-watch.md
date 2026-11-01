@@ -56,10 +56,13 @@ Note the flag difference:
 
 ### What does not work
 
-- `mise watch --no-meta` -- flag parsed but not forwarded to watchexec
-- `mise watch -J @file.jaq` -- same:
+- `mise watch --no-meta`:
+   flag parsed but not forwarded to watchexec
+- `mise watch -J @file.jaq`:
+   same,
    parsed but dropped
-- `mise watch --fs-events create,remove,rename,modify` -- untested but likely same issue
+- `mise watch --fs-events create,remove,rename,modify`:
+   untested but likely same issue
 
 ### Verification
 
@@ -385,7 +388,7 @@ SIGINT" below.
 
 ### Update (2026-05): external-editor case is also covered now
 
-editord's `dev:server` runs through `@monochromatic-dev/dev-script-watch-restart`,
+editord's `dev:server` runs through `@monochromatic-dev/watch-restart-cli`,
 which maintains an in-process content-hash cache and re-hashes every
 file on each filesystem event.
  A write with identical bytes (whoever
@@ -546,7 +549,7 @@ the signal handler runs,
 ### Update (2026-05)
 
 editord's `dev:server` migrated off watchexec to
-`@monochromatic-dev/dev-script-watch-restart`.
+`@monochromatic-dev/watch-restart-cli`.
  The new tree is even
 shallower (`watch-restart → bun`,
  no intermediate wrapper at all) because
@@ -559,7 +562,8 @@ rather than by careful argv composition.
 
 ### What does not work
 
-- `watchexec -r -- mise run start:server` -- SIGTERM does not propagate
+- `watchexec -r -- mise run start:server`:
+  SIGTERM does not propagate
   through the `mise → sh → bun` chain,
    leaving orphaned bun processes
 
@@ -656,12 +660,15 @@ First SIGINT hangs the following invocations:
 watchexec's `--help` documents `-j` accepts either an inline jaq expression or,
  if the argument starts with `@`,
  a path to a file containing a jaq program.
- The hang affects **both forms** because the cycle lives in `FilterProgs::new` (`crates/cli/src/filterer/progs.rs:66-115`),
+ The hang affects **both forms** because the cycle lives in
+`FilterProgs::new` (`crates/cli/src/filterer/progs.rs:66-115`),
  which is called whenever `-j` is present regardless of where the program comes from.
  Reproduced 2026-05-11 with watchexec 2.5.1:
  a process running `watchexec -w /tmp/x -j 'true' -- sleep 9999` survives the first SIGINT and only dies on SIGKILL.
 
-The watchexec docs (CLI `--help` and the discussions link at <https://github.com/watchexec/watchexec/discussions/592>) advertise the inline form on equal footing with `@file`.
+The watchexec docs (CLI `--help` and the discussions link at
+<https://github.com/watchexec/watchexec/discussions/592>)
+advertise the inline form on equal footing with `@file`.
  There is no documented warning that either form hangs on SIGINT.
  The draft upstream issue at the end of this section should call out that inline jaq is affected too,
  so an upstream fix covers both code paths.
@@ -773,7 +780,7 @@ editors doing byte-identical format-on-save still triggered a restart.
 
 Stage 2 (2026-05):
  editord's `dev:server` migrates off watchexec
-entirely to `@monochromatic-dev/dev-script-watch-restart`.
+entirely to `@monochromatic-dev/watch-restart-cli`.
  The new
 package owns an in-process content-hash cache (suppressing byte-identical
 writes regardless of writer,
@@ -817,7 +824,7 @@ Earlier alternatives considered:
     deep-tree signal propagation) were
    weighed against the implementation cost.
     Lives at
-   `package/dev-script/watch-restart/`;
+   `package/watch-restart/cli/`;
     see its README for the chokidar
    - custom `child_process.spawn` rationale.
 

@@ -8,8 +8,8 @@
  * so the database connection is opened against `--out=` or `DB_PATH`.
  */
 
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 
 import { seedDataset, } from './dataset.ts';
 

@@ -1,0 +1,349 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T16:18:40.575Z",
+  "purpose": "Actual upstream Cobra image-list command before/after local serializer-branch prototype; no cloud operation",
+  "source": {
+    "repository": "https://github.com/depot/cli",
+    "commit": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+    "version": "2.102.23",
+    "pushUrl": "DISABLED",
+    "onlyDisposableCloneEdited": true
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
+    "bytes": 12512,
+    "sha256": "537a75bf0542f03cca5ea03fcdf0299f979aac67a5365d5691790c0d4a0ec617",
+    "uncompressedBytes": 85609
+  },
+  "resources": {
+    "requestedCpu": 2,
+    "observedCpuQuota": 200000,
+    "observedCpuPeriod": 100000,
+    "requestedMemoryGiB": 2,
+    "observedMemoryBytes": 2147483648,
+    "pidsLimit": 256,
+    "serverLifetimeSeconds": 300,
+    "containerTerminalStatus": "exited",
+    "containerExitCode": 0,
+    "ownedContainerAbsent": true,
+    "hostMountCount": 0,
+    "cloudAllocations": 0
+  },
+  "inputImages": {
+    "go": {
+      "tag": "docker.io/library/golang:1.25.14-bookworm",
+      "id": "e3c6b02e53225e75dff3e6a3b4c0bf9567fe16564fb20a5f63d4e39361ee32e3",
+      "digest": "docker.io/library/golang@sha256:3b4a11519ad929d1e1d261a12cff056f0c85b735253d7d861346b9c6f8b36437",
+      "architecture": "amd64"
+    },
+    "node": {
+      "tag": "docker.io/library/node:24.22.0-bookworm-slim",
+      "id": "a797d6440ed0b09e51fb884f30e47ec14cbf58482c5e19db681a0cb8df45b089",
+      "digest": "docker.io/library/node@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5",
+      "architecture": "amd64"
+    }
+  },
+  "report": {
+    "startedAt": "2026-10-18T16:16:15.756Z",
+    "node": "v24.22.0",
+    "go": "go version go1.25.14 linux/amd64",
+    "sourceCommit": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+    "cloudAllocations": 0,
+    "ambientCredentials": false,
+    "rows": [
+      {
+        "phase": "original",
+        "control": "populated-json",
+        "exitCode": 0,
+        "stdout": "[\n  {\n    \"tag\": \"control,tag\",\n    \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"size_bytes\": 17,\n    \"pushed_at\": \"2026-10-18T00:00:00Z\"\n  },\n  {\n    \"tag\": \"second-tag\",\n    \"digest\": \"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n    \"size_bytes\": 19\n  }\n]\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "populated-csv",
+        "exitCode": 0,
+        "stdout": "Tag,Digest,Size (bytes),Pushed At\n\"control,tag\",sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,17,2026-10-18T00:00:00Z\nsecond-tag,sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,19,\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "empty-json",
+        "exitCode": 0,
+        "stdout": "No images found\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "empty-csv",
+        "exitCode": 0,
+        "stdout": "No images found\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "invalid-empty",
+        "exitCode": 0,
+        "stdout": "No images found\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "invalid-populated",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: unknown format: invalid. Requires csv or json\nUsage:\n  list [flags]\n\nAliases:\n  list, ls\n\nFlags:\n  -h, --help             help for list\n      --output string    Non-interactive output format (json, csv)\n      --project string   Depot project ID\n      --token string     Depot token\n\n",
+        "signal": null,
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "original",
+        "control": "api-error",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: failed to list images: permission_denied: synthetic denial control\nUsage:\n  list [flags]\n\nAliases:\n  list, ls\n\nFlags:\n  -h, --help             help for list\n      --output string    Non-interactive output format (json, csv)\n      --project string   Depot project ID\n      --token string     Depot token\n\n",
+        "signal": null,
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "populated-json",
+        "exitCode": 0,
+        "stdout": "[\n  {\n    \"tag\": \"control,tag\",\n    \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"size_bytes\": 17,\n    \"pushed_at\": \"2026-10-18T00:00:00Z\"\n  },\n  {\n    \"tag\": \"second-tag\",\n    \"digest\": \"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n    \"size_bytes\": 19\n  }\n]\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "populated-csv",
+        "exitCode": 0,
+        "stdout": "Tag,Digest,Size (bytes),Pushed At\n\"control,tag\",sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,17,2026-10-18T00:00:00Z\nsecond-tag,sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,19,\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "empty-json",
+        "exitCode": 0,
+        "stdout": "null\n",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "empty-csv",
+        "exitCode": 0,
+        "stdout": "",
+        "stderr": "",
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "invalid-empty",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: unknown format: invalid. Requires csv or json\nUsage:\n  list [flags]\n\nAliases:\n  list, ls\n\nFlags:\n  -h, --help             help for list\n      --output string    Non-interactive output format (json, csv)\n      --project string   Depot project ID\n      --token string     Depot token\n\n",
+        "signal": null,
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "invalid-populated",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: unknown format: invalid. Requires csv or json\nUsage:\n  list [flags]\n\nAliases:\n  list, ls\n\nFlags:\n  -h, --help             help for list\n      --output string    Non-interactive output format (json, csv)\n      --project string   Depot project ID\n      --token string     Depot token\n\n",
+        "signal": null,
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          },
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "second-page",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      },
+      {
+        "phase": "patched",
+        "control": "api-error",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: failed to list images: permission_denied: synthetic denial control\nUsage:\n  list [flags]\n\nAliases:\n  list, ls\n\nFlags:\n  -h, --help             help for list\n      --output string    Non-interactive output format (json, csv)\n      --project string   Depot project ID\n      --token string     Depot token\n\n",
+        "signal": null,
+        "requests": [
+          {
+            "path": "/depot.build.v1.RegistryService/ListImages",
+            "projectId": "owned-synthetic-project",
+            "pageToken": "",
+            "pageSize": 100,
+            "syntheticAuthMatched": true
+          }
+        ]
+      }
+    ],
+    "originalSha256": "129ffe0251e10eff6bb25ccfc0a00af8d1c4abf51403efc3f0352d0b32e4329f",
+    "patchedSha256": "cda330499a8ca10574099aa27c28a4086585f183819006a1ea9622fdc0090605",
+    "finishedAt": "2026-10-18T16:17:28.832Z",
+    "passed": true
+  },
+  "interpretation": {
+    "emptyOriginal": "Plain text and success bypass both serializer and invalid-format rejection",
+    "emptyPatchedJson": "Valid JSON null from the existing nil-slice writer; no empty-array contract invented",
+    "emptyPatchedCsv": "Empty stream from existing CSV writer",
+    "positiveControls": "Both versions preserve two-page JSON/CSV results and CSV quoting",
+    "negativeControls": "Both versions reject nonempty invalid formats/API denial; patch additionally rejects empty invalid format",
+    "limits": [
+      "Minimal Cobra driver calls actual production command; full root CLI bootstrap/interactive table are not exercised",
+      "Synthetic HTTP2 Connect API uses official generated protobuf codecs, not a real Depot project listing",
+      "Not installed as a local workaround; no upstream issue or PR sent",
+      "Initial path canonicalization and our JSON-versus-protobuf fixture failures remain distinct from the diagnosed serialization branch"
+    ]
+  },
+  "prototypePatch": "diff --git a/pkg/cmd/image/list.go b/pkg/cmd/image/list.go\nindex 1b15d0e..ba234cb 100644\n--- a/pkg/cmd/image/list.go\n+++ b/pkg/cmd/image/list.go\n@@ -62,11 +62,6 @@ func NewCmdList() *cobra.Command {\n \t\t\t\t\treturn err\n \t\t\t\t}\n \n-\t\t\t\tif len(images) == 0 {\n-\t\t\t\t\tfmt.Println(\"No images found\")\n-\t\t\t\t\treturn nil\n-\t\t\t\t}\n-\n \t\t\t\tswitch outputFormat {\n \t\t\t\tcase \"csv\":\n \t\t\t\t\treturn images.WriteCSV()\n",
+  "issueDraft": {
+    "title": "image list --output json emits non-JSON for an empty response and accepts invalid empty-result formats",
+    "body": "AI-assisted research found the empty-result return in pkg/cmd/image/list.go precedes output-format dispatch. At CLI2.102.23, a controlled actual Cobra command yields No images found for an empty JSON response and succeeds for an invalid empty-result format. Removing only that guard reuses existing JSON/CSV writers and rejects invalid formats. Fourteen original/patched controls passed against the official generated protobuf transport, including two-page populated JSON/CSV, quoted CSV content, empty outputs and API denial. Empty JSON becomes null, preserving the existing nil slice writer; this is not an array-shape change. The interactive UI and real hosted registry were not rerun for this prototype. Source, patch, exact image/tool identities and raw controls are retained locally. No claim of human verification or maintainer acceptance."
+  }
+}

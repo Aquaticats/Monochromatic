@@ -844,7 +844,8 @@ both inform the report.
 ````md
 ## Title
 
-resolver: `node:` subpath imports fail under `platform: 'neutral' | 'browser'` because `builtin_modules` is gated on `Platform::Node`
+resolver: `node:` subpath imports fail under `platform: 'neutral' | 'browser'`
+because `builtin_modules` is gated on `Platform::Node`
 
 ## Description
 
@@ -944,9 +945,9 @@ the reproduction fixture above and leaves
 - The naive fix
   (`builtin_modules: matches!(platform, Platform::Node) -> builtin_modules: true`)
   was prototyped and rejected; see
-  [TROUBLESHOOTING.rolldown.md Bug 4](../TROUBLESHOOTING.rolldown.md) for the
-  full snapshot deltas (1 regression + 8 incidental fixes for the bare-name
-  surface of the same bug).
+  [rolldown.md Bug 4](./rolldown.md#bug-4-node-subpath-imports-produce-unresolved_import-under-non-node-platforms)
+  for the full snapshot deltas (1 regression + 8 incidental fixes for the
+  bare-name surface of the same bug).
 - The misleading "Main fields" help text in `resolve_utils.rs:123-125` could also
   be tightened so it only fires for specifiers that look like package names, not
   ones prefixed with `node:`.

@@ -33,8 +33,8 @@ function usageSubject(names: readonly string[],): string {
    */
   const leadingNames = quotedNames
     .slice(
-      0,
-      -1,
+    0,
+    -1,
     )
     .join(', ',);
   return `The function inputs named ${leadingNames}, and ${finalName} are`;

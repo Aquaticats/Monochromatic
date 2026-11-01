@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:40:19.814Z",
+  "scope": {
+    "registry": "l4zncjjbj5.registry.depot.dev",
+    "repository": "research-reuse-20261018",
+    "onlyExactPreviouslyOwnedRefs": true,
+    "accountWideListing": false,
+    "cloudAllocation": false
+  },
+  "creators": [
+    {
+      "tag": "tools-r1",
+      "digest": "sha256:9fb974fd32185c8afd5711370869d03e0f28e5b560c928eae324c20151ddeee8",
+      "reference": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r1",
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/snapshot",
+      "sourceSha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
+      "producerRunId": "xkmm08vpjs",
+      "producerHarnessSha": "e65f3ccf26781999717cfd9c17e1bd361f42183a"
+    },
+    {
+      "tag": "tools-r2-git256",
+      "digest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+      "reference": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/toolImageUpdate",
+      "sourceSha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
+      "producerRunId": "3jg1fmkc69",
+      "producerHarnessSha": "90c122d9a6074d86504c40ea1b45efdb73887f1b"
+    },
+    {
+      "tag": "tools-r3-fuzz-codex",
+      "digest": "sha256:1c2b469a9d7fae8bc364e6392f771c28565647a04c40847f345bc140dfce4e88",
+      "reference": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r3-fuzz-codex",
+      "sourcePointer": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json#/runs/2/snapshot",
+      "sourceSha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1",
+      "producerRunId": "jf0c9llb1v",
+      "producerHarnessSha": "b652d9abb95c720d2dfdadab5fdaadaa728b7120",
+      "producerStatus": "failed",
+      "successfulSnapshotProductionIsSeparateFromLaterProfileConclusion": true
+    }
+  ],
+  "observations": [
+    {
+      "tag": "tools-r1",
+      "kind": "tag",
+      "reference": "tools-r1",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r1",
+      "startedAt": "2026-10-18T17:31:05.579Z",
+      "finishedAt": "2026-10-18T17:31:06.225Z",
+      "status": 404,
+      "bodySha256": "7d39684cf95b99283d8fe152e073871910e77f4901d41b41fa1bfdc82f354cb7",
+      "errorCode": "MANIFEST_UNKNOWN"
+    },
+    {
+      "tag": "tools-r1",
+      "kind": "digest",
+      "reference": "sha256:9fb974fd32185c8afd5711370869d03e0f28e5b560c928eae324c20151ddeee8",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/sha256:9fb974fd32185c8afd5711370869d03e0f28e5b560c928eae324c20151ddeee8",
+      "startedAt": "2026-10-18T17:31:06.225Z",
+      "finishedAt": "2026-10-18T17:31:06.418Z",
+      "status": 404,
+      "bodySha256": "4ce83bde7f40fe9ffe13589075a763965115d05b63673271f5a8f6d91ec293cc",
+      "errorCode": "MANIFEST_UNKNOWN"
+    },
+    {
+      "tag": "tools-r2-git256",
+      "kind": "tag",
+      "reference": "tools-r2-git256",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r2-git256",
+      "startedAt": "2026-10-18T17:31:06.419Z",
+      "finishedAt": "2026-10-18T17:31:06.614Z",
+      "status": 404,
+      "bodySha256": "0d98f949853c7099c843dc93363246b6eb1fb7e5ea3e21935c21ff9ace5c6ea6",
+      "errorCode": "MANIFEST_UNKNOWN"
+    },
+    {
+      "tag": "tools-r2-git256",
+      "kind": "digest",
+      "reference": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+      "startedAt": "2026-10-18T17:31:06.614Z",
+      "finishedAt": "2026-10-18T17:31:06.809Z",
+      "status": 404,
+      "bodySha256": "658ef5a8c556b873ae3ba9eb8bc9c001450a6946f81df4dc0f615545cefc2297",
+      "errorCode": "MANIFEST_UNKNOWN"
+    },
+    {
+      "tag": "tools-r3-fuzz-codex",
+      "kind": "tag",
+      "reference": "tools-r3-fuzz-codex",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r3-fuzz-codex",
+      "startedAt": "2026-10-18T17:31:06.810Z",
+      "finishedAt": "2026-10-18T17:31:07.003Z",
+      "status": 404,
+      "bodySha256": "ee71d07ce86ecd7d4066a5d48089009451b7c9dfe04cb3570534bb6cd89969c0",
+      "errorCode": "MANIFEST_UNKNOWN"
+    },
+    {
+      "tag": "tools-r3-fuzz-codex",
+      "kind": "digest",
+      "reference": "sha256:1c2b469a9d7fae8bc364e6392f771c28565647a04c40847f345bc140dfce4e88",
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/sha256:1c2b469a9d7fae8bc364e6392f771c28565647a04c40847f345bc140dfce4e88",
+      "startedAt": "2026-10-18T17:31:07.003Z",
+      "finishedAt": "2026-10-18T17:31:07.199Z",
+      "status": 404,
+      "bodySha256": "046726222c699a54e5e2797244d8d72f7d45e48f38c4ec7712da03289130b696",
+      "errorCode": "MANIFEST_UNKNOWN"
+    }
+  ],
+  "authentication": {
+    "selectedAuthorization": {
+      "audience": "l4zncjjbj5.registry.depot.dev",
+      "claimNames": [
+        "tenant",
+        "access",
+        "iss",
+        "sub",
+        "aud",
+        "iat",
+        "exp"
+      ],
+      "exactRepositoryAccess": [
+        {
+          "type": "repository",
+          "name": "research-reuse-20261018",
+          "actions": [
+            "pull"
+          ]
+        }
+      ],
+      "otherRepositoryAccessEntries": 0,
+      "refreshTokenRequested": false,
+      "persistentCredentialCreated": false,
+      "tokenPersisted": false
+    },
+    "challengeExchangeStatus": 200,
+    "expiresInSeconds": 900,
+    "refreshTokenRequested": false,
+    "persistentCredentialCreated": false,
+    "tokenPersisted": false,
+    "ciSameStoredLoginControl": {
+      "startedAt": "2026-10-18T17:03:36.052Z",
+      "finishedAt": "2026-10-18T17:03:36.652Z",
+      "url": "https://api.depot.dev/depot.ci.v1.CIService/GetWorkflow",
+      "request": {
+        "workflowId": "qxqg28drpc"
+      },
+      "status": 200,
+      "authentication": "Same existing stored CLI login as the failing SDK read",
+      "privateOriginalFileSha256": "2b1a3a6eeb8e39f3a615014034af743f41b7e651a065b8460f2bd73327ff6b12",
+      "fullProviderResponsePublished": false
+    },
+    "invalidBearerSameHostPathControl": {
+      "url": "https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r1",
+      "status": 401,
+      "startedAt": "2026-10-18T17:34:09.280Z",
+      "finishedAt": "2026-10-18T17:34:10.144Z",
+      "bodySha256": "89a052af62c612d0e05d2596f03edba77d7d904c4478b387a5dc6305821fe0a1"
+    },
+    "sdkRead401RemainsSeparateFromOciAbsence": true
+  },
+  "disposition": {
+    "allExactTagsAndDigestsCurrentlyAbsent": true,
+    "deletionRequests": 0,
+    "expiryCauseEstablished": false,
+    "storageReclamationEstablished": false,
+    "newCloudAllocations": 0,
+    "newComputeReservationUsedUsd": 0,
+    "localWorktreesAndSourceArchivesRetained": true
+  },
+  "sources": [
+    {
+      "repository": "https://github.com/depot/proto",
+      "revision": "01dc47fdd504fe88697aec8b3033ce887588d302",
+      "path": "proto/depot/registry/v1beta1/registry.proto",
+      "record": "source/proto/proto/depot/registry/v1beta1/registry.proto",
+      "sha256": "a691cdbe894ee5c08c1b890ad46b48e0a391ab539c9ecdbca0a4c1ca753589b2"
+    },
+    {
+      "repository": "https://github.com/containerd/containerd",
+      "revision": "2806fc1057397dbaeefbea0e4e17bddfbd388f38",
+      "path": "remotes/docker/auth/fetch.go",
+      "record": "source/containerd/remotes/docker/auth/fetch.go",
+      "sha256": "d058307f00465140f346f9c483e6d39361450685c55e2165ce3280222645aba8"
+    },
+    {
+      "repository": "https://github.com/opencontainers/distribution-spec",
+      "revision": "97274622c11112caa21efb8c52acca3c6b8fa7f1",
+      "path": "spec.md",
+      "record": "source/distribution-spec/spec.md",
+      "sha256": "424901daf1487a0921b3dcb09c1541b2c7dc6109c7782507e3f197a9a40d5d22"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+      "path": "pkg/cmd/push/token.go",
+      "record": "source/cli/pkg/cmd/push/token.go",
+      "sha256": "dd90190e26f551337cc0565992c41c18818c592bbd80343495fc13e54872c9eb"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+      "path": "pkg/api/rpc.go",
+      "record": "source/cli/pkg/api/rpc.go",
+      "sha256": "2f7325a26be451a07fd4b7c63b7f89d6688b692ea9aa947a254f394be3bd7fb3"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+      "path": "pkg/api/ci.go",
+      "record": "source/cli/pkg/api/ci.go",
+      "sha256": "cb92524fb8674b7417ec432e18658a65a2edf1a21998c361bc201157119ff62b"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+      "path": "pkg/helpers/token.go",
+      "record": "source/cli/pkg/helpers/token.go",
+      "sha256": "31a0786bcf4a572fb0a25415b8680157ae12a9a3cacfcdb214be821a55da3d03"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
+      "path": "pkg/cmd/image/rm.go",
+      "record": "source/cli/pkg/cmd/image/rm.go",
+      "sha256": "c5e3ab370b5ee5954e66c2180d2f38ac1e5d3ad1a62a16290980f06faa5fef5f"
+    }
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
+    "bytes": 39722,
+    "sha256": "9267311d49c9e029fec418aeb9d2af89ee77ddccaa947db08df60fbed80ffafc",
+    "records": 20
+  },
+  "privacy": {
+    "allPublishedBodiesComparedAgainstExistingLoginWithoutPersistingIt": true,
+    "registryBearerAndLoginValuesNotStored": true,
+    "fullCiProviderResponseKeptPrivate": true,
+    "selectedClaimsOnly": true
+  }
+}

@@ -1,5 +1,10 @@
 # File manager toolkit exploration: Slint, then Qt, then GTK4 (handover)
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-app/file-manager-qt` is now `package/file-manager/variant-qt`.
+
 Cross-session state for choosing the GUI toolkit for a native cross-platform file manager.
 The hard constraint is native OS drag-and-drop on a pure Wayland session (KWin),
  no

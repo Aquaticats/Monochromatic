@@ -1,0 +1,58 @@
+// Preview windows for the track list pane, drawn from the Camellia captures. Each window fixes the scheme
+// through Theme.scheme-override so that dark and light cases render separately.
+import { Theme } from "../theme.slint";
+import { TrackListPane, TrackListRow } from "../tracks.slint";
+
+// Sample folder used by every preview: the Camellia tracks, a Live subfolder header and its two tracks.
+component CamelliaPane inherits TrackListPane {
+    rows: [
+        { kind: 0, title: "Another Xronixle", supporting: "4:35 · −1.2 dBTP", current: true, index: 0 },
+        { kind: 0, title: "Burning Aquamarine", supporting: "5:12 · −0.8 dBTP", current: false, index: 1 },
+        { kind: 0, title: "Dokuhebi", supporting: "4:01 · −1.4 dBTP", current: false, index: 2 },
+        { kind: 0, title: "ENÛMAVELIŠ", supporting: "9:47 · −0.3 dBTP", current: false, index: 3 },
+        { kind: 0, title: "Ghost", supporting: "3:22 · −1.1 dBTP", current: false, index: 4 },
+        { kind: 0, title: "Hyperflux", supporting: "4:44 · −0.9 dBTP", current: false, index: 5 },
+        { kind: 0, title: "Idol Corruption", supporting: "5:31 · −0.6 dBTP", current: false, index: 6 },
+        { kind: 0, title: "KillerToy", supporting: "4:12 · −1.0 dBTP", current: false, index: 7 },
+        { kind: 0, title: "Nacreous Snowmelt", supporting: "6:03 · −0.7 dBTP", current: false, index: 8 },
+        { kind: 1, title: "Live", supporting: "3 tracks", current: false, index: -1 },
+        { kind: 0, title: "Ghost (Live)", supporting: "", current: false, index: 9 },
+        { kind: 0, title: "Hyperflux (Live)", supporting: "", current: false, index: 10 },
+    ];
+}
+
+// Cover width track list in dark, at the 443 px logical cover width.
+export component TracksCoverDark inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 2; }
+
+    CamelliaPane {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Cover width track list in light.
+export component TracksCoverLight inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 1; }
+
+    CamelliaPane {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Inner right pane track list in dark, 560 px wide as specified for the preview.
+export component TracksInnerDark inherits Window {
+    width: 560px;
+    height: 882px;
+    init => { Theme.scheme-override = 2; }
+
+    CamelliaPane {
+        width: parent.width;
+        height: parent.height;
+    }
+}

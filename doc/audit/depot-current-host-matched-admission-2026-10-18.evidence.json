@@ -1,0 +1,524 @@
+{
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "plan": {
+    "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "harnessSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+    "profile": "depot-host-controls",
+    "workflowSha256": "c4bed98fc71056f1d206de3ca16637fb527f8ce5ca6eaf2a003d132c53ebccae",
+    "generatedTasksSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+    "taskSourceSha256": "89faefbbcce369dc4db00cfc516b4cbe3668387fbaded576d128c39ba932cd95",
+    "provider": "depot",
+    "resources": {
+      "maximumParallelJobs": 1,
+      "jobMinutes": 20,
+      "cases": [
+        {
+          "id": "depot-macos15-arm-current",
+          "label": "depot-macos-15",
+          "kind": "all",
+          "flavor": "native",
+          "target": "aarch64-apple-darwin",
+          "tools": "node pnpm"
+        },
+        {
+          "id": "depot-windows2025-msvc-x64-current",
+          "label": "depot-windows-2025-4",
+          "kind": "all",
+          "flavor": "msvc",
+          "target": "x86_64-pc-windows-msvc",
+          "tools": "node pnpm"
+        }
+      ]
+    },
+    "nominalMaximumComputeUsd": 1.92,
+    "guardUsd": 2,
+    "guardScope": "separate parent-admitted Depot OS USD2 guard",
+    "eligibility": {
+      "windows": "Developer supported",
+      "macos": "Existing active Startup trial availability, not Developer entitlement",
+      "subscriptionChanged": false
+    },
+    "sourceAssertionsChanged": false,
+    "nextestSchedulerOnlyArgument": "--no-fail-fast",
+    "actualNativeRustHostRequired": true,
+    "artifactStorageCostUnknown": true,
+    "productionPublishing": false,
+    "providerModelCalls": false,
+    "previousPreparedHarness": "334a5b75f376eb467e30b426a14369690bc2795f",
+    "preallocationHarnessCorrections": {
+      "maximumRunCharacters": 21000,
+      "largestActualRunCharacters": 11883,
+      "taskSourceUnchanged": true,
+      "noCloudJobAllocatedForPreviousHarness": true
+    },
+    "researchHandoffCorrection": {
+      "predecessorRun": 39141147245,
+      "logBasenameSanitizedBeforeChildExecution": true,
+      "exclusiveLogCreationBeforeChildExecution": true,
+      "includeHiddenEvidenceFiles": true,
+      "missingFilesAreUploadFailure": true,
+      "assertionsChanged": false
+    },
+    "auxiliaryHashFieldCorrection": {
+      "previousGeneratedTasksSha256": "5f2d387c42720e96033d0c824adfcdfc9abcd51d6be6128c459885bbf0b830ab",
+      "previousTaskSourceSha256": "e7038677195415da14082020294734c8ac468b589510846de55dc2a969d59740",
+      "reason": "Research logger changed after original bootstrap bounding; immutable deployed workflow and actual decoded bootstrap were already qualified.",
+      "applicationAssertionsChanged": false
+    }
+  },
+  "budget": {
+    "schemaVersion": 1,
+    "measuredAt": "2026-10-18T17:10:20.677Z",
+    "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "guardUsd": 2,
+    "guardScope": "separate Depot OS controls",
+    "admittedReservationUsd": 1.92,
+    "activeReservation": {
+      "profile": "depot-host-controls",
+      "harnessSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resources": {
+        "maximumParallelJobs": 1,
+        "jobMinutes": 20,
+        "cases": [
+          {
+            "id": "depot-macos15-arm-current",
+            "label": "depot-macos-15",
+            "kind": "all",
+            "flavor": "native",
+            "target": "aarch64-apple-darwin",
+            "tools": "node pnpm"
+          },
+          {
+            "id": "depot-windows2025-msvc-x64-current",
+            "label": "depot-windows-2025-4",
+            "kind": "all",
+            "flavor": "msvc",
+            "target": "x86_64-pc-windows-msvc",
+            "tools": "node pnpm"
+          }
+        ]
+      },
+      "reservationUsd": 1.92,
+      "rates": {
+        "depot-macos-15": 0.08,
+        "depot-windows-2025-4": 0.016
+      },
+      "state": "admitted before dispatch, no allocated run yet"
+    },
+    "plannedReservation": null,
+    "rows": [],
+    "invoice": false
+  },
+  "publicPredecessor": {
+    "run": 39144499822,
+    "status": "completed",
+    "conclusion": "failure",
+    "allocatedRows": [
+      {
+        "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725488825",
+        "provider": "github-public-standard",
+        "run": 39144499822,
+        "attempt": 1,
+        "id": 117725488825,
+        "name": "Current e02 host (windows2025-gnu-ucrt64-current)",
+        "status": "completed",
+        "conclusion": "failure",
+        "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+        "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "resourceShape": {
+          "requestedLabels": [
+            "windows-2025"
+          ],
+          "documentedVcpu": 4,
+          "documentedMemoryGB": 16,
+          "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+          "jobMinutes": 30,
+          "maxParallel": 1
+        },
+        "runner": "GitHub Actions 1000002892",
+        "startedAt": "2026-10-18T16:59:02Z",
+        "completedAt": "2026-10-18T17:01:23Z",
+        "seconds": 141,
+        "rateUsdPerMinute": 0,
+        "nominalElapsedUsd": 0,
+        "conservativeRoundedMinuteUsd": 0,
+        "reservationUsd": 0,
+        "publicComputeOnly": true,
+        "artifactStorageCostUnmeasured": true,
+        "invoice": false
+      },
+      {
+        "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725488995",
+        "provider": "github-public-standard",
+        "run": 39144499822,
+        "attempt": 1,
+        "id": 117725488995,
+        "name": "Current e02 host (windows11-msvc-arm64-current)",
+        "status": "completed",
+        "conclusion": "failure",
+        "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+        "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "resourceShape": {
+          "requestedLabels": [
+            "windows-11-arm"
+          ],
+          "documentedVcpu": 4,
+          "documentedMemoryGB": 16,
+          "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+          "jobMinutes": 30,
+          "maxParallel": 1
+        },
+        "runner": "GitHub Actions 1000002875",
+        "startedAt": "2026-10-18T16:49:59Z",
+        "completedAt": "2026-10-18T16:59:01Z",
+        "seconds": 542,
+        "rateUsdPerMinute": 0,
+        "nominalElapsedUsd": 0,
+        "conservativeRoundedMinuteUsd": 0,
+        "reservationUsd": 0,
+        "publicComputeOnly": true,
+        "artifactStorageCostUnmeasured": true,
+        "invoice": false
+      },
+      {
+        "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489035",
+        "provider": "github-public-standard",
+        "run": 39144499822,
+        "attempt": 1,
+        "id": 117725489035,
+        "name": "Current e02 host (macos15-arm-current)",
+        "status": "completed",
+        "conclusion": "failure",
+        "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+        "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "resourceShape": {
+          "requestedLabels": [
+            "macos-15"
+          ],
+          "documentedVcpu": 3,
+          "documentedMemoryGB": 7,
+          "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+          "jobMinutes": 30,
+          "maxParallel": 1
+        },
+        "runner": "GitHub Actions 1000002823",
+        "startedAt": "2026-10-18T16:20:02Z",
+        "completedAt": "2026-10-18T16:29:26Z",
+        "seconds": 564,
+        "rateUsdPerMinute": 0,
+        "nominalElapsedUsd": 0,
+        "conservativeRoundedMinuteUsd": 0,
+        "reservationUsd": 0,
+        "publicComputeOnly": true,
+        "artifactStorageCostUnmeasured": true,
+        "invoice": false
+      },
+      {
+        "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489078",
+        "provider": "github-public-standard",
+        "run": 39144499822,
+        "attempt": 1,
+        "id": 117725489078,
+        "name": "Current e02 host (macos-latest-authored-fsid)",
+        "status": "completed",
+        "conclusion": "success",
+        "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+        "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "resourceShape": {
+          "requestedLabels": [
+            "macos-latest"
+          ],
+          "documentedVcpu": 3,
+          "documentedMemoryGB": 7,
+          "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+          "jobMinutes": 30,
+          "maxParallel": 1
+        },
+        "runner": "GitHub Actions 1000002872",
+        "startedAt": "2026-10-18T16:48:48Z",
+        "completedAt": "2026-10-18T16:49:57Z",
+        "seconds": 69,
+        "rateUsdPerMinute": 0,
+        "nominalElapsedUsd": 0,
+        "conservativeRoundedMinuteUsd": 0,
+        "reservationUsd": 0,
+        "publicComputeOnly": true,
+        "artifactStorageCostUnmeasured": true,
+        "invoice": false
+      },
+      {
+        "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489146",
+        "provider": "github-public-standard",
+        "run": 39144499822,
+        "attempt": 1,
+        "id": 117725489146,
+        "name": "Current e02 host (windows2025-msvc-x64-current)",
+        "status": "completed",
+        "conclusion": "failure",
+        "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+        "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "resourceShape": {
+          "requestedLabels": [
+            "windows-2025"
+          ],
+          "documentedVcpu": 4,
+          "documentedMemoryGB": 16,
+          "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+          "jobMinutes": 30,
+          "maxParallel": 1
+        },
+        "runner": "GitHub Actions 1000002844",
+        "startedAt": "2026-10-18T16:29:27Z",
+        "completedAt": "2026-10-18T16:48:42Z",
+        "seconds": 1155,
+        "rateUsdPerMinute": 0,
+        "nominalElapsedUsd": 0,
+        "conservativeRoundedMinuteUsd": 0,
+        "reservationUsd": 0,
+        "publicComputeOnly": true,
+        "artifactStorageCostUnmeasured": true,
+        "invoice": false
+      }
+    ],
+    "excludedUnallocatedJobs": [
+      {
+        "id": 117725490037,
+        "conclusion": "skipped",
+        "labels": [],
+        "runner": null
+      }
+    ]
+  },
+  "actualBootstrap": {
+    "harnessSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+    "actualBootstrapExecuted": true,
+    "generatedMiseTaskDecodedEqual": true,
+    "actualMiseTaskDryRunParsed": true,
+    "actualNodeModuleSyntaxChecked": true,
+    "results": [
+      {
+        "provider": "public",
+        "generatedTasksSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+        "configSha256": "35c01ed111f0c4cc605b1d83838082a9fcd19c66afa87dd994c2696dcfcf8dcc",
+        "cases": [
+          {
+            "id": "macos15-arm-current",
+            "label": "macos-15",
+            "kind": "all",
+            "flavor": "native",
+            "target": "aarch64-apple-darwin",
+            "tools": "node pnpm"
+          },
+          {
+            "id": "windows2025-msvc-x64-current",
+            "label": "windows-2025",
+            "kind": "all",
+            "flavor": "msvc",
+            "target": "x86_64-pc-windows-msvc",
+            "tools": "node pnpm"
+          },
+          {
+            "id": "macos-latest-authored-fsid",
+            "label": "macos-latest",
+            "kind": "fsid",
+            "flavor": "none",
+            "target": "none",
+            "tools": "node"
+          },
+          {
+            "id": "windows11-msvc-arm64-current",
+            "label": "windows-11-arm",
+            "kind": "rust",
+            "flavor": "msvc",
+            "target": "aarch64-pc-windows-msvc",
+            "tools": "node"
+          },
+          {
+            "id": "windows2025-gnu-ucrt64-current",
+            "label": "windows-2025",
+            "kind": "rust",
+            "flavor": "gnu",
+            "target": "x86_64-pc-windows-gnu",
+            "tools": "node"
+          }
+        ],
+        "maximumParallelJobs": 1,
+        "jobMinutes": 30
+      },
+      {
+        "provider": "depot",
+        "generatedTasksSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+        "configSha256": "35c01ed111f0c4cc605b1d83838082a9fcd19c66afa87dd994c2696dcfcf8dcc",
+        "cases": [
+          {
+            "id": "depot-macos15-arm-current",
+            "label": "depot-macos-15",
+            "kind": "all",
+            "flavor": "native",
+            "target": "aarch64-apple-darwin",
+            "tools": "node pnpm"
+          },
+          {
+            "id": "depot-windows2025-msvc-x64-current",
+            "label": "depot-windows-2025-4",
+            "kind": "all",
+            "flavor": "msvc",
+            "target": "x86_64-pc-windows-msvc",
+            "tools": "node pnpm"
+          }
+        ],
+        "maximumParallelJobs": 1,
+        "jobMinutes": 20
+      }
+    ],
+    "adapterControls": [
+      {
+        "key": "tasks.test.run",
+        "originalSha256": "da1ddc3ff1237ed4f59c5af3c1d0f0ed2618bf2ca455bfd32f3fc2f44555164d",
+        "adaptedSha256": "ed0ba78f804079430b624ceca04ae6d250512c08d6495a1f0e856ad207d74d69",
+        "onlyAddedArgument": "--no-fail-fast",
+        "assertionEdits": false
+      },
+      {
+        "key": "tasks.test:windows-gnu.run",
+        "originalSha256": "3e69f08295d4a8aa0f6ec9a1760d4d29b61c40652f7df857192517d41844c60c",
+        "adaptedSha256": "eacbe244b07df98c92c6a4c76bea8feb2c3a617309908d616762d577fba7e9e9",
+        "onlyAddedArgument": "--no-fail-fast",
+        "assertionEdits": false
+      }
+    ]
+  },
+  "sourceHashes": {
+    "harnessSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+    "previousPreparedHarness": "334a5b75f376eb467e30b426a14369690bc2795f",
+    "originalMaximumRunCharacters": 114331,
+    "currentMaximumRunCharacters": 12005,
+    "currentLengths": [
+      {
+        "name": "Write finite source-bound owning research tasks",
+        "characters": 12005
+      },
+      {
+        "name": "Write immutable source-bound host config",
+        "characters": 11883
+      },
+      {
+        "name": "Install only selected locked runtime tools",
+        "characters": 32
+      },
+      {
+        "name": "Frozen host source",
+        "characters": 64
+      },
+      {
+        "name": "Frozen host dependencies",
+        "characters": 70
+      },
+      {
+        "name": "Frozen host modules",
+        "characters": 65
+      },
+      {
+        "name": "Frozen host node-owners",
+        "characters": 69
+      },
+      {
+        "name": "Frozen host filesystem",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host rust-setup",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host rust-tests",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host binary-consumer",
+        "characters": 73
+      },
+      {
+        "name": "Frozen host finalize",
+        "characters": 66
+      },
+      {
+        "name": "Write finite source-bound owning research tasks",
+        "characters": 12005
+      },
+      {
+        "name": "Write immutable source-bound host config",
+        "characters": 11883
+      },
+      {
+        "name": "Install only selected locked runtime tools",
+        "characters": 32
+      },
+      {
+        "name": "Frozen host source",
+        "characters": 64
+      },
+      {
+        "name": "Frozen host dependencies",
+        "characters": 70
+      },
+      {
+        "name": "Frozen host modules",
+        "characters": 65
+      },
+      {
+        "name": "Frozen host node-owners",
+        "characters": 69
+      },
+      {
+        "name": "Frozen host filesystem",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host rust-setup",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host rust-tests",
+        "characters": 68
+      },
+      {
+        "name": "Frozen host binary-consumer",
+        "characters": 73
+      },
+      {
+        "name": "Frozen host finalize",
+        "characters": 66
+      }
+    ],
+    "corrections": [
+      {
+        "provider": "public",
+        "previousGeneratedTasksSha256": "5f2d387c42720e96033d0c824adfcdfc9abcd51d6be6128c459885bbf0b830ab",
+        "previousTaskSourceSha256": "e7038677195415da14082020294734c8ac468b589510846de55dc2a969d59740",
+        "actualGeneratedSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+        "actualTaskSourceSha256": "89faefbbcce369dc4db00cfc516b4cbe3668387fbaded576d128c39ba932cd95"
+      },
+      {
+        "provider": "depot",
+        "previousGeneratedTasksSha256": "5f2d387c42720e96033d0c824adfcdfc9abcd51d6be6128c459885bbf0b830ab",
+        "previousTaskSourceSha256": "e7038677195415da14082020294734c8ac468b589510846de55dc2a969d59740",
+        "actualGeneratedSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+        "actualTaskSourceSha256": "89faefbbcce369dc4db00cfc516b4cbe3668387fbaded576d128c39ba932cd95"
+      }
+    ],
+    "actualGeneratedSha256": "bd8a6110d8732338bb8055a5b47264da201a438c4879865a658c241b9bc28ede",
+    "actualTaskSourceSha256": "89faefbbcce369dc4db00cfc516b4cbe3668387fbaded576d128c39ba932cd95",
+    "sourceAssertionsChanged": false,
+    "activePublicRecoveryAdmissionKeptAsOriginalSnapshot": true
+  },
+  "originalGuard": {
+    "guardUsd": 5,
+    "completedAndReservedUsd": 4.728000000000001,
+    "activeReservation": null,
+    "fallbackUsd6Unused": true
+  },
+  "oneCoverageAllocationAtATime": true,
+  "matchedCommandsAndSourceAssertionsUnchanged": true
+}

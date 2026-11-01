@@ -491,7 +491,8 @@ The final runtime checks proved:
 
 The authenticated recovery requirement is therefore satisfied.
 This does not prove that the official CachyOS installer owns the direct architecture.
-It proves that pinned authenticated media can safely reconstruct and boot it from the validated third-party installation.
+It proves that pinned authenticated media can safely reconstruct
+and boot it from the validated third-party installation.
 
 ## User control constraint
 

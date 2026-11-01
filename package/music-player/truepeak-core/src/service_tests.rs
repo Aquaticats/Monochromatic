@@ -1,4 +1,5 @@
-//! Integration test for the cache-aware resolve, against a throwaway in-memory database.
+//! Integration test for the cache-aware resolve,
+//!  against a throwaway in-memory database.
 
 use super::*;
 use crate::bucketpolicy::TrackProvenance;

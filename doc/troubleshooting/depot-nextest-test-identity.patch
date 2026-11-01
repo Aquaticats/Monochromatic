@@ -1,0 +1,760 @@
+diff --git a/.depot/research/test-identity-adapter/.gitignore b/.depot/research/test-identity-adapter/.gitignore
+new file mode 100644
+index 0000000000..5c436bb5d9
+--- /dev/null
++++ b/.depot/research/test-identity-adapter/.gitignore
+@@ -0,0 +1,6 @@
++/transfer/
++/input/
++/tools/
++/evidence/
++/received/
++/history-evidence/
+diff --git a/.depot/research/test-identity-adapter/candidates.txt b/.depot/research/test-identity-adapter/candidates.txt
+new file mode 100644
+index 0000000000..6826230578
+--- /dev/null
++++ b/.depot/research/test-identity-adapter/candidates.txt
+@@ -0,0 +1,34 @@
++index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file
++index_lock_evidence::tests::an_absent_lock_is_not_an_error
++index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file
++index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner
++index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes
++index_lock_evidence::tests::lock_metadata_does_not_follow_links
++index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units
++index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time
++index_lock_evidence::tests::pid_file_prose_names_each_state
++index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer
++index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds
++index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources
++index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists
++index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable
++index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start
++index_lock_evidence::tests::the_proven_holder_line_names_its_proof
++real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget
++real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file
++real_index_lock::tests::a_free_index_is_locked_and_released
++real_index_lock::tests::a_free_index_is_locked_without_waiting
++real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record
++real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process
++real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait
++real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused
++real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition
++real_index_lock::tests::a_replaced_lock_is_never_released
++real_index_lock::tests::an_existing_pid_file_is_left_alone
++real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything
++real_index_lock::tests::an_install_through_a_replaced_lock_is_refused
++real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock
++real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file
++real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file
++real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock
++real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file
+diff --git a/.depot/research/test-identity-adapter/manifest.json b/.depot/research/test-identity-adapter/manifest.json
+new file mode 100644
+index 0000000000..921cadb528
+--- /dev/null
++++ b/.depot/research/test-identity-adapter/manifest.json
+@@ -0,0 +1,47 @@
++{
++  "schemaVersion": 1,
++  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
++  "sourceHarness": "714a3cad36",
++  "researchOnly": true,
++  "maximumConcurrentJobs": 1,
++  "jobs": [
++    {
++      "name": "seed",
++      "cpus": 2,
++      "memoryGiB": 8,
++      "timeoutMinutes": 8
++    },
++    {
++      "name": "physical",
++      "matrix": [
++        0,
++        1
++      ],
++      "maxParallel": 1,
++      "cpus": 2,
++      "memoryGiB": 8,
++      "timeoutMinutes": 8
++    },
++    {
++      "name": "consumer",
++      "cpus": 2,
++      "memoryGiB": 8,
++      "timeoutMinutes": 5
++    }
++  ],
++  "fullProfileReservationUsd": 0.174,
++  "priorPhysicalReservationUsd": 0.348,
++  "readOnlyHistoryReservationUsd": 0.012,
++  "cumulativeReservationUsd": 0.534,
++  "ceilingUsd": 1,
++  "invoiceCapProven": false,
++  "producerArtifactId": "01a14e1d-1935-7a2b-9b89-c63429fec7c7",
++  "producerZipBytes": 98192385,
++  "producerZipSha256": "019694511127b9d0a3af6b79f62d1560e34d6c76d9e00ee1c8e4d60f04a723cb",
++  "expectedNextestVersion": "0.9.148",
++  "expectedNextestCommit": "cd1d6d5467322dbc0d39a80cb671d000ac302798",
++  "expectedNextestSha256": "53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c",
++  "adapterTemplateSha256": "c160a2999eb31fbee3841a1cc6d7fc2c2645ee3e204dab642023fa9058def487",
++  "rawXmlPreserved": true,
++  "productionReportOrRoutingChange": false
++}
+diff --git a/.depot/research/test-identity-adapter/mise.lock b/.depot/research/test-identity-adapter/mise.lock
+new file mode 100644
+index 0000000000..545c5c2a13
+--- /dev/null
++++ b/.depot/research/test-identity-adapter/mise.lock
+@@ -0,0 +1,13 @@
++# @generated - this file is auto-generated by `mise lock` https://mise.jdx.dev/dev-tools/mise-lock.html
++
++lockfile_version = 3
++
++[[tools."github:depot/cli"]]
++version = "2.102.23"
++backend = "github:depot/cli"
++specifiers = ["2.102.23"]
++
++[tools."github:depot/cli"."platforms.linux-x64"]
++checksum = "sha256:b32e349ec72e077ec18f431cf3a95451b9363becc8a9a9daad5e356abf0cd31f"
++url = "https://github.com/depot/cli/releases/download/v2.102.23/depot_2.102.23_linux_amd64.tar.gz"
++url_api = "https://api.github.com/repos/depot/cli/releases/assets/642292314"
+diff --git a/.depot/research/test-identity-adapter/mise.toml b/.depot/research/test-identity-adapter/mise.toml
+new file mode 100644
+index 0000000000..e4aa9cc25d
+--- /dev/null
++++ b/.depot/research/test-identity-adapter/mise.toml
+@@ -0,0 +1,506 @@
++[tools]
++# Hold the CLI version whose split/report and credential source paths were audited for this experiment.
++"github:depot/cli" = "2.102.23"
++
++[tasks.prepare]
++dir = "{{config_root}}/../../.."
++shell = "node --input-type=module-typescript -e"
++run = '''
++const fs = await import('node:fs');
++const os = await import('node:os');
++const { join } = await import('node:path');
++const { createHash, randomUUID } = await import('node:crypto');
++const { execFileSync } = await import('node:child_process');
++class PhysicalInputFailure extends Error {}
++if (process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_NAME !== 'Depot CI') throw new PhysicalInputFailure('Physical input preparation requires the owned native CI job');
++const root = process.cwd();
++const base = join(root, '.depot/research/test-identity-adapter');
++const input = join(base, 'input');
++const tools = join(base, 'tools');
++const evidence = join(base, 'evidence');
++const transfer = join(base, 'transfer');
++for (const path of [input, tools, evidence, transfer]) fs.mkdirSync(path, { recursive: true, mode: 0o700 });
++const hash = value => createHash('sha256').update(value).digest('hex');
++const zip = join(transfer, 'diagnostic.zip');
++const url = process.env.MONO_RESEARCH_IDENTITY_ADAPTER_URL_20261018;
++delete process.env.MONO_RESEARCH_IDENTITY_ADAPTER_URL_20261018;
++if (!fs.existsSync(zip)) {
++  if (!url || new URL(url).protocol !== 'https:') throw new PhysicalInputFailure('The exact producer object is missing and no owned signed GET URL was supplied');
++  let response;
++  try { response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(60000) }); }
++  catch (error) { throw new PhysicalInputFailure('Producer GET failed before a response: ' + error.name + '; signed URL withheld'); }
++  if (response.status !== 200) throw new PhysicalInputFailure('Producer GET HTTP status ' + response.status + '; signed URL withheld');
++  const fd = fs.openSync(zip, 'wx', 0o600);
++  let received = 0;
++  try {
++    for await (const chunk of response.body) {
++      received += chunk.length;
++      if (received > 98192385) throw new PhysicalInputFailure('Producer object exceeds its admitted byte count');
++      fs.writeSync(fd, chunk);
++    }
++  } finally { fs.closeSync(fd); }
++}
++if (fs.statSync(zip).size !== 98192385 || hash(fs.readFileSync(zip)) !== '019694511127b9d0a3af6b79f62d1560e34d6c76d9e00ee1c8e4d60f04a723cb') throw new PhysicalInputFailure('Producer ZIP length or digest differs');
++execFileSync('unzip', ['-t', zip], { timeout: 30000, stdio: 'pipe' });
++for (const name of ['diagnostic-archive-manifest.json', 'diagnostic-native-nextest.tar.zst', 'diagnostic-git-2.56.0.tar.zst', 'diagnostic-host-tools.tar.zst']) {
++  const fd = fs.openSync(join(input, name), 'wx', 0o600);
++  try { execFileSync('unzip', ['-p', zip, name], { stdio: ['ignore', fd, 'pipe'], timeout: 30000 }); }
++  finally { fs.closeSync(fd); }
++}
++const manifestBytes = fs.readFileSync(join(input, 'diagnostic-archive-manifest.json'));
++if (hash(manifestBytes) !== '971b898f01f5edf054b02d5d97f9babfc36525982b674859af1fca93520dc70c') throw new PhysicalInputFailure('Producer manifest digest differs');
++const manifest = JSON.parse(manifestBytes);
++if (manifest.baseSourceSha !== 'e02be6c8b8fe9efb41a7f8f1a0b311c17796588a' || manifest.sourceFiles.length !== 1079) throw new PhysicalInputFailure('Producer source denominator differs');
++for (const file of manifest.sourceFiles) if (hash(fs.readFileSync(join(root, file.path))) !== file.sha256) throw new PhysicalInputFailure('Frozen producer source mismatch: ' + file.path);
++if (hash(fs.readFileSync(join(root, 'cli-git.config.jsonc'))) !== manifest.rootPolicySha256) throw new PhysicalInputFailure('Frozen root policy mismatch');
++for (const bundle of manifest.bundles) if (hash(fs.readFileSync(join(input, bundle.name))) !== bundle.sha256) throw new PhysicalInputFailure('Bundle member digest differs: ' + bundle.name);
++execFileSync('tar', ['--extract', '--zstd', '--no-same-owner', '--file', join(input, 'diagnostic-host-tools.tar.zst'), '--directory', tools], { timeout: 30000 });
++execFileSync('sudo', ['--non-interactive', 'mkdir', '--parents', '/opt/depot-reuse-20261018-r1'], { timeout: 30000 });
++execFileSync('sudo', ['--non-interactive', 'tar', '--extract', '--zstd', '--no-same-owner', '--file', join(input, 'diagnostic-git-2.56.0.tar.zst'), '--directory', '/opt/depot-reuse-20261018-r1'], { timeout: 30000 });
++const git = '/opt/depot-reuse-20261018-r1/git-2.56.0/bin/git';
++if (hash(fs.readFileSync(git)) !== manifest.gitBinarySha256) throw new PhysicalInputFailure('Producer Git digest differs');
++execFileSync('sudo', ['--non-interactive', 'install', '--mode=0755', git, '/usr/bin/git'], { timeout: 30000 });
++if (hash(fs.readFileSync(join(tools, 'cargo-nextest'))) !== manifest.nextestBinarySha256 || hash(fs.readFileSync(join(tools, 'monochromatic-lint'))) !== manifest.linterBinarySha256 || hash(fs.readFileSync('/usr/bin/git')) !== manifest.gitBinarySha256) throw new PhysicalInputFailure('Restored executable digest differs');
++const cohortNonce = process.env.PROBE_COHORT_NONCE || randomUUID();
++const result = { schemaVersion: 1, applicationBase: manifest.baseSourceSha, harness: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), cohortNonce, vmNonce: randomUUID(), hostname: os.hostname(), kernel: os.release(), cpus: os.cpus().length, memoryBytes: os.totalmem(), producerArtifact: '01a14e1d-1935-7a2b-9b89-c63429fec7c7', zipSha256: hash(fs.readFileSync(zip)), sourceFilesVerified: manifest.sourceFiles.length, nextestSha256: manifest.nextestBinarySha256, gitSha256: manifest.gitBinarySha256, publishedLinterPrerequisiteSha256: manifest.linterBinarySha256, downloadedBySignedGet: Boolean(url), secretUrlRetained: false, observedAt: new Date().toISOString() };
++fs.writeFileSync(join(evidence, 'preparation.json'), JSON.stringify(result, null, 2) + '\n');
++fs.appendFileSync(process.env.GITHUB_OUTPUT, 'cohort_nonce=' + cohortNonce + '\n');
++console.log(JSON.stringify(result));
++'''
++
++[tasks.execute-selected]
++dir = "{{config_root}}/../../.."
++shell = "node --input-type=module-typescript -e"
++run = '''
++const fs = await import('node:fs');
++const os = await import('node:os');
++const { join } = await import('node:path');
++const { createHash } = await import('node:crypto');
++const { spawnSync, execFileSync } = await import('node:child_process');
++class PhysicalExecutionFailure extends Error {}
++const base = join(process.cwd(), '.depot/research/test-identity-adapter');
++const label = process.env.PROBE_REPORT_LABEL;
++if (!/^(?:seed-[123]|shard-[01])$/u.test(label ?? '')) throw new PhysicalExecutionFailure('Unexpected physical report label');
++const selected = fs.readFileSync(0, 'utf8').trim().split('\n').filter(Boolean);
++const candidates = fs.readFileSync(join(base, 'candidates.txt'), 'utf8').trim().split('\n');
++if (!selected.length || new Set(selected).size !== selected.length || !selected.every(value => candidates.includes(value) && /^[A-Za-z_0-9:]+$/u.test(value))) throw new PhysicalExecutionFailure('Selected physical candidate identities are empty, duplicate, or outside the frozen cohort');
++const scratch = join(os.homedir(), 'temp/agent');
++fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
++fs.chmodSync(scratch, 0o700);
++const owned = fs.mkdtempSync(join(scratch, 'depot-physical-tests-'));
++const temporary = join(owned, 'tmpfs');
++const extraction = join(owned, 'archive');
++fs.mkdirSync(temporary);
++fs.mkdirSync(extraction);
++const evidence = join(base, 'evidence');
++const config = join(owned, 'nextest.toml');
++fs.writeFileSync(config, '[store]\ndir = ' + JSON.stringify(join(evidence, 'nextest')) + '\n[profile.default.junit]\npath = ' + JSON.stringify(label + '.xml') + '\nreport-skipped = "none"\nstore-failure-output = true\n');
++const mounted = spawnSync('sudo', ['--non-interactive', 'mount', '--types', 'tmpfs', '--options', 'size=256m,mode=1777,nodev,nosuid', 'tmpfs', temporary], { encoding: 'utf8', timeout: 30000 });
++if (mounted.status !== 0) throw new PhysicalExecutionFailure('Owned diagnostic tmpfs mount failed: ' + mounted.stderr);
++let result;
++let cleaned;
++const startedAt = new Date().toISOString();
++try {
++  if (String(fs.statfsSync(temporary, { bigint: true }).type) !== '16914836') throw new PhysicalExecutionFailure('Owned test directory is not the admitted tmpfs filesystem');
++  const args = ['nextest', 'run', '--archive-file', join(base, 'input/diagnostic-native-nextest.tar.zst'), '--workspace-remap', join(process.cwd(), 'package/git-policy/cli'), '--extract-to', extraction, '--config-file', config, '--no-fail-fast', '--filterset', selected.map(value => 'test(=' + value + ')').join(' | ')];
++  result = spawnSync(join(base, 'tools/cargo-nextest'), args, { cwd: join(process.cwd(), 'package/git-policy/cli'), env: { ...process.env, TMPDIR: temporary, PATH: join(base, 'tools') + ':/opt/depot-reuse-20261018-r1/git-2.56.0/bin:' + process.env.PATH, GIT_EXEC_PATH: '/opt/depot-reuse-20261018-r1/git-2.56.0/libexec/git-core' }, encoding: 'utf8', timeout: 90000, maxBuffer: 8388608 });
++  fs.writeFileSync(join(evidence, label + '.nextest.log'), (result.stdout ?? '') + (result.stderr ?? ''));
++} finally {
++  cleaned = spawnSync('sudo', ['--non-interactive', 'umount', temporary], { encoding: 'utf8', timeout: 30000 });
++}
++const xmlPath = join(evidence, 'nextest/default', label + '.xml');
++const xml = fs.readFileSync(xmlPath, 'utf8');
++const cases = [...xml.matchAll(/<testcase\b([^>]*)>/gu)].map(value => /\bname="([A-Za-z_0-9:]+)"/u.exec(value[1])?.[1]);
++const sorted = [...cases].sort();
++const expected = [...selected].sort();
++const record = { label, startedAt, finishedAt: new Date().toISOString(), status: result?.status ?? null, signal: result?.signal ?? null, selected, actualCases: cases, actualCasesExactlyMatchSelection: JSON.stringify(sorted) === JSON.stringify(expected), failureElements: [...xml.matchAll(/<failure\b/gu)].length, skippedElements: [...xml.matchAll(/<skipped\b/gu)].length, junitSha256: createHash('sha256').update(xml).digest('hex'), junitBytes: Buffer.byteLength(xml), diagnosticFilesystem: 'owned tmpfs,256MiB', cleanup: { unmountStatus: cleaned.status, tmpfsGone: String(fs.statfsSync(temporary, { bigint: true }).type) !== '16914836' }, nextestDefaultConcurrencyPreserved: true, productionSourceRepairClaimed: false };
++fs.writeFileSync(join(evidence, label + '.execution.json'), JSON.stringify(record, null, 2) + '\n');
++const selectionPath = join(evidence, label + '.selected.json');
++const derivedPath = join(evidence, label + '.derived.xml');
++const mappingPath = join(evidence, label + '.mapping.json');
++fs.writeFileSync(selectionPath, JSON.stringify(selected) + '\n');
++const mapped = spawnSync('mise', ['run', '//.depot/research/test-identity-adapter:map-report'], {
++  cwd: base, env: { ...process.env, ADAPTER_RAW_PATH: xmlPath, ADAPTER_SELECTION_PATH: selectionPath,
++    ADAPTER_DERIVED_PATH: derivedPath, ADAPTER_MAPPING_PATH: mappingPath },
++  encoding: 'utf8', timeout: 30000, maxBuffer: 1048576 });
++fs.writeFileSync(join(evidence, label + '.adapter.log'), (mapped.stdout ?? '') + (mapped.stderr ?? ''));
++if (mapped.status !== 0) throw new PhysicalExecutionFailure('Research identity adapter rejected the raw report; raw XML retained');
++const adapter = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
++if (adapter.rawSha256 !== record.junitSha256 || adapter.mappings.length !== selected.length
++  || !adapter.originalSuiteAndTestNamesPreserved || !adapter.onlyClassnameAttributeValuesChanged
++  || adapter.mappings.some(value => value.testName !== value.derivedClassname
++    || value.originalClassname !== 'monochromatic-git-policy-cli')) {
++  throw new PhysicalExecutionFailure('Research raw-to-derived identity assertion failed');
++}
++fs.writeFileSync(join(evidence, label + '.execution.json'), JSON.stringify({ ...record, adapter }, null, 2) + '\n');
++console.log(JSON.stringify({ ...record, adapter }));
++if (record.status !== 0 || !record.actualCasesExactlyMatchSelection || record.failureElements || record.skippedElements || record.cleanup.unmountStatus !== 0 || !record.cleanup.tmpfsGone) throw new PhysicalExecutionFailure('Physical Nextest selection, assertion, or cleanup failed; original log/XML retained');
++'''
++
++[tasks.run-cohort]
++dir = "{{config_root}}/../../.."
++shell = "node --input-type=module-typescript -e"
++run = '''
++const fs = await import('node:fs');
++const { join } = await import('node:path');
++const { spawnSync, execFileSync } = await import('node:child_process');
++class PhysicalReportFailure extends Error {}
++const base = join(process.cwd(), '.depot/research/test-identity-adapter');
++const preparation = JSON.parse(fs.readFileSync(join(base, 'evidence/preparation.json'), 'utf8'));
++const phase = process.env.PROBE_PHASE;
++const index = process.env.PROBE_SHARD_INDEX;
++if (phase !== 'seed' && (phase !== 'shard' || !['0', '1'].includes(index))) throw new PhysicalReportFailure('Unexpected physical seed/shard phase');
++const splitKey = 'research-identity-adapter-locks-e02be6c8-20261018';
++const cliVersion = execFileSync('depot', ['--version'], { encoding: 'utf8' }).trim();
++if (!/2\.102\.23/u.test(cliVersion)) throw new PhysicalReportFailure('Actual report CLI differs from the audited release: ' + cliVersion);
++const runs = [];
++for (const repeat of phase === 'seed' ? [1, 2, 3] : [1]) {
++  const label = phase === 'seed' ? 'seed-' + repeat : 'shard-' + index;
++  const args = ['tests', 'run', '--candidate-type', 'classname', '--timings-type', 'testname', '--candidates-file', join(base, 'candidates.txt'), '--index', phase === 'seed' ? '0' : index, '--total', phase === 'seed' ? '1' : '2', '--split-key', splitKey, '--command', 'mise run //.depot/research/test-identity-adapter:execute-selected', '--report-path', join(base, 'evidence', label + '.derived.xml'), '--report-key', splitKey + ':' + label];
++  const result = spawnSync('depot', args, { cwd: base, env: { ...process.env, PROBE_REPORT_LABEL: label }, encoding: 'utf8', timeout: 180000, maxBuffer: 8388608 });
++  const log = (result.stdout ?? '') + (result.stderr ?? '');
++  fs.writeFileSync(join(base, 'evidence', label + '.depot-tests.log'), log);
++  const upload = /Depot uploaded (\d+) test report file\(s\), processed (\d+) file\(s\), reported (\d+) test\(s\), and skipped (\d+) file\(s\)/u.exec(log);
++  const execution = fs.existsSync(join(base, 'evidence', label + '.execution.json')) ? JSON.parse(fs.readFileSync(join(base, 'evidence', label + '.execution.json'), 'utf8')) : null;
++  runs.push({ label, status: result.status, signal: result.signal, timedCandidates: /Depot found timings for (\d+) candidate/u.exec(log)?.[1] ?? null, upload: upload ? { filesUploaded: Number(upload[1]), filesProcessed: Number(upload[2]), testsReported: Number(upload[3]), filesSkipped: Number(upload[4]) } : null, execution });
++  if (result.status !== 0) break;
++}
++const record = { schemaVersion: 1, phase, shardIndex: phase === 'seed' ? null : Number(index), splitKey, preparation, cliVersion, runs, passed: runs.length === (phase === 'seed' ? 3 : 1) && runs.every(value => value.status === 0 && value.upload?.filesUploaded === 1 && value.upload.filesProcessed === 1 && value.upload.filesSkipped === 0 && value.upload.testsReported === value.execution?.actualCases.length), observedAt: new Date().toISOString() };
++fs.writeFileSync(join(base, 'evidence/cohort.json'), JSON.stringify(record, null, 2) + '\n');
++console.log(JSON.stringify(record));
++if (!record.passed) throw new PhysicalReportFailure('Actual physical test execution or Depot JUnit report upload failed; retained receipt distinguishes them');
++'''
++
++[tasks.consume]
++dir = "{{config_root}}/../../.."
++shell = "node --input-type=module-typescript -e"
++run = '''
++const fs = await import('node:fs');
++const { join } = await import('node:path');
++const { createHash } = await import('node:crypto');
++const { execFileSync } = await import('node:child_process');
++class PhysicalConsumerFailure extends Error {}
++const base = join(process.cwd(), '.depot/research/test-identity-adapter');
++const received = join(base, 'received');
++const files = [...fs.globSync('**/cohort.json', { cwd: received })];
++const harness = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
++const expectedNonce = process.env.PROBE_COHORT_NONCE;
++if (!expectedNonce || files.length !== 3) throw new PhysicalConsumerFailure('Current seed nonce or exact producer cohort artifacts are missing');
++const producers = files.map(path => {
++  const bytes = fs.readFileSync(join(received, path));
++  const value = JSON.parse(bytes);
++  if (!value.passed || value.preparation.harness !== harness || value.preparation.applicationBase !== 'e02be6c8b8fe9efb41a7f8f1a0b311c17796588a' || value.preparation.cohortNonce !== expectedNonce || !value.runs.every(run => run.status === 0 && run.execution.actualCasesExactlyMatchSelection && run.execution.cleanup.tmpfsGone && run.execution.adapter?.rawSha256 === run.execution.junitSha256 && run.execution.adapter.mappings.length === run.execution.actualCases.length && run.execution.adapter.mappings.every(mapping => mapping.derivedClassname === mapping.testName && run.execution.actualCases.includes(mapping.testName)))) throw new PhysicalConsumerFailure('Physical producer/source/current-cohort assertion mismatch');
++  return { path, sha256: createHash('sha256').update(bytes).digest('hex'), value };
++});
++const seed = producers.find(value => value.value.phase === 'seed');
++const shards = producers.filter(value => value.value.phase === 'shard').sort((a, b) => a.value.shardIndex - b.value.shardIndex);
++if (!seed || shards.length !== 2 || shards[0].value.shardIndex !== 0 || shards[1].value.shardIndex !== 1 || new Set(producers.map(value => value.value.preparation.vmNonce)).size !== 3) throw new PhysicalConsumerFailure('Distinct declared seed/shard producers are missing');
++const candidates = fs.readFileSync(join(base, 'candidates.txt'), 'utf8').trim().split('\n').sort();
++const union = shards.flatMap(value => value.value.runs[0].execution.actualCases);
++if (union.length !== 34 || new Set(union).size !== 34 || JSON.stringify([...union].sort()) !== JSON.stringify(candidates)) throw new PhysicalConsumerFailure('Physical shard cases do not form the exact disjoint frozen union');
++const result = { passed: true, harness, cohortNonce: expectedNonce, applicationBase: 'e02be6c8b8fe9efb41a7f8f1a0b311c17796588a', candidateCount: candidates.length, shardCaseCounts: shards.map(value => value.value.runs[0].execution.actualCases.length), distinctProducerVmNonces: true, physicalSandboxIdentityRequiresApiJoin: true, exactDisjointUnion: true, productionSourceRepairClaimed: false, producers };
++fs.mkdirSync(join(base, 'evidence'), { recursive: true });
++fs.writeFileSync(join(base, 'evidence/consumer.json'), JSON.stringify(result, null, 2) + '\n');
++console.log(JSON.stringify({ passed: true, candidateCount: candidates.length, shardCaseCounts: result.shardCaseCounts, exactDisjointUnion: true, physicalSandboxIdentityRequiresApiJoin: true }));
++'''
++
++[tasks.history-lookup]
++shell = "node --input-type=module-typescript -e"
++run = '''
++const fs = await import('node:fs');
++const { spawnSync, execFileSync } = await import('node:child_process');
++const names = fs.readFileSync('candidates.txt', 'utf8').trim().split('\n');
++if (names.length !== 34 || new Set(names).size !== 34) throw new Error('Frozen history candidate scope differs');
++const key = 'research-identity-adapter-locks-e02be6c8-20261018';
++const cases = [
++  { label: 'original-per-test-index0', names, timing: 'testname', key, index: 0 },
++  { label: 'original-per-test-index1', names, timing: 'testname', key, index: 1 },
++  { label: 'per-test-class-timing', names, timing: 'classname', key, index: 0 },
++  { label: 'actual-class-test-timing', names: ['monochromatic-git-policy-cli'], timing: 'testname', key: key + ':actual-class', index: 0 },
++  { label: 'actual-class-class-timing', names: ['monochromatic-git-policy-cli'], timing: 'classname', key: key + ':actual-class', index: 0 },
++  { label: 'per-test-report-key', names, timing: 'testname', key: key + ':seed-1', index: 0 },
++  { label: 'actual-class-report-key', names: ['monochromatic-git-policy-cli'], timing: 'testname', key: key + ':seed-2', index: 0 },
++  { label: 'absent-class-negative', names: ['mono_research_definitely_absent_class_20261018'], timing: 'testname', key: key + ':absent-control', index: 0 },
++];
++fs.mkdirSync('history-evidence', { recursive: true });
++const records = [];
++for (const value of cases) {
++  const args = ['tests', 'split', '--candidate-type', 'classname', '--timings-type', value.timing, '--index', String(value.index), '--total', '2', '--key', value.key, '--output', 'json'];
++  const result = spawnSync('depot', args, { input: value.names.join('\n') + '\n', encoding: 'utf8', timeout: 20000, maxBuffer: 1048576 });
++  const output = result.status === 0 ? JSON.parse(result.stdout) : null;
++  if (output && (output.candidates_requested !== value.names.length || output.candidates.some(name => !value.names.includes(name)))) throw new Error('History response has an unexpected candidate scope');
++  const record = { ...value, args, status: result.status, signal: result.signal, error: result.error ? { code: result.error.code, syscall: result.error.syscall } : null, stdout: result.stdout, stderr: result.stderr, output };
++  records.push(record);
++  console.log(JSON.stringify({ label: value.label, status: result.status, candidatesWithTimings: output?.candidates_with_timings ?? null, selected: output?.candidates_selected ?? null }));
++}
++const record = { probe: 'physical-history-identity', source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), cli: execFileSync('depot', ['version'], { encoding: 'utf8' }).trim(), repository: process.env.GITHUB_REPOSITORY, ref: process.env.GITHUB_REF, sha: process.env.GITHUB_SHA, records, uploadsPerformed: false, applicationTestsExecuted: false, at: new Date().toISOString() };
++fs.writeFileSync('history-evidence/identity.json', JSON.stringify(record, null, 2) + '\n');
++if (records.some(value => value.status !== 0)) throw new Error('At least one bounded history lookup failed; retain separate request diagnostics');
++'''
++
++[tasks.map-report]
++dir = "{{config_root}}/../../.."
++shell = "node --input-type=module-typescript -e"
++run = '''
++import { readFileSync, writeFileSync, statSync } from 'node:fs';
++import { join, resolve } from 'node:path';
++import { createHash } from 'node:crypto';
++class IdentityAdapterFailure extends Error {}
++
++function hash(value) {
++  return createHash('sha256').update(value).digest('hex');
++}
++
++function whitespace(value) {
++  return /^[\t\n\r ]*$/u.test(value);
++}
++
++function parseTag(tag) {
++  const close = /^<\/([A-Za-z][A-Za-z_0-9-]*)>$/u.exec(tag);
++  if (close) return { name: close[1], close: true, empty: false, attributes: new Map() };
++  const opening = /^<([A-Za-z][A-Za-z_0-9-]*)([^<>]*?)(\/?)>$/u.exec(tag);
++  if (!opening) throw new IdentityAdapterFailure('Unsupported XML tag syntax');
++  const attributes = new Map();
++  const attributeSource = opening[2];
++  const pattern = /[\t\n\r ]+([a-z][a-z_0-9-]*)="([A-Za-z_0-9:.+-]+)"/uy;
++  let offset = 0;
++  while (offset < attributeSource.length) {
++    if (whitespace(attributeSource.slice(offset))) break;
++    pattern.lastIndex = offset;
++    const match = pattern.exec(attributeSource);
++    if (!match || match.index !== offset || attributes.has(match[1])) {
++      throw new IdentityAdapterFailure('Malformed or duplicate XML attribute');
++    }
++    const start = 1 + opening[1].length + match.index + match[0].indexOf('"') + 1;
++    attributes.set(match[1], { value: match[2], start, end: start + match[2].length });
++    offset = pattern.lastIndex;
++  }
++  return { name: opening[1], close: false, empty: opening[3] === '/', attributes };
++}
++
++function value(attributes, name) {
++  const attribute = attributes.get(name);
++  if (!attribute) throw new IdentityAdapterFailure('Required XML attribute is missing: ' + name);
++  return attribute.value;
++}
++
++function ensureAllowed({ attributes, allowed }) {
++  for (const key of attributes.keys()) {
++    if (!allowed.includes(key)) throw new IdentityAdapterFailure('Unexpected XML attribute: ' + key);
++  }
++}
++
++function escapeAttribute(text) {
++  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
++  return text.replace(/[&<>"']/gu, character => entities[character]);
++}
++
++function mapReport({ raw, selected, universe }) {
++  if (!Array.isArray(selected) || selected.length < 1 || selected.length > 34
++    || new Set(selected).size !== selected.length
++    || selected.some(name => typeof name !== 'string' || !/^[A-Za-z_0-9:]+$/u.test(name)
++      || Buffer.byteLength(name) > 4096 || !universe.includes(name))) {
++    throw new IdentityAdapterFailure('Selection contains duplicate, unknown or unsupported runnable names');
++  }
++  if (!raw.length || raw.length > 1048576 || raw.some(byte => byte > 126 || (byte < 32 && ![9, 10, 13].includes(byte)))) {
++    throw new IdentityAdapterFailure('This adapter accepts only bounded ASCII Nextest reports');
++  }
++  const xml = raw.toString('utf8');
++  const declaration = '<?xml version="1.0" encoding="UTF-8"?>';
++  const tokens = [...xml.matchAll(/<[^<>]*>/gu)];
++  let stage = 'declaration';
++  let cursor = 0;
++  const parts = [];
++  const mappings = [];
++  const seen = new Set();
++  for (const token of tokens) {
++    if (!whitespace(xml.slice(cursor, token.index))) throw new IdentityAdapterFailure('Unsupported XML text or markup');
++    parts.push(xml.slice(cursor, token.index));
++    const tag = token[0];
++    let replacement = tag;
++    if (stage === 'declaration') {
++      if (tag !== declaration) throw new IdentityAdapterFailure('The exact UTF-8 XML declaration is required');
++      stage = 'document';
++    } else {
++      const parsed = parseTag(tag);
++      const attributes = parsed.attributes;
++      if (stage === 'document' && parsed.name === 'testsuites' && !parsed.close && !parsed.empty) {
++        ensureAllowed({ attributes, allowed: ['name', 'tests', 'skipped', 'failures', 'errors', 'uuid', 'timestamp', 'time'] });
++        if (value(attributes, 'name') !== 'nextest-run' || value(attributes, 'tests') !== String(selected.length)
++          || ['skipped', 'failures', 'errors'].some(name => value(attributes, name) !== '0')) {
++          throw new IdentityAdapterFailure('The root report scope or passing status differs');
++        }
++        stage = 'suite';
++      } else if (stage === 'suite' && parsed.name === 'testsuite' && !parsed.close && !parsed.empty) {
++        ensureAllowed({ attributes, allowed: ['name', 'tests', 'skipped', 'failures', 'errors'] });
++        if (value(attributes, 'name') !== 'monochromatic-git-policy-cli'
++          || value(attributes, 'tests') !== String(selected.length)
++          || ['skipped', 'failures', 'errors'].some(name => value(attributes, name) !== '0')) {
++          throw new IdentityAdapterFailure('The original Nextest binary suite or passing status differs');
++        }
++        stage = 'cases';
++      } else if (stage === 'cases' && parsed.name === 'testcase' && parsed.empty && !parsed.close) {
++        ensureAllowed({ attributes, allowed: ['name', 'classname', 'timestamp', 'time'] });
++        const name = value(attributes, 'name');
++        const originalClassname = value(attributes, 'classname');
++        const time = value(attributes, 'time');
++        if (!selected.includes(name) || seen.has(name) || originalClassname !== 'monochromatic-git-policy-cli'
++          || !/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/u.test(time) || !Number.isFinite(Number(time))) {
++          throw new IdentityAdapterFailure('Duplicate, unselected, cross-binary or invalid-duration testcase');
++        }
++        const attribute = attributes.get('classname');
++        replacement = tag.slice(0, attribute.start) + escapeAttribute(name) + tag.slice(attribute.end);
++        mappings.push({ originalSuite: 'monochromatic-git-policy-cli', originalClassname, testName: name,
++          derivedClassname: name, durationSecondsText: time });
++        seen.add(name);
++      } else if (stage === 'cases' && parsed.name === 'testsuite' && parsed.close) {
++        stage = 'suite-closed';
++      } else if (stage === 'suite-closed' && parsed.name === 'testsuites' && parsed.close) {
++        stage = 'closed';
++      } else {
++        throw new IdentityAdapterFailure('Unsupported XML structure or nonempty testcase');
++      }
++    }
++    parts.push(replacement);
++    cursor = token.index + tag.length;
++  }
++  if (stage !== 'closed' || !whitespace(xml.slice(cursor)) || seen.size !== selected.length) {
++    throw new IdentityAdapterFailure('The report is incomplete or does not cover the exact selection');
++  }
++  parts.push(xml.slice(cursor));
++  return { xml: parts.join(''), mappings };
++}
++
++const base = join(process.cwd(), '.depot/research/test-identity-adapter');
++const paths = ['ADAPTER_RAW_PATH', 'ADAPTER_SELECTION_PATH', 'ADAPTER_DERIVED_PATH', 'ADAPTER_MAPPING_PATH']
++  .map(name => process.env[name]);
++if (paths.some(path => !path) || new Set(paths.map(path => resolve(path))).size !== paths.length) {
++  throw new IdentityAdapterFailure('Distinct explicit raw, selection, derived and mapping paths are required');
++}
++const [rawPath, selectionPath, derivedPath, mappingPath] = paths;
++if (statSync(rawPath).size > 1048576 || statSync(selectionPath).size > 1048576) {
++  throw new IdentityAdapterFailure('A source file exceeds the admitted parser bound');
++}
++const raw = readFileSync(rawPath);
++const selected = JSON.parse(readFileSync(selectionPath, 'utf8'));
++const universe = readFileSync(join(base, 'candidates.txt'), 'utf8').trim().split('\n');
++const mapped = mapReport({ raw, selected, universe });
++const derived = Buffer.from(mapped.xml);
++const receipt = { schemaVersion: 1, researchOnly: true, adapter: 'nextest-exact-testname-as-classname-v1',
++  rawSha256: hash(raw), rawBytes: raw.length, derivedSha256: hash(derived), derivedBytes: derived.length,
++  selected, mappings: mapped.mappings, originalSuiteAndTestNamesPreserved: true,
++  onlyClassnameAttributeValuesChanged: true, arbitraryJunitCompatibilityClaimed: false };
++writeFileSync(derivedPath, derived, { flag: 'wx', mode: 0o600 });
++writeFileSync(mappingPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
++if (!readFileSync(rawPath).equals(raw)) throw new IdentityAdapterFailure('Raw report changed while mapping');
++console.log(JSON.stringify({ passed: true, researchOnly: true, rawSha256: receipt.rawSha256,
++  derivedSha256: receipt.derivedSha256, mappedCases: receipt.mappings.length }));
++'''
++
++[tasks.verify-report-mapping]
++dir = "{{config_root}}"
++shell = "node --input-type=module-typescript -e"
++run = '''
++import { readFileSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
++import { join } from 'node:path';
++import { spawnSync, execFileSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { strict as assert } from 'node:assert';
++const input = process.env.ADAPTER_CONTROL_INPUT_DIRECTORY;
++if (!input) throw new Error('An explicit owned control-input directory is required');
++const raw = readFileSync(join(input, 'seed.xml'), 'utf8');
++const selected = [...raw.matchAll(/<testcase\b[^<>]*\bname="([A-Za-z_0-9:]+)"/gu)].map(value => value[1]);
++assert.equal(selected.length, 34);
++const firstTag = /<testcase\b[^<>]*\/>/u.exec(raw)[0];
++const first = selected[0];
++const second = selected[1];
++const hash = value => createHash('sha256').update(value).digest('hex');
++const scenarios = [
++  { name: 'original-seed', raw, selected, status: 0 },
++  ...[0, 1].map(index => {
++    const xml = readFileSync(join(input, 'shard-' + index + '.xml'), 'utf8');
++    return { name: 'original-shard-' + index, raw: xml,
++      selected: [...xml.matchAll(/<testcase\b[^<>]*\bname="([A-Za-z_0-9:]+)"/gu)].map(value => value[1]), status: 0 };
++  }),
++  { name: 'attribute-order', raw: raw.replace(firstTag, firstTag.replace(
++    'name="' + first + '" classname="monochromatic-git-policy-cli"',
++    'classname="monochromatic-git-policy-cli" name="' + first + '"')), selected, status: 0 },
++  { name: 'duplicate-selection', raw, selected: [...selected.slice(1), second], status: 1 },
++  { name: 'unknown-selection', raw, selected: ['research_absent_case_20261018', ...selected.slice(1)], status: 1 },
++  { name: 'selection-quote-boundary', raw, selected: ['x" injected="y', ...selected.slice(1)], status: 1 },
++  { name: 'selection-newline-boundary', raw, selected: ['x\ny', ...selected.slice(1)], status: 1 },
++  ...[
++    ['selection-delimiter-boundary', 'x<y>'],
++    ['selection-escape-boundary', 'x' + String.fromCharCode(92) + 'y'],
++    ['selection-traversal-boundary', '../../unowned'],
++    ['selection-command-boundary', 'x;unowned'],
++    ['selection-source-escape-boundary', String.fromCharCode(92) + 'u003c'],
++    ['selection-entity-boundary', 'x&amp;y'],
++  ].map(([name, invalid]) => ({ name, raw, selected: [invalid, ...selected.slice(1)], status: 1 })),
++  { name: 'duplicate-case', raw: raw.replace('name="' + first + '"', 'name="' + second + '"'), selected, status: 1 },
++  { name: 'unknown-report-case', raw: raw.replace('name="' + first + '"', 'name="research_absent_case_20261018"'), selected, status: 1 },
++  { name: 'cross-binary-class', raw: raw.replace('classname="monochromatic-git-policy-cli"', 'classname="other-binary"'), selected, status: 1 },
++  { name: 'duplicate-attribute', raw: raw.replace('classname="monochromatic-git-policy-cli"',
++    'classname="monochromatic-git-policy-cli" classname="monochromatic-git-policy-cli"'), selected, status: 1 },
++  { name: 'attribute-injection', raw: raw.replace('classname="monochromatic-git-policy-cli"',
++    'classname="monochromatic-git-policy-cli" injected="value"'), selected, status: 1 },
++  { name: 'negative-duration', raw: raw.replace(/(<testcase\b[^<>]* time=")[^"]+/u,
++    (all, prefix) => prefix + '-1'), selected, status: 1 },
++  { name: 'nonfinite-duration', raw: raw.replace(/(<testcase\b[^<>]* time=")[^"]+/u,
++    (all, prefix) => prefix + '9'.repeat(400)), selected, status: 1 },
++  { name: 'nested-failure', raw: raw.replace(firstTag, firstTag.slice(0, -2)
++    + '><failure message="invented">unowned</failure></testcase>'), selected, status: 1 },
++  { name: 'missing-case', raw: raw.replace(firstTag, ''), selected, status: 1 },
++  { name: 'entity-declaration', raw: raw.replace('<testsuites ', '<!DOCTYPE testsuites [<!ENTITY probe "x">]><testsuites '), selected, status: 1 },
++  { name: 'extra-root-markup', raw: raw + '<unowned/>', selected, status: 1 },
++  { name: 'unexpected-text', raw: raw.replace('</testsuite>', 'unowned-text</testsuite>'), selected, status: 1 },
++  { name: 'non-ascii', raw: raw.replace('nextest-run', 'nextest-rún'), selected, status: 1 },
++  { name: 'oversized', raw: ' '.repeat(1048577), selected, status: 1 },
++];
++const only = process.env.ADAPTER_MUTANT_ONLY;
++const chosen = only ? scenarios.filter(value => value.name === only) : scenarios;
++assert(chosen.length);
++const output = mkdtempSync(join(input, 'mapping-control-'));
++const rows = [];
++for (const scenario of chosen) {
++  const base = join(output, scenario.name);
++  const rawPath = base + '.raw.xml';
++  const selectionPath = base + '.selection.json';
++  const derivedPath = base + '.derived.xml';
++  const mappingPath = base + '.mapping.json';
++  writeFileSync(rawPath, scenario.raw);
++  writeFileSync(selectionPath, JSON.stringify(scenario.selected));
++  const result = spawnSync('mise', ['run', '//.depot/research/test-identity-adapter:map-report'], {
++    cwd: process.cwd(), env: { ...process.env, ADAPTER_RAW_PATH: rawPath, ADAPTER_SELECTION_PATH: selectionPath,
++      ADAPTER_DERIVED_PATH: derivedPath, ADAPTER_MAPPING_PATH: mappingPath },
++    encoding: 'utf8', timeout: 30000, maxBuffer: 1048576,
++  });
++  const row = { name: scenario.name, expectedStatus: scenario.status, status: result.status,
++    rawSha256: hash(scenario.raw), stdoutSha256: hash(result.stdout ?? ''), stderrSha256: hash(result.stderr ?? '') };
++  rows.push(row);
++  writeFileSync(join(output, 'controls.json'), JSON.stringify(rows, null, 2) + '\n');
++  assert.equal(result.status, scenario.status, scenario.name + ': ' + result.stderr);
++  assert.equal(readFileSync(rawPath, 'utf8'), scenario.raw);
++  if (scenario.status === 0) {
++    const expected = scenario.raw.replace(/<testcase\b[^<>]*\/>/gu, tag => {
++      const name = /\bname="([A-Za-z_0-9:]+)"/u.exec(tag)[1];
++      return tag.replace(/classname="[^"]*"/u, 'classname="' + name + '"');
++    });
++    assert.notEqual(expected, scenario.raw);
++    const derived = readFileSync(derivedPath, 'utf8');
++    assert.equal(derived, expected);
++    const mapping = JSON.parse(readFileSync(mappingPath, 'utf8'));
++    assert.equal(mapping.rawSha256, hash(scenario.raw));
++    assert.equal(mapping.derivedSha256, hash(derived));
++    assert.deepEqual(mapping.mappings.map(value => value.derivedClassname).sort(), [...scenario.selected].sort());
++  } else {
++    assert.equal(existsSync(derivedPath), false);
++    assert.equal(existsSync(mappingPath), false);
++  }
++}
++const record = { passed: true, source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
++  scenarios: rows.length, positiveControls: rows.filter(value => value.status === 0).length,
++  rejectedControls: rows.filter(value => value.status === 1).length, output, rows };
++writeFileSync(join(output, 'result.json'), JSON.stringify(record, null, 2) + '\n');
++console.log(JSON.stringify(record));
++'''
+diff --git a/.depot/workflows/test-identity-adapter.yml b/.depot/workflows/test-identity-adapter.yml
+new file mode 100644
+index 0000000000..6b96bdc020
+--- /dev/null
++++ b/.depot/workflows/test-identity-adapter.yml
+@@ -0,0 +1,118 @@
++name: research derived Nextest identities and physical shards
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++env:
++  MISE_AUTO_INSTALL: 'false'
++  MISE_LOCKED: '1'
++jobs:
++  seed:
++    runs-on: depot-ubuntu-24.04
++    timeout-minutes: 8
++    outputs:
++      cohort_nonce: ${{ steps.prepared.outputs.cohort_nonce }}
++    steps:
++    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
++      with:
++        persist-credentials: false
++    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
++      with:
++        # Keep the previously exercised bootstrap independent of application source.
++        version: 2026.10.9
++        install: false
++        cache: false
++    - run: mise install node github:depot/cli
++      working-directory: .depot/research/test-identity-adapter
++    - id: prepared
++      run: mise run //.depot/research/test-identity-adapter:prepare
++      working-directory: .depot/research/test-identity-adapter
++      env:
++        MONO_RESEARCH_IDENTITY_ADAPTER_URL_20261018: ${{ secrets.MONO_RESEARCH_IDENTITY_ADAPTER_URL_20261018 }}
++    - run: mise run //.depot/research/test-identity-adapter:run-cohort
++      working-directory: .depot/research/test-identity-adapter
++      env:
++        PROBE_PHASE: seed
++    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++      with:
++        name: research-test-identity-adapter-input
++        path: .depot/research/test-identity-adapter/transfer/diagnostic.zip
++        retention-days: 1
++        if-no-files-found: error
++    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++      if: always()
++      with:
++        name: research-test-identity-adapter-evidence-seed
++        path: .depot/research/test-identity-adapter/evidence/
++        retention-days: 7
++        if-no-files-found: error
++  physical:
++    needs: seed
++    runs-on: depot-ubuntu-24.04
++    timeout-minutes: 8
++    strategy:
++      max-parallel: 1
++      matrix:
++        index: [0, 1]
++    env:
++      PROBE_COHORT_NONCE: ${{ needs.seed.outputs.cohort_nonce }}
++    steps:
++    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
++      with:
++        persist-credentials: false
++    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
++      with:
++        # Match the seed bootstrap so only selection and physical allocation change.
++        version: 2026.10.9
++        install: false
++        cache: false
++    - run: mise install node github:depot/cli
++      working-directory: .depot/research/test-identity-adapter
++    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
++      with:
++        name: research-test-identity-adapter-input
++        path: .depot/research/test-identity-adapter/transfer/
++    - run: mise run //.depot/research/test-identity-adapter:prepare
++      working-directory: .depot/research/test-identity-adapter
++    - run: mise run //.depot/research/test-identity-adapter:run-cohort
++      working-directory: .depot/research/test-identity-adapter
++      env:
++        PROBE_PHASE: shard
++        PROBE_SHARD_INDEX: ${{ matrix.index }}
++    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++      if: always()
++      with:
++        name: research-test-identity-adapter-evidence-shard-${{ matrix.index }}
++        path: .depot/research/test-identity-adapter/evidence/
++        retention-days: 7
++        if-no-files-found: error
++  consumer:
++    needs: [seed, physical]
++    runs-on: depot-ubuntu-24.04
++    timeout-minutes: 5
++    steps:
++    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
++      with:
++        persist-credentials: false
++    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
++      with:
++        # Match producer bootstrap while verifying artifacts in another job.
++        version: 2026.10.9
++        install: false
++        cache: false
++    - run: mise install node
++    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
++      with:
++        pattern: research-test-identity-adapter-evidence-*
++        path: .depot/research/test-identity-adapter/received/
++    - run: mise run //.depot/research/test-identity-adapter:consume
++      working-directory: .depot/research/test-identity-adapter
++      env:
++        PROBE_COHORT_NONCE: ${{ needs.seed.outputs.cohort_nonce }}
++    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++      if: always()
++      with:
++        name: research-test-identity-adapter-consumer
++        path: .depot/research/test-identity-adapter/evidence/
++        retention-days: 7
++        if-no-files-found: error

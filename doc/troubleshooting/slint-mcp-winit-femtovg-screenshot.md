@@ -154,7 +154,7 @@ Version evidence:
   with a 1280 by 800 private Wayland output.
 
 The retained harness starts the isolated compositor through
-`mise run //package/cli/nested-wayland-session:run`,
+`mise run //package/nested-wayland-session/cli:run`,
 uses its socket `screenshot` request for the actual GPU framebuffer,
 and drives the app's local MCP endpoint through raw JSON-RPC.
 The debug music-player binary had first been built by

@@ -1,20 +1,17 @@
 import { readFileSync, } from 'node:fs';
 import { resolve, } from 'node:path';
 
-import spawn from 'nano-spawn';
-
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   createTempFixtureFile,
   fixtureConfigPath,
   fixtureSourceRoot,
   type OxlintRuleDiagnostic as OxlintDiagnostic,
-  OXLINT_PLUGIN_TEST_ROOT as ROOT,
   resolveFixtureTarget,
   runOxlintFixture,
   uniqueRuleCodes as uniqueRules,
@@ -59,29 +56,6 @@ async function lint(fixturePath: string,): Promise<readonly OxlintDiagnostic[]> 
     fixtureConfig: FIXTURE_CONFIG,
     target,
   },);
-}
-
-/**
- Runs oxlint --fix once against a fixture file.
- 
- @param filePath - absolute path to fixture copy to mutate
- 
- @example
- ```ts
- await runOxlintFix(filePath);
- ```
- */
-async function runOxlintFix(filePath: string,): Promise<void> {
-  await spawn(
-    'oxlint',
-    [
-      '--fix',
-      '--config',
-      FIXTURE_CONFIG,
-      filePath,
-    ],
-    { cwd: ROOT, },
-  );
 }
 
 /**
@@ -149,9 +123,9 @@ await describe({
             // Every diagnostic should be require-tsdoc since file has no TSDoc at all
             const requireTsdocCount = diagnostics
               .filter(
-                function isRequireTsdoc(d,): boolean {
-                  return d.code === 'tsdoc(require-tsdoc)';
-                },
+              function isRequireTsdoc(d,): boolean {
+                return d.code === 'tsdoc(require-tsdoc)';
+              },
               )
               .length;
             // function, arrow, class, type, interface, enum, const = at least 7
@@ -223,7 +197,13 @@ await describe({
               tempPrefix: 'oxlint-tsdoc-autofix-',
             },);
 
-            await runOxlintFix(fixableCopy.filePath,);
+            await runOxlintFixture({
+              codePrefix: 'tsdoc(',
+              configFlag: '--config',
+              fixtureConfig: FIXTURE_CONFIG,
+              target: fixableCopy.filePath,
+              fix: 'fixes',
+            },);
 
             const fixedContent = readFileSync(fixableCopy.filePath, 'utf8',);
             expect(fixedContent,).toContain('/**\n Description only.\n */',);

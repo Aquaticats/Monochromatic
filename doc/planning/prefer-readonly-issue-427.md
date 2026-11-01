@@ -14,7 +14,8 @@ Warm schema 4 output is incomplete and cannot supply an acceptance fingerprint.
 
 ### Foreign collection observers lack ownership edges
 
-Effect analysis records default-library observer relations as `ElementApplication` values and propagates observer effects.
+Effect analysis records default-library observer relations as `ElementApplication` values
+and propagates observer effects.
 The foreign-ownership graph has no corresponding receiver-element relation.
 Its direct summary scans ordinary owned calls,
 and its seed starts with no element applications.
@@ -64,7 +65,8 @@ The guidance layer cannot distinguish a writable declaration the workspace can e
 
 TypeScript resolves the reduce accumulator's inferred property symbols to property assignments in the seed literal.
 `originOwner` replaces those actionable declarations with their enclosing function.
-The resulting advice tells the reader to change a callable return type even though the callable does not return the value.
+The resulting advice tells the reader to change a callable return type even though the callable does not return the
+value.
 
 The same defect reproduces for:
 
@@ -75,18 +77,21 @@ The same defect reproduces for:
 - local conditional-union literals.
 
 A genuine function-return producer remains correctly attributed.
-Distinct local expressions inside one function can also collapse into false uniqueness when lexical callable identity is used for deduplication.
+Distinct local expressions inside one function can also collapse into false uniqueness
+when lexical callable identity is used for deduplication.
 
 Origin evidence needs separate producer kinds:
 
 - a proved callable or named-type producer;
 - an exact local expression or binding producer.
 
-Full source offsets must remain part of identity so separate local expressions do not collapse because they display on one line or share one lexical owner.
+Full source offsets must remain part of identity so separate local expressions do not collapse because they display on
+one line or share one lexical owner.
 
 ### Schema 4 forgets deliberate summary omissions
 
-A fresh scan catches the TypeScript 7.0.2 tuple serializer panic and records each omitted callable key in process memory.
+A fresh scan catches the TypeScript 7.0.2 tuple serializer panic
+and records each omitted callable key in process memory.
 The completeness assertion accepts those explicit omissions.
 Persistent cache hits restore summaries and dependency closure,
 but not omitted callable identities.
@@ -112,7 +117,8 @@ but their semantic-failure counts were 73 and 71 with different category splits.
 The controlled matrix proves cold-to-warm coverage loss,
 one-worker versus default-worker diagnostic divergence,
 and default-worker warning-count instability.
-It does not identify a cache-write race or prove that scheduling alone caused earlier non-isolated diagnostic-count variation.
+It does not identify a cache-write race or prove that scheduling alone caused earlier non-isolated diagnostic-count
+variation.
 The one-worker differential is sufficient to prove persistent omission loss.
 
 Raw logger warnings are not Oxlint diagnostics.
@@ -166,7 +172,7 @@ Of the 185 findings,
 
 The 25 bodyless-callable mentions come from three declarations:
 
-- 21 reach the injected `SyntheticClient.chatJson` interface method;
+- 21 reach the injected `SyntheticClient.chatJson` (renamed `ModelClient.chatJson` on 2026-10-19) interface method;
 - 3 reach the local `scorecard.ts` callback parameter;
 - 1 reaches a test helper's union-valued callback.
 
@@ -247,7 +253,8 @@ Pros:
 requires no schema field.
 
 Cons:
-cannot distinguish a deliberate omission from corrupt or incomplete cache data and would weaken the completeness assertion.
+cannot distinguish a deliberate omission from corrupt or incomplete cache data
+and would weaken the completeness assertion.
 
 Ranking:
 persist validated omissions > refuse incomplete-source caching > infer from missing edges.
@@ -375,7 +382,8 @@ re-exports,
 declaration merging,
 mixed workspace and external writable paths,
 and incomplete or multiple resolution.
-- Offer exact `ReadonlyDeep` syntax only when `type-fest` resolves and the replacement type-checks at the user-owned annotation boundary.
+- Offer exact `ReadonlyDeep` syntax only when `type-fest` resolves
+and the replacement type-checks at the user-owned annotation boundary.
 - Keep a workspace-created value with an externally declared type under ordinary preference enforcement.
 - Keep incomplete and multi-origin guidance non-prescriptive.
 
@@ -396,5 +404,6 @@ and conditional unions.
 `toJSON`,
 proxy,
 and replacer controls opaque.
-- Accept primitive-only serialization inputs and a separately proved isolated graph only when no caller-owned identity or capability crosses the call.
+- Accept primitive-only serialization inputs and a separately proved isolated graph only when no caller-owned identity
+or capability crosses the call.
 - Do not treat a fresh outer object or static plain-data shape as isolation proof.

@@ -1,0 +1,742 @@
+// Root window of the desktop player. Composes the finished components (cover and unfolded layouts, track list,
+// folder picker, transport deck, search, first run, feedback, track menu) and exposes the
+// engine-facing properties and callbacks that the Rust side binds. Width below 600 px uses the folded cover
+// layout; 600 px and wider uses the unfolded two-pane layout (D44, D47 to D77, D83 to D105).
+// Inter Variable (SIL OFL 1.1, see LICENSES/OFL-1.1.txt) is bundled so the text looks the same on every machine;
+// importing the file registers its family for `default-font-family` below.
+import "fonts/InterVariable.ttf";
+import { Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { TransportDeck } from "deck.slint";
+import { FolderPickerPane, FolderRailCell, FolderName } from "folders.slint";
+import { CoverTopRow, UnfoldedFoldersHeader, UnfoldedTrackHeader, HeaderActions } from "bars.slint";
+import { Focus } from "focus.slint";
+import { TrackListPane, TrackListRow } from "tracks.slint";
+import { SearchPage, SearchRow } from "search.slint";
+import { FeedbackOverlay, FeedbackItem } from "overlays.slint";
+import { FirstRunPane } from "first_run.slint";
+import { TrackMenu, TrackMenuItem } from "menu.slint";
+import { SettingsPage, SettingsTemplateRow } from "settings.slint";
+import { LicensesPage } from "licenses.slint";
+import { TemplateEditor, EditorFieldRow, EditorPreviewRow } from "template_editor.slint";
+
+// Root window. Properties named after engine messages (track-name, position, duration, playing, volume,
+// playback-mode, current-index) are written from Rust; view models are pushed by the ui_* glue modules.
+export component AppWindow inherits Window {
+    // Window title mirrors the playing track's cleaned title (the one the deck shows, without folder, extension or
+    // shared prefix) while audio plays, and reverts to "Music Player" when paused or idle.
+    title: root.playing && root.deck-title != "" ? root.deck-title : "Music Player";
+    min-width: 360px;
+    preferred-width: 480px;
+    preferred-height: 600px;
+    background: Theme.canvas;
+
+    // Theme root tracking (ui_theme): the Rust side derives every role from the accent and writes them into Theme,
+    // at startup and again whenever this callback reports a new root. `changed` fires on change, not on the first
+    // value, so the first derivation is made by the Rust side at startup.
+    callback accent-changed(color);
+    property <color> theme-accent: Theme.accent-source;
+    changed theme-accent => {
+        root.accent-changed(root.theme-accent);
+    }
+
+    // Width at and above which the unfolded two-pane layout is used.
+    property <length> unfold-width: 600px;
+    out property <bool> unfolded: root.width >= root.unfold-width;
+    // Reports a change of the unfolded flag, so the host can fold a template editor page that a widening window
+    // would otherwise leave full width (the two-pane Settings shows that editor in its right pane instead).
+    callback layout-changed(bool);
+    // The switch between the layouts destroys the lists, so on the player page the key scope takes the focus back (a list
+    // that was asked for takes it again one frame later).
+    changed unfolded => {
+        root.layout-changed(root.unfolded);
+        if (root.route == 0) {
+            key-scope.focus();
+        }
+    }
+
+    // Settings on a wide window (D110): the list pane takes the default split ratio 0.3636 of the window width, rounded
+    // to a whole pixel, and the editor pane takes the rest. A desktop has no crease, so no band is cleared between them.
+    property <length> settings-list-width: root.unfolded ? Math.round(root.width / 1px * 0.3636) * 1px : root.width;
+
+    // OS font tracking (ui_font_scale): base size is set from Rust, the resolved OS size is reported back.
+    in property <length> base-font-size;
+    default-font-size: root.base-font-size;
+    default-font-family: "Inter Variable";
+    out property <length> os-font-size: 1rem;
+    callback probe-os-font(length);
+    changed os-font-size => {
+        root.probe-os-font(root.os-font-size);
+    }
+
+    // Engine-facing playback state (pushed from Update messages).
+    in property <string> track-name: "";
+    in-out property <float> position: 0;
+    in property <float> duration: 0;
+    in property <string> position-text: "0:00";
+    in property <string> duration-text: "0:00";
+    in property <bool> playing: false;
+    // Kept so the engine's Volume message still lands; no in-app volume control exists (D43).
+    in-out property <float> volume: 1.0;
+    // 0 Repeat, 1 In order, 2 Shuffle displayed page, 3 Shuffle all.
+    in property <int> playback-mode: 1;
+    in property <int> current-index: -1;
+
+    // Route: 0 player, 1 search, 2 Settings, 3 the narrow template editor page, 4 the Licenses page.
+    in property <int> route: 0;
+
+    // Keyboard focus model (D106). The Rust key classifier moves the rings and asks for focus through these.
+    // Library index of the track row with the keyboard ring, or -1.
+    in property <int> ring-track: -1;
+    // Name of the folder with the keyboard ring, or empty.
+    in property <string> ring-folder: "";
+    // Bumped by the Rust side each time a ring moves, so the list scrolls the ringed entry into view.
+    in property <int> track-ring-tick: 0;
+    in property <int> folder-ring-tick: 0;
+    // Position and height of the ringed track row in the list.
+    in property <length> track-ring-offset: 0px;
+    in property <length> track-ring-height: 48px;
+    // The Menu key and Alt+Enter ask for the ringed row's menu with these.
+    in property <int> track-menu-tick: 0;
+    in property <int> track-menu-index: -1;
+    in property <length> track-menu-offset: 0px;
+    // Highlighted row of the open track menu, or -1.
+    in property <int> menu-ring: -1;
+    // Highlighted result of the Search page, or -1.
+    in property <int> search-ring: -1;
+    // Which element a request for focus is for: 1 folder list, 2 track list, 3 Settings list.
+    in property <int> focus-request: 0;
+    // Changes each time the Rust side asks for focus.
+    in property <int> focus-tick: 0;
+    // Rows per page of the two lists, reported by the lists for the page keys.
+    in-out property <int> track-page-rows: 8;
+    in-out property <int> folder-page-rows: 8;
+    // Fired when a list gains keyboard focus (1 folder list, 2 track list).
+    callback list-focused(int);
+
+    // Folder picker and library view models.
+    in property <string> folder-title: "";
+    // Title of the folded layout's header: the folder shown, or the library's name while no folder page exists (EM5).
+    in property <string> folded-title: "";
+    in-out property <bool> picker-open: false;
+    in property <bool> library-available: true;
+    in property <[FolderRailCell]> rail-cells: [];
+    in property <[FolderName]> folder-names: [];
+    in property <string> current-folder: "";
+    in property <string> current-cell: "";
+    // Name of the opened folder, which heads the unfolded folder pane.
+    in property <string> library-name: "Folders";
+    in property <[TrackListRow]> track-rows: [];
+    // Y offset of the row the track list scrolls to, set by the Rust side before it bumps scroll-tick.
+    in property <length> scroll-offset: 0px;
+    // Bumped by the Rust side on each scroll request, so a repeated request scrolls again.
+    in property <int> scroll-tick: 0;
+    // Fired when the deck's title is clicked; the Rust side switches to the playing track's folder and bumps the tick.
+    callback reveal-playing();
+    // Fired when the deck's folder name is clicked; the Rust side shows the folder and bumps the folder tick.
+    callback reveal-folder();
+
+    // Transport deck view model.
+    in property <string> deck-title: "";
+    // Folder of the playing track, shown before the title; empty when nothing plays.
+    in property <string> deck-folder: "";
+    in property <string> deck-subtitle: "";
+    in property <string> shuffle-folder-label: "";
+    // The folder name without its last few characters, and those characters, for the Shuffle segment's middle ellipsis (D1).
+    in property <string> shuffle-folder-head: "";
+    in property <string> shuffle-folder-tail: "";
+
+    // First run replaces the track area; 0 hides it.
+    in property <int> first-run-state: 0;
+    in property <string> first-run-folder-name: "";
+    in property <string> first-run-title: "";
+    in property <string> first-run-body: "";
+    in property <string> first-run-primary-label: "";
+    in property <[string]> first-run-secondary-labels: [];
+    in property <string> first-run-explanation: "";
+
+    // Search view model.
+    in property <[SearchRow]> search-rows: [];
+    in property <string> search-query: "";
+    in property <string> search-status-title: "";
+    in property <string> search-status-detail: "";
+    // Scroll position of the Search result list, shared two-way so Rust can read it before it re-ranks the list.
+    in-out property <length> search-scroll-y: 0px;
+    // Offset, in pixels from the top, that the Search list scrolls to when `search-anchor-tick` changes.
+    in property <length> search-anchor-offset: 0px;
+    // Bumped by Rust after a refresh re-ranks the list, so the first visible row keeps its place (D111).
+    in property <int> search-anchor-tick: 0;
+
+    // Feedback view model.
+    in property <[FeedbackItem]> feedback-items: [];
+
+    // Settings and template editor view models; the Rust side fills them while either route is open.
+    in property <[SettingsTemplateRow]> settings-rows: [];
+    // Index of the selected Settings row, which is the template the right pane edits on a wide window.
+    in property <int> settings-selected: 0;
+    // Whether Auto-play on select is on, and the line under its Settings row; the Rust side keeps both current (D129).
+    in property <bool> auto-play-on-select: false;
+    in property <string> auto-play-on-select-text: "";
+    // True while the Settings page should open with the keyboard on its Licenses row, as when Licenses was just closed.
+    in-out property <bool> settings-start-on-licenses: false;
+    // The notice text of the Licenses page, one source line per entry; empty while the page is closed, so the text is
+    // built when the page opens and released when it closes.
+    in property <[string]> licenses-lines: [];
+    // Opacity of the right pane, 1 at rest. A new selection drops it to 0 at once and animates it back to 1 over 150 ms,
+    // linear. The drop is made with a zero-length animation, because an `animate` block would otherwise also animate the
+    // drop. Slint 1.18 exposes no reduced-motion setting, so the fade is always this short.
+    out property <float> settings-pane-opacity: 1;
+    property <bool> settings-fade-reset: false;
+    animate settings-pane-opacity {
+        duration: root.settings-fade-reset ? 0ms : 150ms;
+        easing: linear;
+    }
+    changed settings-selected => {
+        root.settings-fade-reset = true;
+        root.settings-pane-opacity = 0;
+        root.settings-fade-reset = false;
+        root.settings-pane-opacity = 1;
+    }
+    in property <string> editor-title: "";
+    in property <string> editor-text: "";
+    in property <[EditorPreviewRow]> editor-preview-rows: [];
+    in property <[string]> editor-mistakes: [];
+    in property <string> editor-help-signature: "";
+    in property <string> editor-help-description: "";
+    in property <bool> editor-has-help: false;
+    in property <[EditorFieldRow]> editor-fields: [];
+    in property <[string]> editor-notes: [];
+    // Note that the rows keep the last valid template; empty while the typed template applies.
+    in property <string> editor-kept-note: "";
+    in property <bool> editor-can-reset: false;
+
+    // Track menu view model; the popup is shown from the row's request.
+    in property <string> menu-title: "";
+    in property <[TrackMenuItem]> menu-items: [];
+    // Where the pointer asked for the menu, in window coordinates (the list reports them that way).
+    property <length> menu-x: 0px;
+    property <length> menu-y: 0px;
+    // Size of the open menu card, written by the card itself (a popup's content cannot be read from outside it). The
+    // width follows the rows (280 px or more), so no shortcut hint is cut.
+    in-out property <length> menu-card-width: 280px;
+    in-out property <length> menu-card-height: 0px;
+    // Where the menu card sits after it is pulled back inside the window, in window coordinates, so the whole card stays
+    // visible. The popup takes its position from these, and the state log and the window tests read them to check that the
+    // menu opens at the pointer.
+    out property <length> menu-card-x: max(0px, min(root.menu-x, root.width - root.menu-card-width));
+    out property <length> menu-card-y: max(0px, min(root.menu-y, root.height - root.menu-card-height));
+    // Fade-in progress of the page on top (Search, Settings, the narrow editor page) and of the folded layout's folder picker
+    // overlay: 1 at rest. Opening one drops it to 0 at once and animates it back to 1 over `Theme.motion-enter`. The drop is
+    // made with a zero-length animation, because the `animate` block would otherwise animate the drop too, the same device as
+    // the Settings pane fade below. A page and the overlay are destroyed when they close, so only the fade in is seen.
+    // (A binding that only follows the route cannot do this: Slint reads it first when the page is built, so the first
+    // opening would have no value to animate from.)
+    property <float> page-enter: 1;
+    property <float> picker-enter: 1;
+    property <bool> enter-reset: false;
+    animate page-enter, picker-enter {
+        duration: root.enter-reset ? 0ms : Theme.motion-enter;
+        easing: ease-out;
+    }
+
+    // Callbacks to Rust, one per user action.
+    callback toggle-play();
+    callback prev();
+    callback next();
+    callback seek(float);
+    callback select-mode(int);
+    callback select-index(int);
+    callback open-files();
+    callback toggle-picker();
+    callback select-folder(string);
+    callback open-search();
+    callback close-search();
+    callback search-query-edited(string);
+    callback search-open(int);
+    callback search-clear();
+    callback open-settings();
+    callback first-run-primary();
+    callback first-run-secondary(int);
+    callback feedback-dismiss(string);
+    callback feedback-action(string);
+    callback menu-request(int);
+    callback menu-select(int);
+    callback menu-dismiss();
+    // True while the track menu popup is open.
+    out property <bool> menu-open: track-menu-popup.is-open;
+    // Closes the track menu popup; the Rust side calls it for Escape and after a row is chosen with the keyboard.
+    public function close-menu() {
+        track-menu-popup.close();
+    }
+    callback settings-open-template(int);
+    callback settings-select-template(int);
+    callback settings-back();
+    // The Auto-play on select switch row was toggled by a click, Space or Enter; the Rust side flips and saves the setting.
+    callback settings-toggle-auto-play();
+    // A Text size stepper moved by one pixel: the stepper index (0 pane titles, 1 group heading letter, 2 folder names,
+    // 3 track titles) and the step, -1 or 1. The Rust side changes the size within its limits and saves it.
+    callback settings-step-text-size(int, int);
+    // The Reset text sizes row was activated; the Rust side puts all four sizes back to their defaults and saves them.
+    callback settings-reset-text-sizes();
+    // True while all four text sizes are at their defaults, which the Reset text sizes row shows; the Rust side keeps it current.
+    in property <bool> text-sizes-default: true;
+    // The Licenses row was activated by a click, Space or Enter; the Rust side opens the Licenses page.
+    callback settings-open-licenses();
+    // Back on the Licenses page, by its arrow or Escape; the Rust side returns to Settings.
+    callback licenses-back();
+    callback editor-text-edited(string, int, int);
+    callback editor-focus-changed(bool);
+    callback editor-insert-field(int);
+    callback editor-reset();
+    callback editor-back();
+    // One key press in DOM-style names (Escape, ArrowLeft, ArrowRight, or the character) with the modifiers and the
+    // popup state; returns true when the player used the key, so the focused field does not receive it.
+    // The first argument is the key as Slint reports it (the Rust side maps the private key characters to names).
+    callback key-pressed(string, bool, bool, bool, bool, bool, bool) -> bool;
+    // One key release with the modifiers still held: the text, control, meta, alt and shift.
+    callback key-released(string, bool, bool, bool, bool);
+
+    // Shows the track menu popup at the given window position after Rust fills the menu model.
+    function show-track-menu(index: int, x: length, y: length) {
+        root.menu-request(index);
+        root.menu-x = x;
+        root.menu-y = y;
+        track-menu-popup.show();
+    }
+
+    // The key scope takes focus on start, because key events reach only ancestors of the focused element.
+    init => {
+        key-scope.focus();
+    }
+
+    // While a page covers the player, the player's controls refuse focus, so Tab stays on the page that is on top.
+    // Returning to the player destroys the focused page field (search, settings, editor), so the key scope takes focus again.
+    // The narrow editor page has no field that takes focus on its own, so the key scope holds it there too; without a
+    // focused element the window delivers no key to the key scope at all.
+    changed route => {
+        if (root.route != 0) {
+            root.enter-reset = true;
+            root.page-enter = 0;
+            root.enter-reset = false;
+            root.page-enter = 1;
+        }
+        Focus.player-active = root.route == 0;
+        if (root.route == 0 || root.route == 3) {
+            key-scope.focus();
+        }
+    }
+    // A change that destroys the lists the keyboard was in (the picker overlay of the folded layout, the switch between
+    // the folded and the unfolded layout, the first-run pane) would leave no focused element, so the key scope takes focus
+    // back; a list that was asked for takes it again one frame later.
+    changed picker-open => {
+        key-scope.focus();
+        // The overlay of the folded layout fades in each time the picker opens (see page-enter).
+        if (root.picker-open) {
+            root.enter-reset = true;
+            root.picker-enter = 0;
+            root.enter-reset = false;
+            root.picker-enter = 1;
+        }
+    }
+    changed first-run-state => {
+        if (root.route == 0) {
+            key-scope.focus();
+        }
+    }
+
+    // Root key scope: every key event passes through its capture handler before the focused field, so shortcuts
+    // reach the player while text fields keep the keys they type (D102).
+    key-scope := FocusScope {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        // The surface holds no control, so it is zone 0; this also clears a zone left by a page that was destroyed while
+        // one of its fields had focus.
+        focus-gained => {
+            Focus.zone = 0;
+            Focus.label = "";
+        }
+        capture-key-pressed(event) => {
+            if (root.key-pressed(event.text, event.modifiers.control, event.modifiers.meta, event.modifiers.alt, event.modifiers.shift, event.repeat, track-menu-popup.is-open)) {
+                return accept;
+            }
+            return reject;
+        }
+        capture-key-released(event) => {
+            root.key-released(event.text, event.modifiers.control, event.modifiers.meta, event.modifiers.alt, event.modifiers.shift);
+            return reject;
+        }
+
+    // Rows of the playing list: the track list or, while the picker is open, the folder picker.
+    // The first-run pane replaces the track area when the library is empty or access is missing.
+    // Folded layout: cover top row, list area, transport deck (D44 deck takes its content height).
+    // Both player layouts are hidden while Settings or its editor is open: those pages draw over them, and the wide
+    // Settings fades its right pane in over the bare canvas, so no player control shows through or takes a stray click.
+    VerticalLayout {
+        visible: !root.unfolded && root.route < 2;
+        cover-top := CoverTopRow {
+            folder-title: root.folded-title;
+            picker-open: root.picker-open;
+            show-search: root.library-available;
+            toggle-picker => { root.toggle-picker(); }
+            open => { root.open-files(); }
+        }
+        if root.first-run-state != 0 : FirstRunPane {
+            vertical-stretch: 1;
+            state: root.first-run-state;
+            folder-name: root.first-run-folder-name;
+            title: root.first-run-title;
+            body: root.first-run-body;
+            primary-label: root.first-run-primary-label;
+            secondary-labels: root.first-run-secondary-labels;
+            explanation: root.first-run-explanation;
+            primary => { root.first-run-primary(); }
+            secondary(i) => { root.first-run-secondary(i); }
+        }
+        if root.first-run-state == 0 && root.picker-open : FolderPickerPane {
+            vertical-stretch: 1;
+            opacity: root.picker-enter;
+            cells: root.rail-cells;
+            names: root.folder-names;
+            current-folder: root.current-folder;
+            current-cell: root.current-cell;
+            ring-folder: root.ring-folder;
+            ring-tick: root.folder-ring-tick;
+            active: !root.unfolded;
+            wants-focus: root.focus-request == 1;
+            focus-tick: root.focus-tick;
+            select-folder(name) => { root.select-folder(name); }
+            page-rows(n) => { root.folder-page-rows = n; }
+            focused => { root.list-focused(1); }
+        }
+        if root.first-run-state == 0 && !root.picker-open : TrackListPane {
+            vertical-stretch: 1;
+            rows: root.track-rows;
+            scroll-offset: root.scroll-offset;
+            scroll-tick: root.scroll-tick;
+            ring-index: root.ring-track;
+            ring-tick: root.track-ring-tick;
+            ring-offset: root.track-ring-offset;
+            ring-height: root.track-ring-height;
+            menu-tick: root.track-menu-tick;
+            menu-index: root.track-menu-index;
+            menu-offset: root.track-menu-offset;
+            active: !root.unfolded;
+            wants-focus: root.focus-request == 2;
+            focus-tick: root.focus-tick;
+            play(i) => { root.select-index(i); }
+            open-menu(i, x, y) => { root.show-track-menu(i, x, y); }
+            page-rows(n) => { root.track-page-rows = n; }
+            focused => { root.list-focused(2); }
+        }
+        deck := TransportDeck {
+            title: root.deck-title;
+            folder: root.deck-folder;
+            subtitle: root.deck-subtitle;
+            position-seconds: root.position;
+            duration-seconds: root.duration;
+            playing: root.playing;
+            mode: root.playback-mode;
+            shuffle-folder-label: root.shuffle-folder-label;
+            shuffle-folder-head: root.shuffle-folder-head;
+            shuffle-folder-tail: root.shuffle-folder-tail;
+            seek(s) => { root.seek(s); }
+            previous => { root.prev(); }
+            toggle-play => { root.toggle-play(); }
+            next => { root.next(); }
+            select-mode(m) => { root.select-mode(m); }
+            reveal-playing => { root.reveal-playing(); }
+            reveal-folder => { root.reveal-folder(); }
+            reveal-enabled: root.route == 0;
+        }
+    }
+
+    // Unfolded layout: the left half has the folder header, the folder picker and the transport deck; the right half has the
+    // track header and the track list.
+    // Every element is placed at exactly half the window, from the half width and the heights below, and declared in the
+    // order Tab follows (D106): the Open pill, the folder picker, the track list, the deck, then the search and settings
+    // buttons after this block. A horizontal layout would hand out the space beyond each pane's preferred width, and the
+    // left pane's preferred width follows its folder names, so the split (and the Open pill with it) moved whenever the
+    // selected folder changed.
+    Rectangle {
+        visible: root.unfolded && root.route < 2;
+        UnfoldedFoldersHeader {
+            x: 0px;
+            y: 0px;
+            width: root.width / 2;
+            title: root.library-name;
+            open => { root.open-files(); }
+        }
+        FolderPickerPane {
+            x: 0px;
+            y: 56px;
+            width: root.width / 2;
+            height: max(0px, root.height - 56px - side-deck.height);
+            cells: root.rail-cells;
+            names: root.folder-names;
+            current-folder: root.current-folder;
+            current-cell: root.current-cell;
+            ring-folder: root.ring-folder;
+            ring-tick: root.folder-ring-tick;
+            active: root.unfolded;
+            wants-focus: root.focus-request == 1;
+            focus-tick: root.focus-tick;
+            select-folder(name) => { root.select-folder(name); }
+            page-rows(n) => { root.folder-page-rows = n; }
+            focused => { root.list-focused(1); }
+        }
+        UnfoldedTrackHeader {
+            x: root.width / 2;
+            y: 0px;
+            width: root.width / 2;
+            folder-title: root.folder-title;
+            show-search: root.library-available;
+        }
+        if root.first-run-state != 0 : FirstRunPane {
+            x: root.width / 2;
+            y: 56px;
+            width: root.width / 2;
+            height: max(0px, root.height - 56px);
+            state: root.first-run-state;
+            folder-name: root.first-run-folder-name;
+            title: root.first-run-title;
+            body: root.first-run-body;
+            primary-label: root.first-run-primary-label;
+            secondary-labels: root.first-run-secondary-labels;
+            explanation: root.first-run-explanation;
+            primary => { root.first-run-primary(); }
+            secondary(i) => { root.first-run-secondary(i); }
+        }
+        if root.first-run-state == 0 : TrackListPane {
+            x: root.width / 2;
+            y: 56px;
+            width: root.width / 2;
+            height: max(0px, root.height - 56px);
+            rows: root.track-rows;
+            scroll-offset: root.scroll-offset;
+            scroll-tick: root.scroll-tick;
+            ring-index: root.ring-track;
+            ring-tick: root.track-ring-tick;
+            ring-offset: root.track-ring-offset;
+            ring-height: root.track-ring-height;
+            menu-tick: root.track-menu-tick;
+            menu-index: root.track-menu-index;
+            menu-offset: root.track-menu-offset;
+            active: root.unfolded;
+            wants-focus: root.focus-request == 2;
+            focus-tick: root.focus-tick;
+            play(i) => { root.select-index(i); }
+            open-menu(i, x, y) => { root.show-track-menu(i, x, y); }
+            page-rows(n) => { root.track-page-rows = n; }
+            focused => { root.list-focused(2); }
+        }
+        side-deck := TransportDeck {
+            x: 0px;
+            y: root.height - self.height;
+            width: root.width / 2;
+            title: root.deck-title;
+            folder: root.deck-folder;
+            subtitle: root.deck-subtitle;
+            position-seconds: root.position;
+            duration-seconds: root.duration;
+            playing: root.playing;
+            mode: root.playback-mode;
+            shuffle-folder-label: root.shuffle-folder-label;
+            shuffle-folder-head: root.shuffle-folder-head;
+            shuffle-folder-tail: root.shuffle-folder-tail;
+            seek(s) => { root.seek(s); }
+            previous => { root.prev(); }
+            toggle-play => { root.toggle-play(); }
+            next => { root.next(); }
+            select-mode(m) => { root.select-mode(m); }
+            reveal-playing => { root.reveal-playing(); }
+            reveal-folder => { root.reveal-folder(); }
+            reveal-enabled: root.route == 0;
+        }
+    }
+
+    // The search and settings buttons, last in the Tab order and in the same place in both layouts. They hide with the
+    // player, and a page drawn over the player covers them. Neither D106 nor D79 sets a Tab position for them: D106 gives
+    // each its own chord (Ctrl+F, Ctrl+Alt+S) and D79 only asks that leaving Search returns to the control that opened it.
+    // They stay last, so Tab walks the folders, the tracks and the deck first, as the first review verified.
+    HeaderActions {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        visible: root.route == 0;
+        show-search: root.library-available;
+        unfolded: root.unfolded;
+        search-x: root.unfolded ? root.width - 112px : cover-top.search-x;
+        search => { root.open-search(); }
+        settings => { root.open-settings(); }
+    }
+
+    // Search route drawn over the player. Unfolded, it covers only the right pane, where the track list is, so the
+    // folder picker and the deck on the left stay visible and usable; folded, it covers the whole window.
+    if root.route == 1 : SearchPage {
+        opacity: root.page-enter;
+        x: root.unfolded ? root.width / 2 : 0px;
+        y: 0px;
+        width: root.unfolded ? root.width / 2 : root.width;
+        height: root.height;
+        compact: !root.unfolded;
+        rows: root.search-rows;
+        query: root.search-query;
+        status-title: root.search-status-title;
+        status-detail: root.search-status-detail;
+        scroll-y <=> root.search-scroll-y;
+        ring: root.search-ring;
+        anchor-offset: root.search-anchor-offset;
+        anchor-tick: root.search-anchor-tick;
+        query-edited(q) => { root.search-query-edited(q); }
+        back => { root.close-search(); }
+        clear => { root.search-clear(); }
+        open(i) => { root.search-open(i); }
+    }
+
+    // Settings route: the Templates rows. Narrow, a tap opens that template's editor page. Wide, the page is the left pane
+    // and a row selects the template that the right pane edits in place.
+    if root.route == 2 : SettingsPage {
+        opacity: root.page-enter;
+        x: 0px;
+        y: 0px;
+        width: root.settings-list-width;
+        height: root.height;
+        rows: root.settings-rows;
+        wants-focus: root.focus-request == 3;
+        focus-tick: root.focus-tick;
+        wide: root.unfolded;
+        selected-index: root.settings-selected;
+        auto-play-enabled: root.auto-play-on-select;
+        auto-play-text: root.auto-play-on-select-text;
+        start-on-licenses <=> root.settings-start-on-licenses;
+        toggle-auto-play => { root.settings-toggle-auto-play(); }
+        text-sizes-default: root.text-sizes-default;
+        step-text-size(index, step) => { root.settings-step-text-size(index, step); }
+        reset-text-sizes => { root.settings-reset-text-sizes(); }
+        open-licenses => { root.settings-open-licenses(); }
+        open-template(i) => { root.settings-open-template(i); }
+        select-template(i) => { root.settings-select-template(i); }
+        back => { root.settings-back(); }
+    }
+
+    // Licenses route: the notice text and Slint's attribution, over the whole window in both forms.
+    if root.route == 4 : LicensesPage {
+        opacity: root.page-enter;
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        lines: root.licenses-lines;
+        back => { root.licenses-back(); }
+    }
+
+    // Right pane of the wide Settings: the editor of the selected row, shown in place. It has no header band or Back of
+    // its own, and fades in when the selection changes.
+    if root.route == 2 && root.unfolded : TemplateEditor {
+        x: root.settings-list-width;
+        y: 0px;
+        width: root.width - root.settings-list-width;
+        height: root.height;
+        embedded: true;
+        pane-opacity: root.settings-pane-opacity * root.page-enter;
+        title: root.editor-title;
+        text: root.editor-text;
+        preview-rows: root.editor-preview-rows;
+        mistake-lines: root.editor-mistakes;
+        help-signature: root.editor-help-signature;
+        help-description: root.editor-help-description;
+        has-help: root.editor-has-help;
+        fields: root.editor-fields;
+        notes: root.editor-notes;
+        kept-note: root.editor-kept-note;
+        can-reset: root.editor-can-reset;
+        text-edited(t, start, end) => { root.editor-text-edited(t, start, end); }
+        focus-changed(focused) => { root.editor-focus-changed(focused); }
+        insert-field(i) => { root.editor-insert-field(i); }
+        reset => { root.editor-reset(); }
+        back => { root.editor-back(); }
+    }
+
+    // Template editor route (narrow window): preview, fields and the template text for one template.
+    if root.route == 3 : TemplateEditor {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        pane-opacity: root.page-enter;
+        title: root.editor-title;
+        text: root.editor-text;
+        preview-rows: root.editor-preview-rows;
+        mistake-lines: root.editor-mistakes;
+        help-signature: root.editor-help-signature;
+        help-description: root.editor-help-description;
+        has-help: root.editor-has-help;
+        fields: root.editor-fields;
+        notes: root.editor-notes;
+        kept-note: root.editor-kept-note;
+        can-reset: root.editor-can-reset;
+        text-edited(t, start, end) => { root.editor-text-edited(t, start, end); }
+        focus-changed(focused) => { root.editor-focus-changed(focused); }
+        insert-field(i) => { root.editor-insert-field(i); }
+        reset => { root.editor-reset(); }
+        back => { root.editor-back(); }
+    }
+
+    // Feedback messages float near the bottom edge (D29, D83). On the unfolded layout they stay over the track pane, so a
+    // long message never crosses the pane divider or covers the transport of the left pane.
+    FeedbackOverlay {
+        x: root.unfolded ? root.width / 2 + 12px : 12px;
+        y: root.height - self.preferred-height - 96px;
+        width: (root.unfolded ? root.width / 2 : root.width) - 24px;
+        available-width: (root.unfolded ? root.width / 2 : root.width) - 24px;
+        items: root.feedback-items;
+        dismiss(id) => { root.feedback-dismiss(id); }
+        action(id) => { root.feedback-action(id); }
+    }
+
+    }
+
+    // Track action menu, shown at the row position that requested it. Escape and outside clicks dismiss it.
+    track-menu-popup := PopupWindow {
+        // The menu opens at the click point, pulled back so the whole card stays inside the window. The point is in
+        // window coordinates, which is the frame of this popup's parent (the window), so no pane offset is added.
+        x: root.menu-card-x;
+        y: root.menu-card-y;
+        width: menu-card.card-width;
+        menu-card := TrackMenu {
+            width: parent.width;
+            // The root clamps the position with the card's size, so the card reports it when it is built and when it changes.
+            init => {
+                root.menu-card-width = self.card-width;
+                root.menu-card-height = self.height;
+            }
+            changed card-width => {
+                root.menu-card-width = self.card-width;
+            }
+            changed height => {
+                root.menu-card-height = self.height;
+            }
+            title: root.menu-title;
+            items: root.menu-items;
+            ring: root.menu-ring;
+            select(i) => {
+                root.menu-select(i);
+                track-menu-popup.close();
+            }
+            dismiss => {
+                root.menu-dismiss();
+                track-menu-popup.close();
+            }
+            key-down(text, ctrl, meta, alt, shift, repeat) => {
+                return root.key-pressed(text, ctrl, meta, alt, shift, repeat, true);
+            }
+            key-up(text, ctrl, meta, alt, shift) => {
+                root.key-released(text, ctrl, meta, alt, shift);
+            }
+        }
+    }
+}

@@ -161,12 +161,12 @@ export type KiwiSchema = {
  */
 export type KiwiDecodedValue =
   | boolean
-  | number
-  | string
-  | Uint8Array
-  | readonly KiwiDecodedValue[]
-  | Record<string, unknown>
-  | typeof KIWI_VALUE_ABSENT;
+    | number
+    | string
+    | Uint8Array
+    | readonly KiwiDecodedValue[]
+    | Record<string, unknown>
+    | typeof KIWI_VALUE_ABSENT;
 
 /**
  Figma file type determined by canvas magic bytes.
@@ -218,6 +218,12 @@ export type FigmaMeta = {
  ```
  */
 export type FigmaFile = {
+  /**
+   Little-endian uint32 canvas.fig format version, such as 101 or 106.
+   
+   Always set by `parseFigmaFile`; optional so values built by hand stay valid.
+   */
+  readonly canvasVersion?: number;
   readonly document: Record<string, unknown> | typeof FIGMA_DOCUMENT_ABSENT;
   readonly fileType: FigmaFileType;
   readonly images: ReadonlyMap<string, Uint8Array>;

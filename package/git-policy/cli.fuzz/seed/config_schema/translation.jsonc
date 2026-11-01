@@ -1,0 +1,8 @@
+{
+  "policies": {
+    // Commit-time Markdown normalization.
+    "markdown/autofix": ["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }],
+    "mono/forbidden-root-context": "error",
+    "security/forbidden-strings": ["error", { "builtinRules": true }],
+  },
+}

@@ -11,8 +11,8 @@ import {
 import { randomUUID, } from 'node:crypto';
 import { once, } from 'node:events';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   CANCEL_SIGNAL,
@@ -391,8 +391,8 @@ async function startJob(
       .setEncoding('utf8', );
     child.stdout
       .on(
-        'data',
-        recordChunk,
+      'data',
+      recordChunk,
       );
   }
   if (child.stderr === null) {
@@ -403,8 +403,8 @@ async function startJob(
       .setEncoding('utf8', );
     child.stderr
       .on(
-        'data',
-        recordChunk,
+      'data',
+      recordChunk,
       );
   }
 
@@ -463,8 +463,8 @@ async function startJob(
     }
     timers.forceKill = setTimeout(
       function forceKill(): void {
-      signalGroup(FORCE_SIGNAL, );
-    },
+        signalGroup(FORCE_SIGNAL, );
+      },
       killGraceMs,
     );
     // The grace timer must never be the reason a process stays alive.

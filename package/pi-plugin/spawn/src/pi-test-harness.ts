@@ -188,7 +188,7 @@ function fakePiApi(): FakePiApiHarness {
              
              @mutates ctx - `handler` can invoke or change supplied context capabilities.
              */
-            async function callSessionStartHandler(
+          async function callSessionStartHandler(
             sessionStartEvent,
             ctx,
           ): Promise<void> {
@@ -214,7 +214,7 @@ function fakePiApi(): FakePiApiHarness {
              
              @mutates ctx - `handler` can invoke or change supplied context capabilities.
              */
-            async function callSessionShutdownHandler(
+          async function callSessionShutdownHandler(
             sessionShutdownEvent,
             ctx,
           ): Promise<void> {
@@ -240,7 +240,7 @@ function fakePiApi(): FakePiApiHarness {
              
              @mutates ctx - `handler` can invoke or change supplied context capabilities.
              */
-            async function callAgentEndHandler(
+          async function callAgentEndHandler(
             agentEndEvent,
             ctx,
           ): Promise<void> {

@@ -6,7 +6,7 @@
  * checks whether timestamps fall within a 24-hour recency threshold.
  */
 
-import { MS_PER_DAY, } from '@monochromatic-dev/module-const/ts';
+import { MS_PER_DAY, } from '@monochromatic-dev/const-core/ts';
 
 /**
  * 24 hours in milliseconds

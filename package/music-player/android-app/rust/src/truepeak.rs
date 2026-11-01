@@ -1,20 +1,40 @@
-//! Android true-peak resolution: a thin adapter that drives the shared policy resolver.
+//! Android true-peak resolution:
+//!  a thin adapter that drives the shared policy resolver.
 //!
-//! "True peak" (a.k.a. inter-sample peak) is the highest level the analog waveform reaches
-//! AFTER a DAC reconstructs it between the stored samples; it can sit above the largest
-//! stored sample. The measurement policy (full-scan short tracks, probe long ones), the
-//! Catmull-Rom meter, the attenuate-only gain, the window placement, and the decision cache
-//! now all live once in the shared `truepeak-core` crate. Android's old windowed policy (a
-//! `1.26` safety factor over four fixed windows) is GONE, replaced by the shared proportional
-//! probe. This module keeps only the Android glue: a [`TruePeakSource`] adapter over the
-//! Android `decode::Source`, and two resolvers that drive an already-opened source (the JNI
-//! opens it from a `content://` fd). The native service handle (`src/service.rs`) calls these
-//! and caches the resulting decisions. See
+//! "True peak" (a.k.a.
+//!  inter-sample peak) is the highest level the analog waveform reaches
+//! AFTER a DAC reconstructs it between the stored samples;
+//!  it can sit above the largest
+//! stored sample.
+//!  The measurement policy (full-scan short tracks,
+//!  probe long ones),
+//!  the
+//! Catmull-Rom meter,
+//!  the attenuate-only gain,
+//!  the window placement,
+//!  and the decision cache
+//! now all live once in the shared `truepeak-core` crate.
+//!  Android's old windowed policy (a
+//! `1.26` safety factor over four fixed windows) is GONE,
+//!  replaced by the shared proportional
+//! probe.
+//!  This module keeps only the Android glue:
+//!  a [`TruePeakSource`] adapter over the
+//! Android `decode::Source`,
+//!  and two resolvers that drive an already-opened source (the JNI
+//! opens it from a `content://` fd).
+//!  The native service handle (`src/service.rs`) calls these
+//! and caches the resulting decisions.
+//!  See
 //! ../../../doc/handover/music-player-truepeak-core-integration.md.
 
-/// What:     `use crate::decode::Source;`. The decoder trait, named by the adapter's `inner`
+/// What:
+///      `use crate::decode::Source;`.
+///  The decoder trait,
+///  named by the adapter's `inner`
 ///           field and driven through its `spec`/`next_chunk`/`seek` methods.
-/// Why:      The adapter wraps a `Box<dyn Source>` and forwards to it.
+/// Why:
+///       The adapter wraps a `Box<dyn Source>` and forwards to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -22,11 +42,18 @@
 /// ```
 use crate::decode::Source;
 
-/// What:     `use truepeak_core::{AudioSpec, Decision, TruePeakError, TruePeakSource,
-///           default_policy, resolve_decision, resolve_full_scan};`. The shared source
-///           contract and descriptor, the decision type, the crate error, the shipped policy,
+/// What:
+///      `use truepeak_core::{AudioSpec, Decision, TruePeakError, TruePeakSource,
+///           default_policy, resolve_decision, resolve_full_scan};`.
+///  The shared source
+///           contract and descriptor,
+///  the decision type,
+///  the crate error,
+///  the shipped policy,
 ///           and the two resolvers.
-/// Why:      The adapter implements `TruePeakSource`; the resolvers drive it under
+/// Why:
+///       The adapter implements `TruePeakSource`;
+///  the resolvers drive it under
 ///           `default_policy` and return a `Decision`.
 ///
 /// In TS you'd write (pseudocode):
@@ -38,11 +65,15 @@ use truepeak_core::{
     resolve_full_scan,
 };
 
-/// What:     `pub use truepeak_core::true_peak_interleaved;`. Re-export the shared crate's
+/// What:
+///      `pub use truepeak_core::true_peak_interleaved;`.
+///  Re-export the shared crate's
 ///           whole-buffer meter helper under this module's path.
-/// Why:      The test-only `nativeTruePeakSynthetic` JNI entry in `lib.rs` calls
+/// Why:
+///       The test-only `nativeTruePeakSynthetic` JNI entry in `lib.rs` calls
 ///           `truepeak::true_peak_interleaved(...)` to measure a synthetic signal on device
-///           through the exact shared meter, with no Android-local copy.
+///           through the exact shared meter,
+///  with no Android-local copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,10 +81,15 @@ use truepeak_core::{
 /// ```
 pub use truepeak_core::true_peak_interleaved;
 
-/// What:     `struct AndroidSource { inner: Box<dyn Source> }`. A newtype wrapping the Android
+/// What:
+///      `struct AndroidSource { inner: Box<dyn Source> }`.
+///  A newtype wrapping the Android
 ///           decoder so it satisfies the shared [`TruePeakSource`] contract.
-/// Why:      The shared resolver drives any `TruePeakSource`; this adapts the Android decoder
-///           to it, bridging the seconds-based `seek` to the frame-based `seek_to_frame` and
+/// Why:
+///       The shared resolver drives any `TruePeakSource`;
+///  this adapts the Android decoder
+///           to it,
+///  bridging the seconds-based `seek` to the frame-based `seek_to_frame` and
 ///           mapping the Android `PlayerError` to the crate's `TruePeakError`.
 ///
 /// In TS you'd write (pseudocode):
@@ -61,8 +97,11 @@ pub use truepeak_core::true_peak_interleaved;
 /// class AndroidSource implements TruePeakSource { constructor(private inner: Source) {} }
 /// ```
 struct AndroidSource {
-    /// What:     `inner: Box<dyn Source>`. The owned Android decoder.
-    /// Why:      The adapter forwards every trait method to it.
+    /// What:
+    ///      `inner: Box<dyn Source>`.
+    ///  The owned Android decoder.
+    /// Why:
+    ///       The adapter forwards every trait method to it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -71,18 +110,27 @@ struct AndroidSource {
     inner: Box<dyn Source>,
 }
 
-/// What:     `impl TruePeakSource for AndroidSource { ... }`. Implement the shared contract by
+/// What:
+///      `impl TruePeakSource for AndroidSource { ... }`.
+///  Implement the shared contract by
 ///           forwarding to the wrapped decoder.
-/// Why:      Let the shared resolvers measure Android audio without knowing the decoder.
+/// Why:
+///       Let the shared resolvers measure Android audio without knowing the decoder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // AndroidSource satisfies TruePeakSource
 /// ```
 impl TruePeakSource for AndroidSource {
-    /// What:     `fn spec(&self) -> AudioSpec`. Map the Android `decode::AudioSpec` to the
-    ///           shared `AudioSpec` (identical fields, different crate).
-    /// Why:      The resolver reads rate, channels, and duration through this.
+    /// What:
+    ///      `fn spec(&self) -> AudioSpec`.
+    ///  Map the Android `decode::AudioSpec` to the
+    ///           shared `AudioSpec` (identical fields,
+    ///  different crate).
+    /// Why:
+    ///       The resolver reads rate,
+    ///  channels,
+    ///  and duration through this.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -112,9 +160,14 @@ impl TruePeakSource for AndroidSource {
         }
     }
 
-    /// What:     `fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError>`. Forward the
-    ///           next decoded block, mapping a decode error to `TruePeakError::Decode`.
-    /// Why:      The meter feeds these blocks; the error type must be the crate's.
+    /// What:
+    ///      `fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError>`.
+    ///  Forward the
+    ///           next decoded block,
+    ///  mapping a decode error to `TruePeakError::Decode`.
+    /// Why:
+    ///       The meter feeds these blocks;
+    ///  the error type must be the crate's.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -135,13 +188,24 @@ impl TruePeakSource for AndroidSource {
             .map_err(|error| return TruePeakError::Decode { message: error.to_string() })
     }
 
-    /// What:     `fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError>`. Seek
+    /// What:
+    ///      `fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError>`.
+    ///  Seek
     ///           the Android decoder to the interleaved frame by converting it to seconds
-    ///           (`frame / rate`), mapping a seek error to `TruePeakError::Seek`.
-    /// Why:      The probe places windows by frame; the Android decoder seeks by seconds.
-    /// Gotcha:   The seconds-granular seek lands at the nearest packet boundary, not the exact
-    ///           frame, so probe windows are placed approximately. That is acceptable for the
-    ///           runtime: the probe takes the loudest of several spread windows, and a few
+    ///           (`frame / rate`),
+    ///  mapping a seek error to `TruePeakError::Seek`.
+    /// Why:
+    ///       The probe places windows by frame;
+    ///  the Android decoder seeks by seconds.
+    /// Gotcha:
+    ///    The seconds-granular seek lands at the nearest packet boundary,
+    ///  not the exact
+    ///           frame,
+    ///  so probe windows are placed approximately.
+    ///  That is acceptable for the
+    ///           runtime:
+    ///  the probe takes the loudest of several spread windows,
+    ///  and a few
     ///           milliseconds of drift does not change which window is loudest.
     ///
     /// In TS you'd write (pseudocode):
@@ -179,12 +243,20 @@ impl TruePeakSource for AndroidSource {
     }
 }
 
-/// What:     `pub fn resolve_current(source: Box<dyn Source>) -> Result<Decision,
-///           TruePeakError>`. Resolve the foreground gain decision under the shipped policy:
-///           full-scan a short track, probe a long one. Takes an already-opened decoder.
-/// Why:      The current-track path wants a usable gain quickly; the probe yields one for a
+/// What:
+///      `pub fn resolve_current(source: Box<dyn Source>) -> Result<Decision,
+///           TruePeakError>`.
+///  Resolve the foreground gain decision under the shipped policy:
+///           full-scan a short track,
+///  probe a long one.
+///  Takes an already-opened decoder.
+/// Why:
+///       The current-track path wants a usable gain quickly;
+///  the probe yields one for a
 ///           long track without decoding the whole file.
-/// Gotcha:   This BLOCKS on decode; the JNI calls it off the caller's UI path.
+/// Gotcha:
+///    This BLOCKS on decode;
+///  the JNI calls it off the caller's UI path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,12 +282,19 @@ pub fn resolve_current(source: Box<dyn Source>) -> Result<Decision, TruePeakErro
     return resolve_decision(&default_policy(), &mut adapter)
 }
 
-/// What:     `pub fn resolve_full(source: Box<dyn Source>) -> Result<Decision, TruePeakError>`.
-///           Resolve an EXACT gain decision by full-scanning the whole track, regardless of
-///           length. Takes an already-opened decoder.
-/// Why:      Warming upgrades a probe estimate to an exact cached gain over idle time; the
+/// What:
+///      `pub fn resolve_full(source: Box<dyn Source>) -> Result<Decision, TruePeakError>`.
+///           Resolve an EXACT gain decision by full-scanning the whole track,
+///  regardless of
+///           length.
+///  Takes an already-opened decoder.
+/// Why:
+///       Warming upgrades a probe estimate to an exact cached gain over idle time;
+///  the
 ///           cache's exact-over-probe precedence then keeps the exact decision.
-/// Gotcha:   This BLOCKS on a full decode; warming runs it at low thread priority.
+/// Gotcha:
+///    This BLOCKS on a full decode;
+///  warming runs it at low thread priority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

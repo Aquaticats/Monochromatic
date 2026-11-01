@@ -351,7 +351,8 @@ Only pnpm/pnpm#14666 (the feature pull request)
        the prototype confines the change to `pnpr/crates/auth/src/oidc`.
 3.   **Are they supporting this use case?**
       Yes.
-      `pnpr/crates/pnpr/OIDC.md` configures `issuer: https://token.actions.githubusercontent.com` for keyless publishing,
+      `pnpr/crates/pnpr/OIDC.md` configures
+       `issuer: https://token.actions.githubusercontent.com` for keyless publishing,
        and `verifies_rs256_workload_tokens` names the same issuer.
 4.   **Would the repo welcome our contribution?**
       Yes,
@@ -383,7 +384,9 @@ Decision:
 
 Upstream state checked the same day:
  `main` was `8f20a3fd69748b1f6eb5c6a7c54d5917456a2013`,
- every commit touching `pnpr/crates/auth/src/oidc.rs` or `pnpr/crates/auth/src/oidc/` after pnpm/pnpm#14666 is a style or size refactor
+ every commit touching `pnpr/crates/auth/src/oidc.rs`
+ or `pnpr/crates/auth/src/oidc/` after pnpm/pnpm#14666
+ is a style or size refactor
  (pnpm/pnpm#14730,
   #14760,
   #14792,
@@ -444,3 +447,167 @@ Patch: attach `doc/troubleshooting/pnpr-oidc-github-actions-discovery.patch` or 
 
 Written by an agent (Claude Code, claude-opus-5).
 ~~~
+
+## Upstream status re-check 2026-10-21
+
+pnpr has not fixed this.
+ The npm `next` dist-tag is `@pnpm/pnpr@0.1.0-alpha.16`
+ (published 2026-10-21T10:47Z from pnpm/pnpm `91774e72a04d52ce61db06339696a433d383c764`,
+ release PR pnpm/pnpm#17187),
+ and that release still carries the whole failure chain:
+
+- `pnpr/crates/auth/src/oidc/provider_metadata.rs:42` maps every discovery error to `unavailable()`.
+- `pnpr/crates/auth/src/oidc/provider_metadata.rs:43` requires `metadata.authorization_endpoint()`.
+- `pnpr/crates/auth/src/oidc/workload_verification.rs:42` sends every workload token through that discovery.
+- `pnpr/crates/auth/src/oidc/tests.rs:72` and `73` still synthesize `authorization_endpoint` in test metadata.
+- Workspace `Cargo.toml:134` still pins openidconnect 4.0.1.
+
+pnpm/pnpm#16970 (2026-10-16) split `pnpr/crates/auth/src/oidc.rs` into `pnpr/crates/auth/src/oidc/`,
+ and pnpm/pnpm#16501 renamed the refresh flag to a `MetadataFreshness` enum;
+ both are shape changes with the same discovery behavior.
+GitHub's discovery document,
+ fetched 2026-10-21,
+ still omits `authorization_endpoint`:
+ it serves `claims_supported`,
+ `id_token_signing_alg_values_supported`,
+ `issuer`,
+ `jwks_uri`,
+ `response_types_supported`,
+ `scopes_supported`,
+ and `subject_types_supported`.
+Issue and pull request search in pnpm/pnpm for `authorization_endpoint` returns nothing (checked 2026-10-21),
+ and the 2026-09-15 filing decision stands unchanged.
+
+### Release probe
+
+The registry harness against `@pnpm/pnpr@0.1.0-alpha.16` installed from npm
+ (throwaway instance on 127.0.0.1:17678,
+ this repository's generated `package/config/pnpr/config.yaml`
+ with its storage paths moved to a scratch directory and its `web:` block removed):
+
+```text
+control GET / -> 404
+500 Internal Server Error
+```
+
+pnpr logged the probe request as:
+
+```json
+{"level":"ERROR","fields":{"message":"request failed","err":"Internal error: OIDC provider unavailable","error_kind":"internal","status":"500 Internal Server Error"},"target":"pnpr_error::response"}
+```
+
+The control GET proves the instance was up and answering other routes,
+ so the 500 comes from the workload path.
+This matches `0.1.0-alpha.11` exactly:
+ upstream releases through `0.1.0-alpha.16` still reject every GitHub Actions workload publish.
+
+### Migration note for leaving the patched image
+
+`0.1.0-alpha.16` also rejects the generated config's `web:` block
+ (``unknown field `web`, expected one of ... ui ...``,
+ from `pnpr config-check` against the release binary),
+ so returning to an upstream build needs a config migration along with a fixed or patched binary.
+
+### Next action
+
+The patched image pinned in `package/config/pnpr/Containerfile` remains required.
+Re-run the release probe when a newer `@pnpm/pnpr` lands on `next`,
+ or before any patched-image refresh.
+
+## Fork update 2026-10-21
+
+The patched image now tracks current upstream.
+ Branch `pnpr-oidc-workload-discovery` of `Aquaticat/pnpm` sits on pnpm/pnpm `cbe5accc7ace6812e1770f6301d2742c91381c85`
+ (`main`,
+fetched 2026-10-21) as one commit `01dc1384276b91f2b5a3664b6bf8532617e4e6f9`,
+ `fix(pnpr): verify GitHub Actions workload tokens without login metadata`.
+ The fix was ported through pnpm/pnpm#16970's `oidc.rs` split and pnpm/pnpm#16501's `MetadataFreshness` enum.
+
+### Ported code map
+
+- `pnpr/crates/auth/src/oidc/provider_metadata.rs:26` and `59-70` cache `Discovered { jwks, login }`;
+  workload-only providers call `workload_keys` instead of `CoreProviderMetadata::discover_async`.
+- `pnpr/crates/auth/src/oidc/workload_verification.rs:15` and `66-91` parse only `issuer` and `jwks_uri`,
+  enforce issuer equality,
+  and fetch the key set with `CoreJsonWebKeySet::fetch_async`.
+- `pnpr/crates/auth/src/oidc/workload.rs:8` and `33` verify against `&CoreJsonWebKeySet`.
+- `pnpr/crates/auth/src/oidc.rs:124` and `163` map absent login metadata to `rejected()`;
+  `verified_expiration` takes the key set (`pnpr/crates/auth/src/oidc.rs:205`).
+
+### Port proof
+
+Both runs in `docker.io/library/rust:1.97.0-bookworm` with `--memory=3g --cpus=2` and `CARGO_BUILD_JOBS=1`:
+
+- Unpatched `cbe5accc` plus only the new test fails,
+  as required:
+  `workload_discovery_accepts_issuers_without_login_endpoints` panics with
+  `Internal { reason: "OIDC provider unavailable" }` (0 passed,
+  1 failed,
+  114 filtered out).
+- With the port,
+  `cargo test --package pnpr-auth` passes 115 tests with 0 failures.
+
+### Config schema change
+
+Current pnpr names the web UI block `ui` with `enabled`
+ (`pub(super) ui: UiFile` at `pnpr/crates/config/src/config_file.rs:235`,
+ fields `enabled` and `dir` at `pnpr/crates/config/src/config_file.rs:324`),
+ and its root parser rejects unknown fields.
+ Measured in both directions with the registry harness:
+
+- The `0.1.0-alpha.16` release binary rejects the old block:
+  ``Invalid config: unknown field `web`, expected one of ... ui ...`` (`pnpr config-check`).
+- The `0.1.0-alpha.11` base pinned before this update starts normally on the new block,
+  because that base drops unknown top-level fields by design
+  (its `ConfigFile` at `8f20a3f` declares no `web` field and documents the drop).
+  The `web: enable: false` block added with `e49cf3100a` was inert on that base.
+
+`generatePnprConfig` in `file-enforcer.config.ts` now emits `ui: enabled: false`,
+ and the generated `package/config/pnpr/config.yaml` carries it.
+
+### Deployment record
+
+`.github/workflows/pnpr-patched-image.yml` run `39646035147` built the rebased port as
+
+```text
+ghcr.io/aquaticat/pnpr:0.1.0-alpha.16-oidc-workload-discovery.01dc1384276b@sha256:09a9818eaebba777848f3d01382c97143e232d95085ea4950408ad436505109c
+```
+
+`package/config/pnpr/Containerfile` pinned that `tag@digest`,
+ the generated config carried `ui: enabled: false`,
+ and the deploy files landed in one lockstep commit `4adc1b864c`
+ at 2026-10-21T18:01:46Z.
+ Local runs of the new image before the pin answered `GET /-/ping` with `{}`,
+ `GET /-/ready` with `{"status":"ok","storage":"ok","auth":"ok"}`,
+ and `GET /-/metrics` with `pnpr_build_info{version="0.1.0-alpha.16"}`.
+
+### Outage and root cause
+
+The 404 surface became `502` from about 18:04Z and stayed down about 10 minutes,
+ because the new base aborts startup on a store in the earlier layout
+ and the deployed store holds 163 published packages there with no `layout.json`.
+ The container log held `Storage is temporarily unavailable: the hosted store has no layout.json`,
+ and the full diagnosis,
+ reproduction,
+ and remedy are in
+[the base-move topic](pnpr-base-move.md).
+ A second breaking change rode the same base move:
+ npm URLs now answer only under `/npm`.
+
+### Rollback and remedy
+
+Rollback commit `66cff15dc2` restored the `0.1.0-alpha.11` pin,
+ and production answered `GET /-/ping` with `{}`
+ while a forged workload publish probe at
+`https://pnpr.c.aquati.cat/~monochromatic-dev/@monochromatic-dev%2fprobe-nonexistent`
+ returned `401 Authentication required for OIDC credentials`.
+ The fix-forward is measured and ready but not deployed:
+ stop the container,
+ run `pnpr upgrade-storage` against the volume with `PNPR_SECRET` set
+ (no pre-conversion snapshot,
+ under the standing no-backup decision the owner re-confirmed on 2026-10-21),
+ then repin the `0.1.0-alpha.16` digest and move every client URL under `/npm` in the same commit.
+ The converted store cannot be served by the `0.1.0-alpha.11` reader,
+ so a rollback after that step empties the converted store and republishes current versions.
+ The image pin and the config change land in one commit,
+ because Coolify bakes the config into the rebuilt image and the new base refuses the old block.

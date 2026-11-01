@@ -2,14 +2,21 @@
 
 ## Status: development paused
 
-Active development is paused pending repo-wide work. `mise run //packages/webapp-content/messages-demo:lint` currently reports 13 errors from `no-restricted-syntax/no-regex` across `src/client/composer/helpers.ts`, `src/client/editor/buffer-table.unit.test.ts`, `src/client/outbox.unit.test.ts`, `src/lib/markdown-stream.ts`, `src/lib/pagination.ts`, and `src/lib/pagination.unit.test.ts`. The refactor is deferred; resume by completing the no-regex sweep documented in `HANDOVER.no-regex.md`.
+Active development is paused pending repo-wide work.
+ `mise run //packages/webapp-content/messages-demo:lint` currently reports 13 errors
+ from `no-restricted-syntax/no-regex` across `src/client/composer/helpers.ts`,
+ `src/client/editor/buffer-table.unit.test.ts`, `src/client/outbox.unit.test.ts`, `src/lib/markdown-stream.ts`,
+ `src/lib/pagination.ts`, and `src/lib/pagination.unit.test.ts`. The refactor is deferred; resume
+ by completing the no-regex sweep documented in `HANDOVER.no-regex.md`.
 
 Demo webapp that lists user-submitted markdown messages with two hard-scale targets:
 
 - Up to **millions of messages** in the corpus
 - Up to **1 billion characters (~1 GB) per message**
 
-Every message renders as markdown, served by h3 with heavy SSR and keyset pagination. The composer is a custom virtualised editor (no third-party editor library); messages above 1 MB open in chunk-paginated edit mode so the editor never holds more than one chunk at a time.
+Every message renders as markdown, served by h3 with heavy SSR and keyset pagination.
+ The composer is a custom virtualised editor (no third-party editor library); messages above 1 MB open
+ in chunk-paginated edit mode so the editor never holds more than one chunk at a time.
 
 See `/home/user/.claude/plans/build-a-demo-of-composed-quill.md` for the full design.
 
@@ -26,15 +33,22 @@ The SQLite database lives at `./data/messages-demo.db`. Override with `--db=PATH
 
 ## Demo-grade caveats
 
-- **Identity is cosmetic.** The dropdown selects a `user_id` that is sent in the body of writes. There is no authentication; any client can claim any identity. Edit and delete are gated against this trusted identity, but a malicious client can spoof it.
+- **Identity is cosmetic.** The dropdown selects a `user_id` that is sent in the body of writes.
+ There is no authentication; any client can claim any identity. Edit and delete are gated against this trusted identity,
+ but a malicious client can spoof it.
 - **CSRF is not enforced.** Suitable for a local demo only.
-- **Markdown dialect is CommonMark only.** No GFM tables, task lists, or footnotes. Reference-style links (`[text][ref]`) render as literal source when the definition cannot be resolved within the chunk being rendered. Inline `[text](url)` links and autolinks work normally.
-- **Edit revisions are capped at 10.** The 11th edit returns `409`; the user is asked to "save as new message." This keeps copy-on-write chunk-read latency bounded without a chain-compaction job.
+- **Markdown dialect is CommonMark only.** No GFM tables, task lists, or footnotes.
+ Reference-style links (`[text][ref]`) render as literal source
+ when the definition cannot be resolved within the chunk being rendered. Inline `[text](url)` links
+ and autolinks work normally.
+- **Edit revisions are capped at 10.** The 11th edit returns `409`; the user is asked to "save
+ as new message." This keeps copy-on-write chunk-read latency bounded without a chain-compaction job.
 - **JS is required.** No `<noscript>` editor; crawlers see a banner.
 
 ## Known visual quirks
 
-- Reference-style links with definitions that fall outside the rendered chunk boundary appear as literal source. Use inline links to be safe.
+- Reference-style links with definitions that fall outside the rendered chunk boundary appear as literal source.
+ Use inline links to be safe.
 - The first-chunk text preview falls back to "(no text preview)" when the first chunk is a code block or image.
 
 ## Storage tiers
@@ -45,7 +59,8 @@ The composer probes IndexedDB, OPFS, and `localStorage` at startup and uses whic
 - OPFS or IDB available -> tier-3 chunk navigation hits a local cache
 - localStorage available -> identity and last-draft pointer survive reload
 
-If none are available the app still works; a "volatile mode" badge appears in the composer corner so the user knows their unsent buffer is in-memory.
+If none are available the app still works; a "volatile mode" badge appears in the composer corner
+ so the user knows their unsent buffer is in-memory.
 
 ## Compile-pipeline metrics overlay
 

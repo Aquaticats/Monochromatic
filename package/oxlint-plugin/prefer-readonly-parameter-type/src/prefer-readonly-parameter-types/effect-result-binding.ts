@@ -29,15 +29,15 @@ import type {
   ForOfStatement,
   Node,
   VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isIdentifier,
   isArrayBindingPattern,
   isBindingElement,
   isObjectBindingPattern,
   isVariableDeclarationList,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import {
   deferrableResultSite,
@@ -340,13 +340,13 @@ export function discoverResultBindings({
         statement.initializer
           .declarations
           .forEach(function registerIterationDeclaration(declaration,): void {
-          state.changed = registerResultSites({
-            project,
-            name: declaration.name,
-            sites,
-            resultSitesBySymbolId,
-          },) || state.changed;
-        },);
+            state.changed = registerResultSites({
+              project,
+              name: declaration.name,
+              sites,
+              resultSitesBySymbolId,
+            },) || state.changed;
+          },);
         return;
       }
       state.changed = registerResultSites({

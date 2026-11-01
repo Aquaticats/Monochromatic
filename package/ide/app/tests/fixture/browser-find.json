@@ -1,0 +1,267 @@
+{
+  "browserVersion": "149.0.7827.54",
+  "surface": "Window.find in a preformatted text element",
+  "cases": [
+    {
+      "endUtf16": 8,
+      "found": true,
+      "name": "positive-literal",
+      "query": "needle",
+      "selected": "needle",
+      "startUtf16": 2,
+      "text": "a needle here"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "negative-literal",
+      "query": "needle",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "ordinary text"
+    },
+    {
+      "endUtf16": 6,
+      "found": true,
+      "name": "ascii-case",
+      "query": "NEEDLE",
+      "selected": "Needle",
+      "startUtf16": 0,
+      "text": "Needle"
+    },
+    {
+      "endUtf16": 3,
+      "found": true,
+      "name": "regex-metacharacters",
+      "query": "[",
+      "selected": "[",
+      "startUtf16": 2,
+      "text": "a [bracket] b"
+    },
+    {
+      "endUtf16": 6,
+      "found": true,
+      "name": "significant-spaces",
+      "query": " cat ",
+      "selected": " cat ",
+      "startUtf16": 1,
+      "text": "a cat b"
+    },
+    {
+      "endUtf16": 3,
+      "found": true,
+      "name": "cjk",
+      "query": "猫",
+      "selected": "猫",
+      "startUtf16": 2,
+      "text": "a 猫 b"
+    },
+    {
+      "endUtf16": 5,
+      "found": true,
+      "name": "canonical-accent",
+      "query": "café",
+      "selected": "café",
+      "startUtf16": 0,
+      "text": "café"
+    },
+    {
+      "endUtf16": 4,
+      "found": true,
+      "name": "plain-accent",
+      "query": "cafe",
+      "selected": "café",
+      "startUtf16": 0,
+      "text": "café"
+    },
+    {
+      "endUtf16": 6,
+      "found": true,
+      "name": "case-expansion",
+      "query": "STRASSE",
+      "selected": "Straße",
+      "startUtf16": 0,
+      "text": "Straße"
+    },
+    {
+      "endUtf16": 4,
+      "found": true,
+      "name": "compatibility-ligature",
+      "query": "office",
+      "selected": "oﬃce",
+      "startUtf16": 0,
+      "text": "oﬃce"
+    },
+    {
+      "endUtf16": 1,
+      "found": true,
+      "name": "sigma",
+      "query": "Σ",
+      "selected": "ς",
+      "startUtf16": 0,
+      "text": "ς"
+    },
+    {
+      "endUtf16": 1,
+      "found": true,
+      "name": "dotted-i",
+      "query": "i",
+      "selected": "İ",
+      "startUtf16": 0,
+      "text": "İ"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "newline-as-space",
+      "query": "one two",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "one\ntwo"
+    },
+    {
+      "endUtf16": 7,
+      "found": true,
+      "name": "literal-newline",
+      "query": "one\ntwo",
+      "selected": "one\ntwo",
+      "startUtf16": 0,
+      "text": "one\ntwo"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "tab-as-space",
+      "query": "one two",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "one\ttwo"
+    },
+    {
+      "endUtf16": 7,
+      "found": true,
+      "name": "nbsp-as-space",
+      "query": "one two",
+      "selected": "one two",
+      "startUtf16": 0,
+      "text": "one two"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "empty-pattern",
+      "query": "",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "a needle here"
+    },
+    {
+      "endUtf16": 1,
+      "found": true,
+      "name": "kana-script",
+      "query": "カ",
+      "selected": "か",
+      "startUtf16": 0,
+      "text": "か"
+    },
+    {
+      "endUtf16": 1,
+      "found": true,
+      "name": "kana-width",
+      "query": "カ",
+      "selected": "ｶ",
+      "startUtf16": 0,
+      "text": "ｶ"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "kana-small",
+      "query": "や",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "ゃ"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "kana-voiced",
+      "query": "か",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "が"
+    },
+    {
+      "endUtf16": 2,
+      "found": true,
+      "name": "kana-composed",
+      "query": "が",
+      "selected": "が",
+      "startUtf16": 0,
+      "text": "が"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "kana-halfwidth-voiced",
+      "query": "ガ",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "ｶﾞ"
+    },
+    {
+      "endUtf16": 5,
+      "found": true,
+      "name": "single-quote",
+      "query": "can't",
+      "selected": "can’t",
+      "startUtf16": 0,
+      "text": "can’t"
+    },
+    {
+      "endUtf16": 6,
+      "found": true,
+      "name": "double-quote",
+      "query": "\"text\"",
+      "selected": "“text”",
+      "startUtf16": 0,
+      "text": "“text”"
+    },
+    {
+      "endUtf16": 10,
+      "found": true,
+      "name": "soft-hyphen",
+      "query": "cooperate",
+      "selected": "co­operate",
+      "startUtf16": 0,
+      "text": "co­operate"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "soft-hyphen-only",
+      "query": "­",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "cooperate"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "half-expansion",
+      "query": "s",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "ß"
+    },
+    {
+      "endUtf16": 0,
+      "found": false,
+      "name": "combining-mark-only",
+      "query": "́",
+      "selected": "",
+      "startUtf16": 0,
+      "text": "café"
+    }
+  ]
+}

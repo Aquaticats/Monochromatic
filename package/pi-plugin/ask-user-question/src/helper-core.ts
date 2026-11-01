@@ -1,11 +1,8 @@
-import {
-  createConnection,
-  type Socket,
-} from 'node:net';
+import type { Socket, } from 'node:net';
 import { once, } from 'node:events';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { runEditor, } from './editor-process.ts';
 import {
@@ -13,6 +10,11 @@ import {
   serializeHelperCompletion,
 } from './helper-protocol.ts';
 import { readHelperRequest, } from './helper-request.ts';
+import {
+  AnswerRequestEndedError,
+  authenticateHelper,
+  createHelperConnection,
+} from './helper-connection.ts';
 
 //region Logger
 
@@ -49,34 +51,26 @@ export async function runAnswerHelper(
   /**
    Loopback connection kept open for editor lifetime.
    */
-  const socket = createConnection({
-    host: request.host,
-    port: request.port,
-  },);
-  await once(
-    socket,
-    'connect',
-  );
-  socket.setNoDelay(true,);
-  socket.write(`${request.token}\n`,);
+  using connection = createHelperConnection(request,);
   /**
-   Cancels attached editor if originating Pi request disappears.
+   Request-owned channel and editor cancellation capabilities.
    */
-  const controller = new AbortController();
-  socket.once(
-    'close',
-    function abortOnPiDisconnect(): void {
-      controller.abort();
-    },
-  );
+  const {
+    socket,
+    signal,
+  } = connection;
   try {
+    await authenticateHelper({
+      connection,
+      token: request.token,
+    },);
     /**
      Attached editor outcome mapped directly to protocol status.
      */
     const status = await runEditor({
       answerPath: request.answerPath,
       editorCommand: request.editorCommand,
-      signal: controller.signal,
+      signal,
     },);
     await sendCompletion({
       socket,
@@ -84,9 +78,12 @@ export async function runAnswerHelper(
     },);
   }
   catch (error: unknown) {
+    if (signal.aborted || (error instanceof AnswerRequestEndedError)) {
+      l.debug(`answer request ended: ${String(error,)}`,);
+      console.log('This question is no longer active. Return to Pi for the current question.',);
+      return;
+    }
     l.error(`answer helper failed: ${String(error,)}`,);
-    if (socket.destroyed)
-      throw error;
     await sendCompletion({
       socket,
       completion: {

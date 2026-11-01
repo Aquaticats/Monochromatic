@@ -16,7 +16,7 @@ import {
 import type {
   Node,
   SourceFile,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isExportDeclaration,
   isIdentifier,
@@ -26,8 +26,8 @@ import {
   isNamedImports,
   isSourceFile,
   isStringLiteral,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 /**
  Sentinel when runtime source does not forward requested export through a relative module.

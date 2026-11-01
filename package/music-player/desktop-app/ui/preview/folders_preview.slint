@@ -1,0 +1,135 @@
+// Preview windows for the folder picker against the Fold captures: cover picker open in dark and light, and the inner left pane.
+// Each window is rendered by name with `slint-viewer --component`; the window sets the scheme before it draws.
+import { Theme } from "../theme.slint";
+import { FolderPickerPane, FolderRailCell, FolderName } from "../folders.slint";
+import { CoverTopRow, UnfoldedFoldersHeader } from "../bars.slint";
+
+// Sample library from the captures: rail cells A to M (without F and H), and names under C, D and E.
+// Heading rows carry the cell label in `heading`; name rows repeat it so each row knows its cell.
+global FolderSample {
+    out property <[FolderRailCell]> cells: [
+        { key: "A", label: "A" },
+        { key: "B", label: "B" },
+        { key: "C", label: "C" },
+        { key: "D", label: "D" },
+        { key: "E", label: "E" },
+        { key: "G", label: "G" },
+        { key: "I", label: "I" },
+        { key: "J", label: "J" },
+        { key: "K", label: "K" },
+        { key: "L", label: "L" },
+        { key: "M", label: "M" },
+    ];
+    out property <[FolderName]> names: [
+        { name: "", section-start: true, heading: "C" },
+        { name: "C418", section-start: false, heading: "C" },
+        { name: "Camellia", section-start: false, heading: "C" },
+        { name: "capsule", section-start: false, heading: "C" },
+        { name: "Carpenter Brut", section-start: false, heading: "C" },
+        { name: "Casiopea", section-start: false, heading: "C" },
+        { name: "Celldweller", section-start: false, heading: "C" },
+        { name: "Charisma.com", section-start: false, heading: "C" },
+        { name: "Chicane", section-start: false, heading: "C" },
+        { name: "CHON", section-start: false, heading: "C" },
+        { name: "Clark", section-start: false, heading: "C" },
+        { name: "Clown Core", section-start: false, heading: "C" },
+        { name: "Coaltar of the Deepers", section-start: false, heading: "C" },
+        { name: "Com Truise", section-start: false, heading: "C" },
+        { name: "Cornelius", section-start: false, heading: "C" },
+        { name: "Cornelius Live", section-start: false, heading: "C" },
+        { name: "Covet", section-start: false, heading: "C" },
+        { name: "Crumb", section-start: false, heading: "C" },
+        { name: "Crystal Castles", section-start: false, heading: "C" },
+        { name: "Cult of Luna", section-start: false, heading: "C" },
+        { name: "Current Value", section-start: false, heading: "C" },
+        { name: "Cynic", section-start: false, heading: "C" },
+        { name: "Cytus Sound Team", section-start: false, heading: "C" },
+        { name: "Cö shu Nie", section-start: false, heading: "C" },
+        { name: "", section-start: true, heading: "D" },
+        { name: "Daft Punk", section-start: false, heading: "D" },
+        { name: "Deadmau5", section-start: false, heading: "D" },
+        { name: "", section-start: true, heading: "E" },
+        { name: "Enya", section-start: false, heading: "E" },
+    ];
+}
+
+// Cover, picker open, dark: the top row with the caret up, then the picker below it (capture cover-round-cover-picker-p4-s100).
+export component CoverPickerDark inherits Window {
+    width: 443px;
+    height: 727px;
+    background: Theme.canvas;
+    init => {
+        Theme.scheme-override = 2;
+    }
+    CoverTopRow {
+        x: 0px;
+        y: 58px;
+        width: parent.width;
+        folder-title: "Camellia";
+        picker-open: true;
+        show-search: false;
+    }
+    FolderPickerPane {
+        x: 0px;
+        y: 114px;
+        width: parent.width;
+        height: parent.height - 114px;
+        cells: FolderSample.cells;
+        names: FolderSample.names;
+        current-folder: "Camellia";
+        current-cell: "C";
+    }
+}
+
+// Cover, picker open, light (capture cover-round-cover-picker-p4-light-s100).
+export component CoverPickerLight inherits Window {
+    width: 443px;
+    height: 727px;
+    background: Theme.canvas;
+    init => {
+        Theme.scheme-override = 1;
+    }
+    CoverTopRow {
+        x: 0px;
+        y: 58px;
+        width: parent.width;
+        folder-title: "Camellia";
+        picker-open: true;
+        show-search: false;
+    }
+    FolderPickerPane {
+        x: 0px;
+        y: 114px;
+        width: parent.width;
+        height: parent.height - 114px;
+        cells: FolderSample.cells;
+        names: FolderSample.names;
+        current-folder: "Camellia";
+        current-cell: "C";
+    }
+}
+
+// Inner left pane, dark, 414 wide: the Folders header with Open, then the rail and names (capture fold-search-inner-player-dark-s100).
+export component InnerLeftPaneDark inherits Window {
+    width: 414px;
+    height: 640px;
+    background: Theme.canvas;
+    init => {
+        Theme.scheme-override = 2;
+    }
+    UnfoldedFoldersHeader {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+    }
+    FolderPickerPane {
+        x: 0px;
+        y: 56px;
+        width: parent.width;
+        height: parent.height - 56px;
+        cells: FolderSample.cells;
+        names: FolderSample.names;
+        current-folder: "Camellia";
+        current-cell: "C";
+    }
+}

@@ -218,11 +218,38 @@ no instruction file is edited in this round:
 ```text
 # AGENTS.md (proposed, not applied)
 QPM:
- Before asking which mechanism,
- recover settled customization and ownership;
- dissolve the constraint demanding one.
- Offer options only for the remaining undecided choice.
+ Before asking,
+ recover customization and ownership;
+ dissolve false constraints.
+ Ask only for a demonstrated consequence needing human judgment;
+ otherwise choose or defer within scope.
 ```
+
+## Consequence gate for further questions
+
+The human rejected further rounds on inconsequential filename details:
+the question's purpose and meaningful difference were not apparent.
+The agent failed to establish a consequential unresolved choice before
+requesting a preference.
+The retained measurements do not justify another placement/retention ballot,
+including a version relabeled as default selection.
+No further matrix or recapture follows from the existence of open template
+entries alone.
+
+Use judgment on reversible details within authorized scope,
+preserving settled customization and requirements.
+Defer details outside that scope rather than manufacture a user gate.
+Before requesting a new design choice,
+state its concrete user-facing consequence,
+show an inspectable distinction and explain why the human's judgment is
+needed rather than an engineering decision.
+If that basis is absent,
+close or defer the detail without another review round.
+This does not assume universal visual equivalence or waive identity and
+accessibility requirements.
+The human's invitation to ask questions is permission for genuine questions,
+not a request to invent one.
+No current filename question needs an answer.
 
 ## Prepared usable variants
 

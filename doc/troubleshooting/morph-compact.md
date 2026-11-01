@@ -638,8 +638,10 @@ Two changes to `hooks/hooks.json`:
          "hooks": [
            {
              "type": "command",
--            "command": "npm install --silent --prefix ${CLAUDE_PLUGIN_ROOT} --omit=dev --no-audit --no-fund >/dev/null 2>&1 && node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js"
-+            "command": "([ -d \"${CLAUDE_PLUGIN_ROOT}/node_modules\" ] || npm install --silent --prefix \"${CLAUDE_PLUGIN_ROOT}\" --omit=dev --no-audit --no-fund >/dev/null 2>&1) && node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js\""
+-            "command":
+  "npm install --silent --prefix ${CLAUDE_PLUGIN_ROOT} --omit=dev --no-audit --no-fund >/dev/null 2>&1 && node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js"
++            "command":
+  "([ -d \"${CLAUDE_PLUGIN_ROOT}/node_modules\" ] || npm install --silent --prefix \"${CLAUDE_PLUGIN_ROOT}\" --omit=dev --no-audit --no-fund >/dev/null 2>&1) && node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js\""
            }
          ]
        }
@@ -647,7 +649,8 @@ Two changes to `hooks/hooks.json`:
          "hooks": [
            {
              "type": "command",
--            "command": "npm install --silent --prefix ${CLAUDE_PLUGIN_ROOT} --omit=dev --no-audit --no-fund >/dev/null 2>&1 && node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js"
+-            "command":
+  "npm install --silent --prefix ${CLAUDE_PLUGIN_ROOT} --omit=dev --no-audit --no-fund >/dev/null 2>&1 && node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js"
 +            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\""
            }
          ]

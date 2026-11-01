@@ -1,5 +1,14 @@
 # `wg-quicker` completion handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/wg-allowedips` is now `package/wg/core-allowedips`;
+> `@monochromatic-dev/module-wg-allowedips` is now `@monochromatic-dev/wg-core-allowedips`;
+> `package/cli/wg-allowedips` is now `package/wg/cli-allowedips`;
+> `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`;
+> `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
+
 ## Goal and safety boundary
 
 The production replacement for `wg-quick up/down` is complete.
@@ -11,14 +20,26 @@ It:
 - exempts Ghostty,
    Steam,
    Helium,
-   and Pale Moon sockets through cgroup-BPF;
+   Pale Moon,
+   Firefox Nightly,
+   ChatGPT,
+   Interpreter,
+   and Qure sockets through cgroup-BPF;
 - keeps privileged BPF implementation in Rust;
 - does not move Ghostty into another systemd slice.
 
 The human brought real `mx-que-mx1` up during follow-up diagnosis and then brought it down after connectivity
 stopped.
 It is currently down.
-Its validated exemption watcher remains active with rebuilt companion and Pale Moon discovery.
+No exemption watcher was running when ChatGPT and Interpreter coverage landed on 2026-10-06:
+no WireGuard interface existed,
+no `wg-quicker-exempt` process ran,
+and no bypass `ip rule` was installed,
+so the next `up` starts a watcher from the current companion build.
+On 2026-10-08 that tunnel was up again with an active watcher,
+`wg-quicker-exempt __watch mx-que-mx1 100 1000`,
+and the priority `50` `fwmark 0x64` bypass rule installed,
+so Qure coverage landed against live tunnel state rather than an idle host.
 Do not bring tunnel up,
 restart it,
 or mutate live routing without explicit authorization.
@@ -38,6 +59,23 @@ That file was mode `0644` owned `root:user`;
 both configs are now mode `0600` owned `root:root`,
 matching the `0700 root:root` directory that already blocked other users.
 See `doc/troubleshooting/netavark-masquerade-mask-exempt-mark.md`.
+
+On 2026-10-06 both configs stopped carrying a baked `AllowedIPs` value.
+Each `[Peer]` section's single `AllowedIPs` line,
+`90810` bytes holding `4082` networks generated on 2026-09-17,
+was replaced atomically with `AllowedIPsFromFiles = ~/allowed.txt ~/disallowed.txt`,
+so every `up` regenerates from the current input files.
+Both edits preserved mode `0600`,
+`root:root` ownership,
+single-link status,
+and the `unconfined_u:object_r:etc_t:s0` label.
+Pre-edit copies are `/root/wg-quicker-conf-backup-gb-lon-gb2.conf-20261006`
+and `/root/wg-quicker-conf-backup-mx-que-mx1.conf-20261006`,
+each mode `0600`.
+The directive expands through the runtime home directory,
+which the sudo launcher sets to the caller's home;
+a direct root invocation whose `HOME` is `/root` fails closed on the missing file
+instead of silently narrowing coverage.
 
 ## Completed tasks
 
@@ -70,6 +108,17 @@ See `doc/troubleshooting/netavark-masquerade-mask-exempt-mark.md`.
    discover both installed Pale Moon executable names,
    verify live target enumeration,
    and update exemption diagnostics and documentation.
+- ChatGPT and Interpreter follow-up:
+   discover both applications' executables and desktop services,
+   verify live target enumeration against real desktop launches,
+   extend `~/disallowed.txt` with their measured endpoints,
+   and switch both live configs to `AllowedIPsFromFiles`.
+- Qure follow-up:
+   discover its AppImage executables,
+   bundled CLI wrappers,
+   and desktop service,
+   verify live target enumeration against a real launch,
+   and extend `~/disallowed.txt` with its measured endpoints.
 
 No tracked implementation task remains.
 
@@ -101,6 +150,8 @@ a41cb8efb missing-ExemptMark warning and live config note
 492b6914e actionable config-specific warning wording
 7b3621d47 Pale Moon process discovery and exemption documentation
 5c65b29ce exact Pale Moon matching and cgroup-boundary documentation
+c07f6e56e ChatGPT and Interpreter executable discovery
+9e5e33d24 Qure executable and desktop-service discovery
 ```
 
 Other commits interleaved at `HEAD` belong to concurrent work and are unrelated.
@@ -250,7 +301,8 @@ then calls `rmdir` so unrelated entries block removal.
 
 ### Linux SELinux pin regression
 
-Kernel `7.1.3-ogc5.1.fc44.x86_64` returns `EINVAL` from `BPF_OBJ_PIN` because SELinux initializes inode security state before
+Kernel `7.1.3-ogc5.1.fc44.x86_64` returns `EINVAL` from `BPF_OBJ_PIN`
+because SELinux initializes inode security state before
 checking `SBLABEL_MNT` on bpffs.
 The package detects typed `BPF_OBJ_PIN EINVAL` without diagnostic-string matching.
 
@@ -279,7 +331,7 @@ Fallback-specific debug functional tests inject typed object-pin failure so desc
 deterministic.
 Separate public-CLI lifecycle test retains native pin-path coverage.
 
-## Ghostty, Steam, Helium, Pale Moon, and Firefox Nightly coverage
+## Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure coverage
 
 `wg-quicker` starts Rust watcher only after bypass route exists.
 It stops watcher before removing bypass routing.
@@ -290,7 +342,10 @@ It states that Ghostty,
  Steam,
  Helium,
  Pale Moon,
- and Firefox Nightly will use the tunnel.
+ Firefox Nightly,
+ ChatGPT,
+ Interpreter,
+ and Qure will use the tunnel.
 It instructs the user to add `ExemptMark = 100` under `[Interface]`,
 then bring the interface down and up again so application exemptions attach.
 `down` does not emit this warning.
@@ -336,12 +391,26 @@ Watcher behavior:
 - identifies Steam's `app-steam@*.service` immediately;
 - identifies Helium Chrome application-ID service immediately;
 - identifies Firefox Nightly's `app-firefox\x2dnightly@*.service` immediately;
+- identifies ChatGPT's `app-chatgpt@*.service` immediately;
+- identifies Interpreter's `app-interpreter@*.service` immediately;
+- identifies Qure's `app-qure@*.service` immediately;
 - maps live Helium,
   renderer,
   zygote,
   and crashpad executables to current cgroups;
 - maps exact `palemoon` and `palemoon-bin` executable names to current cgroups;
 - maps exact `firefox` and `firefox-bin` names under a `firefox-nightly` install directory to current cgroups;
+- maps every executable inside ChatGPT's root-owned `/usr/lib/chatgpt` package tree,
+  including the `resources/codex` app-server that application spawns,
+  to current cgroups;
+- maps every `interpreter`-prefixed executable,
+  including the AppImage file and the bundled `interpreter-*` agents,
+  to current cgroups;
+- maps every `qure`-prefixed executable,
+  including the AppImage file,
+  the mounted Electron image,
+  and the agents its bundled CLI wrappers exec,
+  to current cgroups;
 - periodically rescans processes entering existing cgroups;
 - retains known process-discovered cgroups through process restarts until cgroup removal;
 - holds links directly for watcher lifetime;
@@ -380,10 +449,39 @@ Firefox Nightly follow-up verification found:
 - both Nightly verification processes ended;
 - disposable headless profile was removed without changing live tunnel or application cgroups.
 
+ChatGPT and Interpreter follow-up verification found:
+
+- a disposable `app.slice` service running ChatGPT's own bundled `resources/cua_node/bin/node` appeared in
+  rebuilt `wg-quicker-exempt list-targets` output,
+  while a sibling service running `/usr/bin/sleep` did not;
+- normal KDE desktop launch created `app-chatgpt@<hex>.service` from `chatgpt.desktop`;
+- ChatGPT's Electron main process then moved itself into a Chromium-created
+  `app-org.chromium.Chromium-<pid>.scope`,
+  which also held the spawned `resources/codex` app-server,
+  so one running application occupied two cgroups;
+- `19` live ChatGPT executables resolved to `/usr/lib/chatgpt/ChatGPT`,
+  `resources/codex`,
+  and `browser_crashpad_handler`;
+- normal KDE desktop launch created `app-interpreter@<hex>.service` from `interpreter.desktop`,
+  and the AppImage created a second `app-interpreter-<pid>.scope` holding its `interpreter-app-server`
+  and `bwrap` children;
+- `9` live Interpreter executables resolved to `~/AppImages/interpreter.appimage`,
+  `/tmp/.mount_interp*/interpreter`,
+  and `/tmp/.mount_interp*/resources/interpreter-app-server`;
+- all `28` matched processes mapped to listed targets,
+  and the rebuilt listing added exactly those four agent cgroups to the five-target baseline;
+- privileged disposable-cgroup protocol coverage passed on the current kernel;
+- both applications were stopped,
+  failed unit state was reset,
+  and the listing returned to the exact baseline with no matched process left.
+
 Process discovery attaches entire current cgroup.
 Sibling processes sharing Helium,
 Pale Moon,
-or Firefox Nightly cgroup also receive exemption until cgroup disappears or watcher stops.
+Firefox Nightly,
+ChatGPT,
+Interpreter,
+or Qure cgroup also receive exemption until cgroup disappears or watcher stops.
 A newly started process-discovered application can create sockets before next 250-millisecond rescan;
 applications present at watcher startup are attached before readiness.
 
@@ -408,6 +506,239 @@ UDP4,
 and UDP6 socket probes from active watcher.
 Fixture cgroup and probe were removed;
 watcher remained active with empty error log.
+
+## ChatGPT and Interpreter clearnet coverage
+
+Both applications reach clearnet through two independent mechanisms as of 2026-10-06.
+
+Socket marking matches two shapes per application.
+ChatGPT matching accepts every executable inside the root-owned `/usr/lib/chatgpt` package tree,
+because that application spawns `resources/codex`,
+`resources/rg`,
+and `resources/cua_node/bin/node` agents that can live in a cgroup of their own.
+Interpreter matching accepts every executable whose name begins with `interpreter`,
+covering `~/AppImages/interpreter.appimage`,
+the mounted `/tmp/.mount_interp*/interpreter` Electron image,
+the bundled `interpreter-*` agents,
+and the same vendor's mise-installed terminal agent.
+Both applications also match their observed desktop services.
+Interpreter's own `app-interpreter-<pid>.scope` deliberately stays executable discovery's responsibility,
+since its name derives from the executable rather than the desktop entry.
+
+`AllowedIPs` generation gained the endpoints both applications use,
+measured with the built `wg-allowedips` command against the value generated before and after the edit.
+Sixteen of seventeen candidate hostnames left the generated value on the first regeneration:
+`api.openai.com`,
+`auth.openai.com`,
+`chat.openai.com`,
+`codex-portals.api.openai.com`,
+`realtime.chatgpt.com`,
+`learn.chatgpt.com`,
+`web-sandbox.oaiusercontent.com`,
+`images.openai.com`,
+`developers.openai.com`,
+`status.openai.com`,
+`admin.openai.com`,
+`statsigcdn.openai.com`,
+`model-spec.openai.com`,
+`privacy.openai.com`,
+`oi-new-server.fly.dev`,
+and `models.dev`.
+Two measurements bound that IP-level path:
+
+- `huggingface.co` sits behind CloudFront,
+  whose answers rotated through three distinct address sets within ten minutes,
+  so the first regenerated value covered none of the addresses a later client resolved
+  and a second regeneration covered only its own snapshot.
+  The cgroup exemption,
+  not the `AllowedIPs` entry,
+  keeps that traffic direct.
+  The human chose to keep the entry anyway,
+  at a measured cost of `650` networks and `21711` bytes of generated value,
+  so a regeneration immediately before `up` still buys a working window.
+- `AS4167`,
+  `AS400243`,
+  `AS401551`,
+  and `AS401864` contributed no networks even after a fresh `IPINFO_TOKEN` refresh,
+  so those four `AS` lines currently subtract nothing.
+  `doc/troubleshooting/ipinfo-lite-missing-openai-anthropic-asns.md` traces that gap to the
+  2026-10-06 IPinfo Lite generation,
+  which holds five records total for both vendors.
+
+Adding the hostnames grew the generated value from `4022` to `6517` networks,
+because every removed host route splits the aggregate that contained it.
+The route integration assertion still expected the pre-netavark `8888` recommendation
+and now expects the reserved `100`.
+
+Loading both live configs through `loadConfig` as root with the caller's home
+expanded the directive to `/var/home/user/allowed.txt` and `/var/home/user/disallowed.txt`,
+reported `exemptMark` `100`,
+and generated `6602` networks for `mx-que-mx1`.
+Membership probes against that generated value placed every added ChatGPT and Interpreter hostname
+outside it,
+kept `example.com` inside as a positive control,
+and covered `4` of `12` then-current `huggingface.co` addresses,
+which is the CloudFront rotation the human accepted when choosing to keep that entry.
+The same run showed `sillylittleguy.orgi` in the disallowed input was a typo:
+the corrected `sillylittleguy.org` resolves inside Anthropic's `2607:6bc0::/48`
+and now generates as clearnet.
+The four permanently dead Steam and Valve domain names remain,
+as chosen,
+and warn on every generation.
+
+## Qure clearnet coverage
+
+JetBrains Qure reaches clearnet through the same two independent mechanisms as of 2026-10-08.
+
+Socket marking matches two shapes.
+Qure ships as `~/AppImages/qure.appimage`,
+which mounts read-only at `/tmp/.mount_qure.<random>` and runs the Electron image `qure-ai-assistant`.
+Matching accepts every executable whose name begins with `qure`,
+covering the AppImage file,
+the mounted image,
+the bundled `resources/qure_pytest/qure_pytest` runner,
+and every agent the bundled CLI wrappers spawn,
+because `~/.config/Qure/bin/preferred/browser-use`,
+`~/.config/Qure/bin/preferred/playwright-cli`,
+and `~/.config/Qure/bin/fallback/node` are shell scripts that `exec` that same mounted image.
+Qure's `qure.desktop` entry creates `app-qure@<hex>.service`,
+and the AppImage's own executable-named scope stays executable discovery's responsibility,
+since that name derives from the executable rather than the desktop entry.
+`chrome_crashpad_handler`,
+`chrome-sandbox`,
+and `AppRun` inside the mount carry Chromium-generic names,
+so they bypass only while sharing a matched cgroup.
+Qure's JVM agent ships as `resources/qure-agent-jvm/target/qure-agent.jar`,
+which the AppImage bundles no Java executable to run,
+so such an agent in a cgroup of its own relies on the `AllowedIPs` path instead.
+
+`AllowedIPs` generation gained the endpoints Qure was measured using:
+`api.quretests.com` and `quretests.com` from Chromium's `Network Persistent State` and the bundle,
+`o447951.ingest.sentry.io` from the bundle's DSN and two live connections,
+`eu.i.posthog.com` and `eu-assets.i.posthog.com` from live connections,
+`download.jetbrains.com` and `download-cdn.jetbrains.com` from Sentry network breadcrumbs
+and two live CloudFront connections identified by distribution,
+and `us.i.posthog.com` and `us-assets.i.posthog.com` from the same telemetry SDK's other region.
+Regenerating with the built command moved the value from `6537` to `9201` networks
+and from `156582` to `245116` bytes,
+with no new resolver or ASN warning.
+Every then-current address of `api.quretests.com`,
+`quretests.com`,
+`o447951.ingest.sentry.io`,
+`eu-assets.i.posthog.com`,
+and `us-assets.i.posthog.com` left the generated value,
+while `1` of `16` `eu.i.posthog.com` answers,
+`9` of `16` `us.i.posthog.com` answers,
+and `8` of `12` answers for each JetBrains download host rotated back in between generation and probe.
+That is the AWS ELB and CloudFront decay `huggingface.co` documented,
+and the two JetBrains hosts cost `1305` of the added networks for that partial coverage.
+The human was shown both measured costs and chose to keep every entry:
+the two JetBrains download hosts despite their rotation,
+and the two United States PostHog hosts despite never being observed,
+so this region carries each measured and bundle-referenced Qure endpoint.
+`example.com` stayed inside as a positive control.
+`o447951.ingest.sentry.io` was already clearnet before this change,
+because the pre-existing `o33249.ingest.sentry.io` entry resolves to the same two
+Google anycast addresses;
+the explicit entry keeps Qure covered if the OpenAI region ever loses it.
+An earlier draft of this region omitted `download.jetbrains.com`
+on the strength of one bundle reference and no observed connection.
+A later capture of Qure's own established sockets falsified that:
+it held a connection to `2600:9000:287f:1e00:12:7c44:15c0:93a1`,
+whose CloudFront low half matches every `download.jetbrains.com` answer,
+and a second one to `download-cdn.jetbrains.com`'s distribution.
+Both hosts are in the region now.
+
+Read-only target enumeration against the running Qure launch proved the discovery delta.
+The binary the active `mx-que-mx1` watcher still ran listed `16` targets;
+the rebuilt companion listed exactly two more:
+`app-org.chromium.Chromium-3862000.scope`,
+holding Qure's Electron main process,
+and `flatpak-session-helper.service`.
+That launch came through Gearlever,
+so `flatpak-spawn --host` placed `8` of Qure's `9` processes,
+including the network service that owns every measured connection,
+in a shared user-service cgroup that also holds `flatpak-session-helper`,
+`p11-kit-server`,
+and two `p11-kit-remote` processes.
+Marking it therefore exempts those daemons,
+and every later host-spawned flatpak child,
+until that service cgroup disappears.
+A launch from `qure.desktop` instead gives Qure its own `app-qure@<hex>.service` and scopes.
+
+### Qure deployment on 2026-10-08
+
+The human chose the relaunch path and authorized terminating Qure.
+Teardown order mattered:
+terminating the AppImage FUSE server and the Electron main together left the main process in
+uninterruptible `D` state after the FUSE mount disappeared under it,
+so two further `SIGTERM` deliveries did nothing and `SIGKILL` was required.
+The second teardown terminated the Electron main first,
+and every Qure process,
+ including the runtime,
+ exited cleanly within eight seconds.
+See `doc/troubleshooting/appimage-fuse-teardown-order-d-state.md`.
+
+With no `qure`-prefixed process left,
+the rebuilt `list-targets 1000` returned the running watcher binary's set plus one Ghostty surface scope
+created in the meantime by agent shell activity,
+and listed neither `flatpak-session-helper.service` nor Qure's former Chromium scope,
+so the refresh could not mark that shared service.
+`watch-start mx-que-mx1 100 1000` then replaced the watcher:
+old pid `50227` from 2026-10-06 exited,
+new pid `3888199` started,
+`/proc/3888199/exe` reported the rebuilt release binary's exact device and inode,
+the recorded state became `1,3888199,21494257,100,1000`,
+`watch.log` stayed at `0` bytes,
+`ip rule show` was byte-identical before and after,
+and no pin directory appeared because the watcher holds its links directly.
+
+Relaunch needed a dedicated cgroup.
+`gtk-launch qure` from an agent shell placed ten Qure processes in that shell's own
+`app-ghostty-surface-transient-3862354.scope`,
+which is already an exempt Ghostty target,
+so Qure would have borrowed a terminal's exemption and died with it.
+This launch shape produced the desktop-entry unit instead:
+
+```sh
+systemd-run --user --collect --slice=app.slice \
+  --unit='app-qure@9f3c1d2e4b5a6c7d8e9f0a1b2c3d4e5f' \
+  --setenv=DESKTOPINTEGRATION=1 \
+  /home/user/AppImages/qure.appimage --no-sandbox
+```
+
+The relaunched Qure occupied exactly two cgroups:
+that service,
+ holding eight processes including the network service,
+and `app-org.chromium.Chromium-3889366.scope`,
+ holding the Electron main.
+`list-targets 1000` listed both and no shared service.
+This launch's mount was `/tmp/.mount_qure.aCNyBUv`,
+which confirms the runtime builds that name from `.mount_`,
+the first six characters of the AppImage filename,
+ here `qure.a`,
+and six random characters;
+because a rename changes it,
+ matching keys off the executable name rather than the mount path.
+
+Marking was verified twice.
+A disposable `app.slice` service running a copy of the host `python3` renamed to `qure-mark-probe`
+read `SO_MARK` `100` on TCP4,
+ TCP6,
+ UDP4,
+ and UDP6 sockets it created after attach,
+while the same probe as plain `python3` in `background.slice` read `0` on all four.
+Then Qure's own sockets were captured:
+fifteen packets between its established source ports and Sentry's `2600:1901:0:5e8a::`
+and the JetBrains CloudFront address crossed `wlp9s0` directly,
+while a simultaneous 45-second `mx-que-mx1` capture on the same four Qure peers recorded
+`0 packets captured`,
+and a `curl https://example.com/` run from `background.slice` during the same window put
+25 inner packets on `mx-que-mx1` from the tunnel address `fd00:4956:504e:ffff::ac11:aaaa`.
+Both transient probe units used `--collect` and left no unit,
+ cgroup,
+ or mount behind;
+the only remaining Qure unit is the application's own service.
 
 ## Verification evidence
 
@@ -513,12 +844,26 @@ Privileged disposable-cgroup tests cover:
 Unit tests additionally cover target-name precision,
 fake procfs Helium,
 Pale Moon,
-and Firefox Nightly mapping,
+Firefox Nightly,
+ChatGPT,
+Interpreter,
+and Qure mapping,
 Firefox Nightly service,
 executable,
 channel,
 and install-directory boundaries,
 Pale Moon case and suffix near misses,
+ChatGPT package-tree and sibling-directory boundaries,
+Interpreter family,
+stem,
+and case near misses,
+Qure family,
+stem,
+case,
+and Chromium-generic-helper boundaries,
+ChatGPT,
+Interpreter,
+and Qure desktop-service names,
 path-key injectivity,
 exact cleanup,
 atomic exchange,

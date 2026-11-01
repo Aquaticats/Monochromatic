@@ -2,8 +2,8 @@
 
 Custom geometric typeface.
  Regular weight,
- uppercase only (A--Q,
- X--Z).
+ uppercase only (`A` to `Q`,
+ `X` to `Z`).
 
 ## Build pipeline
 

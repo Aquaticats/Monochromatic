@@ -59,7 +59,7 @@ codenames,
 and politically charged literals in the gitignored appendix.
 The 259 builtin baseline rules are public:
 they are generated into the checked-in
-`package/cli/forbidden-strings/data/builtin-rules.txt`.
+`package/forbidden-strings/cli/data/builtin-rules.txt`.
 So there is real room to make baseline findings self-describing
 without disclosing anything,
 while keeping local findings opaque.

@@ -1,9 +1,6 @@
 {
   "schema": 1,
   "scope": "Offline HTML comparison and review controls, not native application accessibility or filename policy acceptance.",
-  "htmlSha256": "c056bdcf630f3393ea5ccc3d8c225bf20bc94b47fb7f0956ed4fec440d905e5a",
-  "builderSha256": "00b6a4c6aeb24cfb25b748a92f7f3804cc72f2dfaa7d2304d06a5ce4073d4ffe",
-  "comparisonManifestSha256": "1e4b5d6b74d1de9812ae38a2fff7df82f014640f17138634de1c7c2d68506cad",
   "browserEngine": "Chromium from the bounded verification image; Firefox ESR 140 not exercised",
   "browserCliVersion": "0.38.1",
   "axeVersion": "4.12.1",
@@ -158,9 +155,6 @@
   "consoleErrors": 0,
   "browsersClosed": true,
   "exactCohortGuard": {
-    "positiveReportSha256": "db38648b7cff13870ea66309d0eb7fabaf2301979215c8f61b5b087dece37c4e",
-    "intendedGuardRemovalFailureReportSha256": "5269bfeed1cabb48a50f2df61a1e2b85240e3f8be6c00d8ce9bfc033cadc0ec1",
-    "restoredReportSha256": "db38648b7cff13870ea66309d0eb7fabaf2301979215c8f61b5b087dece37c4e",
     "scope": "Mutation changes only a copied builder in the disposable test fixture."
   },
   "documents": {
@@ -179,5 +173,6 @@
     "Modal/zoom/pan and all four composed form answers separately exercised in each desktop/mobile light/dark context.",
     "Desktop modal contrast remains axe incomplete on metadata; flat computed colors and live text hit-tests resolve that manual review only.",
     "No native matching, activation, speech, action bounds, contrast or focus transitions accepted."
-  ]
+  ],
+  "pageDigestsRemoved": "Digests of the page, builder, test, manifest and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it."
 }

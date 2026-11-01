@@ -6,10 +6,10 @@ run = "node src/canary.ts"
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
-[tasks.'test:unit']
+[tasks."test:unit"]
 extends = "test:unit"
 
 [tasks."lint:oxlint"]
@@ -18,14 +18,14 @@ extends = "lint:oxlint"
 [tasks.prepare]
 extends = "prepare"
 
-[tasks.'prepare:perf-test-data']
+[tasks."prepare:perf-test-data"]
 run = [{ tasks = ["prepare:perf-test-data:*"] }]
 
-[tasks.'prepare:perf-test-data:css-mixin']
+[tasks."prepare:perf-test-data:css-mixin"]
 run = "node src/codegen/perf-test-data/mise.generate-css-mixin-perf.ts"
 
-[tasks.'prepare:perf-test-data:csv']
+[tasks."prepare:perf-test-data:csv"]
 run = "node src/codegen/perf-test-data/mise.generate-csv-perf.ts"
 
-[tasks.'prepare:perf-test-data:expr']
+[tasks."prepare:perf-test-data:expr"]
 run = "node src/codegen/perf-test-data/mise.generate-expr-perf.ts"

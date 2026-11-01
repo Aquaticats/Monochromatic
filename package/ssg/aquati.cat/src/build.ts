@@ -18,7 +18,7 @@ import { relative, } from 'node:path';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { generateAssets, } from './build/assets.ts';
 import { ensureFavicons, } from './build/favicon.ts';
@@ -116,7 +116,7 @@ const effectiveCache = pipelineChanged ? undefined : cache;
  */
 const gitDatesReusable = (!pipelineChanged) && (cache?.headSha
   === gitCtx
-  .headSha);
+    .headSha);
 
 /**
  Map from absolute file path to resolved publication/update dates.

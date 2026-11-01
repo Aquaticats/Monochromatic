@@ -65,7 +65,7 @@ or scope was created.
      every clone is `AG/<name>-2026-09-16`,
      made with `gh repo clone <repo> <dir> -- --depth 1`.
   - `FEC` is the repository's `file-enforcer.config.ts`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
 - Clone heads used for citations:
    `opentofu/opentofu` `bd2df274b`,
    `hashicorp/hcl` `00057cf06`,
@@ -289,7 +289,7 @@ Source:
 `FEC` (2,329 lines),
 read in full this session,
 and the repository modules it imports:
-`@monochromatic-dev/dev-script-file-enforcer/ts`
+`@monochromatic-dev/file-enforcer-core/ts`
 (`FE/index.ts`,
 with `FE/cargo/*.ts` and `FE/jetbrains/lsp4ij*.ts` read)
 and `@monochromatic-dev/config-pnpr/ts`
@@ -549,14 +549,14 @@ file "forbidden_strings_rules" {
    `FEC:182-184`, `:736-782`, `:860`.
 - Reads the rules file and the release scanner binary;
    when the binary is absent it logs a warning and skips.
-- Runs `package/cli/forbidden-strings/target/release/forbidden-strings compile-rules`
+- Runs `package/forbidden-strings/cli/target/release/forbidden-strings compile-rules`
    with `--rules ./.cache/forbidden-strings.rules.txt`,
    which "Compiles one authoritative runtime rules file into derived user cache"
-   (Verified: `package/cli/forbidden-strings/src/cli.rs:127`),
+   (Verified: `package/forbidden-strings/cli/src/cli.rs:127`),
    content-keyed
    (Verified: `src/runtime_cache/mod.rs:10`, "Registers content key and platform cache path resolution").
 - Placement:
-   repository task in `package/cli/forbidden-strings`,
+   repository task in `package/forbidden-strings/cli`,
    depending on the scanner's release build task.
 - Awkward:
    its output is outside the repository,
@@ -567,7 +567,7 @@ file "forbidden_strings_rules" {
   The `win32` executable suffix retires with 0.x being Linux only.
 
 ```hcl
-# package/cli/forbidden-strings/meow.hcl
+# package/forbidden-strings/cli/meow.hcl
 task "compile_rules" {
   command    = ["target/release/forbidden-strings", "compile-rules", "--rules", "${path.root}/.cache/forbidden-strings.rules.txt"]
   inputs     = ["${path.root}/.cache/forbidden-strings.rules.txt"]
@@ -794,15 +794,15 @@ locals {
   }
 
   cargo_profile_by_dir = {
-    "package/cli/forbidden-strings"             = "scanner"
-    "package/rust-module/forbidden-regex"       = "scanner"
-    "package/cli/nested-wayland-session"        = "overflow"
+    "package/forbidden-strings/cli"             = "scanner"
+    "package/forbidden-strings/core"       = "scanner"
+    "package/nested-wayland-session/cli"        = "overflow"
     "package/linter/rust"                       = "linter"
-    "package/rust-module/forbidden-regex.bench" = "bench"
+    "package/forbidden-strings/core.bench" = "bench"
     "package/music-player/truepeak-core.bench"  = "bench"
     "package/music-player/desktop-app"          = "music"
-    "package/rust-module/forbidden-regex.fuzz"  = "fuzz"
-    "package/cli/forbidden-strings.fuzz"            = "fuzz"
+    "package/forbidden-strings/core.fuzz"  = "fuzz"
+    "package/forbidden-strings/cli.fuzz"            = "fuzz"
   }
 }
 
@@ -1734,13 +1734,13 @@ so aarch64 static builds need only the Rust target
    (Verified: `wc`, `rg --files`, `git ls-files`,
    `src/config/load.rs:24`, `:148`, `:197`,
    `src/config/file.rs:35`, `:65`).
-  `package/module/toml-edit` is the TypeScript comment-preserving editor.
+  `package/toml-edit/core` is the TypeScript comment-preserving editor.
 - JSON and JSONC:
-   `package/module/jsonc-edit` (TypeScript, hand-written parser, comments as data),
+   `package/jsonc-edit/core-ts` (TypeScript, hand-written parser, comments as data),
    `package/config/dprint/index.json` with `"$schema": "https://dprint.dev/schemas/v0.json"`,
    `node.config.json`,
    and `package/config/typescript/tsconfig.options.json`
-   (Verified: `rg '"\$schema"'` and `package/module/jsonc-edit/README.md`).
+   (Verified: `rg '"\$schema"'` and `package/jsonc-edit/core-ts/README.md`).
 - YAML:
    `pnpm-workspace.yaml`,
    15 GitHub workflow files,
@@ -2709,8 +2709,8 @@ overflow-checks = true
 strip = true
 
 [toml_keys.cargo.profile_by_dir]
-"package/cli/forbidden-strings" = "scanner"
-"package/rust-module/forbidden-regex" = "scanner"
+"package/forbidden-strings/cli" = "scanner"
+"package/forbidden-strings/core" = "scanner"
 ```
 
 #### Pros
@@ -2913,7 +2913,7 @@ with JSONC after Turborepo and dprint;
 - Incumbents:
    dprint configuration,
    `tsconfig` files,
-   and `package/module/jsonc-edit`
+   and `package/jsonc-edit/core-ts`
    (Verified).
 
 #### Cons

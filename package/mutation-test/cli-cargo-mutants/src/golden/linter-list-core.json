@@ -1,0 +1,35 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "src/config_*.rs:1:1: replace f in src/config_*.rs\nsrc/configuration*.rs:1:1: replace f in src/configuration*.rs\nsrc/diagnostic.rs:1:1: replace f in src/diagnostic.rs\nsrc/directive_*.rs:1:1: replace f in src/directive_*.rs\nsrc/edits.rs:1:1: replace f in src/edits.rs\nsrc/resolved_rules.rs:1:1: replace f in src/resolved_rules.rs\nsrc/rust_rules.rs:1:1: replace f in src/rust_rules.rs\nsrc/rust_source.rs:1:1: replace f in src/rust_source.rs\n",
+  "calls": [
+    [
+      "<cargo>",
+      "mutants",
+      "--list",
+      "--no-config",
+      "--exclude-re",
+      "replace \\+= with \\*=",
+      "--exclude-re",
+      "replace -= with /=",
+      "--file",
+      "src/config_*.rs",
+      "--file",
+      "src/configuration*.rs",
+      "--file",
+      "src/diagnostic.rs",
+      "--file",
+      "src/directive_*.rs",
+      "--file",
+      "src/edits.rs",
+      "--file",
+      "src/resolved_rules.rs",
+      "--file",
+      "src/rust_rules.rs",
+      "--file",
+      "src/rust_source.rs"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

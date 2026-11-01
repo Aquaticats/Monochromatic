@@ -380,7 +380,7 @@ including a partner outside displayed results;
 this does not authorize matching or collision-detection implementation.
 The continued-work authorization produced meaningful debug-only options:
 64 initial views and six scrolled literal-name witnesses,
-all inspected and published with separate immutable provenance.
+all inspected and published with separate provenance.
 [The usable comparison](search-filename-usable-comparison.md) retains the
 bounded measurements.
 Its fixed-policy recommendations and question are withdrawn because they

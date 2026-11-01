@@ -103,7 +103,7 @@ export const MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION: unique symbol = Symbol(
  it, which is why the name alone cannot answer. Called with an empty argument list there is
  no such object: the member reads `[[DateValue]]`, consults ambient locale data, and
  returns a string. Measured on `pubDateDate.toLocaleString()` in
- `package/webapp-productivity/rss/src/html-item.ts`, which passes nothing.
+ `package/rss/app/src/html-item.ts`, which passes nothing.
  
  Ambient locale and time zone change what the string says and not what the receiver holds,
  so they are not a channel into caller state.
@@ -124,10 +124,10 @@ export const MEMBER_CHANNEL_UNPROVEN: unique symbol = Symbol(
  */
 export type MemberUserCodeChannel =
   | typeof MEMBER_CHANNEL_INTERNAL_SLOT
-  | typeof MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS
-  | typeof MEMBER_CHANNEL_RECEIVER_INDEX
-  | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES
-  | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION;
+    | typeof MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS
+    | typeof MEMBER_CHANNEL_RECEIVER_INDEX
+    | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES
+    | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION;
 
 /**
  Default-library collection members whose user-code channel is verified, by owner.
@@ -156,66 +156,66 @@ export type MemberUserCodeChannel =
  */
 const CHANNELS_BY_OWNER: Readonly<
   Record<string, Readonly<Record<string, MemberUserCodeChannel>>>
-> = {
-  Array: {
-    join: MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION,
-    at: MEMBER_CHANNEL_RECEIVER_INDEX,
-    slice: MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES,
-    includes: MEMBER_CHANNEL_RECEIVER_INDEX,
-    indexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
-    lastIndexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
-    with: MEMBER_CHANNEL_RECEIVER_INDEX,
-    toReversed: MEMBER_CHANNEL_RECEIVER_INDEX,
-    toSpliced: MEMBER_CHANNEL_RECEIVER_INDEX,
-    push: MEMBER_CHANNEL_RECEIVER_INDEX,
-    pop: MEMBER_CHANNEL_RECEIVER_INDEX,
-    shift: MEMBER_CHANNEL_RECEIVER_INDEX,
-    unshift: MEMBER_CHANNEL_RECEIVER_INDEX,
-    fill: MEMBER_CHANNEL_RECEIVER_INDEX,
-    copyWithin: MEMBER_CHANNEL_RECEIVER_INDEX,
-    reverse: MEMBER_CHANNEL_RECEIVER_INDEX,
-    keys: MEMBER_CHANNEL_RECEIVER_INDEX,
-    values: MEMBER_CHANNEL_RECEIVER_INDEX,
-    entries: MEMBER_CHANNEL_RECEIVER_INDEX,
-  },
-  ReadonlyArray: {
-    join: MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION,
-    at: MEMBER_CHANNEL_RECEIVER_INDEX,
-    slice: MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES,
-    includes: MEMBER_CHANNEL_RECEIVER_INDEX,
-    indexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
-    lastIndexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
-    with: MEMBER_CHANNEL_RECEIVER_INDEX,
-    toReversed: MEMBER_CHANNEL_RECEIVER_INDEX,
-    toSpliced: MEMBER_CHANNEL_RECEIVER_INDEX,
-    keys: MEMBER_CHANNEL_RECEIVER_INDEX,
-    values: MEMBER_CHANNEL_RECEIVER_INDEX,
-    entries: MEMBER_CHANNEL_RECEIVER_INDEX,
-  },
-  DataView: {
-    getBigInt64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getBigUint64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getFloat16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getFloat32: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getFloat64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getInt8: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getInt16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getInt32: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getUint8: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getUint16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    getUint32: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setBigInt64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setBigUint64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setFloat16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setFloat32: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setFloat64: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setInt8: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setInt16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setInt32: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setUint8: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setUint16: MEMBER_CHANNEL_INTERNAL_SLOT,
-    setUint32: MEMBER_CHANNEL_INTERNAL_SLOT,
-  },
+  > = {
+    Array: {
+      join: MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION,
+      at: MEMBER_CHANNEL_RECEIVER_INDEX,
+      slice: MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES,
+      includes: MEMBER_CHANNEL_RECEIVER_INDEX,
+      indexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
+      lastIndexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
+      with: MEMBER_CHANNEL_RECEIVER_INDEX,
+      toReversed: MEMBER_CHANNEL_RECEIVER_INDEX,
+      toSpliced: MEMBER_CHANNEL_RECEIVER_INDEX,
+      push: MEMBER_CHANNEL_RECEIVER_INDEX,
+      pop: MEMBER_CHANNEL_RECEIVER_INDEX,
+      shift: MEMBER_CHANNEL_RECEIVER_INDEX,
+      unshift: MEMBER_CHANNEL_RECEIVER_INDEX,
+      fill: MEMBER_CHANNEL_RECEIVER_INDEX,
+      copyWithin: MEMBER_CHANNEL_RECEIVER_INDEX,
+      reverse: MEMBER_CHANNEL_RECEIVER_INDEX,
+      keys: MEMBER_CHANNEL_RECEIVER_INDEX,
+      values: MEMBER_CHANNEL_RECEIVER_INDEX,
+      entries: MEMBER_CHANNEL_RECEIVER_INDEX,
+    },
+    ReadonlyArray: {
+      join: MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION,
+      at: MEMBER_CHANNEL_RECEIVER_INDEX,
+      slice: MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES,
+      includes: MEMBER_CHANNEL_RECEIVER_INDEX,
+      indexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
+      lastIndexOf: MEMBER_CHANNEL_RECEIVER_INDEX,
+      with: MEMBER_CHANNEL_RECEIVER_INDEX,
+      toReversed: MEMBER_CHANNEL_RECEIVER_INDEX,
+      toSpliced: MEMBER_CHANNEL_RECEIVER_INDEX,
+      keys: MEMBER_CHANNEL_RECEIVER_INDEX,
+      values: MEMBER_CHANNEL_RECEIVER_INDEX,
+      entries: MEMBER_CHANNEL_RECEIVER_INDEX,
+    },
+    DataView: {
+      getBigInt64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getBigUint64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getFloat16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getFloat32: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getFloat64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getInt8: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getInt16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getInt32: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getUint8: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getUint16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      getUint32: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setBigInt64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setBigUint64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setFloat16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setFloat32: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setFloat64: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setInt8: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setInt16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setInt32: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setUint8: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setUint16: MEMBER_CHANNEL_INTERNAL_SLOT,
+      setUint32: MEMBER_CHANNEL_INTERNAL_SLOT,
+    },
   /* One member rather than the twenty-nine the read-only view membership declares, and
    * the asymmetry is the design rather than an unfinished table. Membership must be
    * complete, because omitting a member there claims it restructures its receiver. A
@@ -227,8 +227,8 @@ const CHANNELS_BY_OWNER: Readonly<
    * then `Invoke(O, "toISOString")`, both receiver-selected lookups, and the locale
    * members process caller-supplied `locales` and `options` this table cannot see from a
    * member name alone. They stay off until a probe drives them. */
-  Date: {
-    toISOString: MEMBER_CHANNEL_INTERNAL_SLOT,
+    Date: {
+      toISOString: MEMBER_CHANNEL_INTERNAL_SLOT,
     /* Asserted for one reason and it is not this table's semantics: `toLocaleString` is a
      * member of `Object.prototype`, so an object literal checked against
      * `Record<string, MemberUserCodeChannel>` meets the apparent member at that key and
@@ -241,43 +241,43 @@ const CHANNELS_BY_OWNER: Readonly<
      * member of the union, so the compiler would take a wrong channel here as readily as
      * the right one; `effect-member-channel-authority.unit.test.ts` drives all three locale
      * members in both directions and is what would catch that. */
-    toLocaleString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS as MemberUserCodeChannel,
-    toLocaleDateString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS,
-    toLocaleTimeString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS,
-  },
-  Map: {
-    get: MEMBER_CHANNEL_INTERNAL_SLOT,
-    has: MEMBER_CHANNEL_INTERNAL_SLOT,
-    set: MEMBER_CHANNEL_INTERNAL_SLOT,
-    delete: MEMBER_CHANNEL_INTERNAL_SLOT,
-    clear: MEMBER_CHANNEL_INTERNAL_SLOT,
-    keys: MEMBER_CHANNEL_INTERNAL_SLOT,
-    values: MEMBER_CHANNEL_INTERNAL_SLOT,
-    entries: MEMBER_CHANNEL_INTERNAL_SLOT,
-  },
-  ReadonlyMap: {
-    get: MEMBER_CHANNEL_INTERNAL_SLOT,
-    has: MEMBER_CHANNEL_INTERNAL_SLOT,
-    keys: MEMBER_CHANNEL_INTERNAL_SLOT,
-    values: MEMBER_CHANNEL_INTERNAL_SLOT,
-    entries: MEMBER_CHANNEL_INTERNAL_SLOT,
-  },
-  Set: {
-    has: MEMBER_CHANNEL_INTERNAL_SLOT,
-    add: MEMBER_CHANNEL_INTERNAL_SLOT,
-    delete: MEMBER_CHANNEL_INTERNAL_SLOT,
-    clear: MEMBER_CHANNEL_INTERNAL_SLOT,
-    keys: MEMBER_CHANNEL_INTERNAL_SLOT,
-    values: MEMBER_CHANNEL_INTERNAL_SLOT,
-    entries: MEMBER_CHANNEL_INTERNAL_SLOT,
-  },
-  ReadonlySet: {
-    has: MEMBER_CHANNEL_INTERNAL_SLOT,
-    keys: MEMBER_CHANNEL_INTERNAL_SLOT,
-    values: MEMBER_CHANNEL_INTERNAL_SLOT,
-    entries: MEMBER_CHANNEL_INTERNAL_SLOT,
-  },
-};
+      toLocaleString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS as MemberUserCodeChannel,
+      toLocaleDateString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS,
+      toLocaleTimeString: MEMBER_CHANNEL_INTERNAL_SLOT_AND_ARGUMENTS,
+    },
+    Map: {
+      get: MEMBER_CHANNEL_INTERNAL_SLOT,
+      has: MEMBER_CHANNEL_INTERNAL_SLOT,
+      set: MEMBER_CHANNEL_INTERNAL_SLOT,
+      delete: MEMBER_CHANNEL_INTERNAL_SLOT,
+      clear: MEMBER_CHANNEL_INTERNAL_SLOT,
+      keys: MEMBER_CHANNEL_INTERNAL_SLOT,
+      values: MEMBER_CHANNEL_INTERNAL_SLOT,
+      entries: MEMBER_CHANNEL_INTERNAL_SLOT,
+    },
+    ReadonlyMap: {
+      get: MEMBER_CHANNEL_INTERNAL_SLOT,
+      has: MEMBER_CHANNEL_INTERNAL_SLOT,
+      keys: MEMBER_CHANNEL_INTERNAL_SLOT,
+      values: MEMBER_CHANNEL_INTERNAL_SLOT,
+      entries: MEMBER_CHANNEL_INTERNAL_SLOT,
+    },
+    Set: {
+      has: MEMBER_CHANNEL_INTERNAL_SLOT,
+      add: MEMBER_CHANNEL_INTERNAL_SLOT,
+      delete: MEMBER_CHANNEL_INTERNAL_SLOT,
+      clear: MEMBER_CHANNEL_INTERNAL_SLOT,
+      keys: MEMBER_CHANNEL_INTERNAL_SLOT,
+      values: MEMBER_CHANNEL_INTERNAL_SLOT,
+      entries: MEMBER_CHANNEL_INTERNAL_SLOT,
+    },
+    ReadonlySet: {
+      has: MEMBER_CHANNEL_INTERNAL_SLOT,
+      keys: MEMBER_CHANNEL_INTERNAL_SLOT,
+      values: MEMBER_CHANNEL_INTERNAL_SLOT,
+      entries: MEMBER_CHANNEL_INTERNAL_SLOT,
+    },
+  };
 
 /**
  Verified channels indexed for lookup, keyed by declaring interface then member.
@@ -285,18 +285,18 @@ const CHANNELS_BY_OWNER: Readonly<
 export const MEMBER_CHANNELS_BY_INTERFACE: ReadonlyMap<
   string,
   ReadonlyMap<string, MemberUserCodeChannel>
-> = new Map(Object.entries(CHANNELS_BY_OWNER,)
-  .map(function ownerChannels(
-    [ownerName, members,],
-  ): readonly [
-    string,
-    ReadonlyMap<string, MemberUserCodeChannel>,
-  ] {
-    return [
-      ownerName,
-      new Map(Object.entries(members,),),
-    ];
-  },),);
+  > = new Map(Object.entries(CHANNELS_BY_OWNER,)
+    .map(function ownerChannels(
+      [ownerName, members,],
+    ): readonly [
+      string,
+      ReadonlyMap<string, MemberUserCodeChannel>,
+    ] {
+      return [
+        ownerName,
+        new Map(Object.entries(members,),),
+      ];
+    },),);
 
 /**
  Total verified entries, pinned so silent table growth fails the guard.

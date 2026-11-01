@@ -4,9 +4,9 @@ This file groups two independent `bun:test` quirks that bite the
 workspace.
  Each gets its own canonical section.
 
-(Distinct from `TROUBLESHOOTING.testing.md`,
+(Distinct from `doc/troubleshooting/testing.md`,
  which covers the
-in-tree `@monochromatic-dev/module-test` harness rather than
+in-tree `@monochromatic-dev/test-harness-core` harness rather than
 `bun:test`.
 )
 

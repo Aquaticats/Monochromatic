@@ -47,8 +47,8 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import { addOpaqueEffect, } from './effect-call-resolution.ts';
 import { formalActualPositions, } from './effect-formal-actual-mapping.ts';

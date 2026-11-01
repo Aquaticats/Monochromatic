@@ -5,7 +5,12 @@ Vet date:
 Scope:
  the in-process test tooling for the iOS survivors,
  the iOS analog of
-`../kotlin-android-kopia-pcloud-vet-reports/vet-test-frameworks.md`.
+`../kotlin-android-kopia-pcloud-vet-report/vet-test-frameworks.md`.
+
+The analogy path spelled `../kotlin-android-kopia-pcloud-vet-reports/` when this vet was recorded on 2026-06-13.
+The folder became `kotlin-android-kopia-pcloud-vet-report/` on 2026-07-15 (`bd19d57e20`),
+so the `../kotlin-android-kopia-pcloud-vet-reports/` spelling no longer resolves.
+
 Test tooling follows the language,
  not the UI framework,
  so this is organized by ecosystem (Rust core,
@@ -48,7 +53,8 @@ Per owner directive,
  all mutation testing runs inside a bounded Podman container on the Mac's own Podman
 machine,
  never on the host or the device.
- This matches `../../decisions/mutation-testing.md` (Stryker "inside
+ This matches `../../decisions/mutation-testing.md` (moved on 2026-07-15 to
+`../../decision/mutation-testing.md`) (Stryker "inside
 one restricted Podman container per source file").
  The Rust mutation run below used the Mac's
 `podman-machine-default` with explicit `--memory`/`--cpus` bounds.
@@ -116,7 +122,8 @@ Done 34414012 runs in 21 second(s)
 34.4 million coverage-guided executions in 21 seconds,
  no crash or panic:
  the property holds under fuzzing.
-cargo-fuzz is the same coverage-guided engine the repo already uses (`../../decisions/forbidden-strings-fuzzing.md`,
+cargo-fuzz is the same coverage-guided engine the repo already uses (`../../decisions/forbidden-strings-fuzzing.md`
+ (moved on 2026-07-15 to `../../decision/forbidden-strings-fuzzing.md`),
 `../../handover/resharp-fuzz.md`).
  Fuzzing is host-logic,
  not iOS-target-specific,
@@ -256,7 +263,8 @@ the Android container runs.
 
 ### Property testing (fast-check)
 
-fast-check is already the repo's accepted property tool (`../../decisions/fast-check.md`).
+fast-check is already the repo's accepted property tool (`../../decisions/fast-check.md` (moved on 2026-07-15 to
+`../../decision/fast-check.md`)).
  A roundtrip property
 over the JS color packing,
  with a falsifiability check (the Android vet's discipline:
@@ -279,7 +287,8 @@ pure JS,
 
 ### Mutation testing (Stryker)
 
-Already vetted and accepted by the owner (`../../decisions/mutation-testing.md`):
+Already vetted and accepted by the owner (`../../decisions/mutation-testing.md` (moved on 2026-07-15 to
+`../../decision/mutation-testing.md`)):
  Stryker with the command
 runner,
  one restricted Podman container per source file.

@@ -4,7 +4,7 @@
  @module
  */
 
-import type { Snapshot, } from 'typescript/unstable/sync';
+import type { Snapshot, } from 'typescript/sync';
 
 /**
  Reports whether the native service already holds a source under any materialized project.

@@ -100,12 +100,12 @@ function meaningfulWords(
   const namespaceSet = new Set(lowerWords({ words: namespaceWords, },),);
   return lowerWords({ words, },)
     .filter(function isMeaningful(word,): boolean {
-    if (word.length <= MAX_INSIGNIFICANT_WORD_LENGTH)
-      return false;
-    if (namespaceSet.has(word,))
-      return false;
-    return true;
-  },);
+      if (word.length <= MAX_INSIGNIFICANT_WORD_LENGTH)
+        return false;
+      if (namespaceSet.has(word,))
+        return false;
+      return true;
+    },);
 }
 
 /**

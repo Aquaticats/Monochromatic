@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "scope": "Inspected authored native poses and offline evidence viewer, not a new ballot or production/native accessibility acceptance.",
+  "browserCliVersion": "0.38.1",
+  "firefoxESR140Exercised": false,
+  "resourceBounds": {
+    "memoryGiB": 2,
+    "cpu": 2
+  },
+  "imagesDecodedAndOpened": 48,
+  "contexts": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "overflow": false
+    }
+  ],
+  "offline": true,
+  "browserEngine": "Chromium",
+  "noPolicyVotes": true,
+  "consoleErrors": 0,
+  "limits": "All distinct previews opened in first desktop/light interaction pass; separate availability, observations and representative modal/zoom/pan controls exercised in all four contexts. Axe audits are closed-page only, not native acceptance.",
+  "browsersClosed": true,
+  "ownedRuntimeAbsenceVerified": true,
+  "productionSourceAndAcceptedSearchReviewUnchanged": true,
+  "rendererScreenshotsInspected": [
+    "review-1440-light.png",
+    "review-1440-dark.png",
+    "review-390-light.png",
+    "review-390-dark.png",
+    "modal-1440-light.png",
+    "modal-1440-dark.png",
+    "modal-390-light.png",
+    "modal-390-dark.png"
+  ],
+  "verificationLimits": [
+    "Closed-page axe checks only; no open-dialog, Firefox ESR140 or native accessibility acceptance.",
+    "Held poses are not evidence of automatic expiry; native lifecycle groups have separate provenance.",
+    "The synthetic changed-inset positive test is consumer geometry validation, not an Android capture."
+  ],
+  "pageDigestsRemoved": "Digests of the page, template, builder, test, manifest, native result, preflight and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it."
+}

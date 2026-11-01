@@ -3,10 +3,12 @@
 # File-level exclusions (build output, .kts scripts, test sources) are passed as
 # global --excludes by the runner, which stops detekt parsing them at all.
 complexity:
-  # The repo does not use detekt's max-functions-per-file/class/object budgets;
-  # TypeScript and Rust size budgets are handled by dedicated repo linters.
-  TooManyFunctions:
-    active: false
+  # Disabled as a whole rule set by maintainer decision on 2026-10-10: the human judged detekt's
+  # complexity rules (condition counts, cyclomatic complexity, method length, loop jumps and the
+  # rest of the set) bad for this repo and said they should have been disabled from the start.
+  # This also covers the former TooManyFunctions note: the repo uses no max-functions budgets,
+  # and TypeScript and Rust size budgets are handled by dedicated repo linters.
+  active: false
 
 style:
   # The repo uses early returns for guard clauses (and elvis-returns like `x ?: return`)

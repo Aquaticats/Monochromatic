@@ -1,0 +1,11 @@
+# Path words of a `rulesFile` value: separators, dot names, drives and odd characters.
+"/"
+"\\"
+"."
+".."
+"..."
+".cache/"
+"rules.txt"
+"C:"
+"\x00"
+"//"

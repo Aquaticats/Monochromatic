@@ -1,0 +1,57 @@
+// Preview windows for the feedback overlay; render each with --component.
+import { Theme } from "../theme.slint";
+import { FeedbackOverlay, FeedbackItem } from "../overlays.slint";
+
+// Feedback overlay on the 443 wide cover, dark: Undo above the error, both bounded by the card width.
+export component FeedbackDark443 inherits Window {
+    width: 443px;
+    height: 260px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FeedbackOverlay {
+        x: 16px;
+        y: 32px;
+        width: parent.width - 32px;
+        available-width: parent.width - 32px;
+        items: [
+            { id: "undo-ghost", text: "Moved Ghost to trash", kind: 1, action-label: "Undo" },
+            { id: "error-folder", text: "That folder can't be kept open. Choose it again, or pick another folder.", kind: 0, action-label: "" },
+        ];
+    }
+}
+
+// Feedback overlay on the 443 wide cover, light.
+export component FeedbackLight443 inherits Window {
+    width: 443px;
+    height: 260px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    FeedbackOverlay {
+        x: 16px;
+        y: 32px;
+        width: parent.width - 32px;
+        available-width: parent.width - 32px;
+        items: [
+            { id: "undo-ghost", text: "Moved Ghost to trash", kind: 1, action-label: "Undo" },
+            { id: "error-folder", text: "That folder can't be kept open. Choose it again, or pick another folder.", kind: 0, action-label: "" },
+        ];
+    }
+}
+
+// Feedback overlay on the 851 wide inner panel, dark, to check content width at the wide size.
+export component FeedbackDark851 inherits Window {
+    width: 851px;
+    height: 260px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FeedbackOverlay {
+        x: 425px;
+        y: 32px;
+        width: parent.width - 441px;
+        available-width: parent.width - 441px;
+        items: [
+            { id: "undo-ghost", text: "Moved Ghost to trash", kind: 1, action-label: "Undo" },
+            { id: "error-folder", text: "That folder can't be kept open. Choose it again, or pick another folder.", kind: 0, action-label: "" },
+        ];
+    }
+}

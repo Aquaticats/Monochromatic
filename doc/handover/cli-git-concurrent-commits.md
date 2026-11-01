@@ -1,5 +1,10 @@
 # cli-git concurrent commits handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Updated 2026-09-26.
 
 ## Landed
@@ -182,7 +187,9 @@ instead of all but the first failing on `index.lock` `EEXIST` (issue #560 was a 
   1.3 GB peak,
   then `spawn /usr/bin/git EAGAIN` from `final-newline`).
   Code:
-  `pushedCommits` and `createManualPushCandidates` in `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`.
+  `pushedCommits`
+and `createManualPushCandidates` in `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`
+(moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/manual_push_range.rs`).
   The owner ruled it wrong by design:
   the scan must never walk every commit.
   Fixed on branch `fix/cli-git-manual-push-scans-already-published-history`

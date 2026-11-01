@@ -1,0 +1,11 @@
+[core]
+	repositoryformatversion = "0"
+	hooksPath = "/work/scratch/fixture/phase-ref-updated/repository/.git/hooks"
+[include]
+	path = "/work/scratch/fixture/phase-ref-updated/repository/.git/config"
+[core]
+	worktree = "/work/scratch/fixture/phase-ref-updated/repository"
+[gc]
+	auto = 0
+[maintenance]
+	auto = false

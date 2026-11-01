@@ -142,6 +142,19 @@ back to `aquati.cat`.
 chain follows the CNAME away from the apex
 (<https://datatracker.ietf.org/doc/html/rfc8659#section-3>) so the
 apex `letsencrypt.org`-only CAA is not read.
+**Correction,
+ 2026-10-09**:
+ that CAA reasoning is wrong.
+RFC 8659 section 3 climbs the parents of the queried FQDN,
+and only the single-node CAA query chases the alias;
+section 7 records that this replaced the RFC 6844 chain-climbing.
+ACM's renewal refusal for `aws.aquati.cat` on 2026-10-09 is the measured
+confirmation.
+This path would therefore have needed the apex CAA to authorize
+Cloudflare's issuing CAs as well,
+which does not change the plan-tier gating that decided it.
+See [`aws-cloudfront-mirror.md`](aws-cloudfront-mirror.md) issue 6 and
+[`../handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
 
 Off-label because the SaaS product targets multi-tenant SaaS
 providers proxying customer hostnames.

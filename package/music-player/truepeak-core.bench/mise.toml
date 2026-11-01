@@ -19,7 +19,6 @@ run = "cargo clippy --release --all-targets -- -D warnings"
 description = "Apply clippy's machine-applicable suggestions in place"
 run = "cargo clippy --fix --allow-dirty --allow-staged --all-targets"
 
-[tasks."lint:rust"]
-description = "Run monochromatic-rust-linter (max-lines + require-rustdoc) over this package's .rs"
-# Same host linter the core crate uses; .gitignore-aware walking skips target/.
-run = "cargo run --quiet --manifest-path ../../linter/rust/Cargo.toml -- ."
+[tasks.test]
+description = "cargo nextest run"
+run = "cargo nextest run"

@@ -131,44 +131,44 @@ async function launchInterleaved({
     /**
      Work launched so far.
      */
-    const launched = await previous;
+      const launched = await previous;
     /**
      Commit plan when this step starts a commit.
      */
-    const plan = step.actor === 0 ? plans[step.position] : undefined;
-    if (plan !== undefined)
-      return [
-        ...launched,
-        (await startAttempt({
-          ...context,
-          label: plan.label,
-          paths: plan.paths,
-          mode: 'explicit',
-        },)).finished,
-      ];
+      const plan = step.actor === 0 ? plans[step.position] : undefined;
+      if (plan !== undefined)
+        return [
+          ...launched,
+          (await startAttempt({
+            ...context,
+            label: plan.label,
+            paths: plan.paths,
+            mode: 'explicit',
+          },)).finished,
+        ];
     /**
      Path this staging agent adds.
      */
-    const path = staged[step.position] ?? '';
-    context.ledger
-      .recordStaged({
-        path,
-        staged: true,
-      },);
-    return [
-      ...launched,
-      runWrapper({
-        ...context,
-        label: `add ${path}`,
-        args: [
-          'add',
-          '--',
+      const path = staged[step.position] ?? '';
+      context.ledger
+        .recordStaged({
           path,
-        ],
-        mustSucceed: true,
-      },),
-    ];
-  },
+          staged: true,
+        },);
+      return [
+        ...launched,
+        runWrapper({
+          ...context,
+          label: `add ${path}`,
+          args: [
+            'add',
+            '--',
+            path,
+          ],
+          mustSucceed: true,
+        },),
+      ];
+    },
     Promise.resolve([],),
   );
 }

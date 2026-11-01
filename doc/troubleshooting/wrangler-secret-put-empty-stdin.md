@@ -1,4 +1,6 @@
-# wrangler 4.136.1 `secret put` stores an empty secret when stdin delivers no value, which silently opens LFS uploads
+# wrangler 4.136.1 `secret put` stores an empty secret when stdin delivers no value
+
+This silently opens LFS uploads.
 
 This note records a 2026-10-01 diagnosis against wrangler 4.136.1
 (installed by mise as `npm:wrangler`,

@@ -1,0 +1,128 @@
+// Scrollbar of the lists and panes (D22). Pointer input gets an always visible, draggable bar with a 12 px grab zone that
+// never fades; touch input gets a non-interactive 4 px bar that fades after the list stops moving. The choice follows the
+// last input the lists saw, never the platform's own scrollbar. Every color is a Theme role, and every state shows in two
+// channels (the thumb's color and its width), so the bar never relies on color alone.
+//
+// The 48 px rule (C1) is kept along the scroll axis: the thumb is never shorter than 48 px. Across the axis D22's 12 px
+// grab zone is the deliberate exception, because a 48 px wide bar would cover a quarter of a narrow list.
+import { Theme } from "theme.slint";
+
+// Which kind of input the lists saw last. The rows and names set it from their pointer events; the scrollbars read it.
+export global LastInput {
+    // True when the last pointer event came from a touch screen (its touch finger id was not 0).
+    in-out property <bool> touch: false;
+}
+
+// Vertical scrollbar. The parent places it at the right edge of the list and gives it the list's height; it only draws and
+// reports where the user wants the list to go, and the parent moves the Flickable (so a Flickable's own wheel animation and
+// bounds stay in charge of the content).
+export component Scrollbar inherits Rectangle {
+    // Content offset of the list: 0 at the top and negative while scrolled down, as Flickable reports it.
+    in property <length> content-y;
+    // Height of the whole content.
+    in property <length> content-height;
+    // Fired with the content offset the user asked for (0 to minus the scrollable range) while dragging or on a click in the track.
+    callback scroll-to(length);
+
+    // Width of the grab zone (D22).
+    property <length> zone-width: 12px;
+    // Shortest thumb, the 48 px touch target along the scroll axis (C1).
+    property <length> min-thumb: 48px;
+    // Distance the content can move.
+    property <length> range: max(0px, root.content-height - root.height);
+    // True when the content is taller than the list, so there is something to scroll.
+    out property <bool> scrollable: root.range > 0.5px && root.height > 0px;
+    // Thumb height: the visible share of the content, at least the minimum and at most the whole track.
+    out property <length> thumb-height: root.scrollable ? min(root.height, max(root.min-thumb, round(root.height * root.height / root.content-height / 1px) * 1px)) : 0px;
+    // Room the thumb has to travel.
+    property <length> travel: max(0px, root.height - root.thumb-height);
+    // How far down the content is, from 0 to 1.
+    property <float> fraction: root.range > 0px ? clamp(-root.content-y / root.range, 0, 1) : 0;
+    // Thumb top, on a whole pixel.
+    out property <length> thumb-top: round(root.travel * root.fraction / 1px) * 1px;
+    // True for the non-interactive touch bar.
+    property <bool> touch: LastInput.touch;
+    // True while the pointer is over the thumb itself or a drag is going.
+    property <bool> thumb-active: root.dragging || (zone-touch.has-hover && zone-touch.mouse-y >= root.thumb-top && zone-touch.mouse-y <= root.thumb-top + root.thumb-height);
+    // True while the thumb is being dragged.
+    out property <bool> dragging: false;
+    // Thumb top when the drag started, and the content offset of that moment.
+    property <length> drag-thumb-top: 0px;
+
+    width: root.touch ? 4px : root.zone-width;
+    visible: root.scrollable;
+    accessible-role: slider;
+    accessible-label: "Scroll position";
+    accessible-value-minimum: 0;
+    accessible-value-maximum: root.range / 1px;
+    accessible-value: "\{round(-root.content-y / 1px)}";
+
+    // Touch bar visibility: it shows while the list moves and fades 800 ms after the last move.
+    property <bool> recently-moved: false;
+    changed content-y => {
+        if (root.touch) {
+            root.recently-moved = true;
+            fade-timer.running = false;
+            fade-timer.running = true;
+        }
+    }
+    fade-timer := Timer {
+        interval: 800ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.recently-moved = false;
+        }
+    }
+    opacity: root.touch ? (root.recently-moved ? 1 : 0) : 1;
+    animate opacity { duration: 150ms; }
+
+    // Track line: a 4 px channel in the middle of the grab zone, so the bar is visible before the pointer comes near it.
+    Rectangle {
+        visible: !root.touch;
+        x: (root.zone-width - 4px) / 2;
+        width: 4px;
+        height: root.height;
+        border-radius: 2px;
+        background: Theme.outline-variant;
+    }
+
+    // Thumb: 4 px wide at rest, 8 px while the pointer is on it or drags it, and a stronger color in the same states.
+    thumb := Rectangle {
+        property <length> thumb-width: root.touch ? 4px : (root.thumb-active ? 8px : 4px);
+        x: root.touch ? 0px : (root.zone-width - self.thumb-width) / 2;
+        y: root.thumb-top;
+        width: self.thumb-width;
+        height: root.thumb-height;
+        border-radius: self.thumb-width / 2;
+        background: root.thumb-active ? Theme.on-surface-variant : Theme.outline;
+        animate width, x { duration: 100ms; }
+        animate background { duration: 100ms; }
+    }
+
+    // The whole 12 px column takes the pointer. A press on the thumb starts a drag; a press in the track pages toward it.
+    zone-touch := TouchArea {
+        enabled: !root.touch && root.scrollable;
+        mouse-cursor: root.dragging ? MouseCursor.grabbing : (root.thumb-active ? MouseCursor.grab : MouseCursor.default);
+
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                if (self.mouse-y >= root.thumb-top && self.mouse-y <= root.thumb-top + root.thumb-height) {
+                    root.dragging = true;
+                    root.drag-thumb-top = root.thumb-top;
+                } else {
+                    // A click above the thumb pages up and a click below pages down, keeping a tenth of the page in view.
+                    root.scroll-to(max(-root.range, min(0px, root.content-y + (self.mouse-y < root.thumb-top ? 1 : -1) * root.height * 0.9)));
+                }
+            }
+            if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                root.dragging = false;
+            }
+        }
+        moved => {
+            if (root.dragging && root.travel > 0px) {
+                root.scroll-to(-root.range * clamp((root.drag-thumb-top + self.mouse-y - self.pressed-y) / root.travel, 0, 1));
+            }
+        }
+    }
+}

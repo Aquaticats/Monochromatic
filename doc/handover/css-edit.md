@@ -1,5 +1,18 @@
 # css-edit: replace postcss in build-tool-css with an in-house CST over `@csstools/css-tokenizer`
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`;
+> `package/module/css-edit` is now `package/css/core-edit`;
+> `@monochromatic-dev/module-css-edit` is now `@monochromatic-dev/css-core-edit`.
+
 Status:
  in progress.
 This document is the durable record for the migration;

@@ -46,7 +46,8 @@ Every claim carries a label.
    the startup check prototype prints a diagnostic and exits 3 on the same no-AES CPU models,
    and the same binary with the check skipped dies with SIGILL.
 - Verified:
-   `is_x86_feature_detected!("aes")` and `is_aarch64_feature_detected!("aes")` both returned `true` on CPU models without AES in `+aes` builds.
+   `is_x86_feature_detected!("aes")` and `is_aarch64_feature_detected!("aes")` both returned `true` on CPU models
+   without AES in `+aes` builds.
 - Verified:
    gxhash issue #111 did not reproduce on aarch64 Linux under QEMU,
    with nightly-2026-09-12 or with the reporter's Rust 1.84.0 (`9fc6b4312`),
@@ -225,13 +226,15 @@ podman run --rm --memory=2g --cpus=2 --security-opt label=disable \
 ```
 
 - Verified:
-   the host's rustup toolchain and cargo registry mounted read-only were enough for an offline build inside the container.
+   the host's rustup toolchain and cargo registry mounted read-only were enough for an offline build inside the
+   container.
 - Verified:
    the sysroot is `libc6-arm64-cross 2.36-8cross1` (`dpkg -s`),
    and `.comment` records `GCC: (Debian 12.2.0-14)` with no LLD entry.
 - Verified:
    the same container also built `x86_64-unknown-linux-gnu` into `target-bookworm`
-   (same command with `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS='-C target-feature=+aes,+sse2'` and no linker override).
+   (same command with `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS='-C target-feature=+aes,+sse2'`
+and no linker override).
 
 ### Sizes and file output
 
@@ -301,8 +304,10 @@ Sizes from `stat --format='%s %n'`,
    with the first `LOAD` at `0x200000`,
    while x86_64 musl is `static-pie linked`.
 - Verified:
-   `rustc -Z unstable-options --print target-spec-json --target aarch64-unknown-linux-musl` has no `static-position-independent-executables` key,
-   while the same output for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-gnu` has `"static-position-independent-executables": true`.
+   `rustc -Z unstable-options --print target-spec-json --target aarch64-unknown-linux-musl` has no
+   `static-position-independent-executables` key,
+   while the same output for `x86_64-unknown-linux-musl`
+   and `aarch64-unknown-linux-gnu` has `"static-position-independent-executables": true`.
 - Verified:
    the aarch64 musl link uses `crt1.o`,
    not `rcrt1.o` (`--print link-args`).
@@ -342,7 +347,8 @@ Runtime floor checks (`platforms/logs/probe-results.jsonl`,
  `a6`):
 
 - Verified:
-   x86_64 host build and x86_64 bookworm build both exit 0 on `ubuntu:22.04` (glibc 2.35) and `ubi9/ubi-minimal` (glibc 2.34-275.el9_8).
+   x86_64 host build and x86_64 bookworm build both exit 0 on `ubuntu:22.04` (glibc 2.35)
+   and `ubi9/ubi-minimal` (glibc 2.34-275.el9_8).
 - Verified:
    the host build also prints to stderr on those older systems:
    "/lib64/libc.so.6:
@@ -359,7 +365,8 @@ Runtime floor checks (`platforms/logs/probe-results.jsonl`,
    and exits 1 in an arm64 `fedora:34` container with "version `GLIBC_2.34' not found".
 - Minimum glibc for both glibc targets:
    2.34 (Verified by the runs above).
-  A release build host with glibc 2.39 or newer adds the loader warning on glibc 2.34 to 2.38 (Verified on 2.34 and 2.35 only).
+  A release build host with glibc 2.39 or newer adds the loader warning on glibc 2.34 to 2.38
+  (Verified on 2.34 and 2.35 only).
 
 ## Probe 2: aarch64 binaries under QEMU user mode
 
@@ -446,7 +453,8 @@ x86_64,
 
 - Verified,
    positive control:
-   `-cpu Westmere` exited 0 for the musl build (`c1-skeleton-x86-musl-Westmere`) and the Fedora-host glibc build (`c1-skeleton-x86-gnu-Westmere`).
+   `-cpu Westmere` exited 0 for the musl build (`c1-skeleton-x86-musl-Westmere`)
+   and the Fedora-host glibc build (`c1-skeleton-x86-gnu-Westmere`).
 - Verified:
    `-cpu Nehalem` and `-cpu qemu64` exited 132 for both builds,
    with stderr "qemu:
@@ -501,7 +509,8 @@ Source:
  same release profile as the skeleton).
 
 - Verified:
-   the file starts with `#![forbid(unsafe_code)]` and compiles for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` on nightly-2026-09-12,
+   the file starts with `#![forbid(unsafe_code)]` and compiles for `x86_64-unknown-linux-musl`
+   and `aarch64-unknown-linux-musl` on nightly-2026-09-12,
    and for `x86_64-unknown-linux-gnu` on stable `rustc 1.98.0 (88d9e12ae 2026-08-18)`.
 - Verified:
    `core::arch::x86_64::__cpuid` is a safe `pub fn` in the nightly sources
@@ -587,7 +596,8 @@ Results (`platforms/logs/probe-results.jsonl`):
    SIGILL.
 - Verified,
    compile-time detection:
-   on Nehalem and qemu64 the evidence line printed `cfg!(target_feature="aes")=true is_x86_feature_detected!("aes")=true` while ECX bit 25 was clear;
+   on Nehalem and qemu64 the evidence line printed
+   `cfg!(target_feature="aes")=true is_x86_feature_detected!("aes")=true` while ECX bit 25 was clear;
    on the patched Cortex-A72 it printed `is_aarch64_feature_detected!("aes")=true` with `AT_HWCAP=0x883`.
   This confirms the design's claim that these macros cannot perform the check in a `+aes` build.
 - Verified:
@@ -608,7 +618,8 @@ Results (`platforms/logs/probe-results.jsonl`):
    instead of printing a diagnostic.
   The prototype's `hwcap == 0` branch is unreachable for that reason.
 - Verified from source:
-   rustix's `use-libc-auxv` alternative finds `getauxval` through `dlsym(RTLD_DEFAULT, ...)` (`src/weak.rs:139-144`) and returns `(0, 0)` when absent (`src/backend/linux_raw/param/libc_auxv.rs:80-82`).
+   rustix's `use-libc-auxv` alternative finds `getauxval` through `dlsym(RTLD_DEFAULT, ...)` (`src/weak.rs:139-144`)
+   and returns `(0, 0)` when absent (`src/backend/linux_raw/param/libc_auxv.rs:80-82`).
   Unverified:
    that `dlsym` lookup fails in a static musl binary,
    which would make this feature unsuitable for the musl targets.
@@ -620,9 +631,11 @@ Results (`platforms/logs/probe-results.jsonl`):
    so the aarch64 QEMU runs exercised rustix's `/proc/self/auxv` path,
    not `PR_GET_AUXV`.
 - Verified from source:
-   Rust's aarch64 `aes` target feature means FEAT_AES and FEAT_PMULL (`library/std_detect/src/detect/arch/aarch64.rs:123-124`),
+   Rust's aarch64 `aes` target feature means FEAT_AES
+   and FEAT_PMULL (`library/std_detect/src/detect/arch/aarch64.rs:123-124`),
    and `pmull` detection is implied by the `aes` target feature (`:117-118`).
-  std's runtime `aes` detection requires only the AES bit on most CPUs (`library/std_detect/src/detect/os/linux/aarch64.rs:343`)
+  std's runtime `aes` detection requires only the AES bit on most CPUs
+  (`library/std_detect/src/detect/os/linux/aarch64.rs:343`)
    but AES and PMULL on the Exynos 9810 path (`:286`).
   Open question for the design:
    whether the check should also require `HWCAP_PMULL` (bit 4).
@@ -649,7 +662,8 @@ Upstream record,
    and a 2025-03-22 comment says it still happens on 3.5.0.
 - Verified:
    the reported panic is "unsafe precondition(s) violated:
-   ptr::copy_nonoverlapping requires that both pointer arguments are aligned and non-null and the specified memory ranges do not overlap",
+   ptr::copy_nonoverlapping requires that both pointer arguments are aligned and non-null
+   and the specified memory ranges do not overlap",
    inside `BuildHasher::hash_one`,
    from a `gxhash::HashMap<usize, usize>` reproducer (`pedantic79/gxhash-test`,
    `src/main.rs`).
@@ -682,7 +696,8 @@ Every run printed `debug_assertions=true`.
    nor 0 of 6 x86_64 glibc runs with 1.84.0 (`g-x86184-*`).
 - Verified,
    positive control:
-   `ubcontrol` (a deliberately overlapping `core::ptr::copy_nonoverlapping`) aborted under the same QEMU with the issue's exact message on both compilers
+   `ubcontrol` (a deliberately overlapping `core::ptr::copy_nonoverlapping`) aborted under the same QEMU
+   with the issue's exact message on both compilers
    (`h-ubcontrol-arm184-debug`,
    `h-ubcontrol-arm-nightly-debug`,
    signal SIGABRT).
@@ -690,10 +705,12 @@ Every run printed `debug_assertions=true`.
    so the null result is not a disabled-check artifact.
 - Verified from source,
    why current nightly is unlikely to hit this path:
-   aarch64 `vld1q_s8` is `crate::ptr::read_unaligned(ptr.cast())` (`library/stdarch/crates/core_arch/src/aarch64/neon/generated.rs:10009-10010`),
+   aarch64 `vld1q_s8` is `crate::ptr::read_unaligned(ptr.cast())`
+   (`library/stdarch/crates/core_arch/src/aarch64/neon/generated.rs:10009-10010`),
    nightly's `read_unaligned` calls `read` on an alignment-1 wrapper (`library/core/src/ptr/mod.rs:1837-1857`),
    and only `copy_nonoverlapping` carries the overlap precondition (`library/core/src/ptr/mod.rs:553-568`),
-   while Rust 1.84.0's `read_unaligned` still called `copy_nonoverlapping` (`library/core/src/ptr/mod.rs:1466` in that toolchain's `rust-src`).
+   while Rust 1.84.0's `read_unaligned` still called `copy_nonoverlapping`
+   (`library/core/src/ptr/mod.rs:1466` in that toolchain's `rust-src`).
 - Unverified:
    why 1.84.0 did not reproduce on Linux.
   The overlap check compares the 16-byte read with the stack destination,
@@ -732,7 +749,8 @@ None of these blocked a build or a run.
    a C dependency would need an aarch64 musl C toolchain (Unverified).
 - Negative CPU tests on aarch64 need a patched QEMU,
    and QEMU in containers needs `--init` (Verified).
-- The aarch64 CPU check can abort instead of diagnosing when neither `PR_GET_AUXV` nor `/proc/self/auxv` works (Verified from source,
+- The aarch64 CPU check can abort instead of diagnosing
+   when neither `PR_GET_AUXV` nor `/proc/self/auxv` works (Verified from source,
    Unverified at run time).
 - Unverified:
    CI runner availability for native aarch64 Linux was not checked.
@@ -742,7 +760,8 @@ None of these blocked a build or a run.
 - Verified:
    rustup targets `aarch64-unknown-linux-gnu` and `aarch64-unknown-linux-musl` added to `nightly-2026-09-12`.
 - Verified:
-   rustup toolchain `1.84.0` installed with `--profile minimal --target aarch64-unknown-linux-musl --component rust-src`.
+   rustup toolchain `1.84.0` installed with
+   `--profile minimal --target aarch64-unknown-linux-musl --component rust-src`.
 - Verified,
    podman images built:
    `localhost/meow-probe-debian-cross:bookworm` (454 MB) and `localhost/meow-probe-fedora-qemu:44` (561 MB).

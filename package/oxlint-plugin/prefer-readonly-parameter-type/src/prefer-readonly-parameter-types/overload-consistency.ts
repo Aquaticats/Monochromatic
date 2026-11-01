@@ -9,7 +9,7 @@ import type {
   LineColumn,
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import type { Project, } from 'typescript/unstable/sync';
+import type { Project, } from 'typescript/sync';
 
 import {
   collectAstNodes,
@@ -154,25 +154,25 @@ export function verifyOverloadConsistency({
   const declarationsBySymbol = new Map<number, EffectCallableDeclaration[]>();
   collectAstNodes(sourceFile,)
     .forEach(function collect(node,): void {
-    if ((!isEffectCallableDeclaration(node,))
-      || (!('name' in node))
-      || (node.name === undefined))
-      return;
+      if ((!isEffectCallableDeclaration(node,))
+        || (!('name' in node))
+        || (node.name === undefined))
+        return;
     /**
      Resolved callable symbol shared by overload declarations.
      */
-    const symbol = project.checker
-      .getSymbolAtLocation(node.name,);
-    if (symbol === undefined)
-      return;
-    declarationsBySymbol.set(
-      symbol.id,
-      [
-        ...declarationsBySymbol.get(symbol.id,) ?? [],
-        node,
-      ],
-    );
-  },);
+      const symbol = project.checker
+        .getSymbolAtLocation(node.name,);
+      if (symbol === undefined)
+        return;
+      declarationsBySymbol.set(
+        symbol.id,
+        [
+          ...declarationsBySymbol.get(symbol.id,) ?? [],
+          node,
+        ],
+      );
+    },);
   declarationsBySymbol.forEach(function verifyGroup(
     declarations: readonly EffectCallableDeclaration[],
   ): void {
@@ -227,18 +227,18 @@ export function verifyOverloadConsistency({
       /**
        Bodyless overload summary seeded from authored contracts.
        */
-      const summary = effectIndex.get(overload,);
-      if (summary === NO_EFFECT_SUMMARY)
-        throw new SemanticBridgeError({
-          reason: 'node-not-found',
-          message: 'Effect summary index omitted bodyless overload.',
-        },);
-      summary.referentMutatedParameterIndexes
-        .forEach(function add(index,): void {
-        effects.add(index,);
-      },);
-      return effects;
-    },
+        const summary = effectIndex.get(overload,);
+        if (summary === NO_EFFECT_SUMMARY)
+          throw new SemanticBridgeError({
+            reason: 'node-not-found',
+            message: 'Effect summary index omitted bodyless overload.',
+          },);
+        summary.referentMutatedParameterIndexes
+          .forEach(function add(index,): void {
+            effects.add(index,);
+          },);
+        return effects;
+      },
       new Set<number>(),
     );
     /* Referent mutations on both sides, because an authored contract can express

@@ -1,5 +1,10 @@
 # Vet exact JSON number storage for the Rust jsonc-edit port
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:
@@ -76,12 +81,14 @@ The literal numeric query schedule was frozen in `doc/planning/jsonc-edit-rust-p
    first result page only;
    registry saturation is **blocked until a paginable enumeration route is proven**.
 - Repository host:
-   `gh search repos 'rust arbitrary precision decimal json' --limit 100 --json fullName,url,description,updatedAt` returned no matches;
+   `gh search repos 'rust arbitrary precision decimal json' --limit 100 --json fullName,url,description,updatedAt`
+    returned no matches;
    `gh search repos 'rust bigint' --limit 100 --json fullName,url,description,updatedAt` returned five.
    No negative filter or explicit sort.
    These queries are not proof that comparable projects are absent.
 - Web:
-   searches for `Rust exact JSON number decimal exponent arbitrary precision source crate` and `Rust JSON number lexeme exact comparison library` returned primary project documentation for `json-number`,
+   searches for `Rust exact JSON number decimal exponent arbitrary precision source crate`
+    and `Rust JSON number lexeme exact comparison library` returned primary project documentation for `json-number`,
    `bigdecimal`,
    `serde_json`,
    and `jstrict`.
@@ -179,7 +186,8 @@ The literal numeric query schedule was frozen in `doc/planning/jsonc-edit-rust-p
 ### `rust_decimal` 1.43.0
 
 - Discovery:
-   `cargo search 'arbitrary precision json' --limit 100` and [upstream docs](https://docs.rs/rust_decimal/latest/rust_decimal/).
+   `cargo search 'arbitrary precision json' --limit 100`
+    and [upstream docs](https://docs.rs/rust_decimal/latest/rust_decimal/).
 - Category:
    inspectable open-source local crate,
    native and multi-platform overlays.
@@ -207,7 +215,8 @@ None has yet passed the full vet gates.
   ```
 
   As a complete value model this fails `1 = 1.0 = 1e0`.
-  As a grammar validator and token holder combined with our exact comparator it remains eligible for targeted validation.
+  As a grammar validator and token holder combined with our exact comparator it remains eligible
+   for targeted validation.
   Its `src/lib.rs:178-210` uses a checked scan followed by an unsafe cast;
    audit this boundary if used.
 - `serde_json` 1.0.151 at `afdf6fc`,
@@ -315,7 +324,8 @@ It retains the raw spelling separately in its call site.
    leading zero,
    invalid sign and Unicode digit.
 - Positive control:
-   `mise run test:number:control` deliberately dropped the exponent from identity and failed on huge positive versus negative exponents (`true !== false`,
+   `mise run test:number:control` deliberately dropped the exponent from identity and failed
+    on huge positive versus negative exponents (`true !== false`,
    exit 1).
    The unmodified task passed again afterward.
    Thus an unchanged test result from the prototype is not an unproven null.
@@ -335,9 +345,12 @@ Further source screening:
  `~/temp/agent/fpdec-2026-09-24` at `b9ac6e5`,
  `src/lib.rs:98-131` stores `coeff: i128` and restricts fractional digits to `MAX_N_FRAC_DIGITS`;
  it cannot be the only representation for arbitrary JSON numbers.
- Its `LICENSE.TXT:1-3` identifies BSD 3-Clause despite registry `cargo info` reporting `license: unknown` (manifest uses `license-file`,
+ Its `LICENSE.TXT:1-3` identifies BSD 3-Clause despite registry `cargo info` reporting `license: unknown` (manifest uses
+  `license-file`,
  not a license identifier).
- `fraction` 0.17.0 at `~/temp/agent/fraction-2026-09-24` uses `BigInt`-backed rationals but does not by itself preserve a raw JSON number token or provide unbounded exponents without magnitude-sized denominator/numerator expansion;
+ `fraction` 0.17.0 at `~/temp/agent/fraction-2026-09-24` uses `BigInt`-backed rationals but does not
+  by itself preserve a raw JSON number token
+  or provide unbounded exponents without magnitude-sized denominator/numerator expansion;
  a custom exponent layer would still be needed.
  The latter is an architectural inference,
  not a verified execution result.

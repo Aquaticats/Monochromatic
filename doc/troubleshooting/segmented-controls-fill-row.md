@@ -67,7 +67,8 @@ The corrected probe measures only the one-line `Text` legend.
 It derives target width as measured legend plus both 24-unit insets,
 clamped between the 48-unit owned target minimum and available row width.
 The renderer then composes the visual cap under fixed constraints at that derived width.
-This keeps measurement tied to actual Compose text shaping without letting greedy decoration participate in intrinsic width.
+This keeps measurement tied
+to actual Compose text shaping without letting greedy decoration participate in intrinsic width.
 
 ### Slint
 

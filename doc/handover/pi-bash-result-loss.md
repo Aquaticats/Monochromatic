@@ -94,7 +94,8 @@ The removed prototype returned all results,
 retained each output tail,
 and reported `ENOTDIR` as `fullOutputError` or a direct warning.
 
-A fresh `pi -ne` TUI with the same invalid temp base stayed alive after a `60,000` byte direct Bash command and rendered:
+A fresh `pi -ne` TUI with the same invalid temp base stayed alive after a `60,000` byte direct Bash command
+and rendered:
 
 ```text
 Output truncated. Full output unavailable: ENOTDIR: not a directory, open '.../pi-bash-*.log'

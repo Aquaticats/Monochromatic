@@ -1,0 +1,76 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/archive:build:js:node", "//package/translation-repair/bench:build:js:node", "//package/translation-repair/corpus-pass:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/probe:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/reference:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-cache:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."coverage-probe"]
+description = "PROTOTYPE for question 28: ask a roster whether the translation already carries each passage the aligners refuse to pair, at both scales; SPENDS QUOTA (pass --only ids and --cap n after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "coverage-probe"
+run = "node dist/final/node/coverage-probe.mjs"
+
+[tasks."coverage-control-probe"]
+description = "Ask the coverage roster about a passage, delete the spans it anchored on, and ask again, to find out whether an absence vote is reachable at all; SPENDS QUOTA (pass --only ids after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "coverage-control-probe"
+run = "node dist/final/node/coverage-control-probe.mjs"
+
+[tasks."coverage-census:build"]
+description = "Ledger T8: every package of the family built with a source map beside every chunk, which the coverage census maps V8's offsets through; unminified, unlike the normal build, since compression folds guards into expressions V8 gives no range (ledger M79); each package's normal build runs first so a package's declarations find its siblings', then each package's coverage config rebuilds its build directory in turn; never a child of build, whose fan-out would run it beside the normal build into the same directories"
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/archive:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/bench:build:js:node", "//package/translation-repair/consistency:build:js:node", "//package/translation-repair/consolidate:build:js:node", "//package/translation-repair/corpus-pass:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/coverage-census:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/lane-contest:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-check:build:js:node", "//package/translation-repair/page-pass:build:js:node", "//package/translation-repair/probe:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/reference:build:js:node", "//package/translation-repair/rendering-audit:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-cache:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-lane:build:js:node", "//package/translation-repair/translate-stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { existsSync, readdirSync } = await import('node:fs')
+const { dirname, join } = await import('node:path')
+const family = dirname(process.env.MISE_CONFIG_ROOT ?? process.cwd())
+const members = readdirSync(family, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && existsSync(join(family, entry.name, 'rolldown.coverage.config.ts')))
+  .map((entry) => entry.name)
+  .sort()
+if (members.length === 0) { throw new Error(`no package under ${family} has a rolldown.coverage.config.ts`) }
+for (const member of members) {
+  execFileSync('rolldown', ['--configLoader', 'native', '--config', 'rolldown.coverage.config.ts'], { cwd: join(family, member), stdio: 'inherit' })
+}
+"""
+
+[tasks."coverage-census"]
+description = "Ledger T8: build every package of the family unminified with source maps, run each package's unit suite under one V8 coverage directory, and print the code no test ran, mapped to source lines named from the family directory as <package>/src/<file>, with each stretch that is nothing but invariant throws (an Error whose message begins unreachable:, or a class named ...InvariantError) counted and listed apart from the cold code, since a guard is never removed to close a stretch; add --baseline <census.json> and --source <package/src/file.ts> after -- to read an earlier census's stretches against this run (a census written before invariant throws were counted apart is refused: take it again), and name unit test files from the family directory (<package>/src/<file>.unit.test.ts) to run only the packages they stand in; rebuilds every normal build after; SPENDS NO QUOTA (the whole suite writes about 8 GB of coverage under ~/.cache/translation-repair/coverage, on disk rather than in a memory-backed /tmp, deleted once read; the census and each package's suite log stay beside it)"
+depends = ["coverage-census:build"]
+depends_post = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/archive:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/bench:build:js:node", "//package/translation-repair/consistency:build:js:node", "//package/translation-repair/consolidate:build:js:node", "//package/translation-repair/corpus-pass:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/coverage-census:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/lane-contest:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-check:build:js:node", "//package/translation-repair/page-pass:build:js:node", "//package/translation-repair/probe:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/reference:build:js:node", "//package/translation-repair/rendering-audit:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-cache:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-lane:build:js:node", "//package/translation-repair/translate-stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+env.TRANSLATION_REPAIR_STARTED_BY = "coverage-census"
+run = "node dist/final/node/coverage-census.mjs"

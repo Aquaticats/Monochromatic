@@ -6,7 +6,7 @@
  * Hidden by default; shown when a binary file is opened in the editor.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { STYLES, } from './binary-viewer.styles.ts';
 import { createHexDumpContent, } from './content.ts';

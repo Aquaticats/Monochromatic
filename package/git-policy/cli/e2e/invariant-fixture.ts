@@ -132,22 +132,22 @@ function checkLanding({
    */
   const outside = landing.changedPaths
     .filter(function unselected(path,) {
-    return !attempt.selectedPaths
-      .includes(path,);
-  },);
+      return !attempt.selectedPaths
+        .includes(path,);
+    },);
   /**
    Paths whose landed bytes match no acceptable content.
    */
   const wrongBytes = landing.paths
     .filter(function unacceptable(path,) {
-    return !path.acceptable
-      .some(function matches(content,) {
-      return sameContent({
-        left: content,
-        right: path.landed,
-      },);
+      return !path.acceptable
+        .some(function matches(content,) {
+          return sameContent({
+            left: content,
+            right: path.landed,
+          },);
+        },);
     },);
-  },);
   /**
    Whether the attempt claims success, so exit-0-only obligations apply.
    */
@@ -166,18 +166,18 @@ function checkLanding({
     [
       !landing.onExpectedBranch,
       violation({
-      invariant: 'landed-branch',
-      subject,
-      detail: 'the branch HEAD named at invocation does not reach the landed commit',
-    },),
+        invariant: 'landed-branch',
+        subject,
+        detail: 'the branch HEAD named at invocation does not reach the landed commit',
+      },),
     ],
     [
       outside.length > 0,
       violation({
-      invariant: 'landed-scope',
-      subject,
-      detail: `changes unselected paths ${outside.join(', ',)}`,
-    },),
+        invariant: 'landed-scope',
+        subject,
+        detail: `changes unselected paths ${outside.join(', ',)}`,
+      },),
     ],
     ...wrongBytes.map(function bytesViolation(path,): readonly [
       boolean,
@@ -186,12 +186,12 @@ function checkLanding({
       return [
         true,
         violation({
-        invariant: 'landed-bytes',
-        subject: `${subject} ${path.path}`,
-        detail: `landed ${describeContent(path.landed,)}, accepted ${path.acceptable
-          .map(describeContent,)
-          .join(' or ',)}`,
-      },),
+          invariant: 'landed-bytes',
+          subject: `${subject} ${path.path}`,
+          detail: `landed ${describeContent(path.landed,)}, accepted ${path.acceptable
+            .map(describeContent,)
+            .join(' or ',)}`,
+        },),
       ];
     },),
     [
@@ -199,10 +199,10 @@ function checkLanding({
         && (!landing.remoteContains)
         && (!landing.onAmendedPublishedHistory),
       violation({
-      invariant: 'remote-contains',
-      subject,
-      detail: 'the remote branch does not reach the landed commit after exit 0',
-    },),
+        invariant: 'remote-contains',
+        subject,
+        detail: 'the remote branch does not reach the landed commit after exit 0',
+      },),
     ],
     [
       succeeded && attempt.requiresRemote
@@ -210,35 +210,35 @@ function checkLanding({
         && landing.onAmendedPublishedHistory
         && (!attempt.pushRejectionSurfaced),
       violation({
-      invariant: 'push-rejection-surfaced',
-      subject,
-      detail: 'the commit landed on an amended published history, but exit 0 surfaced no non-fast-forward auto-push rejection',
-    },),
+        invariant: 'push-rejection-surfaced',
+        subject,
+        detail: 'the commit landed on an amended published history, but exit 0 surfaced no non-fast-forward auto-push rejection',
+      },),
     ],
     [
       hooks.commitMsgTrailer === false,
       violation({
-      invariant: 'commit-msg-hook',
-      subject,
-      detail: 'the landed message lacks the commit-msg hook trailer',
-    },),
+        invariant: 'commit-msg-hook',
+        subject,
+        detail: 'the landed message lacks the commit-msg hook trailer',
+      },),
     ],
     [
       succeeded && (hooks.postCommitRuns !== undefined)
         && (hooks.postCommitRuns !== 1),
       violation({
-      invariant: 'post-commit-once',
-      subject,
-      detail: `post-commit ran ${String(hooks.postCommitRuns,)} times`,
-    },),
+        invariant: 'post-commit-once',
+        subject,
+        detail: `post-commit ran ${String(hooks.postCommitRuns,)} times`,
+      },),
     ],
     [
       hooks.signatureValid === false,
       violation({
-      invariant: 'signature-valid',
-      subject,
-      detail: 'git verify-commit rejected the landed commit',
-    },),
+        invariant: 'signature-valid',
+        subject,
+        detail: 'git verify-commit rejected the landed commit',
+      },),
     ],
   ];
   return checks.flatMap(function occurred([failed, found,],) {
@@ -291,20 +291,20 @@ function checkAttempt(attempt: AttemptObservation,): readonly Violation[] {
     },),]),
     ...attempt.eventIssues
       .map(function eventViolation(issue,) {
-      return violation({
-        invariant: 'exit-events',
-        subject: attempt.label,
-        detail: issue,
-      },);
-    },),
+        return violation({
+          invariant: 'exit-events',
+          subject: attempt.label,
+          detail: issue,
+        },);
+      },),
     ...(count === 1
       ? attempt.landings
         .flatMap(function landingViolations(landing,) {
-        return checkLanding({
-          attempt,
-          landing,
-        },);
-      },)
+          return checkLanding({
+            attempt,
+            landing,
+          },);
+        },)
       : []),
   ];
 }
@@ -331,57 +331,57 @@ export function checkInvariants(observation: RunObservation,): readonly Violatio
       .flatMap(checkAttempt,),
     ...observation.auxiliaries
       .flatMap(function auxiliaryViolations(auxiliary,) {
-      return [
-        ...(auxiliary.mustSucceed && (auxiliary.exitCode !== 0)
-          ? [violation({
-            invariant: 'command-succeeds',
-            subject: auxiliary.label,
-            detail: `exited ${String(auxiliary.exitCode,)}`,
-          },),]
-          : []),
-        ...auxiliary.eventIssues
-          .map(function eventViolation(issue,) {
-          return violation({
-            invariant: 'exit-events',
-            subject: auxiliary.label,
-            detail: issue,
-          },);
-        },),
-      ];
-    },),
+        return [
+          ...(auxiliary.mustSucceed && (auxiliary.exitCode !== 0)
+            ? [violation({
+              invariant: 'command-succeeds',
+              subject: auxiliary.label,
+              detail: `exited ${String(auxiliary.exitCode,)}`,
+            },),]
+            : []),
+          ...auxiliary.eventIssues
+            .map(function eventViolation(issue,) {
+              return violation({
+                invariant: 'exit-events',
+                subject: auxiliary.label,
+                detail: issue,
+              },);
+            },),
+        ];
+      },),
     ...observation.worktree
       .flatMap(function worktreeViolation(entry,) {
-      return sameContent({
-        left: entry.expected,
-        right: entry.actual,
-      },)
-        ? []
-        : [violation({
-          invariant: 'worktree-preserved',
-          subject: entry.path,
-          detail: `expected ${describeContent(entry.expected,)}, found ${describeContent(entry.actual,)}`,
-        },),];
-    },),
+        return sameContent({
+          left: entry.expected,
+          right: entry.actual,
+        },)
+          ? []
+          : [violation({
+            invariant: 'worktree-preserved',
+            subject: entry.path,
+            detail: `expected ${describeContent(entry.expected,)}, found ${describeContent(entry.actual,)}`,
+          },),];
+      },),
     ...observation.staged
       .flatMap(function stagedViolation(entry,) {
-      if (entry.expectedByHarness)
-        return [];
-      return [violation({
-        invariant: entry.revertsLandedContent ? 'index-no-revert' : 'index-matches-head',
-        subject: entry.path,
-        detail: entry.revertsLandedContent
-          ? 'the real index stages content a landed commit replaced'
-          : 'the real index differs from HEAD without a harness write',
-      },),];
-    },),
+        if (entry.expectedByHarness)
+          return [];
+        return [violation({
+          invariant: entry.revertsLandedContent ? 'index-no-revert' : 'index-matches-head',
+          subject: entry.path,
+          detail: entry.revertsLandedContent
+            ? 'the real index stages content a landed commit replaced'
+            : 'the real index differs from HEAD without a harness write',
+        },),];
+      },),
     ...observation.leftovers
       .map(function leftoverViolation(leftover,) {
-      return violation({
-        invariant: 'no-leftovers',
-        subject: leftover,
-        detail: 'remains after the run',
-      },);
-    },),
+        return violation({
+          invariant: 'no-leftovers',
+          subject: leftover,
+          detail: 'remains after the run',
+        },);
+      },),
     ...((observation.fsck
       .exitCode
       === 0) && (observation.fsck
@@ -399,14 +399,14 @@ export function checkInvariants(observation: RunObservation,): readonly Violatio
       },),]),
     ...observation.expectations
       .flatMap(function expectationViolation(expectation,) {
-      return expectation.holds
-        ? []
-        : [violation({
-          invariant: expectation.name,
-          subject: 'scenario',
-          detail: expectation.detail,
-        },),];
-    },),
+        return expectation.holds
+          ? []
+          : [violation({
+            invariant: expectation.name,
+            subject: 'scenario',
+            detail: expectation.detail,
+          },),];
+      },),
   ];
 }
 

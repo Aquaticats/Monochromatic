@@ -1,0 +1,113 @@
+name: admission-gate
+on:
+  workflow_dispatch:
+    inputs:
+      reservation:
+        description: 'JSON reservation to evaluate'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      reservation:
+        description: 'JSON reservation to evaluate'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  decide:
+    name: decide admission
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Evaluate reservation
+        id: decide
+        shell: bash
+        env:
+          RESERVATION: ${{ inputs.reservation }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+
+          const meters = [
+            'buildMinutes',
+            'nativeMinutes',
+            'githubRunnerMinutes',
+            'passingTestResults',
+            'storageGb',
+          ];
+          const ledger = JSON.parse(readFileSync('doc/planning/depot-admission-ledger.json', 'utf8'));
+          const reservation = JSON.parse(process.env.RESERVATION);
+          const plan = ledger.plans[ledger.activePlan];
+          if (plan === undefined) {
+            throw new Error(`unknown active plan: ${ledger.activePlan}`);
+          }
+          const byAllocation = new Map();
+          for (const attempt of ledger.attempts) {
+            if (attempt.status === 'cancelled') {
+              continue;
+            }
+            const current = byAllocation.get(attempt.allocationId) ?? { meters: {}, usd: 0 };
+            for (const meter of meters) {
+              current.meters[meter] = Math.max(current.meters[meter] ?? 0, attempt.meters[meter] ?? 0);
+            }
+            current.usd = Math.max(current.usd, attempt.reservedUsd);
+            byAllocation.set(attempt.allocationId, current);
+          }
+          const used = Object.fromEntries(meters.map((meter) => [meter, 0]));
+          let usedUsd = 0;
+          for (const entry of byAllocation.values()) {
+            for (const meter of meters) {
+              used[meter] += entry.meters[meter] ?? 0;
+            }
+            usedUsd += entry.usd;
+          }
+          used.storageGb += ledger.storageAverageGb ?? 0;
+          const requested = reservation.meters ?? {};
+          const invalidMeter = meters.find((meter) => (requested[meter] ?? 0) < 0);
+          const invalidReservation = invalidMeter !== undefined
+            || (reservation.reservedUsd ?? 0) < 0
+            || !['depot-native', 'depot-github', 'github-hosted'].includes(reservation.provider);
+          if (invalidReservation) {
+            const message = invalidMeter !== undefined
+              ? `reservation meter ${invalidMeter} is negative`
+              : 'reservation has an invalid provider or reservedUsd';
+            appendFileSync(process.env.GITHUB_OUTPUT, 'decision=invalid\n');
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `invalid: ${message}\n`);
+            console.error(message);
+            process.exit(2);
+          }
+          const overMeter = meters.find((meter) => {
+            return used[meter] + (requested[meter] ?? 0) > plan[meter];
+          });
+          const overCeiling = usedUsd + (reservation.reservedUsd ?? 0) > ledger.ceilingUsd;
+          let decision;
+          if (reservation.provider === 'github-hosted') {
+            decision = { admitted: true, attempt: { id: reservation.id, provider: 'github-hosted', reservedUsd: 0 } };
+          } else if (overMeter !== undefined || overCeiling) {
+            const reason = overMeter !== undefined
+              ? `${overMeter} would exceed the ${ledger.activePlan} allowance`
+              : `reservation would exceed the USD ${ledger.ceilingUsd} ceiling`;
+            decision = reservation.hasGithubEquivalent
+              ? { admitted: false, fallback: 'github-hosted', reason }
+              : { admitted: false, fallback: 'incomplete', reason };
+          } else {
+            decision = {
+              admitted: true,
+              attempt: {
+                id: reservation.id,
+                provider: reservation.provider,
+                reservedUsd: reservation.reservedUsd,
+              },
+            };
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `decision=${decision.admitted ? 'admitted' : decision.fallback}\n`);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\`\`\`json\n${JSON.stringify(decision, null, 2)}\n\`\`\`\n`);
+          console.log(JSON.stringify(decision, null, 2));
+          if (!decision.admitted && decision.fallback === 'incomplete') {
+            process.exitCode = 1;
+          }
+          NODE

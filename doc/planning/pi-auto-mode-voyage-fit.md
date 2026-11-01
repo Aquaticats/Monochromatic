@@ -256,7 +256,9 @@ returns indexed `relevance_score` values and token usage.
 The response contract calls the value document relevance to a query,
 not P(true) for an arbitrary claim.
 It does not define a probability range in that response schema.
-Do not normalize scores across documents or treat a numeric value as a truth probability merely because it falls in the unit interval.
+Do not normalize scores across documents
+or treat a numeric value as a truth probability
+merely because it falls in the unit interval.
 
 The [embedding API](https://docs.voyageai.com/reference/embeddings-api.md)
 returns vectors.
@@ -321,7 +323,8 @@ Every document contains a complete current policy snapshot and public synthetic 
 `truncation` is explicitly false.
 Reference truth remains local and is not included as an expected answer in the request.
 
-A retrieval control with policy present first checks whether the method can distinguish explicit package-reading evidence
+A retrieval control with policy present first checks
+whether the method can distinguish explicit package-reading evidence
 from an unrelated recipe field.
 It does not test whether the model attends to or internally preserves the policy.
 The subsequent frozen development contrasts concern:

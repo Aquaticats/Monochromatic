@@ -317,8 +317,8 @@ function codexLimitName({
 
   return codexLimitIdFromPrefix(prefix,)
     .replaceAll(
-      '_',
-      ' ',
+    '_',
+    ' ',
     );
 }
 

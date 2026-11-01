@@ -54,7 +54,7 @@ No cgroup, systemd unit, or scope was created.
 Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users (verified):
 
 - `zbus`:
-   `package/cli/nested-wayland-session/Cargo.toml:72` (`5.19.0`, blocking API, default features)
+   `package/nested-wayland-session/cli/Cargo.toml:72` (`5.19.0`, blocking API, default features)
    and `package/music-player/desktop-app/Cargo.toml:155` (`5`, default features, locked `5.16.0`).
 - `tokio`:
    `rt`, `sync`, `macros` in `package/music-player/truepeak-core/Cargo.toml:57`,
@@ -62,22 +62,22 @@ Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users
    and `package/music-player/desktop-app/Cargo.toml:116`.
 - `ignore = "0.4"`:
    `package/linter/rust/Cargo.toml:69`,
-   `package/cli/forbidden-strings/Cargo.toml:76`,
-   `package/rust-module/forbidden-regex.bench/Cargo.toml:38`.
+   `package/forbidden-strings/cli/Cargo.toml:76`,
+   `package/forbidden-strings/core.bench/Cargo.toml:38`.
 - `serde_json = "1"`:
-   `package/linter/rust`, `package/desktop-app/file-manager-gtk-sticky`,
+   `package/linter/rust`, `package/file-manager/variant-gtk-sticky`,
    `package/music-player/truepeak-core.bench`, `package/rust-module/rust-linter-core`,
    `package/music-player/desktop-app`.
 - Not listed by the caller but present:
   - `notify-debouncer-mini = "0.7"` in `package/music-player/desktop-app/Cargo.toml:81`,
      used with `RecursiveMode::Recursive` in `src/watch.rs:188`;
      its lockfile pins `notify 8.2.0` and `inotify 0.11.2`.
-  - `libc = "0.2"` in `package/cli/wg-quicker-exempt/Cargo.toml:33`
+  - `libc = "0.2"` in `package/wg/cli-quicker-exempt/Cargo.toml:33`
      and `package/music-player/desktop-app/Cargo.toml:185`.
   - The desktop app lockfile also carries `nix 0.31.3` and `rustix 1.1.4` transitively.
 - Repository `unsafe` precedent:
    `rg --count-matches '\bunsafe\s*(\{|fn|impl)'` found `unsafe` in 25 files,
-   for example `package/cli/wg-quicker-exempt/src/keeper_process.rs:120`, `:166`, `:175`
+   for example `package/wg/cli-quicker-exempt/src/keeper_process.rs:120`, `:166`, `:175`
    (`libc::waitpid` and `libc::kill`).
   No lint forbids `unsafe_code`
    (`rg 'unsafe_code|undocumented_unsafe_blocks'` over `*.toml`, `*.ts`, `*.rs` exited 1),
@@ -987,7 +987,7 @@ C3-A > C3-B > C3-C > C3-D > `tower-lsp-server` > `ajj` > `karyon_jsonrpc` >
 12. **Unprivileged fanotify was not evaluated**; it cannot mark a filesystem or mount without `CAP_SYS_ADMIN`
     (verified).
 13. **"Repository-written `unsafe`" is not new to the repository**:
-    25 Rust files already contain `unsafe`, for example `package/cli/wg-quicker-exempt/src/keeper_process.rs:120`
+    25 Rust files already contain `unsafe`, for example `package/wg/cli-quicker-exempt/src/keeper_process.rs:120`
     (verified).
 14. **The Rust and TypeScript schema yike has a generator candidate**:
     `yerpc` generates TypeScript types from Rust through `typescript-type-def` (verified in source; output unverified).

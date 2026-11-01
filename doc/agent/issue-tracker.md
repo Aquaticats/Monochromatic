@@ -12,7 +12,8 @@ Issues and PRDs for this repo live as GitHub issues.
    `gh issue view <number> --comments`,
    filtering comments by `jq` and also fetching labels.
 - **List issues**:
-   `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+   `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`
+with appropriate `--label` and `--state` filters.
 - **Comment on an issue**:
    `gh issue comment <number> --body "..."`
 - **Apply / remove labels**:

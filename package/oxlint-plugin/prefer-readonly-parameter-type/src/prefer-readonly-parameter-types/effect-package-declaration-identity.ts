@@ -7,7 +7,7 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isClassLikeDeclaration,
   isIdentifier,
@@ -16,7 +16,7 @@ import {
   isSourceFile,
   isTypeAliasDeclaration,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import {
   type PackageCallIdentity,

@@ -1,0 +1,291 @@
+{
+  "generatedAt": "2026-10-16T00:18:28.423Z",
+  "history": "depot-change-stream-2026-10-15.evidence.json",
+  "periodDays": 7,
+  "projectedMonthDays": 30,
+  "scenarios": [
+    {
+      "mode": "every-affected",
+      "details": [
+        {
+          "name": "audio-core",
+          "group": "musicCore",
+          "seconds": 136.452,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 68,
+          "completed": 68,
+          "cancelled": 0,
+          "consumedSeconds": 9278.736000000004,
+          "unfinishedUnionSeconds": 9023.475993871689,
+          "monthlyBaseMinutes": 1325.533714285715
+        },
+        {
+          "name": "logger-representative",
+          "group": "logger",
+          "seconds": 45.918,
+          "multiplier": 1,
+          "product": "ci",
+          "attempts": 50,
+          "completed": 50,
+          "cancelled": 0,
+          "consumedSeconds": 2295.8999999999983,
+          "unfinishedUnionSeconds": 2234.309999227524,
+          "monthlyBaseMinutes": 163.99285714285702
+        },
+        {
+          "name": "android-host",
+          "group": "musicAndroid",
+          "seconds": 100.149,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "consumedSeconds": 5408.046000000001,
+          "unfinishedUnionSeconds": 5365.896996259689,
+          "monthlyBaseMinutes": 772.5780000000002
+        },
+        {
+          "name": "android-apks",
+          "group": "musicAndroid",
+          "seconds": 231,
+          "multiplier": 8,
+          "product": "runner",
+          "run": "38826684750",
+          "attempts": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "consumedSeconds": 12474,
+          "unfinishedUnionSeconds": 12035,
+          "monthlyBaseMinutes": 7128
+        },
+        {
+          "name": "desktop-cold-container",
+          "group": "musicDesktop",
+          "seconds": 266.987178922,
+          "multiplier": 1,
+          "product": "container",
+          "attempts": 59,
+          "completed": 59,
+          "cancelled": 0,
+          "consumedSeconds": 15752.243556397987,
+          "unfinishedUnionSeconds": 14877.320489168167,
+          "monthlyBaseMinutes": 1125.1602540284275
+        }
+      ],
+      "monthlyMinutes": {
+        "ci": 2262.104571428572,
+        "runner": 7128,
+        "container": 1125.1602540284275
+      },
+      "developerMeasuredSubtotalUsd": 77.34703758970853,
+      "startupMeasuredSubtotalUsd": 200
+    },
+    {
+      "mode": "cancel-superseded",
+      "details": [
+        {
+          "name": "audio-core",
+          "group": "musicCore",
+          "seconds": 136.452,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 68,
+          "completed": 63,
+          "cancelled": 5,
+          "consumedSeconds": 9023.476000000004,
+          "unfinishedUnionSeconds": 9023.475993871689,
+          "monthlyBaseMinutes": 1289.0680000000007
+        },
+        {
+          "name": "logger-representative",
+          "group": "logger",
+          "seconds": 45.918,
+          "multiplier": 1,
+          "product": "ci",
+          "attempts": 50,
+          "completed": 45,
+          "cancelled": 5,
+          "consumedSeconds": 2234.309999999998,
+          "unfinishedUnionSeconds": 2234.309999227524,
+          "monthlyBaseMinutes": 159.5935714285713
+        },
+        {
+          "name": "android-host",
+          "group": "musicAndroid",
+          "seconds": 100.149,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 54,
+          "completed": 53,
+          "cancelled": 1,
+          "consumedSeconds": 5365.897000000001,
+          "unfinishedUnionSeconds": 5365.896996259689,
+          "monthlyBaseMinutes": 766.5567142857144
+        },
+        {
+          "name": "android-apks",
+          "group": "musicAndroid",
+          "seconds": 231,
+          "multiplier": 8,
+          "product": "runner",
+          "run": "38826684750",
+          "attempts": 54,
+          "completed": 50,
+          "cancelled": 4,
+          "consumedSeconds": 12035,
+          "unfinishedUnionSeconds": 12035,
+          "monthlyBaseMinutes": 6877.142857142857
+        },
+        {
+          "name": "desktop-cold-container",
+          "group": "musicDesktop",
+          "seconds": 266.987178922,
+          "multiplier": 1,
+          "product": "container",
+          "attempts": 59,
+          "completed": 53,
+          "cancelled": 6,
+          "consumedSeconds": 14877.32048286599,
+          "unfinishedUnionSeconds": 14877.320489168167,
+          "monthlyBaseMinutes": 1062.665748776142
+        }
+      ],
+      "monthlyMinutes": {
+        "ci": 2215.218285714286,
+        "runner": 6877.142857142857,
+        "container": 1062.665748776142
+      },
+      "developerMeasuredSubtotalUsd": 73.06079680818854,
+      "startupMeasuredSubtotalUsd": 200
+    },
+    {
+      "mode": "daily-latest",
+      "details": [
+        {
+          "name": "audio-core",
+          "group": "musicCore",
+          "seconds": 136.452,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 7,
+          "completed": 7,
+          "cancelled": 0,
+          "consumedSeconds": 955.164,
+          "unfinishedUnionSeconds": 955.1639993190765,
+          "monthlyBaseMinutes": 136.452
+        },
+        {
+          "name": "logger-representative",
+          "group": "logger",
+          "seconds": 45.918,
+          "multiplier": 1,
+          "product": "ci",
+          "attempts": 6,
+          "completed": 6,
+          "cancelled": 0,
+          "consumedSeconds": 275.508,
+          "unfinishedUnionSeconds": 275.5079998970032,
+          "monthlyBaseMinutes": 19.679142857142857
+        },
+        {
+          "name": "android-host",
+          "group": "musicAndroid",
+          "seconds": 100.149,
+          "multiplier": 2,
+          "product": "ci",
+          "attempts": 7,
+          "completed": 7,
+          "cancelled": 0,
+          "consumedSeconds": 701.043,
+          "unfinishedUnionSeconds": 701.0429995059967,
+          "monthlyBaseMinutes": 100.149
+        },
+        {
+          "name": "android-apks",
+          "group": "musicAndroid",
+          "seconds": 231,
+          "multiplier": 8,
+          "product": "runner",
+          "run": "38826684750",
+          "attempts": 7,
+          "completed": 7,
+          "cancelled": 0,
+          "consumedSeconds": 1617,
+          "unfinishedUnionSeconds": 1617,
+          "monthlyBaseMinutes": 924
+        },
+        {
+          "name": "desktop-cold-container",
+          "group": "musicDesktop",
+          "seconds": 266.987178922,
+          "multiplier": 1,
+          "product": "container",
+          "attempts": 7,
+          "completed": 7,
+          "cancelled": 0,
+          "consumedSeconds": 1868.9102524540003,
+          "unfinishedUnionSeconds": 1868.9102532863617,
+          "monthlyBaseMinutes": 133.49358946100003
+        }
+      ],
+      "monthlyMinutes": {
+        "ci": 256.2801428571429,
+        "runner": 924,
+        "container": 133.49358946100003
+      },
+      "developerMeasuredSubtotalUsd": 20,
+      "startupMeasuredSubtotalUsd": 200
+    }
+  ],
+  "storageSensitivity": [
+    {
+      "averageGb": 25,
+      "developerAdditionalUsd": 0,
+      "startupAdditionalUsd": 0
+    },
+    {
+      "averageGb": 50,
+      "developerAdditionalUsd": 5,
+      "startupAdditionalUsd": 0
+    },
+    {
+      "averageGb": 100,
+      "developerAdditionalUsd": 15,
+      "startupAdditionalUsd": 0
+    },
+    {
+      "averageGb": 250,
+      "developerAdditionalUsd": 45,
+      "startupAdditionalUsd": 0
+    }
+  ],
+  "assumptions": [
+    "Repeat the observed seven-day event mix for 30 days; this is a scenario, not a forecast distribution.",
+    "Durations are individual measured jobs except the two-sample container cold mean; no rerun spread exists for the new test jobs.",
+    "Instant start, cancellation, and replacement; no billing minimum, cancellation delay, or rerun overhead modeled.",
+    "Cancel only a superseded check in its own workload group. Daily mode chooses the newest affected revision on each UTC day.",
+    "Container client elapsed includes download and is a billing proxy, not measured provider duration.",
+    "Daily Depot allocation still requires affected-push validation on GitHub and release/agent-requested checks separately."
+  ],
+  "unpricedTargetWork": [
+    "Full desktop interaction and Alpine behavior beyond the separate compilation workload",
+    "Browser suites, other-package checks and consumer closure, native lint, fuzz/conformance, platform/release checks",
+    "Local emulator resource use, agent-requested cloud experiments, reruns, environment refresh and storage retention",
+    "GitHub artifact storage, paid larger runners if selected, optional test-result upload, and taxes"
+  ],
+  "limitations": [
+    "These subtotals must not be presented as the complete expanded monthly bill.",
+    "No historical music workflow runs exist in the seven-day source window, so observed cross-platform latency savings cannot be calculated.",
+    "The simulator union applies only to its named workload; summing unions across workloads would double-count overlap."
+  ],
+  "controls": {
+    "cancellationPositiveControl": {
+      "withoutCancellationSeconds": 120,
+      "withCancellationSeconds": 70,
+      "unionSeconds": 70
+    },
+    "exactBoundaryCompleted": 2
+  }
+}

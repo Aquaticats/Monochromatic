@@ -115,7 +115,7 @@ Publish shared tooling before extraction.
 The new repository must consume registry releases,
 not source checkouts of Monochromatic tooling.
 
-- Publish file-enforcer to npm as `@monochromatic-dev/dev-script-file-enforcer`.
+- Publish file-enforcer to npm as `@monochromatic-dev/file-enforcer-core`.
 - Publish the existing Rust linter family to crates.io:
   - `monochromatic-rust-linter-core`
   - `monochromatic-rust-linter-pattern`
@@ -178,7 +178,8 @@ not source checkouts of Monochromatic tooling.
   - `.kotlin/`
   - `.cache/`
   - generated JNI libraries
-- Do not delete the old ignored tree until the copied paths have been compared and the user has separately authorized cleanup.
+- Do not delete the old ignored tree until the copied paths have been compared
+ and the user has separately authorized cleanup.
 
 ### Verification boundary
 
@@ -443,7 +444,8 @@ A later action request must authorize them.
 ## Rollback
 
 Before the first issue transfer,
-rollback means deleting the pre-cutover new repository or replacing its imported branch and continuing development in Monochromatic.
+rollback means deleting the pre-cutover new repository or replacing its imported branch and continuing development
+ in Monochromatic.
 
 After the first issue transfer,
 rollback requires explicit acceptance that transferred issues receive different numbers when transferred back.
@@ -541,10 +543,13 @@ and retain labels only when matching labels exist in the target repository.[^git
 It also states that branches requiring signed commits reject unsigned pushes,
 which is why protection follows the initial filtered import.[^github-protected-branches]
 
-npm's current documentation requires public access for a scoped public package and recommends inspecting package contents
+npm's current documentation requires public access for a scoped public package
+ and recommends inspecting package contents
 before publication.[^npm-scoped-public]
-Cargo's current documentation states that crates.io versions are permanent and recommends package verification before upload.[^cargo-publish]
-Maven Central requires controlled coordinates and supports either reverse-DNS or GitHub-account namespace verification.[^maven-namespace]
+Cargo's current documentation states that crates.io versions are permanent and recommends package verification
+ before upload.[^cargo-publish]
+Maven Central requires controlled coordinates and supports either reverse-DNS
+ or GitHub-account namespace verification.[^maven-namespace]
 
 Pi loads context files and skill descriptions at startup,
 and its `/reload` command reloads context files and skills.[^pi-readme][^pi-skills]

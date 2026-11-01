@@ -35,13 +35,14 @@ and the Biome JSON crates need three exact pins rather than seven.
    recall,
    or a claim not exercised by a probe.
 - Path abbreviations:
-  - `SE/` is `/tmp/claude-1000/-var-home-user-Monochromatic/e28ad59c-f3f5-46e9-8c8c-59a61c331610/scratchpad/structured-edits/`.
+  - `SE/` is
+     `/tmp/claude-1000/-var-home-user-Monochromatic/e28ad59c-f3f5-46e9-8c8c-59a61c331610/scratchpad/structured-edits/`.
   - `PR/` is `SE/probe/`.
   - `TGT/` is `~/temp/agent/structured-edits-target-2026-09-16/`.
   - `REG/` is `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`.
-  - `TE/` is `package/module/toml-edit/src/`.
-  - `JE/` is `package/module/jsonc-edit/src/`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
+  - `TE/` is `package/toml-edit/core/src/`.
+  - `JE/` is `package/jsonc-edit/core-ts/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
 - Case identifiers such as `t03` or `j07` name cases in `PR/cases.ts`.
 
 ## Probes run
@@ -57,7 +58,8 @@ and the Biome JSON crates need three exact pins rather than seven.
 - Network worked this time:
    `curl --head https://index.crates.io/config.json` returned `HTTP/2 200` with a generic user agent.
   Crates were fetched by `cargo fetch` (Cargo's own `cargo/<version>` user agent),
-   crate metadata by `SE/crates-search.ts` and `SE/crates-meta.ts` with user agent `structured-edit-research/0.1 (generic)`.
+   crate metadata by `SE/crates-search.ts` and `SE/crates-meta.ts`
+   with user agent `structured-edit-research/0.1 (generic)`.
 - Disclosure:
    `gh api` calls (repository metadata,
    IntelliJ source files,
@@ -141,7 +143,7 @@ and the Biome JSON crates need three exact pins rather than seven.
    and `json-five-probe corpus` run the `module-jsonc-edit.conformance` corpus
    (10 valid,
    11 invalid,
-   from `package/module/jsonc-edit.conformance/src/jsonc.conformance.unit.test.ts`).
+   from `package/jsonc-edit/core-ts.conformance/src/jsonc.conformance.unit.test.ts`).
 
 ### Sizes
 
@@ -207,7 +209,7 @@ TOML,
  from `module-toml-edit` and file-enforcer tests (Verified):
 
 - Unedited documents round-trip byte for byte (`TE/fixtures.unit.test.ts:75` over 91 fixtures),
-   except that CRLF becomes LF (`package/module/toml-edit/README.md:39-46`).
+   except that CRLF becomes LF (`package/toml-edit/core/README.md:39-46`).
 - An equal-value set is byte-identical,
    keeping literal quotes and hex spelling
    (`TE/toml-set.unit.test.ts:31`,
@@ -222,7 +224,8 @@ TOML,
    deep paths become dotted keys (`:514`),
    inline tables extend in place (`:527`),
    and a guard stops creation in crates that never declared the key (`apply-plan.unit.test.ts:121`).
-- Deleting a key removes its line and same-line comment and keeps unrelated comment lines (`TE/toml-delete.unit.test.ts:39`,
+- Deleting a key removes its line and same-line comment
+   and keeps unrelated comment lines (`TE/toml-delete.unit.test.ts:39`,
    `:51`);
    deleting an array element keeps a comment after the array (`:196`).
 - New nodes are formatted canonically:
@@ -243,7 +246,7 @@ JSONC,
 - The write model is canonical,
    not splice:
    "This is not byte-identical splice;
-   whitespace between tokens is normalized" (`package/module/jsonc-edit/README.md:103-104`),
+   whitespace between tokens is normalized" (`package/jsonc-edit/core-ts/README.md:103-104`),
    "No source ranges are threaded through the parse" (`doc/decision/jsonc-edit-parser-foundation.md:64`).
 - Raw scalar tokens survive when unedited (`JE/stringify.unit.test.ts:64`);
    records emit with 2-space indentation and trailing commas (`:100`);
@@ -256,7 +259,8 @@ JSONC,
    `:176`).
 - Idempotency is "a second round-trip equals the first" (`JE/stringify.unit.test.ts:34`),
    but the comment-safety property only requires a fixpoint from the second emission:
-   "First emission may normalize placement" (`package/module/jsonc-edit.fuzz/src/comment-safety.property.unit.test.ts:44`).
+   "First emission may normalize placement"
+   (`package/jsonc-edit/core-ts.fuzz/src/comment-safety.property.unit.test.ts:44`).
 - JSONC means VS Code semantics,
    JSON5 syntax and scalar roots rejected
    (`jsonc.conformance.unit.test.ts:2`,
@@ -284,7 +288,8 @@ XML,
    carriage return,
    and tab (`FE/pipeline/xml-coding.ts:177`,
    `xml.unit.test.ts:74`).
-- No test asserts anything about XML comments (`rg --ignore-case 'comment|<!--'` over the XML and LSP4IJ tests printed nothing).
+- No test asserts anything about XML comments
+   (`rg --ignore-case 'comment|<!--'` over the XML and LSP4IJ tests printed nothing).
 - User decision:
    a malformed managed XML file fails with a diagnostic.
 
@@ -316,7 +321,8 @@ Items marked "open" need a user answer ("Open questions").
    quote style,
    and line endings.
 - D5 created nodes:
-   placed after the last member of the target container and before comments or blank lines that belong to the next section;
+   placed after the last member of the target container and before comments or blank lines
+   that belong to the next section;
    indentation,
    trailing-comma use,
    and line ending copied from siblings;
@@ -422,7 +428,8 @@ Verified by the harness (`PR/scores.md`) unless marked:
   - `t21`:
      CRLF becomes LF.
   - Also Verified in source:
-     `Table::insert` on an occupied key calls `entry.key_mut().fmt()` (`REG/toml_edit-0.25.15+spec-1.1.0/src/table.rs:429-443`),
+     `Table::insert` on an occupied key calls `entry.key_mut().fmt()`
+     (`REG/toml_edit-0.25.15+spec-1.1.0/src/table.rs:429-443`),
      the reset that deleted a comment in the prior research,
      still present in 0.25.15.
 - `toml_edit` 0.25.15 behind a repository wrapper (`PR/rust/toml-edit-wrapper/src/main.rs`,
@@ -512,7 +519,8 @@ Verified by the harness (`PR/scores.md`) unless marked:
      9 of 11 invalid rejected,
      scalar roots `42` and `"bare string"` accepted.
   - Real file:
-     appending `"a": true` to `package/config/dprint/index.json` placed it after the last property and before the trailing commented-out `/* "typescript": ... */` block
+     appending `"a": true` to `package/config/dprint/index.json` placed it after the last property and
+     before the trailing commented-out `/* "typescript": ... */` block
      (`diff` against the original showed only that insertion,
      plus a final newline the probe's `println!` added).
 - `jsonc-parser` 0.33.2 behind a wrapper (`PR/rust/jsonc-parser-wrapper/src/main.rs`,
@@ -718,7 +726,8 @@ Stripped release sizes in bytes,
 
 ## Maintenance data
 
-Fetched 2026-09-16 by `SE/crates-meta.ts` from `https://crates.io/api/v1/crates/<name>` and `gh api repos/<owner>/<repo>`
+Fetched 2026-09-16 by `SE/crates-meta.ts` from `https://crates.io/api/v1/crates/<name>`
+and `gh api repos/<owner>/<repo>`
 (results in `SE/crates-meta.json`);
 "past year" counts non-yanked versions published since 2025-09-16.
 Verified unless marked.
@@ -740,7 +749,8 @@ Verified unless marked.
    240 open issues.
 - `tombi`:
    crates.io holds only placeholders (`tombi` 0.0.1 "Reserved package for tombi");
-   the workspace version is `0.0.0-dev` with the comment "We use git tags for versioning" (`~/temp/agent/tombi-2026-09-16/Cargo.toml:24`);
+   the workspace version is `0.0.0-dev` with the comment "We use git tags for versioning"
+   (`~/temp/agent/tombi-2026-09-16/Cargo.toml:24`);
    `tombi-toml/tombi` 1,121 stars,
    6 open issues,
    MIT,
@@ -867,7 +877,8 @@ Repository Rust incumbents (Verified by `rg` over tracked `Cargo.toml` and `Carg
 - Pros:
   - 21 of 21 cases,
      idempotent,
-     on a maintained crate "primarily tailored for cargo-edit needs" (crate README) with 22 releases and 199 million recent downloads.
+     on a maintained crate "primarily tailored for cargo-edit needs" (crate README) with 22 releases
+     and 199 million recent downloads.
   - TOML 1.1 input and output;
      new composite values default to TOML 1.0-valid `["a"]` and `{ k = v }`.
   - The passing wrapper is 295 probe lines (226 in `main.rs` including a corpus mode,
@@ -1023,7 +1034,8 @@ Repository Rust incumbents (Verified by `rg` over tracked `Cargo.toml` and `Carg
      `jsonc-morph`,
      which `doc/decision/jsonc-edit-parser-foundation.md` called "the best byte-faithful round-trip in the field",
      wraps this crate:
-     its `rs_lib/Cargo.toml` declares `jsonc-parser = { version = "0.33.2", features = ["cst", ...] }` (fetched with `gh api repos/dsherret/jsonc-morph/contents/rs_lib/Cargo.toml`).
+     its `rs_lib/Cargo.toml` declares `jsonc-parser = { version = "0.33.2", features = ["cst", ...] }`
+     (fetched with `gh api repos/dsherret/jsonc-morph/contents/rs_lib/Cargo.toml`).
 - Cons:
   - Pre-1.0 API.
   - `ParseOptions::default()` enables loose names,
@@ -1343,9 +1355,11 @@ X1 > X2 > X3 > `twig-doc` > `uppsala` > `xmloxide` > X4 > X5 > X6.
    the crate description is "JSONC parser."
    while default options accept JSON5-style syntax.
 - Biome:
-   repository `Cargo.toml` files still claim version 0.5.7 with `publish = true` although crates.io 0.5.7 dates from 2024-03-12.
+   repository `Cargo.toml` files still claim version 0.5.7 with `publish = true` although crates.io 0.5.7 dates
+   from 2024-03-12.
 - `json-five`:
-   the README claims "Supports round-trip use cases with preservation/editing of whitespace and comments" while block comments lose their closing slash.
+   the README claims "Supports round-trip use cases with preservation/editing of whitespace and comments"
+   while block comments lose their closing slash.
 - `quick-xml`:
    attribute error positions are relative to the attribute value.
 
@@ -1362,7 +1376,8 @@ X1 > X2 > X3 > `twig-doc` > `uppsala` > `xmloxide` > X4 > X5 > X6.
    recommended),
    or keep them as `module-toml-edit` and `jsonc-parser` do?
 - New TOML arrays and inline tables:
-   incumbent style `[ "derive", ]` and `{ version = "4", features = [ "derive", ], }` (TOML 1.1 trailing comma in inline tables),
+   incumbent style `[ "derive", ]` and `{ version = "4", features = [ "derive", ], }`
+   (TOML 1.1 trailing comma in inline tables),
    or `toml_edit` style `["derive"]` and `{ version = "4", features = ["derive"] }` (TOML 1.0-valid,
    recommended)?
 - XML entries:

@@ -16,7 +16,8 @@ The repair is:
 
 The original command now reaches real oxlint and reports zero warnings and zero errors in a clean disposable worktree
 at implementation commit `5bdc39e4a`.
-Local issue [#359](https://github.com/Aquaticat/Monochromatic/issues/359) tracks eventual override removal after an upstream
+Local issue [#359](https://github.com/Aquaticat/Monochromatic/issues/359)
+tracks eventual override removal after an upstream
 or tsdown dependency floor makes it safe.
 
 ## Goal
@@ -365,7 +366,7 @@ not against the main checkout's ignored build outputs.
 
    ```sh
    mise run //package/oxlint-plugin/stylistic:build:js:node
-   mise run //package/module/const:build:js:browser
+   mise run //package/const/core:build:js:browser
    ```
 
 5. Run config-oxlint checks:

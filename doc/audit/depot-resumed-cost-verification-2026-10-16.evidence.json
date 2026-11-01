@@ -1,0 +1,387 @@
+{
+  "reviewedAt": "2026-10-16T02:05:20.521Z",
+  "reviewedEvidenceSha256": "165ed637700860e4621ba267fa7bbbd1d0da8357a7fb8def49a33785e2de745b",
+  "modelSha256": "4b90ec4b403453f653ccf502eacc03f51e0fcc70a80f056eeccce499ee898830",
+  "inputHashes": [
+    {
+      "path": "doc/audit/depot-change-stream-2026-10-15.evidence.json",
+      "sha256": "ecd67610d9171174028774160f0385cc8b437ea7f1e0ae78b26e6802a30845a9",
+      "actualSha256": "ecd67610d9171174028774160f0385cc8b437ea7f1e0ae78b26e6802a30845a9",
+      "matches": true
+    },
+    {
+      "path": "doc/audit/depot-expanded-cost-2026-10-15.evidence.json",
+      "sha256": "74dbf9a52b23101f3df4f45a14840ef6cff51694f61d7893bbc7104373a35421",
+      "actualSha256": "74dbf9a52b23101f3df4f45a14840ef6cff51694f61d7893bbc7104373a35421",
+      "matches": true
+    },
+    {
+      "path": "doc/audit/depot-expanded-execution-2026-10-16.evidence.json",
+      "sha256": "f6c1098f67c1dde18d72437b91a83c4f661a9d0b550ea9484ed4900a4054f3f8",
+      "actualSha256": "f6c1098f67c1dde18d72437b91a83c4f661a9d0b550ea9484ed4900a4054f3f8",
+      "matches": true
+    },
+    {
+      "path": "doc/audit/depot-test-feature-2026-10-16.evidence.json",
+      "sha256": "70b818e89b42884f96d8d467184f5a5a3ae55ed83193dc897a3cc9adc03e2a7c",
+      "actualSha256": "70b818e89b42884f96d8d467184f5a5a3ae55ed83193dc897a3cc9adc03e2a7c",
+      "matches": true
+    },
+    {
+      "path": "doc/audit/depot-linker-experiment-2026-10-16.evidence.json",
+      "sha256": "2d240d9597bec5dfada15c13f70d0433a0ad5731b38e6136babe8045d3087d44",
+      "actualSha256": "2d240d9597bec5dfada15c13f70d0433a0ad5731b38e6136babe8045d3087d44",
+      "matches": true
+    },
+    {
+      "path": "doc/audit/depot-prepared-desktop-2026-10-16.evidence.json",
+      "sha256": "6f5fcaf0b9711284fd6dd669e624b3324a6b2dd2f13957519f3a8a2fa5059910",
+      "actualSha256": "6f5fcaf0b9711284fd6dd669e624b3324a6b2dd2f13957519f3a8a2fa5059910",
+      "matches": true
+    }
+  ],
+  "baselineRows": 15,
+  "checkedAttemptStages": 941,
+  "positiveControl": [
+    [
+      {
+        "used": 30,
+        "completed": false,
+        "started": true
+      },
+      {
+        "used": 0,
+        "completed": false,
+        "started": false
+      }
+    ],
+    [
+      {
+        "used": 60,
+        "completed": true,
+        "started": true
+      },
+      {
+        "used": 20,
+        "completed": false,
+        "started": true
+      }
+    ],
+    [
+      {
+        "used": 60,
+        "completed": true,
+        "started": true
+      },
+      {
+        "used": 40,
+        "completed": true,
+        "started": true
+      }
+    ]
+  ],
+  "summaries": [
+    {
+      "mode": "every-affected",
+      "minutes": {
+        "ci": 15759.741000000009,
+        "runner": 7128,
+        "container": 0
+      },
+      "knownPassingResults": 131661.42857142858,
+      "originalDeveloperUsd": 133.32644600000006,
+      "correctedDeveloperUsd": 133.32644600000006,
+      "startupUsd": 200,
+      "stages": [
+        {
+          "workload": "audio-core-feature-matrix-and-clippy",
+          "stage": "native",
+          "seconds": 10738.560000000003,
+          "completed": 68,
+          "started": 68,
+          "minutes": 1534.0800000000004
+        },
+        {
+          "workload": "logger-types-unit",
+          "stage": "logger",
+          "seconds": 2295.8999999999983,
+          "completed": 50,
+          "started": 50,
+          "minutes": 163.99285714285702
+        },
+        {
+          "workload": "android-host",
+          "stage": "host",
+          "seconds": 5408.046000000001,
+          "completed": 54,
+          "started": 54,
+          "minutes": 772.5780000000002
+        },
+        {
+          "workload": "android-apks",
+          "stage": "apks",
+          "seconds": 12474,
+          "completed": 54,
+          "started": 54,
+          "minutes": 7128
+        },
+        {
+          "workload": "logger-filesystem-browser",
+          "stage": "browser",
+          "seconds": 7579.300000000008,
+          "completed": 50,
+          "started": 50,
+          "minutes": 1082.7571428571441
+        },
+        {
+          "workload": "dom-browser",
+          "stage": "dom",
+          "seconds": 5891.150000000003,
+          "completed": 50,
+          "started": 50,
+          "minutes": 841.5928571428576
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "source-rebuild-and-snapshot",
+          "seconds": 17774.989000000016,
+          "completed": 59,
+          "started": 59,
+          "minutes": 10157.13657142858
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "fresh-consumer-full-suite",
+          "seconds": 16906.449999999983,
+          "completed": 59,
+          "started": 59,
+          "minutes": 1207.6035714285701
+        }
+      ]
+    },
+    {
+      "mode": "cancel-superseded",
+      "minutes": {
+        "ci": 14624.375000000007,
+        "runner": 6877.142857142857,
+        "container": 0
+      },
+      "knownPassingResults": 112958.57142857142,
+      "originalDeveloperUsd": 125.0091071428572,
+      "correctedDeveloperUsd": 125.00910714285719,
+      "startupUsd": 200,
+      "stages": [
+        {
+          "workload": "audio-core-feature-matrix-and-clippy",
+          "stage": "native",
+          "seconds": 10375.960000000003,
+          "completed": 63,
+          "started": 68,
+          "minutes": 1482.2800000000004
+        },
+        {
+          "workload": "logger-types-unit",
+          "stage": "logger",
+          "seconds": 2234.309999999998,
+          "completed": 45,
+          "started": 50,
+          "minutes": 159.5935714285713
+        },
+        {
+          "workload": "android-host",
+          "stage": "host",
+          "seconds": 5365.897000000001,
+          "completed": 53,
+          "started": 54,
+          "minutes": 766.5567142857144
+        },
+        {
+          "workload": "android-apks",
+          "stage": "apks",
+          "seconds": 12035,
+          "completed": 50,
+          "started": 54,
+          "minutes": 6877.142857142857
+        },
+        {
+          "workload": "logger-filesystem-browser",
+          "stage": "browser",
+          "seconds": 6486.096000000006,
+          "completed": 36,
+          "started": 50,
+          "minutes": 926.5851428571438
+        },
+        {
+          "workload": "dom-browser",
+          "stage": "dom",
+          "seconds": 5266.274,
+          "completed": 38,
+          "started": 50,
+          "minutes": 752.3248571428572
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "source-rebuild-and-snapshot",
+          "seconds": 16694.363000000012,
+          "completed": 53,
+          "started": 59,
+          "minutes": 9539.636000000008
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "fresh-consumer-full-suite",
+          "seconds": 13963.581999999986,
+          "completed": 45,
+          "started": 53,
+          "minutes": 997.3987142857133
+        }
+      ]
+    },
+    {
+      "mode": "daily-latest",
+      "minutes": {
+        "ci": 1857.029142857143,
+        "runner": 924,
+        "container": 0
+      },
+      "knownPassingResults": 14387.142857142857,
+      "originalDeveloperUsd": 20,
+      "correctedDeveloperUsd": 20,
+      "startupUsd": 200,
+      "stages": [
+        {
+          "workload": "audio-core-feature-matrix-and-clippy",
+          "stage": "native",
+          "seconds": 1105.4399999999998,
+          "completed": 7,
+          "started": 7,
+          "minutes": 157.92
+        },
+        {
+          "workload": "logger-types-unit",
+          "stage": "logger",
+          "seconds": 275.508,
+          "completed": 6,
+          "started": 6,
+          "minutes": 19.679142857142857
+        },
+        {
+          "workload": "android-host",
+          "stage": "host",
+          "seconds": 701.043,
+          "completed": 7,
+          "started": 7,
+          "minutes": 100.149
+        },
+        {
+          "workload": "android-apks",
+          "stage": "apks",
+          "seconds": 1617,
+          "completed": 7,
+          "started": 7,
+          "minutes": 924
+        },
+        {
+          "workload": "logger-filesystem-browser",
+          "stage": "browser",
+          "seconds": 909.5160000000001,
+          "completed": 6,
+          "started": 6,
+          "minutes": 129.93085714285715
+        },
+        {
+          "workload": "dom-browser",
+          "stage": "dom",
+          "seconds": 706.938,
+          "completed": 6,
+          "started": 6,
+          "minutes": 100.99114285714286
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "source-rebuild-and-snapshot",
+          "seconds": 2108.897,
+          "completed": 7,
+          "started": 7,
+          "minutes": 1205.084
+        },
+        {
+          "workload": "prepared-desktop",
+          "stage": "fresh-consumer-full-suite",
+          "seconds": 2005.85,
+          "completed": 7,
+          "started": 7,
+          "minutes": 143.275
+        }
+      ]
+    }
+  ],
+  "sensitivities": [
+    {
+      "consumerSeconds": 296.995,
+      "mode": "every-affected",
+      "ci": 15803.759214285705,
+      "developerUsd": 133.59055528571423
+    },
+    {
+      "consumerSeconds": 296.995,
+      "mode": "cancel-superseded",
+      "ci": 14657.948214285712,
+      "developerUsd": 125.21054642857142
+    },
+    {
+      "consumerSeconds": 296.995,
+      "mode": "daily-latest",
+      "ci": 1862.2516428571425,
+      "developerUsd": 20
+    },
+    {
+      "consumerSeconds": 276.105,
+      "mode": "every-affected",
+      "ci": 15715.722785714288,
+      "developerUsd": 133.06233671428572
+    },
+    {
+      "consumerSeconds": 276.105,
+      "mode": "cancel-superseded",
+      "ci": 14590.801785714284,
+      "developerUsd": 124.80766785714285
+    },
+    {
+      "consumerSeconds": 276.105,
+      "mode": "daily-latest",
+      "ci": 1851.8066428571426,
+      "developerUsd": 20
+    }
+  ],
+  "prepared": {
+    "prepDuration": 301.271,
+    "observations": [
+      296.995,
+      276.105
+    ],
+    "consumerMean": 286.55
+  },
+  "checks": {
+    "noRepeatedWorkload": true,
+    "uniqueEventsWithinWorkload": true,
+    "oldCoreAndDesktopContainerAbsent": true,
+    "desktopStagesSequential": true,
+    "testTrialSubtotalSeparate": true,
+    "earlierModelPricingCorrect": true
+  },
+  "finding": {
+    "field": "prices.overageUsd.runner",
+    "actual": 0.006,
+    "published": 0.006,
+    "resolved": true,
+    "source": "https://depot.dev/docs/github-actions/runner-types"
+  },
+  "sources": [
+    "https://depot.dev/pricing",
+    "https://depot.dev/docs/ci/overview",
+    "https://depot.dev/docs/api/overview#sandbox-api",
+    "https://depot.dev/docs/ci/observability/depot-ci-test-results"
+  ],
+  "scope": "Arithmetic and retained evidence review. No provider ledger reconciliation or new workload execution. Whole-stage test completion counts exclude partial cancelled-stage reports and unlisted suites."
+}

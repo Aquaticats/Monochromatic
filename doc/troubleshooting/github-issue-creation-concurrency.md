@@ -1,4 +1,4 @@
-# GitHub REST API 2026-03-10 recommends serial Issue creation instead of a concurrency-five queue
+# GitHub API 2026-03-10 requires mutation pacing and gh 2.102.0 comments can remain throttled after backoff
 
 ## Symptom
 
@@ -357,6 +357,147 @@ The filing constraints resolve as follows:
    The selected fix is consumer-side serialization.
 
 There is nothing additive to file or comment upstream.
+
+## Observed GitHub CLI 2.102.0 comment rejection on 2026-10-17
+
+### Symptom and boundary
+
+The authorized Depot trial reconciliation attempted to add a reviewed comment to repository issue `#1160`.
+GitHub CLI `2.102.0` returned:
+
+```text
+GraphQL: was submitted too quickly (addComment)
+```
+
+The initial request and two later retries received the same diagnostic.
+The retries followed the initial backoff and inserted a pause before each planned mutation.
+Processing stopped at the rejected comment each time.
+No successful comment receipt or issue closure was recorded.
+Those rejected attempts left the reviewed comments pending.
+A later paced retry successfully published the comments for `#1160`,
+`#1156`,
+`#1052` and `#1131` with exact body readback.
+`#1160` was then closed.
+
+Read-only issue queries,
+Depot metadata queries and primary-document fetches continued to work.
+The observation does not establish an authentication failure,
+a particular quota,
+the scope or reset time of a restriction,
+or another session as its cause.
+
+### Current client source trace
+
+The source clone uses GitHub CLI tag `v2.102.0`,
+commit `fc4b137cdef0a6bd28fd461b7cf9c84a5812a8cd`.
+Its push remote is disabled and its source was not modified.
+The paths in this subsection refer to that upstream repository.
+
+`pkg/cmd/pr/shared/commentable.go:262` constructs the comment request and returns a mutation error:
+
+```go
+// pkg/cmd/pr/shared/commentable.go
+params := api.CommentCreateInput{Body: body, SubjectId: commentable.Identifier()}
+url, err := api.CommentCreate(apiClient, opts.Host, params)
+if err != nil {
+    // Upload first: an uploaded asset outlives the failed write, and the
+    // user needs to know it exists before hearing the comment did not save.
+    return errors.Join(uploadErr, err)
+}
+```
+
+`api/queries_comments.go:74` sends `CommentCreate` through the GraphQL mutation client:
+
+```go
+// api/queries_comments.go
+err := client.Mutate(repoHost, "CommentCreate", &mutation, variables)
+if err != nil {
+    return "", err
+}
+```
+
+`api/client.go:123` creates that client and passes its result through the response handler:
+
+```go
+// api/client.go
+func (c Client) Mutate(hostname, name string, mutation any, variables map[string]any) error {
+    opts := clientOptions(hostname, c.http.Transport)
+    opts.Headers[graphqlFeatures] = features
+    gqlClient, err := ghAPI.NewGraphQLClient(opts)
+    if err != nil {
+        return err
+    }
+    return handleResponse(gqlClient.Mutate(name, mutation, variables))
+}
+```
+
+This traces the failed operation to `addComment`.
+It does not expose the server's deciding throttle or prove why that throttle applied.
+
+### Verification and workaround state
+
+`gh --version` reported `2.102.0`.
+The actual posting command was:
+
+```bash
+# Authorized trial action, not a disposable verification probe.
+gh issue comment 1160 --repo Aquaticats/Monochromatic \
+  --body-file coherent-reconciliation-comment-1160.md
+```
+
+The private controller reconciles the full live issue thread against a unique comment marker before posting.
+It requires an exact body readback before closing an issue.
+The paced variant waits 1100 milliseconds before a comment or closure mutation.
+Both posting variants stopped on the diagnostic.
+
+The working catalog is read-only issue inspection,
+repository-scoped Depot metrics collection and MCP document fetching.
+The failing catalog is the original `addComment` request and both paced retries.
+Local serialization did not recover this incident during those observations.
+No bypass,
+credential rotation or automatic repost through a different API was attempted.
+
+The [current REST best-practices document][github-best-practices] was fetched again on 2026-10-17
+through the configured `search_fetch` MCP.
+It still prescribes honoring rate-limit headers,
+otherwise waiting at least a minute,
+then increasing delays and stopping after a bounded retry count.
+That REST guidance informs conservative retry scheduling;
+it does not identify this GraphQL rejection's specific limit.
+The retained primary text is in the
+[repository accounting evidence](../audit/depot-repository-accounting-2026-10-17.evidence.json).
+
+The later retry verified recovery of the requested operation,
+not the cause or timing of a server reset.
+The controller reused the reviewed bodies and reconciled each live marker before posting.
+Exact body readback preceded the `#1160` closure.
+The [trial handover](../handover/depot-trial-grilling.md) records the recovered publication state.
+This recovery preserves the earlier rejections without claiming that local pacing alone cleared them.
+
+A tracker search found [CLI issue #3292](https://github.com/cli/cli/issues/3292)
+about rate-limit handling and [CLI issue #4801](https://github.com/cli/cli/issues/4801)
+about the same error wording during issue creation.
+Both full threads were retained with their comment counts checked.
+The historical maintainer explanation in `#4801` describes a dynamic platform content-creation restriction.
+It supports waiting rather than treating primary API quota as a complete explanation.
+It does not establish the exact condition or limit for this `addComment` incident.
+
+### Upstream filing decision for this incident
+
+1.  An upstream defect is not established.
+    A server rejection alone does not establish an incorrect client or provider behavior.
+2.  The deciding server condition is unknown;
+    no architectural impossibility is claimed.
+3.  Commenting on repository issues is a supported CLI surface.
+4.  Contribution acceptance was not evaluated because no upstream defect is established.
+5.  `#4801` historically declined making individual CLI commands block for long retry periods.
+    The broader rate-limit interface discussion in `#3292` remains open.
+6.  No upstream fix is justified by the current evidence.
+    The consumer pacing variant first failed and later completed the requested publication.
+
+There is no fileable upstream defect report from this observation.
+The authorized current-repository comments are published;
+no new upstream issue or comment was sent.
 
 [github-best-practices]: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
 [github-create-issue]: https://docs.github.com/en/rest/issues/issues#create-an-issue

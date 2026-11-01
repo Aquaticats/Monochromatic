@@ -40,21 +40,32 @@ The repository-owned migration mirrors that exact ownership prefix without depen
 
 ## Fix
 
-Run the fresh-context procedure in `doc/runbook/remove-retired-hk-git-config.md`.
-Its state-changing command is:
+Remove the registrations by hand, in each Git configuration scope that holds them.
+List them with their scope and origin:
 
 ```sh
-mise run cleanup:hk-git-config -- --local --global
+# Run in the affected checkout; nothing is changed by this command.
+git config --show-scope --show-origin --get-regexp '^hook\.hk-'
 ```
 
-The command requires explicit scopes,
-resolves real Git without recursing through the package shim,
-removes only effective keys beginning with `hook.hk-`,
-and reports exact removed names.
-Running it again returns empty `removedKeys` arrays.
+Exit code 1 with no output means the machine has no retired registration.
+Then remove each listed key from the scope the listing names:
 
+```sh
+# Use --local for a "local" line and --global for a "global" line.
+# <key> is the key as printed, for example hook.hk-pre-push.command.
+git config --local --unset-all <key>
+git config --global --unset-all <key>
+```
+
+Remove only keys that begin with `hook.hk-`, the prefix that hk's own `remove_config_entries` owns.
 Do not delete unrelated `hook.*` entries or files under `.git/hooks`.
-The cleanup fixture preserves `hook.other.command` in both local and global configuration.
+Run the listing again afterwards: it must print nothing.
+
+A repository-owned task (`cleanup:hk-git-config`), its disposable-fixture test and a runbook automated this removal.
+They were retired on 2026-10-13 with the TypeScript wrapper they ran on (user decision recorded in
+`doc/planning/cli-git-native-cutover.md`), because the registrations are one-time user state and the manual commands
+above are the complete procedure.
 
 ## Verified bridge
 
@@ -70,14 +81,9 @@ but cli-git still ran its manual-push policies because `--no-verify` is not a cl
 The push succeeded.
 This bridge is suitable only until the owning user runs the explicit cleanup.
 
-`mise run //package/git-policy/cli:test:hk-config-cleanup` verifies:
-
-- absent local and global config;
-- configured local and global hk keys;
-- preservation of unrelated hook keys;
-- repeated no-op cleanup;
-- root mise task flag routing;
-- disposable global config through `GIT_CONFIG_GLOBAL`.
+The retired cleanup task had been verified against disposable repositories and a disposable global configuration
+(`GIT_CONFIG_GLOBAL`) for absent, configured, repeated and unrelated-key cases;
+that verification no longer exists.
 
 ## Rejected hypotheses
 

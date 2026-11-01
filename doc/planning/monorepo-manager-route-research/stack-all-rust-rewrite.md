@@ -9,7 +9,7 @@ Research date: 2026-09-16.
 Scope: read-only design deep dive for the all-Rust option in
 `doc/planning/monorepo-manager-from-scratch-design.md`,
 section "Single-file shipping and a file-enforcer rewrite":
-the daemon plus a Rust rewrite of `package/dev-script/file-enforcer`,
+the daemon plus a Rust rewrite of `package/file-enforcer/core`,
 with every plausible configuration host designed until disqualifying problems surfaced (rule `YKZ`).
 Nothing under `/var/home/user/Monochromatic` was modified.
 No cgroup, unit, or scope was created,
@@ -52,8 +52,8 @@ and nothing was committed.
   - `AR/` is `SCR/allrust/`,
      this research's work directory.
   - `REG/` is `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
-  - `TE/` is `package/module/toml-edit/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
+  - `TE/` is `package/toml-edit/core/src/`.
   - `STD/` is `~/.rustup/toolchains/nightly-2026-09-16-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/`.
 - Crate metadata comes from `https://crates.io/api/v1/crates/<name>` with user agent `monochromatic-vet-discovery`
    and `gh api repos/<owner>/<repo>`,
@@ -70,7 +70,8 @@ and nothing was committed.
   Consequence:
    every probe below builds with `cargo build --offline` against crates already in the local registry cache,
    and crates that are not cached
-   (`rhai`, `mlua`, `rquickjs`, `boa_engine`, `starlark`, `wasmtime`, `nickel-lang-core`, `jrsonnet-evaluator`, `browserslist-rs`, `ryu-js`)
+   (`rhai`, `mlua`, `rquickjs`, `boa_engine`, `starlark`, `wasmtime`, `nickel-lang-core`, `jrsonnet-evaluator`,
+   `browserslist-rs`, `ryu-js`)
    were evaluated from documentation,
    repository sources fetched with `curl` or `gh api`,
    and release metadata only.
@@ -127,7 +128,8 @@ and nothing was committed.
    `process.platform`,
    and `process.cwd` 2.
   `wc --lines` reports 2,329 lines for the file.
-  The prior research's counts (68 function declarations, 74 `await`) came from a different method and are not comparable.
+  The prior research's counts (68 function declarations, 74 `await`) came from a different method and are not
+  comparable.
 
 ### Byte parity
 
@@ -135,7 +137,8 @@ and nothing was committed.
    a drifted and a canonical `Cargo.toml`,
    a small TOML document,
    a JSON document with ordering and number hazards,
-   and four LSP4IJ-like XML documents (well-formed, unknown entity `&nbsp;`, missing close tag, DOCTYPE with an internal entity).
+   and four LSP4IJ-like XML documents (well-formed, unknown entity `&nbsp;`, missing close tag, DOCTYPE with an
+   internal entity).
 - `AR/parity/parity-ts.ts` ran today's TypeScript primitives on them by importing repository sources read-only:
    `FE/cargo/apply-plan.ts` `applyCargoPlan`,
    `FE/pipeline/toml.ts` `editTomlKey` and `getTomlProperty`,
@@ -167,7 +170,8 @@ built offline on the repository's nightly (`rustc 1.100.0-nightly`) for `x86_64-
    `ldd` lists `libgcc_s.so.1` and `libc.so.6`.
 - `AR/skeleton`
    (`panic = "abort"`),
-   which calls into `tokio` 1.53.1 (`rt-multi-thread`, `net`, `process`, `signal`, `io-util`, `sync`, `time`, `macros`, `fs`),
+   which calls into `tokio` 1.53.1 (`rt-multi-thread`, `net`, `process`, `signal`, `io-util`, `sync`, `time`, `macros`,
+   `fs`),
    `inotify` 0.11.4,
    `ignore` 0.4.33,
    `globset`,
@@ -186,19 +190,22 @@ built offline on the repository's nightly (`rustc 1.100.0-nightly`) for `x86_64-
    3,134,664 bytes,
    so `zbus` added 1,079,128 bytes.
 - Static linking on this host:
-  - No toolchain under `~/.rustup/toolchains/*/lib/rustlib/` contains a `musl` target (listing showed only `x86_64-unknown-linux-gnu`).
+  - No toolchain under `~/.rustup/toolchains/*/lib/rustlib/` contains a `musl` target (listing showed only
+  - `x86_64-unknown-linux-gnu`).
   - `RUSTFLAGS='-C target-feature=+crt-static'` on `AR/netprobe` failed:
      "rust-lld: error: unable to find library -lm" and "unable to find library -lc";
      `/usr/lib64/libc.a` does not exist.
   - `command -v` found `zig` 0.15.2 (mise), `clang`, `gcc`;
      no `musl-gcc`.
   - Result:
-     no static binary could be produced here without `rustup target add x86_64-unknown-linux-musl` or a layered static glibc,
+     no static binary could be produced here without `rustup target add x86_64-unknown-linux-musl` or a layered static
+     glibc,
      both of which change toolchain or system state and were not done.
 
 ### Edit loop for compiled configuration
 
-- `node AR/rebuild-timing.ts` on `AR/parity` (about 400 lines in the leaf crate, four parser dependencies already built):
+- `node AR/rebuild-timing.ts` on `AR/parity` (about 400 lines in the leaf crate, four parser dependencies already
+- built):
   - Debug:
      no-op builds 0.10 s ×3;
      one-constant edits 0.33, 0.33, 0.34, 0.33, 0.33 s.
@@ -265,11 +272,13 @@ single `curl` and `gh api` loads are cited where used.
   - TypeScript or JavaScript in an embedded engine keeps literal compliance.
   - Declarative data with Rust generators keeps the configuration as data and moves logic into tool code,
      which matches `AD2`'s wording but not its intent that logic stays author-editable.
-  - Compiled Rust, Starlark, Lua, Rhai, Rune, WASM guests, Nickel, and Jsonnet put configuration logic in a language `AD2` does not name.
+  - Compiled Rust, Starlark, Lua, Rhai, Rune, WASM guests, Nickel, and Jsonnet put configuration logic in a language
+  - `AD2` does not name.
   - If the user adopts one of those,
      `AD2` needs an edit through `file-enforcer.config.ts`'s `CLAUDE.md` generation path (rule `WC2`);
      this research did not edit it.
-- `FE/../DECISION.rust-migration.md` ("Decision: no Rust migration for file-enforcer") rejects a rewrite for three reasons:
+- `FE/../DECISION.rust-migration.md` ("Decision: no Rust migration for file-enforcer") rejects a rewrite for three
+- reasons:
    the consumer surface is a TypeScript builder API,
    no-op cost is recomputation,
    and the residual is file I/O.
@@ -277,12 +286,14 @@ single `curl` and `gh api` loads are cited where used.
    the user's new driver.
   The decision record would need superseding once the user accepts a variant (rule `DRR`).
 - `doc/planning/load-bearing-code-languages.md` (a proposal, "does not install new rules"):
-   "An approved-language wrapper that sends project-specific code to an unapproved interpreter still violates the boundary"
+   "An approved-language wrapper that sends project-specific code to an unapproved interpreter still violates the
+   boundary"
    and "Keep TypeScript as default for repository automation".
   If installed,
    Starlark, Lua, Rhai, Rune, Nickel, and Jsonnet configurations need an explicit approval for this scope,
    and Rust needs approval for the tool itself (the design doc already says so).
-- `MXR` (`AGENTS.md:1012-1020`, 300 code lines per `.rs` file) and `RDC` (`AGENTS.md:1022-1028`, rustdoc on every documentable item, private included)
+- `MXR` (`AGENTS.md:1012-1020`, 300 code lines per `.rs` file) and `RDC` (`AGENTS.md:1022-1028`, rustdoc on every
+- documentable item, private included)
    apply to every ported module and to any Rust configuration crate.
   They do not apply to Starlark, Lua, Rhai, JavaScript, or Nickel configuration files,
    which have no equivalent repository rule (inference from the absence of such rules in `AGENTS.md`).
@@ -327,7 +338,8 @@ single `curl` and `gh api` loads are cited where used.
   - `module-toml-edit`'s canonical emitter and splice rules,
      from a 47-module,
      4,690-code-line package;
-     the subset file-enforcer calls (`parseTomlEdit`, `tomlSet`, `tomlHas`, `tomlGetValue`, `tomlStringify`) was not measured separately.
+     the subset file-enforcer calls (`parseTomlEdit`, `tomlSet`, `tomlHas`, `tomlGetValue`, `tomlStringify`) was not
+     measured separately.
   - `@lezer/xml`'s error-tolerant ranges,
      `dot-prop`,
      `nano-spawn`,
@@ -355,7 +367,8 @@ Maintenance figures are from `AR/crates-meta.json`.
      which also offers wildcard captures.
   - Semantics to preserve:
      `tiny-readdir-glob` in the library and Node `fs.glob` in the configuration.
-    `fd --hidden --no-ignore --max-depth 2 --type directory '^\.' package` and the same over `.agents/skills` printed nothing,
+    `fd --hidden --no-ignore --max-depth 2 --type directory '^\.' package` and the same over `.agents/skills` printed
+    nothing,
      so dot-leading directories do not affect today's outputs,
      but the dotfile rules of the engines were not compared (unverified).
 - FE04 in-memory read cache with invalidation:
@@ -411,11 +424,13 @@ Maintenance figures are from `AR/crates-meta.json`.
    `jsonc-parser` 0.33.2 and `json5` 1.3.1 are unnecessary because today's code uses strict `JSON.parse`.
 - FE11 TOML reads and comment-preserving edits:
    `toml_edit` 0.25.15 (2026-09-11, 22 releases, TOML 1.1) with a ported canonical emitter (parity probe);
-   `taplo` 0.14.0 (2025-05-22, 0 releases in the past year, 240 open issues) as the alternative formatter-preserving tree.
+   `taplo` 0.14.0 (2025-05-22, 0 releases in the past year, 240 open issues) as the alternative formatter-preserving
+   tree.
 - FE12 XML entries:
    `quick-xml` 0.42.0 (2026-08-22, 10 releases) or `roxmltree` 0.21.1 (2025-10-12, 1 release) for element ranges,
    with the entity decoder and attribute encoder ported from `FE/pipeline/xml-coding.ts:120`, `:177`;
-   `xmlparser` 0.13.6 (2023), `xml-rs` 1.0.0, `xot` 0.31.2 (2025-04-09, 0 releases), and `xmltree` 0.12.0 do not expose splice ranges as directly (unverified beyond metadata).
+   `xmlparser` 0.13.6 (2023), `xml-rs` 1.0.0, `xot` 0.31.2 (2025-04-09, 0 releases), and `xmltree` 0.12.0 do not expose
+   splice ranges as directly (unverified beyond metadata).
 - FE13 `dedup`:
    one line of repository code (`FE/pipeline/transform.ts:17`).
 - FE14 Cargo manifest plans:
@@ -440,7 +455,8 @@ Maintenance figures are from `AR/crates-meta.json`.
    `browserslist` 4.28.9 with `caniuse-lite` 1.0.30001810 (`pnpm-lock.yaml:6103`, `:6119`)
    becomes `browserslist-rs` 0.21.2 (2026-09-16),
    whose data lives in `browserslist-data` 0.3.1 (2026-09-16, 268,800-byte crate).
-  `browserslist-rs`'s repository `package.json` pins `browserslist` `^4.28.9` and `caniuse-lite` `^1.0.30001810` for data generation (verified by `gh api`),
+  `browserslist-rs`'s repository `package.json` pins `browserslist` `^4.28.9` and `caniuse-lite` `^1.0.30001810` for
+  data generation (verified by `gh api`),
    and its README lists only custom-stats queries as unsupported;
    the root `.browserslistrc` uses none.
   Output parity was not probed (the crate is not cached),
@@ -460,7 +476,8 @@ Maintenance figures are from `AR/crates-meta.json`.
    `package/config/pnpr/config.yaml`,
    package `LICENSES/*.txt` copies,
    and the git-policy source mirrors with `replaceAll` and `replace` (`file-enforcer.config.ts:2204-2329`).
-  JavaScript `replace` with a string pattern replaces only the first occurrence (`file-enforcer.config.ts:2291`, `:2309`),
+  JavaScript `replace` with a string pattern replaces only the first occurrence (`file-enforcer.config.ts:2291`,
+  `:2309`),
    so the port must use `replacen(.., 1)` there (recall of `String.prototype.replace`; unverified by probe).
 - `JSON.stringify(value, null, 2)`:
    `.browserslistrc.resolved.local.json`,
@@ -487,7 +504,8 @@ Crate defaults (`toml_edit` 0.25.13 with `TableLike::insert`) against today's `a
      arrays render `["derive"]` instead of `[ "derive", ]`;
      inline tables drop the trailing comma (`{ ... }` instead of `{ ..., }`).
     Cause:
-     `Table::insert` calls `entry.key_mut().fmt()` on an occupied entry (`REG/toml_edit-0.25.13+spec-1.1.0/src/table.rs:429-443`),
+     `Table::insert` calls `entry.key_mut().fmt()` on an occupied entry
+     (`REG/toml_edit-0.25.13+spec-1.1.0/src/table.rs:429-443`),
      which resets the key's decoration,
      where the comment above a key is stored.
   - Five-element array:
@@ -512,8 +530,10 @@ Crate defaults (`toml_edit` 0.25.13 with `TableLike::insert`) against today's `a
    equal-array re-set identical (92 bytes),
    top-level creation identical (102 bytes).
 - Consequence:
-   `toml_edit` supplies the lossless tree and TOML 1.1 syntax (`InlineTable::set_trailing_comma`, `REG/toml_edit-0.25.13+spec-1.1.0/src/inline_table.rs:94`),
-   but every placement and formatting rule of `module-toml-edit` that file-enforcer reaches must be ported and tested against the TypeScript output.
+   `toml_edit` supplies the lossless tree and TOML 1.1 syntax (`InlineTable::set_trailing_comma`,
+   `REG/toml_edit-0.25.13+spec-1.1.0/src/inline_table.rs:94`),
+   but every placement and formatting rule of `module-toml-edit` that file-enforcer reaches must be ported and tested
+   against the TypeScript output.
   Only the cases above were probed.
 
 ### JSON
@@ -661,7 +681,7 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    `rquickjs` 0.13.0 with `futures` and `loader`;
    an `AsyncRuntime` on `tokio`;
    a module loader that serves built-in modules
-   `@monochromatic-dev/dev-script-file-enforcer/ts`,
+   `@monochromatic-dev/file-enforcer-core/ts`,
    `node:fs/promises`,
    `node:crypto`,
    `node:path`,
@@ -674,7 +694,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    (`oxc_transformer` 0.150.0, 61 releases in the past year),
    or author `file-enforcer.config.js` with JSDoc types checked by the repository's TypeScript toolchain.
   No `oxc` size was measured;
-   the repository's `rolldown-binding.linux-x64-gnu.node` 1.2.7 (which contains `oxc` plus the bundler) is 19,312,448 bytes (`ls -lL`), an upper bound only.
+   the repository's `rolldown-binding.linux-x64-gnu.node` 1.2.7 (which contains `oxc` plus the bundler) is 19,312,448
+   bytes (`ls -lL`), an upper bound only.
 - Expressiveness:
    async and `await`,
    `Promise.all`,
@@ -693,7 +714,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    generic npm loading is out of scope (inference).
 - Sandboxing:
    no file, process, or network access unless the host registers it
-   (inference: the optional features read on the crate page are module loading, native module loading, and async support,
+   (inference: the optional features read on the crate page are module loading, native module loading, and async
+   support,
    and no file-system module was found there; unverified against the crate source).
 - Watch tracking:
    exact,
@@ -708,7 +730,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    the repository's TypeScript toolchain with a `.d.ts` for host modules;
    keeping that declaration file in step with Rust host functions is repository work (a generator was not evaluated).
 - Documentation (recorded):
-   the `rquickjs` crate page warns that `Runtime` and `Context` locks are "discouraged" in async code and points to `AsyncRuntime`;
+   the `rquickjs` crate page warns that `Runtime` and `Context` locks are "discouraged" in async code and points to
+   `AsyncRuntime`;
    no contradiction found in the sections read.
    The 367 KiB figure on bellard.org describes Bellard's QuickJS,
    not the QuickJS-ng fork `rquickjs` vendors.
@@ -724,7 +747,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    QuickJS-ng `qjs-linux-x86_64` is 2,587,888 bytes;
    the added size for this design is unmeasured.
 - Static linking:
-   `rquickjs-sys` compiles QuickJS-ng C sources and ships pregenerated bindings including `x86_64-unknown-linux-musl.rs` (`gh api repos/DelSkayn/rquickjs/contents/sys/src/bindings`),
+   `rquickjs-sys` compiles QuickJS-ng C sources and ships pregenerated bindings including
+   `x86_64-unknown-linux-musl.rs` (`gh api repos/DelSkayn/rquickjs/contents/sys/src/bindings`),
    so a musl build needs a musl-targeting C compiler (inference; `zig` 0.15.2 is present, unverified for this build).
 - Rules:
    keeps TypeScript (`AD2` literal compliance and the proposal's TypeScript default).
@@ -746,7 +770,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 - Static linking:
    expected pure Rust,
    so a musl build would need no C cross compiler
-   (inference: the crate page lists `intl`, `boa_runtime`, and `tag_ptr` features and mentions no C build; the dependency tree was not checked).
+   (inference: the crate page lists `intl`, `boa_runtime`, and `tag_ptr` features and mentions no C build; the
+   dependency tree was not checked).
 - Binary size:
    the Boa CLI release asset is 33,804,544 bytes,
    which presumably includes its REPL and default features (unverified);
@@ -836,8 +861,10 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    `try`/`catch`/`throw`,
    and object maps exist (features page);
    no async:
-   the maintainer answered "All calls with Rhai are blocking and single-threaded" and "there is no `await` keyword" (issue `rhaiscript/rhai#215`, comments read with `gh issue view`).
-  Parallel generators need a host primitive over the `sync` feature's `Send + Sync` engine (features page: "Re-entrant scripting Engine can be made Send + Sync").
+   the maintainer answered "All calls with Rhai are blocking and single-threaded" and "there is no `await` keyword"
+   (issue `rhaiscript/rhai#215`, comments read with `gh issue view`).
+  Parallel generators need a host primitive over the `sync` feature's `Send + Sync` engine (features page: "Re-entrant
+  scripting Engine can be made Send + Sync").
 - Sandboxing:
    no I/O unless registered;
    limits for "runaway scripts" (features page).
@@ -849,7 +876,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    `rhaiscript/lsp` last pushed 2023-03-17 (78 stars).
 - Documentation (recorded):
    the features page lists "Closures that can capture shared variables",
-   while the "What Rhai Isn't" page says "No first-class closures" and "No first-class functions" before describing simulated closures and function pointers;
+   while the "What Rhai Isn't" page says "No first-class closures" and "No first-class functions" before describing
+   simulated closures and function pointers;
    the minimal-build page gives no size figures.
 - Maintenance:
    7 releases,
@@ -902,7 +930,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    "the Lua interpreter built with all standard Lua libraries takes 293K and the Lua library takes 484K";
    the `mlua` embedding is unmeasured.
 - Static linking:
-   `vendored` builds "static Lua(JIT) libraries from sources during `mlua` compilation using lua-src or luajit-src" (README line 49),
+   `vendored` builds "static Lua(JIT) libraries from sources during `mlua` compilation using lua-src or luajit-src"
+   (README line 49),
    so a musl build needs a musl-targeting C compiler (inference).
 - Rules:
    new language.
@@ -961,7 +990,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    keeping running tasks across the restart needs file descriptor handoff;
    adopting inherited descriptors uses `FromRawFd::from_raw_fd`,
    an `unsafe fn` (`STD/os/fd/raw.rs:114`),
-   while passing them with `SCM_RIGHTS` keeps repository code safe but cannot transfer parenthood of running children (inference from Unix process semantics; unexercised).
+   while passing them with `SCM_RIGHTS` keeps repository code safe but cannot transfer parenthood of running children
+   (inference from Unix process semantics; unexercised).
 - Edit latency:
    a one-constant edit rebuilt a small leaf crate in 5.5 to 5.6 s with fat LTO (probe);
    the full daemon crate is larger and unmeasured.
@@ -998,9 +1028,11 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 - Edit latency:
    0.33 s debug rebuild of a small leaf crate (probe);
    a cold build of the library and its dependencies is unmeasured
-   (the forbidden-strings clean release build took 50.86 s, `doc/troubleshooting/cargo-build-override-opt-level.md:247` as cited in `stack-rust.md`, R8; not re-read).
+   (the forbidden-strings clean release build took 50.86 s, `doc/troubleshooting/cargo-build-override-opt-level.md:247`
+   as cited in `stack-rust.md`, R8; not re-read).
 - Version skew:
-   the prebuilt single file and the repository-built configuration binary can carry different protocol or library versions (inference).
+   the prebuilt single file and the repository-built configuration binary can carry different protocol or library
+   versions (inference).
 - Single-file fit:
    worse than F:
    even an unedited configuration needs `cargo` on a fresh clone.
@@ -1030,7 +1062,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    the CLI release is 11,424,388 compressed bytes.
   A component-model embedding for this design is unmeasured.
 - Static linking:
-   `crates/wasmtime/build.rs` compiles `src/runtime/vm/helpers.c` with `cc` under the `runtime` feature (`build.rs:112-135` at `v48.0.2`),
+   `crates/wasmtime/build.rs` compiles `src/runtime/vm/helpers.c` with `cc` under the `runtime` feature
+   (`build.rs:112-135` at `v48.0.2`),
    so a musl build needs a musl-targeting C compiler (inference).
 - Maintenance:
    71 releases in the past year,
@@ -1048,7 +1081,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 - Design:
    `file-enforcer.toml` (or `.kdl` through `kdl` 6.7.1, which "preserves formatting")
    lists rules;
-   generators such as `concat`, `mirror`, `cargo-manifests`, `lsp4ij`, `license-texts`, `skill-mirror`, `pnpr-config`, and `browserslist-targets` are Rust modules in the tool.
+   generators such as `concat`, `mirror`, `cargo-manifests`, `lsp4ij`, `license-texts`, `skill-mirror`, `pnpr-config`,
+   and `browserslist-targets` are Rust modules in the tool.
 - Expressiveness:
    the root configuration's bespoke logic
    (pnpr selection and name validation, skill-mirror ownership pruning, SPDX expression mapping, scanner spawning)
@@ -1063,7 +1097,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    logic edits are variant F.
 - Rules:
    literal `AD2` compliance;
-   the approved-language proposal's "Native declarative workflow/task wiring is allowed; custom algorithms belong in approved source".
+   the approved-language proposal's "Native declarative workflow/task wiring is allowed; custom algorithms belong in
+   approved source".
 - Disqualifying problems:
    F's toolchain dependency and restart for every logic edit,
    plus a schema invented per generator.
@@ -1102,7 +1137,8 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 - Dhall through `serde_dhall` 0.13.0:
    0 releases in the past year and a total language without host effects (recall).
 - Dynamic Rust plugins through `libloading` 0.9.0 or `abi_stable` 0.11.3 (last release 2023-10-12):
-   musl's static `dlopen` is a stub that sets "Dynamic loading not supported" (`src/ldso/dlopen.c`, fetched from `git.musl-libc.org`),
+   musl's static `dlopen` is a stub that sets "Dynamic loading not supported" (`src/ldso/dlopen.c`, fetched from
+   `git.musl-libc.org`),
    so a static single file cannot load them.
 - Koto 0.16.1 (1,331 recent downloads),
    Steel 0.8.3 (a Scheme),
@@ -1135,13 +1171,15 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    which includes `<linux/types.h>`, `<linux/ioctl.h>`, and `<linux/fs.h>` (`src/raw/btrfs.h:27-29`),
    and emits no link directives,
    so it adds no C library to link and does not break static linking.
-  It needs `libclang` (present: `/usr/lib64/libclang.so.22.1.8`) and kernel UAPI headers (present under `/usr/include/linux/`) at build time;
+  It needs `libclang` (present: `/usr/lib64/libclang.so.22.1.8`) and kernel UAPI headers (present under
+  `/usr/include/linux/`) at build time;
    whether `bindgen` finds them when targeting musl is unverified.
 - Engines and static linking:
    Boa, Starlark, Rhai, Rune, Nickel, and Jsonnet are pure Rust (inference);
    V8 ships a prebuilt musl static library (release asset above);
    dynamic plugin loading is impossible (musl `dlopen` stub).
-- The `musl` allocator's multi-threaded performance is a known concern (recall; unverified), usually addressed with a Rust or C allocator crate.
+- The `musl` allocator's multi-threaded performance is a known concern (recall; unverified), usually addressed with a
+- Rust or C allocator crate.
 
 ### Size evidence
 
@@ -1183,10 +1221,11 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 
 - A1 or A2:
    keep `file-enforcer.config.ts`;
-   keep the import of `@monochromatic-dev/dev-script-file-enforcer/ts`, served by the host loader;
+   keep the import of `@monochromatic-dev/file-enforcer-core/ts`, served by the host loader;
    replace `node:` imports with host modules of the same names or inline equivalents;
    replace `import('browserslist')` with a host function backed by `browserslist-rs`;
-   inline `isTypeScriptSourcePath` (an 8-line function, `package/config/pnpr/src/publish-plan.ts:186-193`) instead of loading `config-pnpr`, which imports `yaml`.
+   inline `isTypeScriptSourcePath` (an 8-line function, `package/config/pnpr/src/publish-plan.ts:186-193`) instead of
+   loading `config-pnpr`, which imports `yaml`.
   Most of the 2,329 lines stay as they are (inference from the import surface).
 - B, C, D, E:
    a full rewrite of 69 functions and 42 templates into the new language.
@@ -1203,19 +1242,23 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 
 - `file-enforcer.config.ts:30`.
 - `package.json:35` (root dependency) and `pnpm-lock.yaml:430`, `:1830`, `:4190`.
-- `package/dev-script/vm-builder/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`,
+- `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`,
    called 14 times (`rg 'exec\('`),
-   and `package/dev-script/vm-builder/package.json:16`.
+   and `package/vm-builder/cli/package.json:16`.
   These need a TypeScript replacement for `exec` (`nano-spawn` or `node:child_process`) whatever the host.
 - `package/test-fixture/file-enforcer-perf/src/perf.config.ts:21` and `src/perf.bench.test.ts:21`
-   import `cat`, `dedup`, `getJsonProperty`, `overwrite`, `overwriteEach`, `readCache`, `reset`, `classifyEvent`, `expandGlob`, `mirrorGlobPath`, `trackDest`, `trackRead`, `trackWriteTime`;
+   import `cat`, `dedup`, `getJsonProperty`, `overwrite`, `overwriteEach`, `readCache`, `reset`, `classifyEvent`,
+   `expandGlob`, `mirrorGlobPath`, `trackDest`, `trackRead`, `trackWriteTime`;
    the fixture benchmarks the TypeScript implementation and would be retired or rewritten.
 - `package/config/pnpr/config.yaml:69` lists the package as published,
    so external consumers of the registry package may exist (unverified).
-- `package/oxlint-plugin/prefer-readonly-parameter-type/src/workspace-source-effect.unit.test.ts:22` reads `FE/cargo/apply-plan.ts` as a fixture.
+- `package/oxlint-plugin/prefer-readonly-parameter-type/src/workspace-source-effect.unit.test.ts:22` reads
+- `FE/cargo/apply-plan.ts` as a fixture.
 - Task wiring:
-   `mise.no-env.toml:1120-1127` (`sync:files`, `watch:sync:files`) runs `node package/dev-script/file-enforcer/src/cli.ts`;
-   `package/config/pnpr/src/publish-plan.ts:44` and `src/publish-missing-versions.ts:205` tell users to run `mise run sync:files`.
+   `mise.no-env.toml:1120-1127` (`sync:files`, `watch:sync:files`) runs
+   `node package/file-enforcer/core/src/cli.ts`;
+   `package/config/pnpr/src/publish-plan.ts:44` and `src/publish-missing-versions.ts:205` tell users to run
+   `mise run sync:files`.
 - Documents that describe the TypeScript design:
    `FE/../DECISION.rust-migration.md`,
    `FE/../README.md` (547 lines),
@@ -1355,7 +1398,8 @@ variant items follow.
 ## Ranking of configuration-hosting variants
 
 Per the user's decision,
-this ranking replaces the comparison against the Rust core with TypeScript children and the TypeScript daemon with a Rust addon,
+this ranking replaces the comparison against the Rust core with TypeScript children and the TypeScript daemon with a
+Rust addon,
 both of which ship Node and are out.
 
 A1 > A2 > D > B > C > E > H > I > F > G > J (Jsonnet) > J (Nickel) > A3.
@@ -1410,7 +1454,8 @@ its worst items are repository-written shims and an unmeasured type-stripping de
 
 ## Open questions
 
-- Does a configuration that needs the repository's Rust toolchain to take effect count against the single-file requirement,
+- Does a configuration that needs the repository's Rust toolchain to take effect count against the single-file
+- requirement,
    as this research inferred from the user's Node precedent?
   A "no" moves F, G, H, and I above the embedded interpreters,
    because they avoid shims and a second language.

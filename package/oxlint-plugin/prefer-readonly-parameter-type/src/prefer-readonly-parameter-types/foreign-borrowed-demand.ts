@@ -9,7 +9,7 @@
  @module
  */
 
-import type { SourceFile, } from 'typescript/unstable/ast';
+import type { SourceFile, } from 'typescript/ast';
 
 import type { ParameterIndex, } from './effect-slot-identity.ts';
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';

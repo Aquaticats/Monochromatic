@@ -476,7 +476,7 @@ class PaginationTest {
         // ```ts
         // const pages = paginate(["1 song.flac", "初音.flac", "#tag.flac", "élan.flac"]);
         // ```
-        val pages = paginate(listOf("1 song.flac", "初音.flac", "#tag.flac", "élan.flac"))
+        val pages = paginate(listOf("1 song.flac", "初音.flac", "#tag.flac", "Øystein.flac"))
         // What:     `assertEquals(1, pages.size)` is `assertEquals(expected, actual)`: EXPECTED
         //           `Int` `1`, ACTUAL the page count.
         // Why:      All four non-English-letter roots collapse into one catch-all page.
@@ -505,6 +505,25 @@ class PaginationTest {
         // expect(indicesOf(pages[0])).toEqual([0, 1, 2, 3]);
         // ```
         assertEquals(listOf(0, 1, 2, 3), indicesOf(pages[0]))
+    }
+
+    /** Verifies accented Latin initials share the page of their base letter (D28), so É sits with E. */
+    @Test
+    fun accentedRootNamesShareTheirBaseLetterPage() {
+        val pages = paginate(listOf("élan.flac", "Eno.flac", "Émilie.flac", "zed.flac"))
+        assertEquals(listOf("E", "Z"), pages.map { page -> page.label })
+        assertEquals(listOf(0, 1, 2), indicesOf(pages[0]))
+    }
+
+    /** Verifies the label a loose track gets in the picker is the one `looseFolderLabel` reports. */
+    @Test
+    fun looseFolderLabelNamesThePageOfALooseTrack() {
+        assertEquals("A", looseFolderLabel("Adele-Meow.mp3"))
+        assertEquals("A", looseFolderLabel("aaa lowercase loose.mp3"))
+        assertEquals("E", looseFolderLabel("Émilie.flac"))
+        assertEquals("#", looseFolderLabel("01 - Numbered Loose.m4a"))
+        assertEquals("#", looseFolderLabel("初音.flac"))
+        assertEquals("#", looseFolderLabel(""))
     }
 
     // What:     `@Test` annotation marking the next method as a JUnit test (metadata only).

@@ -1,0 +1,51 @@
+// Preview windows for the Settings page, drawn from the Android Settings captures. Each window fixes the scheme
+// through Theme.scheme-override so that light and dark render separately. The status bar is not part of the app,
+// so the windows are the page height only.
+import { Theme } from "../theme.slint";
+import { SettingsPage } from "../settings.slint";
+
+// Settings with the two template rows and their current lines, and the Auto-play on select row switched off.
+component TemplatesSettings inherits SettingsPage {
+    rows: [
+        { label: "Track rows", line: "3:20 −1.0 dBTP" },
+        { label: "Playing track", line: "1 of 16 −1.0 dBTP" },
+    ];
+    auto-play-enabled: false;
+    auto-play-text: "Select first, then Play";
+}
+
+// Cover width Settings in light, 443 px wide.
+export component SettingsCoverLight inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 1; }
+
+    TemplatesSettings {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Cover width Settings in dark.
+export component SettingsCoverDark inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 2; }
+
+    TemplatesSettings {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Inner Settings in dark, 850 px wide as the inner capture is.
+export component SettingsInnerDark inherits Window {
+    width: 850px;
+    height: 826px;
+    init => { Theme.scheme-override = 2; }
+
+    TemplatesSettings {
+        width: parent.width;
+        height: parent.height;
+    }
+}

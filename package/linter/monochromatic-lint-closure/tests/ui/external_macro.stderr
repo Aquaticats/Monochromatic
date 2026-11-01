@@ -1,0 +1,10 @@
+warning: this closure captures `offset`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/external_macro.rs:20:24
+   |
+LL |     let _ = apply_arg!(|x| x + offset);
+   |                        ^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+   = note: `#[warn(avoidable_closure)]` on by default
+
+warning: 1 warning emitted

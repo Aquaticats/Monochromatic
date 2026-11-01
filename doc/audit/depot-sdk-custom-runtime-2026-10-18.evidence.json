@@ -1,0 +1,684 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-18T10:56:17.262Z",
+  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "sdkVersion": "0.1.0-beta.7",
+  "input": {
+    "startedAt": "2026-10-18T10:16:02.061Z",
+    "reference": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+    "expectedManifestDigest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+    "expectedConfigDigest": "sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+    "coordinatedReadOnlyUse": true,
+    "otherOwnerArtifactNotModified": true,
+    "requests": [
+      {
+        "label": "anonymous-manifest",
+        "host": "l4zncjjbj5.registry.depot.dev",
+        "path": "/v2/research-reuse-20261018/manifests/sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "status": 401,
+        "bytes": 73,
+        "sha256": "89a052af62c612d0e05d2596f03edba77d7d904c4478b387a5dc6305821fe0a1",
+        "mediaType": "application/json",
+        "dockerContentDigest": null,
+        "challenge": "Bearer realm=\"https://api.depot.dev/auth/registry/token\",service=\"l4zncjjbj5.registry.depot.dev\",scope=\"repository:research-reuse-20261018:pull\"",
+        "redirects": 0
+      },
+      {
+        "label": "authenticated-manifest",
+        "host": "l4zncjjbj5.registry.depot.dev",
+        "path": "/v2/research-reuse-20261018/manifests/sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "status": 200,
+        "bytes": 1896,
+        "sha256": "fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "dockerContentDigest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "challenge": null,
+        "redirects": 0
+      },
+      {
+        "label": "authenticated-thin-config",
+        "host": "depot-registry-blobs.t3.storage.dev",
+        "path": "/blobs/sha256/7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+        "status": 200,
+        "bytes": 6617636,
+        "sha256": "7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+        "mediaType": "binary/octet-stream",
+        "dockerContentDigest": null,
+        "challenge": null,
+        "redirects": 1
+      }
+    ],
+    "cloudAllocation": false,
+    "sourceAdmission": {
+      "sdkSource": "0e740b788d2613128b2ba6ed9b4129333244ee56",
+      "runtimeForwarding": "src/sandbox.ts:156",
+      "registryRequirement": "README.md:81",
+      "priorAcceptedFamilyReference": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854",
+      "deployedDocComingSoonContradiction": true
+    },
+    "registryChallengeExchange": {
+      "status": 200,
+      "scope": "repository:research-reuse-20261018:pull",
+      "newBroadToken": false,
+      "credentialValueRetained": false
+    },
+    "image": {
+      "manifest": {
+        "annotations": {
+          "dev.depot.ci.architecture": "amd64",
+          "dev.depot.ci.job": "prepare",
+          "dev.depot.ci.job-url": "https://depot.dev/orgs/l4zncjjbj5/workflows/95b1p91q9h?job=hdp5wmd1js&attempt=k0mhw9lg38",
+          "dev.depot.ci.provider": "depot-ci",
+          "dev.depot.ci.run-attempt": "1",
+          "dev.depot.ci.run-id": "69853840759089",
+          "dev.depot.ci.workflow": "Isolated native Git prerequisite tool snapshot",
+          "org.opencontainers.image.created": "2026-10-18T07:34:03Z",
+          "org.opencontainers.image.revision": "90c122d9a6074d86504c40ea1b45efdb73887f1b",
+          "org.opencontainers.image.source": "https://github.com/Aquaticats/Monochromatic"
+        },
+        "config": {
+          "digest": "sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+          "mediaType": "application/vnd.depot.thin.snapshot.config.v2+json",
+          "size": 6617636
+        },
+        "layers": [
+          {
+            "annotations": {
+              "dev.depot.registry": "https://l4zncjjbj5.registry.depot.dev/research-reuse-20261018"
+            },
+            "digest": "sha256:14702a111207f4051bdc1767a8646cfbc74385570f6554e903e7230d6fe13afc",
+            "mediaType": "application/vnd.depot.thin.snapshot.sparse.v1",
+            "size": 263258112
+          },
+          {
+            "annotations": {
+              "dev.depot.registry": "https://l4zncjjbj5.registry.depot.dev/research-reuse-20261018"
+            },
+            "digest": "sha256:1bacaba11cb41855026a82d24b5aabdb1c1d4050e36664aa8966f8f688334096",
+            "mediaType": "application/vnd.depot.thin.snapshot.sparse.v1",
+            "size": 5703139328
+          },
+          {
+            "annotations": {
+              "dev.depot.registry": "https://library.registry.depot.dev/base"
+            },
+            "digest": "sha256:11cb23692f9ee055325cfa536e6a52334344f2a28f9b15167fe2c2a1e12cf61e",
+            "mediaType": "application/vnd.depot.ext4.image.v1",
+            "size": 58659745792
+          }
+        ],
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "schemaVersion": 2
+      },
+      "config": {
+        "descriptor": {
+          "digest": "sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+          "mediaType": "application/vnd.depot.thin.snapshot.config.v2+json",
+          "size": 6617636
+        },
+        "keys": [
+          "chunk_size_bytes",
+          "disk_size_bytes",
+          "metadata_chunks",
+          "layers",
+          "chunks"
+        ],
+        "diskSizeBytes": 161061273600,
+        "chunkSizeBytes": 65536,
+        "bodyRetained": false
+      },
+      "noOrdinaryOciRootfsClaim": true
+    },
+    "finishedAt": "2026-10-18T10:16:09.013Z",
+    "inputVerified": true
+  },
+  "localValidation": {
+    "observedAt": "2026-10-18T10:41:09.341Z",
+    "source": "3edf13d76b0f53b1612bbcb31bc3ff4fd0abf8b3",
+    "recipeSha256": "d985dbc8d68aa1e69acf25c8639e51e7a383cdd6320a59b4115bf0ab00bbd965",
+    "valid": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "invalidControl": {
+      "status": 1,
+      "diagnostic": "[stdin]:1\nconst broken = ;\n               ^\n\nSyntaxError: Unexpected token ';'\n    at checkSyntax (node:internal/main/check_syntax:84:5)\n    at node:internal/main/check_syntax:45:5\n    at Socket.<anonymous> (node:internal/process/execution:239:5)\n    at Socket.emit (node:events:526:24)\n    at endReadableNT (node:internal/streams/readable:2147:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n\nNode.js v26.12.0\n"
+    },
+    "cloudAllocation": false,
+    "preflightRecovery": "Initial private validator embedded a literal TOML closing delimiter in its regex; Mise rejected that fixture before any code or cloud request ran"
+  },
+  "firstAttempt": {
+    "schemaVersion": 1,
+    "source": "512594d40ffe95390181df6a3511928928e8b7d3",
+    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "startedAt": "2026-10-18T10:25:34.824Z",
+    "sdkVersion": "0.1.0-beta.7",
+    "request": {
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "timeoutMinutes": 2,
+      "architecture": "amd64",
+      "disableTailnet": true,
+      "disableDepotCache": true,
+      "configuration": {
+        "secrets": {}
+      },
+      "name": "research-sdk-custom-ae3802bf-1e8f-4c50-9f54-478b1b4cc38c",
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      }
+    },
+    "forecast": {
+      "priorBuildkitTimestampProxyUsd": 0.538584,
+      "publicTwoCpuCiRateUsdPerMinute": 0.006,
+      "maximumRequestedSandboxMinutes": 2,
+      "maximumAdditionalComputeProxyUsd": 0.012,
+      "cumulativeProxyUsd": 0.550584,
+      "admittedCumulativeCeilingUsd": 2,
+      "accountOrInvoiceCapProven": false
+    },
+    "createCallCount": 1,
+    "checks": [],
+    "cleanup": {
+      "confirmed": {
+        "sandboxId": "6m8d0p0pvnrqlb8",
+        "status": "finished",
+        "name": "research-sdk-custom-ae3802bf-1e8f-4c50-9f54-478b1b4cc38c",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 150
+        },
+        "runtime": {
+          "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+        },
+        "architecture": "amd64",
+        "createdAt": "2026-10-18T10:25:36.794Z",
+        "startedAt": "2026-10-18T10:25:39.581Z",
+        "expiresAt": "2026-10-18T10:27:36.791Z",
+        "stoppedAt": "2026-10-18T10:25:48.287Z"
+      },
+      "terminal": true
+    },
+    "registryControls": [
+      {
+        "phase": "before-create",
+        "status": 200,
+        "digest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "bytes": 1896
+      }
+    ],
+    "credentialsRetained": false,
+    "created": {
+      "sandboxId": "6m8d0p0pvnrqlb8",
+      "status": "running",
+      "name": "research-sdk-custom-ae3802bf-1e8f-4c50-9f54-478b1b4cc38c",
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "architecture": "amd64",
+      "createdAt": "2026-10-18T10:25:36.794Z",
+      "startedAt": "2026-10-18T10:25:39.581Z",
+      "expiresAt": "2026-10-18T10:27:36.791Z"
+    },
+    "runtimeReferenceComparison": {
+      "requested": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+      "returned": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "exactMatch": true
+    },
+    "expiryMetadata": {
+      "lifetimeFromCreationMilliseconds": 119997,
+      "requestedMinutes": 2
+    },
+    "error": {
+      "name": "ConnectError",
+      "message": "[internal] execute command: execute: stream error: unknown: execute 6m8d0p0pvnrqlb8 command: start exec: exec: \"node\": executable file not found in $PATH",
+      "code": 13
+    },
+    "finishedAt": "2026-10-18T10:25:48.683Z"
+  },
+  "recovery": {
+    "schemaVersion": 1,
+    "source": "05d6ffe7b4b638009ab8745bf857de1dc4b7ba16",
+    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "startedAt": "2026-10-18T10:33:50.773Z",
+    "sdkVersion": "0.1.0-beta.7",
+    "request": {
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "timeoutMinutes": 2,
+      "architecture": "amd64",
+      "disableTailnet": true,
+      "disableDepotCache": true,
+      "configuration": {
+        "secrets": {}
+      },
+      "name": "research-sdk-custom-9d7a3f42-5db1-4074-bac8-374b037ba4ac",
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      }
+    },
+    "forecast": {
+      "priorBuildkitTimestampProxyUsd": 0.538584,
+      "publicTwoCpuCiRateUsdPerMinute": 0.006,
+      "maximumRequestedSandboxMinutes": 2,
+      "maximumAdditionalComputeProxyUsd": 0.012,
+      "previousSandboxReservedComputeProxyUsd": 0.012,
+      "cumulativeProxyUsd": 0.562584,
+      "admittedCumulativeCeilingUsd": 2,
+      "accountOrInvoiceCapProven": false
+    },
+    "createCallCount": 1,
+    "checks": [],
+    "cleanup": {
+      "confirmed": {
+        "sandboxId": "b2f4z72r3951f5k",
+        "status": "finished",
+        "name": "research-sdk-custom-9d7a3f42-5db1-4074-bac8-374b037ba4ac",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 150
+        },
+        "runtime": {
+          "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+        },
+        "architecture": "amd64",
+        "createdAt": "2026-10-18T10:33:52.713Z",
+        "startedAt": "2026-10-18T10:33:55.644Z",
+        "expiresAt": "2026-10-18T10:35:52.709Z",
+        "stoppedAt": "2026-10-18T10:34:35.138Z"
+      },
+      "terminal": true
+    },
+    "registryControls": [
+      {
+        "phase": "before-create",
+        "status": 200,
+        "digest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "bytes": 1896
+      }
+    ],
+    "credentialsRetained": false,
+    "created": {
+      "sandboxId": "b2f4z72r3951f5k",
+      "status": "running",
+      "name": "research-sdk-custom-9d7a3f42-5db1-4074-bac8-374b037ba4ac",
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "architecture": "amd64",
+      "createdAt": "2026-10-18T10:33:52.713Z",
+      "startedAt": "2026-10-18T10:33:55.644Z",
+      "expiresAt": "2026-10-18T10:35:52.709Z"
+    },
+    "runtimeReferenceComparison": {
+      "requested": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+      "returned": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "exactMatch": true
+    },
+    "expiryMetadata": {
+      "lifetimeFromCreationMilliseconds": 119996,
+      "requestedMinutes": 2
+    },
+    "error": {
+      "name": "FileSystemError",
+      "message": "the operation timed out",
+      "code": "OTHER"
+    },
+    "finishedAt": "2026-10-18T10:34:35.819Z"
+  },
+  "thirdAdmission": {
+    "source": "3edf13d76b0f53b1612bbcb31bc3ff4fd0abf8b3",
+    "maximumCreates": 1,
+    "resources": {
+      "vcpus": 2,
+      "memoryMb": 4096,
+      "diskGb": 150
+    },
+    "timeoutMinutes": 2,
+    "filesystemRpcTimeoutMilliseconds": 10000,
+    "fullExecutableRead": false,
+    "additionalComputeProxyReservationUsd": 0.012,
+    "cumulativePriorBuildkitAndAllSandboxReservationsUsd": 0.574584,
+    "ceilingUsd": 2,
+    "status": "executed",
+    "priceScope": "Conservative reservation using the documented Sandbox SDK CI compute rate; not an actual invoice, aggregate account cap, included-allowance or storage-cost guarantee"
+  },
+  "smallFiles": {
+    "schemaVersion": 1,
+    "source": "3edf13d76b0f53b1612bbcb31bc3ff4fd0abf8b3",
+    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "startedAt": "2026-10-18T10:41:18.979Z",
+    "sdkVersion": "0.1.0-beta.7",
+    "request": {
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "timeoutMinutes": 2,
+      "architecture": "amd64",
+      "disableTailnet": true,
+      "disableDepotCache": true,
+      "configuration": {
+        "secrets": {}
+      },
+      "name": "research-sdk-custom-8a29d77c-0c15-4e47-a8b0-6808aae900e1",
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      }
+    },
+    "forecast": {
+      "priorBuildkitTimestampProxyUsd": 0.538584,
+      "publicTwoCpuCiRateUsdPerMinute": 0.006,
+      "maximumRequestedSandboxMinutes": 2,
+      "maximumAdditionalComputeProxyUsd": 0.012,
+      "previousSandboxReservedComputeProxyUsd": 0.024,
+      "cumulativeProxyUsd": 0.574584,
+      "admittedCumulativeCeilingUsd": 2,
+      "accountOrInvoiceCapProven": false
+    },
+    "createCallCount": 1,
+    "checks": [
+      {
+        "name": "custom-image-absolute-git-command",
+        "commandId": "cmd_gszvbl86cj",
+        "exitCode": 0,
+        "stdout": "git version 2.56.0\n",
+        "stderr": "",
+        "path": "/opt/depot-reuse-20261018-r1/git-2.56.0/bin/git",
+        "fullExecutableHashVerified": false
+      },
+      {
+        "name": "custom-image-small-manifest",
+        "bytes": 15557,
+        "sha256": "b4e7c5752f2df847c14f70cf1211097f18516ee4232e3f834531653dc21bfabe"
+      },
+      {
+        "name": "sdk-filesystem-artifact-roundtrip",
+        "bytes": 124,
+        "sha256": "f06186004032a5412dd3effeca4446ea9ed7f31ca326770b6d42c51900716aff",
+        "removed": true
+      },
+      {
+        "name": "specific-synthetic-exclusion-controls",
+        "exclusions": [
+          {
+            "path": "/home/runner/work/Monochromatic/Monochromatic/.reuse-synthetic-source-marker",
+            "present": false
+          },
+          {
+            "path": "/home/runner/.config/depot/reuse-synthetic-secret",
+            "present": false
+          }
+        ]
+      }
+    ],
+    "cleanup": {
+      "confirmed": {
+        "sandboxId": "dmdwcf07jzx2rxj",
+        "status": "finished",
+        "name": "research-sdk-custom-8a29d77c-0c15-4e47-a8b0-6808aae900e1",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 150
+        },
+        "runtime": {
+          "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+        },
+        "architecture": "amd64",
+        "createdAt": "2026-10-18T10:41:21.053Z",
+        "startedAt": "2026-10-18T10:41:23.433Z",
+        "expiresAt": "2026-10-18T10:43:21.050Z",
+        "stoppedAt": "2026-10-18T10:41:40.772Z"
+      },
+      "terminal": true
+    },
+    "registryControls": [
+      {
+        "phase": "before-create",
+        "status": 200,
+        "digest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "bytes": 1896
+      },
+      {
+        "phase": "after-consumer",
+        "status": 200,
+        "digest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+        "bytes": 1896
+      }
+    ],
+    "credentialsRetained": false,
+    "created": {
+      "sandboxId": "dmdwcf07jzx2rxj",
+      "status": "running",
+      "name": "research-sdk-custom-8a29d77c-0c15-4e47-a8b0-6808aae900e1",
+      "resources": {
+        "vcpus": 2,
+        "memoryMb": 4096,
+        "diskGb": 150
+      },
+      "runtime": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "architecture": "amd64",
+      "createdAt": "2026-10-18T10:41:21.053Z",
+      "startedAt": "2026-10-18T10:41:23.433Z",
+      "expiresAt": "2026-10-18T10:43:21.050Z"
+    },
+    "runtimeReferenceComparison": {
+      "requested": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+      "returned": {
+        "imageRef": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256"
+      },
+      "exactMatch": true
+    },
+    "expiryMetadata": {
+      "lifetimeFromCreationMilliseconds": 119997,
+      "requestedMinutes": 2
+    },
+    "steps": [
+      {
+        "name": "absolute-git-command-first",
+        "startedAt": "2026-10-18T10:41:23.673Z",
+        "finishedAt": "2026-10-18T10:41:31.848Z",
+        "passed": true
+      },
+      {
+        "name": "stat-small-known-image-manifest",
+        "startedAt": "2026-10-18T10:41:31.848Z",
+        "finishedAt": "2026-10-18T10:41:32.353Z",
+        "passed": true
+      },
+      {
+        "name": "write-small-nonce-artifact",
+        "startedAt": "2026-10-18T10:41:31.848Z",
+        "finishedAt": "2026-10-18T10:41:32.652Z",
+        "passed": true
+      },
+      {
+        "name": "read-small-known-image-manifest",
+        "startedAt": "2026-10-18T10:41:32.354Z",
+        "finishedAt": "2026-10-18T10:41:33.173Z",
+        "passed": true
+      },
+      {
+        "name": "read-small-nonce-artifact",
+        "startedAt": "2026-10-18T10:41:32.652Z",
+        "finishedAt": "2026-10-18T10:41:33.003Z",
+        "passed": true
+      },
+      {
+        "name": "unlink-small-nonce-artifact",
+        "startedAt": "2026-10-18T10:41:33.003Z",
+        "finishedAt": "2026-10-18T10:41:33.256Z",
+        "passed": true
+      },
+      {
+        "name": "synthetic-exclusion-controls",
+        "startedAt": "2026-10-18T10:41:33.173Z",
+        "finishedAt": "2026-10-18T10:41:33.560Z",
+        "passed": true
+      },
+      {
+        "name": "missing-nonce-artifact-negative-control",
+        "startedAt": "2026-10-18T10:41:33.256Z",
+        "finishedAt": "2026-10-18T10:41:33.457Z",
+        "passed": true
+      }
+    ],
+    "customExecutableVerified": true,
+    "filesystemOperations": [
+      {
+        "status": "fulfilled"
+      },
+      {
+        "status": "fulfilled"
+      }
+    ],
+    "primaryConsumerVerified": true,
+    "detachedCommandId": "cmd_cqpwc814r7",
+    "detachedLogError": {
+      "name": "ConnectError",
+      "message": "[canceled] The operation was aborted due to timeout",
+      "code": 1
+    },
+    "finishedAt": "2026-10-18T10:41:41.332Z"
+  },
+  "postStopFetch": {
+    "schemaVersion": 1,
+    "startedAt": "2026-10-18T10:53:31.647Z",
+    "scope": {
+      "sandboxId": "dmdwcf07jzx2rxj",
+      "commandId": "cmd_cqpwc814r7",
+      "since": "2026-10-18T10:41:21.053Z",
+      "until": "2026-10-18T10:41:40.772Z",
+      "maximumMilliseconds": 10000,
+      "maximumReturnedEntries": 20
+    },
+    "createCalls": 0,
+    "restartCalls": 0,
+    "timeoutExtensions": 0,
+    "rows": [],
+    "observedStatus": "finished",
+    "expectedOwnedCommandOutputFound": false,
+    "finishedAt": "2026-10-18T10:53:32.504Z"
+  },
+  "errorCollectorPositiveControl": {
+    "observedAt": "2026-10-18T10:37:55.360Z",
+    "sdkVersion": "0.1.0-beta.7",
+    "cloudAllocation": false,
+    "syntheticRpcErrors": true,
+    "rows": [
+      {
+        "method": "stat",
+        "name": "FileSystemError",
+        "code": "OTHER",
+        "message": "the operation timed out",
+        "syscall": "stat",
+        "path": "/opt/owned-synthetic-git",
+        "errno": -1,
+        "collectorBefore": {
+          "name": "FileSystemError",
+          "message": "the operation timed out",
+          "code": "OTHER"
+        },
+        "collectorAfter": {
+          "name": "FileSystemError",
+          "message": "the operation timed out",
+          "code": "OTHER",
+          "syscall": "stat",
+          "path": "/opt/owned-synthetic-git",
+          "errno": -1
+        }
+      },
+      {
+        "method": "readFile",
+        "name": "FileSystemError",
+        "code": "OTHER",
+        "message": "the operation timed out",
+        "syscall": "open",
+        "path": "/opt/owned-synthetic-git",
+        "errno": -1,
+        "collectorBefore": {
+          "name": "FileSystemError",
+          "message": "the operation timed out",
+          "code": "OTHER"
+        },
+        "collectorAfter": {
+          "name": "FileSystemError",
+          "message": "the operation timed out",
+          "code": "OTHER",
+          "syscall": "open",
+          "path": "/opt/owned-synthetic-git",
+          "errno": -1
+        }
+      }
+    ],
+    "conclusion": "The SDK preserves stat versus read operation and path; the research collector discarded them. This does not identify the prior actual timeout operation or its server/client cause."
+  },
+  "sources": [
+    {
+      "commit": "512594d40ffe95390181df6a3511928928e8b7d3",
+      "path": ".depot/probe/platform-sdk/manifest.json",
+      "sha256": "59c19aeb24b89005e65e3406e1dc82c3b76743e0d6dac1cd97b369749d8dbd5d",
+      "text": "{\n  \"purpose\": \"Nondefault Depot thin-image runtime, actual tool identity, detached logs and terminal SDK cleanup\",\n  \"repositoryBase\": \"e02be6c8b8fe9efb41a7f8f1a0b311c17796588a\",\n  \"sdkVersion\": \"0.1.0-beta.7\",\n  \"versionRationale\": \"Reuse the exact installed beta and integrity-locked dependencies from prior SDK controls\",\n  \"imageReference\": \"l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256\",\n  \"imageManifestDigest\": \"sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd\",\n  \"imageConfigDigest\": \"sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b\",\n  \"imageDiskSizeBytes\": 161061273600,\n  \"imageOwnerReadOnlyUseConfirmed\": true,\n  \"imageOwnerDeletionOrRetagForbidden\": true,\n  \"request\": {\n    \"resources\": { \"vcpus\": 2, \"memoryMb\": 4096, \"diskGb\": 150 },\n    \"timeoutMinutes\": 2,\n    \"architecture\": \"amd64\",\n    \"disableTailnet\": true,\n    \"disableDepotCache\": true,\n    \"configuration\": { \"secrets\": {} }\n  },\n  \"maximumCreateCalls\": 1,\n  \"clientWorkDeadlineMilliseconds\": 75000,\n  \"clientCleanupDeadlineMilliseconds\": 30000,\n  \"forecast\": {\n    \"priorBuildkitTimestampProxyUsd\": 0.538584,\n    \"publicTwoCpuCiRateUsdPerMinute\": 0.006,\n    \"maximumRequestedSandboxMinutes\": 2,\n    \"maximumAdditionalComputeProxyUsd\": 0.012,\n    \"cumulativeProxyUsd\": 0.550584,\n    \"admittedCumulativeCeilingUsd\": 2,\n    \"accountOrInvoiceCapProven\": false\n  }\n}\n"
+    },
+    {
+      "commit": "512594d40ffe95390181df6a3511928928e8b7d3",
+      "path": ".depot/probe/platform-sdk/mise.toml",
+      "sha256": "89f4b759cd6168b5846904db0f997f2672960c1b10d74e6e7c2bd401d53a5c51",
+      "text": "[tasks.probe]\ndescription = \"Run the one-shot nondefault SDK image consumer and terminal cleanup\"\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nimport {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';\nimport {join} from 'node:path';import {homedir} from 'node:os';import {pathToFileURL} from 'node:url';\nimport {execFileSync} from 'node:child_process';import {createHash,randomUUID} from 'node:crypto';\nimport {strict as assert} from 'node:assert';\nconst root=realpathSync(join(homedir(),'temp/agent/depot-sdk-custom-runtime-20261018'));\nassert.equal(execFileSync('git',['rev-parse','--show-toplevel'],{cwd:root,encoding:'utf8'}).trim(),root);\nassert.equal(execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim(),'');\nconst source=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();\nconst fixture=join(root,'.depot/probe/platform-sdk');const manifest=JSON.parse(readFileSync(join(fixture,'manifest.json'),'utf8'));\nconst state=join(homedir(),'temp/agent/depot-platform-buildkit-evidence-20261018');\nconst path=join(state,'sdk-custom-runtime-consumer.json');assert(!existsSync(path));\nconst admitted=JSON.parse(readFileSync(join(state,'sdk-custom-runtime-input.json'),'utf8'));assert(admitted.inputVerified);\nassert.equal(admitted.expectedManifestDigest,manifest.imageManifestDigest);assert.equal(admitted.image.config.diskSizeBytes,manifest.imageDiskSizeBytes);\nconst sdkRoot=join(homedir(),'temp/agent/depot-developer-capabilities-20261018/node_modules/@depot/sandbox');\nassert.equal(JSON.parse(readFileSync(join(sdkRoot,'package.json'),'utf8')).version,manifest.sdkVersion);\nconst {createClient,Sandbox}=await import(pathToFileURL(join(sdkRoot,'dist/index.js')).href);\nconst token=execFileSync('depot',['login','token'],{encoding:'utf8',maxBuffer:64*1024}).trim();assert(token&&!/\\s/.test(token));\nconst nonce=randomUUID();const request={...manifest.request,name:'research-sdk-custom-'+nonce,runtime:{imageRef:manifest.imageReference}};\nconst result={schemaVersion:1,source,repositoryBase:manifest.repositoryBase,startedAt:new Date().toISOString(),sdkVersion:manifest.sdkVersion,request,forecast:manifest.forecast,createCallCount:0,checks:[],cleanup:{},registryControls:[],credentialsRetained:false};\nlet registryAuthorization;function retain(){const value=JSON.stringify(result,null,2)+'\\n';for(const secret of [token,Buffer.from('x-token:'+token).toString('base64'),registryAuthorization?.slice(7)].filter(Boolean))assert(!value.includes(secret));writeFileSync(path,value);}\nfunction view(value){return {sandboxId:value.sandboxId,status:value.status,name:value.name,resources:value.resources,runtime:value.runtime,architecture:value.architecture,createdAt:value.createdAt,startedAt:value.startedAt,expiresAt:value.expiresAt,stoppedAt:value.stoppedAt,errorMessage:value.errorMessage};}\nfunction errorView(error){return {name:error?.name,message:String(error?.message??error).replaceAll(token,'[redacted]'),code:error?.code};}\nasync function checkTag(phase){const url='https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r2-git256';let response=await fetch(url,{headers:{...(registryAuthorization?{Authorization:registryAuthorization}:{}),Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});if(response.status===401&&!registryAuthorization){const challenge=response.headers.get('www-authenticate');assert(challenge?.startsWith('Bearer '));const fields=Object.fromEntries([...challenge.matchAll(/([a-zA-Z]+)=\"([^\"]*)\"/gu)].map(match=>[match[1],match[2]]));const realm=new URL(fields.realm);assert.equal(realm.origin,'https://api.depot.dev');assert.equal(realm.pathname,'/auth/registry/token');realm.searchParams.set('service',fields.service);realm.searchParams.set('scope','repository:research-reuse-20261018:pull');const auth=await fetch(realm,{headers:{Authorization:'Basic '+Buffer.from('x-token:'+token).toString('base64')},redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(auth.status,200);const body=await auth.json();registryAuthorization='Bearer '+(body.token??body.access_token);response=await fetch(url,{headers:{Authorization:registryAuthorization,Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});}const bytes=Buffer.from(await response.arrayBuffer());assert(bytes.length<1024*1024);const digest='sha256:'+createHash('sha256').update(bytes).digest('hex');result.registryControls.push({phase,status:response.status,digest,bytes:bytes.length});retain();assert.equal(response.status,200);assert.equal(digest,manifest.imageManifestDigest);}\nconst workSignal=AbortSignal.timeout(manifest.clientWorkDeadlineMilliseconds);\nfunction boundedClient(signal){const base=createClient({token,orgID:'l4zncjjbj5'});return {...base,rpc:new Proxy(base.rpc,{get(target,key){const method=Reflect.get(target,key);const maximum=key==='createSandbox'?65000:30000;return typeof method==='function'?((input,options)=>Reflect.apply(method,target,[input,{...options,signal:options?.signal?AbortSignal.any([signal,options.signal]):signal,timeoutMs:Math.min(options?.timeoutMs??maximum,maximum)}])):method;}})};}\nconst client=boundedClient(workSignal);let sandbox;retain();\ntry{\n await checkTag('before-create');result.createCallCount++;retain();sandbox=await Sandbox.create(client,request);result.created=view(sandbox);retain();\n assert.equal(sandbox.status,'running');assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);assert.equal(sandbox.architecture,'amd64');\n result.runtimeReferenceComparison={requested:manifest.imageReference,returned:sandbox.runtime,exactMatch:sandbox.runtime?.imageRef===manifest.imageReference};result.expiryMetadata={lifetimeFromCreationMilliseconds:new Date(sandbox.expiresAt).getTime()-new Date(sandbox.createdAt).getTime(),requestedMinutes:2};retain();\n const program=`import {readFileSync,existsSync,statSync} from 'node:fs';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';const git='/opt/depot-reuse-20261018-r1/git-2.56.0/bin/git';const marker='/opt/depot-reuse-20261018-r1/image-manifest.json';const bytes=readFileSync(git);const value={nonce:process.argv[1],nodeVersion:process.version,architecture:process.arch,git:{path:git,version:execFileSync(git,['--version'],{encoding:'utf8'}).trim(),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')},imageManifest:{exists:existsSync(marker),bytes:statSync(marker).size,sha256:createHash('sha256').update(readFileSync(marker)).digest('hex')},syntheticSourcePresent:existsSync('/home/runner/work/Monochromatic/Monochromatic/.reuse-synthetic-source-marker'),syntheticSecretPresent:existsSync('/home/runner/.config/depot/reuse-synthetic-secret')};console.log(JSON.stringify(value));`;\n const command=await sandbox.runCommand({cmd:'node',args:['--input-type=module','-e',program,nonce]});const [stdout,stderr,finished]=await Promise.all([command.stdout(),command.stderr(),command.wait()]);const observed=JSON.parse(stdout);result.checks.push({name:'actual-custom-image-content',commandId:command.cmdId,exitCode:finished.exitCode,stderr,observed});retain();assert.equal(finished.exitCode,0);assert.equal(stderr,'');assert.equal(observed.nonce,nonce);assert.equal(observed.git.version,'git version 2.56.0');assert.equal(observed.git.bytes,20315448);assert.equal(observed.git.sha256,'d42496dde88b0e5bfbdeb8a32f339601635d7007915ce9a9925ba7f7423bc99e');assert(observed.imageManifest.exists);assert.equal(observed.syntheticSourcePresent,false);assert.equal(observed.syntheticSecretPresent,false);\n const remote=sandbox.fs();const artifact='/home/runner/temp/agent/sdk-custom-'+nonce+'.json';const payload=JSON.stringify({nonce,source,unicode:'café 🎵'})+'\\n';await remote.writeFile(artifact,payload,{recursive:true,mode:0o600});const downloaded=await remote.readFile(artifact);assert.equal(downloaded.toString(),payload);await remote.unlink(artifact);assert.equal(await remote.exists(artifact),false);result.checks.push({name:'sdk-filesystem-artifact-roundtrip',bytes:downloaded.length,sha256:createHash('sha256').update(downloaded).digest('hex'),removed:true});result.primaryConsumerVerified=true;retain();\n try{const detachedSince=new Date(Date.now()-1000);const detached=await sandbox.runCommand({cmd:'node',args:['-e','console.log(process.argv[1]);console.error(process.argv[2]);','sdk-detached-out-'+nonce,'sdk-detached-err-'+nonce],detached:true});result.detachedCommandId=detached.cmdId;retain();const streamed=[];for await(const entry of sandbox.logs.stream({command:detached,replay:'all',signal:AbortSignal.timeout(5000)})){streamed.push(entry);assert(streamed.length<20);}const fetched=[];for await(const entry of sandbox.logs.fetch({command:detached,since:detachedSince,until:new Date(Date.now()+1000)})){fetched.push(entry);assert(fetched.length<20);}result.detachedLogs={streamed,fetched,streamContainsStdout:streamed.some(row=>row.message==='sdk-detached-out-'+nonce),streamContainsStderr:streamed.some(row=>row.message==='sdk-detached-err-'+nonce),fetchContainsStdout:fetched.some(row=>row.message==='sdk-detached-out-'+nonce),fetchContainsStderr:fetched.some(row=>row.message==='sdk-detached-err-'+nonce)};retain();}catch(error){result.detachedLogError=errorView(error);retain();}\n await checkTag('after-consumer');\n}catch(error){result.error=errorView(error);retain();}\nfinally{\n if(sandbox){const cleanupClient=boundedClient(AbortSignal.timeout(manifest.clientCleanupDeadlineMilliseconds));try{const current=await Sandbox.get(cleanupClient,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.stop({blocking:true});const final=await Sandbox.get(cleanupClient,sandbox.sandboxId);result.cleanup.confirmed=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);retain();}catch(error){result.cleanup.error=errorView(error);retain();const rescue=boundedClient(AbortSignal.timeout(30000));try{const current=await Sandbox.get(rescue,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.kill();const final=await Sandbox.get(rescue,sandbox.sandboxId);result.cleanup.recovery=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);}catch(error){result.cleanup.recoveryError=errorView(error);}}}else result.cleanup.noIdReturned=true;\n result.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({source,sandboxId:sandbox?.sandboxId,primaryConsumerVerified:result.primaryConsumerVerified,cleanup:result.cleanup,error:result.error,detachedLogs:result.detachedLogs,detachedLogError:result.detachedLogError}));\n}\nassert.equal(result.createCallCount,1);assert.equal(result.cleanup.terminal,true);assert.equal(result.primaryConsumerVerified,true);\n'''\n"
+    },
+    {
+      "commit": "05d6ffe7b4b638009ab8745bf857de1dc4b7ba16",
+      "path": ".depot/probe/platform-sdk/manifest.json",
+      "sha256": "aad0760a8ccdd8895748819631629befdc12e63091ece7c0e497ec70189c2685",
+      "text": "{\n  \"purpose\": \"Nondefault Depot thin-image runtime, actual tool identity, detached logs and terminal SDK cleanup\",\n  \"repositoryBase\": \"e02be6c8b8fe9efb41a7f8f1a0b311c17796588a\",\n  \"sdkVersion\": \"0.1.0-beta.7\",\n  \"versionRationale\": \"Reuse the exact installed beta and integrity-locked dependencies from prior SDK controls\",\n  \"imageReference\": \"l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256\",\n  \"imageManifestDigest\": \"sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd\",\n  \"imageConfigDigest\": \"sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b\",\n  \"imageDiskSizeBytes\": 161061273600,\n  \"imageOwnerReadOnlyUseConfirmed\": true,\n  \"imageOwnerDeletionOrRetagForbidden\": true,\n  \"request\": {\n    \"resources\": { \"vcpus\": 2, \"memoryMb\": 4096, \"diskGb\": 150 },\n    \"timeoutMinutes\": 2,\n    \"architecture\": \"amd64\",\n    \"disableTailnet\": true,\n    \"disableDepotCache\": true,\n    \"configuration\": { \"secrets\": {} }\n  },\n  \"maximumCreateCalls\": 1,\n  \"recoveryOfSandboxId\": \"6m8d0p0pvnrqlb8\",\n  \"clientWorkDeadlineMilliseconds\": 75000,\n  \"clientCleanupDeadlineMilliseconds\": 30000,\n  \"forecast\": {\n    \"priorBuildkitTimestampProxyUsd\": 0.538584,\n    \"publicTwoCpuCiRateUsdPerMinute\": 0.006,\n    \"maximumRequestedSandboxMinutes\": 2,\n    \"maximumAdditionalComputeProxyUsd\": 0.012,\n    \"previousSandboxReservedComputeProxyUsd\": 0.012,\n    \"cumulativeProxyUsd\": 0.562584,\n    \"admittedCumulativeCeilingUsd\": 2,\n    \"accountOrInvoiceCapProven\": false\n  }\n}\n"
+    },
+    {
+      "commit": "05d6ffe7b4b638009ab8745bf857de1dc4b7ba16",
+      "path": ".depot/probe/platform-sdk/mise.toml",
+      "sha256": "2c3911702610660cbf48dce6184734f2c6586e940e59c78a28a3141ca4fed862",
+      "text": "[tasks.probe]\ndescription = \"Run the one-shot nondefault SDK image consumer and terminal cleanup\"\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nimport {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';\nimport {join} from 'node:path';import {homedir} from 'node:os';import {pathToFileURL} from 'node:url';\nimport {execFileSync} from 'node:child_process';import {createHash,randomUUID} from 'node:crypto';\nimport {strict as assert} from 'node:assert';\nconst root=realpathSync(join(homedir(),'temp/agent/depot-sdk-custom-runtime-20261018'));\nassert.equal(execFileSync('git',['rev-parse','--show-toplevel'],{cwd:root,encoding:'utf8'}).trim(),root);\nassert.equal(execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim(),'');\nconst source=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();\nconst fixture=join(root,'.depot/probe/platform-sdk');const manifest=JSON.parse(readFileSync(join(fixture,'manifest.json'),'utf8'));\nconst state=join(homedir(),'temp/agent/depot-platform-buildkit-evidence-20261018');\nconst path=join(state,'sdk-custom-runtime-consumer-recovery.json');assert(!existsSync(path));const first=JSON.parse(readFileSync(join(state,'sdk-custom-runtime-consumer.json'),'utf8'));assert.equal(first.created.sandboxId,manifest.recoveryOfSandboxId);assert.equal(first.cleanup.terminal,true);\nconst admitted=JSON.parse(readFileSync(join(state,'sdk-custom-runtime-input.json'),'utf8'));assert(admitted.inputVerified);\nassert.equal(admitted.expectedManifestDigest,manifest.imageManifestDigest);assert.equal(admitted.image.config.diskSizeBytes,manifest.imageDiskSizeBytes);\nconst sdkRoot=join(homedir(),'temp/agent/depot-developer-capabilities-20261018/node_modules/@depot/sandbox');\nassert.equal(JSON.parse(readFileSync(join(sdkRoot,'package.json'),'utf8')).version,manifest.sdkVersion);\nconst {createClient,Sandbox}=await import(pathToFileURL(join(sdkRoot,'dist/index.js')).href);\nconst token=execFileSync('depot',['login','token'],{encoding:'utf8',maxBuffer:64*1024}).trim();assert(token&&!/\\s/.test(token));\nconst nonce=randomUUID();const request={...manifest.request,name:'research-sdk-custom-'+nonce,runtime:{imageRef:manifest.imageReference}};\nconst result={schemaVersion:1,source,repositoryBase:manifest.repositoryBase,startedAt:new Date().toISOString(),sdkVersion:manifest.sdkVersion,request,forecast:manifest.forecast,createCallCount:0,checks:[],cleanup:{},registryControls:[],credentialsRetained:false};\nlet registryAuthorization;function retain(){const value=JSON.stringify(result,null,2)+'\\n';for(const secret of [token,Buffer.from('x-token:'+token).toString('base64'),registryAuthorization?.slice(7)].filter(Boolean))assert(!value.includes(secret));writeFileSync(path,value);}\nfunction view(value){return {sandboxId:value.sandboxId,status:value.status,name:value.name,resources:value.resources,runtime:value.runtime,architecture:value.architecture,createdAt:value.createdAt,startedAt:value.startedAt,expiresAt:value.expiresAt,stoppedAt:value.stoppedAt,errorMessage:value.errorMessage};}\nfunction errorView(error){return {name:error?.name,message:String(error?.message??error).replaceAll(token,'[redacted]'),code:error?.code};}\nasync function checkTag(phase){const url='https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r2-git256';let response=await fetch(url,{headers:{...(registryAuthorization?{Authorization:registryAuthorization}:{}),Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});if(response.status===401&&!registryAuthorization){const challenge=response.headers.get('www-authenticate');assert(challenge?.startsWith('Bearer '));const fields=Object.fromEntries([...challenge.matchAll(/([a-zA-Z]+)=\"([^\"]*)\"/gu)].map(match=>[match[1],match[2]]));const realm=new URL(fields.realm);assert.equal(realm.origin,'https://api.depot.dev');assert.equal(realm.pathname,'/auth/registry/token');realm.searchParams.set('service',fields.service);realm.searchParams.set('scope','repository:research-reuse-20261018:pull');const auth=await fetch(realm,{headers:{Authorization:'Basic '+Buffer.from('x-token:'+token).toString('base64')},redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(auth.status,200);const body=await auth.json();registryAuthorization='Bearer '+(body.token??body.access_token);response=await fetch(url,{headers:{Authorization:registryAuthorization,Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});}const bytes=Buffer.from(await response.arrayBuffer());assert(bytes.length<1024*1024);const digest='sha256:'+createHash('sha256').update(bytes).digest('hex');result.registryControls.push({phase,status:response.status,digest,bytes:bytes.length});retain();assert.equal(response.status,200);assert.equal(digest,manifest.imageManifestDigest);}\nconst workSignal=AbortSignal.timeout(manifest.clientWorkDeadlineMilliseconds);\nfunction boundedClient(signal){const base=createClient({token,orgID:'l4zncjjbj5'});return {...base,rpc:new Proxy(base.rpc,{get(target,key){const method=Reflect.get(target,key);const maximum=key==='createSandbox'?65000:30000;return typeof method==='function'?((input,options)=>Reflect.apply(method,target,[input,{...options,signal:options?.signal?AbortSignal.any([signal,options.signal]):signal,timeoutMs:Math.min(options?.timeoutMs??maximum,maximum)}])):method;}})};}\nconst client=boundedClient(workSignal);let sandbox;retain();\ntry{\n await checkTag('before-create');result.createCallCount++;retain();sandbox=await Sandbox.create(client,request);result.created=view(sandbox);retain();\n assert.equal(sandbox.status,'running');assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);assert.equal(sandbox.architecture,'amd64');\n result.runtimeReferenceComparison={requested:manifest.imageReference,returned:sandbox.runtime,exactMatch:sandbox.runtime?.imageRef===manifest.imageReference};result.expiryMetadata={lifetimeFromCreationMilliseconds:new Date(sandbox.expiresAt).getTime()-new Date(sandbox.createdAt).getTime(),requestedMinutes:2};retain();\n const remote=sandbox.fs();const git='/opt/depot-reuse-20261018-r1/git-2.56.0/bin/git';const marker='/opt/depot-reuse-20261018-r1/image-manifest.json';const stat=await remote.stat(git);assert.equal(stat.size,20315448);const bytes=await remote.readFile(git);assert(Buffer.isBuffer(bytes));const command=await sandbox.runCommand({cmd:git,args:['--version']});const [stdout,stderr,finished]=await Promise.all([command.stdout(),command.stderr(),command.wait()]);const markerStat=await remote.stat(marker);assert(markerStat.size<128*1024);const markerBytes=await remote.readFile(marker);const exclusions=await Promise.all(['/home/runner/work/Monochromatic/Monochromatic/.reuse-synthetic-source-marker','/home/runner/.config/depot/reuse-synthetic-secret'].map(async path=>({path,present:await remote.exists(path)})));const observed={git:{path:git,version:stdout.trim(),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')},imageManifest:{bytes:markerBytes.length,sha256:createHash('sha256').update(markerBytes).digest('hex')},exclusions};result.checks.push({name:'actual-custom-image-content',commandId:command.cmdId,exitCode:finished.exitCode,stderr,observed});retain();assert.equal(finished.exitCode,0);assert.equal(stderr,'');assert.equal(observed.git.version,'git version 2.56.0');assert.equal(observed.git.bytes,20315448);assert.equal(observed.git.sha256,'d42496dde88b0e5bfbdeb8a32f339601635d7007915ce9a9925ba7f7423bc99e');assert(exclusions.every(row=>row.present===false));\n const artifact='/home/runner/temp/agent/sdk-custom-'+nonce+'.json';const payload=JSON.stringify({nonce,source,unicode:'café 🎵'})+'\\n';await remote.writeFile(artifact,payload,{recursive:true,mode:0o600});const downloaded=await remote.readFile(artifact);assert.equal(downloaded.toString(),payload);await remote.unlink(artifact);assert.equal(await remote.exists(artifact),false);result.checks.push({name:'sdk-filesystem-artifact-roundtrip',bytes:downloaded.length,sha256:createHash('sha256').update(downloaded).digest('hex'),removed:true});result.primaryConsumerVerified=true;retain();\n try{const detachedSince=new Date(Date.now()-1000);const detached=await sandbox.runCommand({cmd:git,args:['--version'],detached:true});result.detachedCommandId=detached.cmdId;retain();const streamed=[];for await(const entry of sandbox.logs.stream({command:detached,replay:'all',signal:AbortSignal.timeout(5000)})){streamed.push(entry);assert(streamed.length<20);}const fetched=[];for await(const entry of sandbox.logs.fetch({command:detached,since:detachedSince,until:new Date(Date.now()+1000)})){fetched.push(entry);assert(fetched.length<20);}result.detachedLogs={streamed,fetched,streamContainsExpectedStdout:streamed.some(row=>row.message==='git version 2.56.0'),fetchContainsExpectedStdout:fetched.some(row=>row.message==='git version 2.56.0')};retain();}catch(error){result.detachedLogError=errorView(error);retain();}\n await checkTag('after-consumer');\n}catch(error){result.error=errorView(error);retain();}\nfinally{\n if(sandbox){const cleanupClient=boundedClient(AbortSignal.timeout(manifest.clientCleanupDeadlineMilliseconds));try{const current=await Sandbox.get(cleanupClient,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.stop({blocking:true});const final=await Sandbox.get(cleanupClient,sandbox.sandboxId);result.cleanup.confirmed=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);retain();}catch(error){result.cleanup.error=errorView(error);retain();const rescue=boundedClient(AbortSignal.timeout(30000));try{const current=await Sandbox.get(rescue,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.kill();const final=await Sandbox.get(rescue,sandbox.sandboxId);result.cleanup.recovery=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);}catch(error){result.cleanup.recoveryError=errorView(error);}}}else result.cleanup.noIdReturned=true;\n result.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({source,sandboxId:sandbox?.sandboxId,primaryConsumerVerified:result.primaryConsumerVerified,cleanup:result.cleanup,error:result.error,detachedLogs:result.detachedLogs,detachedLogError:result.detachedLogError}));\n}\nassert.equal(result.createCallCount,1);assert.equal(result.cleanup.terminal,true);assert.equal(result.primaryConsumerVerified,true);\n'''\n"
+    },
+    {
+      "commit": "3edf13d76b0f53b1612bbcb31bc3ff4fd0abf8b3",
+      "path": ".depot/probe/platform-sdk/manifest.json",
+      "sha256": "f9d05717383eb9ab2eb71f31123614b6db223d0a004aed6fb9670f02188b4b43",
+      "text": "{\n  \"purpose\": \"Nondefault Depot thin-image runtime, actual tool identity, detached logs and terminal SDK cleanup\",\n  \"repositoryBase\": \"e02be6c8b8fe9efb41a7f8f1a0b311c17796588a\",\n  \"sdkVersion\": \"0.1.0-beta.7\",\n  \"versionRationale\": \"Reuse the exact installed beta and integrity-locked dependencies from prior SDK controls\",\n  \"imageReference\": \"l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256\",\n  \"imageManifestDigest\": \"sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd\",\n  \"imageConfigDigest\": \"sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b\",\n  \"imageDiskSizeBytes\": 161061273600,\n  \"imageOwnerReadOnlyUseConfirmed\": true,\n  \"imageOwnerDeletionOrRetagForbidden\": true,\n  \"request\": {\n    \"resources\": { \"vcpus\": 2, \"memoryMb\": 4096, \"diskGb\": 150 },\n    \"timeoutMinutes\": 2,\n    \"architecture\": \"amd64\",\n    \"disableTailnet\": true,\n    \"disableDepotCache\": true,\n    \"configuration\": { \"secrets\": {} }\n  },\n  \"maximumCreateCalls\": 1,\n  \"recoveryOfSandboxIds\": [\"6m8d0p0pvnrqlb8\", \"b2f4z72r3951f5k\"],\n  \"fullExecutableDownloadAdmitted\": false,\n  \"clientWorkDeadlineMilliseconds\": 75000,\n  \"clientCleanupDeadlineMilliseconds\": 30000,\n  \"forecast\": {\n    \"priorBuildkitTimestampProxyUsd\": 0.538584,\n    \"publicTwoCpuCiRateUsdPerMinute\": 0.006,\n    \"maximumRequestedSandboxMinutes\": 2,\n    \"maximumAdditionalComputeProxyUsd\": 0.012,\n    \"previousSandboxReservedComputeProxyUsd\": 0.024,\n    \"cumulativeProxyUsd\": 0.574584,\n    \"admittedCumulativeCeilingUsd\": 2,\n    \"accountOrInvoiceCapProven\": false\n  }\n}\n"
+    },
+    {
+      "commit": "3edf13d76b0f53b1612bbcb31bc3ff4fd0abf8b3",
+      "path": ".depot/probe/platform-sdk/mise.toml",
+      "sha256": "d985dbc8d68aa1e69acf25c8639e51e7a383cdd6320a59b4115bf0ab00bbd965",
+      "text": "[tasks.probe]\ndescription = \"Run the one-shot nondefault SDK image consumer and terminal cleanup\"\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nimport {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';\nimport {join} from 'node:path';import {homedir} from 'node:os';import {pathToFileURL} from 'node:url';\nimport {execFileSync} from 'node:child_process';import {createHash,randomUUID} from 'node:crypto';\nimport {strict as assert} from 'node:assert';\nconst root=realpathSync(join(homedir(),'temp/agent/depot-sdk-custom-runtime-20261018'));\nassert.equal(execFileSync('git',['rev-parse','--show-toplevel'],{cwd:root,encoding:'utf8'}).trim(),root);\nassert.equal(execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim(),'');\nconst source=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();\nconst fixture=join(root,'.depot/probe/platform-sdk');const manifest=JSON.parse(readFileSync(join(fixture,'manifest.json'),'utf8'));\nconst state=join(homedir(),'temp/agent/depot-platform-buildkit-evidence-20261018');\nconst path=join(state,'sdk-custom-runtime-consumer-small-files.json');assert(!existsSync(path));for(const [index,name] of ['sdk-custom-runtime-consumer.json','sdk-custom-runtime-consumer-recovery.json'].entries()){const prior=JSON.parse(readFileSync(join(state,name),'utf8'));assert.equal(prior.created.sandboxId,manifest.recoveryOfSandboxIds[index]);assert.equal(prior.cleanup.terminal,true);}assert.equal(manifest.fullExecutableDownloadAdmitted,false);\nconst admitted=JSON.parse(readFileSync(join(state,'sdk-custom-runtime-input.json'),'utf8'));assert(admitted.inputVerified);\nassert.equal(admitted.expectedManifestDigest,manifest.imageManifestDigest);assert.equal(admitted.image.config.diskSizeBytes,manifest.imageDiskSizeBytes);\nconst sdkRoot=join(homedir(),'temp/agent/depot-developer-capabilities-20261018/node_modules/@depot/sandbox');\nassert.equal(JSON.parse(readFileSync(join(sdkRoot,'package.json'),'utf8')).version,manifest.sdkVersion);\nconst {createClient,Sandbox}=await import(pathToFileURL(join(sdkRoot,'dist/index.js')).href);\nconst token=execFileSync('depot',['login','token'],{encoding:'utf8',maxBuffer:64*1024}).trim();assert(token&&!/\\s/.test(token));\nconst nonce=randomUUID();const request={...manifest.request,name:'research-sdk-custom-'+nonce,runtime:{imageRef:manifest.imageReference}};\nconst result={schemaVersion:1,source,repositoryBase:manifest.repositoryBase,startedAt:new Date().toISOString(),sdkVersion:manifest.sdkVersion,request,forecast:manifest.forecast,createCallCount:0,checks:[],cleanup:{},registryControls:[],credentialsRetained:false};\nlet registryAuthorization;function retain(){const value=JSON.stringify(result,null,2)+'\\n';for(const secret of [token,Buffer.from('x-token:'+token).toString('base64'),registryAuthorization?.slice(7)].filter(Boolean))assert(!value.includes(secret));writeFileSync(path,value);}\nfunction view(value){return {sandboxId:value.sandboxId,status:value.status,name:value.name,resources:value.resources,runtime:value.runtime,architecture:value.architecture,createdAt:value.createdAt,startedAt:value.startedAt,expiresAt:value.expiresAt,stoppedAt:value.stoppedAt,errorMessage:value.errorMessage};}\nfunction errorView(error){return {name:error?.name,message:String(error?.message??error).replaceAll(token,'[redacted]'),code:error?.code,syscall:error?.syscall,path:error?.path,errno:error?.errno};}\nasync function step({name,run}){const record={name,startedAt:new Date().toISOString()};(result.steps??=[]).push(record);retain();try{const value=await run();record.finishedAt=new Date().toISOString();record.passed=true;retain();return value;}catch(error){record.finishedAt=new Date().toISOString();record.passed=false;record.error=errorView(error);retain();throw error;}}\nasync function checkTag(phase){const url='https://l4zncjjbj5.registry.depot.dev/v2/research-reuse-20261018/manifests/tools-r2-git256';let response=await fetch(url,{headers:{...(registryAuthorization?{Authorization:registryAuthorization}:{}),Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});if(response.status===401&&!registryAuthorization){const challenge=response.headers.get('www-authenticate');assert(challenge?.startsWith('Bearer '));const fields=Object.fromEntries([...challenge.matchAll(/([a-zA-Z]+)=\"([^\"]*)\"/gu)].map(match=>[match[1],match[2]]));const realm=new URL(fields.realm);assert.equal(realm.origin,'https://api.depot.dev');assert.equal(realm.pathname,'/auth/registry/token');realm.searchParams.set('service',fields.service);realm.searchParams.set('scope','repository:research-reuse-20261018:pull');const auth=await fetch(realm,{headers:{Authorization:'Basic '+Buffer.from('x-token:'+token).toString('base64')},redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(auth.status,200);const body=await auth.json();registryAuthorization='Bearer '+(body.token??body.access_token);response=await fetch(url,{headers:{Authorization:registryAuthorization,Accept:'application/vnd.oci.image.manifest.v1+json'},redirect:'error',signal:AbortSignal.timeout(15000)});}const bytes=Buffer.from(await response.arrayBuffer());assert(bytes.length<1024*1024);const digest='sha256:'+createHash('sha256').update(bytes).digest('hex');result.registryControls.push({phase,status:response.status,digest,bytes:bytes.length});retain();assert.equal(response.status,200);assert.equal(digest,manifest.imageManifestDigest);}\nconst workSignal=AbortSignal.timeout(manifest.clientWorkDeadlineMilliseconds);\nfunction boundedClient(signal){const base=createClient({token,orgID:'l4zncjjbj5'});return {...base,rpc:new Proxy(base.rpc,{get(target,key){const method=Reflect.get(target,key);const maximum=key==='createSandbox'?65000:['stat','readFile','writeFile','remove'].includes(key)?10000:30000;return typeof method==='function'?((input,options)=>Reflect.apply(method,target,[input,{...options,signal:options?.signal?AbortSignal.any([signal,options.signal]):signal,timeoutMs:Math.min(options?.timeoutMs??maximum,maximum)}])):method;}})};}\nconst client=boundedClient(workSignal);let sandbox;retain();\ntry{\n await checkTag('before-create');result.createCallCount++;retain();sandbox=await Sandbox.create(client,request);result.created=view(sandbox);retain();\n assert.equal(sandbox.status,'running');assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);assert.equal(sandbox.architecture,'amd64');\n result.runtimeReferenceComparison={requested:manifest.imageReference,returned:sandbox.runtime,exactMatch:sandbox.runtime?.imageRef===manifest.imageReference};result.expiryMetadata={lifetimeFromCreationMilliseconds:new Date(sandbox.expiresAt).getTime()-new Date(sandbox.createdAt).getTime(),requestedMinutes:2};retain();\n const remote=sandbox.fs();const git='/opt/depot-reuse-20261018-r1/git-2.56.0/bin/git';const marker='/opt/depot-reuse-20261018-r1/image-manifest.json';\n await step({name:'absolute-git-command-first',run:async()=>{const command=await sandbox.runCommand({cmd:git,args:['--version']});const [stdout,stderr,finished]=await Promise.all([command.stdout(),command.stderr(),command.wait()]);result.checks.push({name:'custom-image-absolute-git-command',commandId:command.cmdId,exitCode:finished.exitCode,stdout,stderr,path:git,fullExecutableHashVerified:false});retain();assert.equal(finished.exitCode,0);assert.equal(stderr,'');assert.equal(stdout.trim(),'git version 2.56.0');result.customExecutableVerified=true;retain();}});\n const operations=await Promise.allSettled([\n  (async()=>{const stat=await step({name:'stat-small-known-image-manifest',run:()=>remote.stat(marker)});assert(stat.size<128*1024);const bytes=await step({name:'read-small-known-image-manifest',run:()=>remote.readFile(marker)});assert.equal(bytes.length,stat.size);result.checks.push({name:'custom-image-small-manifest',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});retain();const exclusions=await step({name:'synthetic-exclusion-controls',run:()=>Promise.all(['/home/runner/work/Monochromatic/Monochromatic/.reuse-synthetic-source-marker','/home/runner/.config/depot/reuse-synthetic-secret'].map(async path=>({path,present:await remote.exists(path)})))});result.checks.push({name:'specific-synthetic-exclusion-controls',exclusions});retain();assert(exclusions.every(row=>row.present===false));})(),\n  (async()=>{const artifact='/home/runner/temp/agent/sdk-custom-'+nonce+'.json';const payload=JSON.stringify({nonce,source,unicode:'café 🎵'})+'\\n';let created=false;try{await step({name:'write-small-nonce-artifact',run:()=>remote.writeFile(artifact,payload,{recursive:true,mode:0o600})});created=true;const bytes=await step({name:'read-small-nonce-artifact',run:()=>remote.readFile(artifact)});assert.equal(bytes.toString(),payload);await step({name:'unlink-small-nonce-artifact',run:()=>remote.unlink(artifact)});created=false;assert.equal(await step({name:'missing-nonce-artifact-negative-control',run:()=>remote.exists(artifact)}),false);result.checks.push({name:'sdk-filesystem-artifact-roundtrip',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),removed:true});retain();}finally{if(created){try{await step({name:'nonce-artifact-error-cleanup',run:()=>remote.unlink(artifact)});}catch(error){result.nonceArtifactCleanupError=errorView(error);retain();}}}})()\n ]);result.filesystemOperations=operations.map(row=>row.status==='fulfilled'?{status:row.status}:{status:row.status,error:errorView(row.reason)});result.primaryConsumerVerified=Boolean(result.customExecutableVerified)&&operations.every(row=>row.status==='fulfilled');retain();\n if(result.primaryConsumerVerified){try{const detachedSince=new Date(Date.now()-1000);const detached=await sandbox.runCommand({cmd:git,args:['--version'],detached:true});result.detachedCommandId=detached.cmdId;retain();const streamed=[];for await(const entry of sandbox.logs.stream({command:detached,replay:'all',signal:AbortSignal.timeout(5000)})){streamed.push(entry);assert(streamed.length<20);}const fetched=[];for await(const entry of sandbox.logs.fetch({command:detached,since:detachedSince,until:new Date(Date.now()+1000)})){fetched.push(entry);assert(fetched.length<20);}result.detachedLogs={streamed,fetched,streamContainsExpectedStdout:streamed.some(row=>row.message==='git version 2.56.0'),fetchContainsExpectedStdout:fetched.some(row=>row.message==='git version 2.56.0')};retain();}catch(error){result.detachedLogError=errorView(error);retain();}}\n await checkTag('after-consumer');\n}catch(error){result.error=errorView(error);retain();}\nfinally{\n if(sandbox){const cleanupClient=boundedClient(AbortSignal.timeout(manifest.clientCleanupDeadlineMilliseconds));try{const current=await Sandbox.get(cleanupClient,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.stop({blocking:true});const final=await Sandbox.get(cleanupClient,sandbox.sandboxId);result.cleanup.confirmed=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);retain();}catch(error){result.cleanup.error=errorView(error);retain();const rescue=boundedClient(AbortSignal.timeout(30000));try{const current=await Sandbox.get(rescue,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(current.status))await current.kill();const final=await Sandbox.get(rescue,sandbox.sandboxId);result.cleanup.recovery=view(final);result.cleanup.terminal=['finished','cancelled','failed'].includes(final.status);}catch(error){result.cleanup.recoveryError=errorView(error);}}}else result.cleanup.noIdReturned=true;\n result.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({source,sandboxId:sandbox?.sandboxId,primaryConsumerVerified:result.primaryConsumerVerified,cleanup:result.cleanup,error:result.error,detachedLogs:result.detachedLogs,detachedLogError:result.detachedLogError}));\n}\nassert.equal(result.createCallCount,1);assert.equal(result.cleanup.terminal,true);assert.equal(result.primaryConsumerVerified,true);\n'''\n"
+    }
+  ],
+  "credentialsRetained": false,
+  "otherResearcherImageModified": false,
+  "physicalDeletionProven": false
+}

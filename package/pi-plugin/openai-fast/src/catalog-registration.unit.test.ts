@@ -4,7 +4,7 @@
  @module
  */
 import { getSupportedThinkingLevels, type Api, type Model, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   createFastModelRegistration,

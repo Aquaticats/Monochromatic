@@ -1,4 +1,4 @@
-# TypeScript 7.0.2 anonymous constructor typing hides `AbortSignal.any` and `timeout` effects from exact Oxlint matching
+# TypeScript 7 anonymous constructor typing hides `AbortSignal.any` and `timeout` effects from exact Oxlint matching
 
 ## Symptom
 
@@ -111,14 +111,17 @@ The external sources under test are:
 
 - TypeScript commit `168e7015edf98244febc8f4ae450b673b5d195d7`;
 - WHATWG DOM Standard commit `5796f716c857f0a563d11d32e0ca6b49232191be`;
-- TypeScript package `7.0.2` through `typescript/unstable/sync`.
+- TypeScript package `7.0.2` (2026-era evidence) through `typescript/unstable/sync`
+  (path renamed to `typescript/sync` in 7.1.0-beta,
+  2026-10-20,
+  the entry point this rule imports today).
 
 Run the focused checks:
 
 ```sh
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:test:unit
-mise run //package/cli/git-clone-size:lint:oxlint
+mise run //package/git-clone-size/cli:lint:oxlint
 ```
 
 ### Patterns that now work
@@ -127,7 +130,7 @@ mise run //package/cli/git-clone-size:lint:oxlint
 - Exact `AbortSignal.timeout` resolves to the same owner with no caller-owned effect target.
 - Exact `TaskSignal.any` cannot match the `AbortSignal` entry merely because both use an anonymous inline type.
 - Package-local anonymous `const` fixtures retain owner `__type` and existing package catalog identities.
-- `package/cli/git-clone-size/src/stream.ts` declares the dependency mutation on `options.signal`,
+- `package/git-clone-size/cli/src/stream.ts` declares the dependency mutation on `options.signal`,
   and its exported `estimate` boundary propagates that optional accurate contract.
 
 ### Patterns that fail closed

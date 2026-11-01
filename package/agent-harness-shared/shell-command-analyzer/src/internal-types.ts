@@ -7,10 +7,9 @@
 import type {
   ArithmeticExpression as UnbashArithmeticExpression,
   DoubleQuotedChild as UnbashDoubleQuotedChild,
-  Node as UnbashNode,
-  ParseError as UnbashParseError,
-  Redirect as UnbashRedirect,
-  Script as UnbashScript,
+  SyntaxNode as UnbashNode,
+  Redirection as UnbashRedirect,
+  ParsedScript as UnbashParsedScript,
   TestExpression as UnbashTestExpression,
   Word as UnbashWord,
   WordPart as UnbashWordPart,
@@ -25,12 +24,7 @@ import type {
 /**
  `unbash` script plus tolerant parser diagnostics.
  */
-type ParsedUnbashScript = ForeignBorrowed<UnbashScript> & {
-  /**
-   Recoverable parse errors reported by `unbash`.
-   */
-  readonly errors?: readonly ForeignBorrowed<UnbashParseError>[];
-};
+type ParsedUnbashScript = ForeignBorrowed<UnbashParsedScript>;
 
 /**
  Word part union reached from full words or quoted child lists.
@@ -154,11 +148,11 @@ type RedirectsWorkItem = {
  */
 type WorkItem =
   | NodeWorkItem
-  | WordWorkItem
-  | PartsWorkItem
-  | ArithmeticWorkItem
-  | TestWorkItem
-  | RedirectsWorkItem;
+    | WordWorkItem
+    | PartsWorkItem
+    | ArithmeticWorkItem
+    | TestWorkItem
+    | RedirectsWorkItem;
 
 /**
  Boolean feature flags gathered while walking AST.
@@ -233,6 +227,7 @@ const NO_SCRIPT: unique symbol = Symbol('nested script payload absent from unbas
 const EXECUTED_CONTEXT: ShellCommandContext = {
   kind: 'executed',
   loopBindings: [],
+  conditionLoopDepth: 0,
 };
 
 /**

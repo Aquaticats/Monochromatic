@@ -1,0 +1,255 @@
+{
+  "schema": 1,
+  "scope": "Freshly inspected authored native scan-indicator states and their offline viewer, not a new ballot, real analysis progress or native accessibility acceptance.",
+  "browserCliVersion": "0.38.1",
+  "browserContainerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+  "firefoxESR140Exercised": false,
+  "resourceBounds": {
+    "memoryGiB": 2,
+    "cpu": 2
+  },
+  "imagesDecodedAndOpened": 32,
+  "contexts": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "statusNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "statusNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "statusNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "statusNotesMatchWitnessState": true,
+      "overflow": false
+    }
+  ],
+  "offline": true,
+  "browserEngine": "Chromium",
+  "noPolicyVotes": true,
+  "consoleErrors": 0,
+  "renderedFindingsChecked": true,
+  "renderedProvenanceChecked": true,
+  "limits": "All distinct previews opened in the first desktop/light interaction pass; availability, status notes, observations and representative modal/zoom/pan controls exercised in all four contexts. Axe audits are closed-page only, not native acceptance.",
+  "browsersClosed": true,
+  "ownedRuntimeAbsenceVerified": true,
+  "productionSourceAndAcceptedSearchReviewUnchanged": true,
+  "guardRemovalProofs": {
+    "rulesDeclared": 87,
+    "rulesDeletedAndNoticed": 87,
+    "positiveAndRestored": "Scan-indicator consumer: 86 rules, 106 rejected inputs, escaping and positive controls passed.",
+    "outcomes": {
+      "accepted": 69,
+      "caughtByAnotherCheck": 18
+    }
+  },
+  "independentReview": {
+    "reviewer": "A separate read-only agent session that was given the builder, test and template without this session's conclusions.",
+    "findings": [
+      "string font scales and array panels passed coerced comparisons",
+      "bytes after the PNG end chunk were accepted",
+      "bar, player and viewport geometry was not tied to the crop",
+      "unquoted radio inputs, required selects and CSS imports passed the ballot and offline patterns",
+      "thirteen guard deletions left the consumer test passing",
+      "two findings statements and one provenance statement claimed more than the checks enforced"
+    ],
+    "resolution": "One named rule per line with strict types, PNG structure and geometry rules, label clearance re-measured from the embedded images at validation, findings limited to validated data, embedded provenance, and a deletion proof for every rule."
+  },
+  "publicationPreflight": {
+    "fixtures": [
+      {
+        "name": "positive",
+        "intendedOutcome": true,
+        "exitStatus": 0,
+        "diagnostic": "ALL_PUBLICATION_PREFLIGHTS_PASSED",
+        "publicWrites": 0
+      },
+      {
+        "name": "inspection-hash",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Current inspection hash binding differs.",
+        "publicWrites": 0
+      },
+      {
+        "name": "inspected-ellipsis-reading",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Current cohort context or native assertions differ.",
+        "publicWrites": 0
+      },
+      {
+        "name": "restoration",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Exact recorded fields not restored.",
+        "publicWrites": 0
+      },
+      {
+        "name": "owner-exit",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Owner exit record differs.",
+        "publicWrites": 0
+      },
+      {
+        "name": "late-action-context",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Exact current-artifact action evidence incomplete.",
+        "publicWrites": 0
+      },
+      {
+        "name": "replay-manifest-binding",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Offline action replay differs from the live manifest.",
+        "publicWrites": 0
+      }
+    ]
+  },
+  "rendererScreenshotsInspected": [
+    {
+      "file": "review-1440-light.png",
+      "sha256": "11d1d7fb79aa6466513fb12f507dcb78ed3aeee2eb6a306d3d476e1fa0c91a5b"
+    },
+    {
+      "file": "review-1440-dark.png",
+      "sha256": "e8f683c3bf5e1c9cfec6ce251d9c9ae726a184e718090f650d078d1d03ce590b"
+    },
+    {
+      "file": "review-390-light.png",
+      "sha256": "77316d4c03d5df6775a4373fbcd9131d9b7fc6cc3d79fbf2f29f8fde943f2695"
+    },
+    {
+      "file": "review-390-dark.png",
+      "sha256": "837c2df8988c5394a111249f03cc915c0256991a07f2a5f216211439f59fa4b4"
+    },
+    {
+      "file": "gallery-1440-light.png",
+      "sha256": "dd27eba0e3cd32b1296cb802f2a1346627b5e6fd0712980cfe8d3ad72a383946"
+    },
+    {
+      "file": "gallery-1440-dark.png",
+      "sha256": "1fe57978517d176c15012dd1bf41405c74a145e0dba4d00baeee35b3a263d04d"
+    },
+    {
+      "file": "gallery-390-light.png",
+      "sha256": "e477e32cd69ef9975f659cc4ade77002baa9316b254f7a191254f578718fd566"
+    },
+    {
+      "file": "gallery-390-dark.png",
+      "sha256": "134fe5f8b71e70294486c4ae559cc6d61c30126d415538d701621ac0010adbfc"
+    },
+    {
+      "file": "boundary-1440-light.png",
+      "sha256": "6b1b2cdafd7ea8fcdd3c9f58c220b1eb638906ef6da98339d3f7da8c3ca22e91"
+    },
+    {
+      "file": "boundary-1440-dark.png",
+      "sha256": "a71086b1addd4536a7a3bcfb07dea6f3c6430e2692c9a4bfb2a6e9277e57e0f4"
+    },
+    {
+      "file": "boundary-390-light.png",
+      "sha256": "67b74a3a2487187db0a81488df877a607fb260ff9afd3f2e65a4dff2964c4014"
+    },
+    {
+      "file": "boundary-390-dark.png",
+      "sha256": "debe0cb5ae97e484b8a00f619802b0180bf94e9b73f446dadd8ac3880d95cd4a"
+    },
+    {
+      "file": "modal-1440-light.png",
+      "sha256": "ee078f9e74068ccec60991418506707afec5038efe5242aa8f1a809d80b48ed8"
+    },
+    {
+      "file": "modal-1440-dark.png",
+      "sha256": "e9321f413d9497337a9e909d91c9ffad1cb4e6960fb367171f24d6b14c178b26"
+    },
+    {
+      "file": "modal-390-light.png",
+      "sha256": "92417fc6d0b8cd6ef03cd037587b4e5b404559257a679ca4aeefa0c5c053b674"
+    },
+    {
+      "file": "modal-390-dark.png",
+      "sha256": "7b59b86fadc0125da0554e1222882be6d2e3e9fa54a57d5a1d3f72442e10cf28"
+    }
+  ],
+  "verificationLimits": [
+    "Closed-page axe checks only; no open-dialog, Firefox ESR140 or native accessibility acceptance.",
+    "Every progress value, start and completion is authored debug input; no real analysis, worker pause, cache write or playback occurs.",
+    "Layout overflow flags and rendered-pixel clearance are not glyph metrics or acceptance of the Resume label at 200% text.",
+    "Status readings are read by eye and bound by hash; only label clearance is re-measured from the embedded pixels.",
+    "Measured rectangles are checked for mutual consistency and against the crop, not re-derived from the device.",
+    "Synthetic changed-inset and changed-witness fixtures are validation controls, not extra Android captures.",
+    "Full Android lint retains five inherited errors, 65 warnings and two hints."
+  ],
+  "pageDigestsRemoved": "Digests of the page, template, builder, test, manifest, native result, preflight and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it.",
+  "recheckOf20261005": {
+    "why": "D88 removed the builder's digest rules. Everything else in this record describes the check made at publication.",
+    "consumerTest": "Scan-indicator consumer: 82 rules, 102 rejected inputs, escaping and positive controls passed.",
+    "build": "The built page is unchanged by the removal."
+  }
+}

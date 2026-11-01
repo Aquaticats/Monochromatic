@@ -1,5 +1,75 @@
 # Node 26.4.0 execFileSync ENOBUFS when mise task JSON exceeds default buffer
 
+## Pandoc renderer recurrence on Node 26.12.0
+
+On 2026-10-18,
+the private Depot research renderer invoked Pandoc through `execFileSync`
+with its default output buffer.
+The JSON AST for `doc/handover/depot-trial-grilling.md` exceeded that bound,
+and Node reported `Error: spawnSync pandoc ENOBUFS` with child signal `SIGTERM`.
+This was a parent capture limit,
+not a Markdown parse failure or a reason to accept a stale rendered output.
+
+The read-only Node 26.12.0 source checkout resolves to
+`26e72d85a611e222e3f06025de8a3c496923bacd`.
+`lib/child_process.js:99` sets the bound:
+
+```js
+// lib/child_process.js:99
+const MAX_BUFFER = 1024 * 1024;
+```
+
+`lib/child_process.js:931` supplies that default to synchronous spawning:
+
+```js
+// lib/child_process.js:931
+function spawnSync(file, args, options) {
+  options = {
+    __proto__: null,
+    maxBuffer: MAX_BUFFER,
+    ...normalizeSpawnArguments(file, args, options),
+  };
+```
+
+`src/spawn_sync.cc:648` detects aggregate captured-output overflow and terminates capture:
+
+```cpp
+// src/spawn_sync.cc:648
+void SyncProcessRunner::IncrementBufferSizeAndCheckOverflow(ssize_t length) {
+  buffered_output_size_ += length;
+  if (max_buffer_ > 0 && buffered_output_size_ > max_buffer_) {
+    SetError(UV_ENOBUFS);
+    Kill();
+  }
+}
+```
+
+The renderer follows the existing bounded-buffer handling in this document:
+both HTML and AST calls use a named 16 MiB bound,
+then the complete AST is parsed before link/emphasis checks.
+
+```js
+// Private research mise.toml, render-root-docs task.
+const PANDOC_MAX_BUFFER = 16 * 1024 * 1024;
+const astBody = execFileSync('pandoc', ['--from=commonmark', '--to=json', file], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: PANDOC_MAX_BUFFER,
+});
+const ast = JSON.parse(astBody);
+```
+
+The tradeoff remains a bounded in-memory capture;
+it does not make arbitrary output safe or remove the need to verify complete parsing.
+The default-bound failing catalog and explicit-bound passing catalog concern the same unchanged Markdown input.
+The bounded rerun exits zero for all fourteen documents.
+The handover AST is 1,067,303 bytes and its HTML is 215,831 bytes;
+complete JSON parsing finds no unintended emphasis or missing relative links.
+Actual rendered text is still read as a separate document verification step.
+No upstream patch is needed:
+the caller owns its capture policy and the supported option addresses this failure.
+The existing upstream-filing decision remains applicable.
+
 ## Symptom
 
 Package fanout tasks failed while running a package build through mise:

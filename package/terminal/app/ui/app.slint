@@ -1,0 +1,236 @@
+// Terminal prototype window. Slint owns the pixel scroll position through the
+// Flickable's content-y. Rust receives that pixel offset, maps it to a whole
+// libghostty-vt row plus a fractional remainder, asks libghostty-vt for the
+// whole-row viewport, and then places the visible cells at absolute row
+// positions inside the Flickable content. Slint's pixel viewport translation
+// supplies the smooth fractional motion.
+
+import { Palette } from "std-widgets.slint";
+
+// One rendered terminal cell. Rust flattens libghostty-vt rows into this model
+// so Slint can draw positioned rectangles and text without understanding VT
+// state, scrollback, or style resolution.
+struct TerminalCell {
+    row: int,
+    col: int,
+    text: string,
+    foreground: color,
+    background: color,
+    bold: bool,
+    italic: bool,
+    inverse: bool,
+    underline: bool,
+}
+
+export component AppWindow inherits Window {
+    title: "Monochromatic Terminal";
+    preferred-width: 760px;
+    preferred-height: 520px;
+    background: #101010;
+    forward-focus: terminal-focus;
+
+    in property <[TerminalCell]> cells: [];
+    in property <int> total-rows: 1;
+    in property <int> scrollback-rows: 0;
+    in property <int> viewport-rows: 24;
+    in property <int> viewport-cols: 80;
+    in property <int> whole-row-offset: 0;
+    in property <length> content-height: 432px;
+    in property <string> status: "";
+
+    out property <float> effective-cell-width: root.cell-width / 1px;
+    out property <float> effective-cell-height: root.cell-height / 1px;
+
+    in-out property <length> scroll-y: 0px;
+
+    callback scroll-changed(float);
+    callback viewport-resized(float, float, float, float);
+    callback terminal-key(string, bool, bool);
+
+    private property <length> cell-width: max(terminal-metric-probe.preferred-width / 32, 1px);
+    private property <length> cell-height: 18px;
+    private property <length> terminal-font-size: 14px;
+    private property <string> terminal-font-family: "JetBrains Mono";
+    private property <length> terminal-horizontal-padding: 2px;
+    private property <length> terminal-glyph-bleed: root.cell-width;
+
+    terminal-metric-probe := Text {
+        x: 0px;
+        y: -1000px;
+        text: "00000000000000000000000000000000";
+        font-family: root.terminal-font-family;
+        font-size: root.terminal-font-size;
+        font-weight: FontWeight.normal;
+    }
+
+    VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: 32px;
+            background: Palette.alternate-background;
+            border-color: Palette.border;
+            border-width: 1px;
+
+            Text {
+                x: 10px;
+                width: parent.width - 20px;
+                height: parent.height;
+                text: root.status;
+                color: Palette.foreground;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        terminal-area := Rectangle {
+            vertical-stretch: 1;
+            background: #101010;
+
+            changed width => {
+                root.viewport-resized(
+                    max(self.width - root.terminal-horizontal-padding * 2, 1px) / 1px,
+                    self.height / 1px,
+                    root.effective-cell-width,
+                    root.effective-cell-height,
+                );
+            }
+
+            changed height => {
+                root.viewport-resized(
+                    max(self.width - root.terminal-horizontal-padding * 2, 1px) / 1px,
+                    self.height / 1px,
+                    root.effective-cell-width,
+                    root.effective-cell-height,
+                );
+            }
+
+            terminal-focus := FocusScope {
+                width: parent.width;
+                height: parent.height;
+                focus-on-click: true;
+
+                key-pressed(event) => {
+                    if event.text == Key.Backspace {
+                        root.terminal-key("Backspace", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Tab {
+                        root.terminal-key("Tab", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Return {
+                        root.terminal-key("Return", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Escape {
+                        root.terminal-key("Escape", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Backtab {
+                        root.terminal-key("Backtab", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Delete {
+                        root.terminal-key("Delete", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Insert {
+                        root.terminal-key("Insert", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.UpArrow {
+                        root.terminal-key("UpArrow", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.DownArrow {
+                        root.terminal-key("DownArrow", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.LeftArrow {
+                        root.terminal-key("LeftArrow", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.RightArrow {
+                        root.terminal-key("RightArrow", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Home {
+                        root.terminal-key("Home", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.End {
+                        root.terminal-key("End", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.PageUp {
+                        root.terminal-key("PageUp", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.PageDown {
+                        root.terminal-key("PageDown", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F1 {
+                        root.terminal-key("F1", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F2 {
+                        root.terminal-key("F2", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F3 {
+                        root.terminal-key("F3", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F4 {
+                        root.terminal-key("F4", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F5 {
+                        root.terminal-key("F5", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F6 {
+                        root.terminal-key("F6", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F7 {
+                        root.terminal-key("F7", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F8 {
+                        root.terminal-key("F8", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F9 {
+                        root.terminal-key("F9", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F10 {
+                        root.terminal-key("F10", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F11 {
+                        root.terminal-key("F11", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.F12 {
+                        root.terminal-key("F12", event.modifiers.control, event.modifiers.alt);
+                    } else if event.text == Key.Shift {
+                    } else if event.text == Key.ShiftR {
+                    } else if event.text == Key.Control {
+                    } else if event.text == Key.ControlR {
+                    } else if event.text == Key.Alt {
+                    } else if event.text == Key.AltGr {
+                    } else if event.text == Key.CapsLock {
+                    } else if event.text == Key.Meta {
+                    } else if event.text == Key.MetaR {
+                    } else {
+                        root.terminal-key(event.text, event.modifiers.control, event.modifiers.alt);
+                    }
+                    accept
+                }
+
+                Flickable {
+                    width: parent.width;
+                    height: parent.height;
+                    content-width: self.width;
+                    content-height: max(root.content-height, self.height);
+                    content-y <=> root.scroll-y;
+
+                    changed content-y => {
+                        root.scroll-changed((0px - self.content-y) / 1px);
+                    }
+
+                    content := Rectangle {
+                        width: parent.width;
+                        height: max(root.content-height, parent.height);
+                        background: #101010;
+
+                        for cell in root.cells: Rectangle {
+                            x: root.terminal-horizontal-padding + cell.col * root.cell-width;
+                            y: (root.whole-row-offset + cell.row) * root.cell-height;
+                            width: root.cell-width;
+                            height: root.cell-height;
+                            background: cell.background;
+                        }
+
+                        for cell in root.cells: Text {
+                            visible: cell.text != "";
+                            x: root.terminal-horizontal-padding + cell.col * root.cell-width;
+                            y: (root.whole-row-offset + cell.row) * root.cell-height;
+                            width: root.cell-width + root.terminal-glyph-bleed;
+                            height: root.cell-height;
+                            text: cell.text;
+                            color: cell.foreground;
+                            font-family: root.terminal-font-family;
+                            font-size: root.terminal-font-size;
+                            font-weight: cell.bold ? FontWeight.bold : FontWeight.normal;
+                            font-italic: cell.italic;
+                            vertical-alignment: center;
+                            horizontal-alignment: left;
+                        }
+
+                        for cell in root.cells: Rectangle {
+                            visible: cell.underline && cell.text != "";
+                            x: root.terminal-horizontal-padding + cell.col * root.cell-width;
+                            y: (root.whole-row-offset + cell.row) * root.cell-height + root.cell-height - 2px;
+                            width: root.cell-width;
+                            height: 1px;
+                            background: cell.foreground;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

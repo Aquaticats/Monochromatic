@@ -324,7 +324,7 @@ async function run(): Promise<void> {
         CACHE_FILE,
         'utf8',
       ), },),
-    );
+      );
     return;
   }
 

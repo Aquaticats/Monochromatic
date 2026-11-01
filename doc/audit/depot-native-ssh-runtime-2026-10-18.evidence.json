@@ -1,0 +1,836 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T18:53:26.382Z",
+  "scope": "First terminal native SSH control and exact-source forge consumers; original admitted source and controller remain immutable.",
+  "immutableAdmission": {
+    "parentCommit": "dc62a35802",
+    "proposal": "doc/audit/depot-native-ssh-acceptance-2026-10-18.evidence.json",
+    "proposalSha256": "9503c32883a615130a0dd4ee0d8fd2d4239bc0dc652c743aa0cfaaf7d966ed77",
+    "harness": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+    "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a"
+  },
+  "allocation": {
+    "product": "native-ci",
+    "runId": "sqrz4sml30",
+    "jobId": "q74vcmxkk1",
+    "attemptId": "fhxx4s51rf",
+    "sandboxId": "g64shw2rl3jzrxsmq92x",
+    "requestedCpu": 2,
+    "requestedMemoryGiB": 8,
+    "serverJobLimitMinutes": 3,
+    "cancellationDeadlineSeconds": 150,
+    "admittedMaximumRunsIncludingCorrection": 2,
+    "combinedNominalReservationUsd": 0.036,
+    "startedAt": "2026-10-18T18:37:23.441Z",
+    "controllerFinishedAt": "2026-10-18T18:40:00.721Z",
+    "terminalStatus": "cancelled",
+    "exactObservedMemoryBytes": null,
+    "observedResourceGate": "Fixture asserted availableParallelism()==2 and memory between7000000000 and9000000000 bytes; exact memory was not logged."
+  },
+  "transportConsumers": [
+    {
+      "transport": "direct-ssh",
+      "clientExitCode": 255,
+      "clientSignal": null,
+      "expectedResponseMatched": true,
+      "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "bootIdentityMatched": true,
+      "markerSha256": "27087202b01432c5082232cd2c318cb9f536aa3e336f45695a491763ac264bd8",
+      "remoteUid": 0,
+      "remoteGid": 0,
+      "remoteCwd": "/root",
+      "syntheticWorkflowEnvironment": null,
+      "inputBytes": 2170,
+      "inputSha256": "d95706e2f634e4438257f40156fb8f8d2be284c12034b5e198dbc2d9786f6417",
+      "stdoutSha256": "42a0ef08cc166fe1bbabe73f3622e6f6619955a0ce0e6a0b68ab7deb465345e8",
+      "stderrSha256": "b07556fc8fde6c206920e0c20fbbe8ebf459e0a9b763c1b26c1d3ce8ec77d134",
+      "ownedClientCleanup": {
+        "rootPid": 4048433,
+        "rootStartTime": "5440395",
+        "rootReaped": true,
+        "deadlineReached": false,
+        "signals": [],
+        "owned": [
+          {
+            "pid": 4048433,
+            "state": "R",
+            "parentPid": 4017042,
+            "group": 4048433,
+            "session": 4048433,
+            "startTime": "5440395",
+            "remaining": false
+          },
+          {
+            "pid": 4048828,
+            "state": "R",
+            "parentPid": 4048433,
+            "group": 4048433,
+            "session": 4048433,
+            "startTime": "5440536",
+            "remaining": false
+          }
+        ],
+        "allOwnedAbsent": true
+      }
+    },
+    {
+      "transport": "cli-pty",
+      "clientExitCode": 0,
+      "clientSignal": null,
+      "expectedResponseMatched": true,
+      "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "bootIdentityMatched": true,
+      "markerSha256": "27087202b01432c5082232cd2c318cb9f536aa3e336f45695a491763ac264bd8",
+      "remoteUid": 1001,
+      "remoteGid": 117,
+      "remoteCwd": "/home/runner",
+      "syntheticWorkflowEnvironment": null,
+      "inputBytes": 2167,
+      "inputSha256": "a7138195695709c7e93a89e1c55b46ce76e24b7c658033fcb042b0f9462b7bbf",
+      "stdoutSha256": "cafa579382bd4b3f85cee667d7a6dae5ebe14fc8fc628eb81170322da1aa3c81",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownedClientCleanup": {
+        "rootPid": 4049166,
+        "rootStartTime": "5440633",
+        "rootReaped": true,
+        "deadlineReached": false,
+        "signals": [],
+        "owned": [
+          {
+            "pid": 4049166,
+            "state": "R",
+            "parentPid": 4017042,
+            "group": 4049166,
+            "session": 4049166,
+            "startTime": "5440633",
+            "remaining": false
+          },
+          {
+            "pid": 4049168,
+            "state": "S",
+            "parentPid": 4049166,
+            "group": 4049168,
+            "session": 4049168,
+            "startTime": "5440633",
+            "remaining": false
+          }
+        ],
+        "allOwnedAbsent": true
+      }
+    }
+  ],
+  "pausedConsumer": {
+    "qualified": false,
+    "connectionTargetObserved": false,
+    "workflowReadbackObserved": false,
+    "runOutcome": "cancelled by finite controller before paused proof or final workflow consumer",
+    "lastObservedInstallerOutput": "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [237 B]",
+    "decidingSource": {
+      "repository": "mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "path": "src/index.js",
+      "dependencyInstallLines": [
+        82,
+        110
+      ],
+      "helperPath": "src/helpers.js"
+    },
+    "interpretation": "Last retained installer output is an APT mirror-list line. The current blocking instruction and root cause were not separately measured. This does not qualify or disprove tmate transport.",
+    "correctionPrerequisite": "Review a source-pinned same-version tmate binary and install-dependencies:false fixture plus replacement source/controller admission before any second dispatch."
+  },
+  "forgeConsumers": {
+    "checkedAt": "2026-10-18T18:46:39.680Z",
+    "rows": [
+      {
+        "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+        "execution": "github-actions-positive",
+        "ownedRun": "39140975786",
+        "kind": "check-runs",
+        "endpoint": "repos/Aquaticats/Monochromatic/commits/234ccc92dabb81e998e0a0bb5e838713924dd83f/check-runs?per_page=100",
+        "count": 6,
+        "selected": [
+          {
+            "id": 117720527716,
+            "name": "Research repeated immutable expanded Linux graph / graph (native-2, 2)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 219785,
+              "slug": "depot-code-access",
+              "name": "Depot Code Access"
+            },
+            "githubActionsRunId": null
+          },
+          {
+            "id": 117719138828,
+            "name": "Research repeated immutable expanded Linux graph / graph (native-1, 1)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 219785,
+              "slug": "depot-code-access",
+              "name": "Depot Code Access"
+            },
+            "githubActionsRunId": null
+          },
+          {
+            "id": 117715164085,
+            "name": "graph (github-1, github, 1, ubuntu-24.04)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 15368,
+              "slug": "github-actions",
+              "name": "GitHub Actions"
+            },
+            "githubActionsRunId": "39140975786"
+          },
+          {
+            "id": 117715164069,
+            "name": "graph (github-2, github, 2, ubuntu-24.04)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 15368,
+              "slug": "github-actions",
+              "name": "GitHub Actions"
+            },
+            "githubActionsRunId": "39140975786"
+          },
+          {
+            "id": 117715164061,
+            "name": "graph (depot-2, github-depot, 2, depot-ubuntu-24.04-4)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 15368,
+              "slug": "github-actions",
+              "name": "GitHub Actions"
+            },
+            "githubActionsRunId": "39140975786"
+          },
+          {
+            "id": 117715164010,
+            "name": "graph (depot-1, github-depot, 1, depot-ubuntu-24.04-4)",
+            "headSha": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+            "status": "completed",
+            "conclusion": "failure",
+            "app": {
+              "id": 15368,
+              "slug": "github-actions",
+              "name": "GitHub Actions"
+            },
+            "githubActionsRunId": "39140975786"
+          }
+        ],
+        "originalBody": {
+          "bytes": 18306,
+          "sha256": "b6f9203ca5d875cfd0f8c8196422e12f13470934e943fc56092dcc8edeff124a"
+        },
+        "clientReaped": true,
+        "ownedClientsAbsent": true
+      },
+      {
+        "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+        "execution": "github-actions-positive",
+        "ownedRun": "39140975786",
+        "kind": "statuses",
+        "endpoint": "repos/Aquaticats/Monochromatic/commits/234ccc92dabb81e998e0a0bb5e838713924dd83f/statuses?per_page=100",
+        "count": 0,
+        "selected": [],
+        "originalBody": {
+          "bytes": 2,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "clientReaped": true,
+        "ownedClientsAbsent": true
+      },
+      {
+        "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+        "execution": "native-manual-ssh",
+        "ownedRun": "sqrz4sml30",
+        "kind": "check-runs",
+        "endpoint": "repos/Aquaticats/Monochromatic/commits/b6a60493c16087043a7043f50cd31d8aebf4bdee/check-runs?per_page=100",
+        "count": 1,
+        "selected": [
+          {
+            "id": 117756320157,
+            "name": "native-ssh-acceptance / ssh-proof",
+            "headSha": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "app": {
+              "id": 219785,
+              "slug": "depot-code-access",
+              "name": "Depot Code Access"
+            },
+            "githubActionsRunId": null
+          }
+        ],
+        "originalBody": {
+          "bytes": 2905,
+          "sha256": "7370e067f512d907c2a77a981c3b8c398313626ba37424b4f3b1017b938e4c12"
+        },
+        "clientReaped": true,
+        "ownedClientsAbsent": true
+      },
+      {
+        "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+        "execution": "native-manual-ssh",
+        "ownedRun": "sqrz4sml30",
+        "kind": "statuses",
+        "endpoint": "repos/Aquaticats/Monochromatic/commits/b6a60493c16087043a7043f50cd31d8aebf4bdee/statuses?per_page=100",
+        "count": 0,
+        "selected": [],
+        "originalBody": {
+          "bytes": 2,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "clientReaped": true,
+        "ownedClientsAbsent": true
+      }
+    ],
+    "nativeOwnedRunCorrespondence": {
+      "checkRunId": 117756320157,
+      "runId": "sqrz4sml30",
+      "jobId": "q74vcmxkk1",
+      "attemptId": "fhxx4s51rf",
+      "matches": {
+        "detailsRun": false,
+        "detailsJob": true,
+        "detailsAttempt": false,
+        "externalRun": false,
+        "externalJob": false,
+        "externalAttempt": false
+      },
+      "detailsUrlSha256": "9c59776296d9e7ac5f46d749233190d5d2632f034a83d5b6434fa8264717dc31",
+      "externalIdSha256": "c8f70ce47c6610ffe2b807a82b5f73b9f155a39feb1dd52cc728ea8120d7c920"
+    },
+    "interpretation": "The native manual control published an actual completed/cancelled GitHub check from the existing Depot Code Access app, linked to the exact owned job. This does not mean Depot Code was enabled. Both exact SHAs returned no legacy commit statuses; the known GHA run is a nonempty check-run positive only.",
+    "appOrAccountSettingsInspected": false,
+    "appOrAccountSettingsChanged": false
+  },
+  "cleanup": {
+    "controllerToolSession": {
+      "id": 68688,
+      "exitCode": 1,
+      "reaped": true
+    },
+    "allRecordedIdentitiesAbsent": true,
+    "identityChecks": [
+      {
+        "pid": 4017075,
+        "startTime": "5436563",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4017443,
+        "startTime": "5436705",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4019264,
+        "startTime": "5436913",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4020139,
+        "startTime": "5437121",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4021324,
+        "startTime": "5437329",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4021809,
+        "startTime": "5437537",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4022529,
+        "startTime": "5437745",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4024472,
+        "startTime": "5437964",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4025122,
+        "startTime": "5438033",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4029810,
+        "startTime": "5438331",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4030595,
+        "startTime": "5438392",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4034036,
+        "startTime": "5438669",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4034569,
+        "startTime": "5438727",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4037826,
+        "startTime": "5439027",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4038450,
+        "startTime": "5439086",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4041475,
+        "startTime": "5439388",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4042111,
+        "startTime": "5439446",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4044476,
+        "startTime": "5439757",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4044894,
+        "startTime": "5439816",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4046832,
+        "startTime": "5440116",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4047073,
+        "startTime": "5440174",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4048110,
+        "startTime": "5440335",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4050178,
+        "startTime": "5440906",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4050373,
+        "startTime": "5440966",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4051140,
+        "startTime": "5441269",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4051309,
+        "startTime": "5441326",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4052352,
+        "startTime": "5441630",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4052538,
+        "startTime": "5441688",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4053536,
+        "startTime": "5441989",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4053922,
+        "startTime": "5442047",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4054522,
+        "startTime": "5442348",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4054687,
+        "startTime": "5442407",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4055985,
+        "startTime": "5442709",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4057570,
+        "startTime": "5442778",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4059330,
+        "startTime": "5443079",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4059957,
+        "startTime": "5443139",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4061829,
+        "startTime": "5443441",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4062279,
+        "startTime": "5443501",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4063166,
+        "startTime": "5443801",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4063636,
+        "startTime": "5443866",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4066361,
+        "startTime": "5444182",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4067319,
+        "startTime": "5444246",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4072465,
+        "startTime": "5444554",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4073344,
+        "startTime": "5444614",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4077393,
+        "startTime": "5444935",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4078108,
+        "startTime": "5444994",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4081160,
+        "startTime": "5445296",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4081811,
+        "startTime": "5445355",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4085180,
+        "startTime": "5445652",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4085698,
+        "startTime": "5445712",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4088616,
+        "startTime": "5446014",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4089054,
+        "startTime": "5446073",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4091332,
+        "startTime": "5446376",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4091873,
+        "startTime": "5446436",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4093476,
+        "startTime": "5446737",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4093870,
+        "startTime": "5446796",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4095495,
+        "startTime": "5447095",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4095963,
+        "startTime": "5447155",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4097742,
+        "startTime": "5447461",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4098009,
+        "startTime": "5447520",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4099529,
+        "startTime": "5447819",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4099731,
+        "startTime": "5447878",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4100944,
+        "startTime": "5448179",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4101303,
+        "startTime": "5448238",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4102938,
+        "startTime": "5448536",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4102989,
+        "startTime": "5448595",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4105448,
+        "startTime": "5448897",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4105743,
+        "startTime": "5448987",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4107790,
+        "startTime": "5449290",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4107992,
+        "startTime": "5449350",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4108504,
+        "startTime": "5449663",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4108846,
+        "startTime": "5449729",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4111452,
+        "startTime": "5450044",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4112246,
+        "startTime": "5450110",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4117112,
+        "startTime": "5450420",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4117941,
+        "startTime": "5450481",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4121167,
+        "startTime": "5450784",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4122003,
+        "startTime": "5450846",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4125309,
+        "startTime": "5451152",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4125905,
+        "startTime": "5451214",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4129333,
+        "startTime": "5451528",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4129739,
+        "startTime": "5451564",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4130074,
+        "startTime": "5451587",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4133266,
+        "startTime": "5451897",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4133699,
+        "startTime": "5451958",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4135209,
+        "startTime": "5452113",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4135574,
+        "startTime": "5452172",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4135890,
+        "startTime": "5452232",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4048433,
+        "startTime": "5440395",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4048828,
+        "startTime": "5440536",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4049166,
+        "startTime": "5440633",
+        "sameIdentityPresent": false
+      },
+      {
+        "pid": 4049168,
+        "startTime": "5440633",
+        "sameIdentityPresent": false
+      }
+    ],
+    "askpassSocketAbsent": true,
+    "instantVmDeletionQualified": false,
+    "credentialRevocationQualified": false
+  },
+  "originalBodies": {
+    "controllerState": {
+      "bytes": 3210720,
+      "sha256": "66ef6652e5dbe5a1642784046a8e8d1054d6f1169f93f3e707c675ef294415a2"
+    },
+    "logs": {
+      "bytes": 85755,
+      "sha256": "ed9f7c9127001627b71f38ddfc47bbb202078dd72b2e77cbac873806f81f3c14",
+      "events": 276
+    },
+    "forge": [
+      {
+        "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+        "kind": "check-runs",
+        "bytes": 18306,
+        "sha256": "b6f9203ca5d875cfd0f8c8196422e12f13470934e943fc56092dcc8edeff124a"
+      },
+      {
+        "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+        "kind": "statuses",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      {
+        "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+        "kind": "check-runs",
+        "bytes": 2905,
+        "sha256": "7370e067f512d907c2a77a981c3b8c398313626ba37424b4f3b1017b938e4c12"
+      },
+      {
+        "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+        "kind": "statuses",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    ]
+  },
+  "limits": [
+    "Final workflow file ownership/mode/readback and paused-session resume did not execute.",
+    "Direct SSH exit255 does not negate its matching remote proof; the client-close cause is not established here.",
+    "No terminal VM deletion or credential revocation is inferred from cancellation.",
+    "The GitHub check observation does not qualify every event, required-check policy or legacy-status publisher.",
+    "Exact raw actor/output/SSH connection bodies are private; selected fields and original hashes are public."
+  ],
+  "next": "A single source-reviewed correction may fit the original combined USD0.036 reservation, but is not dispatched or admitted by this result."
+}

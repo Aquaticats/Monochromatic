@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-19",
+  "activePlan": "startup-trial",
+  "plans": {
+    "startup-trial": {
+      "buildMinutes": 5000,
+      "nativeMinutes": 20000,
+      "githubRunnerMinutes": 20000,
+      "passingTestResults": 1000000,
+      "storageGb": 250
+    },
+    "developer": {
+      "buildMinutes": 500,
+      "nativeMinutes": 2000,
+      "githubRunnerMinutes": 2000,
+      "passingTestResults": 1000000,
+      "storageGb": 25
+    }
+  },
+  "ceilingUsd": 200,
+  "capsConfigured": true,
+  "documentedCapGaps": [
+    "Native Depot CI minutes have no documented configurable hard cap.",
+    "Depot Tests passing results have no documented configurable hard cap.",
+    "Combined storage has no documented configurable hard cap; the 25 GB Developer figure is an hourly-sampled monthly average.",
+    "The configured cap values are operator-reported and are not recorded here."
+  ],
+  "storageAverageGb": null,
+  "attempts": [
+    {
+      "allocationId": "weekly-native-2026-10-19",
+      "id": "dmjf38bcz0",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 15,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.35
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r2",
+      "id": "r2mxbc40rh",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 15,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.35
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r3",
+      "id": "xv1dwhq3h4",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 15,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.38
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r4",
+      "id": "130wfntbg4",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 15,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.36
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r5",
+      "id": "qzdndcpnl4",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 15,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.35
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r6",
+      "id": "lv1pxlx50c",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 16,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.38
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r7",
+      "id": "r1h68z8tzv",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 19,
+        "buildMinutes": 16,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.46
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r8",
+      "id": "391g4q5t98",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 18,
+        "buildMinutes": 16,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.43
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r9",
+      "id": "k1d5q6x48p",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 18,
+        "buildMinutes": 16,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.42
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r10",
+      "id": "xgd08stcz2",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "failed",
+      "meters": {
+        "nativeMinutes": 4,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.1
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r10",
+      "id": "fkwfbqh5wn",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "failed",
+      "meters": {
+        "nativeMinutes": 4,
+        "buildMinutes": 0,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.1
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r13",
+      "id": "s6ljx0bvw8",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 20,
+        "buildMinutes": 16,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.48
+    },
+    {
+      "allocationId": "weekly-native-2026-10-19-r11",
+      "id": "09tm4nft2n",
+      "profile": "weekly-native-matrix",
+      "provider": "depot-native",
+      "status": "finished",
+      "meters": {
+        "nativeMinutes": 21,
+        "buildMinutes": 16,
+        "githubRunnerMinutes": 0,
+        "passingTestResults": 0,
+        "storageGb": 0
+      },
+      "reservedUsd": 10,
+      "actualUsd": 0.5
+    }
+  ]
+}

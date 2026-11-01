@@ -86,7 +86,7 @@ fn idle_root_emits_no_extra_queue_updates() {
         .as_nanos();
     // What:     Build the source root path under the system temp directory.
     // Why:      A real directory the OS watcher can observe.
-    let dir = std::env::temp_dir().join(format!("mp_idle_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_idle_{nanos}"));
     // What:     Create the source root before opening it.
     // Why:      The Source Root must exist to be scanned and watched.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");
@@ -120,8 +120,8 @@ fn idle_root_emits_no_extra_queue_updates() {
                 Update::Reconciled { names, .. } => Some(names.len()),
                 _ => None,
             };
-            if let Some(len) = len {
-                let _ = tx.send(len);
+            if let Some(queue_len) = len {
+                let _ = tx.send(queue_len);
             }
         },
         CacheHandle::open_degraded(),
@@ -182,7 +182,7 @@ fn watcher_drives_rescan_update_through_engine() {
         .as_nanos();
     // What:     Build the source root path under the system temp directory.
     // Why:      A real directory the OS watcher can observe.
-    let dir = std::env::temp_dir().join(format!("mp_engine_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_engine_{nanos}"));
     // What:     Create the source root before opening it.
     // Why:      The Source Root must exist to be scanned and watched.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");
@@ -212,8 +212,8 @@ fn watcher_drives_rescan_update_through_engine() {
                 Update::Reconciled { names, .. } => Some(names.len()),
                 _ => None,
             };
-            if let Some(len) = len {
-                let _ = tx.send(len);
+            if let Some(queue_len) = len {
+                let _ = tx.send(queue_len);
             }
         },
         CacheHandle::open_degraded(),
@@ -236,9 +236,9 @@ fn watcher_drives_rescan_update_through_engine() {
     // Why:      A fixed, comfortable upper bound keeps the test reliable without hanging.
     const WAIT_SECS: u64 = 10;
     // What:     `assert!(wait_for_len(&rx, 1, WAIT_SECS), ...)`. The open scan must report one
-    //           track. Receiving it also proves the watcher is now armed on the root.
-    // Why:      Gate the second phase on the watch being live, avoiding a create-before-arm
-    //           race.
+    //           track.
+    // Why:      Gate the second phase on the open having finished. The watch registers on its own thread
+    //           and asks for one rescan when it is armed, so a file created before that is still reconciled.
     assert!(
         wait_for_len(&rx, 1, WAIT_SECS),
         "expected Queue(1) after opening a root with one audio file"

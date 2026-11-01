@@ -21,7 +21,8 @@ run,
 - iOS runtime model:
    WKWebView-JIT.
    Ionic is pure web technology:
-   Stencil-compiled web components (HTML/CSS/JS) with zero native code of its own (find under /tmp/agent/ionic-audit-20260612 returns 0 .
+   Stencil-compiled web components (HTML/CSS/JS) with zero native code of its own (find under
+   /tmp/agent/ionic-audit-20260612 returns 0 .
   swift/.
   m/Podfile/.
   podspec files).
@@ -33,7 +34,8 @@ run,
   Capacitor (core/src/utils/native/`capacitor.ts` getCapacitor).
    Crucially the JIT lives in the sandboxed WKWebView,
    not the app process,
-   so unlike NativeScript (which embedded a JS engine IN the app process and hit DENY_EXECMEM) Ionic does not need an app-process JIT at all.
+   so unlike NativeScript (which embedded a JS engine IN the app process
+   and hit DENY_EXECMEM) Ionic does not need an app-process JIT at all.
 - Minimum iOS deployment:
    Capacitor 7 (current) requires iOS 14.0+ (project IPHONEOS_DEPLOYMENT_TARGET 14.0);
    iPhone X tops out at iOS 16,
@@ -46,7 +48,8 @@ run,
    high
 - Key finding:
    Ionic carries no app-process runtime at all:
-   it is Stencil web components (0 native source files in the repo) whose JS runs in the out-of-process WKWebView (JIT lives in WebKit,
+   it is Stencil web components (0 native source files in the repo) whose JS runs in the out-of-process WKWebView (JIT
+   lives in WebKit,
    which alone holds the dynamic-codesigning entitlement per ExecutableAllocator.
   cpp),
    and whose only native reach is window.
@@ -57,7 +60,8 @@ run,
    streaming/background URLSession,
    symphonia+cpal audio reuse) is delivered by Capacitor Swift/ObjC plugins,
    NOT by Ionic.
-   The decision about Ionic is really a decision about the Capacitor substrate plus a UI layer that is just HTML/CSS/JS in a webview;
+   The decision about Ionic is really a decision about the Capacitor substrate plus a UI layer that is just HTML/CSS/JS
+   in a webview;
    the Rust music-player core is reusable via FFI but only from a Capacitor plugin in the app process,
    never inside the webview.
 
@@ -106,7 +110,8 @@ Mechanism:
 Capacitor touchpoint at core/src/utils/native/`capacitor.ts`).
  Linking kopia (Go gomobile c-archive .
 xcframework or Rust staticlib) is a Capacitor-shell job:
- you author a Capacitor iOS plugin (Swift/ObjC class extending CAPPlugin + CAPBridgedPlugin) that links the static lib and calls its C ABI;
+ you author a Capacitor iOS plugin (Swift/ObjC class extending CAPPlugin + CAPBridgedPlugin) that links the static lib
+ and calls its C ABI;
  native plugin code runs IN the app process while JS runs in WKWebView.
  JS reaches it via the Promise bridge:
  a CAPPluginMethod registered in pluginMethods,
@@ -144,7 +149,8 @@ Inherited entirely from the Capacitor/Cordova substrate;
 Source:
  /tmp/agent/ionic-audit-20260612 has no background-task code (UI-only repo,
  0 native files);
- background is a substrate concern per <https://capacitorjs.com/docs/plugins/ios> bridging model and Apple background URLSession/BGTaskScheduler APIs
+ background is a substrate concern per <https://capacitorjs.com/docs/plugins/ios> bridging model
+ and Apple background URLSession/BGTaskScheduler APIs
 
 ## In-app HTTP server (kopia S3 target)
 
@@ -176,7 +182,8 @@ Mechanism:
  From the web layer,
  fetch()/XMLHttpRequest in WKWebView speak HTTPS but are not ideal for large streaming/background.
  The robust route is native:
- a Capacitor plugin using URLSession (uploadTask/downloadTask with streaming bodies + background sessions) to stream to pCloud,
+ a Capacitor plugin using URLSession (uploadTask/downloadTask with streaming bodies + background sessions) to stream to
+ pCloud,
  controlled from JS via the bridge.
  Ionic adds no HTTP client of its own.
 
@@ -199,12 +206,14 @@ Decode:
 Output:
  Web layer outputs through WKWebView's Web Audio API (high latency,
  no CoreAudio control).
- For low-latency output you bypass the webview entirely and drive native CoreAudio/AVAudioEngine (or cpal's CoreAudio backend) from a Capacitor plugin in the app process.
+ For low-latency output you bypass the webview entirely and drive native CoreAudio/AVAudioEngine (or cpal's CoreAudio
+ backend) from a Capacitor plugin in the app process.
 
 Rust core reuse:
  reusable-via-FFI-in-a-Capacitor-plugin,
  NOT in the webview.
- The existing Rust symphonia + cpal core (cpal has a CoreAudio iOS backend) compiles to a static lib and is called from a Swift/ObjC Capacitor plugin over the C ABI;
+ The existing Rust symphonia + cpal core (cpal has a CoreAudio iOS backend) compiles to a static lib
+ and is called from a Swift/ObjC Capacitor plugin over the C ABI;
  it runs in the app process,
  not the WKWebView.
  You do NOT have to rewrite decode on AVAudioEngine,
@@ -229,7 +238,8 @@ Same as gateProbe field:
  npx cap add ios,
  sign and install on the iPhone X,
  confirm the WKWebView UI renders and ion-button/ion-router-outlet are interactive with no codesign/execmem crash;
- then add one trivial Capacitor plugin linking a tiny Rust/Go staticlib and read its return value back in JS to validate the wall-1 FFI bridge.
+ then add one trivial Capacitor plugin linking a tiny Rust/Go staticlib
+ and read its return value back in JS to validate the wall-1 FFI bridge.
 
 Toolchain:
  macOS with Xcode (iOS SDK,
@@ -263,7 +273,8 @@ xcframework linked by the Capacitor plugin.
    cpal CoreAudio iOS backend,
    true-peak normalization and on-disk peak cache running in the app process,
    low-latency output bypassing WKWebView Web Audio
-- WKWebView <-> native bridge throughput/latency vet for the music-player UI (queue/two-axis pagination/session persistence) talking to the native audio core
+- WKWebView <-> native bridge throughput/latency vet for the music-player UI (queue/two-axis pagination/session
+persistence) talking to the native audio core
 - QA vets:
    in-WKWebView component UI tests (Stencil/Playwright or Cypress against the webview),
    Appium/XCUITest e2e on device,
@@ -323,7 +334,8 @@ xcframework linked by the Capacitor plugin.
    both walls' load-bearing claims are supported by their cited sources.
    One minor precision note (not a contradiction,
    verdict stands):
-   the audit presents the JIT gate as the bare expression "jitEnabled = jitEnabled && (processHasEntitlement('dynamic-codesigning') || processHasEntitlement('com.
+   the audit presents the JIT gate as the bare expression "jitEnabled = jitEnabled &&
+   (processHasEntitlement('dynamic-codesigning') || processHasEntitlement('com.
   apple.
   developer.
   cs.
@@ -343,7 +355,8 @@ xcframework linked by the Capacitor plugin.
   cs.
   allow-jit",
    line 151).
-   The "only the WebContent process holds the entitlement / arbitrary app processes cannot JIT" statement is the audit's architectural framing rather than a verbatim quote from ExecutableAllocator.
+   The "only the WebContent process holds the entitlement / arbitrary app processes cannot JIT" statement is the
+   audit's architectural framing rather than a verbatim quote from ExecutableAllocator.
   cpp;
    the code only proves JIT requires one of those entitlements in the running process,
    which is consistent with and supports the framing.

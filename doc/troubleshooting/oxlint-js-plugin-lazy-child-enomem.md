@@ -55,8 +55,10 @@ At the failing revision,
 OXLINT_THREADS = "1"
 ```
 
-That pin was based on the incorrect assumption that Oxlint runs JavaScript-plugin callbacks on separate JavaScript workers.
-Oxlint `1.74.0` instead routes Rust worker requests through one N-API `ThreadsafeFunction` and executes callbacks on the main JavaScript thread.
+That pin was based on the incorrect assumption that Oxlint runs JavaScript-plugin callbacks
+ on separate JavaScript workers.
+Oxlint `1.74.0` instead routes Rust worker requests through one N-API `ThreadsafeFunction` and executes callbacks
+ on the main JavaScript thread.
 `apps/oxlint/src/js_plugins/external_linter.rs:148-156` at Oxc commit
 `2d4e8d20644e0e7446f0a381894b45ea339a0625` says:
 
@@ -73,7 +75,8 @@ Direct package tasks do not need that pin.
 
 Without `--threads`,
 Oxlint chooses the available processor count.
-`apps/oxlint/src/command/lint.rs:122-136` selects `available_parallelism()` and builds Rayon's global pool with that count:
+`apps/oxlint/src/command/lint.rs:122-136` selects `available_parallelism()` and builds Rayon's global pool with
+ that count:
 
 ```rust
 let thread_count = if let Some(thread_count) = threads
@@ -438,8 +441,10 @@ It is not the package-task default.
 
 - Keeping `OXLINT_THREADS=1` preserves correctness but caused the measured 276.1-second cold run.
 - Removing the pin without changing startup ordering produced fast but invalid semantic-unavailable diagnostics.
-- Adding false `@mutates` contracts or effect-catalog entries would weaken semantic guarantees and would not change child startup.
-- Removing runtime-verifier code would hide the workload that exposed the problem without fixing the allocator and child ordering.
+- Adding false `@mutates` contracts or effect-catalog entries would weaken semantic guarantees
+ and would not change child startup.
+- Removing runtime-verifier code would hide the workload that exposed the problem without fixing the allocator
+ and child ordering.
 - Treating the 969-millisecond failed run as a performance win would silently skip the project-owned semantic rule.
 - Treating full zram as proof of current RAM exhaustion confuses occupied swap slots with `MemAvailable`,
   which includes reclaimable cache.

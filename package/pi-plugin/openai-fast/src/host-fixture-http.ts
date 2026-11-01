@@ -195,9 +195,9 @@ export type FixtureHttpCall = {
  */
 export function fixtureHttp({
   responses = [
-  nativeResponse,
-  nativeResponse,
-],
+    nativeResponse,
+    nativeResponse,
+  ],
   providerId = CODEX_PROVIDER,
 }: {
   readonly responses?: readonly (() => Response)[];
@@ -215,13 +215,13 @@ export function fixtureHttp({
       .models = source.state
         .models
         .map(function nativeOpenAIModel(model: ForeignBorrowed<Model<Api>>,) {
-      return {
-        ...model,
-        provider: OPENAI_PROVIDER,
-        api: OPENAI_API,
-        baseUrl: 'https://api.openai.com/v1',
-      };
-    },);
+          return {
+            ...model,
+            provider: OPENAI_PROVIDER,
+            api: OPENAI_API,
+            baseUrl: 'https://api.openai.com/v1',
+          };
+        },);
   }
   /**
    Final serialized HTTP inputs include registry-resolved headers.
@@ -264,7 +264,7 @@ export function fixtureHttp({
      */
     const serialized = (typeof body) === 'string' ? body
       : headers.get('content-encoding',) === 'zstd' ? (await decompressZstd(body,)).toString('utf8',)
-      : new TextDecoder().decode(body,);
+        : new TextDecoder().decode(body,);
     /**
      Response budget bounds the fixture and makes fallback requests observable.
      */

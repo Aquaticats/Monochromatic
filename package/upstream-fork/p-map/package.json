@@ -1,0 +1,40 @@
+{
+  "license": "LGPL-3.0-or-later AND MIT",
+  "name": "@monochromatic-dev/upstream-fork-p-map",
+  "private": true,
+  "description": "Fork of p-map (by Sindre Sorhus, MIT) rewritten to TypeScript: map over iterables concurrently with limited concurrency, stopOnError, abort signal, skip values, and a backpressured async iterable variant.",
+  "type": "module",
+  "version": "0.0.1",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/p-map"
+  }
+}

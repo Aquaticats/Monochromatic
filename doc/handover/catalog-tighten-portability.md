@@ -1,5 +1,15 @@
 # catalog-tighten repair and portability decision log
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten.matrix` is now `package/dependency-catalog/cli-tighten.matrix`;
+> `package/module/pnpm-workspace-catalog` is now `package/dependency-catalog/core-pnpm`;
+> `@monochromatic-dev/module-pnpm-workspace-catalog` is now `@monochromatic-dev/dependency-catalog-core-pnpm`;
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/module/matrix` is now `package/test-harness/core-matrix`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
 Living record of the work to fix `catalog-tighten` (GitHub issues #258 and #195)
 and make it portable across package managers,
 updated across sessions as decisions crystallise.

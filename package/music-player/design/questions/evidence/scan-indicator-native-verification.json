@@ -1,0 +1,668 @@
+{
+  "schema": 1,
+  "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+  "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+  "scope": "Authored start, progress and completion events with actual native Pause/Resume button callbacks in an isolated debug host; not real analysis, worker control or completion timing.",
+  "isolation": {
+    "productionActivityDisabled": true,
+    "productionServicesDisabled": true,
+    "workInitializerRemoved": true,
+    "explicitDebugHost": "ScanIndicatorActivity"
+  },
+  "runtime": {
+    "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+    "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+    "startupOutputSha256": "f03cc969a71a81913a4526d2988a0ec55a273d70de1316aab28032cad3912073",
+    "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94"
+  },
+  "runtimeOwnerEvidence": {
+    "startupOutputSha256Verified": true,
+    "softwareRenderingDiagnostic": "ERROR        | Your GPU cannot be used for hardware rendering. Consider using software rendering.",
+    "ownerExitCode": 0,
+    "ownerEndReason": "exit",
+    "ownerExitTimestamp": "2026-10-05T08:26:24.665Z",
+    "ownerExitSource": "Lifecycle notification in the capturing session transcript; the owner process logs themselves were not retained.",
+    "ownerExitTranscriptLineSha256": "2578067fb60a731121cdf4b89b73942a133127ac4d52b8e30950b198c9eb8f21"
+  },
+  "rendererLimit": "LLVM 20.1.2 llvmpipe software rendering despite the requested host GPU path. Successful capture and exit are not diagnostic-free or general stability claims.",
+  "visualInspection": {
+    "inspectedAfresh": true,
+    "inspectedOn": "2026-10-05",
+    "inspector": "Continuation agent session, separate from the capturing session; no prior inspection was transferred.",
+    "pairsInspected": 16,
+    "nativeBarStripsInspected": 4,
+    "freshRetainedRgbAgainstRawCaptures": true,
+    "sha256": "c322a513dd8828733f188defe4287310954bc76415ccf96065098b418df9087f",
+    "findings": {
+      "privacy": "Only authored artist and track labels, authored peak values and anonymous system navigation remain. No status strip, notification, account, path or device identifier is visible.",
+      "idle": "No scan bar, separator or reserved blank slot is present in any idle view.",
+      "active": "Every running, paused and wide-count view shows one bottom row with a top hairline, a one-line status label and one outlined control at the trailing edge.",
+      "statusEllipsis": "On cover at 200% the status label is ellipsized in all six active views. Running and paused show \"412…\" with the total absent; the wide-count view shows \"9,9…\" with neither count complete. Every other active view shows both counts in full.",
+      "resumeAtLargeText": "At 200% on both panels and themes the Resume label spans nearly the whole fixed control. Its ink stays 1 to 2 physical pixels clear of the outline on the leading side and 5 on the trailing side, so it reads as touching the outline although no glyph is cut. Pause at 200% keeps 29 to 32 pixels clear; both labels at 100% keep at least 57.",
+      "playerClipping": "While the bar is present the player region is 137 physical pixels shorter and scrollable content is clipped earlier by that amount. The inner folder list and letter rail show one fewer row. The track list shows one fewer row or part-row everywhere except inner at 100%, where its visible rows still fit. This is ordinary viewport clipping of scrollable content, not an overlay."
+    }
+  },
+  "controlLabelClearance": {
+    "scope": "Rendered-pixel gap between the control outline and label ink in sanitized crops; not glyph metrics or accessibility acceptance.",
+    "inkThreshold": 24,
+    "groups": [
+      {
+        "fontScale": 1,
+        "label": "Pause",
+        "views": 8,
+        "minimumClearLeadingPixels": 72,
+        "minimumClearTrailingPixels": 71
+      },
+      {
+        "fontScale": 1,
+        "label": "Resume",
+        "views": 4,
+        "minimumClearLeadingPixels": 57,
+        "minimumClearTrailingPixels": 57
+      },
+      {
+        "fontScale": 2,
+        "label": "Pause",
+        "views": 8,
+        "minimumClearLeadingPixels": 29,
+        "minimumClearTrailingPixels": 32
+      },
+      {
+        "fontScale": 2,
+        "label": "Resume",
+        "views": 4,
+        "minimumClearLeadingPixels": 1,
+        "minimumClearTrailingPixels": 5
+      }
+    ],
+    "privateReportSha256": "0b9d5840af6a863606d5f4c6be1043b61b48c68d3db44f1e2a9fb6bb3685c521"
+  },
+  "contexts": [
+    {
+      "key": "inner-light-s100",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 4023288,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "inner-dark-s100",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 4023288,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "inner-light-s200",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 4023288,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "inner-dark-s200",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 4023288,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "cover-light-s100",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 2390040,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "cover-dark-s100",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 2390040,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "cover-light-s200",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 2390040,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    },
+    {
+      "key": "cover-dark-s200",
+      "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+      "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+      "nativePauseAndResumeExactlyOnce": true,
+      "syntheticStartAndProgressDeliveredWithoutRecreation": true,
+      "pausedProducerEventDidNotAdvance": true,
+      "pausedAppPixelsUnchanged": true,
+      "activePlayerGeometryAndPixelsUnchanged": true,
+      "activeFixedSlotUnchanged": true,
+      "completionRemovedWholeBar": true,
+      "completedPlayerGeometryMatchesIdle": true,
+      "completedAppPixelsMatchIdle": 2390040,
+      "changedPixelAndGeometryControlsRejected": true,
+      "activePlayerHeightReductionPixels": 137,
+      "scope": "Authored start/progress/completion events and actual native button callbacks, not real worker control or completion timing."
+    }
+  ],
+  "actionReplay": {
+    "scope": "Offline recomputation from retained native-action screenshots, hierarchies and logs; no device was started.",
+    "liveManifestSha256": "8f39857c3b58c17b5832bb25957da9bbb994a25346e393884a24d11aeda6c12d",
+    "everyLiveManifestFieldRecomputed": true,
+    "capturesReplayed": 64,
+    "perStepEventLedgerChecked": true,
+    "environments": [
+      {
+        "key": "inner-light-s100",
+        "bar": [
+          0,
+          1937,
+          2076,
+          2074
+        ],
+        "control": [
+          1812,
+          1948,
+          2056,
+          2065
+        ],
+        "idlePlayer": [
+          0,
+          136,
+          2076,
+          2074
+        ],
+        "activePlayer": [
+          0,
+          136,
+          2076,
+          1937
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 117,
+        "comparedIdleRootPixels": 4023288,
+        "comparedActivePlayerPixels": 3738876,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "inner-dark-s100",
+        "bar": [
+          0,
+          1937,
+          2076,
+          2074
+        ],
+        "control": [
+          1812,
+          1948,
+          2056,
+          2065
+        ],
+        "idlePlayer": [
+          0,
+          136,
+          2076,
+          2074
+        ],
+        "activePlayer": [
+          0,
+          136,
+          2076,
+          1937
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 117,
+        "comparedIdleRootPixels": 4023288,
+        "comparedActivePlayerPixels": 3738876,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "inner-light-s200",
+        "bar": [
+          0,
+          1937,
+          2076,
+          2074
+        ],
+        "control": [
+          1812,
+          1941,
+          2056,
+          2072
+        ],
+        "idlePlayer": [
+          0,
+          136,
+          2076,
+          2074
+        ],
+        "activePlayer": [
+          0,
+          136,
+          2076,
+          1937
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 131,
+        "comparedIdleRootPixels": 4023288,
+        "comparedActivePlayerPixels": 3738876,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "inner-dark-s200",
+        "bar": [
+          0,
+          1937,
+          2076,
+          2074
+        ],
+        "control": [
+          1812,
+          1941,
+          2056,
+          2072
+        ],
+        "idlePlayer": [
+          0,
+          136,
+          2076,
+          2074
+        ],
+        "activePlayer": [
+          0,
+          136,
+          2076,
+          1937
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 131,
+        "comparedIdleRootPixels": 4023288,
+        "comparedActivePlayerPixels": 3738876,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "cover-light-s100",
+        "bar": [
+          0,
+          2228,
+          1080,
+          2365
+        ],
+        "control": [
+          816,
+          2239,
+          1060,
+          2356
+        ],
+        "idlePlayer": [
+          0,
+          152,
+          1080,
+          2365
+        ],
+        "activePlayer": [
+          0,
+          152,
+          1080,
+          2228
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 117,
+        "comparedIdleRootPixels": 2390040,
+        "comparedActivePlayerPixels": 2242080,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "cover-dark-s100",
+        "bar": [
+          0,
+          2228,
+          1080,
+          2365
+        ],
+        "control": [
+          816,
+          2239,
+          1060,
+          2356
+        ],
+        "idlePlayer": [
+          0,
+          152,
+          1080,
+          2365
+        ],
+        "activePlayer": [
+          0,
+          152,
+          1080,
+          2228
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 117,
+        "comparedIdleRootPixels": 2390040,
+        "comparedActivePlayerPixels": 2242080,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "cover-light-s200",
+        "bar": [
+          0,
+          2228,
+          1080,
+          2365
+        ],
+        "control": [
+          816,
+          2232,
+          1060,
+          2363
+        ],
+        "idlePlayer": [
+          0,
+          152,
+          1080,
+          2365
+        ],
+        "activePlayer": [
+          0,
+          152,
+          1080,
+          2228
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 131,
+        "comparedIdleRootPixels": 2390040,
+        "comparedActivePlayerPixels": 2242080,
+        "capturesReplayed": 8
+      },
+      {
+        "key": "cover-dark-s200",
+        "bar": [
+          0,
+          2228,
+          1080,
+          2365
+        ],
+        "control": [
+          816,
+          2232,
+          1060,
+          2363
+        ],
+        "idlePlayer": [
+          0,
+          152,
+          1080,
+          2365
+        ],
+        "activePlayer": [
+          0,
+          152,
+          1080,
+          2228
+        ],
+        "barHeightPixels": 137,
+        "controlWidthPixels": 244,
+        "controlHeightPixels": 131,
+        "comparedIdleRootPixels": 2390040,
+        "comparedActivePlayerPixels": 2242080,
+        "capturesReplayed": 8
+      }
+    ]
+  },
+  "staticCohort": {
+    "images": 32,
+    "panels": [
+      "inner",
+      "cover"
+    ],
+    "schemes": [
+      "light",
+      "dark"
+    ],
+    "fontScales": [
+      1,
+      2
+    ],
+    "scenes": [
+      "idle",
+      "running",
+      "paused",
+      "wide-count"
+    ],
+    "authoredStates": {
+      "idle": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "running": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "paused": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "wide-count": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      }
+    },
+    "barHeightPixels": 137,
+    "controlWidthPixels": 244,
+    "controlHeightPixels": {
+      "fontScale1": 117,
+      "fontScale2": 131
+    },
+    "statusAlwaysOneLine": true,
+    "coverLargeTextStatusEllipsizedViews": 6,
+    "noGlyphOrAccessibilityAcceptanceClaim": true
+  },
+  "paddingControl": {
+    "scope": "Same-APK inner/light/200% authored Resume label padding comparison, not production or universal fit.",
+    "rejectedDraftApkSha256": "60fe847ebbd5d5c6694fbecddb08b87142b6d258137579ff0dee93901541bf29",
+    "measurements": [
+      {
+        "paddingDp": 12,
+        "laidOutPixels": [
+          186,
+          91
+        ],
+        "intrinsicWidthPixels": 233.5,
+        "widthOverflow": false,
+        "heightOverflow": true
+      },
+      {
+        "paddingDp": 0,
+        "laidOutPixels": [
+          234,
+          91
+        ],
+        "intrinsicWidthPixels": 233.5,
+        "widthOverflow": false,
+        "heightOverflow": false
+      }
+    ],
+    "unchangedFixedOuterSlot": true,
+    "unchangedPlayerGeometry": true
+  },
+  "focusedLargeTextProbe": {
+    "scope": "Focused actual native button fit and authored transitions only.",
+    "results": [
+      {
+        "panel": "inner",
+        "scale": 2,
+        "scheme": "light",
+        "pauseAndResumeFit": true,
+        "oneNativeIntentEach": true,
+        "sameActivity": true,
+        "unchangedActiveGeometry": true,
+        "changedRectanglesRejected": [
+          "root",
+          "player",
+          "viewport",
+          "bar",
+          "control"
+        ],
+        "statusLabelLines": 1,
+        "statusEllipsized": false
+      },
+      {
+        "panel": "cover",
+        "scale": 2,
+        "scheme": "light",
+        "pauseAndResumeFit": true,
+        "oneNativeIntentEach": true,
+        "sameActivity": true,
+        "unchangedActiveGeometry": true,
+        "changedRectanglesRejected": [
+          "root",
+          "player",
+          "viewport",
+          "bar",
+          "control"
+        ],
+        "statusLabelLines": 1,
+        "statusEllipsized": true
+      }
+    ]
+  },
+  "tests": {
+    "fixtureCases": 21,
+    "positiveReportSha256": "87e42bb529a8de56e0a7691206fd52f40e871bf513db1c5725b67cd2ff7aac7f",
+    "restoredReportSha256": "87e42bb529a8de56e0a7691206fd52f40e871bf513db1c5725b67cd2ff7aac7f",
+    "restoredReportByteIdenticalToPositive": true,
+    "mutants": [
+      {
+        "scope": "unknown-scene",
+        "intendedFailingTest": "unknownSceneIsRejected",
+        "reportSha256": "f808cbc958e169110d78f913093399bdbcdc3102bbd695ebd7fac2eb3a62874f"
+      },
+      {
+        "scope": "completed-bar",
+        "intendedFailingTest": "completionRemovesBar",
+        "reportSha256": "63e0b733efef0868cbe62bd5a04fb85328d75bda91a4a7b2c5530e3891a10daf"
+      },
+      {
+        "scope": "paused-advance",
+        "intendedFailingTest": "pausedProgressDoesNotAdvance",
+        "reportSha256": "3a6b3e0409f3cb4e844bd3c43d9ba23f53ddeb36918256ecbb1e885533716bf7"
+      },
+      {
+        "scope": "running-stalled",
+        "intendedFailingTest": "runningProgressAdvancesExactlyOnce",
+        "reportSha256": "3a694e957b56d632da39388eaa8c312c742cb505ab29b8bb2cd504ad157b4fec"
+      }
+    ]
+  },
+  "lint": {
+    "fullPackagePassed": false,
+    "inheritedErrors": 5,
+    "warnings": 65,
+    "hints": 2,
+    "inheritedErrorKinds": {
+      "MissingSuperCall": 3,
+      "NewApi": 2
+    },
+    "scanIndicatorFindings": 0,
+    "privateReportSha256": "7adcece6c40af8519b33f60195bd1048252eb5ec367e3fd9eea61e7e16230567"
+  },
+  "restoration": {
+    "exactRecordedFields": true,
+    "fieldNames": [
+      "fontScale",
+      "nightMode",
+      "deviceState",
+      "accessibilityEnabled",
+      "enabledAccessibilityServices",
+      "geometry",
+      "fingerprint"
+    ],
+    "readbackAttempts": 2,
+    "separateBaseAndOverrideEqualityClaimed": false,
+    "ownerExitCode": 0,
+    "matchingRuntimeAbsentAtPublication": true
+  }
+}

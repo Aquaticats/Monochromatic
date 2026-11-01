@@ -1,0 +1,1063 @@
+{
+  "format": "translation-repair-sensitive-material-audit-v1",
+  "stagedPathCount": 70,
+  "auditedStagedPathCount": 69,
+  "excludedGeneratedSummaryPath": "doc/audit/translation-repair-sensitive-material-2026-09-01.json",
+  "allowedExtensions": [
+    ".json",
+    ".md"
+  ],
+  "unexpectedExtensionCount": 0,
+  "credentialAndEmbeddedImagePatterns": [
+    "authorizationBearer",
+    "embeddedImageData",
+    "genericApiKeyValue",
+    "githubClassicToken",
+    "githubFineGrainedToken",
+    "openAiStyleToken",
+    "pemPrivateKey",
+    "translationRepairKeyAssignment"
+  ],
+  "credentialAndEmbeddedImageMatchCount": 0,
+  "rawTrafficSourceFileCount": 33,
+  "rawTrafficChunkWidth": 256,
+  "rawTrafficChunkUnit": "bytes",
+  "exactRawTrafficChunkMatchCount": 0,
+  "stagedRows": [
+    {
+      "path": "doc/audit/translation-repair-document-link-controls-2026-09-01.json",
+      "digest": "98a0366836e5c866f8d0a4b2c5359344a0f959a2ee1de5970bb566c993ca24ed",
+      "byteCount": 873,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-document-links-2026-09-01.json",
+      "digest": "ad227397447adf877f2454c9cfe41d7dcf9b1860ec96ed723eea560e0f181f0d",
+      "byteCount": 46125,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-document-split-2026-09-01.json",
+      "digest": "0d721955406f01b0f48d9451e5822604bd3aa00fc7257df85e04d1610ec7b021",
+      "byteCount": 2953,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-history-indented-split-2026-09-01.json",
+      "digest": "13bf20ec31e17b2adc63eb44bf6745cdf9cb9e61a280b5e472911cc03119f049",
+      "byteCount": 1187,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-history-secondary-split-2026-09-01.json",
+      "digest": "4ee0d818f9c3684b80e047a5f53900c48c39ee997735188b9c197670193dc8c1",
+      "byteCount": 7024,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-process-state-2026-09-01.json",
+      "digest": "17453ea0e82d6c4fb34f81b418f87a6e9d5bef387180715bc9b04901a7a77032",
+      "byteCount": 257,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/audit/translation-repair-redesign-failure-2026-09-01.md",
+      "digest": "bccce957c06f9d8923b3815da9966426b340d09da5d4018c884f0bfc05cac354",
+      "byteCount": 26965,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-document-map.md",
+      "digest": "9850a5b192292da92a7bad051868edb466de19432cccdce84e8eade9cb8449ec",
+      "byteCount": 7779,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-handover-2026-08-25-to-27.md",
+      "digest": "16a6515c6f1e7ee5cc8d94096b3119c64998eb7191bf4baabe81b8a4141133b9",
+      "byteCount": 67823,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-handover-2026-08-26-close.md",
+      "digest": "45b76ab265a36dafeb95a335ef3d1c79bef68cb993a0437ce3a2e54c8a974456",
+      "byteCount": 28213,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-handover-2026-08-29.md",
+      "digest": "d2c164eb565adf7f990b1f7df7e96e52875abe8a80a437f053ebd4e420fd151c",
+      "byteCount": 21349,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-01-part-01.md",
+      "digest": "513c5058d8f2045c054ad55c8d8c34d11c37baa2823259226c05c9a36e3e7aed",
+      "byteCount": 41441,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-01-part-02.md",
+      "digest": "5cc0758ae924700b1d9e94d395acc187f76a06201e5b479cc6ae8f83baa3280c",
+      "byteCount": 34352,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-02-subpart-01.md",
+      "digest": "46314bce31453089074779f8f8b0053d9aee331f277092f2face86014bc344b4",
+      "byteCount": 23451,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-02-subpart-02.md",
+      "digest": "22f66ce1e37fce4785a0a96f349441274c24a94691f0f7e9c823145d3ac55c8d",
+      "byteCount": 22440,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-02-subpart-03.md",
+      "digest": "bb7bee5a1fbdd7b6b255a873514a8238b680beaac336e9cda2d27c13aa7e31ef",
+      "byteCount": 25081,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-02-subpart-04.md",
+      "digest": "86192618177d478cff767c372208547f9f8fce52280332e713bacb4e55ad99d0",
+      "byteCount": 34572,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-03-part-01.md",
+      "digest": "7fa697e305b14cd42f799ae1c47a62f09362ed6aa1aa0f70433c7d166d477051",
+      "byteCount": 45004,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-01-early-foundation-segment-03-part-02.md",
+      "digest": "ea87900075afeb91e687fb6cb67d7c61a0fa505e79c76b8cb7e0da9e51243e16",
+      "byteCount": 46040,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-01.md",
+      "digest": "423b5a7b87452d97e4008ac5a5315592562911d96bf9bc6c13345358fd5a8e61",
+      "byteCount": 36006,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-02.md",
+      "digest": "6f25e4ae420d14f9a82769160b95ad512ca7b63148248c063edeeb3a19a8e196",
+      "byteCount": 24411,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-01.md",
+      "digest": "3e6baefeef736753f6114a278fe80c3eae8d775b35d3bebe0e6f646d922ae478",
+      "byteCount": 32405,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-02.md",
+      "digest": "19ea798f2f973d08705d2bd476256ce9971340424528785ec8b6e32f02ee6580",
+      "byteCount": 12686,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-01.md",
+      "digest": "a1d96c08068a791658bb977943d6a2c64b491c60cd4e1f5f3755fa6b0e4735f5",
+      "byteCount": 33151,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-02.md",
+      "digest": "c45be293858fbd4437cfe76326e17709fe1f9ea1ade5030f8bdea63c540ae23b",
+      "byteCount": 18177,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-03-2026-08-07-to-12-segment-02.md",
+      "digest": "7fa8a17db6ab27f4cd21a0847ad6ef3ffdaeb19ca42dc177f5aed2c3b6c670cb",
+      "byteCount": 22849,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-01.md",
+      "digest": "78c8b11c0253dd3a744cf63417fafc8c4338d5a7d289478fc2a65d666f48ecab",
+      "byteCount": 33114,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-02.md",
+      "digest": "8e34dc4ee60fcb277da949e66e94b6e4ee6c378bb9515a6989b2b60b867bc1dd",
+      "byteCount": 23851,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-01.md",
+      "digest": "326ef4cd3f9dc062aafb57d53e13894b4d560081be0d9b6c245db0032ef112ee",
+      "byteCount": 30404,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-02.md",
+      "digest": "96c5dd78e3803b8adbb0b6d8e34e995f72adb8c05a930652fa19ae274212b74e",
+      "byteCount": 25163,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-04-2026-08-12-to-15-segment-03.md",
+      "digest": "a6593fb2d2a0d8087f7a91162c7149b87f807ae9ec342a14cf59b441cdf2b211",
+      "byteCount": 15896,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-01.md",
+      "digest": "223c0015dae1b76ecbd6b0b5fd8178d07c689b43eddf3380754bc3ebc1d4738f",
+      "byteCount": 32932,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-02.md",
+      "digest": "c0fcd92195ea51dba8853242acf5de9c53048902998376b728704ae829706d68",
+      "byteCount": 34206,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-01.md",
+      "digest": "96ae6e7a800b921ab7d9a4f1825af6a0f277e7753fb6e9f58a70bc8febcd67a5",
+      "byteCount": 30272,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-02.md",
+      "digest": "2162e1b5b634a2f51cc6ac143b8497fa191d29a4212acca937dc93ede669754e",
+      "byteCount": 32365,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-03.md",
+      "digest": "87586f4714217555d2cd00d8b6dfcc017f2551e8ab26b3aeeab02b3f0e335436",
+      "byteCount": 15069,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-01.md",
+      "digest": "a81bb9f5d3786d3aac79eefa67b43145480e522c1537dd0fea3973ee3258dc31",
+      "byteCount": 36984,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-02.md",
+      "digest": "16d15a0c36397bf87358fcc5468910c7913feabf03df9722ae1d1575ae946bd3",
+      "byteCount": 33913,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-01.md",
+      "digest": "457603baada41b8f31e5c2660b424ddc4fda90b20c53253700063306f01bf623",
+      "byteCount": 38785,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-02.md",
+      "digest": "cc2244b688b2c56b7dd38472ffc91f1fd75768445ab57aff49b4662dda3f5f7e",
+      "byteCount": 17935,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-07-2026-08-21-to-23-segment-02.md",
+      "digest": "9c2c62c27880b1b1f4b8eef7f4478042430fe9057fab14151d9c9ee1b96f12ce",
+      "byteCount": 44565,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-01.md",
+      "digest": "291d395572fb3b530ed4880dcd1e4944ba09fa6bddb5b613328edc003e5d65a9",
+      "byteCount": 39264,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-02.md",
+      "digest": "405170727d227a7e36ab94958bd6dcdab7136133d39dfe4ff05499e1c298e927",
+      "byteCount": 17796,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-01.md",
+      "digest": "fb094a9b91cb8555666f9456b324016f941a6d4a408b11a4b895d51f161b75a6",
+      "byteCount": 34775,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-02.md",
+      "digest": "df4cb599f4bf116dfc010b2c0c13c2899dcb5d9b4a6579d9c28ec2032aaa9893",
+      "byteCount": 22351,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-01.md",
+      "digest": "0fd025e70020e5bf7d5258b6457403d8ea231175e02ae1c7ea7b159a9f66743f",
+      "byteCount": 36953,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-02.md",
+      "digest": "15d4af88418360ae687da3f5626690e172a8309b0471dc27abe5251a7ef5bc8f",
+      "byteCount": 19747,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-09-2026-08-23-to-24-segment-02.md",
+      "digest": "edffad2f2746c094d9123a5e9a3983f1ab10cfd4fc6c8d4a489f8dde64b9a41b",
+      "byteCount": 27539,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-01.md",
+      "digest": "f950ca4a279011121adfdb45cadfa7c653d4014e902300eb4088c44c21ec4680",
+      "byteCount": 33839,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-02.md",
+      "digest": "b5cd029ea2a2509f3ca45e54faa78858d9f4e52036b3443adbbdd4a7d2be1e96",
+      "byteCount": 16378,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-01.md",
+      "digest": "b87e2f4cecba860012dac425790fc6c61b2a017fe34599c457f343a484bc5d40",
+      "byteCount": 34644,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-02.md",
+      "digest": "292e3daf47c8a1954ebd2ce270290faf943956e491d8b8870beab3745efabb93",
+      "byteCount": 19545,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-10-2026-08-25-calibration-segment-03.md",
+      "digest": "4a413593f30b9b623651b607acaefb218d112a238354c83c526cffff1f669546",
+      "byteCount": 15410,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-11-2026-08-26-audit-segment-01.md",
+      "digest": "9136ce7ba682ee25a6ee18a17811ac917cc1e07792ee9dacafe733333cc18db2",
+      "byteCount": 47806,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "digest": "fe938abdc0a234f62cd3f757272290181d448934c79d3c38a78ae7f34bce69cc",
+      "byteCount": 1376,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-history.md",
+      "digest": "7ab5ed1af89417a8b23afe36e08a07d9abed3276af0be25c204027f0ea36f7c6",
+      "byteCount": 6559,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-overlap-dial.md",
+      "digest": "93617f3ddad89aaae1d55d11e3d52de918d0bf6bd6ace7bb9bb1b539e286e547",
+      "byteCount": 23102,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-run-continuity-cache-fixes.md",
+      "digest": "3fb788d3ae0539df88c652b373c2cd174205b801827c942792c971932ffa3613",
+      "byteCount": 14941,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-run-continuity-measurement.md",
+      "digest": "de453ae7f0c091dc1e5e91c4aa566ae8ed5b7a64a8081b311ff8f6c7a3c750e8",
+      "byteCount": 17987,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-run-continuity-supervision.md",
+      "digest": "220442b61674b8ddedaf35fac20af740def728635790a2633e56bdffea2bc074",
+      "byteCount": 24093,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair-run-continuity.md",
+      "digest": "1944d85a06f1ef1a554d729ca12957599f7f76bffa8524a263ace08e75cea27f",
+      "byteCount": 1555,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/handover/translation-repair.md",
+      "digest": "f69810970a31acc2853dd3d17aaa5ec472d66059a76cf185d2e59dd26e1d448c",
+      "byteCount": 7714,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-interface-candidates-a-d.md",
+      "digest": "b136e92338be52bb8b96cd8480ca943a3f96527f1d600fe024660d5aba874984",
+      "byteCount": 35631,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-interface-candidates-e-g.md",
+      "digest": "a44bd8c45be9921f8704487c1b5ef339e27839e05a11dd14dc169a3eb633fb98",
+      "byteCount": 32806,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-interface-candidates-h-j.md",
+      "digest": "72d6d0a71bff84d1fe75c945294c6a0d978a676949d5fb9e0c9da66e840dcbb4",
+      "byteCount": 32425,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-interface-candidates-k-m.md",
+      "digest": "ae6f0de27a70c10b9cc654f1984d4900604c9a8dbfe666d0a1cfd1289437718d",
+      "byteCount": 64411,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-interface-comparison.md",
+      "digest": "ca33d823d6f4d2f56cf3ec2c6951a64668ea9e6b3ded8519eb7dd24a208802bc",
+      "byteCount": 5876,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "doc/planning/translation-repair-pipeline-redesign.md",
+      "digest": "8b098fed0e09208c57007fa1a0749066e73c4af9a69e31c366048d4055086f65",
+      "byteCount": 12543,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    },
+    {
+      "path": "package/module/translation-repair/doc/redaction-timing.md",
+      "digest": "b86dab404f225f0828324531c3d2855bf00c5e92319b253df0c4ab9a654a1be7",
+      "byteCount": 1062,
+      "suspiciousPatternCounts": {
+        "authorizationBearer": 0,
+        "embeddedImageData": 0,
+        "genericApiKeyValue": 0,
+        "githubClassicToken": 0,
+        "githubFineGrainedToken": 0,
+        "openAiStyleToken": 0,
+        "pemPrivateKey": 0,
+        "translationRepairKeyAssignment": 0
+      }
+    }
+  ]
+}

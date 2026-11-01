@@ -131,8 +131,8 @@ for (const rel of new Glob('package/**/*.{ts,tsx,mts}').scanSync(root)) {
   );
   if (!text.includes(scoped)) continue;
   const imports = parseImports(text);
-  let typeCount = 0,
-    valueCount = 0;
+  let typeCount = 0;
+  let valueCount = 0;
   for (const imp of imports) {
     if (collapse(imp.specifier) === `${scoped}/ts`) {
       if (imp.isType) typeCount += 1;

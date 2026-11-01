@@ -1,0 +1,220 @@
+diff --git a/pnpm/crates/cli/tests/suite/repeat_install.rs b/pnpm/crates/cli/tests/suite/repeat_install.rs
+index f6f736f..cb55109 100644
+--- a/pnpm/crates/cli/tests/suite/repeat_install.rs
++++ b/pnpm/crates/cli/tests/suite/repeat_install.rs
+@@ -128,6 +128,69 @@ fn repeat_install_relinks_a_dangling_direct_dependency() {
+     drop((root, mock_instance));
+ }
+ 
++/// A `workspace:` dependency whose link was removed outside pnpm leaves every
++/// manifest, lockfile, and state file untouched, so the optimistic repeat
++/// install must notice the missing link itself and relink it instead of
++/// reporting the tree up to date.
++#[test]
++fn repeat_install_relinks_a_missing_workspace_dependency_link() {
++    let CommandTempCwd {
++        pacquet,
++        root,
++        workspace,
++        npmrc_info,
++        ..
++    } = CommandTempCwd::init().add_mocked_registry();
++    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
++
++    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
++    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
++    yaml.push_str("packages:\n  - app\n  - lib\n");
++    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
++    fs::write(
++        workspace.join("package.json"),
++        serde_json::json!({ "name": "ws-root", "private": true }).to_string(),
++    )
++    .expect("write the root package.json");
++    for (name, dependencies) in
++        [("lib", serde_json::json!({})), ("app", serde_json::json!({ "lib": "workspace:*" }))]
++    {
++        fs::create_dir_all(workspace.join(name)).expect("mkdir project");
++        fs::write(
++            workspace.join(name).join("package.json"),
++            serde_json::json!({
++                "name": name,
++                "version": "1.0.0",
++                "dependencies": dependencies,
++            })
++            .to_string(),
++        )
++        .expect("write the project package.json");
++    }
++
++    pacquet
++        .with_arg("install")
++        .assert()
++        .success();
++    let link = workspace.join("app/node_modules/lib");
++    assert!(
++        is_symlink_or_junction(&link).unwrap(),
++        "the first install must link the workspace dependency",
++    );
++
++    pnpm_fs::remove_dirent(&link).expect("remove the workspace dependency link");
++    pacquet_in(&workspace)
++        .with_arg("install")
++        .assert()
++        .success();
++    assert!(
++        is_symlink_or_junction(&link).unwrap(),
++        "the repeat install must relink the workspace dependency",
++    );
++
++    drop((root, mock_instance));
++}
++
+ /// A failed optional build leaves the dependency absent, not linked to a
+ /// removed directory, so a repeat install has nothing to repair
+ /// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install.rs
+index ebcef44..7aefa8a 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install.rs
+@@ -54,7 +54,7 @@ use freshness::{
+ };
+ use modules_dirs::{
+     SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
+-    first_selected_project_missing_modules_dir,
++    first_selected_project_missing_modules_dir, workspace_dependency_link_missing,
+ };
+ use settle::{
+     current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
+@@ -224,6 +224,7 @@ fn skip_reason(stale: &Stale) -> &'static str {
+         Stale::ProjectStructure => "workspace project list changed",
+         Stale::MissingModulesDir(_) => "project has dependencies but no node_modules directory",
+         Stale::DanglingDirectLink => "a direct dependency link points to a missing target",
++        Stale::MissingWorkspaceLink => "a workspace dependency has no link in its modules directory",
+         Stale::MissingBranchLockfile => "the branch lockfile is missing",
+         Stale::Pnpmfile(_) => "a pnpmfile changed since the last validation",
+         Stale::Unprovable => "the lockfile cannot be read",
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install/deps_status.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install/deps_status.rs
+index 2956c78..9396b13 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install/deps_status.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install/deps_status.rs
+@@ -125,6 +125,9 @@ fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String
+         Stale::DanglingDirectLink => {
+             "a direct dependency link points to a missing target".to_string()
+         }
++        Stale::MissingWorkspaceLink => {
++            "a workspace dependency has no link in its modules directory".to_string()
++        }
+         Stale::MissingBranchLockfile | Stale::NoLockfile => {
+             format!("Cannot find a lockfile in {}", check.workspace_root.display())
+         }
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs
+index e837a22..7d0f08e 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs
+@@ -13,7 +13,7 @@ use super::{
+     current_lockfile::CurrentLockfile,
+     current_lockfile_file_has_content,
+     deps_status::config_dependencies_drifted,
+-    direct_dependency_link_dangling, filesystem_now_ms_in_modules,
++    direct_dependency_link_dangling, workspace_dependency_link_missing, filesystem_now_ms_in_modules,
+     first_held_project_missing_modules_dir, first_lockfile_requiring_conflict_safe_install,
+     first_setting_drift, held_projects_match_lockfile, local_file_blocks_fast_path,
+     pnpmfiles_drift, project_structure_matches,
+@@ -123,6 +123,9 @@ pub(crate) enum Stale {
+     MissingModulesDir(String),
+     /// A direct dependency link in a project's modules directory is dangling.
+     DanglingDirectLink,
++    /// A `workspace:` dependency of a project has no link in its modules
++    /// directory.
++    MissingWorkspaceLink,
+     /// `useGitBranchLockfile` is enabled and the branch lockfile is absent.
+     MissingBranchLockfile,
+     /// A pnpmfile was added, removed, or modified, in pnpm's issue wording.
+@@ -263,6 +266,15 @@ fn check_settings_and_workspace_freshness(
+     if policy.check_dangling_direct_links && direct_dependency_link_dangling(check) {
+         return Err(Stale::DanglingDirectLink);
+     }
++    // A filtered install leaves the projects outside its selection as they are,
++    // so an absent link there is expected and the install could not fix it.
++    let holds_every_project = !state.filtered_install || matches!(scope, Scope::Workspace);
++    if policy.check_dangling_direct_links
++        && holds_every_project
++        && workspace_dependency_link_missing(check)
++    {
++        return Err(Stale::MissingWorkspaceLink);
++    }
+     Ok(())
+ }
+ 
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs
+index d79ef09..db899e0 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs
+@@ -183,6 +183,37 @@ pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallChe
+         })
+ }
+ 
++/// Whether a `workspace:` dependency of a project has no entry at all in the
++/// project's modules directory. The isolated linker links every non-optional
++/// `workspace:` dependency of every project, so a missing entry there was never
++/// created or was removed outside pnpm, and nothing the fast path records moves
++/// when that happens. Skipped optional and excluded dependencies have no entry
++/// by design, as do the siblings of `dedupeDirectDeps`, and the other linkers
++/// place links elsewhere, so those are not judged here.
++pub(super) fn workspace_dependency_link_missing(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
++    if check.layout.node_linker != NodeLinker::Isolated || check.config.dedupe_direct_deps {
++        return false;
++    }
++    let groups: Vec<DependencyGroup> = included_groups(check.layout.included)
++        .into_iter()
++        .filter(|group| matches!(group, DependencyGroup::Prod | DependencyGroup::Dev))
++        .collect();
++    check.project_manifests
++        .par_iter()
++        .any(|(root_dir, manifest)| {
++            project_modules_dirs(check, root_dir, manifest)
++                .iter()
++                .any(|modules_dir| {
++                    manifest
++                        .dependencies(groups.iter().copied())
++                        .any(|(alias, spec)| {
++                            spec.starts_with("workspace:")
++                                && fs::symlink_metadata(modules_dir.join(alias)).is_err()
++                        })
++                })
++        })
++}
++
+ /// The modules directories the linker may place a project's direct
+ /// dependencies in.
+ fn project_modules_dirs(
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install/tests.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install/tests.rs
+index 3eabdf5..ee53337 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install/tests.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install/tests.rs
+@@ -1306,6 +1306,11 @@ fn linked_sibling_decision_for_spec(
+     config.link_workspace_packages = link_workspace_packages;
+     config.exclude_links_from_lockfile = exclude_links_from_lockfile;
+     fs::create_dir_all(&config.modules_dir).unwrap();
++    // An install links a `workspace:` dependency into the modules directory.
++    if specifier.starts_with("workspace:") {
++        pnpm_fs::symlink_dir(&sibling_dir, &config.modules_dir.join(dependency_name))
++            .expect("link the workspace dependency");
++    }
+     let config = config.leak();
+ 
+     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+diff --git a/pnpm/crates/package-manager/src/optimistic_repeat_install/tests/injected.rs b/pnpm/crates/package-manager/src/optimistic_repeat_install/tests/injected.rs
+index daaaaa3..cf5bb34 100644
+--- a/pnpm/crates/package-manager/src/optimistic_repeat_install/tests/injected.rs
++++ b/pnpm/crates/package-manager/src/optimistic_repeat_install/tests/injected.rs
+@@ -61,6 +61,9 @@ fn injected_sibling_decision(
+     config.shared_workspace_lockfile = shared_workspace_lockfile;
+     fs::create_dir_all(&config.modules_dir).unwrap();
+     fs::create_dir_all(sibling_dir.join("node_modules")).unwrap();
++    // An install leaves an entry for the injected `workspace:` dependency in
++    // the consumer's modules directory.
++    fs::create_dir_all(config.modules_dir.join("pkg-a")).unwrap();
+     let config = config.leak();
+ 
+     let settings = super::super::settings::current_settings(

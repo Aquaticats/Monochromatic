@@ -305,8 +305,8 @@ The working form names the repository explicitly and passes only the tag:
 gh release view v2.101.0 --repo cli/cli
 ```
 
-`package/pi-plugin/search-fetch` maps `https://github.com/OWNER/REPO/releases/tag/TAG` onto that form in
-`package/pi-plugin/search-fetch/src/github-record-plan.ts`,
+`package/search-fetch/pi-plugin` maps `https://github.com/OWNER/REPO/releases/tag/TAG` onto that form in
+`package/search-fetch/pi-plugin/src/github-record-plan.ts`,
 and runs every gh child in a temporary directory so no ambient work tree can supply a repository.
 
 ## Verification
@@ -442,7 +442,9 @@ The issue operation is not partially executed after this exact `BaseRepo` error.
 ### Treating every `gh api` call as Git-free
 
 An explicit `repos/OWNER/REPO/...` endpoint is Git-free for repository selection.
-An endpoint using `{owner}` or `{repo}` placeholders can ask GitHub CLI to infer those values from the current repository and therefore re-enter Git discovery.
+An endpoint using `{owner}` or `{repo}` placeholders can ask GitHub CLI
+to infer those values from the current repository
+and therefore re-enter Git discovery.
 
 ### Passing a release page URL to `gh release view`
 
@@ -473,7 +475,8 @@ found no matching report.
 2. **Can upstream fix it?
    ** Not as this incident is framed.
    Upstream could redesign repository inference,
-   but that is unnecessary for this failure because the existing repository override already avoids the broken local executable.
+   but that is unnecessary for this failure
+   because the existing repository override already avoids the broken local executable.
 3. **Are they supporting this use case?
    ** Yes.
    `--repo`,

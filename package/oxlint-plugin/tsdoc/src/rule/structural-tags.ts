@@ -200,9 +200,9 @@ export const tagLines: CreateOnceRule = {
                  */
                 const insertOffset = context.sourceCode
                   .getIndexFromLoc({
-                  line: tagLineNumber,
-                  column: 0,
-                },);
+                    line: tagLineNumber,
+                    column: 0,
+                  },);
                 return fixer.insertTextBeforeRange(
                   [
                     insertOffset,

@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T14:41:00Z",
+  "profile": "weekly-native-matrix",
+  "runId": "dmjf38bcz0",
+  "attemptId": "hbs6bs9x0w",
+  "workflowId": "sxccn99dmh",
+  "sha": "f72faf517517fbaef2f884977028aede17124efc",
+  "reservation": "weekly-native-2026-10-19",
+  "startedAt": "2026-10-19T14:25:50Z",
+  "finishedAt": "2026-10-19T14:40:12Z",
+  "durationSeconds": 862,
+  "artifact": {
+    "id": "01a1549b-1153-72ab-8ebf-22498000e079",
+    "name": "weekly-native-evidence",
+    "bytes": 652
+  },
+  "categories": [
+    {
+      "name": "static checks",
+      "command": "mise run lint:monochromatic-lint",
+      "outcome": "failure",
+      "class": "expected whole-tree static baseline findings, not a regression"
+    },
+    {
+      "name": "Node and Rust test consumers",
+      "command": "fast subset build and unit",
+      "outcome": "success"
+    },
+    {
+      "name": "browser and E2E consumers",
+      "command": "none selected",
+      "outcome": "incomplete",
+      "reason": "no qualified browser command selected for this period"
+    },
+    {
+      "name": "packaged artifacts and host consumers",
+      "command": "none selected",
+      "outcome": "incomplete",
+      "reason": "no qualified packaged-artifact command selected for this period"
+    },
+    {
+      "name": "OS, architecture and application consumers",
+      "command": "mise run //package/cli/vmsync:test:e2e",
+      "outcome": "failure",
+      "class": "test invoked package/cli/mvm/src/cli.ts relative to the vmsync package root, resolving to a doubled path and failing with MODULE_NOT_FOUND; this is a test-path defect, not an infrastructure failure"
+    },
+    {
+      "name": "VM, desktop and Android consumers",
+      "command": "Android build and vmsync e2e",
+      "outcome": "success for Android; vmsync failure as above",
+      "class": "mixed; Android build passed"
+    },
+    {
+      "name": "BuildKit and Bake container producers",
+      "command": "mise run //package/desktop-app/ide:runtime",
+      "outcome": "failure",
+      "class": "rootless Podman could not create the user namespace: newuidmap reported the target process is owned by a different user; environment capability failure"
+    },
+    {
+      "name": "Depot Tests",
+      "command": "none selected",
+      "outcome": "incomplete",
+      "reason": "no qualified Depot Tests command selected for this period"
+    },
+    {
+      "name": "cache and Disk",
+      "command": "none selected",
+      "outcome": "incomplete",
+      "reason": "no qualified cache or Disk command selected for this period"
+    },
+    {
+      "name": "SDK VM profiles",
+      "command": "none selected",
+      "outcome": "incomplete",
+      "reason": "no qualified SDK VM command selected for this period"
+    }
+  ],
+  "reservationUsage": {
+    "reservedNativeMinutes": 120,
+    "observedDurationMinutes": 14.37,
+    "withinReservation": true,
+    "reservedUsd": 10,
+    "actualUsdEstimate": 0.35
+  },
+  "duplicateExecution": "absent; the workflow is dispatch-only and one run was created",
+  "result": "The first bounded weekly matrix dispatch completed. The fast subset and Android consumer passed. Static checks reproduced the known baseline. BuildKit is an environment failure from rootless Podman user namespaces. The vmsync end-to-end test has a path defect. Categories with no qualified command are recorded incomplete.",
+  "limits": [
+    "This is the first dispatch; a clean idempotent re-dispatch is still required.",
+    "The BuildKit category did not produce an image because the sandbox could not create the rootless namespace.",
+    "The vmsync failure is a test-path defect; it is not evidence against the VM capability.",
+    "The incomplete categories have no qualified command yet and are not coverage."
+  ],
+  "reDispatch": {
+    "runId": "r2mxbc40rh",
+    "attemptId": "j5np4jmwfg",
+    "workflowId": "b7jvttxws0",
+    "startedAt": "2026-10-19T14:41:56Z",
+    "finishedAt": "2026-10-19T14:56:35Z",
+    "durationSeconds": 879,
+    "artifact": {
+      "id": "01a154aa-13ed-7579-ab89-95e992cd655f",
+      "name": "weekly-native-evidence",
+      "bytes": 651
+    },
+    "categoriesMatchFirst": true,
+    "duplicateExecution": "absent",
+    "result": "The clean re-dispatch reproduced the same category outcomes and produced one run."
+  },
+  "retryAfterFixes": {
+    "runId": "xv1dwhq3h4",
+    "attemptId": "w09xgdn5s3",
+    "startedAt": "2026-10-19T15:00:17Z",
+    "finishedAt": "2026-10-19T15:15:53Z",
+    "durationSeconds": 936,
+    "artifact": {
+      "id": "01a154bb-be08-71c9-8c83-af8e80ba36e0",
+      "name": "weekly-native-evidence",
+      "bytes": 652
+    },
+    "changed": "vmsync path resolved to the mvm CLI, but the VM step then failed because qemu-img was absent; BuildKit still failed on the rootless Podman namespace with PODMAN_USERNS=host"
+  },
+  "retryAfterQemu": {
+    "runId": "130wfntbg4",
+    "attemptId": "d6dtj65kcj",
+    "startedAt": "2026-10-19T15:17:23Z",
+    "finishedAt": "2026-10-19T15:32:06Z",
+    "durationSeconds": 883,
+    "artifact": {
+      "id": "01a154ca-961a-7b1f-b278-d3874a4fd08c",
+      "name": "weekly-native-evidence",
+      "bytes": 652
+    },
+    "changed": "qemu-img was installed; mvm then required virsh/libvirt, which the sandbox does not provide. BuildKit still failed on the rootless Podman namespace."
+  },
+  "retryAfterLibvirt": {
+    "runId": "qzdndcpnl4",
+    "attemptId": "rvb7vh33zx",
+    "startedAt": "2026-10-19T15:35:45Z",
+    "finishedAt": "2026-10-19T15:50:19Z",
+    "durationSeconds": 874,
+    "artifact": {
+      "id": "01a154db-45ba-73dc-8693-bdb22505fa4e",
+      "name": "weekly-native-evidence",
+      "bytes": 653
+    },
+    "changed": "libvirt and qemu-utils installed and a user session daemon started; virsh define then failed because no qemu-system-x86_64 emulator was installed"
+  },
+  "retryAfterQemuSystem": {
+    "runId": "lv1pxlx50c",
+    "attemptId": "fwjdtxt1nk",
+    "startedAt": "2026-10-19T15:51:23Z",
+    "finishedAt": "2026-10-19T16:07:23Z",
+    "durationSeconds": 960,
+    "artifact": {
+      "id": "01a154ea-e35e-7da7-b881-018111913a25",
+      "name": "weekly-native-evidence",
+      "bytes": 652
+    },
+    "changed": "qemu-system-x86 enabled VM creation; the VM then had no virtiofsd, so push fell back to the guest agent and rejected the relative test path. Rootful podman build rejected --cpus."
+  },
+  "buildkitSuccess": {
+    "runId": "r1h68z8tzv",
+    "attemptId": "jb5fnt9gw4",
+    "startedAt": "2026-10-19T16:08:39Z",
+    "finishedAt": "2026-10-19T16:27:02Z",
+    "durationSeconds": 1103,
+    "artifact": {
+      "id": "01a154fc-e1e2-7b6a-98ff-d090672f71c0",
+      "name": "weekly-native-evidence",
+      "bytes": 654
+    },
+    "changed": "rootful Podman built the terminal and IDE images. VM creation then failed to start because the virtiofs chardev socket was refused."
+  },
+  "vmGuestProgress": {
+    "runId": "391g4q5t98",
+    "attemptId": "dd13dn64m8",
+    "startedAt": "2026-10-19T16:28:14Z",
+    "finishedAt": "2026-10-19T16:45:47Z",
+    "durationSeconds": 1053,
+    "artifact": {
+      "id": "01a1550e-0b95-796c-b667-ba385b688021",
+      "name": "weekly-native-evidence",
+      "bytes": 653
+    },
+    "changed": "VM created and the bundle push used the guest-agent path; mise then failed because the guest lacked libatomic1"
+  },
+  "libatomicOrdering": {
+    "runId": "k1d5q6x48p",
+    "attemptId": "sknws5h6rm",
+    "startedAt": "2026-10-19T16:46:54Z",
+    "finishedAt": "2026-10-19T17:03:59Z",
+    "durationSeconds": 1025,
+    "artifact": {
+      "id": "01a1551e-b726-7d08-86ec-65558485a838",
+      "name": "weekly-native-evidence",
+      "bytes": 653
+    },
+    "changed": "VM and BuildKit succeeded up to guest Node setup; the libatomic install still ran after Node and was moved earlier."
+  },
+  "setupRetries": {
+    "runs": [
+      {
+        "runId": "xgd08stcz2",
+        "attemptId": "dxxkdl9bdm",
+        "startedAt": "2026-10-19T17:05:18Z",
+        "finishedAt": "2026-10-19T17:09:26Z",
+        "artifact": "01a15523-b48d-7993-baf6-ed19e798f8c2",
+        "failure": "prepare:pnpm failed after tool install"
+      },
+      {
+        "runId": "fkwfbqh5wn",
+        "attemptId": "rmvg1fpv8c",
+        "startedAt": "2026-10-19T17:09:53Z",
+        "finishedAt": "2026-10-19T17:13:30Z",
+        "artifact": "01a15527-6daa-72a2-8b1e-b9936fdb4213",
+        "failure": "prepare:pnpm failed after tool install"
+      }
+    ]
+  },
+  "finalSuccess": {
+    "runId": "s6ljx0bvw8",
+    "attemptId": "zwclc245hx",
+    "startedAt": "2026-10-19T17:38:41Z",
+    "finishedAt": "2026-10-19T17:58:01Z",
+    "durationSeconds": 1160,
+    "artifact": {
+      "id": "01a15550-2ec3-7ad6-843f-898544040cf2",
+      "name": "weekly-native-evidence",
+      "bytes": 649
+    },
+    "categories": {
+      "static": "failure baseline reproduced",
+      "fastSubset": "success",
+      "android": "success",
+      "buildkit": "success",
+      "vm": "success"
+    },
+    "result": "All named real matrix categories pass: fast subset, Android, BuildKit and the Linux VM lifecycle. Static reproduces the known baseline; categories without a qualified command are incomplete."
+  }
+}

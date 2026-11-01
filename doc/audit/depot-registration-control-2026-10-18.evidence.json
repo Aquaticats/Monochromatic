@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T01:43:30Z",
+  "purpose": "Validate native Depot push-trigger registration for both documented landing paths after the earlier direct-to-main probe was invalidated by timing and oracle problems.",
+  "repo": "Aquaticats/Monochromatic",
+  "orgId": "l4zncjjbj5",
+  "app": {
+    "name": "depot-code-access",
+    "id": 219785
+  },
+  "preflight": {
+    "command": "depot ci migrate preflight --org l4zncjjbj5",
+    "result": "Depot Code Access app is installed and configured for Aquaticats/Monochromatic"
+  },
+  "arm1PrMergeLanding": {
+    "workflow": ".depot/workflows/registration-control.yml",
+    "trigger": "push on main, paths probe/registration-control.txt",
+    "pullRequest": 1775,
+    "mergeCommit": "d642e9f0945c2fd85a9941fd33cca1c0845432e8",
+    "mergedAt": "2026-10-19T01:28:48Z",
+    "zeroWorkflowMergeRun": {
+      "runId": "ps_21db0bsskv",
+      "trigger": "push",
+      "status": "finished",
+      "workflows": []
+    },
+    "markerCommit": "5361ae16feffcce3815eed7c0cc922deb931d303",
+    "markerPushedAt": "2026-10-19T01:34:56Z",
+    "nativeRun": {
+      "runId": "ps_4dzmpnfm09",
+      "trigger": "push",
+      "workflow": "registration-control.yml",
+      "workflowId": "2zh5jnzh55",
+      "status": "finished",
+      "job": "probe",
+      "jobId": "mczp5f82cp",
+      "attemptId": "3rs7tvd08v",
+      "logLine": "push 5361ae16feffcce3815eed7c0cc922deb931d303",
+      "check": {
+        "name": "registration-control / probe",
+        "app": "depot-code-access",
+        "conclusion": "success"
+      }
+    }
+  },
+  "arm2DirectPushLanding": {
+    "workflow": ".depot/workflows/registration-control-direct.yml",
+    "trigger": "push on main, paths probe/registration-control-direct.txt",
+    "landingCommit": "9136cd7818b124ccfd5dcbb56d81eae5aa9386de",
+    "landingPushedAt": "2026-10-19T01:36:16Z",
+    "zeroWorkflowLandingRun": {
+      "runId": "ps_v89ctx3fvz",
+      "trigger": "push",
+      "status": "finished",
+      "workflows": []
+    },
+    "markerCommit": "86499d3d9f3796f75952e73afe6fd82559ad3f98",
+    "markerPushedAt": "2026-10-19T01:42:10Z",
+    "nativeRun": {
+      "runId": "ps_9hmw58cpsd",
+      "trigger": "push",
+      "workflow": "registration-control-direct.yml",
+      "workflowId": "h095wkvqvs",
+      "status": "finished",
+      "job": "probe",
+      "jobId": "q6tq2jzgc5",
+      "attemptId": "d8zm8182kc",
+      "logLine": "push 86499d3d9f3796f75952e73afe6fd82559ad3f98",
+      "check": {
+        "name": "registration-control-direct / probe",
+        "app": "depot-code-access",
+        "conclusion": "success"
+      }
+    }
+  },
+  "cleanup": {
+    "commit": "e85603fc65b561c74f746249685a55f0239317b4",
+    "pushedAt": "2026-10-19T01:43:23Z",
+    "zeroWorkflowRun": "ps_0jtd79jz86",
+    "result": "Workflow files and markers removed; the cleanup push produced a zero-workflow native run and no workflow execution."
+  },
+  "result": "Both landing paths registered the push trigger: the PR-merge landing and the direct-push landing each produced a native run for the later marker commit, a finished probe job, the expected push log line, and a Depot check from app depot-code-access.",
+  "limits": [
+    "One marker observation per landing path; this does not establish a registration-latency bound or a debounce policy.",
+    "The zero-workflow runs on the landing commits are sync passes, not workflow executions.",
+    "The checks are advisory observations; no required-check configuration was changed by this control.",
+    "The control workflows and markers are removed from main."
+  ]
+}

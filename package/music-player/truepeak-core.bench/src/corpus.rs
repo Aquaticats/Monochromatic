@@ -1,8 +1,11 @@
 //! The per-track measurement record and the JSONL corpus loader.
 //!
-//! Each line of the corpus file is one track measured by the shared meter: the full
-//! true peak and the per-second bin peaks. The bins let any window policy be simulated
-//! by re-slicing, so the parameter search never re-decodes audio.
+//! Each line of the corpus file is one track measured by the shared meter:
+//!  the full
+//! true peak and the per-second bin peaks.
+//!  The bins let any window policy be simulated
+//! by re-slicing,
+//!  so the parameter search never re-decodes audio.
 
 /// Imports the safe-provenance path set.
 use std::collections::HashSet;
@@ -18,11 +21,17 @@ use anyhow::Result;
 /// Imports serde's derive so the record parses straight from each JSON line.
 use serde::Deserialize;
 
-/// One track's measurement: identity, shape, the full true peak, and the per-second
+/// One track's measurement:
+///  identity,
+///  shape,
+///  the full true peak,
+///  and the per-second
 /// Catmull-Rom bin peaks (all linear amplitudes from the shared meter).
 #[derive(Clone, Debug, Deserialize)]
 pub struct Track {
-    /// Absolute path, used only for reporting exception lists, never for classification.
+    /// Absolute path,
+    ///  used only for reporting exception lists,
+    ///  never for classification.
     pub path: String,
     /// Decoded track length in seconds (frames divided by rate).
     pub duration_secs: f64,
@@ -32,11 +41,15 @@ pub struct Track {
     pub decoded_frames: u64,
     /// Full-track true peak as a linear amplitude.
     pub full_peak: f32,
-    /// Seconds covered by each bin; the fine collector emits a tenth, the older corpus a
-    /// whole second, so this defaults to one for corpora that predate the field.
+    /// Seconds covered by each bin;
+    ///  the fine collector emits a tenth,
+    ///  the older corpus a
+    /// whole second,
+    ///  so this defaults to one for corpora that predate the field.
     #[serde(default = "one_second")]
     pub bin_seconds: f64,
-    /// Per-bin true peaks: bin `i` is the meter's peak over bin `i` of `bin_seconds`.
+    /// Per-bin true peaks:
+    ///  bin `i` is the meter's peak over bin `i` of `bin_seconds`.
     pub bin_peaks: Vec<f32>,
 }
 
@@ -47,8 +60,14 @@ fn one_second() -> f64 {
 
 /// Read a JSONL corpus file into one `Track` per non-empty line.
 ///
-/// What: opens the file, streams lines, and parses each into a `Track`. Why: the search
-/// needs every track in memory once, but the file is too large to read as one string.
+/// What:
+///  opens the file,
+///  streams lines,
+///  and parses each into a `Track`.
+///  Why:
+///  the search
+/// needs every track in memory once,
+///  but the file is too large to read as one string.
 pub fn load_tracks(path: &Path) -> Result<Vec<Track>> {
     // Open the corpus file; a missing file is a hard error the caller surfaces.
     let file = File::open(path)?;
@@ -56,43 +75,52 @@ pub fn load_tracks(path: &Path) -> Result<Vec<Track>> {
     // Parse each non-empty line into a Track, collecting failures into the error channel.
     let mut tracks = Vec::new();
     for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+        let text = line?;
+        if text.trim().is_empty() {
             continue;
         }
-        let track: Track = serde_json::from_str(&line)?;
+        let track: Track = serde_json::from_str(&text)?;
         tracks.push(track);
     }
     return Ok(tracks)
 }
 
-/// One provenance metadata row: the path and whether it is a reliably-not-hot source.
+/// One provenance metadata row:
+///  the path and whether it is a reliably-not-hot source.
 #[derive(Deserialize)]
 struct MetaRow {
-    /// Track path, the join key against the corpus.
+    /// Track path,
+    ///  the join key against the corpus.
     path: String,
-    /// Whether the codec is lossless (FLAC and similar), which is never a violator here.
+    /// Whether the codec is lossless (FLAC and similar),
+    ///  which is never a violator here.
     lossless: bool,
-    /// Whether a yt-dlp / youtube provenance tag is present, also never a violator.
+    /// Whether a yt-dlp / youtube provenance tag is present,
+    ///  also never a violator.
     ytdlp: bool,
 }
 
 /// Read the metadata pass and return the set of paths whose provenance is reliably safe.
 ///
-/// What: a path is "safe" when it is lossless or carries a yt-dlp provenance tag, since
-/// the corpus never has a violator in either class. Why: the policy can apply a smaller
-/// margin to safe provenance, lowering the average too-quiet error.
+/// What:
+///  a path is "safe" when it is lossless or carries a yt-dlp provenance tag,
+///  since
+/// the corpus never has a violator in either class.
+///  Why:
+///  the policy can apply a smaller
+/// margin to safe provenance,
+///  lowering the average too-quiet error.
 pub fn load_safe_paths(path: &Path) -> Result<HashSet<String>> {
     // Read each metadata row and keep the safe paths.
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut safe = HashSet::new();
     for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+        let text = line?;
+        if text.trim().is_empty() {
             continue;
         }
-        let row: MetaRow = serde_json::from_str(&line)?;
+        let row: MetaRow = serde_json::from_str(&text)?;
         if row.lossless || row.ytdlp {
             safe.insert(row.path);
         }

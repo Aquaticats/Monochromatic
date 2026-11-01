@@ -2,7 +2,7 @@
 
 ## Cross-References
 
-- [**Build System Issues**](build-system.md#missing-export-issues):
+- [**Build System Issues**](build-system.md#missing-export-issues-new---high-priority):
    TypeScript compilation and export fixes
 - [**Security Practices**](security.md#development-security):
    Secure coding guidelines and practices
@@ -36,7 +36,7 @@
 
 Recent analysis shows critical TypeScript compilation errors that must be fixed:
 
-- [ ] **Missing exports in type modules** → See [Build System Todo](build-system.md#missing-export-issues)
+- [ ] **Missing exports in type modules** → See [Build System Todo](build-system.md#missing-export-issues-new---high-priority)
   - `iterable.is.ts` missing multiple export declarations
   - `numeric.type.int.ts` export name mismatches
   - Module export consistency issues across packages
@@ -47,7 +47,7 @@ Recent analysis shows critical TypeScript compilation errors that must be fixed:
   - Pattern matcher type compatibility issues
 
 **Cross-Reference**:
- See [Build System Todo](build-system.md#missing-export-issues) for complete list and fixes.
+ See [Build System Todo](build-system.md#missing-export-issues-new---high-priority) for complete list and fixes.
 
 #### Remaining Files to Fix
 
@@ -159,13 +159,13 @@ This questioning pattern teaches:
     Don't stop at the first working solution
 
 **Cross-Reference**:
- See [Performance Todo](performance.md#javascript-performance) for performance-focused patterns.
+ See [Performance Todo](performance.runtime.md#javascript-performance) for performance-focused patterns.
 
 ## Testing Requirements and Standards
 
 ### General Testing Guidelines
 
-- Write a corresponding test file (using `@monochromatic-dev/module-test`) that aims for 100% test coverage
+- Write a corresponding test file (using `@monochromatic-dev/test-harness-core`) that aims for 100% test coverage
 - Tests can only be run from workspace root using `mise run test`
 - To run tests for specific patterns:
   - `mise run test:unit -- package/module/es/src/boolean.equal.unit.test.ts`
@@ -277,11 +277,11 @@ expect(isError(new Error(),),).toBe(true,);
 - Use `Promise.all()` for concurrent operations
 
 **Cross-Reference**:
- See [Performance Todo](performance.md#async-performance) for comprehensive async optimization.
+ See [Performance Todo](performance.runtime.md#async-performance) for comprehensive async optimization.
 
 ### Functional Programming Utilities
 
-Function composition lives in `@monochromatic-dev/module-pipe`,
+Function composition lives in `@monochromatic-dev/pipe-core`,
  not module-es:
 
 - Use `piped` for eager synchronous function composition
@@ -291,7 +291,7 @@ Function composition lives in `@monochromatic-dev/module-pipe`,
 - Functions generally don't require `.bind()` for `this` context
 
 **Cross-Reference**:
- See [Packages Todo](packages.md#module-library-packages-modulees) for functional utility expansion.
+ See [Packages Todo](packages.md#module-library-packagemodulees) for functional utility expansion.
 
 ## Code Organization Standards
 

@@ -1,9 +1,10 @@
-# Plan: `@monochromatic-dev/module-i18n-compose`
+# Plan: `@monochromatic-dev/i18n-compose-core`
 
 Status:
  package implementation landed;
  `ssg-test` migration (Phase 6) landed.
- See "Implementation status" below for what shipped and "Footguns encountered" for traps the next contributor should sidestep.
+ See "Implementation status" below for what shipped and "Footguns encountered" for traps the next contributor should
+ sidestep.
 
 This plan supersedes the earlier brainstorm for `PLANNING.module-i18n-compose.md`.
  The major changes are:
@@ -34,7 +35,7 @@ This plan supersedes the earlier brainstorm for `PLANNING.module-i18n-compose.md
 
 ## Implementation status
 
-Phases 1 through 5 plus Phase 7 (cleanup and docs) landed under `package/module/i18n-compose/`.
+Phases 1 through 5 plus Phase 7 (cleanup and docs) landed under `package/i18n-compose/core/`.
  The package type-checks,
  lints with zero errors and zero warnings,
  and all tests pass.
@@ -52,7 +53,7 @@ What shipped (file layout,
  not the plan's flat `locales/{ca,en,zh}.ts`):
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ├── README.md
 ├── mise.toml
 ├── package.json
@@ -132,7 +133,7 @@ and throws instead of inventing a measure phrase.
 Tests:
  `*.unit.test.ts` only (no `*.type.test.ts` files;
  the workspace convention puts type assertions inline
-via `expectTypeOf` from `@monochromatic-dev/module-test`).
+via `expectTypeOf` from `@monochromatic-dev/test-harness-core`).
  Coverage spans every variant of every AST kind:
 noun phrases (bare,
  counted,
@@ -192,7 +193,8 @@ These trapped the first implementation and will trap the next contributor unless
     The fix lives in `agreement.ts`:
     helpers take `SubjectAgreement = { person, number }`,
     `subjectAgreement({ ref, subjects })` extracts it from a real subject reference,
-    and `WH_SUBJECT_AGREEMENT` is a pre-built `{ person: 3, number: 'singular' }` constant the wh-subject branches pass directly.
+    and `WH_SUBJECT_AGREEMENT` is a pre-built `{ person: 3, number: 'singular' }` constant the wh-subject branches pass
+    directly.
     The locale's `Subject` union is never abused.
 
 3. **`max-lines: 300` (effective) forced the flat-file plan to split.
@@ -201,7 +203,9 @@ These trapped the first implementation and will trap the next contributor unless
     `locales/zh.ts` as single files.
     Each implementation grew past 400 effective lines once TSDoc was added to every local;
     oxlint's `eslint/max-lines` is `error` and `AGENTS.md` forbids disabling it.
-    The remediation is the `locales/<lang>/{index,types,render-np,render-adverbial,render-vp,render-sentence,render-fragment}.ts` split documented above.
+    The remediation is the
+    `locales/<lang>/{index,types,render-np,render-adverbial,render-vp,render-sentence,render-fragment}.ts` split
+    documented above.
     `test-vocab.ts` hit the same limit and split into `test-vocab/{index,types,en,zh,ca}.ts`.
     Plan §12's flat layout is normative for the public API surface but not for source-file organization.
 
@@ -211,8 +215,10 @@ These trapped the first implementation and will trap the next contributor unless
     For destructured params,
     each destructured field needs its own `@param <field> - description` line,
     not a single `@param input - ...` covering the bundle (`tsdoc/check-param-names`).
-    Single-line TSDocs that contain a tag (e.g. `/** Dependency bundle for {@link X}. */`) must be expanded to multi-line (`tsdoc/multiline-blocks`).
-    The `>` character inside TSDoc body text must be replaced with `to` (the helpfully-titled `tsdoc-escape-greater-than` rule).
+    Single-line TSDocs that contain a tag (e.g. `/** Dependency bundle for {@link X}. */`) must be expanded to
+    multi-line (`tsdoc/multiline-blocks`).
+    The `>` character inside TSDoc body text must be replaced with `to` (the helpfully-titled
+    `tsdoc-escape-greater-than` rule).
     Plan for ~3x the lines you would naively write,
     and use named extracted helpers when an inner function body would otherwise need 8+ documented locals.
 
@@ -253,7 +259,8 @@ These trapped the first implementation and will trap the next contributor unless
     Test fixtures and the `ssg-test` migration must use the namespaced form.
 
 8. **The plan's `*.type.test.ts` convention does not exist in this workspace.
-   ** Workspace tests put type assertions inline in `*.unit.test.ts` files using `expectTypeOf` re-exported from `@monochromatic-dev/module-test`.
+   ** Workspace tests put type assertions inline in `*.unit.test.ts` files using `expectTypeOf` re-exported from
+   `@monochromatic-dev/test-harness-core`.
     The implementation followed the workspace convention;
     `src/ast-types.unit.test.ts` is the type-assertion file.
 
@@ -261,12 +268,15 @@ These trapped the first implementation and will trap the next contributor unless
 
 These are the bits that did not get written down inside the package itself:
 
-- The `ssg-test` cache pipeline glob at `package/ssg/aquati.cat/src/build.ts:72` (`PIPELINE_GLOB = 'src/{lib,components,client}/**/*.ts'`) **does not include `src/i18n/`**.
+- The `ssg-test` cache pipeline glob at `package/ssg/aquati.cat/src/build.ts:72`
+(`PIPELINE_GLOB = 'src/{lib,components,client}/**/*.ts'`) **does not include `src/i18n/`**.
    Phase 6 acceptance says i18n source changes must invalidate cached rendered output (§13 Phase 6 / §15).
    Widen the glob (or add a separate i18n fingerprint) before declaring the migration done.
-- `ssg-test`'s `package.json` does not yet depend on `@monochromatic-dev/module-i18n-compose`.
-   Phase 6 must add `"@monochromatic-dev/module-i18n-compose": "workspace:*"` to `dependencies` and remove `"typesafe-i18n"` from `devDependencies`.
-- The existing call sites use `const t = i18nObject(lang); t.siteName()` — across roughly ten files (rg `'i18nObject'` from `package/ssg/aquati.cat/src`).
+- `ssg-test`'s `package.json` does not yet depend on `@monochromatic-dev/i18n-compose-core`.
+   Phase 6 must add `"@monochromatic-dev/i18n-compose-core": "workspace:*"` to `dependencies`
+   and remove `"typesafe-i18n"` from `devDependencies`.
+- The existing call sites use `const t = i18nObject(lang); t.siteName()` — across roughly ten files (rg `'i18nObject'`
+from `package/ssg/aquati.cat/src`).
    The plan's §3 forbids exporting a `bindLocale` / `t(locale)` accessor from the shared package.
    Rewrites must become explicit `i18n.label(lang, 'siteName')` calls;
    an app-local thin wrapper is allowed if call-site noise becomes painful,
@@ -289,7 +299,8 @@ These are the bits that did not get written down inside the package itself:
    `formatters.ts` is a thin stub that currently returns an empty object;
    nothing depends on it semantically.
 - The `build:i18n` mise task (`typesafe-i18n --no-watch`) and the `typesafe-i18n` devDependency both go away.
-- Test the migration via `mise run //package/ssg/aquati.cat:build` (or whatever the equivalent task names are when you read this — `mise tasks -C package/ssg/aquati.cat` lists them).
+- Test the migration via `mise run //package/ssg/aquati.cat:build` (or whatever the equivalent task names are
+when you read this — `mise tasks -C package/ssg/aquati.cat` lists them).
    Rendered output diff should either be empty or every diff line should have a one-line explanation.
 
 ## 1. Goal
@@ -297,14 +308,15 @@ These are the bits that did not get written down inside the package itself:
 Build a workspace package at:
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ```
 
 The package provides a small,
  type-safe,
  no-codegen API for rendering localized UI text from explicit semantic grammar nodes.
 
-The package is meant to replace `typesafe-i18n` in `ssg-test` and avoid the parser/template-regex failure mode that motivated the original investigation.
+The package is meant to replace `typesafe-i18n` in `ssg-test`
+and avoid the parser/template-regex failure mode that motivated the original investigation.
 
 The package must not become an app-message registry.
  It should know how to render generic grammar;
@@ -414,7 +426,8 @@ locale + locale specs + vocabulary key / grammar node -> string
 
 ## 4. Locale registry API
 
-`createI18n` should infer the locale union from a const locale list and return both rendering functions and registry helpers.
+`createI18n` should infer the locale union from a const locale list and return both rendering functions
+and registry helpers.
 
 Sketch:
 
@@ -849,7 +862,8 @@ English needs finite,
  base,
  infinitive,
  imperative,
- and participle-like forms so interrogatives and complements do not produce bad output such as `Did I had` or `Does he has`.
+ and participle-like forms so interrogatives and complements do not produce bad output such as `Did I had`
+ or `Does he has`.
 
 Use structured entries,
  with locale-specific builders normalizing them into renderer-internal forms.
@@ -1098,7 +1112,7 @@ If locale-specific order is needed,
 ## 12. Package layout
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ├── README.md
 ├── mise.toml
 ├── package.json
@@ -1125,7 +1139,7 @@ package/module/i18n-compose/
 
 ### Phase 1: package skeleton
 
-- Create `package/module/i18n-compose/`.
+- Create `package/i18n-compose/core/`.
 - Add `package.json`,
    `tsconfig.json`,
    and `mise.toml` consistent with nearby workspace modules.

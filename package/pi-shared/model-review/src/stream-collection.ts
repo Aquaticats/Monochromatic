@@ -36,16 +36,16 @@ type CollectedStructuredStream =
      */
     readonly arguments: unknown;
   }
-  | {
+    | {
     /**
      Missing-tool discriminant.
      */
-    readonly kind: 'noToolCall';
+      readonly kind: 'noToolCall';
     /**
      Concatenated finalized text blocks.
      */
-    readonly textContent: string;
-  };
+      readonly textContent: string;
+    };
 
 /**
  Error distinguishing empty direct JSON from malformed JSON.

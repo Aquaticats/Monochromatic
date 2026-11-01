@@ -59,4 +59,5 @@ No suppression changes the rule's severity or conceals unbounded provider waits.
 Operation waits still have independent local cancellation and deadline boundaries.
 
 [Node timer contract]: https://nodejs.org/api/timers.html#settimeoutcallback-delay-args
-[Oxlint rule source]: https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/src/rules/eslint/no_await_in_loop.rs
+[Oxlint rule source]:
+  https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/src/rules/eslint/no_await_in_loop.rs

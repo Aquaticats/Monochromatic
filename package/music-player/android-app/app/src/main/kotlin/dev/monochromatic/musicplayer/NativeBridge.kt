@@ -255,11 +255,10 @@ object NativeBridge {
     //           signed; sibling `Int` is 32-bit, too narrow for nanosecond timestamps), and returns
     //           the raw `u64` cache key as a `Long` (bit-cast), which `nativeResolveGain`/
     //           `nativeWarmTrack` take.
-    // Why:      gxhash (the cache fingerprint hash) has no JVM port, so the fingerprint that was
-    //           hand-written FNV-1a in pure Kotlin now lives in the native crate (src/fingerprint.rs)
-    //           and is reached here. The native side builds the SAME (path + size + mtime) byte
-    //           material and seed as the desktop crate, and the shared `DecisionCache` keys on the
-    //           `u64` directly, so no hex-string round-trip is needed.
+    // Why:      The cache fingerprint (XXH3-64, shared with the desktop through `truepeak-core`) is
+    //           computed natively (src/fingerprint.rs) and reached here. Both flavors call the SAME
+    //           `track_fingerprint` function, and the shared `DecisionCache` keys on the `u64`
+    //           directly, so no hex-string round-trip is needed.
     // Gotcha:   `size`/`mtimeNanos` are passed as signed `Long` but treated as unsigned native-side
     //           (sizes/timestamps are never negative); the returned `Long` is an opaque key, not a
     //           number to interpret.
@@ -272,6 +271,36 @@ object NativeBridge {
      * Computes the opaque native cache-key fingerprint for a track, returned as a Long.
      */
     external fun nativeFingerprint(path: String, size: Long, mtimeNanos: Long): Long
+
+    // What:     `external fun nativePeekPeak(handle: Long, fingerprint: Long): FloatArray?` reads the cached true
+    //           peak of one track without starting a measurement. The reply holds two floats: the peak in dBTP
+    //           (negative infinity for silence), then the kind code (1 for an exact full scan, 0 for a sampled
+    //           estimate). It is null when no decision is cached for the fingerprint, or the handle is null.
+    // Why:      The track rows and the details menu show a peak only when it is already known, so the read must
+    //           never decode a file.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // declare function nativePeekPeak(handle: bigint, fingerprint: bigint): Float32Array | null;
+    // ```
+    /**
+     * Reads the cached true peak and its kind for a track fingerprint, or null when none is cached.
+     */
+    external fun nativePeekPeak(handle: Long, fingerprint: Long): FloatArray?
+
+    // What:     `external fun nativeInvalidateTrack(handle: Long, fingerprint: Long): Boolean` removes the cached
+    //           decision of one track, so its next resolve or warm measures it again. It returns true when a row
+    //           was removed, and false when none was stored or the handle is null.
+    // Why:      A re-analysis clears one track and no other, and the removal completes before the caller measures.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // declare function nativeInvalidateTrack(handle: bigint, fingerprint: bigint): boolean;
+    // ```
+    /**
+     * Removes the cached decision of one track fingerprint, returning true when a row was removed.
+     */
+    external fun nativeInvalidateTrack(handle: Long, fingerprint: Long): Boolean
 
     // What:     `external fun nativeEngineCreate(): Long` is a JNI native function returning a `Long`
     //           (64-bit signed integer). The `Long` is an OPAQUE HANDLE: a native pointer/address
@@ -440,6 +469,24 @@ object NativeBridge {
      * above explain its call shape and effects.
      */
     external fun nativeEngineIsEnded(handle: Long): Boolean
+
+    // What:     `external fun nativeEngineFailedLoad(handle: Long): Long` is a JNI native function taking the
+    //           `handle` and returning a `Long`.
+    // Why:      `nativeEngineLoad` returns once the load is queued, so a file that opens but does not decode fails
+    //           later on the engine worker; this is the sequence number of the last queued load that failed, or zero
+    //           when none did, and the poller turns a new number into a load failure.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // declare function nativeEngineFailedLoad(handle: bigint): bigint;
+    // ```
+    /**
+     * Sequence number of the last queued load that the engine worker could not open for playback, or zero when
+     * none failed.
+     *
+     * @param handle engine handle from `nativeEngineCreate`
+     */
+    external fun nativeEngineFailedLoad(handle: Long): Long
 
     // What:     `external fun nativeEnginePlayWhenReady(handle: Long): Boolean` is a JNI native
     //           function taking the `handle` and returning a `Boolean`.

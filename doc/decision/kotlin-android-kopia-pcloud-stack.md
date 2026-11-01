@@ -476,8 +476,13 @@ Seventeen per-technology full-verification vets were run (sixteen on 2026-06-07,
  and source citations.
  The load-bearing
 numbers and version pins are inlined above so this document stands alone.
+
+The evidence paths spelled `kotlin-android-kopia-pcloud-vet-reports/` when this record was updated on 2026-06-12.
+The folder became `kotlin-android-kopia-pcloud-vet-report/` on 2026-07-15 (`bd19d57e20`),
+so the `kotlin-android-kopia-pcloud-vet-reports/` spelling no longer resolves.
+
  The full raw reports are persisted
-alongside this doc under `kotlin-android-kopia-pcloud-vet-reports/` (verbatim agent output,
+alongside this doc under `kotlin-android-kopia-pcloud-vet-report/` (verbatim agent output,
  not
 lint-conformed):
 

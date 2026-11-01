@@ -11,7 +11,7 @@
 import type {
   Checker,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { typeCanCarryMutableState, } from './effect-primitive-origin.ts';
 

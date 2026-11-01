@@ -50,7 +50,8 @@ See `device-gate-results.md` for the full evidence.
 
 - iOS runtime model:
    AOT-native machine code.
-   The iOS app is a plain Rust binary cross-compiled with `cargo build --target aarch64-apple-ios --bin` (scripts/build_for_ios_with_cargo.
+   The iOS app is a plain Rust binary cross-compiled
+   with `cargo build --target aarch64-apple-ios --bin` (scripts/build_for_ios_with_cargo.
   bash:
   57),
    lipo'd,
@@ -163,9 +164,12 @@ bash:
 Slint provides NO background-execution abstraction;
  the foreground UI event loop is all it owns.
  Background transfer is app-level work done from Rust.
- The winit iOS backend already links objc2-foundation with NSRunLoop/NSOperation/NSNotification features (internal/backends/winit/`Cargo.toml`:
+ The winit iOS backend already links objc2-foundation
+ with NSRunLoop/NSOperation/NSNotification features (internal/backends/winit/`Cargo.toml`:
 132),
- so the app can reach NSURLSession background configurations and BGTaskScheduler either directly via objc2/objc2-foundation bindings from Rust or through a thin Swift/ObjC shim added to the XcodeGen project.
+ so the app can reach NSURLSession background configurations
+ and BGTaskScheduler either directly via objc2/objc2-foundation bindings from Rust
+ or through a thin Swift/ObjC shim added to the XcodeGen project.
  The iOS wall stands unchanged:
  a multi-hour kopia snapshot is NOT expressible as a foreground service;
  it must be restructured around background URLSession uploads and short BGProcessingTask windows.
@@ -186,7 +190,8 @@ Mechanism:
  App-level Rust capability,
  not Slint-provided.
  Because the app is a native Rust binary,
- an in-process HTTP server crate (tiny_http / hyper / axum) that builds for aarch64-apple-ios listens on 127.0.0.1 as the S3/HTTP endpoint kopia targets.
+ an in-process HTTP server crate (tiny_http / hyper / axum)
+ that builds for aarch64-apple-ios listens on 127.0.0.1 as the S3/HTTP endpoint kopia targets.
  iOS permits in-process loopback listeners (no entitlement needed for localhost).
  Feasibility is a property of the chosen Rust crate compiling for the iOS target,
  confirmed by the fact that arbitrary Rust crates compile into the same `cargo build --target aarch64-apple-ios` binary;
@@ -209,7 +214,8 @@ Mechanism:
  A streaming HTTPS client to pCloud uses reqwest+rustls (or hyper) compiled for aarch64-apple-ios;
  rustls avoids OpenSSL cross-compile pain and is the common iOS-Rust choice.
  Slint imposes nothing here;
- the constraint is that the client crate builds for the iOS target and that long uploads move to a background URLSession (wall 3).
+ the constraint is that the client crate builds for the iOS target and
+ that long uploads move to a background URLSession (wall 3).
  Confirm the streaming/chunked-upload crate cross-compiles for aarch64-apple-ios in the supporting-stack vet.
 
 Source:
@@ -237,8 +243,10 @@ Output:
 Rust core reuse:
  REUSED via FFI-free single-binary,
  NOT rewritten on AVAudioEngine.
- The existing music-player Rust core (symphonia + cpal in src/`output_cpal.rs`) already targets CoreAudio on Apple via cpal's macOS host;
- on iOS cpal selects its iOS CoreAudio host automatically under the same cfg(not(target_os="linux")) dependency table the package already uses (music-player `Cargo.toml`:
+ The existing music-player Rust core (symphonia + cpal in src/`output_cpal.rs`) already targets CoreAudio on Apple via
+ cpal's macOS host;
+ on iOS cpal selects its iOS CoreAudio host automatically under the same cfg(not(target_os="linux")) dependency table
+ the package already uses (music-player `Cargo.toml`:
 111 cpal=0.18).
  The core compiles into the Slint iOS binary directly:
  no separate FFI bridge,
@@ -246,7 +254,8 @@ Rust core reuse:
  The developer does NOT reimplement output on AVAudioEngine;
  cpal's iOS backend already wraps AudioUnit/AVAudioSession.
  Caveat:
- cpal's iOS host has narrower device/format support than macOS and needs AVAudioSession category/activation set up (often a small objc2 or Swift shim);
+ cpal's iOS host has narrower device/format support than macOS
+ and needs AVAudioSession category/activation set up (often a small objc2 or Swift shim);
  verify on device.
 
 Source:
@@ -273,7 +282,8 @@ mdx walks the XcodeGen + cargo aarch64-apple-ios flow),
  start from slint-rust-template,
  build for the device with `cargo build --target aarch64-apple-ios` wrapped by the documented build_for_ios_with_cargo.
 bash + XcodeGen project,
- then (a) link one trivial `extern \"C\"` function from a Go gomobile c-archive (or a Rust staticlib) via `build.rs` `rustc-link-lib=static`,
+ then (a) link one trivial `extern \"C\"` function
+ from a Go gomobile c-archive (or a Rust staticlib) via `build.rs` `rustc-link-lib=static`,
  call it from Rust,
  and render the returned value in the Slint UI,
  and (b) play a cpal CoreAudio sine wave.
@@ -300,13 +310,16 @@ Toolchain:
 
 - kopia static-lib vet:
    build kopia as a gomobile c-archive (.
-  xcframework) for aarch64-apple-ios and confirm the Go runtime initializes and goroutines schedule in-process inside the Rust binary
+  xcframework) for aarch64-apple-ios and confirm the Go runtime initializes
+  and goroutines schedule in-process inside the Rust binary
 - in-app HTTP server crate vet:
-   confirm tiny_http/hyper/axum cross-compiles for aarch64-apple-ios and binds 127.0.0.1 as kopia's S3/HTTP target on-device
+   confirm tiny_http/hyper/axum cross-compiles for aarch64-apple-ios
+   and binds 127.0.0.1 as kopia's S3/HTTP target on-device
 - HTTPS streaming client vet:
    confirm reqwest+rustls (or hyper) cross-compiles for aarch64-apple-ios and streams chunked uploads to pCloud
 - background-transfer vet:
-   drive NSURLSession background config + BGTaskScheduler from Rust via objc2 (or a Swift shim) and confirm uploads continue when suspended;
+   drive NSURLSession background config + BGTaskScheduler from Rust via objc2 (or a Swift shim)
+   and confirm uploads continue when suspended;
    restructure the multi-hour snapshot around it
 - Rust FFI binding vet:
    `build.rs` static linking of Go c-archive and Rust staticlib,
@@ -428,7 +441,8 @@ Toolchain:
    278 and is NEVER reached on iOS.
     So the audit cited the one shipped Slint iOS binary whose iOS path is interpreter-mode,
     not AOT.
-    The correct evidence for the AOT `.run()` pattern is the music-player's own `src/main.rs:2004 app.run()` (with `slint::include_modules!()` at src/`main.rs`:
+    The correct evidence for the AOT `.run()` pattern is the music-player's own `src/main.rs:2004 app.run()`
+    (with `slint::include_modules!()` at src/`main.rs`:
    19).
     Corrected fact/source:
     AOT model is proven by music-player `build.rs`:
@@ -442,11 +456,15 @@ Toolchain:
     invoked as `slint-viewer --features remote` (tools/viewer/`ios-project.yml`:
    57),
     not the music-player's.
-    Line 57 (`cargo build --target $CARGO_TARGET --bin "$1"`) and the `aarch64-apple-ios` target (line 46) accurately demonstrate the native-cargo-binary model that BOTH walls rest on,
+    Line 57 (`cargo build --target $CARGO_TARGET --bin "$1"`)
+    and the `aarch64-apple-ios` target (line 46) accurately demonstrate the native-cargo-binary model
+    that BOTH walls rest on,
     so the wall-1 premise (native --bin into which any static archive links via Rust FFI) is supported.
     But what that script actually builds is the interpreter-mode viewer;
     the music-player has no iOS build script in-repo yet.
-    The verdict still holds because (a) music-player is AOT (verified independently) and (b) even the interpreter has NO JIT/cranelift/wasmtime/PROT_EXEC/mprotect (internal/interpreter is a tree-walking `eval.rs`),
+    The verdict still holds because (a) music-player is AOT (verified independently)
+    and (b) even the interpreter has NO JIT/cranelift/wasmtime/PROT_EXEC/mprotect
+    (internal/interpreter is a tree-walking `eval.rs`),
     so no Slint code path trips W^X/DENY_EXECMEM regardless.
 
 3. MINOR OVERSTATEMENT:
@@ -478,9 +496,11 @@ Toolchain:
   :
   run_event_loop() at 56,
    runtime Compiler at 217/238);
-   /tmp/agent/slint-audit-20260612/tools/viewer/`ios-project.yml` (line 57 invokes build script with slint-viewer --features remote);
+   /tmp/agent/slint-audit-20260612/tools/viewer/`ios-project.yml`
+   (line 57 invokes build script with slint-viewer --features remote);
    /tmp/agent/slint-audit-20260612/tools/viewer/`Cargo.toml` (slint-interpreter dependency at line 80);
-   /tmp/agent/slint-audit-20260612/internal/backends/winit/`Cargo.toml` (lines 130-135 iOS objc2/objc2-ui-kit/objc2-quartz-core;
+   /tmp/agent/slint-audit-20260612/internal/backends/winit/`Cargo.toml`
+   (lines 130-135 iOS objc2/objc2-ui-kit/objc2-quartz-core;
    UIApplication absent from feature list);
    /tmp/agent/slint-audit-20260612/internal/backends/winit/`event_loop.rs` (line 700 .
   run_app,

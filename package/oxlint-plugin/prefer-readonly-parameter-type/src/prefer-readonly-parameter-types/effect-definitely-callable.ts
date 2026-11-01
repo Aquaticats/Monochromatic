@@ -9,7 +9,7 @@ import {
   SignatureKind,
   type Type,
   TypeFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Tests whether semantic type is definitely callable at runtime.

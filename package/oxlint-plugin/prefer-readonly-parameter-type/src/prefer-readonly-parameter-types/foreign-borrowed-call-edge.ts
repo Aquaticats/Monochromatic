@@ -4,8 +4,8 @@
  @module
  */
 
-import type { CallExpression, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { CallExpression, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import {
   callableDeclaration,
@@ -89,12 +89,12 @@ export function addForeignBorrowedCallEdge({
    */
   const allArgumentIndexes = call.arguments
     .map(function argumentIndexes(argument,): readonly EffectSlot[] {
-    return parameterIndexes({
-      project,
-      bindingOriginBySymbolId: summary.bindingOriginBySymbolId,
-      node: argument,
+      return parameterIndexes({
+        project,
+        bindingOriginBySymbolId: summary.bindingOriginBySymbolId,
+        node: argument,
+      },);
     },);
-  },);
   addOwnedCallEdge({
     project,
     call,

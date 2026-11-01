@@ -25,11 +25,11 @@ const TITLE_PREFIX = 'π';
  */
 type HandledEventType =
   | 'tool_execution_start'
-  | 'tool_execution_end'
-  | 'session_start'
-  | 'session_shutdown'
-  | 'agent_end'
-  | 'before_agent_start';
+    | 'tool_execution_end'
+    | 'session_start'
+    | 'session_shutdown'
+    | 'agent_end'
+    | 'before_agent_start';
 
 /**
  Data bag for event-specific fields passed to title builders.

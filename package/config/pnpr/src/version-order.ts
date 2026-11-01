@@ -105,7 +105,7 @@ function parseVersion(version: string,): ParsedVersion {
   ] = coreParts;
   if (
     (coreParts.length !== SEMVER_CORE_LENGTH)
-    || (major === undefined)
+      || (major === undefined)
       || (minor === undefined)
       || (patch === undefined)
       || (!coreParts.every(function isNonNegativeInteger(part,) {
@@ -212,7 +212,7 @@ export function compareVersions({
     return rightParts.prerelease
       .length
       - leftParts.prerelease
-      .length;
+        .length;
   /**
    Identifier pairs to compare before length decides.
    */
@@ -236,7 +236,7 @@ export function compareVersions({
   return leftParts.prerelease
     .length
     - rightParts.prerelease
-    .length;
+      .length;
 }
 
 /**

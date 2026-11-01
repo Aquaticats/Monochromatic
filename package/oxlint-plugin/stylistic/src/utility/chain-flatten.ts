@@ -5,15 +5,16 @@ import type {
   Token,
 } from '@oxlint/plugins';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   type ChainNode,
   parenIsolated,
 } from './chain.ts';
 import {
+  type ChainBreak,
   type ChainSegment,
-  selectBreakOffsets,
+  selectBreaks,
 } from './chain-render.ts';
 
 /**
@@ -149,7 +150,7 @@ function operatorTokenStart({
           === operator;
       },
     },
-  );
+    );
   if (token === null) {
     throw new Error('operator node missing operator token',);
   }
@@ -196,9 +197,11 @@ function descentChild(node: ForeignBorrowed<ChainNode>,): ChainNode | typeof LEA
 /**
  Returns the segment a chain node contributes after its receiver.
  
- A non-computed member access is a break point carrying its dot offset; a
- computed access (`[expr]`, `?.[expr]`) and a call are attached; a transparent
- wrapper contributes nothing because its text rides on the prior segment.
+ A non-computed member access is a break point carrying its dot offset anchored
+ at the owning member step's start, which on the receiver spine is the chain
+ head; a computed access (`[expr]`, `?.[expr]`) and a call are attached; a
+ transparent wrapper contributes nothing because its text rides on the prior
+ segment.
  
  @returns trailing segment list (empty for transparent wrappers)
  */
@@ -218,6 +221,7 @@ function trailingStep({
             context,
             member: node,
           },),
+          anchorOffset: node.start,
         },
       ];
   }
@@ -304,12 +308,12 @@ type OperatorChainParams = {
 };
 
 /**
- Operands and operator offsets of an operator chain, gathered without order.
+ Operands and operator breaks of an operator chain, gathered without order.
  
  The two axes are decoupled, so neither list's order matters: operand breaks
  and operator breaks are merged and sorted into source order downstream. Each
- operand is flattened on its own member axis; each operator offset is a
- candidate operator-axis break point.
+ operand is flattened on its own member axis; each operator break is a
+ candidate operator-axis break point anchored at its operator node's start.
  */
 type OperatorChainParts = {
   /**
@@ -317,9 +321,10 @@ type OperatorChainParts = {
    */
   readonly operands: readonly ChainNode[];
   /**
-   Operator token offsets within the chain, root operator included.
+   Operator break candidates within the chain, root operator included; each
+   anchors at its operator node's start.
    */
-  readonly operatorOffsets: readonly number[];
+  readonly operatorBreaks: readonly ChainBreak[];
 };
 
 /**
@@ -334,7 +339,7 @@ type OperatorChainParts = {
  because a left-associative operator chain is a left-nested spine whose depth
  equals operand count, so recursion would be linear-depth and overflow.
  
- @returns operands and operator offsets, neither in any guaranteed order
+ @returns operands and operator breaks, neither in any guaranteed order
  
  @throws via {@link nonNullishOrThrow} when an operator node lacks an operand,
    which is unreachable for a binary or logical expression
@@ -348,13 +353,16 @@ function collectOperatorChain({
    */
   const operands: ChainNode[] = [];
   /**
-   Operator token offsets; the root operator is always present.
+   Operator break candidates; the root operator is always present.
    */
-  const operatorOffsets: number[] = [
-    operatorTokenStart({
-      context,
-      node: root,
-    },),
+  const operatorBreaks: ChainBreak[] = [
+    {
+      breakOffset: operatorTokenStart({
+        context,
+        node: root,
+      },),
+      anchorOffset: root.start,
+    },
   ];
   /**
    Root operator type; same-type unparenthesised descendants continue the chain.
@@ -386,10 +394,13 @@ function collectOperatorChain({
       operands.push(node,);
       continue;
     }
-    operatorOffsets.push(operatorTokenStart({
-      context,
-      node,
-    },),);
+    operatorBreaks.push({
+      breakOffset: operatorTokenStart({
+        context,
+        node,
+      },),
+      anchorOffset: node.start,
+    },);
     work.push(
       nonNullishOrThrow(node.left,),
       nonNullishOrThrow(node.right,),
@@ -397,45 +408,45 @@ function collectOperatorChain({
   }
   return {
     operands,
-    operatorOffsets,
+    operatorBreaks,
   };
 }
 
 /**
- Returns the break offsets for an operator chain root, in ascending source order.
+ Returns the breaks for an operator chain root, in ascending source order.
  
- Gathers operands and operator offsets via {@link collectOperatorChain}.
+ Gathers operands and operator breaks via {@link collectOperatorChain}.
  Decoupled axes: each operand is flattened on its own member axis and breaks
- only on its own member-step count via {@link selectBreakOffsets}, while
- operators break on their own count. Neither axis inflates the other, so a
- single operator with a member operand (`a.b === c`) stays on one line. When
- any operand's member chain breaks, every operator also breaks onto its own
- line; otherwise the source-first operator stays on the head line and the
- rest break (two or more operators).
+ only on its own member-step count via {@link selectBreaks}, while operators
+ break on their own count. Neither axis inflates the other, so a single
+ operator with a member operand (`a.b === c`) stays on one line. When any
+ operand's member chain breaks, every operator also breaks onto its own line;
+ otherwise the source-first operator stays on the head line and the rest break
+ (two or more operators).
  
- @returns operator and member break offsets merged in ascending order
+ @returns operator and member breaks merged in ascending break-offset order
  */
-function operatorChainBreakOffsets({
+function operatorChainBreaks({
   context,
   root,
-}: ForeignBorrowed<OperatorChainParams>,): readonly number[] {
+}: ForeignBorrowed<OperatorChainParams>,): readonly ChainBreak[] {
   /**
-   Operands and operator offsets, neither ordered; the final sort imposes order.
+   Operands and operator breaks, neither ordered; the final sort imposes order.
    */
   const {
     operands,
-    operatorOffsets,
+    operatorBreaks,
   } = collectOperatorChain({
     context,
     root,
   },);
   /**
-   Break offsets contributed by the operands' own member subchains.
+   Breaks contributed by the operands' own member subchains.
    */
-  const operandBreakOffsets = operands.flatMap(function operandBreaks(
+  const operandBreaks = operands.flatMap(function operandBreaksOf(
     operand: ForeignBorrowed<ChainNode>,
-  ): readonly number[] {
-    return selectBreakOffsets(chainSegments({
+  ): readonly ChainBreak[] {
+    return selectBreaks(chainSegments({
       context,
       node: operand,
     },),);
@@ -443,73 +454,74 @@ function operatorChainBreakOffsets({
   /**
    Whether any operand's member chain broke; forces every operator onto its own line.
    */
-  const anyOperandBroke = operandBreakOffsets.length
+  const anyOperandBroke = operandBreaks.length
     > 0;
   /**
-   Source-first operator offset; it stays on the head line unless an operand broke.
+   Source-first operator break offset; it stays on the head line unless an operand broke.
    */
-  const firstOperatorOffset = operatorOffsets.reduce(
+  const firstOperatorOffset = operatorBreaks.reduce(
     function smaller(
       smallest,
-      offset,
+      operatorBreak,
     ): number {
-      return (offset < smallest)
-        ? offset
+      return (operatorBreak.breakOffset < smallest)
+        ? operatorBreak.breakOffset
         : smallest;
     },
     Number.POSITIVE_INFINITY,
   );
   /**
-   Operator offsets that begin a continuation line.
+   Operator breaks that begin a continuation line.
    */
-  const operatorBreakOffsets = operatorOffsets.filter(function breaks(offset,): boolean {
+  const breakingOperators = operatorBreaks.filter(function breaks(operatorBreak,): boolean {
     return anyOperandBroke
-      || (offset !== firstOperatorOffset);
+      || (operatorBreak.breakOffset !== firstOperatorOffset);
   },);
   return [
-    ...operandBreakOffsets,
-    ...operatorBreakOffsets,
+    ...operandBreaks,
+    ...breakingOperators,
   ].toSorted(function ascending(
     first,
     second,
   ): number {
-    return first - second;
+    return first.breakOffset
+      - second.breakOffset;
   },);
 }
 
 /**
- Returns the break offsets for any chain root, in ascending source order.
+ Returns the breaks for any chain root, in ascending source order.
  
  Dispatches on the root kind: operator roots flatten across their operands on
- decoupled axes via {@link operatorChainBreakOffsets}; member and call roots
- flatten down their receiver spine via {@link chainSegments}. Each branch
- returns offsets already in source order (member spines ascend by
- construction; operator chains sort their merged axes), ready for the renderer.
+ decoupled axes via {@link operatorChainBreaks}; member and call roots flatten
+ down their receiver spine via {@link chainSegments}. Each branch returns
+ breaks already in source order (member spines ascend by construction; operator
+ chains sort their merged axes), ready for the renderer.
  
- @returns break offsets in ascending source order, empty when the chain fits on
+ @returns breaks in ascending break-offset order, empty when the chain fits on
    one line
  
  @example
  ```ts
- // For `arr.map(f).filter(g)`: [offset of `.filter`]
- chainBreakOffsets({ context, node, });
+ // For `arr.map(f).filter(g)`: [break for `.filter`]
+ chainBreaks({ context, node, });
  ```
  
  @internal
  */
-export function chainBreakOffsets({
+export function chainBreaks({
   context,
   node,
-}: ForeignBorrowed<ChainWalkParams>,): readonly number[] {
+}: ForeignBorrowed<ChainWalkParams>,): readonly ChainBreak[] {
   if ((node.type
     === 'BinaryExpression') || (node.type
       === 'LogicalExpression')) {
-    return operatorChainBreakOffsets({
+    return operatorChainBreaks({
       context,
       root: node,
     },);
   }
-  return selectBreakOffsets(chainSegments({
+  return selectBreaks(chainSegments({
     context,
     node,
   },),);

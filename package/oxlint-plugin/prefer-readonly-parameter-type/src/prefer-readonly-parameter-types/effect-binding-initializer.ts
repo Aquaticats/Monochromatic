@@ -8,16 +8,16 @@ import {
   type Node,
   NodeFlags,
   type VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isIdentifier,
   isVariableDeclaration,
   isVariableDeclarationList,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Sentinel when a name stands for no local declaration carrying a value.

@@ -1,0 +1,13 @@
+# PID file and stat line pieces; libFuzzer escapes are hexadecimal.
+"pid "
+"PID "
+"\x0a"
+"\x0d\x0a"
+"9007199254740992"
+"9007199254740991"
+"4x"
+" ("
+") "
+" Z "
+" S "
+"linux:"

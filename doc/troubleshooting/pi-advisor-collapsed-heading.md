@@ -28,7 +28,8 @@ For Markdown-shaped advisor responses,
 not an actual finding.
 
 The fixed implementation keeps the collapsed behavior but skips Markdown ATX headings before choosing the summary line.
-`package/pi-plugin/advisor/src/rendering-summary.ts:96` normalizes non-empty lines and chooses the first non-heading body line:
+`package/pi-plugin/advisor/src/rendering-summary.ts:96` normalizes non-empty lines
+and chooses the first non-heading body line:
 
 ```typescript
 return nonEmptyLines
@@ -39,7 +40,8 @@ return nonEmptyLines
   ?? '(advisor returned no text)';
 ```
 
-`package/pi-plugin/advisor/src/rendering-summary.ts:194` detects heading lines by checking leading hash markers followed by a space:
+`package/pi-plugin/advisor/src/rendering-summary.ts:194` detects heading lines
+by checking leading hash markers followed by a space:
 
 ```typescript
 const firstNonMarkerIndex = firstNonHeadingMarkerIndex(trimmedLine,);

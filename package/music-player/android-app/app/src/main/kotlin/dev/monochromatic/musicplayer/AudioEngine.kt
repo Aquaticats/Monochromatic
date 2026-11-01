@@ -313,4 +313,67 @@ interface AudioEngine {
      * call shape and effects.
      */
     fun release()
+
+    // What:     `fun setOnLoadFailed(callback: (uri: String, reason: LoadFailure) -> Unit)` registers the handler
+    //           for a load that could not start. The default body ignores it, so engines that cannot fail ignore it.
+    // Why:      A stalled or refused file open happens after `load` returned (the open runs off the main thread),
+    //           so the failure cannot be a return value; the controller shows a message when it arrives.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // setOnLoadFailed(callback: (uri: string, reason: LoadFailure) => void): void {}
+    // ```
+    /** Registers the single handler told when a requested track could not be opened; the default ignores it. */
+    fun setOnLoadFailed(callback: (uri: String, reason: LoadFailure) -> Unit) {
+    }
+
+    // What:     `fun unload()` stops playback and forgets the loaded track, so position and duration read zero until
+    //           the next `load`. The default body only pauses.
+    // Why:      A track that left the library (trashed) must not leave its position and duration on the deck.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // unload(): void { this.pause(); }
+    // ```
+    /** Stops playback and drops the loaded track; the default pauses. */
+    fun unload() {
+        pause()
+    }
 }
+
+// What:     `enum class LoadFailure` lists why a requested track did not start.
+// Why:      The two causes need different advice: an unreadable file is gone or damaged, a stalled open is worth a
+//           retry.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// type LoadFailure = "unreadable" | "timedOut";
+// ```
+/** Why a requested track could not be loaded. */
+enum class LoadFailure {
+    /** The file could not be opened or decoded. */
+    UNREADABLE,
+
+    /** The media provider did not answer within the time limit. */
+    TIMED_OUT,
+}
+
+// What:     `internal class PendingLoad(...)` is the state of one load whose descriptor is still opening.
+// Why:      `play`, `pause` and `seekTo` calls that arrive before the open completes must change how the load
+//           starts, not the previous track.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// type PendingLoad = { generation: number; uri: string; play: boolean; seekSec: number | null };
+// ```
+/** One load waiting for its descriptor, with the start state the caller last asked for. */
+internal class PendingLoad(
+    /** Number of the load, matched against the engine's current generation. */
+    val generation: Int,
+    /** Track being opened. */
+    val uri: String,
+    /** Whether playback should start when the load completes. */
+    var play: Boolean,
+    /** Position to seek to once loaded, or null to start at the beginning. */
+    var seekSec: Double? = null,
+)

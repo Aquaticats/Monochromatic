@@ -33,7 +33,7 @@ const BENCH_SUFFIX = '.bench.ts';
  
  The three literal `test-` names are listed individually rather than as a
  `test-*` prefix glob, which would also match real package behavior such as
- `package/cli/mutation-test/src/container/test-run.ts` and silently exempt it.
+ `package/mutation-test/cli/src/container/test-run.ts` and silently exempt it.
  
  `*-helpers.ts` and `*-harness.ts` are deliberately absent. Measured across
  this repository, all 22 files carrying those suffixes are imported by

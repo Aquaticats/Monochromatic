@@ -1,0 +1,371 @@
+// Folder picker pane: a one-column letter rail beside plain-text folder names, per D17, D28 and D31.
+// Ports FolderPickerPane.kt. Sizes are the Android logical-pixel values from the same file.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, PlayerStop, FocusRing, KeyBadge, Keys } from "focus.slint";
+import { LastInput } from "scrollbar.slint";
+import { FullNameTip } from "name_tip.slint";
+import { TextSize } from "text_size.slint";
+
+// One rail cell. `key` identifies the cell in callbacks; `label` is the text drawn in the rail.
+export struct FolderRailCell {
+    key: string,
+    label: string,
+    // True for the first cell of a writing system other than the first, which draws a hairline above it (D28).
+    section-start: bool,
+}
+
+// One row of the rail-ordered name model. A heading row has `section-start: true`, an empty `name`,
+// and `heading` set to its cell label; the rows after it with the same `heading` are that cell's names.
+export struct FolderName {
+    name: string,
+    section-start: bool,
+    heading: string,
+}
+
+// Where the picker's names are scrolled to, for the logs and the tests. The picker on screen writes it.
+export global FolderLayout {
+    // Content offset of the names column of the picker that is on screen: 0 at the top and negative below.
+    in-out property <length> scroll-y: 0px;
+}
+
+// Folder picker: the rail on the left (48 px wide, scrolls on its own) and the wrapped names on the right. Neither
+// column draws a scrollbar (D22, D125). Names wrap in one flow; heading rows span the full width so each cell starts on a
+// new line.
+export component FolderPickerPane inherits Rectangle {
+    // Rail cells in rail order, one 48 px target each.
+    in property <[FolderRailCell]> cells;
+    // Rail-ordered name rows, including one heading row per cell (see FolderName).
+    in property <[FolderName]> names;
+    // Name of the current folder; drawn in primary with a 2 px indicator on its bottom edge.
+    in property <string> current-folder;
+    // Key of the current folder's rail cell; circled unless a tapped cell overrides it, and the names open at its heading.
+    in property <string> current-cell;
+    // Invoked with the folder name when a name is tapped.
+    callback select-folder(string);
+    // Invoked with the cell key when a rail cell is tapped, after the names scroll to that cell.
+    callback select-cell(string);
+    // Name of the folder the keyboard ring is on; empty for none. The Rust side moves it with the list keys.
+    in property <string> ring-folder: "";
+    // Changes each time the ring moves, so the names scroll the ringed folder into view.
+    in property <int> ring-tick: 0;
+    // False for the copy of the picker that sits in the layout the window is not showing. The window builds both layouts,
+    // and a request for focus or for the page size is meant for the layout that is on screen.
+    in property <bool> active: true;
+    // True when the list should take keyboard focus: when it is created and each time `focus-tick` changes.
+    in property <bool> wants-focus: false;
+    // Changes when the Rust side asks for focus (Alt+1).
+    in property <int> focus-tick: 0;
+    // Number of name rows that fit the pane, for the page keys.
+    callback page-rows(int);
+    // Fired when the list gains keyboard focus, so the ring can start on a folder.
+    callback focused();
+
+    // Cell key the names list scrolls to. Each heading row checks it when `scroll-tick` changes.
+    property <string> scroll-key;
+    // Counts scroll requests so a repeated request for the same cell still re-runs the handlers.
+    property <int> scroll-tick: 0;
+
+    // Cell the user last tapped on the rail; empty until a tap and cleared when the current folder changes.
+    property <string> tapped-cell: "";
+    // Cell the rail circles: a pending tap wins, otherwise the current folder's cell, so a tapped letter shows as
+    // selected at once even though the current folder is still listed under another letter.
+    property <string> shown-cell: root.tapped-cell != "" ? root.tapped-cell : root.current-cell;
+    // Counts the changes of the current folder, so every name re-checks whether it is the one to reveal (LS2).
+    property <int> reveal-tick: 0;
+    changed current-folder => {
+        root.tapped-cell = "";
+        root.reveal-tick += 1;
+    }
+
+    // Records the cell to scroll to and bumps the tick so every heading row re-checks it.
+    function request-scroll(key: string) {
+        root.scroll-key = key;
+        root.scroll-tick += 1;
+    }
+
+    // Takes keyboard focus when asked, and when the pane is created for a request (the folded layout creates it when the
+    // picker opens). A pane that has just been created is not laid out yet, and focusing it then loses the keyboard focus
+    // altogether, so the timer waits one frame.
+    focus-timer := Timer {
+        interval: 16ms;
+        running: root.wants-focus && root.active;
+        triggered => {
+            self.running = false;
+            list-stop.focus();
+        }
+    }
+    changed focus-tick => {
+        if (root.wants-focus && root.active) {
+            list-stop.focus();
+        }
+    }
+    changed height => {
+        if (root.active) {
+            root.page-rows(max(1, Math.floor(root.height / 48px)));
+        }
+    }
+
+    // Opens the names at the current cell, as the Android list does with its initial index. Runs once after
+    // the first layout pass, because the heading rows do not exist yet when the pane initializes.
+    open-timer := Timer {
+        interval: 16ms;
+        running: true;
+        triggered => {
+            self.running = false;
+            root.request-scroll(root.current-cell);
+        }
+    }
+
+    // Rail column: one 48 px target per cell with a 32 px circle behind the current cell.
+    rail := Flickable {
+        x: 0px;
+        width: 48px;
+        height: root.height;
+        content-width: self.width;
+        content-height: rail-column.preferred-height;
+        rail-column := VerticalLayout {
+            for cell in root.cells: Rectangle {
+                height: 48px;
+                // D28: a hairline between writing systems, so a Latin M and a Cyrillic M never read as one cell. It spans the
+                // 32 px circle's width and sits on the cell's top edge, so cells keep their 48 px height.
+                if cell.section-start : Rectangle {
+                    x: 8px;
+                    y: 0px;
+                    width: 32px;
+                    height: 1px;
+                    background: Theme.outline;
+                }
+                // Circle sits centered inside the 48 px target: 8 px inset on each side.
+                Rectangle {
+                    x: 8px;
+                    y: 8px;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 16px;
+                    background: cell.key == root.shown-cell ? Theme.secondary-container : transparent;
+                }
+                // Hover and pressed layer on the same 32 px circle, in the content color of the circle beneath it.
+                StateLayer {
+                    x: 8px;
+                    y: 8px;
+                    width: 32px;
+                    height: 32px;
+                    radius: 16px;
+                    tint: cell.key == root.shown-cell ? Theme.on-secondary-container : Theme.on-surface;
+                    hovered: cell-touch.has-hover;
+                    pressed: cell-touch.pressed;
+                }
+                Text {
+                    width: parent.width;
+                    height: parent.height;
+                    text: cell.label;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    font-size: Theme.label-large;
+                    color: cell.key == root.shown-cell ? Theme.primary : Theme.on-surface-variant;
+                }
+                cell-touch := TouchArea {
+                    accessible-role: radio-button;
+                    accessible-label: cell.label;
+                    accessible-checkable: true;
+                    accessible-checked: cell.key == root.shown-cell;
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.tapped-cell = cell.key;
+                        root.request-scroll(cell.key);
+                        root.select-cell(cell.key);
+                    }
+                }
+            }
+        }
+    }
+
+    // The list's keyboard stop. Up, Down, the page keys, Home, End, Enter and letters reach the Rust side through the
+    // window's key scope; this element only holds focus and reports the zone.
+    list-stop := PlayerStop {
+        label: "folder-list";
+        zone: 1;
+        activates: false;
+        gained => {
+            root.focused();
+        }
+    }
+
+    // D34: in light mode a 1 px boundary line separates the rail from the names; dark mode relies on the black canvas.
+    Rectangle {
+        x: 48px;
+        width: 1px;
+        height: root.height;
+        background: Theme.outline-variant;
+        // An empty rail (a library being read, or without audio) has nothing to separate, so no stray seam is drawn.
+        visible: !Theme.dark && root.cells.length > 0;
+    }
+
+    // Names column: the wrapped flow of name rows, offset past the rail by 48 px.
+    names-flick := Flickable {
+        x: 48px;
+        width: max(0px, root.width - 48px);
+        height: root.height;
+        content-width: self.width;
+        content-height: names-column.preferred-height;
+        // The picker on screen publishes where its names are scrolled to.
+        changed content-y => {
+            if (root.active) {
+                FolderLayout.scroll-y = self.content-y;
+            }
+        }
+        names-column := VerticalLayout {
+            names-flow := FlexboxLayout {
+                // Left edge sits at the NAMES_START inset of 12 px; right inset is 16 px.
+                x: 12px;
+                width: max(0px, parent.width - 28px);
+                flex-wrap: wrap;
+                // 8 px spacing plus 4 px text padding on each side gives a 16 px gap between names.
+                spacing-horizontal: 8px;
+                for row[index] in root.names: name-row := Rectangle {
+                    // Heading rows after the first add a 16 px gap above them, the section gap of the Android list.
+                    property <length> section-gap: row.section-start && index > 0 ? 16px : 0px;
+                    property <bool> selected: !row.section-start && row.name == root.current-folder;
+                    // Mirrors the root scroll request so a changed tick re-runs the scroll check below.
+                    property <int> tick: root.scroll-tick;
+                    // Mirrors the ring request so a moved ring scrolls its folder into view.
+                    property <int> ring-moved: root.ring-tick;
+                    // Mirrors the reveal request so a changed current folder runs the check below on the selected name.
+                    property <int> reveal: root.reveal-tick;
+                    // Distance from the top of the names column to the top of this name.
+                    property <length> top: names-flow.y + self.y;
+                    // True while the keyboard ring is on this name.
+                    property <bool> ringed: !row.section-start && row.name == root.ring-folder && list-stop.has-focus;
+                    // A name is as wide as its text needs, but never wider than the line, so a long name ends in an ellipsis on a line
+                    // of its own instead of running past the pane edge (OV1, which narrows D31's "nothing truncated" to names that fit).
+                    width: row.section-start ? names-flow.width : min(names-flow.width, max(48px, name-measure.preferred-width + 8px));
+                    // A heading row is 38 px of its own at the default letter size (8 px above the letter and 30 px for it), and
+                    // grows with a larger letter so the letter never runs into the first name of its cell. Name rows stay 48 px.
+                    height: row.section-start ? self.section-gap + 8px + max(30px, TextSize.line-height(TextSize.group-heading)) : 48px;
+                    changed ring-moved => {
+                        if (self.ringed) {
+                            // Scroll just enough to bring the 48 px target, with an 8 px margin, inside the viewport.
+                            if (names-flow.y + self.y - 8px < -names-flick.content-y) {
+                                names-flick.content-y = min(0px, -(names-flow.y + self.y - 8px));
+                            } else if (names-flow.y + self.y + 56px > -names-flick.content-y + names-flick.height) {
+                                names-flick.content-y = max(
+                                    names-flick.height - names-column.preferred-height,
+                                    names-flick.height - (names-flow.y + self.y + 56px));
+                            }
+                        }
+                    }
+                    changed reveal => {
+                        // The selected name comes into view when the current folder changes through Search, a shuffle or a folder
+                        // key chord (D79). A name that is already fully in view stays put, so a click in the picker never moves
+                        // the list; one that is out of view is centered.
+                        if (self.selected) {
+                            if (self.top - 8px < -names-flick.content-y || self.top + 56px > -names-flick.content-y + names-flick.height) {
+                                names-flick.content-y = max(
+                                    names-flick.height - names-column.preferred-height,
+                                    min(0px, -(self.top - (names-flick.height - 48px) / 2)));
+                            }
+                        }
+                    }
+                    changed tick => {
+                        // Heading rows of the requested cell scroll the names so the heading sits at the top.
+                        if (row.section-start && row.heading == root.scroll-key) {
+                            names-flick.content-y = max(
+                                names-flick.height - names-column.preferred-height,
+                                min(0px, -(names-flow.y + self.y + self.section-gap)));
+                        }
+                    }
+                    // Name target for each name row: a rectangular hover and pressed layer and the tap area, under the labels.
+                    if !row.section-start: Rectangle {
+                        StateLayer {
+                            tint: Theme.on-surface;
+                            hovered: name-touch.has-hover;
+                            pressed: name-touch.pressed;
+                        }
+                        name-touch := TouchArea {
+                            accessible-role: button;
+                            accessible-label: row.name;
+                            accessible-checkable: true;
+                            accessible-checked: name-row.selected;
+                            mouse-cursor: pointer;
+                            // The scrollbars of the other lists follow the kind of input the names saw last (D22).
+                            pointer-event(event) => {
+                                LastInput.touch = event.touch-finger-id != 0;
+                            }
+                            clicked => {
+                                Focus.ring-visible = false;
+                                list-stop.focus();
+                                root.select-folder(row.name);
+                            }
+                            // The full name for a name that ended in an ellipsis; the accessible label is always the full name.
+                            if name-label.preferred-width > name-label.width : Tooltip {
+                                FullNameTip {
+                                    text: row.name;
+                                }
+                            }
+                        }
+                    }
+                    // Heading label: 20 px by default (2 px under Android's 22 px) in primary, 8 px below the section gap,
+                    // aligned with the names. The size is the group heading letter of the Text size setting.
+                    if row.section-start: heading-label := Text {
+                        x: 4px;
+                        y: parent.section-gap + 8px;
+                        text: row.heading;
+                        font-size: TextSize.group-heading;
+                        color: Theme.primary;
+                    }
+                    // Width probe: the name at the heavier selected weight, never shown. Every name is sized by this one,
+                    // so selecting a name (which draws it heavier) never changes its width and the flow never re-wraps.
+                    name-measure := Text {
+                        visible: false;
+                        wrap: no-wrap;
+                        text: row.section-start ? "" : row.name;
+                        font-size: TextSize.folder-name;
+                        font-weight: 500;
+                    }
+                    // Name label: plain text in the 48 px target, empty for heading rows.
+                    name-label := Text {
+                        x: 4px;
+                        y: 0px;
+                        width: parent.width - 8px;
+                        height: 48px;
+                        wrap: no-wrap;
+                        overflow: elide;
+                        text: row.section-start ? "" : row.name;
+                        // 14 px by default (2 px under Android's 16 px). The width probe above reads the same
+                        // `TextSize.folder-name`, so a selected name never re-wraps whatever the size.
+                        font-size: TextSize.folder-name;
+                        font-weight: parent.selected ? 500 : 400;
+                        vertical-alignment: center;
+                        color: parent.selected ? Theme.primary : Theme.on-surface;
+                    }
+                    // Keyboard ring around the 48 px target of the folder under the ring, flush outside it. The names column
+                    // keeps 8 px of margin around a ringed name when it scrolls it into view, which is more than the 3 px the
+                    // ring reaches, so the list's viewport never cuts it.
+                    FocusRing {
+                        active: name-row.ringed && Focus.ring-visible;
+                    }
+                    // Selection indicator: 2 px bar on the bottom edge of the whole target.
+                    if selected: Rectangle {
+                        x: 0px;
+                        y: 46px;
+                        width: parent.width;
+                        height: 2px;
+                        background: Theme.primary;
+                    }
+                }
+            }
+            // Bottom inset under the last line of names.
+            Rectangle {
+                height: 16px;
+            }
+        }
+    }
+
+    // Key hint badge of the Alt+1 shortcut that focuses this list, over the top right corner. It takes no pointer input.
+    KeyBadge {
+        x: root.width - self.width - 4px;
+        y: 4px;
+        text: Keys.badges.folder-list;
+    }
+}

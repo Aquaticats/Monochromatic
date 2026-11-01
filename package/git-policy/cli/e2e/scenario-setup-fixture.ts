@@ -11,7 +11,10 @@ import {
   editText,
   synthesizeText,
 } from './content-fixture.ts';
-import type { HookEvent, } from './hook-program-fixture.ts';
+import {
+  hookDisableArguments,
+  type HookEvent,
+} from './hook-program-fixture.ts';
 import type { AttemptRecord, } from './ledger-fixture.ts';
 import { realGit, } from './repository-fixture.ts';
 import type {
@@ -91,15 +94,14 @@ export async function seedTracePaths({
       'add',
       '--',
       ...seeds.map(function seedPath(entry,) {
-      return entry.path;
-    },),
+        return entry.path;
+      },),
     ],
   },);
   await realGit({
     repository: context.repository,
     args: [
-      '-c',
-      'core.hooksPath=/dev/null',
+      ...hookDisableArguments(ALL_HOOK_EVENTS,),
       'commit',
       '--quiet',
       '--no-verify',
@@ -149,8 +151,7 @@ export async function commitAmendBase({
   await realGit({
     repository: context.repository,
     args: [
-      '-c',
-      'core.hooksPath=/dev/null',
+      ...hookDisableArguments(ALL_HOOK_EVENTS,),
       'commit',
       '--quiet',
       '--no-verify',

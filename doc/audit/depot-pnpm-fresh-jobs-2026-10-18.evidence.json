@@ -1,0 +1,4259 @@
+{
+  "recordedAt": "2026-10-18T05:45:36.344Z",
+  "repository": "Aquaticats/Monochromatic",
+  "scope": "20261018-pnpm-cache-v3",
+  "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+  "sourceFilesSha256": {
+    ".github/workflows/music-player-windows.yml": "7dd404a20069c912ac42e0e40db2733becc4ec24b7931ebc677df249692921b6",
+    "package/dev-script/task-util/mise.toml": "f02328924e8da02bed03287a17d49abd403c05e7aadc0e64f389d01c008dca1b",
+    "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+    "mise.lock": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+    "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+  },
+  "protocol": {
+    "phases": [
+      "off",
+      "cold",
+      "seed",
+      "warm",
+      "branch"
+    ],
+    "actionCacheSha": "27d5ce7f107fe9357f9df03efb73ab90386fccae",
+    "pools": {
+      "github": {
+        "runner": "ubuntu-24.04",
+        "backend": "GitHub Actions cache"
+      },
+      "depot": {
+        "runner": "depot-ubuntu-24.04-4",
+        "backend": "Depot Actions cache integration"
+      }
+    },
+    "node": "26.12.0",
+    "pnpm": "12.14.0",
+    "maximumConcurrentJobs": 2,
+    "jobTimeoutMinutes": 5,
+    "archiveGuardTimeoutMinutes": 2,
+    "archiveLimitBytes": 500000000,
+    "jobTimingBoundary": "GitHub job.started_at through job.completed_at, not invoice allocation time",
+    "dependencyTimingBoundary": "sum of restore and install GitHub step intervals; one-second timestamp resolution; verify step omitted",
+    "commandTimingBoundary": "monotonic clock around pnpm subprocess; restore excluded",
+    "branchProbeConsumerBoundary": "restore/manifest-only; no install or application consumers"
+  },
+  "excludedRuns": [
+    {
+      "sourceReceipt": "receipts/cold.json",
+      "runId": "39099461826",
+      "sourceSha": "dcb241efae900b5eed61fa4f3b4fbdae7c12defc",
+      "conclusion": "failure",
+      "jobStates": [
+        {
+          "name": "pnpm store github cold sample 2",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T05:07:30Z",
+          "completedAt": "2026-10-18T05:07:53Z"
+        },
+        {
+          "name": "pnpm store github cold sample 1",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T05:07:30Z",
+          "completedAt": "2026-10-18T05:07:52Z"
+        },
+        {
+          "name": "pnpm store depot cold sample 2",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T05:07:54Z",
+          "completedAt": "2026-10-18T05:08:17Z"
+        },
+        {
+          "name": "pnpm store depot cold sample 1",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T05:07:52Z",
+          "completedAt": "2026-10-18T05:08:14Z"
+        }
+      ],
+      "includedInTimingComparison": false
+    },
+    {
+      "sourceReceipt": "receipts-v2/cold.json",
+      "runId": "39099920300",
+      "sourceSha": "f8727149508e091e77799c2b25313f3bb9b40589",
+      "conclusion": "success",
+      "jobStates": [
+        {
+          "name": "pnpm store depot cold sample 2",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:16:07Z",
+          "completedAt": "2026-10-18T05:16:37Z"
+        },
+        {
+          "name": "pnpm store depot cold sample 1",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:16:02Z",
+          "completedAt": "2026-10-18T05:16:34Z"
+        },
+        {
+          "name": "pnpm store github cold sample 2",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:15:19Z",
+          "completedAt": "2026-10-18T05:16:02Z"
+        },
+        {
+          "name": "pnpm store github cold sample 1",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:15:20Z",
+          "completedAt": "2026-10-18T05:16:06Z"
+        }
+      ],
+      "includedInTimingComparison": false
+    },
+    {
+      "sourceReceipt": "receipts-v2/seed.json",
+      "runId": "39100149452",
+      "sourceSha": "f8727149508e091e77799c2b25313f3bb9b40589",
+      "conclusion": "cancelled",
+      "jobStates": [
+        {
+          "name": "pnpm store depot seed sample 0",
+          "conclusion": "cancelled",
+          "startedAt": "2026-10-18T05:19:25Z",
+          "completedAt": "2026-10-18T05:32:36Z"
+        },
+        {
+          "name": "pnpm store github seed sample 0",
+          "conclusion": "cancelled",
+          "startedAt": "2026-10-18T05:19:26Z",
+          "completedAt": "2026-10-18T05:32:36Z"
+        }
+      ],
+      "includedInTimingComparison": false
+    }
+  ],
+  "rejectedDispatch": {
+    "phase": "off",
+    "scope": "20261018-pnpm-cache-v3",
+    "branch": "research/depot-pnpm-cache-20261018",
+    "expectedSha": "165e0fb3f71f608e63cde1b9813aa91b5d68833c",
+    "startedAt": "2026-10-18T05:32:46.251Z",
+    "repositoryCacheUsageBefore": {
+      "full_name": "Aquaticats/Monochromatic",
+      "active_caches_size_in_bytes": 9005388428,
+      "active_caches_count": 15
+    },
+    "dispatchStatus": 1,
+    "dispatchStdout": "",
+    "dispatchStderr": "could not create workflow dispatch event: HTTP 422: Provided value 'off' for input 'phase' not in the list of allowed values (https://api.github.com/repos/Aquaticats/Monochromatic/actions/workflows/385004443/dispatches)\n"
+  },
+  "runs": [
+    {
+      "phase": "off",
+      "runId": "39101112370",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39101112370",
+      "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+      "createdAt": "2026-10-18T05:36:09Z",
+      "completedAt": "2026-10-18T05:37:33.330Z",
+      "conclusion": "success",
+      "repositoryCacheUsageBefore": {
+        "full_name": "Aquaticats/Monochromatic",
+        "active_caches_size_in_bytes": 9005388428,
+        "active_caches_count": 15
+      },
+      "logSha256": "9f0bf3834b1671b1959d4033265acf1f59a03902e0a4f503880197cdd29e7713"
+    },
+    {
+      "phase": "cold",
+      "runId": "39101194478",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39101194478",
+      "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+      "createdAt": "2026-10-18T05:37:40Z",
+      "completedAt": "2026-10-18T05:39:04.429Z",
+      "conclusion": "success",
+      "repositoryCacheUsageBefore": {
+        "full_name": "Aquaticats/Monochromatic",
+        "active_caches_size_in_bytes": 9005388428,
+        "active_caches_count": 15
+      },
+      "logSha256": "3a0265ae127ad175cc87bad23bec8a912075fa91156fd5f84ae0d33ee5f01083"
+    },
+    {
+      "phase": "seed",
+      "runId": "39101280802",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39101280802",
+      "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+      "createdAt": "2026-10-18T05:39:11Z",
+      "completedAt": "2026-10-18T05:40:14.248Z",
+      "conclusion": "success",
+      "repositoryCacheUsageBefore": {
+        "full_name": "Aquaticats/Monochromatic",
+        "active_caches_size_in_bytes": 9005388428,
+        "active_caches_count": 15
+      },
+      "logSha256": "035c758e9da4934d453e6a7641627cb03fd38e288ee6dbefcfa849538758607c"
+    },
+    {
+      "phase": "warm",
+      "runId": "39101349744",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39101349744",
+      "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+      "createdAt": "2026-10-18T05:40:20Z",
+      "completedAt": "2026-10-18T05:41:44.323Z",
+      "conclusion": "success",
+      "repositoryCacheUsageBefore": {
+        "full_name": "Aquaticats/Monochromatic",
+        "active_caches_size_in_bytes": 9317480055,
+        "active_caches_count": 16
+      },
+      "logSha256": "0645dedbecf4b9acac728f8c84e869eedb6a61accd183cdd3fa7192c8e016686"
+    },
+    {
+      "phase": "branch",
+      "runId": "39101439840",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39101439840",
+      "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+      "createdAt": "2026-10-18T05:41:55Z",
+      "completedAt": "2026-10-18T05:42:38.066Z",
+      "conclusion": "success",
+      "repositoryCacheUsageBefore": {
+        "full_name": "Aquaticats/Monochromatic",
+        "active_caches_size_in_bytes": 9317480055,
+        "active_caches_count": 16
+      },
+      "logSha256": "24c06c5d9eb2b9e663c2bb042502ee29bf7af3b2ada3c4a69aaf02320fc44971"
+    }
+  ],
+  "summaries": [
+    {
+      "pool": "github",
+      "phase": "off",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 44,
+        "maximum": 46,
+        "mean": 45
+      },
+      "checkoutStepSeconds": {
+        "minimum": 18,
+        "maximum": 19,
+        "mean": 18.5
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 9,
+        "maximum": 10,
+        "mean": 9.5
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 8.074705953,
+        "maximum": 9.176768609,
+        "mean": 8.625737281
+      }
+    },
+    {
+      "pool": "github",
+      "phase": "cold",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 40,
+        "maximum": 43,
+        "mean": 41.5
+      },
+      "checkoutStepSeconds": {
+        "minimum": 17,
+        "maximum": 19,
+        "mean": 18
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 8,
+        "maximum": 9,
+        "mean": 8.5
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 7.531762635,
+        "maximum": 8.293342745999999,
+        "mean": 7.912552690499999
+      }
+    },
+    {
+      "pool": "github",
+      "phase": "seed",
+      "samples": 1,
+      "jobSeconds": {
+        "minimum": 50,
+        "maximum": 50,
+        "mean": 50
+      },
+      "checkoutStepSeconds": {
+        "minimum": 17,
+        "maximum": 17,
+        "mean": 17
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 8,
+        "maximum": 8,
+        "mean": 8
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 7.674987784,
+        "maximum": 7.674987784,
+        "mean": 7.674987784
+      }
+    },
+    {
+      "pool": "github",
+      "phase": "warm",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 47,
+        "maximum": 48,
+        "mean": 47.5
+      },
+      "checkoutStepSeconds": {
+        "minimum": 17,
+        "maximum": 18,
+        "mean": 17.5
+      },
+      "restoreStepSeconds": {
+        "minimum": 5,
+        "maximum": 6,
+        "mean": 5.5
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 11,
+        "maximum": 12,
+        "mean": 11.5
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 4.8326004959999995,
+        "maximum": 5.694127571999999,
+        "mean": 5.263364033999999
+      }
+    },
+    {
+      "pool": "github",
+      "phase": "branch",
+      "samples": 1,
+      "jobSeconds": {
+        "minimum": 27,
+        "maximum": 27,
+        "mean": 27
+      },
+      "checkoutStepSeconds": {
+        "minimum": 17,
+        "maximum": 17,
+        "mean": 17
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": null,
+      "pnpmCommandSeconds": null
+    },
+    {
+      "pool": "depot",
+      "phase": "off",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 30,
+        "maximum": 31,
+        "mean": 30.5
+      },
+      "checkoutStepSeconds": {
+        "minimum": 15,
+        "maximum": 16,
+        "mean": 15.5
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 3,
+        "maximum": 3,
+        "mean": 3
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 2.495754387,
+        "maximum": 2.788557644,
+        "mean": 2.6421560155
+      }
+    },
+    {
+      "pool": "depot",
+      "phase": "cold",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 30,
+        "maximum": 31,
+        "mean": 30.5
+      },
+      "checkoutStepSeconds": {
+        "minimum": 14,
+        "maximum": 15,
+        "mean": 14.5
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 1,
+        "mean": 0.5
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 2,
+        "maximum": 4,
+        "mean": 3
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 2.395748771,
+        "maximum": 2.552543247,
+        "mean": 2.474146009
+      }
+    },
+    {
+      "pool": "depot",
+      "phase": "seed",
+      "samples": 1,
+      "jobSeconds": {
+        "minimum": 36,
+        "maximum": 36,
+        "mean": 36
+      },
+      "checkoutStepSeconds": {
+        "minimum": 15,
+        "maximum": 15,
+        "mean": 15
+      },
+      "restoreStepSeconds": {
+        "minimum": 0,
+        "maximum": 0,
+        "mean": 0
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 3,
+        "maximum": 3,
+        "mean": 3
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 2.598450451,
+        "maximum": 2.598450451,
+        "mean": 2.598450451
+      }
+    },
+    {
+      "pool": "depot",
+      "phase": "warm",
+      "samples": 2,
+      "jobSeconds": {
+        "minimum": 19,
+        "maximum": 20,
+        "mean": 19.5
+      },
+      "checkoutStepSeconds": {
+        "minimum": 3,
+        "maximum": 4,
+        "mean": 3.5
+      },
+      "restoreStepSeconds": {
+        "minimum": 2,
+        "maximum": 2,
+        "mean": 2
+      },
+      "restorePlusInstallStepSeconds": {
+        "minimum": 4,
+        "maximum": 5,
+        "mean": 4.5
+      },
+      "pnpmCommandSeconds": {
+        "minimum": 1.863683366,
+        "maximum": 1.880544915,
+        "mean": 1.8721141405
+      }
+    },
+    {
+      "pool": "depot",
+      "phase": "branch",
+      "samples": 1,
+      "jobSeconds": {
+        "minimum": 26,
+        "maximum": 26,
+        "mean": 26
+      },
+      "checkoutStepSeconds": {
+        "minimum": 15,
+        "maximum": 15,
+        "mean": 15
+      },
+      "restoreStepSeconds": {
+        "minimum": 2,
+        "maximum": 2,
+        "mean": 2
+      },
+      "restorePlusInstallStepSeconds": null,
+      "pnpmCommandSeconds": null
+    }
+  ],
+  "jobs": [
+    {
+      "phase": "off",
+      "pool": "depot",
+      "sample": "2",
+      "jobId": 117597398157,
+      "name": "pnpm store depot off sample 2",
+      "runnerName": "depot-ns55fmhm0r",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:36:58Z",
+      "completedAt": "2026-10-18T05:37:29Z",
+      "jobSeconds": 31,
+      "checkoutStepSeconds": 16,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 3,
+      "restorePlusInstallStepSeconds": 3,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:03Z",
+          "completedAt": "2026-10-18T05:37:03Z",
+          "seconds": 0
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:03Z",
+          "completedAt": "2026-10-18T05:37:19Z",
+          "seconds": 16
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:19Z",
+          "completedAt": "2026-10-18T05:37:20Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:20Z",
+          "completedAt": "2026-10-18T05:37:21Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:21Z",
+          "completedAt": "2026-10-18T05:37:21Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:21Z",
+          "completedAt": "2026-10-18T05:37:21Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:21Z",
+          "completedAt": "2026-10-18T05:37:21Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:21Z",
+          "completedAt": "2026-10-18T05:37:24Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:24Z",
+          "completedAt": "2026-10-18T05:37:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:24Z",
+          "completedAt": "2026-10-18T05:37:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:24Z",
+          "completedAt": "2026-10-18T05:37:28Z",
+          "seconds": 4
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:28Z",
+          "completedAt": "2026-10-18T05:37:28Z",
+          "seconds": 0
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:28Z",
+          "completedAt": "2026-10-18T05:37:28Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:28Z",
+          "completedAt": "2026-10-18T05:37:28Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126885723,
+        "name": "pnpm-store-depot-off-2-39101112370",
+        "zipSha256": "ab1c97bdfd030cb837eaec57016e8e7b8dbce9fd417856de3ab4962cbc433c58",
+        "remoteDigest": "sha256:ab1c97bdfd030cb837eaec57016e8e7b8dbce9fd417856de3ab4962cbc433c58",
+        "compressedBytes": 1687,
+        "files": {
+          "allocation.json": {
+            "sha256": "a399f1a253db0d2eca7854c878054c04d3448a0fe838eac81cdcec5be32efdf5",
+            "payload": {
+              "recordedAt": "2026-10-18T05:37:21.597Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "off",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-ns55fmhm0r",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "594fbb4a79103d5fe8393336e50ce5cff9d0bb2b6de888d6ce284a1e898b38a8",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "off",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "48fbccb32821820d97da2450dfdf3c6d629b21c5e1c9151527b4169eda2e16a4",
+            "payload": {
+              "recordedAt": "2026-10-18T05:37:27.628Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.419227657,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.200026878,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.8422936830000001,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "806250fe1a3dd677c67a41074e219016c57c4dfcc6a956357e674ceb2f1534ae",
+            "payload": {
+              "startedAt": "2026-10-18T05:37:22.125Z",
+              "finishedAt": "2026-10-18T05:37:24.914Z",
+              "elapsedSeconds": 2.788557644,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "off",
+      "pool": "github",
+      "sample": "2",
+      "jobId": 117597397964,
+      "name": "pnpm store github off sample 2",
+      "runnerName": "GitHub Actions 1000001724",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:36:12Z",
+      "completedAt": "2026-10-18T05:36:56Z",
+      "jobSeconds": 44,
+      "checkoutStepSeconds": 19,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 10,
+      "restorePlusInstallStepSeconds": 10,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:12Z",
+          "completedAt": "2026-10-18T05:36:14Z",
+          "seconds": 2
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:14Z",
+          "completedAt": "2026-10-18T05:36:33Z",
+          "seconds": 19
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:33Z",
+          "completedAt": "2026-10-18T05:36:34Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:34Z",
+          "completedAt": "2026-10-18T05:36:36Z",
+          "seconds": 2
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:36Z",
+          "completedAt": "2026-10-18T05:36:37Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:37Z",
+          "completedAt": "2026-10-18T05:36:37Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:37Z",
+          "completedAt": "2026-10-18T05:36:37Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:37Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 10
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:53Z",
+          "seconds": 6
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:53Z",
+          "completedAt": "2026-10-18T05:36:54Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:54Z",
+          "completedAt": "2026-10-18T05:36:54Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:54Z",
+          "completedAt": "2026-10-18T05:36:54Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126850774,
+        "name": "pnpm-store-github-off-2-39101112370",
+        "zipSha256": "7d9ac139801f9a331a52dc13637fc2e203894cad0ee41075825e1dfac894e6db",
+        "remoteDigest": "sha256:7d9ac139801f9a331a52dc13637fc2e203894cad0ee41075825e1dfac894e6db",
+        "compressedBytes": 1692,
+        "files": {
+          "allocation.json": {
+            "sha256": "b47f0afc8c6e282bddf6074ac7a6004805e654448a3f842b88bc48f85992fc0f",
+            "payload": {
+              "recordedAt": "2026-10-18T05:36:37.169Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "off",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001724",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+                "totalMemoryBytes": 16765374464
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "consumer.json": {
+            "sha256": "49399e0fbc2200ab51cc7fb6310ea2306c72421871a81a9d7293e195c544702e",
+            "payload": {
+              "recordedAt": "2026-10-18T05:36:52.134Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.657743873,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 2.04008851,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.5110848909999999,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "cache-result.json": {
+            "sha256": "e5502cdceff190bea91163634b9de29741358397341460889e403f3926357ba2",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "off",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "install.json": {
+            "sha256": "9653ea920db429083fa5bb12ab673eed4641db3daae26b44d8321858e578af7a",
+            "payload": {
+              "startedAt": "2026-10-18T05:36:37.958Z",
+              "finishedAt": "2026-10-18T05:36:47.136Z",
+              "elapsedSeconds": 9.176768609,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "off",
+      "pool": "depot",
+      "sample": "1",
+      "jobId": 117597398179,
+      "name": "pnpm store depot off sample 1",
+      "runnerName": "depot-57qgbbln9q",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:36:57Z",
+      "completedAt": "2026-10-18T05:37:27Z",
+      "jobSeconds": 30,
+      "checkoutStepSeconds": 15,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 3,
+      "restorePlusInstallStepSeconds": 3,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:01Z",
+          "completedAt": "2026-10-18T05:37:02Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:02Z",
+          "completedAt": "2026-10-18T05:37:17Z",
+          "seconds": 15
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:17Z",
+          "completedAt": "2026-10-18T05:37:18Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:18Z",
+          "completedAt": "2026-10-18T05:37:19Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:19Z",
+          "completedAt": "2026-10-18T05:37:19Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:19Z",
+          "completedAt": "2026-10-18T05:37:19Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:19Z",
+          "completedAt": "2026-10-18T05:37:19Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:19Z",
+          "completedAt": "2026-10-18T05:37:22Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:22Z",
+          "completedAt": "2026-10-18T05:37:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:37:22Z",
+          "completedAt": "2026-10-18T05:37:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:22Z",
+          "completedAt": "2026-10-18T05:37:25Z",
+          "seconds": 3
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:25Z",
+          "completedAt": "2026-10-18T05:37:26Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:26Z",
+          "completedAt": "2026-10-18T05:37:26Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:26Z",
+          "completedAt": "2026-10-18T05:37:26Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126318695,
+        "name": "pnpm-store-depot-off-1-39101112370",
+        "zipSha256": "8971f8e32d271e81fbf9c5039d97bd6766cbcaeacb1c003751a2de6491151bf3",
+        "remoteDigest": "sha256:8971f8e32d271e81fbf9c5039d97bd6766cbcaeacb1c003751a2de6491151bf3",
+        "compressedBytes": 1694,
+        "files": {
+          "allocation.json": {
+            "sha256": "1dc6ce0c2840c833dbc87dbac75f512c8ce1579474345d4dfe895eb8abce1a13",
+            "payload": {
+              "recordedAt": "2026-10-18T05:37:19.530Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "off",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-57qgbbln9q",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "594fbb4a79103d5fe8393336e50ce5cff9d0bb2b6de888d6ce284a1e898b38a8",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "off",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "a1c549c71489402ab999d82fb95640d5bd8a279e186579466c5635efde953d4e",
+            "payload": {
+              "recordedAt": "2026-10-18T05:37:25.086Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.35373499899999994,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.1321059119999999,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.8419498929999998,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "39d3b681d47477c4841c65a157b4466eae6837859e4aa8e05edc075aca890880",
+            "payload": {
+              "startedAt": "2026-10-18T05:37:20.017Z",
+              "finishedAt": "2026-10-18T05:37:22.513Z",
+              "elapsedSeconds": 2.495754387,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "off",
+      "pool": "github",
+      "sample": "1",
+      "jobId": 117597398136,
+      "name": "pnpm store github off sample 1",
+      "runnerName": "GitHub Actions 1000001725",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:36:12Z",
+      "completedAt": "2026-10-18T05:36:58Z",
+      "jobSeconds": 46,
+      "checkoutStepSeconds": 18,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 9,
+      "restorePlusInstallStepSeconds": 9,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:13Z",
+          "completedAt": "2026-10-18T05:36:15Z",
+          "seconds": 2
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:15Z",
+          "completedAt": "2026-10-18T05:36:33Z",
+          "seconds": 18
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:33Z",
+          "completedAt": "2026-10-18T05:36:35Z",
+          "seconds": 2
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:35Z",
+          "completedAt": "2026-10-18T05:36:37Z",
+          "seconds": 2
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:37Z",
+          "completedAt": "2026-10-18T05:36:38Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:38Z",
+          "completedAt": "2026-10-18T05:36:38Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:38Z",
+          "completedAt": "2026-10-18T05:36:38Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:38Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 9
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:47Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:47Z",
+          "completedAt": "2026-10-18T05:36:54Z",
+          "seconds": 7
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:54Z",
+          "completedAt": "2026-10-18T05:36:56Z",
+          "seconds": 2
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:56Z",
+          "completedAt": "2026-10-18T05:36:56Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:36:56Z",
+          "completedAt": "2026-10-18T05:36:56Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12125719403,
+        "name": "pnpm-store-github-off-1-39101112370",
+        "zipSha256": "d965f66a6be137084587990e2df543704df87db61ea392ca0de900039746a3fd",
+        "remoteDigest": "sha256:d965f66a6be137084587990e2df543704df87db61ea392ca0de900039746a3fd",
+        "compressedBytes": 1689,
+        "files": {
+          "allocation.json": {
+            "sha256": "61276a3130b188487c485152f1f8ff7db6864a68813b63e37a276231c36e1074",
+            "payload": {
+              "recordedAt": "2026-10-18T05:36:37.975Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "off",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001725",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "e5502cdceff190bea91163634b9de29741358397341460889e403f3926357ba2",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "off",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "493c4b85b33f79c92a14decf7a1c451895e3a7cbf77d63ecbed50bc5f3f6dd91",
+            "payload": {
+              "recordedAt": "2026-10-18T05:36:53.613Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.9633902059999999,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 3.093147245,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.6463506960000005,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "b53a69e53a866b0112b88478ed92090c12208284ce0928091321ddd43cc95ae5",
+            "payload": {
+              "startedAt": "2026-10-18T05:36:39.154Z",
+              "finishedAt": "2026-10-18T05:36:47.230Z",
+              "elapsedSeconds": 8.074705953,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "cold",
+      "pool": "depot",
+      "sample": "2",
+      "jobId": 117597645255,
+      "name": "pnpm store depot cold sample 2",
+      "runnerName": "depot-5b3xjfdd6n",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:38:28Z",
+      "completedAt": "2026-10-18T05:38:59Z",
+      "jobSeconds": 31,
+      "checkoutStepSeconds": 15,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 2,
+      "restorePlusInstallStepSeconds": 2,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:33Z",
+          "completedAt": "2026-10-18T05:38:33Z",
+          "seconds": 0
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:33Z",
+          "completedAt": "2026-10-18T05:38:48Z",
+          "seconds": 15
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:48Z",
+          "completedAt": "2026-10-18T05:38:49Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:49Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:51Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:51Z",
+          "completedAt": "2026-10-18T05:38:53Z",
+          "seconds": 2
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:53Z",
+          "completedAt": "2026-10-18T05:38:53Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:53Z",
+          "completedAt": "2026-10-18T05:38:53Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:53Z",
+          "completedAt": "2026-10-18T05:38:57Z",
+          "seconds": 4
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:57Z",
+          "completedAt": "2026-10-18T05:38:58Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:58Z",
+          "completedAt": "2026-10-18T05:38:58Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:58Z",
+          "completedAt": "2026-10-18T05:38:58Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126308906,
+        "name": "pnpm-store-depot-cold-2-39101194478",
+        "zipSha256": "43cb31302b484d2e40698d39bfad13c90c0e4d6b28edf867d3c277688631bccd",
+        "remoteDigest": "sha256:43cb31302b484d2e40698d39bfad13c90c0e4d6b28edf867d3c277688631bccd",
+        "compressedBytes": 1691,
+        "files": {
+          "allocation.json": {
+            "sha256": "38e731d08f0f7f8b712da2e1b379f0d4101d653e36d827386c33f1fa1c292bc4",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:50.833Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "cold",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-5b3xjfdd6n",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "e26cc1474fd777e8801705dbbecdec32d3f469134de957a1aa0ce430eed5087d",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "cold",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "install.json": {
+            "sha256": "408c57af1ba25b158d1c8231e3fd0967bce8c31a05bf945048425c37e54e8ff9",
+            "payload": {
+              "startedAt": "2026-10-18T05:38:51.468Z",
+              "finishedAt": "2026-10-18T05:38:53.864Z",
+              "elapsedSeconds": 2.395748771,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          },
+          "consumer.json": {
+            "sha256": "bd4a473bf64e4e38a97885e105159827b61b2449643d8b0fa792f1f676db177a",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:56.425Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.37172415999999997,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.156880379,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.7880639429999999,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "cold",
+      "pool": "depot",
+      "sample": "1",
+      "jobId": 117597645319,
+      "name": "pnpm store depot cold sample 1",
+      "runnerName": "depot-vldkmd4j16",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:38:25Z",
+      "completedAt": "2026-10-18T05:38:55Z",
+      "jobSeconds": 30,
+      "checkoutStepSeconds": 14,
+      "restoreStepSeconds": 1,
+      "installStepSeconds": 3,
+      "restorePlusInstallStepSeconds": 4,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:29Z",
+          "completedAt": "2026-10-18T05:38:29Z",
+          "seconds": 0
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:30Z",
+          "completedAt": "2026-10-18T05:38:44Z",
+          "seconds": 14
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:44Z",
+          "completedAt": "2026-10-18T05:38:45Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:45Z",
+          "completedAt": "2026-10-18T05:38:46Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:46Z",
+          "completedAt": "2026-10-18T05:38:46Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:46Z",
+          "completedAt": "2026-10-18T05:38:47Z",
+          "seconds": 1
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:47Z",
+          "completedAt": "2026-10-18T05:38:47Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:47Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:50Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:50Z",
+          "completedAt": "2026-10-18T05:38:53Z",
+          "seconds": 3
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:53Z",
+          "completedAt": "2026-10-18T05:38:54Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:54Z",
+          "completedAt": "2026-10-18T05:38:54Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:54Z",
+          "completedAt": "2026-10-18T05:38:54Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126134824,
+        "name": "pnpm-store-depot-cold-1-39101194478",
+        "zipSha256": "16a0acf67091e266e624c4d92e8f74f279fc63a764d0bc711000e78a690350a3",
+        "remoteDigest": "sha256:16a0acf67091e266e624c4d92e8f74f279fc63a764d0bc711000e78a690350a3",
+        "compressedBytes": 1690,
+        "files": {
+          "allocation.json": {
+            "sha256": "0f7bdd7f334d78e4b3efb90cb13f4be862de06c0c73c296fa70fb51fbb1f425a",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:46.830Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "cold",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-vldkmd4j16",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "e26cc1474fd777e8801705dbbecdec32d3f469134de957a1aa0ce430eed5087d",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "cold",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "4caf103b819a3d7b9ce4a4514e9280f2bf01abe049a3e44be0d729846f8f5d1d",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:52.602Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.383245406,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.1623346430000001,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.780315703,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "7b8ad8e4b3f10e3f20989a028b84e7fe141e9445bb8188d9cc4c7b4d89c58a37",
+            "payload": {
+              "startedAt": "2026-10-18T05:38:47.477Z",
+              "finishedAt": "2026-10-18T05:38:50.030Z",
+              "elapsedSeconds": 2.552543247,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "cold",
+      "pool": "github",
+      "sample": "1",
+      "jobId": 117597645329,
+      "name": "pnpm store github cold sample 1",
+      "runnerName": "GitHub Actions 1000001729",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:37:44Z",
+      "completedAt": "2026-10-18T05:38:27Z",
+      "jobSeconds": 43,
+      "checkoutStepSeconds": 19,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 8,
+      "restorePlusInstallStepSeconds": 8,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:45Z",
+          "completedAt": "2026-10-18T05:37:46Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:46Z",
+          "completedAt": "2026-10-18T05:38:05Z",
+          "seconds": 19
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:05Z",
+          "completedAt": "2026-10-18T05:38:06Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:06Z",
+          "completedAt": "2026-10-18T05:38:09Z",
+          "seconds": 3
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:09Z",
+          "completedAt": "2026-10-18T05:38:09Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:09Z",
+          "completedAt": "2026-10-18T05:38:09Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:09Z",
+          "completedAt": "2026-10-18T05:38:10Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:10Z",
+          "completedAt": "2026-10-18T05:38:18Z",
+          "seconds": 8
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:18Z",
+          "completedAt": "2026-10-18T05:38:18Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:18Z",
+          "completedAt": "2026-10-18T05:38:18Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:18Z",
+          "completedAt": "2026-10-18T05:38:24Z",
+          "seconds": 6
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:24Z",
+          "completedAt": "2026-10-18T05:38:25Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:25Z",
+          "completedAt": "2026-10-18T05:38:25Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:25Z",
+          "completedAt": "2026-10-18T05:38:25Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12125609886,
+        "name": "pnpm-store-github-cold-1-39101194478",
+        "zipSha256": "b5df41cc104af9f901fc7d6673d7311c7c3ce4ba3b9867a7be44816df4e6c815",
+        "remoteDigest": "sha256:b5df41cc104af9f901fc7d6673d7311c7c3ce4ba3b9867a7be44816df4e6c815",
+        "compressedBytes": 1697,
+        "files": {
+          "allocation.json": {
+            "sha256": "5138d3e885f417980d8afd00ea1abcd54c4a86336d38357ed15fc8620973923a",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:09.452Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "cold",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001729",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+                "totalMemoryBytes": 16765378560
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "9c9b1fa85880b5d6a74b92033ece7df0e5d8245f7b6a86d05c0c6a37b7390586",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "cold",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "3ce4ee443790d057b2f14fa908e81b8ebc6be153918318da20cab7e1d372e6e0",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:24.067Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.819149834,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 2.6467464919999997,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.8805880890000004,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "e2fa204e93527f0f60e762289d94a626819d8b8fe5f6a8d69f43ffd03c351827",
+            "payload": {
+              "startedAt": "2026-10-18T05:38:10.644Z",
+              "finishedAt": "2026-10-18T05:38:18.177Z",
+              "elapsedSeconds": 7.531762635,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "cold",
+      "pool": "github",
+      "sample": "2",
+      "jobId": 117597645148,
+      "name": "pnpm store github cold sample 2",
+      "runnerName": "GitHub Actions 1000001728",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:37:44Z",
+      "completedAt": "2026-10-18T05:38:24Z",
+      "jobSeconds": 40,
+      "checkoutStepSeconds": 17,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 9,
+      "restorePlusInstallStepSeconds": 9,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:44Z",
+          "completedAt": "2026-10-18T05:37:45Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:37:45Z",
+          "completedAt": "2026-10-18T05:38:02Z",
+          "seconds": 17
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:02Z",
+          "completedAt": "2026-10-18T05:38:03Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:03Z",
+          "completedAt": "2026-10-18T05:38:06Z",
+          "seconds": 3
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:06Z",
+          "completedAt": "2026-10-18T05:38:06Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:06Z",
+          "completedAt": "2026-10-18T05:38:06Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:06Z",
+          "completedAt": "2026-10-18T05:38:07Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:07Z",
+          "completedAt": "2026-10-18T05:38:16Z",
+          "seconds": 9
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:16Z",
+          "completedAt": "2026-10-18T05:38:16Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:38:16Z",
+          "completedAt": "2026-10-18T05:38:16Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:16Z",
+          "completedAt": "2026-10-18T05:38:22Z",
+          "seconds": 6
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:22Z",
+          "completedAt": "2026-10-18T05:38:23Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:23Z",
+          "completedAt": "2026-10-18T05:38:23Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:38:23Z",
+          "completedAt": "2026-10-18T05:38:23Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12125589880,
+        "name": "pnpm-store-github-cold-2-39101194478",
+        "zipSha256": "cfe30af93deec502fa5ed474332d8594436e30e83f2f92a4269c7454a9f9040b",
+        "remoteDigest": "sha256:cfe30af93deec502fa5ed474332d8594436e30e83f2f92a4269c7454a9f9040b",
+        "compressedBytes": 1695,
+        "files": {
+          "allocation.json": {
+            "sha256": "fdbe9a3f48a0f60afbe9c8cf511f6259bfb6d3fac817a8b66ead88fd18b3c5c1",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:06.608Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "cold",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001728",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "9c9b1fa85880b5d6a74b92033ece7df0e5d8245f7b6a86d05c0c6a37b7390586",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "cold",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "d9d1b260ad3deb630baccee108b2c05f1ecf9bac2fbcc8d63185d469891086ef",
+            "payload": {
+              "recordedAt": "2026-10-18T05:38:22.614Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.969148702,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 3.1053086710000004,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.4696636109999999,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "2d4f59179f287d2ac721f9a4877a15ba08daf035419146c10fc848d156a6cfe7",
+            "payload": {
+              "startedAt": "2026-10-18T05:38:08.091Z",
+              "finishedAt": "2026-10-18T05:38:16.386Z",
+              "elapsedSeconds": 8.293342745999999,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "seed",
+      "pool": "github",
+      "sample": "0",
+      "jobId": 117597898663,
+      "name": "pnpm store github seed sample 0",
+      "runnerName": "GitHub Actions 1000001733",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:39:14Z",
+      "completedAt": "2026-10-18T05:40:04Z",
+      "jobSeconds": 50,
+      "checkoutStepSeconds": 17,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 8,
+      "restorePlusInstallStepSeconds": 8,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:15Z",
+          "completedAt": "2026-10-18T05:39:16Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:16Z",
+          "completedAt": "2026-10-18T05:39:33Z",
+          "seconds": 17
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:33Z",
+          "completedAt": "2026-10-18T05:39:35Z",
+          "seconds": 2
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:35Z",
+          "completedAt": "2026-10-18T05:39:37Z",
+          "seconds": 2
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:37Z",
+          "completedAt": "2026-10-18T05:39:38Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:38Z",
+          "completedAt": "2026-10-18T05:39:38Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:38Z",
+          "completedAt": "2026-10-18T05:39:39Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:39Z",
+          "completedAt": "2026-10-18T05:39:47Z",
+          "seconds": 8
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:47Z",
+          "completedAt": "2026-10-18T05:39:51Z",
+          "seconds": 4
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:51Z",
+          "completedAt": "2026-10-18T05:39:55Z",
+          "seconds": 4
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:55Z",
+          "completedAt": "2026-10-18T05:40:02Z",
+          "seconds": 7
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:02Z",
+          "completedAt": "2026-10-18T05:40:02Z",
+          "seconds": 0
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:02Z",
+          "completedAt": "2026-10-18T05:40:03Z",
+          "seconds": 1
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:03Z",
+          "completedAt": "2026-10-18T05:40:03Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126521940,
+        "name": "pnpm-store-github-seed-0-39101280802",
+        "zipSha256": "259d973bf51e8cd066d58e95278a53cfab4aee428c3c110356bf6954f1145507",
+        "remoteDigest": "sha256:259d973bf51e8cd066d58e95278a53cfab4aee428c3c110356bf6954f1145507",
+        "compressedBytes": 1925,
+        "files": {
+          "archive-size-guard.json": {
+            "sha256": "a5fcd634f6cd888f81f83403374d62bc95fd7a588391412a6feb595c71a41f05",
+            "payload": {
+              "compressedBytes": 310713133,
+              "maximumBytes": 500000000,
+              "checkOnly": true,
+              "savedPathIsOriginalStore": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "0eed7d3f3179335c5bab954b077d913c1730a9ea40faf765d4bdefd96a328f96",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "seed",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "allocation.json": {
+            "sha256": "544d0869ba8d08e59d79e77a07691c7c5aacf28f185d9389fe81346cb1b96440",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:38.035Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001733",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "consumer.json": {
+            "sha256": "baf855eb23bc09a980a61032a3db7bf5ac6e8a0aa5d25af5b4757696183ad685",
+            "payload": {
+              "recordedAt": "2026-10-18T05:40:01.958Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.95436707,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 3.105544442,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.5558064029999996,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "9b77108cfe77b646643cb49475bb5108f6825053fc639cfaabf7155bf6336030",
+            "payload": {
+              "startedAt": "2026-10-18T05:39:39.675Z",
+              "finishedAt": "2026-10-18T05:39:47.351Z",
+              "elapsedSeconds": 7.674987784,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "seed",
+      "pool": "depot",
+      "sample": "0",
+      "jobId": 117597898516,
+      "name": "pnpm store depot seed sample 0",
+      "runnerName": "depot-x9zx7k5bb6",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:39:13Z",
+      "completedAt": "2026-10-18T05:39:49Z",
+      "jobSeconds": 36,
+      "checkoutStepSeconds": 15,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 3,
+      "restorePlusInstallStepSeconds": 3,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:17Z",
+          "completedAt": "2026-10-18T05:39:18Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:18Z",
+          "completedAt": "2026-10-18T05:39:33Z",
+          "seconds": 15
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:33Z",
+          "completedAt": "2026-10-18T05:39:34Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:34Z",
+          "completedAt": "2026-10-18T05:39:35Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:35Z",
+          "completedAt": "2026-10-18T05:39:35Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:35Z",
+          "completedAt": "2026-10-18T05:39:35Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:35Z",
+          "completedAt": "2026-10-18T05:39:35Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:35Z",
+          "completedAt": "2026-10-18T05:39:38Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:38Z",
+          "completedAt": "2026-10-18T05:39:40Z",
+          "seconds": 2
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:40Z",
+          "completedAt": "2026-10-18T05:39:44Z",
+          "seconds": 4
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:44Z",
+          "completedAt": "2026-10-18T05:39:47Z",
+          "seconds": 3
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:47Z",
+          "completedAt": "2026-10-18T05:39:48Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:48Z",
+          "completedAt": "2026-10-18T05:39:48Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:39:48Z",
+          "completedAt": "2026-10-18T05:39:48Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12125624893,
+        "name": "pnpm-store-depot-seed-0-39101280802",
+        "zipSha256": "4acefa1e6e140bbba43ee1d874f249339efcfd8cc419373507faab73761201e7",
+        "remoteDigest": "sha256:4acefa1e6e140bbba43ee1d874f249339efcfd8cc419373507faab73761201e7",
+        "compressedBytes": 1923,
+        "files": {
+          "archive-size-guard.json": {
+            "sha256": "c8ce20df18874e90f71a64d1f4a626ec37870bdbf945ad85f8a679035eefe068",
+            "payload": {
+              "compressedBytes": 310733763,
+              "maximumBytes": 500000000,
+              "checkOnly": true,
+              "savedPathIsOriginalStore": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "85ec694d3d4ace575792337c9e3c666144973c05204428440e54c8237db5940e",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "seed",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "allocation.json": {
+            "sha256": "46c85431a66b7e7c6bb92b6498ace630dd5d67b5ce7da64b7e1d7df5003aa4f6",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:35.346Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-x9zx7k5bb6",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "consumer.json": {
+            "sha256": "20822c73b29f08af72c16469de7b0f96664842c2721c079d861790b265e01b55",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:47.249Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.391057977,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.209145347,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.832937882,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "246a46feb740e3421e0b232521b13bab8363c7606dc5fe746b28701c6ac8af48",
+            "payload": {
+              "startedAt": "2026-10-18T05:39:36.073Z",
+              "finishedAt": "2026-10-18T05:39:38.672Z",
+              "elapsedSeconds": 2.598450451,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "warm",
+      "pool": "github",
+      "sample": "2",
+      "jobId": 117598095160,
+      "name": "pnpm store github warm sample 2",
+      "runnerName": "GitHub Actions 1000001748",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:40:25Z",
+      "completedAt": "2026-10-18T05:41:13Z",
+      "jobSeconds": 48,
+      "checkoutStepSeconds": 18,
+      "restoreStepSeconds": 5,
+      "installStepSeconds": 6,
+      "restorePlusInstallStepSeconds": 11,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:25Z",
+          "completedAt": "2026-10-18T05:40:28Z",
+          "seconds": 3
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:28Z",
+          "completedAt": "2026-10-18T05:40:46Z",
+          "seconds": 18
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:46Z",
+          "completedAt": "2026-10-18T05:40:48Z",
+          "seconds": 2
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:48Z",
+          "completedAt": "2026-10-18T05:40:51Z",
+          "seconds": 3
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:51Z",
+          "completedAt": "2026-10-18T05:40:51Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:51Z",
+          "completedAt": "2026-10-18T05:40:56Z",
+          "seconds": 5
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:56Z",
+          "completedAt": "2026-10-18T05:40:57Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:57Z",
+          "completedAt": "2026-10-18T05:41:03Z",
+          "seconds": 6
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:03Z",
+          "completedAt": "2026-10-18T05:41:03Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:03Z",
+          "completedAt": "2026-10-18T05:41:03Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:03Z",
+          "completedAt": "2026-10-18T05:41:09Z",
+          "seconds": 6
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:09Z",
+          "completedAt": "2026-10-18T05:41:10Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:10Z",
+          "completedAt": "2026-10-18T05:41:11Z",
+          "seconds": 1
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:11Z",
+          "completedAt": "2026-10-18T05:41:11Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12127230147,
+        "name": "pnpm-store-github-warm-2-39101349744",
+        "zipSha256": "279bbc35b68c935d12cb6c0bc7ed4f4172f40386e9cfbd95e28a9d8a0ef682ea",
+        "remoteDigest": "sha256:279bbc35b68c935d12cb6c0bc7ed4f4172f40386e9cfbd95e28a9d8a0ef682ea",
+        "compressedBytes": 2513,
+        "files": {
+          "allocation.json": {
+            "sha256": "28f0df843e023bb8088c58a76b44182776a4fd148e4efbadec6ca57a604ac387",
+            "payload": {
+              "recordedAt": "2026-10-18T05:40:51.702Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "warm",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001748",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "59877f847437b3696888683401cb5792a4b1122989a31841ef08d773d3eeed58",
+            "payload": {
+              "expectedHit": true,
+              "actualHit": true,
+              "matchedKey": "research-20261018-pnpm-cache-v3-github-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+              "phase": "warm",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "cache-producer.json": {
+            "sha256": "544d0869ba8d08e59d79e77a07691c7c5aacf28f185d9389fe81346cb1b96440",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:38.035Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001733",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "consumer.json": {
+            "sha256": "664b322dad7f34629e01612b8c47d563f18b8834d476d384ef93a5bacb668c60",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:09.272Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.7797642039999999,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 2.2318091570000003,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.7028706739999997,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "01fdf753aba1025d0b6b9aeead02a31e84b81ac5d7c826d680eb1409039db115",
+            "payload": {
+              "startedAt": "2026-10-18T05:40:58.220Z",
+              "finishedAt": "2026-10-18T05:41:03.915Z",
+              "elapsedSeconds": 5.694127571999999,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "warm",
+      "pool": "depot",
+      "sample": "2",
+      "jobId": 117598094973,
+      "name": "pnpm store depot warm sample 2",
+      "runnerName": "depot-00q48kztv6",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:41:13Z",
+      "completedAt": "2026-10-18T05:41:33Z",
+      "jobSeconds": 20,
+      "checkoutStepSeconds": 3,
+      "restoreStepSeconds": 2,
+      "installStepSeconds": 3,
+      "restorePlusInstallStepSeconds": 5,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:17Z",
+          "completedAt": "2026-10-18T05:41:18Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:18Z",
+          "completedAt": "2026-10-18T05:41:21Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:21Z",
+          "completedAt": "2026-10-18T05:41:22Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:22Z",
+          "completedAt": "2026-10-18T05:41:23Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:23Z",
+          "completedAt": "2026-10-18T05:41:23Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:23Z",
+          "completedAt": "2026-10-18T05:41:25Z",
+          "seconds": 2
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:25Z",
+          "completedAt": "2026-10-18T05:41:25Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:25Z",
+          "completedAt": "2026-10-18T05:41:28Z",
+          "seconds": 3
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:28Z",
+          "completedAt": "2026-10-18T05:41:28Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:28Z",
+          "completedAt": "2026-10-18T05:41:28Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:28Z",
+          "completedAt": "2026-10-18T05:41:31Z",
+          "seconds": 3
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:31Z",
+          "completedAt": "2026-10-18T05:41:32Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:32Z",
+          "completedAt": "2026-10-18T05:41:32Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:32Z",
+          "completedAt": "2026-10-18T05:41:32Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12127085521,
+        "name": "pnpm-store-depot-warm-2-39101349744",
+        "zipSha256": "c39934b841f78ad9c641cefa3b160f56347511ab3363ab51293acdda793ad3ab",
+        "remoteDigest": "sha256:c39934b841f78ad9c641cefa3b160f56347511ab3363ab51293acdda793ad3ab",
+        "compressedBytes": 2507,
+        "files": {
+          "allocation.json": {
+            "sha256": "9870af4719c3618edff77897de6ed49ea5bf792bea4004c748a8725cd2958739",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:23.754Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "warm",
+              "sample": "2",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-00q48kztv6",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "cb4e84399664d216e7916633714de1cffe3c502fe8cd097d635478e5cd036273",
+            "payload": {
+              "expectedHit": true,
+              "actualHit": true,
+              "matchedKey": "research-20261018-pnpm-cache-v3-depot-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+              "phase": "warm",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "cache-producer.json": {
+            "sha256": "46c85431a66b7e7c6bb92b6498ace630dd5d67b5ce7da64b7e1d7df5003aa4f6",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:35.346Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-x9zx7k5bb6",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "consumer.json": {
+            "sha256": "14037a062b324779e3abc9cca61749d0d211fb3ac9586ef617664212ed5818e7",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:30.652Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.358227191,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.2662265750000001,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.7795388489999998,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "94b0cff38cafdf3a1f996cdbd6fef8e2555f8c568f1f8d109cf8b8a42c46b42a",
+            "payload": {
+              "startedAt": "2026-10-18T05:41:26.128Z",
+              "finishedAt": "2026-10-18T05:41:28.009Z",
+              "elapsedSeconds": 1.880544915,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "warm",
+      "pool": "depot",
+      "sample": "1",
+      "jobId": 117598095195,
+      "name": "pnpm store depot warm sample 1",
+      "runnerName": "depot-nqpgf0rqzx",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:41:13Z",
+      "completedAt": "2026-10-18T05:41:32Z",
+      "jobSeconds": 19,
+      "checkoutStepSeconds": 4,
+      "restoreStepSeconds": 2,
+      "installStepSeconds": 2,
+      "restorePlusInstallStepSeconds": 4,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:17Z",
+          "completedAt": "2026-10-18T05:41:17Z",
+          "seconds": 0
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:17Z",
+          "completedAt": "2026-10-18T05:41:21Z",
+          "seconds": 4
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:21Z",
+          "completedAt": "2026-10-18T05:41:22Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:22Z",
+          "completedAt": "2026-10-18T05:41:23Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:23Z",
+          "completedAt": "2026-10-18T05:41:23Z",
+          "seconds": 0
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:23Z",
+          "completedAt": "2026-10-18T05:41:25Z",
+          "seconds": 2
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:25Z",
+          "completedAt": "2026-10-18T05:41:25Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:25Z",
+          "completedAt": "2026-10-18T05:41:27Z",
+          "seconds": 2
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:27Z",
+          "completedAt": "2026-10-18T05:41:27Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:27Z",
+          "completedAt": "2026-10-18T05:41:27Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:27Z",
+          "completedAt": "2026-10-18T05:41:30Z",
+          "seconds": 3
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:30Z",
+          "completedAt": "2026-10-18T05:41:31Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:31Z",
+          "completedAt": "2026-10-18T05:41:31Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:31Z",
+          "completedAt": "2026-10-18T05:41:31Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126274255,
+        "name": "pnpm-store-depot-warm-1-39101349744",
+        "zipSha256": "f7a72253b0dea0b95ff7b40f537c117195ec4221941e2f1a340278526dabdc32",
+        "remoteDigest": "sha256:f7a72253b0dea0b95ff7b40f537c117195ec4221941e2f1a340278526dabdc32",
+        "compressedBytes": 2504,
+        "files": {
+          "allocation.json": {
+            "sha256": "560c0670ff379e7ad4d11523b1ed715cf81040a2b18df5669bcfd23e75e51ea4",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:23.364Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "warm",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-nqpgf0rqzx",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-producer.json": {
+            "sha256": "46c85431a66b7e7c6bb92b6498ace630dd5d67b5ce7da64b7e1d7df5003aa4f6",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:35.346Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-x9zx7k5bb6",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "cb4e84399664d216e7916633714de1cffe3c502fe8cd097d635478e5cd036273",
+            "payload": {
+              "expectedHit": true,
+              "actualHit": true,
+              "matchedKey": "research-20261018-pnpm-cache-v3-depot-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+              "phase": "warm",
+              "pool": "depot",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "911312bd76f69ed1f1d415ee9830d84660fab6652b7976f087ce7b9a4809c953",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:30.233Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.393884718,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 1.1592176809999999,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 0.7909246309999999,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "669ba38239315e53c5aaf124530694d8f0910253aca83f394dfd55211445e3fb",
+            "payload": {
+              "startedAt": "2026-10-18T05:41:25.775Z",
+              "finishedAt": "2026-10-18T05:41:27.639Z",
+              "elapsedSeconds": 1.863683366,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "warm",
+      "pool": "github",
+      "sample": "1",
+      "jobId": 117598095306,
+      "name": "pnpm store github warm sample 1",
+      "runnerName": "GitHub Actions 1000001749",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:40:25Z",
+      "completedAt": "2026-10-18T05:41:12Z",
+      "jobSeconds": 47,
+      "checkoutStepSeconds": 17,
+      "restoreStepSeconds": 6,
+      "installStepSeconds": 6,
+      "restorePlusInstallStepSeconds": 12,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:26Z",
+          "completedAt": "2026-10-18T05:40:28Z",
+          "seconds": 2
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:28Z",
+          "completedAt": "2026-10-18T05:40:45Z",
+          "seconds": 17
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:45Z",
+          "completedAt": "2026-10-18T05:40:47Z",
+          "seconds": 2
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:47Z",
+          "completedAt": "2026-10-18T05:40:49Z",
+          "seconds": 2
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:49Z",
+          "completedAt": "2026-10-18T05:40:50Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:50Z",
+          "completedAt": "2026-10-18T05:40:56Z",
+          "seconds": 6
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:56Z",
+          "completedAt": "2026-10-18T05:40:56Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:40:56Z",
+          "completedAt": "2026-10-18T05:41:02Z",
+          "seconds": 6
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:02Z",
+          "completedAt": "2026-10-18T05:41:02Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:41:02Z",
+          "completedAt": "2026-10-18T05:41:02Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:02Z",
+          "completedAt": "2026-10-18T05:41:09Z",
+          "seconds": 7
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:09Z",
+          "completedAt": "2026-10-18T05:41:10Z",
+          "seconds": 1
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:10Z",
+          "completedAt": "2026-10-18T05:41:11Z",
+          "seconds": 1
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:11Z",
+          "completedAt": "2026-10-18T05:41:11Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126043571,
+        "name": "pnpm-store-github-warm-1-39101349744",
+        "zipSha256": "c2bfdb662cc991b1044647188c9bac9f5fd89e71624b29bd4b976666051ac354",
+        "remoteDigest": "sha256:c2bfdb662cc991b1044647188c9bac9f5fd89e71624b29bd4b976666051ac354",
+        "compressedBytes": 2507,
+        "files": {
+          "allocation.json": {
+            "sha256": "e47a0a6559c3f2cbb013ca59551ea821149334fe01b9a1d067e6c48e0a984d89",
+            "payload": {
+              "recordedAt": "2026-10-18T05:40:50.164Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "warm",
+              "sample": "1",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001749",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-producer.json": {
+            "sha256": "544d0869ba8d08e59d79e77a07691c7c5aacf28f185d9389fe81346cb1b96440",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:38.035Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001733",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "59877f847437b3696888683401cb5792a4b1122989a31841ef08d773d3eeed58",
+            "payload": {
+              "expectedHit": true,
+              "actualHit": true,
+              "matchedKey": "research-20261018-pnpm-cache-v3-github-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+              "phase": "warm",
+              "pool": "github",
+              "differentBranchProbe": false
+            }
+          },
+          "consumer.json": {
+            "sha256": "1b9fe7c4b9631fd8f4c3377623dc596f9fca0ca9fbb7f985167be53e362332c0",
+            "payload": {
+              "recordedAt": "2026-10-18T05:41:08.648Z",
+              "tasks": [
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node",
+                  "elapsedSeconds": 0.879368974,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host",
+                  "elapsedSeconds": 3.050866447,
+                  "exitStatus": 0,
+                  "signal": null
+                },
+                {
+                  "task": "//package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host",
+                  "elapsedSeconds": 1.6305443749999995,
+                  "exitStatus": 0,
+                  "signal": null
+                }
+              ],
+              "trackedSourceDiff": ""
+            }
+          },
+          "install.json": {
+            "sha256": "0d6f62af74efbe66734ab49ee05aa587fa3b86060c30e00fb96e88eb190cca43",
+            "payload": {
+              "startedAt": "2026-10-18T05:40:57.530Z",
+              "finishedAt": "2026-10-18T05:41:02.363Z",
+              "elapsedSeconds": 4.8326004959999995,
+              "command": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                "/home/runner/work/Monochromatic/Monochromatic/.research-depot/pnpm-store"
+              ],
+              "exitStatus": 0,
+              "signal": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "branch",
+      "pool": "github",
+      "sample": "0",
+      "jobId": 117598357074,
+      "name": "pnpm store github branch sample 0",
+      "runnerName": "GitHub Actions 1000001758",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T05:41:59Z",
+      "completedAt": "2026-10-18T05:42:26Z",
+      "jobSeconds": 27,
+      "checkoutStepSeconds": 17,
+      "restoreStepSeconds": 0,
+      "installStepSeconds": 0,
+      "restorePlusInstallStepSeconds": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:41:59Z",
+          "completedAt": "2026-10-18T05:42:01Z",
+          "seconds": 2
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:01Z",
+          "completedAt": "2026-10-18T05:42:18Z",
+          "seconds": 17
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:18Z",
+          "completedAt": "2026-10-18T05:42:20Z",
+          "seconds": 2
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:20Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 2
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:23Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:23Z",
+          "completedAt": "2026-10-18T05:42:23Z",
+          "seconds": 0
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:23Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 1
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:24Z",
+          "seconds": 0
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:24Z",
+          "completedAt": "2026-10-18T05:42:25Z",
+          "seconds": 1
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:25Z",
+          "completedAt": "2026-10-18T05:42:25Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12127200289,
+        "name": "pnpm-store-github-branch-0-39101439840",
+        "zipSha256": "7512d8b837610d983bf0b65e27b7691518765ce8e42f7f22e3eaf226fa6d496a",
+        "remoteDigest": "sha256:7512d8b837610d983bf0b65e27b7691518765ce8e42f7f22e3eaf226fa6d496a",
+        "compressedBytes": 971,
+        "files": {
+          "allocation.json": {
+            "sha256": "abbfcefd1b6413ede0c5e8b4e0d65c133093dad244752a6072d6dca54ee82246",
+            "payload": {
+              "recordedAt": "2026-10-18T05:42:23.160Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "github",
+              "phase": "branch",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": false,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": false,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "GitHub Actions 1000001758",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "20261012.334.1",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 7763 64-Core Processor",
+                "totalMemoryBytes": 16766414848
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": null,
+                "ACTIONS_RESULTS_URL": null
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "f09f7391599106d684480b80e380a62d78618a9f10a4c5cc68da93e67293bb3e",
+            "payload": {
+              "expectedHit": false,
+              "actualHit": false,
+              "matchedKey": "",
+              "phase": "branch",
+              "pool": "github",
+              "differentBranchProbe": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "phase": "branch",
+      "pool": "depot",
+      "sample": "0",
+      "jobId": 117598356921,
+      "name": "pnpm store depot branch sample 0",
+      "runnerName": "depot-fg6ks15fz2",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T05:41:58Z",
+      "completedAt": "2026-10-18T05:42:24Z",
+      "jobSeconds": 26,
+      "checkoutStepSeconds": 15,
+      "restoreStepSeconds": 2,
+      "installStepSeconds": 0,
+      "restorePlusInstallStepSeconds": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:02Z",
+          "completedAt": "2026-10-18T05:42:03Z",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:03Z",
+          "completedAt": "2026-10-18T05:42:18Z",
+          "seconds": 15
+        },
+        {
+          "name": "Bootstrap mise only",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:18Z",
+          "completedAt": "2026-10-18T05:42:18Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install only the tool versions frozen in this source lock",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:18Z",
+          "completedAt": "2026-10-18T05:42:19Z",
+          "seconds": 1
+        },
+        {
+          "name": "Record fresh allocation and immutable dependency identity",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:19Z",
+          "completedAt": "2026-10-18T05:42:20Z",
+          "seconds": 1
+        },
+        {
+          "name": "Restore pnpm store through the runner's actual cache backend",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:20Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 2
+        },
+        {
+          "name": "Verify hit or miss and producer manifest",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Install frozen workspace dependencies",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Bound the experimental archive before saving",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Save only the successful trusted dependency preparation",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Exercise existing semantic bridge artifact consumers",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Preserve allocation, cache and consumer receipts",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Post Checkout immutable experiment source",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T05:42:22Z",
+          "completedAt": "2026-10-18T05:42:22Z",
+          "seconds": 0
+        }
+      ],
+      "artifact": {
+        "artifactId": 12126766131,
+        "name": "pnpm-store-depot-branch-0-39101439840",
+        "zipSha256": "979cc15c97c7f63e9a9493afb688b7253db4c819c6735e6e9dbec3fc1f7d33c1",
+        "remoteDigest": "sha256:979cc15c97c7f63e9a9493afb688b7253db4c819c6735e6e9dbec3fc1f7d33c1",
+        "compressedBytes": 1784,
+        "files": {
+          "cache-producer.json": {
+            "sha256": "46c85431a66b7e7c6bb92b6498ace630dd5d67b5ce7da64b7e1d7df5003aa4f6",
+            "payload": {
+              "recordedAt": "2026-10-18T05:39:35.346Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "seed",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-x9zx7k5bb6",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "allocation.json": {
+            "sha256": "4df8e880e6ac59fb0613b46ea3b9933bba5605d01ae4c584dd630fd3a2a34a40",
+            "payload": {
+              "recordedAt": "2026-10-18T05:42:20.128Z",
+              "sourceSha": "2a155eec4935e5df225cb7a90af573357c3a94dc",
+              "pool": "depot",
+              "phase": "branch",
+              "sample": "0",
+              "scope": "20261018-pnpm-cache-v3",
+              "lockSha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+              "miseLockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+              "node": "v26.12.0",
+              "pnpm": "12.14.0",
+              "cacheCredentialPresence": {
+                "DEPOT_CACHE_TOKEN": true,
+                "DEPOT_JIT_TOKEN": false,
+                "SCCACHE_WEBDAV_TOKEN": true,
+                "SCCACHE_WEBDAV_USERNAME": false,
+                "SCCACHE_WEBDAV_PASSWORD": false
+              },
+              "runner": {
+                "name": "depot-fg6ks15fz2",
+                "os": "Linux",
+                "arch": "X64",
+                "imageOS": "ubuntu24",
+                "imageVersion": "dev",
+                "platform": "linux",
+                "architecture": "x64",
+                "cpus": 4,
+                "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+                "totalMemoryBytes": 16779534336
+              },
+              "freshExperimentStoreEmpty": true,
+              "cacheEndpointProtocols": {
+                "ACTIONS_CACHE_URL": "http:",
+                "ACTIONS_RESULTS_URL": "http:"
+              },
+              "ephemeralCacheEndpointOriginsOmitted": true
+            }
+          },
+          "cache-result.json": {
+            "sha256": "b1208ea975649aa0b3c172f2cd4f8822c73e887c0222016ca7a63fc171a19622",
+            "payload": {
+              "expectedHit": true,
+              "actualHit": true,
+              "matchedKey": "research-20261018-pnpm-cache-v3-depot-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+              "phase": "branch",
+              "pool": "depot",
+              "differentBranchProbe": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Two repetitions per pool and comparative phase; no confidence interval or universal provider multiplier",
+    "Different CPU models and runner images; logical CPU count alone is not hardware equivalence",
+    "Depot checkout fell from 15 to 16 seconds cache-disabled to 3 to 4 seconds warm, before restore; whole-job difference does not isolate pnpm caching",
+    "Both warm stores reused582 packages with zero downloads according to preserved logs",
+    "No Windows or Mac warm result, fork isolation proof, monthly invoice, or full-CI graph measurement",
+    "File SHA-256 values refer to original ZIP member bytes; decoded payloads omit ephemeral cache endpoint origins"
+  ],
+  "computeTimestampPriceProxy": {
+    "rateUsdPerMinute": 0.012,
+    "runnerClass": "depot-ubuntu-24.04-4",
+    "normalizedMinuteMultiplier": 2,
+    "allRetainedDepotJobs": 13,
+    "allRetainedDepotJobSeconds": 1121,
+    "allRetainedNormalizedMinutes": 37.36666666666667,
+    "allRetainedUsdProxy": 0.2242,
+    "finalCohortDepotJobSeconds": 223,
+    "finalCohortUsdProxy": 0.0446,
+    "boundary": "GitHub job timestamps; includes failed and cancelled experimental jobs; does not prove allocation billing boundaries, allowance consumption, storage charges or invoices",
+    "rateSource": "doc/planning/depot-developer-pool-capabilities-research.md"
+  },
+  "cleanup": {
+    "recordedAt": "2026-10-18T05:48:48.021Z",
+    "githubCache": {
+      "id": 9110766939,
+      "key": "research-20261018-pnpm-cache-v3-github-Linux-X64-1d51cdd270f07fb50df083282f649a04c5a78aea980d2b44f105195abc117015",
+      "ref": "refs/heads/research/depot-pnpm-cache-20261018",
+      "sizeInBytes": 312091627,
+      "outcome": "already absent before cleanup",
+      "deletionExecuted": false,
+      "exactKeyAndRefResponse": {
+        "total_count": 0,
+        "actions_caches": []
+      },
+      "causeOfDisappearance": "not established",
+      "privateReceiptSha256": "5ffb7e0969d9fd325d839c2efd4aea5af812b8e4cb3af071969edc9bf218c5a7"
+    },
+    "depotArchive": {
+      "explicitDeletionPerformed": false,
+      "boundary": "subject to documented service retention; actual account retention not inspected"
+    },
+    "worktree": {
+      "removed": true,
+      "registrationAbsent": true,
+      "ignoredFilesInspected": [
+        ".cache/forbidden-strings.rules.txt"
+      ],
+      "rootGitDirEntriesPresent": [],
+      "ignoredRootGitDirPatternsPresent": [
+        "HEAD",
+        "config",
+        "hooks",
+        "objects",
+        "refs"
+      ],
+      "pushedBranchesRetained": [
+        "research/depot-pnpm-cache-20261018",
+        "research/depot-pnpm-cache-branch-20261018"
+      ],
+      "remoteRefs": [
+        "2a155eec4935e5df225cb7a90af573357c3a94dc\trefs/heads/research/depot-pnpm-cache-20261018",
+        "2a155eec4935e5df225cb7a90af573357c3a94dc\trefs/heads/research/depot-pnpm-cache-branch-20261018"
+      ]
+    }
+  }
+}

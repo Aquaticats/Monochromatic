@@ -1,0 +1,39 @@
+diff --git a/internal/compiler/widgets/fluent/lineedit.slint b/internal/compiler/widgets/fluent/lineedit.slint
+index b9c8272..2138e75 100644
+--- a/internal/compiler/widgets/fluent/lineedit.slint
++++ b/internal/compiler/widgets/fluent/lineedit.slint
+@@ -48,7 +48,7 @@ export component LineEdit {
+ 
+             base := LineEditBase {
+                 selection-background-color: FluentPalette.selection-background;
+-                selection-foreground-color: FluentPalette.accent-foreground;
++                selection-foreground-color: FluentPalette.selection-foreground;
+                 text-color: FluentPalette.foreground;
+                 placeholder-color: FluentPalette.text-secondary;
+                 margin: layout.padding-left + layout.padding-right;
+diff --git a/internal/compiler/widgets/fluent/spinbox.slint b/internal/compiler/widgets/fluent/spinbox.slint
+index 37a2297..17411a8 100644
+--- a/internal/compiler/widgets/fluent/spinbox.slint
++++ b/internal/compiler/widgets/fluent/spinbox.slint
+@@ -99,7 +99,7 @@ export component SpinBox {
+                     width: 100%;
+                     color: FluentPalette.control-foreground;
+                     selection-background-color: FluentPalette.selection-background;
+-                    selection-foreground-color: FluentPalette.accent-foreground;
++                    selection-foreground-color: FluentPalette.selection-foreground;
+                 }
+             }
+ 
+diff --git a/internal/compiler/widgets/fluent/styling.slint b/internal/compiler/widgets/fluent/styling.slint
+index 7db85f9..ffa812a 100644
+--- a/internal/compiler/widgets/fluent/styling.slint
++++ b/internal/compiler/widgets/fluent/styling.slint
+@@ -42,7 +42,7 @@ export global FluentPalette {
+     out property <brush> accent-background: dark-color-scheme ? accentify(#60CDFF) : accentify(#005FB8);
+     out property <brush> accent-foreground: dark-color-scheme ? #000000 : #FFFFFF;
+     out property <brush> selection-background: accentify(#0078D4);
+-    out property <brush> selection-foreground: dark-color-scheme ? #000000 : #FFFFFF;
++    out property <brush> selection-foreground: #FFFFFF;
+     out property <brush> border: dark-color-scheme ? #FFFFFF14 : #00000073;
+ 
+     // additional palette

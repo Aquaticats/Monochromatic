@@ -1,5 +1,10 @@
 # deepmerge-ts unsearched surfaces, 2026-09-24
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`.
+
 Unsearched-surfaces workstream of the method audit
 (`doc/handover/deepmerge-ts-hardening.md`,
  section `Method audit`).

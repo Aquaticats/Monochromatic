@@ -576,7 +576,7 @@ Tradeoffs:
 ### F. task-oxlint fix-until-stable wrapper (current state for the command path)
 
 `task-oxlint` (the `oxlint` wrapper at
-`package/dev-script/task-util/src/oxlint-wrapper.ts`) loops `oxlint --fix` to a
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts`) loops `oxlint --fix` to a
 fixpoint when the caller passes `--fix`,
  so a single `task-oxlint --fix` (and the
 `format:oxlint` task that calls it) applies the overlapping and fix-induced fixes
@@ -669,7 +669,7 @@ baseline.
  because the
 plain-lint oracle is not verified to track suggestion-applied changes.
  The loop
-lives in `package/dev-script/task-util/src/oxlint-fix-loop.ts` with unit tests
+lives in `package/monorepo-task/core-exec/src/oxlint-fix-loop.ts` with unit tests
 in `oxlint-fix-loop.unit.test.ts`.
 
 This workspace has a real autofix oscillation that the loop surfaces.
@@ -849,6 +849,15 @@ Re-evaluate this decision when:
   - `package/oxlint-plugin/stylistic/src/rule/chain-per-line.ts:251-268`
   - `package/test-fixture/oxlint-stylistic/src/invalid/chain-and-mixed-operators.ts`
   - `package/oxlint-plugin/stylistic/src/oxlint-stylistic.unit.test.ts:566-617`
+- Width-conflict oscillation,
+  a failure class beside the span-overlap one recorded here:
+  when
+  `chain-per-line`'s renderer emitted one flat region indent while `stylistic/indentation` expected
+  per-anchor nesting,
+  fixture b8 looped under `--fix` until commit `310a3fa94c` unified chain rendering
+  with the indent model.
+  Record:
+  `doc/troubleshooting/oxlint-typescript-indent-rule.md`.
 - Issue this implementation closed:
    [Aquaticat/Monochromatic#209][issue-209].
 

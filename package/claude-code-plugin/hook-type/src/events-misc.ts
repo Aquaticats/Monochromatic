@@ -58,9 +58,9 @@ type UserPromptSubmitOutput = HookOutputBase & {
  */
 type NotificationType =
   | 'permission_prompt'
-  | 'idle_prompt'
-  | 'auth_success'
-  | 'elicitation_dialog';
+    | 'idle_prompt'
+    | 'auth_success'
+    | 'elicitation_dialog';
 
 /**
  Input for `Notification` hooks.

@@ -14,11 +14,11 @@
  */
 export type SemanticBridgeFailureReason =
   | 'api-unavailable'
-  | 'project-not-found'
-  | 'source-file-not-found'
-  | 'node-not-found'
-  | 'analysis-incomplete'
-  | 'readonly-capability-unavailable';
+    | 'project-not-found'
+    | 'source-file-not-found'
+    | 'node-not-found'
+    | 'analysis-incomplete'
+    | 'readonly-capability-unavailable';
 
 /**
  Error raised when unstable TypeScript bridge cannot provide required semantics.

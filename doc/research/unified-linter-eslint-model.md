@@ -75,7 +75,8 @@ released 2026-09-18),
    `applyInlineConfig()`,
    `finalize()` (`types.ts:1354-1450`).
 - Rules may declare `meta.languages`;
-   a rule configured for a language it does not declare throws `rule-unsupported-language` (`lib/config/config.js:262-300`).
+   a rule configured
+for a language it does not declare throws `rule-unsupported-language` (`lib/config/config.js:262-300`).
 - `@eslint/markdown` finds directives in mdast `html` nodes
    matching `<!--\s*eslint(?:-enable|-disable(?:(?:-next)?-line)?)?(?:\s|-->)`
    (`src/language/markdown-source-code.js:34-36`,

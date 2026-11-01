@@ -4,10 +4,9 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
 import {
@@ -23,6 +22,7 @@ import {
   type WorkspaceEntry,
 } from './registry-read.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Build, pack, token, publish
 
 /**
@@ -115,7 +115,7 @@ export async function packForPnpr({ entry, }: { readonly entry: WorkspaceEntry; 
    Scratch directory for this package's tarballs.
    */
   const scratch = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'pnpr-pack-',
   ),);
   await spawn(
@@ -243,8 +243,8 @@ export async function requestPublishToken({ audience, }: { readonly audience: st
   const response = await fetch(
     `${requestUrl}&audience=${encodeURIComponent(audience,)}`,
     {
-    headers: { authorization: `bearer ${requestToken}`, },
-  },
+      headers: { authorization: `bearer ${requestToken}`, },
+    },
   );
   /**
    Token value from GitHub, untrusted until narrowed.
@@ -294,15 +294,15 @@ export async function publishTarball(
   },
 ): Promise<void> {
   /**
-   Named hosted registry URL.
+   Named hosted registry URL under the ecosystem prefix the 0.1.0-alpha.16 base mounts npm at.
    */
-  const registry = new URL(`${origin}/~${target.registryName}/`,);
+  const registry = new URL(`${origin}/npm/~${target.registryName}/`,);
   /**
    Per-run npm userconfig referencing the token through the environment, so it never reaches disk.
    */
   const userconfig = join(
     await mkdtemp(join(
-      tmpdir(),
+      await scratchParent(),
       'pnpr-npmrc-',
     ),),
     '.npmrc',
@@ -340,13 +340,13 @@ export async function publishTarball(
         userconfig,
       ],
       {
-      env: {
-        ...inheritedEnvironment,
-        NODE_AUTH_TOKEN: token,
-      },
+        env: {
+          ...inheritedEnvironment,
+          NODE_AUTH_TOKEN: token,
+        },
       // Output is captured rather than inherited so the caller can recognize an `E403` refusal and retry it.
-      stdin: 'ignore',
-    },
+        stdin: 'ignore',
+      },
     );
     moduleLogger.info(result.output,);
   }

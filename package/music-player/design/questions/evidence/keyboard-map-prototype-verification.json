@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "scope": "One unaccepted keyboard-map design proposal with isolated authored browser behavior. No native application keyboard implementation, source operation, real audio, OS media-key delivery or IME study.",
+  "browserEngine": "Chromium; no Firefox or native OS delivery claim",
+  "browserCli": "0.38.1",
+  "resourceBounds": {
+    "memoryGiB": 2,
+    "cpu": 2
+  },
+  "offline": true,
+  "contexts": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 39,
+        "incomplete": 0,
+        "passes": 23,
+        "violations": 0
+      },
+      "editingOwnership": true,
+      "sameAndNewSearchVisits": true,
+      "nativeButtonAndSliderOwnership": true,
+      "popupContainment": true,
+      "authoredRowReveal": true,
+      "optionalInertObservations": true,
+      "noSourceOrAudioOperations": true,
+      "visibleClosedPageMinimum48CssPixels": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 39,
+        "incomplete": 0,
+        "passes": 23,
+        "violations": 0
+      },
+      "editingOwnership": true,
+      "sameAndNewSearchVisits": true,
+      "nativeButtonAndSliderOwnership": true,
+      "popupContainment": true,
+      "authoredRowReveal": true,
+      "optionalInertObservations": true,
+      "noSourceOrAudioOperations": true,
+      "visibleClosedPageMinimum48CssPixels": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 39,
+        "incomplete": 0,
+        "passes": 23,
+        "violations": 0
+      },
+      "editingOwnership": true,
+      "sameAndNewSearchVisits": true,
+      "nativeButtonAndSliderOwnership": true,
+      "popupContainment": true,
+      "authoredRowReveal": true,
+      "optionalInertObservations": true,
+      "noSourceOrAudioOperations": true,
+      "visibleClosedPageMinimum48CssPixels": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 39,
+        "incomplete": 0,
+        "passes": 23,
+        "violations": 0
+      },
+      "editingOwnership": true,
+      "sameAndNewSearchVisits": true,
+      "nativeButtonAndSliderOwnership": true,
+      "popupContainment": true,
+      "authoredRowReveal": true,
+      "optionalInertObservations": true,
+      "noSourceOrAudioOperations": true,
+      "visibleClosedPageMinimum48CssPixels": true,
+      "overflow": false
+    }
+  ],
+  "classificationCases": 26,
+  "classificationUnknownPlatformRejected": true,
+  "noSourceOrAudioOperations": true,
+  "reviewNotesOutsideApplicationShortcutScope": true,
+  "browserClosed": true,
+  "consoleErrors": 0,
+  "limits": [
+    "Isolated browser behavior model; macOS combos tested by protocol classification, not actual OS delivery; no native app/IME/media-key or accessibility acceptance.",
+    "Composition tests exercise a logical property only, not a real Android or desktop IME.",
+    "Player-region guard verifies the proposed scope, not an already accepted universal shortcut policy.",
+    "Native folder typeahead and real folder/Settings operation are not implemented by the popup model.",
+    "Closed-page axe checks are not native accessibility or open-popup audit acceptance.",
+    "New bindings remain a coherent proposal; D25s existing Search/picker assignments remain settled."
+  ],
+  "pageDigestsRemoved": "Digests of the page, builder, test, manifest and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it."
+}

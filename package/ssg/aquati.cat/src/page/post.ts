@@ -5,7 +5,7 @@
  or a fallback link to the language chooser if the post does not
  exist in the requested language.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

@@ -4,12 +4,12 @@
  Ordering is the only evidence a retirement rests on, so every branch here either
  decides from id text or declares the pair unordered. Absence is modelled with the
  {@link UNORDERED} sentinel rather than a nullish union, matching the convention
- `package/pi-shared/model-selection/src/version.ts` uses for `NO_MAJOR_VERSION`.
+ `package/agent-harness-shared/model-selection/src/version.ts` uses for `NO_MAJOR_VERSION`.
 
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   isDateShapedRaw,
   type ModelIdParse,
@@ -276,14 +276,14 @@ function compareEqualLengthDates(
   const sameDates = (left.dateRaws
     .length
     === right.dateRaws
-    .length)
+      .length)
     && left.dateRaws
-    .every(function matchesSameDate(
-      raw,
-      index
-    ) {
-      return raw === right.dateRaws[index];
-    },);
+      .every(function matchesSameDate(
+        raw,
+        index
+      ) {
+        return raw === right.dateRaws[index];
+      },);
   if (sameDates)
     return UNORDERED;
   if (left.dateRaws
@@ -297,7 +297,7 @@ function compareEqualLengthDates(
   if (left.dateRaws
     .length
     !== right.dateRaws
-    .length)
+      .length)
     return UNORDERED;
   return compareDateSequences({
     leftDates: left.dateRaws,
@@ -407,7 +407,7 @@ export function compareRecency(
   if (left.versionParts
     .length
     === right.versionParts
-    .length)
+      .length)
     return compareEqualLengthDates({
       left,
       right,
@@ -418,7 +418,7 @@ export function compareRecency(
   const shorterIsLeft = left.versionParts
     .length
     < right.versionParts
-    .length;
+      .length;
   /**
    Prefix comparison expressed in shorter and longer terms.
    */

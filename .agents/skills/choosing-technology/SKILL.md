@@ -145,6 +145,42 @@ Ask no rubber-stamp question.
 When settled requirements determine the answer,
 record the inference and continue.
 
+### Check in before broad discovery
+
+Each broad vetting process checks in with the user before enumerating all possible candidates,
+because the user may delegate the enumeration to a cheaper model of their choosing
+(not necessarily Haiku)
+or run it themselves.
+A vetting process is broad when it names or finds candidates from anywhere other than:
+
+1.  the agent's memory or general knowledge;
+2.  the user's picks;
+3.  repository precedent (incumbents,
+    prior vet reports,
+    decision records).
+
+Vetting only candidates from those three sources needs no check-in.
+
+Ask through `AskUserQuestion`,
+one question per vetting process,
+stating the subject,
+the context forks settled so far,
+the source classes,
+and the draft query schedule.
+Offer who runs it:
+this session,
+a model the user names,
+or the user.
+Wait for the answer before the first discovery query.
+This question decides who does the work,
+so it is never a rubber stamp.
+
+When the user delegates,
+write the settled context,
+hard constraints,
+and frozen query schedule into the vet report first,
+so the delegate starts from the report alone.
+
 ## Classify base components and overlays
 
 Classify every candidate component into exactly one base category.

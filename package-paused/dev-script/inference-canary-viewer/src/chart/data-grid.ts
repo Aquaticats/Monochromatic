@@ -5,7 +5,7 @@
  * timestamp and score per row. Cards display timestamp on top, score below,
  * matching the probe grid layout in run detail overlays.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { TableRow, } from './data-table.ts';
 

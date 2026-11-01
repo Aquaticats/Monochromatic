@@ -204,14 +204,12 @@ class NativeBridgeTest {
     // What:     `fun fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice() { ... }` declares a
     //           no-arg, `Unit`-returning test method. Domain note: this is the on-device successor to
     //           the old pure-Kotlin host test `PeakCacheTest.fingerprintIsStableOpaqueAndChangeSensitive`.
-    //           The fingerprint hash is now `gxhash` (hardware AES, no JVM port), computed in the
-    //           native crate and reached via `NativeBridge.nativeFingerprint`, so it can only run on a
-    //           real device. It pins the same contract the host test did, minus the hardcoded value:
-    //           DETERMINISM (same inputs -> same key), OPACITY (a 16-char hex key not leaking the
-    //           path), and CHANGE-SENSITIVITY to size, mtime, and path. No hardcoded hex value is
-    //           asserted because gxhash output may change across gxhash major versions.
-    // Why:      Prove the native fingerprint behaves like a cache key on the actual CPU (and that the
-    //           +aes-built `.so` runs gxhash without a SIGILL).
+    //           The fingerprint hash is XXH3-64 (the shared `truepeak-core` `track_fingerprint`), reached
+    //           via `NativeBridge.nativeFingerprint`. It pins the same contract the host test did:
+    //           DETERMINISM (same inputs -> same key), a non-zero key, and CHANGE-SENSITIVITY to size,
+    //           mtime, and path. The exact digests are pinned separately by
+    //           `fingerprintMatchesTheReferenceKnownAnswersOnDevice`.
+    // Why:      Prove the native fingerprint behaves like a cache key on the actual CPU.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -250,7 +248,7 @@ class NativeBridgeTest {
         val mtimeNanos = 1_000_000_000L
 
         // What:     `val first = NativeBridge.nativeFingerprint(path, size, mtimeNanos)`. Calls the
-        //           `external` native function across JNI; returns the hex cache-key `String`.
+        //           `external` native function across JNI; returns the raw `u64` cache key as a `Long`.
         // Why:      The reference key the later assertions compare against.
         //
         // In TS you'd write (pseudocode):
@@ -282,7 +280,7 @@ class NativeBridgeTest {
         assertTrue("fingerprint was zero", first != 0L)
         // What:     `assertTrue("...", first != NativeBridge.nativeFingerprint(path, 6L, mtimeNanos))`.
         //           Fails unless the keys DIFFER. The second call keeps path and mtime but uses a
-        //           different size (`6L` vs `5L`). `!=` is structural inequality on `String`.
+        //           different size (`6L` vs `5L`). `!=` is structural inequality on `Long`.
         // Why:      Change-sensitivity to size: a re-encoded file (new size) must invalidate the entry.
         //
         // In TS you'd write (pseudocode):
@@ -309,6 +307,55 @@ class NativeBridgeTest {
         // expect(NativeBridge.nativeFingerprint("/music/Artist/Album/b.flac", size, mtimeNanos)).not.toEqual(first);
         // ```
         assertTrue("path change did not change key", first != NativeBridge.nativeFingerprint("/music/Artist/Album/b.flac", size, mtimeNanos))
+    }
+
+    // What:     `@Test` annotation marking the next method as a JUnit test case.
+    // Why:      Registers `fingerprintMatchesTheReferenceKnownAnswersOnDevice` with the runner.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // it("fingerprintMatchesTheReferenceKnownAnswersOnDevice", () => { /* body */ });
+    // ```
+    @Test
+    // What:     `fun fingerprintMatchesTheReferenceKnownAnswersOnDevice() { ... }` declares a no-arg test
+    //           method that calls the REAL JNI entry with invented inputs and compares the returned `Long`
+    //           with constants printed by the xxHash reference C implementation (`XXH3_64bits`) over the
+    //           same material (domain tag, path length, path, size, mtime). The same constants are asserted
+    //           host-side in `truepeak-core/src/fingerprint_tests.rs`, so this test proves the Android JNI
+    //           path (string decoding, the signed `Long` to `u64` reinterpretation, the return cast) hashes
+    //           exactly like the desktop. The cases cover a non-ASCII path, a size above `Long.MAX_VALUE`
+    //           (passed as `-1L`), an empty path, and paths of 300 and 1100 bytes so the vector kernels run.
+    // Why:      A change of hash crate, seed, tag, or field order on the Android side fails here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // function fingerprintMatchesTheReferenceKnownAnswersOnDevice(): void { /* body */ }
+    // ```
+    fun fingerprintMatchesTheReferenceKnownAnswersOnDevice() {
+        /** An ASCII path of exactly [length] bytes: a slash, then the lowercase alphabet repeating. */
+        fun longPath(length: Int): String =
+            "/" + (1 until length).map { index -> 'a' + ((index - 1) % 26) }.joinToString("")
+        assertEquals(
+            "plain path",
+            0x6a80e982cfb4dab6uL.toLong(),
+            NativeBridge.nativeFingerprint("/music/invented/a.flac", 12_345_678L, 1_700_000_000_123_456_789L),
+        )
+        assertEquals("empty path", 0x13d18443ce11969auL.toLong(), NativeBridge.nativeFingerprint("", 0L, 0L))
+        assertEquals(
+            "non-ASCII path, size above Long.MAX_VALUE, mtime Long.MAX_VALUE",
+            0x5c24c1d06ceeb36fuL.toLong(),
+            NativeBridge.nativeFingerprint("/musique/été/chanson.ogg", -1L, Long.MAX_VALUE),
+        )
+        assertEquals(
+            "300-byte path",
+            0x8eddf5f59a842a1cuL.toLong(),
+            NativeBridge.nativeFingerprint(longPath(300), 987_654_321L, 1_600_000_000_000_000_001L),
+        )
+        assertEquals(
+            "1100-byte path",
+            0x0362151749ae2a5euL.toLong(),
+            NativeBridge.nativeFingerprint(longPath(1100), 4_294_967_296L, 1_700_000_000_999_999_999L),
+        )
     }
 
     // What:     `@Test` annotation marking the next method as a JUnit test case.

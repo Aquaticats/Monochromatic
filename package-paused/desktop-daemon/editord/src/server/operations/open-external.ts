@@ -2,7 +2,7 @@
  * External application launch operations.
  *
  * Opens a terminal at a directory path or opens a file in the default application.
- * On Linux, delegates to `@monochromatic-dev/cli-terminal-exec` which resolves
+ * On Linux, delegates to `@monochromatic-dev/terminal-exec-cli` which resolves
  * the preferred terminal and passes `--dir=` so the emulator opens in the correct directory.
  * Uses `open` on macOS, `start` on Windows.
  */
@@ -10,7 +10,7 @@
 import { dirname, } from 'node:path';
 import { platform, } from 'node:process';
 
-import { launchTerminal, } from '@monochromatic-dev/cli-terminal-exec';
+import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli';
 
 import { assertWithinRoot, } from './assert-within-root.ts';
 import { spawnDetached, } from './spawn-detached.ts';

@@ -2,7 +2,7 @@
 
 ## Symptom
 
-An early `package/module/toml-edit` migration wrapped many parser AST descendants and callback parameters in
+An early `package/toml-edit/core` migration wrapped many parser AST descendants and callback parameters in
 `ForeignBorrowed<T>`.
 That reduced diagnostics,
 but it repeated an ownership claim at every traversal step and made it difficult to see where foreign ownership entered.
@@ -176,8 +176,8 @@ and external-consumer checks.
 The TOML package commands are:
 
 ```sh
-mise run //package/module/toml-edit:lint:types
-mise run //package/module/toml-edit:lint:oxlint
+mise run //package/toml-edit/core:lint:types
+mise run //package/toml-edit/core:lint:oxlint
 ```
 
 Type lint passes after the `/ts` import correction.

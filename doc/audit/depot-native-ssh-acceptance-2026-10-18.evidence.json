@@ -1,0 +1,1024 @@
+{
+  "schemaVersion": 1,
+  "sealedAt": "2026-10-18T18:30:20.599Z",
+  "status": "Three transports source/local qualified; Root final admission pending; no native SSH allocation",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "fixture": {
+    "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+    "branch": "research/depot-native-ssh-20261018",
+    "paths": [
+      ".depot/workflows/native-ssh-acceptance.yml",
+      ".depot/probe/native-ssh/mise.toml"
+    ],
+    "runner": "depot-ubuntu-24.04",
+    "cpu": 2,
+    "memoryGiB": 8,
+    "jobMinutes": 3,
+    "tmateStepMinutes": 2,
+    "pinnedAction": {
+      "commit": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "relation": "Pinned equivalent of source-reviewed CLI@v3 injection; no CLI-injection execution credit"
+    }
+  },
+  "admission": {
+    "approved": false,
+    "maximumConcurrentJobs": 1,
+    "maximumJobsIncludingCorrection": 2,
+    "nominalPerJobUsd": 0.018,
+    "nominalMaximumUsd": 0.036,
+    "formula": "2jobs*3minutes*USD0.006/native2CPU-minute",
+    "invoiceOrAggregateCap": false,
+    "newCredentialsOrSecrets": false
+  },
+  "classification": {
+    "sourceDocumented": [
+      "Direct SSH uses existing API token and raw sandbox context",
+      "Paused tmate has full workflow environment and log target is a bearer capability"
+    ],
+    "sourceInspected": [
+      "Interactive depot ci ssh uses OpenPtySession RPC, while--info returns connection metadata",
+      "CLI--ssh-after-step injects mutable action-tmate@v3; pinned fixture is equivalent code without CLI-injection execution credit",
+      "Tmate packaged runtime watches/continue or workspace/continue; connect-timeout only bounds detached post path, so fixture omits that ineffective main-step setting",
+      "Tmate upstream source permits none auth only when session authorized_keys policy permits it; actual cloud gateway remains to qualify",
+      "Native CLI RPC leg receives a real local PTY, separate from direct OpenSSH and paused tmate",
+      "util-linux command joins shell operands and child creates its own session; use quoted exec and exact owned-child supervision",
+      "CLI ListRuns source/proto forwards repository/full-SHA filters; local workflow_content submission does not guarantee a runtime file path",
+      "Native CLI RPC leg receives a real local PTY, separate from direct OpenSSH and paused tmate",
+      "util-linux command joins shell operands and child creates its own session; use quoted exec and exact owned-child supervision",
+      "CLI ListRuns source/proto forwards repository/full-SHA filters; local workflow_content submission does not guarantee a runtime file path"
+    ],
+    "locallyQualified": [
+      "Owning-directory task discovery and plain-JavaScript syntax checks",
+      "Synthetic askpass positive and unexpected-prompt rejection without a real credential",
+      "Remote file consumers: direct/paused positives and source/workflow-env rejections",
+      "Privileged UID0 writer restores UID1000/GID1000 before0600 workflow-reader access; root-owned0600 negative returnsEACCES",
+      "OpenSSH direct and tmate shell-option syntax; actual local credential scalar shape admitted without displaying credential",
+      "Real PTY challenge/TTY controls, exit0/7 propagation and bounded TERM-ignoring direct/script child escalation, reaping and owned PID absence",
+      "Final fixture source has direct/CLI/paused positives plus source/env rejections",
+      "Real PTY challenge/TTY controls, exit0/7 propagation and bounded TERM-ignoring direct/script child escalation, reaping and owned PID absence",
+      "Final fixture source has direct/CLI/paused positives plus source/env rejections"
+    ],
+    "providerRuntimeQualified": false
+  },
+  "commands": {
+    "dispatch": [
+      "depot",
+      "ci",
+      "run",
+      "--org",
+      "l4zncjjbj5",
+      "--forge",
+      "github",
+      "--workflow",
+      ".depot/workflows/native-ssh-acceptance.yml",
+      "--job",
+      "ssh-proof"
+    ],
+    "info": [
+      "depot",
+      "ci",
+      "ssh",
+      "<owned-run>",
+      "--job",
+      "<exact-owned-job-key>",
+      "--org",
+      "l4zncjjbj5",
+      "--info",
+      "--output",
+      "json"
+    ],
+    "logs": [
+      "depot",
+      "ci",
+      "logs",
+      "<owned-attempt>",
+      "--org",
+      "l4zncjjbj5",
+      "--output",
+      "json"
+    ],
+    "rawSsh": {
+      "file": "ssh",
+      "options": [
+        "-F",
+        "/dev/null",
+        "-tt",
+        "-o",
+        "ConnectionAttempts=1",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "ServerAliveInterval=2",
+        "-o",
+        "ServerAliveCountMax=2",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "UserKnownHostsFile=<owned-private-dir>/known_hosts",
+        "-o",
+        "IdentityAgent=none",
+        "-o",
+        "PreferredAuthentications=password",
+        "-o",
+        "PubkeyAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        "-o",
+        "NumberOfPasswordPrompts=1"
+      ],
+      "target": "<owned-sandbox>@exec.depot.dev",
+      "stdin": "Shell-quoted admitted absolute Node path + source-archived remote consumer + fresh challenge config, then exit $?; API password is delivered through one owned Unix askpass socket"
+    },
+    "pausedSsh": {
+      "file": "ssh",
+      "options": [
+        "-F",
+        "/dev/null",
+        "-tt",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "IdentityAgent=none",
+        "-o",
+        "PubkeyAuthentication=no",
+        "-o",
+        "PasswordAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        "-o",
+        "GSSAPIAuthentication=no",
+        "-o",
+        "HostbasedAuthentication=no"
+      ],
+      "target": "<private-target-from-exact-attempt-log>",
+      "stdin": "Same source-archived remote consumer in paused mode; validate canonical workspace and synthetic workflow variable, write nonce continue marker"
+    },
+    "cancel": [
+      "depot",
+      "ci",
+      "cancel",
+      "<owned-run>",
+      "--org",
+      "l4zncjjbj5",
+      "--output",
+      "json"
+    ],
+    "terminal": [
+      "depot",
+      "ci",
+      "status",
+      "<owned-run>",
+      "--org",
+      "l4zncjjbj5",
+      "--wait",
+      "--output",
+      "json"
+    ],
+    "nativeCliPty": {
+      "file": "script",
+      "options": [
+        "--quiet",
+        "--return",
+        "--flush",
+        "--echo",
+        "never",
+        "--output-limit",
+        "262144",
+        "--log-out",
+        "<owned-private-dir>/native-cli-pty.typescript",
+        "--command"
+      ],
+      "command": "exec 'depot' 'ci' 'ssh' '<owned-run>' '--job' '<exact-owned-job>' '--org' 'l4zncjjbj5'",
+      "stdin": "Archived absolute-Node cli-pty challenge consumer, then exit $?; expected response absent from input"
+    },
+    "lostDispatch": {
+      "file": "depot",
+      "args": [
+        "ci",
+        "run",
+        "list",
+        "--org",
+        "l4zncjjbj5",
+        "--repo",
+        "Aquaticats/Monochromatic",
+        "--sha",
+        "<full-approved-source>",
+        "--n",
+        "10",
+        "--output",
+        "json",
+        "--status",
+        "queued",
+        "--status",
+        "running",
+        "--status",
+        "finished",
+        "--status",
+        "failed",
+        "--status",
+        "cancelled"
+      ],
+      "scope": "Full SHA/head-SHA and exact repository server filters, dispatch time, fresh workflow name and owned job; empty inline workflow_path allowed"
+    }
+  },
+  "controller": {
+    "task": "run-native-ssh-acceptance",
+    "defaultMode": "plan-only; zero cloud calls",
+    "executeGate": "NATIVE_SSH_EXECUTE=1 plus Root-reviewed source/controller/helper hashes in private admission",
+    "watchdogCancelMsFromAdmissionDispatch": 150000,
+    "eachSshLegLimitMs": 15000,
+    "serverJobMinutes": 3,
+    "pausedStepMinutes": 2,
+    "localCleanupBeginsAtMs": 210000,
+    "finally": "Bounded exact owned TERM/KILL escalation and reaping, including separate-session script child; scoped lost-dispatch recovery, cancellation and fresh terminal status",
+    "preDispatchGates": [
+      "Clean exact source",
+      "Exactly fixture paths changed from e02",
+      "Remote branch ancestry",
+      "Terminal prior attempt before a correction",
+      "Existing local credential shape admitted"
+    ],
+    "inlineTaskSha256": "59b7d8fe0c3249c002ff18491c08f8379cf915c0f8237a185b7d90bbed5c82e3",
+    "helperSha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626",
+    "terminationGraceMs": 1500,
+    "cleanupCliCommandMs": 10000,
+    "lostDispatch": "Issued request records possible allocation before response; exact repo/full-SHA/time/workflow/job recovery required before correction",
+    "wholeControllerHardDeadlineEnforced": false,
+    "lifecycleQualification": "210 seconds starts cleanup; bounded individual clients/cleanup commands, with no independent whole-controller hard backstop",
+    "askpassSha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2",
+    "remoteConsumerSha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a",
+    "manifestProjection": {
+      "base": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "branch": "research/depot-native-ssh-20261018",
+      "tree": "/home/user/temp/agent/depot-native-ssh-5U4m6T/worktree",
+      "area": "/home/user/temp/agent/depot-native-ssh-5U4m6T",
+      "profile": {
+        "label": "depot-ubuntu-24.04",
+        "cpu": 2,
+        "memoryGiB": 8,
+        "jobTimeoutMinutes": 3,
+        "tmateStepTimeoutMinutes": 2,
+        "maximumJobsIncludingCorrection": 2,
+        "perMinuteUsd": 0.006,
+        "maximumNominalReservationUsd": 0.036
+      },
+      "pausedAction": {
+        "commit": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+        "relation": "Pinned equivalent of source-reviewed CLI@v3 injection; no CLI-injection execution credit"
+      },
+      "localBridges": {
+        "askpass": "/home/user/temp/agent/depot-native-ssh-5U4m6T/ssh-askpass.mjs",
+        "remoteConsumer": "/home/user/temp/agent/depot-native-ssh-5U4m6T/remote-consumer.mjs",
+        "credentialTransport": "Existing local CLI token stays in controller memory and one owned0700-directory Unix socket; never token argv/env/file",
+        "hostKeyPolicy": "Private known_hosts with accept-new; retain observed fingerprints without claiming independent vendor key attestation",
+        "directAuthentication": "password only, pubkey/agent disabled; reject unexpected askpass prompts",
+        "tmateAuthentication": "Session target is a bearer capability; private only, BatchMode=yes, no user token forwarded"
+      }
+    },
+    "manifestProjectionSha256": "af74218a9bd47caa760642a62f3671f55a337e82407ea3978022643030f942d5"
+  },
+  "proofContract": [
+    "Exact owned run/job/attempt/sandbox match from fresh status plus CLI info",
+    "Source/fixture hashes and boot identity from workflow marker",
+    "Controller challenge responses are absent from SSH input and consumed from VM-written0600 files",
+    "Privileged writer preserves actual writer UID/GID while restoring marker-reader ownership",
+    "Paused workflow context and continued next-step consumer",
+    "Only continue-file and tmate-socket absence are claimed; no exact tmate PID/process or raw SSH credential revocation proof",
+    "Fresh terminal CI status; this is not an invoice or instantaneous VM-release observation"
+  ],
+  "localControls": {
+    "askpass": {
+      "positiveExit": 0,
+      "negativeExit": 1,
+      "connectionCount": 1,
+      "negativeCreatedConnection": false,
+      "socketAbsent": true,
+      "actualCredentialUsed": false
+    },
+    "fileConsumers": {
+      "checkedAt": "2026-10-18T18:13:13.403Z",
+      "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "scope": "Local disposable file-consumer and challenge controls only; no remote SSH or Depot runtime credit",
+      "cases": [
+        {
+          "name": "direct-positive",
+          "status": 0,
+          "pass": true,
+          "shellInputBytes": 2184,
+          "proofSha256": "66745fe12b5621cf606d6f5dfbc2e10a30bd2e137047656255b9279a6ad88fbd",
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "cli-positive",
+          "status": 0,
+          "pass": true,
+          "shellInputBytes": 2181,
+          "proofSha256": "6367feb7057c1e3640ef749e49cea847439a8f4da5781c33e2443fb59b055bc7",
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "source-rejection",
+          "status": 1,
+          "pass": true,
+          "shellInputBytes": 2184,
+          "proofSha256": null,
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "paused-env-rejection",
+          "status": 1,
+          "pass": true,
+          "shellInputBytes": 2186,
+          "proofSha256": null,
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "paused-positive",
+          "status": 0,
+          "pass": true,
+          "shellInputBytes": 2186,
+          "proofSha256": "090936be29f64d574d75ab24844f09b3351def45efd54a758a5c143b51f180b6",
+          "expectedResponseEmbeddedInInput": false
+        }
+      ],
+      "continueNonceHashMatched": true,
+      "actualCredentialUsed": false,
+      "cloudOperations": 0
+    },
+    "differentWriter": {
+      "observation": {
+        "node": "v24.22.0",
+        "architecture": "x64",
+        "markerUid": 1000,
+        "markerGid": 1000,
+        "writerUid": 0,
+        "writerGid": 0,
+        "restoredFileUid": 1000,
+        "restoredFileGid": 1000,
+        "restoredFileMode": "600",
+        "unprivilegedReaderExit": 0,
+        "rootOwnedNegativeReaderExit": 23,
+        "rootOwnedNegativeCode": "EACCES"
+      },
+      "container": {
+        "state": {
+          "OciVersion": "1.2.1",
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-18T13:46:32.925461468-04:00",
+          "FinishedAt": "2026-10-18T13:46:33.04478428-04:00",
+          "CheckpointedAt": "0001-01-01T00:00:00Z",
+          "RestoredAt": "0001-01-01T00:00:00Z"
+        },
+        "imageId": "aedf411bcd17538e70d87272ba16677ed7ec62f2211cf4f30a3f38ec8ce6b55a",
+        "mountCount": 0,
+        "memoryBytes": 2147483648,
+        "cpuQuota": 200000,
+        "cpuPeriod": 100000,
+        "pidsLimit": 64,
+        "networkMode": "none"
+      },
+      "containerAbsentAfter": true,
+      "priorFixtureSyntaxFailurePreserved": true
+    },
+    "openSshVersion": "OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026",
+    "existingLocalCredentialShapeAdmitted": true,
+    "openSshVersionReceipt": {
+      "argv": [
+        "ssh",
+        "-V"
+      ],
+      "status": 0,
+      "stdout": "",
+      "stderr": "OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026\n"
+    },
+    "nativeCliPty": {
+      "checkedAt": "2026-10-18T18:08:12.303Z",
+      "scope": "Local util-linux2.42.2 native-PTY and owned-process lifecycle controls, no Depot runtime",
+      "cases": [
+        {
+          "name": "pty-return-0",
+          "expectedStatus": 0,
+          "result": {
+            "file": "script",
+            "args": [
+              "--quiet",
+              "--return",
+              "--flush",
+              "--echo",
+              "never",
+              "--output-limit",
+              "262144",
+              "--log-out",
+              "/home/user/temp/agent/depot-native-ssh-5U4m6T/pty-control-0.typescript",
+              "--command",
+              "exec '/var/home/user/.local/share/mise/installs/node/26.12.0/bin/node' --input-type=module-typescript --eval 'import {once} from '\\''node:events'\\'';import {createHash} from '\\''node:crypto'\\'';import {setTimeout as wait} from '\\''node:timers/promises'\\'';process.stdin.resume();const [bytes]=await once(process.stdin,'\\''data'\\'');console.log('\\''PTY_CONTROL '\\''+JSON.stringify({pid:process.pid,parentPid:process.ppid,stdinTty:process.stdin.isTTY,stdoutTty:process.stdout.isTTY,response:createHash('\\''sha256'\\'').update(bytes).digest('\\''hex'\\'')}));await wait(100);process.exit(0);'"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "PTY_CONTROL {\"pid\":2860109,\"parentPid\":2860108,\"stdinTty\":true,\"stdoutTty\":true,\"response\":\"ec8b4d52f309215791fcad8f3aabbee1ff9c6f2788768fb3285204f2c1c48f45\"}\r\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 2860108,
+              "rootStartTime": "5261253",
+              "rootReaped": true,
+              "deadlineReached": false,
+              "signals": [],
+              "owned": [
+                {
+                  "pid": 2860108,
+                  "state": "R",
+                  "parentPid": 2860100,
+                  "group": 2860108,
+                  "session": 2860108,
+                  "startTime": "5261253",
+                  "remaining": false
+                },
+                {
+                  "pid": 2860109,
+                  "state": "R",
+                  "parentPid": 2860108,
+                  "group": 2860109,
+                  "session": 2860109,
+                  "startTime": "5261253",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          },
+          "proof": {
+            "pid": 2860109,
+            "parentPid": 2860108,
+            "stdinTty": true,
+            "stdoutTty": true,
+            "response": "ec8b4d52f309215791fcad8f3aabbee1ff9c6f2788768fb3285204f2c1c48f45"
+          },
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "pty-return-7",
+          "expectedStatus": 7,
+          "result": {
+            "file": "script",
+            "args": [
+              "--quiet",
+              "--return",
+              "--flush",
+              "--echo",
+              "never",
+              "--output-limit",
+              "262144",
+              "--log-out",
+              "/home/user/temp/agent/depot-native-ssh-5U4m6T/pty-control-7.typescript",
+              "--command",
+              "exec '/var/home/user/.local/share/mise/installs/node/26.12.0/bin/node' --input-type=module-typescript --eval 'import {once} from '\\''node:events'\\'';import {createHash} from '\\''node:crypto'\\'';import {setTimeout as wait} from '\\''node:timers/promises'\\'';process.stdin.resume();const [bytes]=await once(process.stdin,'\\''data'\\'');console.log('\\''PTY_CONTROL '\\''+JSON.stringify({pid:process.pid,parentPid:process.ppid,stdinTty:process.stdin.isTTY,stdoutTty:process.stdout.isTTY,response:createHash('\\''sha256'\\'').update(bytes).digest('\\''hex'\\'')}));await wait(100);process.exit(7);'"
+            ],
+            "status": 7,
+            "signal": null,
+            "stdout": "PTY_CONTROL {\"pid\":2860168,\"parentPid\":2860167,\"stdinTty\":true,\"stdoutTty\":true,\"response\":\"44c4a16701431fba33d9145881fdf15370a180599c97856fd4fbe0f2197bfd48\"}\r\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 2860167,
+              "rootStartTime": "5261281",
+              "rootReaped": true,
+              "deadlineReached": false,
+              "signals": [],
+              "owned": [
+                {
+                  "pid": 2860167,
+                  "state": "R",
+                  "parentPid": 2860100,
+                  "group": 2860167,
+                  "session": 2860167,
+                  "startTime": "5261281",
+                  "remaining": false
+                },
+                {
+                  "pid": 2860168,
+                  "state": "R",
+                  "parentPid": 2860167,
+                  "group": 2860168,
+                  "session": 2860168,
+                  "startTime": "5261281",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          },
+          "proof": {
+            "pid": 2860168,
+            "parentPid": 2860167,
+            "stdinTty": true,
+            "stdoutTty": true,
+            "response": "44c4a16701431fba33d9145881fdf15370a180599c97856fd4fbe0f2197bfd48"
+          },
+          "expectedResponseEmbeddedInInput": false
+        },
+        {
+          "name": "direct-term-ignore",
+          "result": {
+            "file": "/var/home/user/.local/share/mise/installs/node/26.12.0/bin/node",
+            "args": [
+              "--eval",
+              "process.on('SIGTERM',()=>{});console.log('OWNED_IDLE '+JSON.stringify({pid:process.pid,parentPid:process.ppid}));setTimeout(()=>process.exit(19),3000);"
+            ],
+            "status": null,
+            "signal": "SIGKILL",
+            "stdout": "OWNED_IDLE {\"pid\":2860291,\"parentPid\":2860100}\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 2860291,
+              "rootStartTime": "5261308",
+              "rootReaped": true,
+              "deadlineReached": true,
+              "signals": [
+                {
+                  "group": 2860291,
+                  "signal": "SIGTERM",
+                  "at": "2026-10-18T18:08:11.098Z"
+                },
+                {
+                  "group": 2860291,
+                  "signal": "SIGKILL",
+                  "at": "2026-10-18T18:08:11.348Z"
+                },
+                {
+                  "pid": 2860291,
+                  "startTime": "5261308",
+                  "signal": "SIGKILL",
+                  "at": "2026-10-18T18:08:11.348Z"
+                }
+              ],
+              "owned": [
+                {
+                  "pid": 2860291,
+                  "state": "R",
+                  "parentPid": 2860100,
+                  "group": 2860291,
+                  "session": 2860291,
+                  "startTime": "5261308",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          }
+        },
+        {
+          "name": "script-term-ignore",
+          "result": {
+            "file": "script",
+            "args": [
+              "--quiet",
+              "--return",
+              "--flush",
+              "--echo",
+              "never",
+              "--log-out",
+              "/home/user/temp/agent/depot-native-ssh-5U4m6T/pty-term-ignore.typescript",
+              "--command",
+              "exec '/var/home/user/.local/share/mise/installs/node/26.12.0/bin/node' --eval 'process.on('\\''SIGTERM'\\'',()=>{});console.log('\\''OWNED_IDLE '\\''+JSON.stringify({pid:process.pid,parentPid:process.ppid}));setTimeout(()=>process.exit(19),3000);'"
+            ],
+            "status": 137,
+            "signal": null,
+            "stdout": "OWNED_IDLE {\"pid\":2860574,\"parentPid\":2860573}\r\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 2860573,
+              "rootStartTime": "5261354",
+              "rootReaped": true,
+              "deadlineReached": true,
+              "signals": [
+                {
+                  "pid": 2860574,
+                  "startTime": "5261354",
+                  "signal": "SIGTERM",
+                  "at": "2026-10-18T18:08:11.553Z"
+                },
+                {
+                  "pid": 2860574,
+                  "startTime": "5261354",
+                  "signal": "SIGKILL",
+                  "at": "2026-10-18T18:08:11.803Z"
+                }
+              ],
+              "owned": [
+                {
+                  "pid": 2860573,
+                  "state": "R",
+                  "parentPid": 2860100,
+                  "group": 2860573,
+                  "session": 2860573,
+                  "startTime": "5261354",
+                  "remaining": false
+                },
+                {
+                  "pid": 2860574,
+                  "state": "R",
+                  "parentPid": 2860573,
+                  "group": 2860574,
+                  "session": 2860574,
+                  "startTime": "5261354",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          }
+        }
+      ],
+      "cloudOperations": 0
+    },
+    "scriptVersion": "script from util-linux 2.42.2",
+    "scopedRunLookup": {
+      "checkedAt": "2026-10-18T18:28:52.097Z",
+      "scope": "Actual source/repository-filtered read-only native ListRuns control; no account-wide lookup and no dispatch",
+      "controls": [
+        {
+          "name": "owned-known-run-positive",
+          "fullSha": "f0865228da0123433face17054ca7f7f62538c9b",
+          "expectedKnownRun": "38z4wlq9d3",
+          "returnedRunIds": [
+            "38z4wlq9d3",
+            "ps_74fk75btpf"
+          ],
+          "result": {
+            "file": "depot",
+            "args": [
+              "ci",
+              "run",
+              "list",
+              "--org",
+              "l4zncjjbj5",
+              "--repo",
+              "Aquaticats/Monochromatic",
+              "--sha",
+              "f0865228da0123433face17054ca7f7f62538c9b",
+              "--n",
+              "10",
+              "--output",
+              "json",
+              "--status",
+              "queued",
+              "--status",
+              "running",
+              "--status",
+              "finished",
+              "--status",
+              "failed",
+              "--status",
+              "cancelled"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "[\n  {\n    \"run_id\": \"38z4wlq9d3\",\n    \"repo\": \"Aquaticats/Monochromatic\",\n    \"trigger\": \"api\",\n    \"sha\": \"f0865228da0123433face17054ca7f7f62538c9b\",\n    \"status\": \"finished\",\n    \"created_at\": \"2026-10-18T15:32:42Z\",\n    \"ref\": \"f0865228da0123433face17054ca7f7f62538c9b\",\n    \"head_sha\": \"f0865228da0123433face17054ca7f7f62538c9b\"\n  },\n  {\n    \"run_id\": \"ps_74fk75btpf\",\n    \"repo\": \"Aquaticats/Monochromatic\",\n    \"trigger\": \"push\",\n    \"sha\": \"f0865228da0123433face17054ca7f7f62538c9b\",\n    \"status\": \"finished\",\n    \"created_at\": \"2026-10-18T15:27:37Z\",\n    \"ref\": \"f0865228da0123433face17054ca7f7f62538c9b\",\n    \"head_sha\": \"f0865228da0123433face17054ca7f7f62538c9b\"\n  }\n]\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 3656726,
+              "rootStartTime": "5385295",
+              "rootReaped": true,
+              "deadlineReached": false,
+              "signals": [],
+              "owned": [
+                {
+                  "pid": 3656726,
+                  "state": "R",
+                  "parentPid": 3656622,
+                  "group": 3656726,
+                  "session": 3656726,
+                  "startTime": "5385295",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          }
+        },
+        {
+          "name": "new-ssh-source-negative",
+          "fullSha": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+          "expectedKnownRun": null,
+          "returnedRunIds": [],
+          "result": {
+            "file": "depot",
+            "args": [
+              "ci",
+              "run",
+              "list",
+              "--org",
+              "l4zncjjbj5",
+              "--repo",
+              "Aquaticats/Monochromatic",
+              "--sha",
+              "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+              "--n",
+              "10",
+              "--output",
+              "json",
+              "--status",
+              "queued",
+              "--status",
+              "running",
+              "--status",
+              "finished",
+              "--status",
+              "failed",
+              "--status",
+              "cancelled"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "null\n",
+            "stderr": "",
+            "cleanup": {
+              "rootPid": 3657915,
+              "rootStartTime": "5385368",
+              "rootReaped": true,
+              "deadlineReached": false,
+              "signals": [],
+              "owned": [
+                {
+                  "pid": 3657915,
+                  "state": "R",
+                  "parentPid": 3656622,
+                  "group": 3657915,
+                  "session": 3657915,
+                  "startTime": "5385368",
+                  "remaining": false
+                }
+              ],
+              "allOwnedAbsent": true
+            }
+          }
+        }
+      ],
+      "cloudAllocations": 0
+    }
+  },
+  "preflightDefects": [
+    "Controller TOML nested literal fence fixed before execution; no worktree/cloud resource created by parse failure",
+    "git worktree has-b and no--branch; corrected per existing git-worktree-add-start-point diagnosis, explicit frozen base preserved",
+    "Generated newline literals corrected before runtime preflight",
+    "Record SSH UID/GID authority instead of assuming direct SSH has the workflow UID",
+    "Paused consumer positive exposed local home symlink spelling; compare canonical filesystem paths and retain original spellings",
+    "Local task discovery reports qualified monorepo names; scope corrected before runtime",
+    "Plain JavaScript syntax check uses--input-type=module per existing Node26.12 source diagnosis; runtime task shell remains module-typescript",
+    "Parent review caught0600 different-writer boundary: privileged remote writer restores marker UID/GID; workflow checks reader ownership and0600; consumer.json explicitly0600"
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+    "gzipBytes": 2342905,
+    "gzipSha256": "8c503d374116bb787f8eb2dd395db70654a822e887631cda94f859e471968923",
+    "uncompressedBytes": 10152113,
+    "uncompressedSha256": "cd7ec34aea5547fc764686901bb694bf6f514d2e6f904a42b5666e666e670a58",
+    "sourceCount": 26,
+    "previousSourceBodiesRetained": true
+  },
+  "sourceRecords": [
+    {
+      "id": "docs/ci/debug-with-ssh.md",
+      "repository": "https://depot.dev/docs/ci/how-to-guides/debug-with-ssh",
+      "revision": "deployed-capture-2026-10-18",
+      "bytes": 6942,
+      "sha256": "c0842723d35287d036523e9a16ed47c1b1b1c0d88a80492358debec2dd3c38e1"
+    },
+    {
+      "id": "depot-cli/pkg/cmd/ci/ssh.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 8867,
+      "sha256": "8fabaf0d0d10d3a13df927ee9b7380d95567ee3c2c4ef35bb10ddba5900abde9"
+    },
+    {
+      "id": "depot-cli/pkg/cmd/ci/run.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 28074,
+      "sha256": "fa83cc0a2dc49c977d6c3a2f7696aa7bde77c0c938668fc29d55dfa715ce1dc3"
+    },
+    {
+      "id": "depot-cli/pkg/cmd/ci/status.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 8271,
+      "sha256": "b38a4e8349dcb18ebad614591ae512fdbf96dd2ad9c0db5000d0a27c903e3d05"
+    },
+    {
+      "id": "depot-cli/pkg/cmd/ci/logs.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 35498,
+      "sha256": "7ad74cfabf3d7a94cac952b6811eff09c409bb28cf25b7fb6dd2e7b8bb03b716"
+    },
+    {
+      "id": "depot-cli/pkg/cmd/ci/cancel.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 3047,
+      "sha256": "a104be2427e412019db6a23dc8bc91624119805e344ac9b0e2cbc706b32ef756"
+    },
+    {
+      "id": "depot-cli/pkg/helpers/token.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 2603,
+      "sha256": "31a0786bcf4a572fb0a25415b8680157ae12a9a3cacfcdb214be821a55da3d03"
+    },
+    {
+      "id": "depot-cli/pkg/config/config.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 1552,
+      "sha256": "93e10c923d2b08caacb5d607fff1d59028e0fb5647098f103342e4ebdcbf1c30"
+    },
+    {
+      "id": "depot-cli/pkg/pty/session.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 3136,
+      "sha256": "4c23b7348acb06a7ce2ad3a18f450fb8dfb8e46d8c39286bcac3346c073cd318"
+    },
+    {
+      "id": "action-tmate/action.yml",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 2625,
+      "sha256": "6163a5b07609f5484f2a8d0b72f348fde969192a6f815fce6c67ae9aabf8ed46"
+    },
+    {
+      "id": "action-tmate/src/index.js",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 10717,
+      "sha256": "70855ed49eb89e1024844439edf752e2592409a5b56430f8b5faa22008b61026"
+    },
+    {
+      "id": "action-tmate/lib/index.js",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 1346956,
+      "sha256": "dff80637e6a575dd9b5d897fd38afd327267e3843e2dba581739a87d8c34a64c"
+    },
+    {
+      "id": "tmate-ssh-server/tmate-ssh-server.c",
+      "repository": "https://github.com/tmate-io/tmate-ssh-server",
+      "revision": "d7334ee4c3c8036c27fb35c7a24df3a88a15676b",
+      "bytes": 12733,
+      "sha256": "83fee333d40af8c05b186e3a01f33c5a18dc50cfd5b5dd42546842c550e1f5c6"
+    },
+    {
+      "id": "tmate-ssh-server/tmate-auth-keys.c",
+      "repository": "https://github.com/tmate-io/tmate-ssh-server",
+      "revision": "d7334ee4c3c8036c27fb35c7a24df3a88a15676b",
+      "bytes": 4737,
+      "sha256": "e16431f8148a71ea0ea18c0b642d06ee97ff97b26b8c1f9060894318b388817a"
+    },
+    {
+      "id": "fixture/.depot/workflows/native-ssh-acceptance.yml",
+      "repository": "Monochromatic research/depot-native-ssh-20261018",
+      "revision": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "bytes": 1123,
+      "sha256": "43f00592bf2bb925e84b122f99e4a8f9ef50c1113672cda985cfe23ddba55e84"
+    },
+    {
+      "id": "fixture/.depot/probe/native-ssh/mise.toml",
+      "repository": "Monochromatic research/depot-native-ssh-20261018",
+      "revision": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "bytes": 4419,
+      "sha256": "3c87646eda63d6d93ce7762d79871f3b5cc170d2f2456ebd5fe934abdbfe845a"
+    },
+    {
+      "id": "controller/ssh-askpass.mjs",
+      "repository": "Owned isolated research controller",
+      "revision": "proposal-2026-10-18",
+      "bytes": 538,
+      "sha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2"
+    },
+    {
+      "id": "controller/remote-consumer.mjs",
+      "repository": "Owned isolated research controller",
+      "revision": "proposal-2026-10-18",
+      "bytes": 1682,
+      "sha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a"
+    },
+    {
+      "id": "controller/mise.toml",
+      "repository": "Owned isolated research controller",
+      "revision": "proposal-2026-10-18",
+      "bytes": 837401,
+      "sha256": "22814ec0ca258a9df6d6ff78f0fc9434344131055efb2c9b49d951f2d5e71c43"
+    },
+    {
+      "id": "installed-openssh/ssh.1",
+      "repository": "Installed OpenSSH manual",
+      "revision": "OpenSSH_10.2p1",
+      "bytes": 47919,
+      "sha256": "9a40ca59983f95555a050b2c416b2b85c01bccd7e7656f0b59b1a960069fe974"
+    },
+    {
+      "id": "controller/native-ssh-owned-process.mjs",
+      "repository": "Owned isolated research controller",
+      "revision": "proposal-2026-10-18",
+      "bytes": 3671,
+      "sha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626"
+    },
+    {
+      "id": "util-linux/term-utils/script.c",
+      "repository": "https://github.com/util-linux/util-linux",
+      "revision": "f44509230b9f8224993b8c6157f85888359a64e1",
+      "bytes": 29605,
+      "sha256": "cd22e63f2bac58634c0be6e98675a383cb54881913baaf4d70bcacfc2bb01d04"
+    },
+    {
+      "id": "util-linux/term-utils/script.1.adoc",
+      "repository": "https://github.com/util-linux/util-linux",
+      "revision": "f44509230b9f8224993b8c6157f85888359a64e1",
+      "bytes": 9765,
+      "sha256": "567600dbdce54f87fd247e5ce0ee27b5f641a6a480662e0eaae4424ec4c84079"
+    },
+    {
+      "id": "util-linux/lib/pty-session.c",
+      "repository": "https://github.com/util-linux/util-linux",
+      "revision": "f44509230b9f8224993b8c6157f85888359a64e1",
+      "bytes": 20326,
+      "sha256": "73e832dea5cd30c513749413b558f8d5e0ce751f539ce4474a5eedeb73449b97"
+    },
+    {
+      "id": "depot-cli/pkg/api/ci.go",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 42294,
+      "sha256": "cb92524fb8674b7417ec432e18658a65a2edf1a21998c361bc201157119ff62b"
+    },
+    {
+      "id": "depot-cli/proto/depot/ci/v1/ci.proto",
+      "repository": "https://github.com/depot/cli",
+      "revision": "1f96d6d",
+      "bytes": 34485,
+      "sha256": "990a25de1b1ebebd0854b966713ab38da0793e9b4786926397cd7db9f3e0ba74"
+    }
+  ],
+  "cloudAllocations": [],
+  "previousProposal": {
+    "sealedAt": "2026-10-18T18:21:57.941Z",
+    "fixture": {
+      "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "branch": "research/depot-native-ssh-20261018",
+      "paths": [
+        ".depot/workflows/native-ssh-acceptance.yml",
+        ".depot/probe/native-ssh/mise.toml"
+      ],
+      "runner": "depot-ubuntu-24.04",
+      "cpu": 2,
+      "memoryGiB": 8,
+      "jobMinutes": 3,
+      "tmateStepMinutes": 2,
+      "pinnedAction": {
+        "commit": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+        "relation": "Pinned equivalent of source-reviewed CLI@v3 injection; no CLI-injection execution credit"
+      }
+    },
+    "controller": {
+      "task": "run-native-ssh-acceptance",
+      "defaultMode": "plan-only; zero cloud calls",
+      "executeGate": "NATIVE_SSH_EXECUTE=1 plus Root-reviewed source/controller/helper hashes in private admission",
+      "watchdogCancelMsFromAdmissionDispatch": 150000,
+      "eachSshLegLimitMs": 15000,
+      "serverJobMinutes": 3,
+      "pausedStepMinutes": 2,
+      "localCleanupBeginsAtMs": 210000,
+      "finally": "Bounded exact owned TERM/KILL escalation and reaping, including separate-session script child; scoped lost-dispatch recovery, cancellation and fresh terminal status",
+      "preDispatchGates": [
+        "Clean exact source",
+        "Exactly fixture paths changed from e02",
+        "Remote branch ancestry",
+        "Terminal prior attempt before a correction",
+        "Existing local credential shape admitted"
+      ],
+      "inlineTaskSha256": "bdf3bbbe455f1c0692aebb2cf6926ca19c6b6890bb89bab4491932edbd25975f",
+      "helperSha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626",
+      "terminationGraceMs": 1500,
+      "cleanupCliCommandMs": 10000,
+      "maximumLocalLifetimeMs": 260000,
+      "lostDispatch": "Issued request records possible allocation before response; exact repo/full-SHA/time/workflow/job recovery required before correction"
+    },
+    "sourceArchive": {
+      "path": "doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+      "gzipBytes": 1146712,
+      "gzipSha256": "d62e1e1cb9cec85525c0649fc81df79cdf4842f42b7ab91cae59fdcc046d81aa",
+      "uncompressedBytes": 4970095,
+      "uncompressedSha256": "e5a93e73b3400d939f52b9de1b5fd41ca26fd744ac1fd4b20aeeee51c1f21ddf",
+      "sourceCount": 26,
+      "previousSourceBodiesRetained": true
+    }
+  }
+}

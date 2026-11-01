@@ -136,7 +136,7 @@ a `[...value]` spread the baseline does not ban.
 Repo uses of single-argument `Array.from` are 2 deliberate string code-point splits,
  each suppressing `prefer-spread`
 (`package/git-policy/cli/src/parser/commit-normalise.ts:122`,
- `package/module/i18n-compose/src/render-helpers.ts:147`).
+ `package/i18n-compose/core/src/render-helpers.ts:147`).
 
 ## Decisions (2026-09-25)
 

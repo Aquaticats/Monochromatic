@@ -1,0 +1,5752 @@
+{
+  "sources": {
+    "package/cli/markdown-lint/src/lfs-config.ts": "c54348a6e259aa2adfe45e0ad0708bf34ce2410df7f98a39b082da6f21a2cc31",
+    "package/cli/markdown-lint/src/lfs-image-target.ts": "187ee5a65de80de2d4a1b76fe6121af61a98e0a2ddaeeb5fbac21772e5988e87",
+    "package/cli/markdown-lint/src/rule/lfs-image-url.ts": "137d6acf03ecedbe80772ba83188567d273a32b9f7f55944491ef65821e43017"
+  },
+  "oracle": {
+    "node": "v26.10.0",
+    "ada": "4.0.0",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "bases": [
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://lfs:token@lfs.example/?x=1#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://host.example/repo/info/lfs/",
+      "expected": "https://host.example/repo/info/lfs",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://a.example",
+      "expected": "https://a.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://b.example",
+      "expected": "https://b.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://lfs:t@lfs.example/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://nope.example",
+      "expected": "https://nope.example",
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "endpoint": "https://lfs:token@lfs.example/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://lfs.example/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "http://lfs.example",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "http://lfs.example/",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://monochromatic-lfs.aquaticat.workers.dev",
+      "expected": "https://monochromatic-lfs.aquaticat.workers.dev",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://monochromatic-lfs.example.workers.dev",
+      "expected": "https://monochromatic-lfs.example.workers.dev",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://git.example/org/repo.git/info/lfs",
+      "expected": "https://git.example/org/repo.git/info/lfs",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://git.example/org/repo.git/info/lfs/",
+      "expected": "https://git.example/org/repo.git/info/lfs",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://lfs.example/a_b-c.d~e",
+      "expected": "https://lfs.example/a_b-c.d~e",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://lfs.example/objects/v1",
+      "expected": "https://lfs.example/objects/v1",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://a.b.c.d.e.example/x/y/z",
+      "expected": "https://a.b.c.d.e.example/x/y/z",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://localhost",
+      "expected": "https://localhost",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "http://localhost:3000",
+      "expected": "http://localhost:3000",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://x",
+      "expected": "https://x",
+      "rejection": null
+    },
+    {
+      "class": "plain",
+      "endpoint": "https://lfs-01.example-host.example/path",
+      "expected": "https://lfs-01.example-host.example/path",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://:pass@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://:@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://@lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pa:ss@lfs.example/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://a@b@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://a@b:c@d@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us%40er:p%3Ass@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us%er:p%zz@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://u!$&'()*+,;=:p!$&'()*+,;=@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us er:pa ss@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us\ter:pa\nss@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us\u0000er:p\u007fss@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://\u00fcser:p\u00e4ssword@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us[er]:pa{ss}@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us\"er:pa<ss>@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us|er:pa^ss`@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us/er@lfs.example/x",
+      "expected": "https://us/er@lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us?er@lfs.example/x",
+      "expected": "https://us",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us#er@lfs.example/x",
+      "expected": "https://us",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://us\\er@lfs.example/x",
+      "expected": "https://us/er@lfs.example/x",
+      "rejection": "backslash"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@lfs.example:8443/x/",
+      "expected": "https://lfs.example:8443/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@LFS.Example/X/",
+      "expected": "https://lfs.example/X",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@lfs.example/x@y",
+      "expected": "https://lfs.example/x@y",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://lfs.example/x@y",
+      "expected": "https://lfs.example/x@y",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://lfs.example/@",
+      "expected": "https://lfs.example/@",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@/x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@:443/x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user@:8443",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://@",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://@/x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@[::1]/x",
+      "expected": "https://[::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "https://user:pass@127.0.0.1/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": null
+    },
+    {
+      "class": "userinfo",
+      "endpoint": "http://user:pass@lfs.example:80/",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:443",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:443/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:443/x/",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "http://lfs.example:80",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "http://lfs.example:80/x",
+      "expected": "http://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:80",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "http://lfs.example:443",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:8443",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:8443/",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:0",
+      "expected": "https://lfs.example:0",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:1",
+      "expected": "https://lfs.example:1",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:65535",
+      "expected": "https://lfs.example:65535",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:65536",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:99999",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:4294967296",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:4294967739",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:18446744073709551616",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:18446744073709552059",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:99999999999999999999999999999999",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:0443",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:00443/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "http://lfs.example:0080",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:08443",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:000000000000000000000000000008443",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:00000",
+      "expected": "https://lfs.example:0",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:?x",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:#x",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:8a",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:a",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:-1",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:+80",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example: 80",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:80 ",
+      "expected": "https://lfs.example:80",
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:8 0",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:80:90",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example::80",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:80:",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:0x50",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:\uff18\uff10",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:\u0668\u0660",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:8\t443",
+      "expected": "https://lfs.example:8443",
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "https://lfs.example:443x/",
+      "expected": null,
+      "rejection": "port_character"
+    },
+    {
+      "class": "port",
+      "endpoint": "HTTPS://LFS.EXAMPLE:443/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "port",
+      "endpoint": "HTTP://LFS.EXAMPLE:80/",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]",
+      "expected": "https://[::1]",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]/",
+      "expected": "https://[::1]",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]:8443/x",
+      "expected": "https://[::1]:8443/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]:443/x",
+      "expected": "https://[::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[2001:db8::1]/x",
+      "expected": "https://[2001:db8::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[2001:DB8::1]/x",
+      "expected": "https://[2001:db8::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[2001:0db8:0000:0000:0000:0000:0000:0001]/x",
+      "expected": "https://[2001:db8::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[1:0:0:0:0:0:0:1]/x",
+      "expected": "https://[1::1]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[1:0:0:2:0:0:0:3]/x",
+      "expected": "https://[1:0:0:2::3]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[0:0:0:0:0:0:0:0]/x",
+      "expected": "https://[::]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::]/x",
+      "expected": "https://[::]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::ffff:1.2.3.4]/x",
+      "expected": "https://[::ffff:102:304]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1.2.3.4]/x",
+      "expected": "https://[::102:304]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::ffff:102:304]/x",
+      "expected": "https://[::ffff:102:304]/x",
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[fe80::1%25eth0]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[fe80::1%eth0]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]x/",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[::1]:x/",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[1.2.3.4]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[:::1]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[1::2::3]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[12345::1]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[g::1]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://::1/x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://x[::1]/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "ipv6",
+      "endpoint": "https://[lfs.example]/x",
+      "expected": null,
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://127.0.0.1",
+      "expected": "https://127.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://127.0.0.1/x/",
+      "expected": "https://127.0.0.1/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://127.0.0.1:8443/x",
+      "expected": "https://127.0.0.1:8443/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0.0.0.0/x",
+      "expected": "https://0.0.0.0/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://255.255.255.255/x",
+      "expected": "https://255.255.255.255/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.4/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://10.20.30.40:443/x",
+      "expected": "https://10.20.30.40/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://127.1/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://127.0.1/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3/x",
+      "expected": "https://1.2.0.3/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://2130706433/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0/x",
+      "expected": "https://0.0.0.0/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1/x",
+      "expected": "https://0.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://4294967295/x",
+      "expected": "https://255.255.255.255/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://4294967296/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0x7f.0.0.1/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0X7F.0.0.1/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0x7f000001/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0x/x",
+      "expected": "https://0.0.0.0/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0x.0x.0x.0x/x",
+      "expected": "https://0.0.0.0/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://017700000001/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://0177.0.0.01/x",
+      "expected": "https://127.0.0.1/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://01.2.3.4/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.04/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.08/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.4.5/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://256.1.1.1/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.256/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.4./x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.4../x",
+      "expected": "https://1.2.3.4../x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1..2/x",
+      "expected": null,
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://.1/x",
+      "expected": null,
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1./x",
+      "expected": "https://0.0.0.1/x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.123/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.0x1/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.0x/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.0xg/x",
+      "expected": "https://lfs.example.0xg/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.09/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.1a/x",
+      "expected": "https://lfs.example.1a/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.a1/x",
+      "expected": "https://lfs.example.a1/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://lfs.example.1./x",
+      "expected": null,
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://123.example/x",
+      "expected": "https://123.example/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.example/x",
+      "expected": "https://1.2.3.example/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.4a/x",
+      "expected": "https://1.2.3.4a/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://a1.2b.3c.4d/x",
+      "expected": "https://a1.2b.3c.4d/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1-2.3-4/x",
+      "expected": "https://1-2.3-4/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1_2.3/x",
+      "expected": null,
+      "rejection": "numeric_host"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://-1/x",
+      "expected": "https://-1/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1.2.3.-4/x",
+      "expected": "https://1.2.3.-4/x",
+      "rejection": null
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://\uff11.\uff12.\uff13.\uff14/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1\u30022\u30023\u30024/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "numeric_host",
+      "endpoint": "https://1%2e2%2e3%2e4/x",
+      "expected": "https://1.2.3.4/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://b\u00fccher.example/x",
+      "expected": "https://xn--bcher-kva.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://B\u00dcCHER.example/x",
+      "expected": "https://xn--bcher-kva.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--bcher-kva.example/x",
+      "expected": "https://xn--bcher-kva.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://XN--BCHER-KVA.EXAMPLE/x",
+      "expected": "https://xn--bcher-kva.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://Xn--Bcher-Kva.example/x",
+      "expected": "https://xn--bcher-kva.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--a.example/x",
+      "expected": "https://xn--a.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--.example/x",
+      "expected": "https://xn--.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--a-.example/x",
+      "expected": "https://xn--a-.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--lfs.example/x",
+      "expected": "https://xn--lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn--80ak6aa92e.example/x",
+      "expected": "https://xn--80ak6aa92e.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs.xn--p1ai/x",
+      "expected": "https://lfs.xn--p1ai/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs.xn--zckzah/x",
+      "expected": "https://lfs.xn--zckzah/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://axn--b.example/x",
+      "expected": "https://axn--b.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://a.bxn--c.example/x",
+      "expected": "https://a.bxn--c.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn-a.example/x",
+      "expected": "https://xn-a.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://xn.example/x",
+      "expected": "https://xn.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://fa\u00df.example/x",
+      "expected": "https://xn--fa-hia.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\u2603.example/x",
+      "expected": "https://xn--n3h.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\u4f8b\u3048.\u30c6\u30b9\u30c8/x",
+      "expected": "https://xn--r8jz45g.xn--zckzah/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\uff25\uff38\uff21\uff2d\uff30\uff2c\uff25.example/x",
+      "expected": "https://example.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs\u3002example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs\uff0eexample/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://exa\u00admple.example/x",
+      "expected": "https://example.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://exa\u200dmple.example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://exa\u200bmple.example/x",
+      "expected": "https://example.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://e\u0301xample.example/x",
+      "expected": "https://xn--xample-9ua.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\u0130stanbul.example/x",
+      "expected": "https://xn--istanbul-o0e.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\u01c5.example/x",
+      "expected": "https://xn--d-toa.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://K.example/x",
+      "expected": "https://k.example/x",
+      "rejection": null
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://\u212a.example/x",
+      "expected": "https://k.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs.example\u212a/x",
+      "expected": "https://lfs.examplek/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://lfs.example\u3002/x",
+      "expected": "https://lfs.example./x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%41mple.example/x",
+      "expected": "https://example.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%61mple.example/x",
+      "expected": "https://example.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%2Emple.example/x",
+      "expected": "https://ex.mple.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%2Fmple.example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%C3%BCmple.example/x",
+      "expected": "https://xn--exmple-4ya.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%mple.example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%zzmple.example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "idna",
+      "endpoint": "https://ex%00mple.example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://LFS.EXAMPLE",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://Lfs.Example/Path/To/LFS",
+      "expected": "https://lfs.example/Path/To/LFS",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs_host.example/x",
+      "expected": "https://lfs_host.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://_lfs.example/x",
+      "expected": "https://_lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs_.example/x",
+      "expected": "https://lfs_.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://_/x",
+      "expected": "https://_/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://-lfs.example/x",
+      "expected": "https://-lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs-.example/x",
+      "expected": "https://lfs-.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs.-example/x",
+      "expected": "https://lfs.-example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://ab--cd.example/x",
+      "expected": "https://ab--cd.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://a--.example/x",
+      "expected": "https://a--.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://---.example/x",
+      "expected": "https://---.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://-/x",
+      "expected": "https://-/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs.example./x",
+      "expected": "https://lfs.example./x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs.example.",
+      "expected": "https://lfs.example.",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs.example../x",
+      "expected": "https://lfs.example../x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs..example/x",
+      "expected": "https://lfs..example/x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://.lfs.example/x",
+      "expected": "https://.lfs.example/x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://./x",
+      "expected": "https://./x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://../x",
+      "expected": "https://../x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://.../x",
+      "expected": "https://.../x",
+      "rejection": "empty_host_label"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\texample/x",
+      "expected": "https://lfsexample/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\nexample/x",
+      "expected": "https://lfsexample/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\rexample/x",
+      "expected": "https://lfsexample/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\u0000example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\u007fexample/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\u0080example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\u00a0example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs!example/x",
+      "expected": "https://lfs!example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs\"example/x",
+      "expected": "https://lfs\"example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs$example/x",
+      "expected": "https://lfs$example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs&example/x",
+      "expected": "https://lfs&example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs'example/x",
+      "expected": "https://lfs'example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs(example)/x",
+      "expected": "https://lfs(example)/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs*example/x",
+      "expected": "https://lfs*example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs+example/x",
+      "expected": "https://lfs+example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs,example/x",
+      "expected": "https://lfs,example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs;example/x",
+      "expected": "https://lfs;example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs=example/x",
+      "expected": "https://lfs=example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs<example>/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs^example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs`example/x",
+      "expected": "https://lfs`example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs{example}/x",
+      "expected": "https://lfs{example}/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs|example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs~example/x",
+      "expected": "https://lfs~example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs[example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs]example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs%example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://lfs%25example/x",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": "host_length"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab/x",
+      "expected": "https://ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab.ab/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.EXAMPLE/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": "host_length"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:443/x/",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": "host_length"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": null
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "expected": "https://xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+      "rejection": "host_length"
+    },
+    {
+      "class": "host_form",
+      "endpoint": "https://user:pass@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8443/x",
+      "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8443/x",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%2f",
+      "expected": "https://lfs.example/%2f",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%2F",
+      "expected": "https://lfs.example/%2F",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/a%2fb/",
+      "expected": "https://lfs.example/a%2fb",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%41",
+      "expected": "https://lfs.example/%41",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%61",
+      "expected": "https://lfs.example/%61",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%7e",
+      "expected": "https://lfs.example/%7e",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%7E",
+      "expected": "https://lfs.example/%7E",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%2d%2D%5f%5F",
+      "expected": "https://lfs.example/%2d%2D%5f%5F",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%e4%bd%a0",
+      "expected": "https://lfs.example/%e4%bd%a0",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%E4%BD%A0",
+      "expected": "https://lfs.example/%E4%BD%A0",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%",
+      "expected": "https://lfs.example/%",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%/",
+      "expected": "https://lfs.example/%",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/a%",
+      "expected": "https://lfs.example/a%",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%2",
+      "expected": "https://lfs.example/%2",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%zz",
+      "expected": "https://lfs.example/%zz",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%g0",
+      "expected": "https://lfs.example/%g0",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%0g",
+      "expected": "https://lfs.example/%0g",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%%",
+      "expected": "https://lfs.example/%%",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%%41",
+      "expected": "https://lfs.example/%%41",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%25",
+      "expected": "https://lfs.example/%25",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%2525",
+      "expected": "https://lfs.example/%2525",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%00",
+      "expected": "https://lfs.example/%00",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%20",
+      "expected": "https://lfs.example/%20",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%23",
+      "expected": "https://lfs.example/%23",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%3f",
+      "expected": "https://lfs.example/%3f",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%3F",
+      "expected": "https://lfs.example/%3F",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%5c",
+      "expected": "https://lfs.example/%5c",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%5C",
+      "expected": "https://lfs.example/%5C",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/a%2Fb%2fc",
+      "expected": "https://lfs.example/a%2Fb%2fc",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%ff%FE",
+      "expected": "https://lfs.example/%ff%FE",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%C3%BC",
+      "expected": "https://lfs.example/%C3%BC",
+      "rejection": null
+    },
+    {
+      "class": "percent",
+      "endpoint": "https://lfs.example/%c3%bc/",
+      "expected": "https://lfs.example/%c3%bc",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a!b",
+      "expected": "https://lfs.example/a!b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a$b",
+      "expected": "https://lfs.example/a$b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a&b",
+      "expected": "https://lfs.example/a&b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a'b",
+      "expected": "https://lfs.example/a'b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a(b)",
+      "expected": "https://lfs.example/a(b)",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a*b",
+      "expected": "https://lfs.example/a*b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a+b",
+      "expected": "https://lfs.example/a+b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a,b",
+      "expected": "https://lfs.example/a,b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a;b",
+      "expected": "https://lfs.example/a;b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a=b",
+      "expected": "https://lfs.example/a=b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a:b",
+      "expected": "https://lfs.example/a:b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a@b",
+      "expected": "https://lfs.example/a@b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a~b",
+      "expected": "https://lfs.example/a~b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a_b",
+      "expected": "https://lfs.example/a_b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a-b",
+      "expected": "https://lfs.example/a-b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a.b",
+      "expected": "https://lfs.example/a.b",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/!$&'()*+,;=:@-._~/",
+      "expected": "https://lfs.example/!$&'()*+,;=:@-._~",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a b",
+      "expected": "https://lfs.example/a%20b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a b/",
+      "expected": "https://lfs.example/a%20b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/ a",
+      "expected": "https://lfs.example/%20a",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a /",
+      "expected": "https://lfs.example/a%20",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\"b",
+      "expected": "https://lfs.example/a%22b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a<b>",
+      "expected": "https://lfs.example/a%3Cb%3E",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a`b",
+      "expected": "https://lfs.example/a%60b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a{b}",
+      "expected": "https://lfs.example/a%7Bb%7D",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a|b",
+      "expected": "https://lfs.example/a|b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a^b",
+      "expected": "https://lfs.example/a%5Eb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a[b]",
+      "expected": "https://lfs.example/a[b]",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a[b",
+      "expected": "https://lfs.example/a[b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a]b",
+      "expected": "https://lfs.example/a]b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/\u00fc",
+      "expected": "https://lfs.example/%C3%BC",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/\u00dc/",
+      "expected": "https://lfs.example/%C3%9C",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/\u4f60\u597d",
+      "expected": "https://lfs.example/%E4%BD%A0%E5%A5%BD",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/\ud83d\ude00",
+      "expected": "https://lfs.example/%F0%9F%98%80",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/e\u0301",
+      "expected": "https://lfs.example/e%CC%81",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u007fb",
+      "expected": "https://lfs.example/a%7Fb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u0080b",
+      "expected": "https://lfs.example/a%C2%80b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u00a0b",
+      "expected": "https://lfs.example/a%C2%A0b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u200bb",
+      "expected": "https://lfs.example/a%E2%80%8Bb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\ufeffb",
+      "expected": "https://lfs.example/a%EF%BB%BFb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\ufffdb",
+      "expected": "https://lfs.example/a%EF%BF%BDb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u0000b",
+      "expected": "https://lfs.example/a%00b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u0001b",
+      "expected": "https://lfs.example/a%01b",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u001fb",
+      "expected": "https://lfs.example/a%1Fb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\u000bb",
+      "expected": "https://lfs.example/a%0Bb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/a\fb",
+      "expected": "https://lfs.example/a%0Cb",
+      "rejection": "path_character"
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/A/B/C",
+      "expected": "https://lfs.example/A/B/C",
+      "rejection": null
+    },
+    {
+      "class": "path_char",
+      "endpoint": "https://lfs.example/0123456789",
+      "expected": "https://lfs.example/0123456789",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/./",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/..",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/../",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/../..",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.",
+      "expected": "https://lfs.example/a",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/./",
+      "expected": "https://lfs.example/a",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/..",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/../",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/./b",
+      "expected": "https://lfs.example/a/b",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/../b",
+      "expected": "https://lfs.example/b",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/b/../../c",
+      "expected": "https://lfs.example/c",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/b/../../../c",
+      "expected": "https://lfs.example/c",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/./a",
+      "expected": "https://lfs.example/a",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/../a",
+      "expected": "https://lfs.example/a",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2e",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2E",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2e/",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/%2e/b",
+      "expected": "https://lfs.example/a/b",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2e%2e",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2E%2E/",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2e%2E/a",
+      "expected": "https://lfs.example/a",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.%2e/b",
+      "expected": "https://lfs.example/b",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/%2e./b",
+      "expected": "https://lfs.example/b",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.%2E",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/%2e%2e%2e/b",
+      "expected": "https://lfs.example/a/%2e%2e%2e/b",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.%2e%2e/b",
+      "expected": "https://lfs.example/a/.%2e%2e/b",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/...",
+      "expected": "https://lfs.example/...",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.../",
+      "expected": "https://lfs.example/...",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.../b",
+      "expected": "https://lfs.example/a/.../b",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/..a",
+      "expected": "https://lfs.example/..a",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a..",
+      "expected": "https://lfs.example/a..",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.a",
+      "expected": "https://lfs.example/.a",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a.",
+      "expected": "https://lfs.example/a.",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a./",
+      "expected": "https://lfs.example/a.",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/.b/c",
+      "expected": "https://lfs.example/a/.b/c",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/..b/c",
+      "expected": "https://lfs.example/a/..b/c",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/b../c",
+      "expected": "https://lfs.example/a/b../c",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/..%2f",
+      "expected": "https://lfs.example/..%2f",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.%2f..",
+      "expected": "https://lfs.example/.%2f..",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/%2e%2f",
+      "expected": "https://lfs.example/%2e%2f",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.%252e/",
+      "expected": "https://lfs.example/.%252e",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/. /",
+      "expected": "https://lfs.example/.%20",
+      "rejection": "path_character"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.\t./",
+      "expected": "https://lfs.example",
+      "rejection": "path_character"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/..?x",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.#x",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/a/..?x#y",
+      "expected": "https://lfs.example",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/.;x",
+      "expected": "https://lfs.example/.;x",
+      "rejection": null
+    },
+    {
+      "class": "dot_segment",
+      "endpoint": "https://lfs.example/..;/",
+      "expected": "https://lfs.example/..;",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example//",
+      "expected": "https://lfs.example/",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example///",
+      "expected": "https://lfs.example//",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example////",
+      "expected": "https://lfs.example///",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a//",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a///",
+      "expected": "https://lfs.example/a//",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a//b",
+      "expected": "https://lfs.example/a//b",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example//a",
+      "expected": "https://lfs.example//a",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example//a/",
+      "expected": "https://lfs.example//a",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example//a//",
+      "expected": "https://lfs.example//a/",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a/b/",
+      "expected": "https://lfs.example/a/b",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a/b//",
+      "expected": "https://lfs.example/a/b/",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a/b/c/",
+      "expected": "https://lfs.example/a/b/c",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a/",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "slash",
+      "endpoint": "https://lfs.example/a",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example?x",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example?",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example#",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example#x",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example?#",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/?",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/#",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/?#",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x=1",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a/?x=1",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a/#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a/?x=1#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x=/b/",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#/b/",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#?x",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x#y#z",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a??x",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x\ty",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x\ny",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?\u00fc=\ud83d\ude00",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#\u00fc \ud83d\ude00",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x\\y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#x\\y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x@y:z",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?[x]{y}|z^`\"<>",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#[x]{y}|z^`\"<>",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x\u0000y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#x\u0000y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x ",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#x ",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?x\u0001",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a/? ",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a/#\u001f",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example?x@y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example#x@y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://user:pass@lfs.example?x@y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example:8443?x",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example:8443#x",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example?x/../y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a?%",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "tail",
+      "endpoint": "https://lfs.example/a#%zz",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https:\\\\lfs.example\\x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https:\\\\lfs.example",
+      "expected": "https://lfs.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example\\x",
+      "expected": "https://lfs.example/x",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example\\",
+      "expected": "https://lfs.example",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example/a\\b",
+      "expected": "https://lfs.example/a/b",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example/a\\",
+      "expected": "https://lfs.example/a",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example/a\\..\\b",
+      "expected": "https://lfs.example/b",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example\\..\\b",
+      "expected": "https://lfs.example/b",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https:/\\lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https:\\/lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example/a%5Cb",
+      "expected": "https://lfs.example/a%5Cb",
+      "rejection": null
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://user\\:pass@lfs.example/x",
+      "expected": "https://user/:pass@lfs.example/x",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://user:pass\\@lfs.example/x",
+      "expected": null,
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example:8443\\x",
+      "expected": "https://lfs.example:8443/x",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example\\?x",
+      "expected": "https://lfs.example",
+      "rejection": "backslash"
+    },
+    {
+      "class": "backslash",
+      "endpoint": "https://lfs.example?\\",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": " https://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x ",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "  https://lfs.example/x  ",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\thttps://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\t",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\nhttps://lfs.example/x\n",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\r\nhttps://lfs.example/x\r\n",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u0000https://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\u0000",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u0001https://lfs.example/x\u0001",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u001fhttps://lfs.example/x\u001f",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u007fhttps://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\u007f",
+      "expected": "https://lfs.example/x%7F",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u00a0https://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\u00a0",
+      "expected": "https://lfs.example/x%C2%A0",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\ufeffhttps://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\ufeff",
+      "expected": "https://lfs.example/x%EF%BB%BF",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u2028https://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\u3000https://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "ht\ttps://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https\t://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https:\t//lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https:/\t/lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://\tlfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.exa\tmple/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example\t/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/\tx",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\ty",
+      "expected": "https://lfs.example/xy",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\ny",
+      "expected": "https://lfs.example/xy",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\ry",
+      "expected": "https://lfs.example/xy",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\r\n/y",
+      "expected": "https://lfs.example/x/y",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/\n",
+      "expected": "https://lfs.example",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example\n",
+      "expected": "https://lfs.example",
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x/\t",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x/\n/",
+      "expected": "https://lfs.example/x/",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x \t",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/ ",
+      "expected": "https://lfs.example",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example ",
+      "expected": "https://lfs.example",
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x/ ",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\u000b",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "https://lfs.example/x\f",
+      "expected": "https://lfs.example/x",
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": " ",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\t",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "whitespace_control",
+      "endpoint": "\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "HTTPS://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "Https://lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "hTTpS://LFS.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "HTTP://lfs.example/x",
+      "expected": "http://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "HtTp://lfs.example:80/x",
+      "expected": "http://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:/lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:///lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:////lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://///lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:/x",
+      "expected": "https://x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:x",
+      "expected": "https://x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:/",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https:///",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://?x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://#x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://:443",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https://:8443/x",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "http://",
+      "expected": null,
+      "rejection": "empty_host"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "http:",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "http:/lfs.example",
+      "expected": "http://lfs.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https//lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https;//lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https.//lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "https ://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "//lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "/lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "lfs.example",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "lfs.example:8443/x",
+      "expected": "lfs.example:8443/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "localhost:8443",
+      "expected": "localhost:8443",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "localhost:8443/x",
+      "expected": "localhost:8443/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "www.lfs.example",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "/",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": ".",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "..",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "?x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "#x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": ":",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "1https://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "htt ps://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "httpss://lfs.example/x",
+      "expected": "httpss://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "htt://lfs.example/x",
+      "expected": "htt://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "http+s://lfs.example/x",
+      "expected": "http+s://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "\uff48\uff54\uff54\uff50\uff53://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "http\u017f://lfs.example/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "scheme_form",
+      "endpoint": "HTTPS:\\\\LFS.EXAMPLE\\X",
+      "expected": "https://lfs.example/X",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ssh://git@git.example/org/repo.git",
+      "expected": "ssh://git.example/org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ssh://git@git.example:22/org/repo.git/",
+      "expected": "ssh://git.example:22/org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ssh://git.example/org/repo.git/info/lfs",
+      "expected": "ssh://git.example/org/repo.git/info/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ssh://GIT.Example/Org/",
+      "expected": "ssh://GIT.Example/Org",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "git://git.example/org/repo.git",
+      "expected": "git://git.example/org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "git+ssh://git@git.example/org/repo.git",
+      "expected": "git+ssh://git.example/org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "git+https://user:pass@git.example/org/repo.git/",
+      "expected": "git+https://git.example/org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ftp://lfs.example/x/",
+      "expected": "ftp://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ftp://user:pass@lfs.example:21/x/",
+      "expected": "ftp://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ftp://lfs.example:2121/x",
+      "expected": "ftp://lfs.example:2121/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ws://lfs.example/x/",
+      "expected": "ws://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "ws://lfs.example:80/x",
+      "expected": "ws://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "wss://lfs.example:443/x/",
+      "expected": "wss://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "wss://user@lfs.example/x?y#z",
+      "expected": "wss://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///repo/lfs",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///repo/lfs/",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///",
+      "expected": "file://",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file://",
+      "expected": "file://",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:",
+      "expected": "file://",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:/repo/lfs",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:repo/lfs",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file://localhost/repo/lfs",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file://host.example/share/lfs/",
+      "expected": "file://host.example/share/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file://user:pass@host.example/share",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file://host.example:80/share",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///C:/repo/lfs/",
+      "expected": "file:///C:/repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///c|/repo/lfs",
+      "expected": "file:///c:/repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:C:\\repo\\lfs",
+      "expected": "file:///C:/repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///repo/../lfs",
+      "expected": "file:///lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "file:///repo/lfs?x#y",
+      "expected": "file:///repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "data:text/plain,x",
+      "expected": "data:text/plain,x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "data:text/plain,x/",
+      "expected": "data:text/plain,x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "data:text/plain,x ?y#z",
+      "expected": "data:text/plain,x%20",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "data:text/plain,x  ",
+      "expected": "data:text/plain,x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "mailto:user@lfs.example",
+      "expected": "mailto:user@lfs.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "mailto:user@lfs.example/",
+      "expected": "mailto:user@lfs.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "javascript:alert(1)",
+      "expected": "javascript:alert(1)",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "javascript:alert(1)/",
+      "expected": "javascript:alert(1)",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "blob:https://lfs.example/x",
+      "expected": "blob:https://lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "blob:https://user:pass@lfs.example/x/",
+      "expected": "blob:https://user:pass@lfs.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "about:blank",
+      "expected": "about:blank",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "urn:x:y",
+      "expected": "urn:x:y",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "urn:x:y/",
+      "expected": "urn:x:y",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example/x",
+      "expected": "custom://host.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://HOST.Example/X/",
+      "expected": "custom://HOST.Example/X",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://user:pass@host.example:99/x/?y#z",
+      "expected": "custom://host.example:99/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example:99999/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example:443/x",
+      "expected": "custom://host.example:443/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example",
+      "expected": "custom://host.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example/",
+      "expected": "custom://host.example",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://host.example//",
+      "expected": "custom://host.example/",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://",
+      "expected": "custom:/",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:///",
+      "expected": "custom://",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:///x",
+      "expected": "custom:///x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:/",
+      "expected": "custom:",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:/x",
+      "expected": "custom:/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:/x/",
+      "expected": "custom:/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://x/a/../b",
+      "expected": "custom://x/b",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:/.//x",
+      "expected": "custom:/.//x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:/a/..//x",
+      "expected": "custom:/.//x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:",
+      "expected": "custom:",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x",
+      "expected": "custom:x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x/",
+      "expected": "custom:x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x y",
+      "expected": "custom:x y",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x y  ?z#w",
+      "expected": "custom:x y %20",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x  #w",
+      "expected": "custom:x %20",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom:x\\y",
+      "expected": "custom:x\\y",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://h\\x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://b\u00fccher.example/x",
+      "expected": "custom://b%C3%BCcher.example/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://[::1]/x",
+      "expected": "custom://[::1]/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://1.2.3/x",
+      "expected": "custom://1.2.3/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://0x7f.1/x",
+      "expected": "custom://0x7f.1/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://ho st/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://ho%20st/x",
+      "expected": "custom://ho%20st/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "custom://ho^st/x",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "CUSTOM://Host/x",
+      "expected": "custom://Host/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "c+u-s.t0m://host/x",
+      "expected": "c+u-s.t0m://host/x",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "git@git.example:org/repo.git",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "git.example:org/repo.git",
+      "expected": "git.example:org/repo.git",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "C:\\repo\\lfs",
+      "expected": "c:\\repo\\lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "C:/repo/lfs",
+      "expected": "c:/repo/lfs",
+      "rejection": "scheme"
+    },
+    {
+      "class": "other_scheme",
+      "endpoint": "c:",
+      "expected": "c:",
+      "rejection": "scheme"
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "https://lfs.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+      "expected": "https://lfs.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/",
+      "expected": "https://lfs.example/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////",
+      "expected": "https://lfs.example///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41",
+      "expected": "https://lfs.example/%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41%41",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu:pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp@lfs.example/x",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/x?qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/x#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "expected": "https://lfs.example/x",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008443/x",
+      "expected": "https://lfs.example:8443/x",
+      "rejection": null
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example:99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999/x",
+      "expected": null,
+      "rejection": "port_range"
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../../x",
+      "expected": "https://lfs.example/x",
+      "rejection": "dot_segment"
+    },
+    {
+      "class": "long",
+      "endpoint": "https://lfs.example/\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc\u00fc",
+      "expected": "https://lfs.example/%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC%C3%BC",
+      "rejection": "path_character"
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example/a?x=1#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example:443/a//",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example:443/a//#y",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example:8443/?x=1",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example:8443/?x=1#y",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://lfs.example:8443/a",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example?x=1",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:443/a//#y",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:80?x=1#y",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:80/a?x=1",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:8443#y",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:8443/a",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://LFS.Example:8443/a#y",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://10.0.0.1:443?x=1",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://10.0.0.1:443/a?x=1",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://10.0.0.1:80/?x=1#y",
+      "expected": "https://10.0.0.1:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://10.0.0.1:80/a",
+      "expected": "https://10.0.0.1:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://10.0.0.1:8443?x=1",
+      "expected": "https://10.0.0.1:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example/a//",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:80/?x=1",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:80/a#y",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:80/a/?x=1",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:80/a/?x=1#y",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:8443?x=1#y",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@lfs.example:8443/a?x=1#y",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:443?x=1#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:443/a?x=1",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:443/a?x=1#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:8443?x=1",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:8443?x=1#y",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:8443/a?x=1",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@LFS.Example:8443/a?x=1#y",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@10.0.0.1:443#y",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@10.0.0.1:443/a#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@10.0.0.1:80/#y",
+      "expected": "https://10.0.0.1:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@10.0.0.1:80/a/#y",
+      "expected": "https://10.0.0.1:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user@10.0.0.1:80/a//?x=1#y",
+      "expected": "https://10.0.0.1:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@lfs.example/#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@lfs.example:443/a",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@lfs.example:80/",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@lfs.example:80/#y",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@lfs.example:8443/a//#y",
+      "expected": "https://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@LFS.Example:443/?x=1",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@LFS.Example:443/a#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@LFS.Example:80/a/",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@LFS.Example:80/a/#y",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@LFS.Example:8443/a//",
+      "expected": "https://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1/?x=1",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1/?x=1#y",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1/a",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1/a#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1/a/?x=1#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1:443/",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1:443/a//?x=1#y",
+      "expected": "https://10.0.0.1/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1:80/a//#y",
+      "expected": "https://10.0.0.1:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1:8443/a/",
+      "expected": "https://10.0.0.1:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "https://user:pass@10.0.0.1:8443/a//?x=1",
+      "expected": "https://10.0.0.1:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://lfs.example:443?x=1",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://lfs.example:443?x=1#y",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://lfs.example:80/?x=1",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://lfs.example:8443?x=1#y",
+      "expected": "http://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://LFS.Example:80/a",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://LFS.Example:80/a#y",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://LFS.Example:80/a/?x=1#y",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://LFS.Example:8443?x=1",
+      "expected": "http://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://LFS.Example:8443/a?x=1",
+      "expected": "http://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1/a/#y",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1/a//?x=1",
+      "expected": "http://10.0.0.1/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1:443#y",
+      "expected": "http://10.0.0.1:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1:443/?x=1",
+      "expected": "http://10.0.0.1:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1:443/?x=1#y",
+      "expected": "http://10.0.0.1:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1:443/a#y",
+      "expected": "http://10.0.0.1:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://10.0.0.1:8443/a//#y",
+      "expected": "http://10.0.0.1:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example/",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example/a/",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example/a/#y",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example/a//?x=1#y",
+      "expected": "http://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443#y",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443/?x=1",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443/a",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443/a#y",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443/a/?x=1",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:443/a/?x=1#y",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:80/a/#y",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:80/a//?x=1#y",
+      "expected": "http://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@lfs.example:8443/a//",
+      "expected": "http://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example/#y",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:443/?x=1",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:443/?x=1#y",
+      "expected": "http://lfs.example:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:80/a/",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:80/a/#y",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:80/a//?x=1",
+      "expected": "http://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:8443/a//",
+      "expected": "http://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@LFS.Example:8443/a//#y",
+      "expected": "http://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1/?x=1",
+      "expected": "http://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1/a#y",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1/a/?x=1",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:443/#y",
+      "expected": "http://10.0.0.1:443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:443/a/",
+      "expected": "http://10.0.0.1:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:443/a//?x=1#y",
+      "expected": "http://10.0.0.1:443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:8443/#y",
+      "expected": "http://10.0.0.1:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:8443/a/",
+      "expected": "http://10.0.0.1:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user@10.0.0.1:8443/a//?x=1",
+      "expected": "http://10.0.0.1:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example#y",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example/a/?x=1",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:443/a/",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:443/a/#y",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:443/a//?x=1#y",
+      "expected": "http://lfs.example:443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:8443/a/",
+      "expected": "http://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:8443/a/#y",
+      "expected": "http://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@lfs.example:8443/a//?x=1#y",
+      "expected": "http://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example#y",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example/?x=1",
+      "expected": "http://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example/a/?x=1",
+      "expected": "http://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:443/a/#y",
+      "expected": "http://lfs.example:443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:443/a//?x=1",
+      "expected": "http://lfs.example:443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:80/a//#y",
+      "expected": "http://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:8443/#y",
+      "expected": "http://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:8443/a/",
+      "expected": "http://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@LFS.Example:8443/a//?x=1",
+      "expected": "http://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1?x=1#y",
+      "expected": "http://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1/a?x=1#y",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:443/a//",
+      "expected": "http://10.0.0.1:443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:443/a//#y",
+      "expected": "http://10.0.0.1:443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:80?x=1#y",
+      "expected": "http://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:80/a?x=1",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:80/a?x=1#y",
+      "expected": "http://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:8443/a",
+      "expected": "http://10.0.0.1:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:8443/a#y",
+      "expected": "http://10.0.0.1:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "http://user:pass@10.0.0.1:8443/a/?x=1",
+      "expected": "http://10.0.0.1:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://lfs.example?x=1",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://lfs.example:8443/a",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://lfs.example:8443/a#y",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://LFS.Example?x=1#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://LFS.Example:443/a//#y",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://LFS.Example:80/a?x=1#y",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://LFS.Example:8443/?x=1",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://LFS.Example:8443/a/?x=1",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1/a//",
+      "expected": "https://10.0.0.1/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1/a//#y",
+      "expected": "https://10.0.0.1/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1:443?x=1#y",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1:443/a?x=1#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1:80",
+      "expected": "https://10.0.0.1:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1:80/a",
+      "expected": "https://10.0.0.1:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://10.0.0.1:80/a#y",
+      "expected": "https://10.0.0.1:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@lfs.example:443?x=1",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@lfs.example:443?x=1#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@lfs.example:80#y",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@lfs.example:80/a#y",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@lfs.example:8443/a?x=1",
+      "expected": "https://lfs.example:8443/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@LFS.Example/a//#y",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@LFS.Example:443/a?x=1#y",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@LFS.Example:80/?x=1",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@LFS.Example:8443?x=1",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@LFS.Example:8443?x=1#y",
+      "expected": "https://lfs.example:8443",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@10.0.0.1:443#y",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@10.0.0.1:443/a#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@10.0.0.1:80/",
+      "expected": "https://10.0.0.1:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user@10.0.0.1:80/a/",
+      "expected": "https://10.0.0.1:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@lfs.example/a//?x=1#y",
+      "expected": "https://lfs.example/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@lfs.example:80/a/",
+      "expected": "https://lfs.example:80/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@lfs.example:80/a//?x=1#y",
+      "expected": "https://lfs.example:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@lfs.example:8443/a//#y",
+      "expected": "https://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example/",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example/#y",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example:443/?x=1",
+      "expected": "https://lfs.example",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example:443/a",
+      "expected": "https://lfs.example/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example:80/",
+      "expected": "https://lfs.example:80",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example:80/a//?x=1",
+      "expected": "https://lfs.example:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@LFS.Example:8443/a//#y",
+      "expected": "https://lfs.example:8443/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1#y",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1/?x=1",
+      "expected": "https://10.0.0.1",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1/a",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1/a#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1/a/?x=1",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1/a/?x=1#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1:443/a/#y",
+      "expected": "https://10.0.0.1/a",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1:443/a//?x=1",
+      "expected": "https://10.0.0.1/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1:80/a//",
+      "expected": "https://10.0.0.1:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1:80/a//#y",
+      "expected": "https://10.0.0.1:80/a/",
+      "rejection": null
+    },
+    {
+      "class": "matrix",
+      "endpoint": "HTTPS://user:pass@10.0.0.1:8443/a/#y",
+      "expected": "https://10.0.0.1:8443/a",
+      "rejection": null
+    }
+  ],
+  "configs": [
+    {
+      "class": "incumbent_test",
+      "text": "[lfs]\n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "text": "[remote \"origin\"]\n\tlfsurl = https://lfs.example/x\n",
+      "expected": [
+        "https://lfs.example/x"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "text": "# c\n; d\n\n[core]\n\turl = https://nope.example\n[lfs]\n\tconcurrenttransfers = 3\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "text": "[lfs]\n\turl = https://a.example\n[remote \"o\"]\n\tlfsurl = https://b.example\n",
+      "expected": [
+        "https://a.example",
+        "https://b.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "incumbent_test",
+      "text": "[lfs]\n\turl = https://lfs:t@lfs.example/\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "\n\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "[lfs]\n\turl = https://lfs.example",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "[lfs]\r\n\turl = https://lfs.example\r\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "[lfs]\r\turl = https://lfs.example\r",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "line_ending",
+      "text": "[lfs]\n\n\n\turl = https://lfs.example/a/\n\n",
+      "expected": [
+        "https://lfs.example/a"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[LFS]\n\tURL = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[ lfs ]\n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "  [lfs]  \n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lfs \"sub\"]\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lfs] # trailing\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lfs\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[REMOTE \"Origin\"]\n\tLfsUrl = https://lfs.example/r\n",
+      "expected": [
+        "https://lfs.example/r"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[remote]\n\tlfsurl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[remote  \"o\"]\n\tlfsurl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[remote\t\"o\"]\n\tlfsurl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[remotes \"o\"]\n\tlfsurl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[remote \"a=b\"]\n\tlfsurl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lfs]\n[core]\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[core]\n[lfs]\n\turl = https://lfs.example\n[core]\n\turl = https://other.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lf\u017f]\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "section",
+      "text": "[lfs]\n\tur\u2113 = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\nurl=https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n   url   =   https://lfs.example/a/   \n",
+      "expected": [
+        "https://lfs.example/a"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\turl = \n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\turl\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\tlfsurl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[remote \"o\"]\n\turl = https://lfs.example\n\tpushurl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\turl = https://lfs.example/?a=b&c=d\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\turl = = https://lfs.example\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "key",
+      "text": "[lfs]\n\turl.x = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = \"https://lfs.example\"\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = 'https://lfs.example'\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example # comment\n",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example/x # comment\n",
+      "expected": [
+        "https://lfs.example/x%20"
+      ],
+      "rejection": "path_character"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example/x#comment\n",
+      "expected": [
+        "https://lfs.example/x"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example/x ; comment\n",
+      "expected": [
+        "https://lfs.example/x%20;%20comment"
+      ],
+      "rejection": "path_character"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example/x;comment\n",
+      "expected": [
+        "https://lfs.example/x;comment"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://lfs.example/a \\\n\tb\n",
+      "expected": [
+        "https://lfs.example/a%20"
+      ],
+      "rejection": "backslash"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://user:token@lfs.example:443/x/?a=1#b\n",
+      "expected": [
+        "https://lfs.example/x"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = HTTPS://LFS.Example:443/Repo.git/info/lfs/\n",
+      "expected": [
+        "https://lfs.example/Repo.git/info/lfs"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = ssh://git@git.example/org/repo.git\n",
+      "expected": [
+        "ssh://git.example/org/repo.git"
+      ],
+      "rejection": "scheme"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = git@git.example:org/repo.git\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = lfs.example/x\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://[::1]:8443/x\n",
+      "expected": [
+        "https://[::1]:8443/x"
+      ],
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "value",
+      "text": "[lfs]\n\turl = https://b\u00fccher.example/x\n",
+      "expected": [
+        "https://xn--bcher-kva.example/x"
+      ],
+      "rejection": "host_character"
+    },
+    {
+      "class": "comment",
+      "text": "[lfs]\n# url = https://commented.example\n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "comment",
+      "text": "[lfs]\n  ; url = https://commented.example\n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "comment",
+      "text": "#[lfs]\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "order",
+      "text": "[lfs]\n\turl = https://lfs.example/1\n\turl = https://lfs.example/2\n",
+      "expected": [
+        "https://lfs.example/1",
+        "https://lfs.example/2"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "order",
+      "text": "[remote \"o\"]\n\tlfsurl = https://lfs.example/r\n[lfs]\n\turl = https://lfs.example/l\n",
+      "expected": [
+        "https://lfs.example/r",
+        "https://lfs.example/l"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "order",
+      "text": "[lfs]\n\turl = https://lfs.example\n[lfs]\n\turl = https://other.example/\n",
+      "expected": [
+        "https://lfs.example",
+        "https://other.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "order",
+      "text": "[lfs]\n\turl = https://lfs.example\n[remote \"o\"]\n\tlfsurl = not a url\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "order",
+      "text": "[lfs]\n\turl = not a url\n[remote \"o\"]\n\tlfsurl = https://lfs.example\n",
+      "expected": null,
+      "rejection": "scheme"
+    },
+    {
+      "class": "order",
+      "text": "[lfs]\n\turl = https://lfs.example\n[remote \"o\"]\n\tlfsurl = https://[::1]/x\n",
+      "expected": [
+        "https://lfs.example",
+        "https://[::1]/x"
+      ],
+      "rejection": "ipv6_literal"
+    },
+    {
+      "class": "whitespace",
+      "text": "\ufeff[lfs]\n\turl = https://lfs.example\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = \ufeffhttps://lfs.example\ufeff\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = \u00a0https://lfs.example\u00a0\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = https://lfs.example\u0085\n",
+      "expected": null,
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace",
+      "text": "\u0085[lfs]\n\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\u2028url\u3000=\u2029https://lfs.example\u1680\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = https://lfs.example\u180e\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\u000b\furl = https://lfs.example\u000b\f\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": null
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = https://lfs.example\u001f\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = https://lfs.example\u0000\n",
+      "expected": [
+        "https://lfs.example"
+      ],
+      "rejection": "host_character"
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\n\turl = https://lfs.example/a\tb\n",
+      "expected": [
+        "https://lfs.example/ab"
+      ],
+      "rejection": "path_character"
+    },
+    {
+      "class": "whitespace",
+      "text": "[lfs]\u2028\turl = https://lfs.example\n",
+      "expected": [],
+      "rejection": null
+    }
+  ]
+}

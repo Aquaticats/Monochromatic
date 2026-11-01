@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "snapshot": {
+    "tag": "monochromatic-trial-desktop-ready:20261016-v1",
+    "digest": "sha256:75254e66e4b87526db5fee48ae4c921d27669f3ced6dfbf97b42e3d73aea36b3",
+    "source": "7b31a6eebec64e193e4165cf7125f781daebf719",
+    "captureAndUploadSeconds": 23.409690265,
+    "uploadedBytes": 4863229952
+  },
+  "bounds": {
+    "prepare": {
+      "cpus": 16,
+      "memoryGb": 64
+    },
+    "consumer": {
+      "cpus": 2,
+      "memoryGb": 8
+    },
+    "runtime": {
+      "cpus": 2,
+      "memoryGiB": 2,
+      "lifetimeSeconds": 660,
+      "network": false
+    }
+  },
+  "preparation": {
+    "run": {
+      "run_id": "xxs92vjc25",
+      "repo": "Aquaticats/Monochromatic",
+      "ref": "7b31a6eebec64e193e4165cf7125f781daebf719",
+      "sha": "7b31a6eebec64e193e4165cf7125f781daebf719",
+      "head_sha": "7b31a6eebec64e193e4165cf7125f781daebf719",
+      "trigger": "api",
+      "status": "finished",
+      "created_at": "2026-10-16T01:41:34.502Z",
+      "started_at": "2026-10-16T01:41:34.712Z",
+      "finished_at": "2026-10-16T01:46:59.998Z"
+    },
+    "jobs": [
+      {
+        "job_id": "67f81p0bfn",
+        "job_key": "_inline_0.yaml:prepare",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:41:51.952Z",
+        "started_at": "2026-10-16T01:41:57.980Z",
+        "finished_at": "2026-10-16T01:46:59.251Z",
+        "attempts": [
+          {
+            "attempt_id": "c1wb9hwc6j",
+            "attempt": 1,
+            "status": "finished",
+            "conclusion": "success",
+            "sandbox_id": "63ss6zb80qf5q8wmb082",
+            "session_id": "00c30cf7-739d-4bbe-85d2-e05f52cd7101",
+            "created_at": "2026-10-16T01:41:53.436Z",
+            "started_at": "2026-10-16T01:41:57.980Z",
+            "finished_at": "2026-10-16T01:46:59.251Z",
+            "elapsedSeconds": 301.271,
+            "stats": {
+              "sample_count": 57,
+              "cpu_sample_count": 56,
+              "memory_sample_count": 57,
+              "peak_cpu_utilization": 0.9750969841071205,
+              "average_cpu_utilization": 0.26427553784158114,
+              "peak_memory_utilization": 0.07288264752030034,
+              "average_memory_utilization": 0.033770858466140224,
+              "observed_started_at": "2026-10-16T01:42:19Z",
+              "observed_finished_at": "2026-10-16T01:46:54Z"
+            },
+            "cap": {
+              "raw_sample_count": 57,
+              "returned_sample_count": 57,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "consumption": {
+    "run": {
+      "run_id": "p5rp4p0wvp",
+      "repo": "Aquaticats/Monochromatic",
+      "ref": "36d48d72ef7f17a076c6c7b0181e94b108f3a87e",
+      "sha": "36d48d72ef7f17a076c6c7b0181e94b108f3a87e",
+      "head_sha": "36d48d72ef7f17a076c6c7b0181e94b108f3a87e",
+      "trigger": "api",
+      "status": "finished",
+      "created_at": "2026-10-16T01:51:59.552Z",
+      "started_at": "2026-10-16T01:52:00.110Z",
+      "finished_at": "2026-10-16T02:01:56.516Z"
+    },
+    "jobs": [
+      {
+        "job_id": "n1jkfcsz5c",
+        "job_key": "_inline_0.yaml:consume-one",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:52:06.989Z",
+        "started_at": "2026-10-16T01:52:17.353Z",
+        "finished_at": "2026-10-16T01:57:14.348Z",
+        "attempts": [
+          {
+            "attempt_id": "zfwxb30f4m",
+            "attempt": 1,
+            "status": "finished",
+            "conclusion": "success",
+            "sandbox_id": "t65qnpr0s9h8tt931g49",
+            "session_id": "76da9649-2e27-43b1-98b0-a63b246afa6d",
+            "created_at": "2026-10-16T01:52:08.023Z",
+            "started_at": "2026-10-16T01:52:17.353Z",
+            "finished_at": "2026-10-16T01:57:14.348Z",
+            "elapsedSeconds": 296.995,
+            "stats": {
+              "sample_count": 55,
+              "cpu_sample_count": 54,
+              "memory_sample_count": 55,
+              "peak_cpu_utilization": 0.25918367346938775,
+              "average_cpu_utilization": 0.08037095479626316,
+              "peak_memory_utilization": 0.1483837051339686,
+              "average_memory_utilization": 0.1230442607680597,
+              "observed_started_at": "2026-10-16T01:52:48Z",
+              "observed_finished_at": "2026-10-16T01:57:13Z"
+            },
+            "cap": {
+              "raw_sample_count": 55,
+              "returned_sample_count": 55,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      },
+      {
+        "job_id": "612sb7t227",
+        "job_key": "_inline_0.yaml:consume-two",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:52:06.989Z",
+        "started_at": "2026-10-16T01:57:19.672Z",
+        "finished_at": "2026-10-16T02:01:55.777Z",
+        "attempts": [
+          {
+            "attempt_id": "mr8vmn09cj",
+            "attempt": 1,
+            "status": "finished",
+            "conclusion": "success",
+            "sandbox_id": "w8j1pt06vlx765bk5kp6",
+            "session_id": "f82aecb7-4528-478f-994b-0eeab1cc50d1",
+            "created_at": "2026-10-16T01:57:14.742Z",
+            "started_at": "2026-10-16T01:57:19.672Z",
+            "finished_at": "2026-10-16T02:01:55.777Z",
+            "elapsedSeconds": 276.105,
+            "stats": {
+              "sample_count": 51,
+              "cpu_sample_count": 50,
+              "memory_sample_count": 51,
+              "peak_cpu_utilization": 0.2584963954685891,
+              "average_cpu_utilization": 0.07718937266214913,
+              "peak_memory_utilization": 0.14655553180879105,
+              "average_memory_utilization": 0.12644767718349695,
+              "observed_started_at": "2026-10-16T01:57:48Z",
+              "observed_finished_at": "2026-10-16T02:01:53Z"
+            },
+            "cap": {
+              "raw_sample_count": 51,
+              "returned_sample_count": 51,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      }
+    ],
+    "consumers": [
+      {
+        "log": "depot-prepared-consume2-one.log",
+        "events": [
+          {
+            "at": "2026-10-16T01:53:18.215Z",
+            "phase": "prepared-files-verified",
+            "source": "7b31a6eebec64e193e4165cf7125f781daebf719",
+            "artifacts": [
+              {
+                "path": "/home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/release/music-player",
+                "bytes": 53790520,
+                "sha256": "59e365a380f5a92f2057db7f10b8cb027d15cd8857fa8b1975145e353b1e1da3"
+              },
+              {
+                "path": "/home/runner/work/Monochromatic/Monochromatic/package/cli/nested-wayland-session/target/release/monochromatic-nested-wayland-session",
+                "bytes": 9191840,
+                "sha256": "6b112ddb63bde429c9b85ea13eb2d27f839323e1e0a4549f742dbb57995adf23"
+              }
+            ],
+            "packages": 23,
+            "aptInstallInvoked": false,
+            "buildInvoked": false,
+            "freshConsumer": true,
+            "elapsedMs": 8055
+          },
+          {
+            "at": "2026-10-16T01:53:34.946Z",
+            "phase": "desktop-services-ready",
+            "elapsedMs": 24785
+          },
+          {
+            "at": "2026-10-16T01:57:13.429Z",
+            "sessions": [
+              {
+                "session": "wide",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "narrow",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "dialog",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "auto-play",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "quit",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "states",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "visual",
+                "status": 0,
+                "signal": null
+              }
+            ]
+          },
+          {
+            "at": "2026-10-16T01:57:13.466Z",
+            "phase": "desktop-suite-complete",
+            "elapsedMs": 218521,
+            "status": 0
+          },
+          {
+            "at": "2026-10-16T01:57:13.740Z",
+            "phase": "desktop-consumer-verified",
+            "elapsedMs": 243580,
+            "realUserUnits": true,
+            "privateAudio": true,
+            "restoredSinkNames": [
+              "auto_null"
+            ],
+            "activeTestUnits": 0,
+            "applicationProcesses": 0
+          },
+          {
+            "at": "2026-10-16T01:57:14.077Z",
+            "phase": "desktop-runtime-removed",
+            "elapsedMs": 243917,
+            "overlayWritesDiscarded": true
+          }
+        ],
+        "summaries": [
+          {
+            "passed": 75,
+            "failed": 0,
+            "notInjectable": 1,
+            "seconds": 84.2
+          },
+          {
+            "passed": 10,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 5.4
+          },
+          {
+            "passed": 2,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 8.5
+          },
+          {
+            "passed": 4,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 5
+          },
+          {
+            "passed": 1,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 0.9
+          },
+          {
+            "passed": 13,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 20.5
+          },
+          {
+            "passed": 12,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 76.9
+          }
+        ],
+        "passed": 117,
+        "failed": 0,
+        "notInjectable": 1
+      },
+      {
+        "log": "depot-prepared-consume2-two.log",
+        "events": [
+          {
+            "at": "2026-10-16T01:58:15.173Z",
+            "phase": "prepared-files-verified",
+            "source": "7b31a6eebec64e193e4165cf7125f781daebf719",
+            "artifacts": [
+              {
+                "path": "/home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/release/music-player",
+                "bytes": 53790520,
+                "sha256": "59e365a380f5a92f2057db7f10b8cb027d15cd8857fa8b1975145e353b1e1da3"
+              },
+              {
+                "path": "/home/runner/work/Monochromatic/Monochromatic/package/cli/nested-wayland-session/target/release/monochromatic-nested-wayland-session",
+                "bytes": 9191840,
+                "sha256": "6b112ddb63bde429c9b85ea13eb2d27f839323e1e0a4549f742dbb57995adf23"
+              }
+            ],
+            "packages": 23,
+            "aptInstallInvoked": false,
+            "buildInvoked": false,
+            "freshConsumer": true,
+            "elapsedMs": 7337
+          },
+          {
+            "at": "2026-10-16T01:58:24.866Z",
+            "phase": "desktop-services-ready",
+            "elapsedMs": 17030
+          },
+          {
+            "at": "2026-10-16T02:01:54.782Z",
+            "sessions": [
+              {
+                "session": "wide",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "narrow",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "dialog",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "auto-play",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "quit",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "states",
+                "status": 0,
+                "signal": null
+              },
+              {
+                "session": "visual",
+                "status": 0,
+                "signal": null
+              }
+            ]
+          },
+          {
+            "at": "2026-10-16T02:01:54.812Z",
+            "phase": "desktop-suite-complete",
+            "elapsedMs": 209946,
+            "status": 0
+          },
+          {
+            "at": "2026-10-16T02:01:55.118Z",
+            "phase": "desktop-consumer-verified",
+            "elapsedMs": 227283,
+            "realUserUnits": true,
+            "privateAudio": true,
+            "restoredSinkNames": [
+              "auto_null"
+            ],
+            "activeTestUnits": 0,
+            "applicationProcesses": 0
+          },
+          {
+            "at": "2026-10-16T02:01:55.507Z",
+            "phase": "desktop-runtime-removed",
+            "elapsedMs": 227671,
+            "overlayWritesDiscarded": true
+          }
+        ],
+        "summaries": [
+          {
+            "passed": 75,
+            "failed": 0,
+            "notInjectable": 1,
+            "seconds": 80.2
+          },
+          {
+            "passed": 10,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 5.6
+          },
+          {
+            "passed": 2,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 8.3
+          },
+          {
+            "passed": 4,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 5
+          },
+          {
+            "passed": 1,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 0.9
+          },
+          {
+            "passed": 13,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 20.3
+          },
+          {
+            "passed": 12,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 74.6
+          }
+        ],
+        "passed": 117,
+        "failed": 0,
+        "notInjectable": 1
+      }
+    ]
+  },
+  "corrections": [
+    {
+      "runId": "bm8l40jmnp",
+      "boundary": "Optional unprivileged /proc/1/exe read failed before subsequent probes; privileged independent read succeeded."
+    },
+    {
+      "runId": "nj4x2frgwk",
+      "boundary": "Queried the new system manager before readiness; successful response wait verified in t7n42wkr5n."
+    },
+    {
+      "runId": "4pmthztf6p",
+      "boundary": "Preserved mise executable was absent from fresh PATH; explicit preserved path activated in p5rp4p0wvp."
+    }
+  ],
+  "lifecycle": "Prepared binaries are valid for recorded build inputs only. Changing either binary requires preparation plus consumption; unchanged-snapshot repetition is a separate reuse measurement."
+}

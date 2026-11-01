@@ -2,7 +2,11 @@
 
 ## Vision: Complete Functional Programming Utility Library
 
-**Goal**: Implement every thinkable/possible utility function for TypeScript functional programming, covering all domains and use cases while maintaining immutability, type safety, and performance.
+**Goal**:
+Implement every thinkable/possible utility function
+for TypeScript functional programming,
+covering all domains and use cases
+while maintaining immutability, type safety, and performance.
 
 **Target**: 500+ utility functions across 25+ categories
 
@@ -732,4 +736,6 @@
 - [ ] **Security integration** with validation and sanitization needs
 - [ ] **Documentation excellence** with automated API docs and examples
 
-This represents the most comprehensive functional programming utility library vision for TypeScript, aiming to eliminate the need for multiple utility libraries by providing everything in one well-designed, type-safe, and performant package.
+This represents the most comprehensive functional programming utility library vision for TypeScript,
+aiming to eliminate the need for multiple utility libraries
+by providing everything in one well-designed, type-safe, and performant package.

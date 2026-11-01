@@ -7,13 +7,13 @@
 import type {
   Node,
   VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isArrayLiteralExpression,
   isIdentifier,
   isObjectLiteralExpression,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { declaredConst, } from './effect-binding-initializer.ts';
 

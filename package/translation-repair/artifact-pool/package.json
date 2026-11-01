@@ -1,0 +1,53 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/translation-repair-artifact-pool",
+  "description": "The artifact-pool part of the translation-repair pipeline; README.md says what it holds and what it leans on.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-assembly": "workspace:*",
+    "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
+    "@monochromatic-dev/translation-repair-glossary": "workspace:*",
+    "@monochromatic-dev/translation-repair-house-rule": "workspace:*",
+    "@monochromatic-dev/translation-repair-markup": "workspace:*",
+    "@monochromatic-dev/translation-repair-shared-contract": "workspace:*",
+    "@monochromatic-dev/translation-repair-slice-reading": "workspace:*",
+    "@monochromatic-dev/translation-repair-typography": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
+    "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/translation-repair/artifact-pool"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

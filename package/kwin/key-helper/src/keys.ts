@@ -12,7 +12,7 @@
 
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { UnknownKeyError } from './errors.ts';
 
@@ -114,8 +114,8 @@ export function keysToEvdev(combo: string): readonly string[] {
    */
   const releases = codes.toReversed()
     .map(function toRelease(code: number): string {
-    return `${code}:0`;
-  });
+      return `${code}:0`;
+    });
   return [
     ...presses,
     ...releases

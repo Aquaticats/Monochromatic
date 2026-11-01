@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "apkSha256": "2b556131d86e39acb8ebcf194f39da9ed8e36e2f146a86ab4fb971f4c8f06480",
+  "prototypeCommit": "743c5b378c6333f75857a3d5b7c87e4c284b53c5",
+  "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+  "emulatorVersion": "37.2.12",
+  "scope": "Authored debug intents, native timeout and unchanged player geometry; no actual trash, recovery or log export.",
+  "lifecycle": [
+    {
+      "panel": "inner",
+      "renderer": "SwiftShader",
+      "runtimeLibraries": "Fedora44 with host /usr bind",
+      "results": [
+        {
+          "key": "inner-light-s100",
+          "firstAction": "dismiss-button",
+          "firstComparedPixels": 3737526,
+          "finalComparedPixels": 3737526,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.991999999999962,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "inner-dark-s100",
+          "firstAction": "dismiss-button",
+          "firstComparedPixels": 3737526,
+          "finalComparedPixels": 3737526,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.131999999999948,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "inner-light-s200",
+          "firstAction": "undo-button",
+          "firstComparedPixels": 3501744,
+          "finalComparedPixels": 3501744,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 5.192000000000007,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "inner-dark-s200",
+          "firstAction": "undo-button",
+          "firstComparedPixels": 3501744,
+          "finalComparedPixels": 3501744,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.216999999999871,
+          "nativeActionsOnly": true
+        }
+      ]
+    },
+    {
+      "panel": "cover",
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "runtimeLibraries": "Container-native Ubuntu 24.04; no host /usr mount",
+      "results": [
+        {
+          "key": "cover-light-s100",
+          "firstAction": "dismiss-button",
+          "firstComparedPixels": 2082888,
+          "finalComparedPixels": 2082888,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.533000000000001,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "cover-dark-s100",
+          "firstAction": "dismiss-button",
+          "firstComparedPixels": 2082888,
+          "finalComparedPixels": 2082888,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.185999999999979,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "cover-light-s200",
+          "firstAction": "undo-button",
+          "firstComparedPixels": 1832490,
+          "finalComparedPixels": 1832490,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.450999999999993,
+          "nativeActionsOnly": true
+        },
+        {
+          "key": "cover-dark-s200",
+          "firstAction": "undo-button",
+          "firstComparedPixels": 1832490,
+          "finalComparedPixels": 1832490,
+          "sameScenePlayerGeometryUnchanged": true,
+          "geometryChangedPositiveControlRejected": true,
+          "fullDiagnosticReadBack": true,
+          "logCaptureIntentOnce": true,
+          "manualDismissOnce": true,
+          "undoIntentOnce": true,
+          "autoDismissWithoutManualInput": true,
+          "elapsedGuestSeconds": 4.397999999999996,
+          "nativeActionsOnly": true
+        }
+      ],
+      "provenanceNote": "The capture records inherited a stale SwiftShader field. The matching runtime owner output identifies LLVM20 llvmpipe; this report uses that observed adapter.",
+      "ownerOutputSha256": "88bf136c9ffc9cd0bfc66f769c7701d6e652938c21bc4114ce6ad1d8413e7536"
+    }
+  ],
+  "expiryInitialization": [
+    {
+      "key": "inner-light-s100",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "inner-dark-s100",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "inner-light-s200",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "inner-dark-s200",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "cover-light-s100",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "cover-dark-s100",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "cover-light-s200",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    },
+    {
+      "key": "cover-dark-s200",
+      "activityCreationCount": 1,
+      "studyEntryCount": 1,
+      "repeatedInitializationRejected": true
+    }
+  ],
+  "undoClose": {
+    "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "results": [
+      {
+        "key": "inner-light-s100",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 3737526
+      },
+      {
+        "key": "inner-dark-s100",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 3737526
+      },
+      {
+        "key": "inner-light-s200",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 3501744
+      },
+      {
+        "key": "inner-dark-s200",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 3501744
+      },
+      {
+        "key": "cover-light-s100",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 2082888
+      },
+      {
+        "key": "cover-dark-s100",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 2082888
+      },
+      {
+        "key": "cover-light-s200",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 1832490
+      },
+      {
+        "key": "cover-dark-s200",
+        "undoCloseObserved": true,
+        "noRestoreIntent": true,
+        "independentErrorRetained": true,
+        "unchangedPlayerGeometry": true,
+        "comparedPixels": 1832490
+      }
+    ]
+  },
+  "staticCohort": {
+    "inspectedImages": 48,
+    "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "runtimeLibraries": "Container-native Ubuntu 24.04; no host /usr mount",
+    "heldForCapture": true,
+    "transientExpiryEvidence": false
+  },
+  "cleanup": {
+    "recordedFieldsRestored": true,
+    "fields": [
+      "fontScale",
+      "nightMode",
+      "deviceState",
+      "accessibilityEnabled",
+      "enabledAccessibilityServices",
+      "geometry",
+      "fingerprint"
+    ],
+    "separateBaseAndOverrideEqualityClaimed": false,
+    "owningRuntimeExitCode": 0,
+    "matchingContainerAndQemuAbsent": true
+  },
+  "runtimeOwnerEvidence": [
+    {
+      "role": "inner-lifecycle",
+      "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (Google SwiftShader)",
+      "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (OpenGL ES 3.0 SwiftShader 4.0.0.1)",
+      "ownerOutputSha256": "33c4219e1bf022aa32a2999e965c367400e59b01b9136adbb5d2dbf779a5775f"
+    },
+    {
+      "role": "cover-lifecycle",
+      "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+      "ownerOutputSha256": "88bf136c9ffc9cd0bfc66f769c7701d6e652938c21bc4114ce6ad1d8413e7536"
+    },
+    {
+      "role": "held-cohort-and-undo-close",
+      "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+      "ownerOutputSha256": "8e0d5d6319bb325b14e0790ad09bc37d705f266f3df378cedb37bb21690391d0"
+    }
+  ]
+}

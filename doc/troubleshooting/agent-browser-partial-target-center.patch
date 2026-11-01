@@ -1,0 +1,20 @@
+diff --git a/cli/src/native/element.rs b/cli/src/native/element.rs
+index a74035e..1e9172e 100644
+--- a/cli/src/native/element.rs
++++ b/cli/src/native/element.rs
+@@ -947,8 +947,13 @@ fn build_selector_js(selector: &str) -> String {
+                 el.scrollIntoView({{ block: 'center', inline: 'center', behavior: 'instant' }});
+                 rect = el.getBoundingClientRect();
+             }}
+-            const x = rect.x + rect.width / 2;
+-            const y = rect.y + rect.height / 2;
++            const left = Math.max(0, rect.left);
++            const right = Math.min(window.innerWidth, rect.right);
++            const top = Math.max(0, rect.top);
++            const bottom = Math.min(window.innerHeight, rect.bottom);
++            if (right <= left || bottom <= top) return null;
++            const x = (left + right) / 2;
++            const y = (top + bottom) / 2;
+             const blockerAt = {BLOCKER_AT_JS};
+             return {{ x: x, y: y, blocker: blockerAt(document, el, x, y) }};
+         }})()"#,

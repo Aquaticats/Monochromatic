@@ -146,7 +146,8 @@ Source:
  [Google Pixel phone hardware tech specs][pixel-hardware-specs].
 
 [pixel-hardware-specs]: https://support.google.com/pixelphone/answer/7158570?hl=en
-[emulator-hardware-properties]: https://android.googlesource.com/platform/prebuilts/android-emulator/+/refs/heads/main/linux-x86_64/lib/hardware-properties.ini
+[emulator-hardware-properties]:
+  https://android.googlesource.com/platform/prebuilts/android-emulator/+/refs/heads/main/linux-x86_64/lib/hardware-properties.ini
 
 ---
 

@@ -1,0 +1,1363 @@
+{
+  "run": "38833901553",
+  "job": "116758578135",
+  "revision": "93560fbb09cbec0e1ebb871137820dfb71bad813",
+  "jobSeconds": 410,
+  "interactionStepSeconds": 185,
+  "sourceLogSha256": "c4d08766b1baa39812b756a97f77c077f3b19dc3202536d6a8e5611b4ded4b57",
+  "totals": {
+    "passed": 117,
+    "failed": 0,
+    "notInjectable": 1
+  },
+  "sessions": [
+    {
+      "session": "wide",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "start/page",
+          "detail": "launch shows the player page, nothing playing, no ring :: folder \"Aaa Tones\", app pid 24760 in unit music-player-e2e-24695-wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/tab-order",
+          "detail": "Tab walks folder picker, track list, deck controls, search, settings, then wraps :: open-pill > folder-list > track-list > seek > previous > play > next > mode-group > search > settings > open-pill > folder-list > track-list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/shift-tab",
+          "detail": "Shift+Tab walks the same order backwards, no trap :: folder-list > open-pill > settings > search > mode-group"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/ring-visible",
+          "detail": "a key press turns the ring on"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/ring-moves",
+          "detail": "the focus ring (2 px primary and 1 px on-primary) moves with Tab: pixels differ between two focus positions :: 2016 pixels differ, in {\"x\":57,\"y\":5,\"width\":438,\"height\":140}"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/alt-1-2",
+          "detail": "Alt+1 and Alt+2 focus the folder list and the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/pointer-hides-ring",
+          "detail": "a pointer press turns the ring off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/enter-plays-row",
+          "detail": "Alt+2 then Enter selects the row under the ring, and Enter again plays it (D124) :: ring on \"01 Alpha tone\", now playing index 30, duration 200 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "audio/private-sink",
+          "detail": "playback goes to the private null sink (node id) and nowhere else :: 1 output streams, 1 links, all to node 45; sink node 45"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-list",
+          "detail": "Space toggles play and pause in the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-folder-list",
+          "detail": "Space toggles play and pause in the folder list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-button",
+          "detail": "Space on the focused Play button presses it once"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/ctrl-shift-digits",
+          "detail": "Ctrl+Shift+1 to 4 pick Repeat, In order, Shuffle folder, Shuffle all :: 1->0 2->1 3->2 4->3"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/ctrl-m",
+          "detail": "Ctrl+M cycles the mode through all four and wraps :: 1 > 2 > 3 > 0 > 1"
+        },
+        {
+          "outcome": "PASS",
+          "id": "track/ctrl-right-left",
+          "detail": "Ctrl+Right is the next track and Ctrl+Left the previous :: 30 > 31 > 30"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/ctrl-home",
+          "detail": "Ctrl+Home restarts the track :: position 0.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-right",
+          "detail": "Alt+Right seeks +10 s :: position 10.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-shift-right",
+          "detail": "Alt+Shift+Right seeks +60 s :: position 70.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-left",
+          "detail": "Alt+Left seeks -10 s :: position 60.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-shift-left",
+          "detail": "Alt+Shift+Left seeks -60 s :: position 0.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-right-held",
+          "detail": "a held Alt+Right keeps seeking (key repeat) :: 190.0 s gained in 0.9 s (each press is 10 s)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/hold-repeat-count",
+          "detail": "a held Alt+Right repeats at the rate and delay the compositor announces, and not at all when repeat is off :: 60.0 s with repeat 5 a second after 400 ms, 10.0 s with repeat off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/bar-arrows",
+          "detail": "a focused seek bar moves with Left and Right :: 0.0 > 5.0 > 0.0 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/group-arrows",
+          "detail": "a focused mode group moves with Left and Right :: 1 > 2 > 1"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/alt-down-up",
+          "detail": "Alt+Down and Alt+Up show the next and previous folder :: Aaa Tones > Mmm Tones > Zzz Tones > Mmm Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-shift-g",
+          "detail": "Ctrl+Shift+G shows the folder of the playing track :: folder \"Aaa Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-g",
+          "detail": "Ctrl+G shows the playing track"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-o",
+          "detail": "Ctrl+O puts the keyboard in the folder list (two-pane layout)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/ring-start",
+          "detail": "the ring starts on the current folder :: ring on \"Aaa Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/down-up-home-end",
+          "detail": "Down, Up, Home and End move the folder ring :: Home Aaa Tones, Down F, Up Aaa Tones, End Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/page-keys",
+          "detail": "PageUp and PageDown move the folder ring to the ends of a short list :: PageUp Aaa Tones, PageDown Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/letter",
+          "detail": "a letter jumps to the first folder starting with it :: ring on \"Zzz Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/left-right",
+          "detail": "Left and Right also move the folder ring :: Zzz Tones > Mmm Tones > Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/enter",
+          "detail": "Enter shows the folder under the ring :: folder \"Zzz Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "track-list/keys",
+          "detail": "Down, Up, Home, End, PageUp and PageDown move the track ring :: Home \"01 Omega tone\", Down \"99 Trash me\", Up \"01 Omega tone\", End \"99 Trash me\", PageUp \"01 Omega tone\", PageDown \"99 Trash me\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "track-list/enter-selects-then-toggles",
+          "detail": "Enter on a row selects it paused, Enter on the selected row plays it, and the next Enter pauses it (D124) :: index 64 selected paused, then playing, then paused"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/ctrl-shift-c",
+          "detail": "Ctrl+Shift+C copies the file name of the row under the ring to the clipboard :: clipboard of wayland-1: \"99 Trash me.wav\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/ctrl-shift-e",
+          "detail": "Ctrl+Shift+E opens the file manager on the folder of the row :: xdg-open /home/runner/temp/agent/music-player-e2e/run-P0Zjus/library/Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/shift-f10-unbound",
+          "detail": "Shift+F10 opens nothing: it is Run in JetBrains and is not used (D114) :: no menu, no page change, no shortcut use"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/alt-enter",
+          "detail": "Alt+Enter opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-key",
+          "detail": "the Menu key opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-access-key",
+          "detail": "the access letter D of File details runs that row and closes the menu :: the menu closed after one use of an access letter; /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/wide/shots/wide-access-key-notice.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-keys",
+          "detail": "in the open track menu Down, Up, Enter and Escape work (menu opened by right click) :: menu_ring null > 0 > 1 > 0; Enter ran row 0; closed (index 64)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/delete",
+          "detail": "Delete moves the file of the row to the trash (scratch XDG trash), with an Undo message :: moved to /home/runner/temp/agent/music-player-e2e/run-P0Zjus/wide-xdg/data/Trash/files/99 Trash me.wav"
+        },
+        {
+          "outcome": "PASS",
+          "id": "menu/opens-at-pointer",
+          "detail": "a right click opens the track menu at the pointer (pulled back only to stay inside the window), in the two-pane layout :: click 520,80 gave a card at 520,80 (312 wide); click 700,80 gave a card at 688,80 (312 wide); click 990,80 gave a card at 688,80 (312 wide)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "menu/shortcut-hints-fit",
+          "detail": "the track menu is wider than 280 px, so the longest shortcut hint is not cut at the card edge :: 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "tooltip/search-shows-shortcut",
+          "detail": "hovering the Search button shows a tooltip that names Ctrl+F :: 5734 pixels changed, in {\"x\":46,\"y\":8,\"width\":954,\"height\":662}; the text is in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/wide/shots/wide-tooltip-search.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/ctrl-f",
+          "detail": "Ctrl+F opens Search with the query field focused :: focus search-field"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/bare-keys-are-text",
+          "detail": "bare keys do nothing as shortcuts in the Search field, and typing works :: query \"tone \""
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/down-up-enter",
+          "detail": "Down and Up move through results, Enter opens one and leaves Search :: ring 0 > 1 > 0; opened index 64"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/escape",
+          "detail": "Escape leaves Search"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/unicode-text",
+          "detail": "typing Björk, かめりあ and Hangul with an emoji puts exactly that text in the Search field :: the field held Björk, かめりあ, 한국어😀 exactly"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/result-selects-then-toggles",
+          "detail": "a Search result for another track selects it paused and stops the playing track; the same result again plays it (D127) :: track 64 played; the result selected 32 paused (playing false); the same result played it (playing true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/unreadable-row-stays-selected",
+          "detail": "a row whose file cannot be opened stays the selected row, and the next click on it loads it once it decodes (D128) :: row 30 stayed selected and paused through two tries; after repair it played (true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/opens-search",
+          "detail": "two quick Shift taps open Search on the player page"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/slow",
+          "detail": "two slow Shift taps (600 ms apart) do nothing"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/interrupted",
+          "detail": "a key between the Shift taps cancels the double tap"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/with-key",
+          "detail": "Shift held with another key is not a tap"
+        },
+        {
+          "outcome": "SKIP",
+          "id": "double-shift/repeat",
+          "detail": "a held Shift with repeats is not a double tap :: a modifier key never repeats on Wayland (the client skips modifiers when it repeats a held key, so holding Shift gives one press and one release, as on a real desktop); the case cannot occur, and the pure detector test covers the sequence"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/ctrl-alt-s",
+          "detail": "Ctrl+Alt+S opens Settings with the list focused :: focus "
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/ctrl-f-nothing",
+          "detail": "Ctrl+F does nothing in Settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/double-shift-nothing",
+          "detail": "double Shift does nothing in Settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/escape-ladder",
+          "detail": "template field: the first Escape returns to the list row, the second closes Settings; bare keys do nothing in the field :: field \"template-field\" > \"settings-list\" (settings-list) > page Player"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/screens-after",
+          "detail": "the player page is back with focus restored for keys"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/after-300ms",
+          "detail": "Ctrl held: no badge before 300 ms, badges after, gone on release :: shown at about 312 ms with [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G]; 1993 pixels differ with badges, 0 after release; badges 0"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/narrow-with-shift",
+          "detail": "adding Shift narrows the badges to the Ctrl+Shift chords; releasing Shift brings the Ctrl badges back :: Ctrl [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G] > Ctrl+Shift [open-folder=O, mode-repeat=1, mode-in-order=2, mode-shuffle-folder=3, mode-shuffle-all=4, deck-folder=G, editor-reset=Backspace]"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/alt",
+          "detail": "Alt held shows the seek and focus badges :: [folder-list=1, track-list=2, seek-back=Left, seek-forward=Right]"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/quick-chord",
+          "detail": "a quick chord (under 300 ms) never flashes the badges"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/no-pointer-input",
+          "detail": "badges never take pointer input: a click through a shown badge reaches the control beneath"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/row-select-then-toggle",
+          "detail": "a click on an unselected row selects it paused, and clicks on the selected row play it, then pause it (D124) :: A (0) selected, played true; B (2) selected paused true, played true, paused true"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/search-wide",
+          "detail": "clicks on the empty Search page do not reach the hidden track list, and typing still works :: query \"tone\" typed after the clicks; the same click on the player page answers"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/toast-wide",
+          "detail": "a click on the body of a toast does not play the track row under it :: the click on the toast changed nothing; the same click after the toast left reaches the row under it"
+        },
+        {
+          "outcome": "PASS",
+          "id": "lists/picker-follows-search-result",
+          "detail": "after a Search result opens a folder far from the picker position, the folder picker scrolls to it :: Zzz Tones at offset 296, then Aaa Tones at offset 10"
+        },
+        {
+          "outcome": "PASS",
+          "id": "lists/track-list-keeps-place-across-breakpoint",
+          "detail": "the track list keeps its scroll position when the window narrows below 600 px and widens again :: offset 672 kept at 443 px (672) and at 1000 px (672)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "layout/breakpoint-599",
+          "detail": "a window 599 px wide folds the layout, and the screenshot is exactly 599 px wide :: folded at 599x800"
+        },
+        {
+          "outcome": "PASS",
+          "id": "layout/breakpoint-600",
+          "detail": "a window 600 px wide unfolds the layout, and the screenshot is exactly 600 px wide :: unfolded at 600x800"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 75,
+      "failed": 0,
+      "notInjectable": 1,
+      "seconds": 74.9
+    },
+    {
+      "session": "narrow",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "folded/tab-order",
+          "detail": "folded layout: Tab walks the folder trigger and Open, the track list, the deck, search, settings :: folder-trigger > open-pill > track-list > seek > previous > play > next > mode-group > search > settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/alt-1-opens-picker",
+          "detail": "Alt+1 opens the folder picker overlay and focuses its list :: picker_open true, focus folder-list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/escape-closes-picker",
+          "detail": "Escape closes the picker overlay and focuses the track list, without leaving the page"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/ctrl-o-toggles",
+          "detail": "Ctrl+O opens the picker and Ctrl+O closes it"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/alt-2-closes-picker",
+          "detail": "Alt+2 closes the picker and focuses the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/escape-on-player",
+          "detail": "Escape on the player page with nothing open does nothing"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/picker-enter-focuses-tracks",
+          "detail": "Enter on a folder in the picker shows it and moves the keyboard to the track list :: Aaa Tones > F"
+        },
+        {
+          "outcome": "PASS",
+          "id": "editor-page/enter-and-escape",
+          "detail": "Settings list Enter opens the editor page; Escape returns to the Settings list; Escape leaves Settings :: TemplateEditor (focus ) > Settings (focus ) > Player"
+        },
+        {
+          "outcome": "PASS",
+          "id": "editor-page/ctrl-enter",
+          "detail": "Ctrl+Enter applies the template and returns to the Settings list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/search-narrow",
+          "detail": "clicks on the empty Search page do not reach the hidden pause button, mode group or track list :: no click reached the player under Search; the mode segment answers the same click on the player page"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 5.4
+    },
+    {
+      "session": "dialog",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-shift-o",
+          "detail": "Ctrl+Shift+O opens the system folder dialog :: a dialog covered 800000 pixels, and Escape closed it"
+        },
+        {
+          "outcome": "PASS",
+          "id": "dialog/focus-returns",
+          "detail": "after the system folder dialog closes, the player window has the keyboard again and a key reaches it :: ok 1 index=0 app-id=monochromatic.music-player title=Music%20Player focused=true; Ctrl+F opened Search with focus search-field"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 2,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 3.5
+    },
+    {
+      "session": "auto-play",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "auto-play/off-by-default-click-selects-paused",
+          "detail": "with no saved setting Auto-play on select is off, and a click on another row selects it paused (D124, D129) :: row A 30 played; the click on row B 31 left it paused with the setting off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/switch-turns-it-on",
+          "detail": "End and Space on the Auto-play on select row of Settings turn the setting on and leave Settings open (D129) :: the switch row turned the setting on in place"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/on-click-selects-and-plays",
+          "detail": "with the setting on, a click on another row selects it and starts it at once; the selected row still toggles (D129) :: row A 30 played at once (true), row B 31 played at once (true) and the next click paused it (true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/setting-survives-restart",
+          "detail": "the setting is still on after Ctrl+Q and a restart, and a click on a row plays it at once (D129) :: the setting stayed on; the click on row 31 played at once"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 4,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 5.1
+    },
+    {
+      "session": "quit",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "quit/ctrl-q",
+          "detail": "Ctrl+Q quits the app :: process 26397 ended"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 0.9
+    },
+    {
+      "session": "states",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "states/reading",
+          "detail": "while the folder is read the window says \"Reading your library\" and the deck is off, not \"No folder is open\" :: pane \"Reading your library\", deck_disabled true, shot /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/states/shots/states-main-states-reading.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/reading-ends",
+          "detail": "when the scan ends the pane goes, the first folder shows and the deck works :: folder \"Aaa Folder\", deck_disabled false"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/loose-letter-folder",
+          "detail": "loose files sit in the virtual folder of their letter, shown after the real folders :: ring on \"L\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/play-with-nothing-selected",
+          "detail": "Space with nothing selected starts the first track of the folder on screen instead of flipping to Pause :: playing track 3, position 0"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/window-title",
+          "detail": "the window title is the cleaned title the deck shows, without folder, extension or the shared prefix :: title \"ok One\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/in-order-stops",
+          "detail": "In order plays the folder to its end, stops with the first track loaded, and Play starts it again :: stopped at track 3, played again at track 3"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/single-folder-name",
+          "detail": "a library with one top-level folder shows that folder by its own name, not a letter :: folder \"Only Artist\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/natural-order",
+          "detail": "tracks are listed in natural order: Take 2 before Take 3 before Take 10 :: first \"2 Zed\", last \"10 Zed\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/no-audio-folder",
+          "detail": "a folder without audio is named on its own line and the deck is off :: pane \"No audio found in | states-empty-library\", shot /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/states/shots/states-empty-states-no-audio.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-initial",
+          "detail": "the library the app starts on is measured by itself, once per file :: 2 measured"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-replaced-file",
+          "detail": "a file replaced on disk with different audio is measured again while the app runs, with no key pressed :: 2 decodes before, then one more"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-new-file",
+          "detail": "a file added to the folder is listed and measured by itself :: measured"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-broken-file-once",
+          "detail": "a file that cannot be decoded is reported once, however often the library changes afterwards :: reported once"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 13,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 20.1
+    },
+    {
+      "session": "visual",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "visual/dark-3B82F6",
+          "detail": "focus ring and badges in dark with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 528 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-3B82F6-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/dark-22C55E",
+          "detail": "focus ring and badges in dark with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 526 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-22C55E-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/light-3B82F6",
+          "detail": "focus ring and badges in light with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 524 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-light-3B82F6-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/light-22C55E",
+          "detail": "focus ring and badges in light with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 522 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-light-22C55E-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-dark-3B82F6",
+          "detail": "the track menu in dark with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 67,70,79"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-dark-3B82F6",
+          "detail": "the focus ring in dark with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 528 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-dark-22C55E",
+          "detail": "the track menu in dark with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 64,73,67"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-dark-22C55E",
+          "detail": "the focus ring in dark with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 526 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-light-3B82F6",
+          "detail": "the track menu in light with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 196,199,208"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-light-3B82F6",
+          "detail": "the focus ring in light with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 524 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-light-22C55E",
+          "detail": "the track menu in light with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 191,202,196"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-light-22C55E",
+          "detail": "the focus ring in light with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 522 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role"
+        }
+      ],
+      "exitCode": 0,
+      "passed": 12,
+      "failed": 0,
+      "notInjectable": 0,
+      "seconds": 73
+    }
+  ],
+  "sourceJob": {
+    "completedAt": "2026-10-16T01:19:50Z",
+    "conclusion": "success",
+    "databaseId": 116758578135,
+    "name": "desktop",
+    "startedAt": "2026-10-16T01:13:00Z",
+    "status": "completed",
+    "steps": [
+      {
+        "completedAt": "2026-10-16T01:13:06Z",
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1,
+        "startedAt": "2026-10-16T01:13:05Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:17Z",
+        "conclusion": "success",
+        "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "number": 2,
+        "startedAt": "2026-10-16T01:13:06Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:18Z",
+        "conclusion": "success",
+        "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+        "number": 3,
+        "startedAt": "2026-10-16T01:13:17Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:30Z",
+        "conclusion": "success",
+        "name": "Install build runtimes",
+        "number": 4,
+        "startedAt": "2026-10-16T01:13:18Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:31Z",
+        "conclusion": "success",
+        "name": "Probe desktop session prerequisites",
+        "number": 5,
+        "startedAt": "2026-10-16T01:13:30Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:43Z",
+        "conclusion": "success",
+        "name": "Provision desktop prerequisites",
+        "number": 6,
+        "startedAt": "2026-10-16T01:13:31Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:13:45Z",
+        "conclusion": "success",
+        "name": "Install workspace dependencies",
+        "number": 7,
+        "startedAt": "2026-10-16T01:13:43Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:15:25Z",
+        "conclusion": "success",
+        "name": "Build the desktop application",
+        "number": 8,
+        "startedAt": "2026-10-16T01:13:45Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:16:44Z",
+        "conclusion": "success",
+        "name": "Build the compositor",
+        "number": 9,
+        "startedAt": "2026-10-16T01:15:25Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:19:49Z",
+        "conclusion": "success",
+        "name": "Verify all desktop sessions with the corrected portal Read contract",
+        "number": 10,
+        "startedAt": "2026-10-16T01:16:44Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:19:49Z",
+        "conclusion": "success",
+        "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "number": 20,
+        "startedAt": "2026-10-16T01:19:49Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-10-16T01:19:49Z",
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 21,
+        "startedAt": "2026-10-16T01:19:49Z",
+        "status": "completed"
+      }
+    ],
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/38833901553/job/116758578135"
+  },
+  "scenarioBaseline": "depot-desktop-cost-2026-10-15.evidence.json",
+  "scenarios": [
+    {
+      "mode": "every-affected",
+      "attempts": [
+        {
+          "start": 1791469381,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791471119,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791472700,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791475311,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791581480,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791581685,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791582136,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791639062,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791658120,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791670142,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791728789,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791744498,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791744879,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791749645,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791749677,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791750469,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791753411,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791753943,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791759223,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791761224,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791762576,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791762691,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791763804,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791766934,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791768248,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791770067,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791771626,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791772245,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791778103,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791782631,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791792747,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791798438,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791806060,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791821481,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791821992,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791822898,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791827509,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791850093,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791887235,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791908875,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791924682,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791927488,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791935973,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791936093,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791946020,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791979966,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791982451,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791983007,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791983204,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791983556,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791983938,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791989404,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791989718,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792000458,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792000516,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792010997,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792012617,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792013647,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792020000,
+          "consumedSeconds": 410
+        }
+      ],
+      "desktopRunnerMinutes": 13822.857142857143,
+      "additional": {
+        "minutes": {
+          "ci": 2262.104571428572,
+          "runner": 20950.857142857145,
+          "container": 1125.1602540284275
+        },
+        "developerUsd": 160.2841804468514,
+        "startupUsd": 205.70514285714287
+      },
+      "replacement": {
+        "minutes": {
+          "ci": 2262.104571428572,
+          "runner": 20950.857142857145,
+          "container": 0
+        },
+        "developerUsd": 135.2777702857143,
+        "startupUsd": 205.70514285714287
+      }
+    },
+    {
+      "mode": "cancel-superseded",
+      "attempts": [
+        {
+          "start": 1791469381,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791471119,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791472700,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791475311,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791581480,
+          "consumedSeconds": 205
+        },
+        {
+          "start": 1791581685,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791582136,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791639062,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791658120,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791670142,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791728789,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791744498,
+          "consumedSeconds": 381
+        },
+        {
+          "start": 1791744879,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791749645,
+          "consumedSeconds": 32
+        },
+        {
+          "start": 1791749677,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791750469,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791753411,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791753943,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791759223,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791761224,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791762576,
+          "consumedSeconds": 115
+        },
+        {
+          "start": 1791762691,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791763804,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791766934,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791768248,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791770067,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791771626,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791772245,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791778103,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791782631,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791792747,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791798438,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791806060,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791821481,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791821992,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791822898,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791827509,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791850093,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791887235,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791908875,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791924682,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791927488,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791935973,
+          "consumedSeconds": 120
+        },
+        {
+          "start": 1791936093,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791946020,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791979966,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791982451,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791983007,
+          "consumedSeconds": 197
+        },
+        {
+          "start": 1791983204,
+          "consumedSeconds": 352
+        },
+        {
+          "start": 1791983556,
+          "consumedSeconds": 382
+        },
+        {
+          "start": 1791983938,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791989404,
+          "consumedSeconds": 314
+        },
+        {
+          "start": 1791989718,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792000458,
+          "consumedSeconds": 58
+        },
+        {
+          "start": 1792000516,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792010997,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792012617,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792013647,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792020000,
+          "consumedSeconds": 410
+        }
+      ],
+      "desktopRunnerMinutes": 12712,
+      "additional": {
+        "minutes": {
+          "ci": 2215.218285714286,
+          "runner": 19589.142857142855,
+          "container": 1062.665748776142
+        },
+        "developerUsd": 149.33279680818853,
+        "startupUsd": 200
+      },
+      "replacement": {
+        "minutes": {
+          "ci": 2215.218285714286,
+          "runner": 19589.142857142855,
+          "container": 0
+        },
+        "developerUsd": 126.82616685714285,
+        "startupUsd": 200
+      }
+    },
+    {
+      "mode": "daily-latest",
+      "attempts": [
+        {
+          "start": 1791475311,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791582136,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791670142,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791762691,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791827509,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1791935973,
+          "consumedSeconds": 410
+        },
+        {
+          "start": 1792020000,
+          "consumedSeconds": 410
+        }
+      ],
+      "desktopRunnerMinutes": 1640,
+      "additional": {
+        "minutes": {
+          "ci": 256.2801428571429,
+          "runner": 2564,
+          "container": 133.49358946100003
+        },
+        "developerUsd": 23.384,
+        "startupUsd": 200
+      },
+      "replacement": {
+        "minutes": {
+          "ci": 256.2801428571429,
+          "runner": 2564,
+          "container": 0
+        },
+        "developerUsd": 23.384,
+        "startupUsd": 200
+      }
+    }
+  ],
+  "limitations": [
+    "One held-modifier check remains not injectable.",
+    "Changed portal implementation means this is not an unchanged-input timing repetition.",
+    "Cost scenarios repeat the sampled week; they exclude unmeasured workloads and storage and are not complete bills.",
+    "Successful interaction execution does not replace packaged-container validation."
+  ]
+}

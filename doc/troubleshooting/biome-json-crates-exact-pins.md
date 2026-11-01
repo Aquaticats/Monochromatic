@@ -232,7 +232,8 @@ yet calls the 0.5.8-only method (`src/lexer.rs:418`):
         if !checkpoint.current_kind.is_trivia() {
 ```
 
-So the resolution `biome_parser` 0.5.8 with `biome_rowan` 0.5.7 satisfies every declared requirement and still does not compile,
+So the resolution `biome_parser` 0.5.8 with `biome_rowan` 0.5.7
+satisfies every declared requirement and still does not compile,
 which is why pinning `biome_rowan` alone fails.
 `biome_css_syntax` 0.5.8 has the same gap:
 with `biome_rowan` held at 0.5.7 it fails with
@@ -279,7 +280,8 @@ in the order it bears on the question:
   labeled `S-Good first issue` and `S-Help-wanted`,
   with no later maintainer activity (timeline read 2026-09-17).
 - Publishing infrastructure exists and has been maintained.
-  [#7769][biome-7769] (merged 2025-10-17) added `.github/workflows/publish-crates.yml` and `scripts/update-crates-versions.mjs`,
+  [#7769][biome-7769] (merged 2025-10-17) added
+  `.github/workflows/publish-crates.yml` and `scripts/update-crates-versions.mjs`,
   stating "We have one single version for all crates.
   New crates get published with the version we already have."
   [#7801][biome-7801] (merged 2025-10-20) switched the workflow to token publishing.

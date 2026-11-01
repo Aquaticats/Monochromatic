@@ -5,7 +5,8 @@
 [`json-five`][json-five-rs] 0.3.1 advertises
 "Supports round-trip use cases with preservation/editing of whitespace and comments"
 (`README.md:10`).
-Its round-trip model (`json_five::rt::parser::from_str` plus `to_string`) writes every block comment without its closing `/`,
+Its round-trip model (`json_five::rt::parser::from_str` plus `to_string`)
+writes every block comment without its closing `/`,
 even when nothing was edited.
 The output is no longer valid JSON5 or JSONC.
 
@@ -29,7 +30,7 @@ ParsingError { index: 29, message: "Unexpected end of input while processing blo
 ```
 
 The repository's `module-jsonc-edit` parser
-(`package/module/jsonc-edit/src/scan.ts:403`)
+(`package/jsonc-edit/core-ts/src/scan.ts:403`)
 reports:
 
 ```text
@@ -217,7 +218,8 @@ which is the panic at `src/rt/parser.rs:371:21`.
 
 ### Step 5: the owned-token API sizes its buffers from the same spans
 
-`source_to_tokens` (`src/rt/tokenize.rs:62-156`) walks the source character by character and flushes a token when its buffer reaches the span length,
+`source_to_tokens` (`src/rt/tokenize.rs:62-156`) walks the source character by character
+and flushes a token when its buffer reaches the span length,
 for example `src/rt/tokenize.rs:127-131`:
 
 ```rust
@@ -824,7 +826,8 @@ fn main() {
     let src = "{ /* block */ \"a\": 1 }";
     let out = from_str(src).unwrap().to_string();
     println!("{out}"); // { /* block * "a": 1 }
-    println!("{:?}", from_str(&out).map(|_| ())); // Err(... "Unexpected end of input while processing block comment" ...)
+    println!("{:?}", from_str(&out).map(|_| ())); // Err(... "Unexpected end of input
+while processing block comment" ...)
 
     // panics: end byte index 16 is not a char boundary; it is inside 'é' (bytes 15..17 of string)
     let _ = from_str("{\"a\": 1} // café");

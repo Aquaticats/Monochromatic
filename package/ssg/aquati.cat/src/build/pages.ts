@@ -4,7 +4,7 @@
  Generates all HTML pages from posts and rendered content,
  writing each to the dist directory.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { Locale, } from '../i18n/index.ts';
 
@@ -84,8 +84,8 @@ export async function generatePages(
    */
   const availableLangsByName: Record<string, readonly Locale[]> = Object
     .fromEntries(
-      Object.entries(byName,)
-        .map(function pickAvailable([name, namePosts,],) {
+    Object.entries(byName,)
+      .map(function pickAvailable([name, namePosts,],) {
         return [
           name,
           namePosts.map(function langOf(p,) {
@@ -152,16 +152,16 @@ export async function generatePages(
         },),
         ...Object.entries(langTags,)
           .map(function tagWrite([tag, tagPosts,],) {
-          return writePage({
-            relativePath: `${lang}/tag/${tag}.html`,
-            content: tagPage({
-              tag,
-              lang,
-              posts: tagPosts,
-              canonicalUrl: `${siteUrl}/${lang}/tag/${tag}`,
-            },),
-          },);
-        },),
+            return writePage({
+              relativePath: `${lang}/tag/${tag}.html`,
+              content: tagPage({
+                tag,
+                lang,
+                posts: tagPosts,
+                canonicalUrl: `${siteUrl}/${lang}/tag/${tag}`,
+              },),
+            },);
+          },),
       ];
     },),
     ...names.map(function nameWrite(name,) {

@@ -1,0 +1,53 @@
+diff --git a/internal/core/graphics/wgpu_30.rs b/internal/core/graphics/wgpu_30.rs
+index 501d3ef..10cca77 100644
+--- a/internal/core/graphics/wgpu_30.rs
++++ b/internal/core/graphics/wgpu_30.rs
+@@ -281,6 +281,32 @@ fn default_device_descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<
+     }
+ }
+ 
++/// Replaces a CPU adapter, which wgpu lists first when no power preference sorts the list, by the first hardware
++/// adapter that can present to `surface`. A CPU adapter stays when `SLINT_WGPU_CPU` or `WGPU_ADAPTER_NAME` is set.
++async fn without_cpu_adapter(
++    instance: &wgpu::Instance,
++    surface: &wgpu::Surface<'_>,
++    adapter: wgpu::Adapter,
++) -> Result<wgpu::Adapter, Box<dyn std::error::Error + Send + Sync + 'static>> {
++    let allowed = std::env::var_os("SLINT_WGPU_CPU").is_some()
++        || std::env::var_os("WGPU_ADAPTER_NAME").is_some();
++    if allowed || adapter.get_info().device_type != wgpu::DeviceType::Cpu {
++        return Ok(adapter);
++    }
++    for candidate in instance.enumerate_adapters(wgpu::Backends::all()).await {
++        if candidate.get_info().device_type != wgpu::DeviceType::Cpu
++            && candidate.is_surface_supported(surface)
++        {
++            return Ok(candidate);
++        }
++    }
++    Err(alloc::format!(
++        "The WGPU adapter {} renders on the CPU. Set SLINT_WGPU_CPU=1 to use it anyway.",
++        adapter.get_info().name
++    )
++    .into())
++}
++
+ /// Internal async helper function to initialize the wgpu instance/adapter/device/queue from either scratch or
+ /// developer-provided config. This is called by any renderer intending to support WGPU.
+ pub async fn async_init_instance_adapter_device_queue_surface(
+@@ -361,6 +387,7 @@ pub async fn async_init_instance_adapter_device_queue_surface(
+             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync + 'static> {
+                 alloc::format!("Failed to find an appropriate adapter: {e}").into()
+             })?;
++            let adapter = without_cpu_adapter(&instance, &surface, adapter).await?;
+ 
+             let (device, queue) = adapter
+                 .request_device(&device_descriptor_from_settings(&wgpu30_settings, &adapter))
+@@ -413,6 +440,7 @@ pub async fn async_init_instance_adapter_device_queue_surface(
+                     .map_err(|e| -> Box<dyn std::error::Error + Send + Sync + 'static> {
+                         alloc::format!("Failed to find an appropriate adapter: {e}").into()
+                     })?;
++            let adapter = without_cpu_adapter(&instance, &surface, adapter).await?;
+ 
+             let (device, queue) = adapter
+                 .request_device(&default_device_descriptor(&adapter))

@@ -10,13 +10,17 @@ as a reference for building new pages that conform to the site's existing visual
 
 ## What this contains
 
-- **Design tokens**: complete color palette, typography scale, spacing, breakpoints, elevation, z-index layers, motion, borders
-- **Tech stack analysis**: CMS platform (iCreate/GHD Digital), jQuery ecosystem, analytics, search provider, CSS architecture
+- **Design tokens**: complete color palette, typography scale, spacing,
+  breakpoints, elevation, z-index layers, motion, borders
+- **Tech stack analysis**: CMS platform (iCreate/GHD Digital), jQuery ecosystem,
+  analytics, search provider, CSS architecture
 - **Page layouts**: documented homepage and content page structures with ASCII diagrams
 - **Component inventory**: 16 component types with properties, states, and CSS values
 - **Accessibility audit**: landmark usage, ARIA patterns, contrast ratios, focus handling
 - **Screenshots**: desktop and mobile captures of homepage, services, content pages, footer
-- **Web component recreations**: 7 interactive web components (`oph-button`, `oph-accordion`, `oph-alert`, `oph-callout`, `oph-breadcrumb`, `oph-table`, `oph-feature-tile`)
+- **Web component recreations**: 7 interactive web components
+  (`oph-button`, `oph-accordion`, `oph-alert`, `oph-callout`,
+  `oph-breadcrumb`, `oph-table`, `oph-feature-tile`)
 
 ## Viewing
 

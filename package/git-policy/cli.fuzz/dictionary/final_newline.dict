@@ -1,0 +1,7 @@
+# Line endings and bytes the final-newline rule treats specially.
+"\x0a"
+"\x0a\x0a"
+"\x0d\x0a"
+"\x00"
+"\xff"
+"\xc3\xa9"

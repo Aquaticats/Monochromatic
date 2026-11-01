@@ -1,12 +1,20 @@
-//! Per-provenance probe buckets: the allocation layer of the shipped policy.
+//! Per-provenance probe buckets:
+//!  the allocation layer of the shipped policy.
 //!
-//! Buckets come from embedded metadata only (codec, store identifiers, iTunNORM,
-//! youtube provenance; never path text). Measured on the corpus their probe tails
-//! diverge hard: lossless tracks keep their accuracy at a fraction of the coverage
-//! (and at an even smaller fraction when frame-size bones seed the probe), while the
+//! Buckets come from embedded metadata only (codec,
+//!  store identifiers,
+//!  iTunNORM,
+//! youtube provenance;
+//!  never path text).
+//!  Measured on the corpus their probe tails
+//! diverge hard:
+//!  lossless tracks keep their accuracy at a fraction of the coverage
+//! (and at an even smaller fraction when frame-size bones seed the probe),
+//!  while the
 //! untagged lossy bucket carries all the risk and receives the freed coverage.
 
-/// One bucket's probe dial: how much of a long track to measure and the margin to add.
+/// One bucket's probe dial:
+///  how much of a long track to measure and the margin to add.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BucketProbe {
     /// Fraction of the track's probe bins the zoom may measure.
@@ -26,17 +34,23 @@ pub struct BucketTable {
     pub store: BucketProbe,
     /// Lossy tracks carrying youtube provenance (loudness-normalized sources).
     pub youtube: BucketProbe,
-    /// Untagged lossy tracks, the risk bucket that receives the freed coverage.
+    /// Untagged lossy tracks,
+    ///  the risk bucket that receives the freed coverage.
     pub bare: BucketProbe,
 }
 
-/// A track's zero-cost provenance signals, supplied by the platform's decoder and tags.
+/// A track's zero-cost provenance signals,
+///  supplied by the platform's decoder and tags.
 ///
-/// Every flag false is the safe default: the track lands in the bare bucket, which has
-/// the most coverage, so an uninformed caller never under-probes anything.
+/// Every flag false is the safe default:
+///  the track lands in the bare bucket,
+///  which has
+/// the most coverage,
+///  so an uninformed caller never under-probes anything.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TrackProvenance {
-    /// Whether the codec is lossless (FLAC and kin); decoders know this for free.
+    /// Whether the codec is lossless (FLAC and kin);
+    ///  decoders know this for free.
     pub lossless: bool,
     /// Whether store identifiers are embedded (ISRC/UPC/content ids/iTunNORM).
     pub store_tagged: bool,
@@ -44,10 +58,15 @@ pub struct TrackProvenance {
     pub youtube_tagged: bool,
 }
 
-/// What:     `impl TrackProvenance { ... }`. Bucket selection from the signals.
-/// Why:      Keep the mapping next to the flags it reads.
+/// What:
+///      `impl TrackProvenance { ... }`.
+///  Bucket selection from the signals.
+/// Why:
+///       Keep the mapping next to the flags it reads.
 impl TrackProvenance {
-    /// The uninformed provenance: every signal false, landing in the bare bucket.
+    /// The uninformed provenance:
+    ///  every signal false,
+    ///  landing in the bare bucket.
     ///
     /// @example `resolve_decision` uses this for callers that pass no provenance.
     pub fn unknown() -> TrackProvenance {
@@ -56,8 +75,12 @@ impl TrackProvenance {
 
     /// Select the probe dial for this provenance from `table`.
     ///
-    /// What: lossless picks the bones dial when bones seeds exist; store beats youtube;
-    /// everything else is bare. Why: the priority mirrors how reliable each signal is.
+    /// What:
+    ///  lossless picks the bones dial when bones seeds exist;
+    ///  store beats youtube;
+    /// everything else is bare.
+    ///  Why:
+    ///  the priority mirrors how reliable each signal is.
     pub fn select(&self, table: &BucketTable, bones_present: bool) -> BucketProbe {
         if self.lossless {
             if bones_present { return table.lossless_bones } else { return table.lossless }

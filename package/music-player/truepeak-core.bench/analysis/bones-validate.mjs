@@ -6,15 +6,25 @@
 // Usage: node analysis/bones-validate.mjs
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { db, loadTracks, quantile } from './corpus.mjs';
+import {
+  db,
+  loadTracks,
+  quantile
+} from './corpus.mjs';
 
 /** Duration mismatch beyond this many seconds counts as a validation failure. */
 const MISMATCH_LIMIT_SECS = 0.5;
 
 /** Pearson correlation between two equally-indexed series, truncated to the shorter. */
-function pearson({ xs, ys }) {
-  const length = Math.min(xs.length, ys.length);
-  if (length < 2) return NaN;
+function pearson({
+  xs,
+  ys
+}) {
+  const length = Math.min(
+    xs.length,
+    ys.length
+  );
+  if (length < 2) return Number.NaN;
   let sumX = 0;
   let sumY = 0;
   for (let index = 0; index < length; index += 1) {
@@ -36,21 +46,39 @@ function pearson({ xs, ys }) {
   return covariance / Math.sqrt(varianceX * varianceY);
 }
 
-const profilesPath = new URL('../out/byte-profiles.jsonl', import.meta.url).pathname;
-const corpusPath = new URL('../out/tracks-fine.jsonl', import.meta.url).pathname;
+const profilesPath = new URL(
+  '../out/byte-profiles.jsonl',
+  import.meta.url
+).pathname;
+const corpusPath = new URL(
+  '../out/tracks-fine.jsonl',
+  import.meta.url
+).pathname;
 
 // Stream the profiles; keep bytes only for spot-check candidates plus slot counts for all.
 const profiles = new Map();
-const reader = createInterface({ input: createReadStream(profilesPath), crlfDelay: Infinity });
+const reader = createInterface({
+  input: createReadStream(profilesPath),
+  crlfDelay: Infinity
+});
 for await (const line of reader) {
   if (!line.trim()) continue;
   const profile = JSON.parse(line);
-  profiles.set(profile.path, { slotSecs: profile.slotSecs, bytes: profile.bytes });
+  profiles.set(
+    profile.path,
+    {
+      slotSecs: profile.slotSecs,
+      bytes: profile.bytes
+    }
+  );
 }
 console.log(`profiles: ${profiles.size}`);
 
 const tracks = await loadTracks(corpusPath);
-const corpus = new Map(tracks.map((track) => [track.path, track]));
+const corpus = new Map(tracks.map((track) => [
+  track.path,
+  track
+]));
 console.log(`corpus tracks: ${corpus.size}`);
 
 // Duration comparison across every parsed profile with a corpus entry.
@@ -63,38 +91,68 @@ for (const [path, profile] of profiles) {
     noCorpus += 1;
     continue;
   }
-  const diff = Math.abs(profile.bytes.length * profile.slotSecs - track.dur);
+  const diff = Math.abs((profile.bytes
+    .length
+    * profile.slotSecs) - track.dur);
   diffs.push(diff);
-  if (diff > MISMATCH_LIMIT_SECS) offenders.push({ path, diff });
+  if (diff > MISMATCH_LIMIT_SECS) offenders.push({
+    path,
+    diff
+  });
 }
-diffs.sort((a, b) => a - b);
+diffs.sort((
+  a,
+  b
+) => a - b);
 console.log(`compared: ${diffs.length}, no corpus entry: ${noCorpus}`);
 console.log('duration mismatch |profileDur - corpusDur| (seconds):');
-for (const fraction of [0.5, 0.9, 0.95, 0.99, 1.0]) {
-  console.log(`  p${(fraction * 100).toFixed(0)}: ${quantile(diffs, fraction).toFixed(3)}`);
+for (const fraction of [
+  0.5,
+  0.9,
+  0.95,
+  0.99,
+  1
+]) {
+  console.log(`  p${(fraction * 100).toFixed(0)}: ${quantile(
+    diffs,
+    fraction
+  )
+    .toFixed(3)}`);
 }
-const withinLimit = diffs.filter((diff) => diff <= MISMATCH_LIMIT_SECS).length;
+const withinLimit = diffs.filter((diff) => diff <= MISMATCH_LIMIT_SECS)
+  .length;
 console.log(
   `  within ${MISMATCH_LIMIT_SECS}s: ${withinLimit}/${diffs.length}`
-  + ` (${((withinLimit / diffs.length) * 100).toFixed(2)}%), over: ${offenders.length}`,
+    + ` (${((withinLimit / diffs.length) * 100).toFixed(2)}%), over: ${offenders.length}`,
 );
-offenders.sort((a, b) => b.diff - a.diff);
-for (const offender of offenders.slice(0, 10)) {
-  console.log(`  OVER ${offender.diff.toFixed(2)}s ${offender.path}`);
+offenders.sort((
+  a,
+  b
+) => b.diff - a.diff);
+for (const offender of offenders.slice(
+  0,
+  10
+)) {
+  console.log(`  OVER ${offender.diff
+    .toFixed(2)}s ${offender.path}`);
 }
 
 // Spot-check alignment: per-slot bytes vs per-slot decoded bin peaks (bin_seconds must
 // match slotSecs for index-for-index comparison). First/middle/last opus plus first m4a.
 const opusPaths = [...profiles.keys()].filter(
-  (path) => path.toLowerCase().endsWith('.opus') && corpus.has(path),
+  (path) => path.toLowerCase()
+    .endsWith('.opus')
+    && corpus.has(path),
 );
 const m4aPaths = [...profiles.keys()].filter(
-  (path) => path.toLowerCase().endsWith('.m4a') && corpus.has(path),
+  (path) => path.toLowerCase()
+    .endsWith('.m4a')
+    && corpus.has(path),
 );
 const spotPaths = [
   opusPaths[0],
   opusPaths[Math.floor(opusPaths.length / 2)],
-  opusPaths[opusPaths.length - 1],
+  opusPaths.at(-1),
   m4aPaths[0],
 ];
 console.log('spot-check Pearson (per-slot bytes vs per-slot bin peaks):');
@@ -105,13 +163,27 @@ for (const path of spotPaths) {
     console.log(`  SKIP (binSecs ${track.binSecs} != slotSecs ${profile.slotSecs}) ${path}`);
     continue;
   }
-  const r = pearson({ xs: profile.bytes, ys: track.bins });
+  const r = pearson({
+    xs: profile.bytes,
+    ys: track.bins
+  });
   // dB-domain peaks (floored at -60) track bit demand better on heavily limited masters,
   // whose linear peak profiles are nearly flat; report both for context.
-  const dbBins = Array.from(track.bins, (value) => Math.max(db(value), -60));
-  const rDb = pearson({ xs: profile.bytes, ys: dbBins });
+  const dbBins = Array.from(
+    track.bins,
+    (value) => Math.max(
+      db(value),
+      -60
+    )
+  );
+  const rDb = pearson({
+    xs: profile.bytes,
+    ys: dbBins
+  });
   console.log(
     `  rLinear=${r.toFixed(3)} rDb=${rDb.toFixed(3)}`
-    + ` slots=${profile.bytes.length}/${track.bins.length} ${path}`,
+      + ` slots=${profile.bytes
+        .length}/${track.bins
+          .length} ${path}`,
   );
 }

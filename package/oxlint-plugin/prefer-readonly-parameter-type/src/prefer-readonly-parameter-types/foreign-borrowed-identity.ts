@@ -7,7 +7,7 @@
 import type {
   Project,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Detects exact project-owned foreign ownership marker.
@@ -46,11 +46,11 @@ export function isForeignBorrowedType({
       const declaration = handle.resolve(project,);
       return (declaration !== undefined)
         && declaration.getSourceFile()
-        .fileName
-        .replaceAll(
+          .fileName
+          .replaceAll(
           '\\',
           '/',
-        )
-        .endsWith('/ownership-marker/foreign-borrowed/src/index.ts',);
+          )
+          .endsWith('/ownership-marker/foreign-borrowed/src/index.ts',);
     },);
 }

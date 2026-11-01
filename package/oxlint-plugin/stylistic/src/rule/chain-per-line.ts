@@ -9,7 +9,7 @@ import type {
   VisitorWithHooks,
 } from '@oxlint/plugins';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   type ChainNode,
@@ -17,7 +17,7 @@ import {
   hasReflowableComment,
   isChainRoot,
 } from '../utility/chain.ts';
-import { chainBreakOffsets, } from '../utility/chain-flatten.ts';
+import { chainBreaks, } from '../utility/chain-flatten.ts';
 import { renderCanonical, } from '../utility/chain-render.ts';
 import { baseIndentAt, } from '../utility/indent.ts';
 
@@ -69,9 +69,11 @@ function sourceTextOf(context: ForeignBorrowed<Context>,): string {
  Firing once on the outermost chain root, the rule computes break offsets on
  decoupled axes: a member or call chain breaks on its own member-step count,
  and an operator chain breaks on its own operator count, so neither axis
- inflates the other. A member chain keeps the leaf and the first member step on
- the head line and breaks every later step; an operator chain keeps the
- source-first operator on the head line and breaks the rest. A single operator
+ inflates the other. A member chain keeps the leaf and the first member step on the head line and
+ breaks every later step; an operator chain keeps the source-first operator on
+ the head line and breaks the rest. Each continuation line indents two columns
+ past the line carrying its chain's head, so a member operand that broke onto
+ an operator's line nests one level deeper. A single operator
  whose operand is a member access (`a.b === c`) therefore stays on one line,
  while a multi-step member operand breaks and carries its operator onto a line
  of its own (`a.b.c > 0` becomes `a.b` then `.c` then `> 0`). Computed access
@@ -151,13 +153,13 @@ export const chainPerLine: CreateOnceRule = {
         return;
       }
       /**
-       Break offsets that begin a continuation line; empty when the chain fits on one line.
+       Breaks that begin a continuation line; empty when the chain fits on one line.
        */
-      const breakOffsets = chainBreakOffsets({
+      const breaks = chainBreaks({
         context,
         node: root,
       },);
-      if (breakOffsets.length
+      if (breaks.length
         === 0)
         return;
       /**
@@ -177,14 +179,13 @@ export const chainPerLine: CreateOnceRule = {
        */
       const regionEnd = top.end;
       /**
-       Continuation indent: the head line's indentation plus two spaces.
+       Head indent: the head line's own indentation, which every continuation
+       nests past according to its anchor's line.
        */
-      const childIndent = `${
-        baseIndentAt({
-          sourceText,
-          offset: regionStart,
-        },)
-      }  `;
+      const headIndent = baseIndentAt({
+        sourceText,
+        offset: regionStart,
+      },);
       /**
        Canonical multi-line layout of the region.
        */
@@ -192,8 +193,8 @@ export const chainPerLine: CreateOnceRule = {
         sourceText,
         regionStart,
         regionEnd,
-        breakOffsets,
-        childIndent,
+        breaks,
+        headIndent,
       },);
       if (sourceText.slice(
         regionStart,
@@ -203,9 +204,10 @@ export const chainPerLine: CreateOnceRule = {
         return;
       }
       /**
-       First break offset; defined because an empty `breakOffsets` returned above.
+       First break offset; defined because an empty `breaks` returned above.
        */
-      const firstBreak = nonNullishOrThrow(breakOffsets[0],);
+      const firstBreak = nonNullishOrThrow(breaks[0],)
+        .breakOffset;
       /**
        Whether the region is free of comments the render would reflow.
        */

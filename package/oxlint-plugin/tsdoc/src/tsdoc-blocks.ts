@@ -339,12 +339,12 @@ export function splitDocComment({
     commentValue: comment.value,
   },)
     .map(function toTsdocMutatesBlock(block,): ParsedMutatesBlock {
-    return {
-      parameterName: block.parameterName,
-      hasDescription: block.hasDescription,
-      lineOffset: block.lineOffset,
-    };
-  },);
+      return {
+        parameterName: block.parameterName,
+        hasDescription: block.hasDescription,
+        lineOffset: block.lineOffset,
+      };
+    },);
 
   /**
    First `@returns` segment, or undefined when none is present.

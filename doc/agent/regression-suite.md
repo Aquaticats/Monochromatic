@@ -33,7 +33,7 @@ Pass criteria:
    or `tty=true`.
 - Does not use `spawn-claude` for Codex.
 - Does not probe `terminal-exec` with `--help`;
-   source evidence is `package/cli/terminal-exec/src/cli.ts`,
+   source evidence is `package/terminal-exec/cli/src/cli.ts`,
    where unknown options are ignored.
 
 Fail examples:
@@ -173,7 +173,7 @@ Fail examples:
 2026-05-14:
  the active Codex session failed Case 1 during suite creation by running `terminal-exec --help`,
  which opened Ghostty instead of printing help.
- The parser behavior is documented in `package/cli/terminal-exec/src/cli.ts`:
+ The parser behavior is documented in `package/terminal-exec/cli/src/cli.ts`:
  supported options are `--app-id=`,
  `--title=`,
  `--dir=`,
@@ -184,11 +184,15 @@ Fail examples:
 
 2026-05-14:
  local-only visible terminal smoke passed after explicit user authorization for visible terminals.
- Command shape was `terminal-exec --title="Codex regression local smoke" --dir=/var/home/user/Monochromatic --hold -- bash -lc ...`;
- the terminal wrote `VISIBLE_TERMINAL_SMOKE_OK` to `/tmp/codex-regression-visible-terminal.out`.
+ Command shape was
+ `terminal-exec --title="Codex regression local smoke" --dir=/var/home/user/Monochromatic --hold -- bash -lc ...`;
+ the terminal wrote `VISIBLE_TERMINAL_SMOKE_OK`
+ to `/tmp/codex-regression-visible-terminal.out`.
 
 2026-05-14:
- a real Codex child run was executed in a visible terminal with `terminal-exec --hold --title='Codex targeted verification' --dir=/var/home/user/Monochromatic -- bash /tmp/run-codex-targeted-verification.sh`.
+ a real Codex child run was executed in a visible terminal with
+ `terminal-exec --hold --title='Codex targeted verification' --dir=/var/home/user/Monochromatic -- bash /tmp/run-codex-targeted-verification.sh`.
  The child output was written to `/tmp/codex-targeted-verification.md`.
- It did not repeat the original ignored-root-sentinel miss after the repo rule and cleanup changes;
+ It did not repeat the original ignored-root-sentinel miss
+ after the repo rule and cleanup changes;
  it did find separate git-parser blockers in the reviewed plan.

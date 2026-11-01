@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   createSeededRandom,
@@ -103,7 +103,7 @@ await describe({
             },).toThrow(SeededRandomError,);
             expect(function emptyPick() {
               return createSeededRandom(1,).pick([],);
-            },).toThrow(SeededRandomError,);
+            },).toThrow('cannot pick from an empty array',);
           },
         },),
       ],
@@ -140,6 +140,11 @@ await describe({
             expect(function tooLarge() {
               return parseSeed({ text: String(2 ** 32,), fresh: () => 0, },);
             },).toThrow(SeededRandomError,);
+            ['0x2a', '0b101', '0o17', '1e3', '4.0', '+5', '-0', '1_0',].forEach(function nonDecimal(text,) {
+              expect(function spelledOtherwise() {
+                return parseSeed({ text, fresh: () => 0, },);
+              },).toThrow(SeededRandomError,);
+            },);
           },
         },),
       ],

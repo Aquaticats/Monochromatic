@@ -248,8 +248,44 @@ of a machine that is stalling on memory before anything intervenes.
 possibly unresponsive desktop,
  which is a preference rather than a fix.
 
+## Seen: a background run killed, its container left running
+
+On 2026-10-06 the journal recorded:
+
+```text
+systemd-oomd[2363]: Killed /user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash due to memory pressure for /user.slice/user-1000.slice/user@1000.service/app.slice being 85.14% > 80.00% for > 20s with reclaim activity
+```
+
+The session survived,
+but a capture loop it had started in the background was in `claude-code-bash` and died with it,
+exit status 1 and no message of its own.
+The Android emulator container that loop owned was in podman's cgroup and kept running with no owner.
+After such a kill,
+list containers with `podman ps --all` and stop any the run owned the way the run itself would have,
+before starting it again;
+the run's own log ends mid-step and does not say it was killed.
+
+Later that day the same cgroup was killed at 17:07:01,
+17:08:23 and 17:09:39.
+It was at its `memory.max` of 8000000000 bytes,
+and its largest processes were other sessions' builds:
+two `forbidden-strings` build scripts held about 4.4 GB and 2.1 GB resident.
+Every command of this session died with them,
+including the restore meant to stop the orphaned emulator.
+Run as its own user unit,
+`systemd-run --user --unit=<name> --collect --wait --property=MemoryMax=1G <command>`,
+the restore finished in 16 seconds with a peak of 64 MB,
+and the capture loop was then started the same way with `MemoryMax=2G`,
+outside the shared cgroup.
+
 ## What does not work
 
+- Detaching a run from the shell with a new session (`setsid`, Node's `spawn` with `detached: true`).
+  A new session leaves the process in its parent's cgroup,
+  so the daemon's kill of `claude-code-bash` takes it as well.
+  On 2026-10-06 an IDE gate started that way at 17:12 died in the 17:14:48 kill
+  without writing its exit record;
+  the same gate then ran as its own user unit through `systemd-run --user`.
 - Looking for the kernel OOM killer.
    It never ran.
    `dmesg` is silent,

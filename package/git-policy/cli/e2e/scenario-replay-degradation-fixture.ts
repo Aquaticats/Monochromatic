@@ -74,8 +74,8 @@ function failedFast(attempt: AttemptRecord,): boolean {
     .stderr,)
     .events
     .map(function describe(event,) {
-    return `${event.type}:${event.code ?? ''}`;
-  },);
+      return `${event.type}:${event.code ?? ''}`;
+    },);
   return (attempt.outcome
     .exitCode
     === 1) && (events.length === 1)

@@ -40,12 +40,12 @@
     "directory": "package/figma/kiwi"
   },
   "dependencies": {
-    "@monochromatic-dev/module-caught-value": "workspace:*"
+    "@monochromatic-dev/caught-value-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/config-rolldown": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

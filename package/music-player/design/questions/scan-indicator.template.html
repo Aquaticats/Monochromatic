@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>D26 native scan-indicator evidence</title>
+<style>
+:root { color-scheme: light dark; --color-surface: #fcf9ff; --color-card: #f0edf5; --color-text: #201e26;
+  --color-muted: #56515e; --color-line: #756e81; --color-focus: #554184; --color-selected: #e5dafa; }
+@media (prefers-color-scheme: dark) {
+  :root { --color-surface: #17151d; --color-card: #26222e; --color-text: #eee7f6;
+    --color-muted: #c2b9d0; --color-line: #a79bb8; --color-focus: #d9c0ff; --color-selected: #443452; }
+}
+* { box-sizing: border-box; }
+body { margin-block: 0; margin-inline: auto; padding-block: 2rem; padding-inline: 1rem;
+  max-inline-size: 88rem; color: var(--color-text); background-color: var(--color-surface);
+  font-family: system-ui,sans-serif; line-height: 1.55; }
+h1 { font-size: clamp(1.8rem,4vi,2.8rem); line-height: 1.2; }
+h2 { margin-block-start: 2.5rem; line-height: 1.3; }
+h3 { line-height: 1.3; }
+p,li { max-inline-size: 75ch; }
+a { color: var(--color-focus); }
+code,.digest { overflow-wrap: anywhere; }
+section,fieldset,details { margin-block: 1.5rem; min-inline-size: 0; }
+fieldset { border-width: 0.0625rem; border-style: solid; border-color: var(--color-line);
+  border-radius: 1rem; padding-block: 1.25rem; padding-inline: 1.25rem; }
+legend { font-size: 1.25rem; font-weight: 700; padding-inline: 0.4rem; }
+.note { border-inline-start-width: 0.3rem; border-inline-start-style: solid;
+  border-inline-start-color: var(--color-focus); padding-inline-start: 1rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }
+.control { display: grid; gap: 0.3rem; }
+button,select,input,textarea { font: inherit; color: var(--color-text); background-color: var(--color-card);
+  border-width: 0.0625rem; border-style: solid; border-color: var(--color-line); border-radius: 0.5rem;
+  min-inline-size: 3rem; min-block-size: 3rem; }
+button,select { padding-block: 0.6rem; padding-inline: 1rem; }
+button { cursor: pointer; }
+:where(button,select,input,textarea,a,summary,.viewer):focus-visible {
+  outline-width: 0.2rem; outline-style: solid; outline-color: var(--color-focus); outline-offset: 0.2rem; }
+.summary-text { color: var(--color-muted); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,20rem),1fr)); gap: 1rem; }
+figure { margin-block: 0; margin-inline: 0; min-inline-size: 0; padding-block: 1rem; padding-inline: 1rem;
+  border-radius: 1rem; background-color: var(--color-card); }
+figure h3 { margin-block-start: 0; }
+.preview-button { display: grid; gap: 0.75rem; inline-size: 100%; padding-block: 0.5rem; padding-inline: 0.5rem; }
+.preview-button img { display: block; inline-size: 100%; block-size: auto; }
+figcaption { margin-block-start: 0.8rem; font-size: 0.9rem; overflow-wrap: anywhere; }
+textarea { display: block; inline-size: 100%; min-block-size: 8rem; padding-block: 0.75rem; padding-inline: 0.75rem; }
+summary { min-inline-size: 3rem; min-block-size: 3rem; cursor: pointer; padding-block: 0.7rem; padding-inline: 0.5rem;
+  font-weight: 700; }
+dialog { inline-size: min(80rem,calc(100vi - 2rem)); max-block-size: calc(100vb - 2rem);
+  color: var(--color-text); background-color: var(--color-surface); border-width: 0.125rem;
+  border-style: solid; border-color: var(--color-line); border-radius: 1rem;
+  padding-block: 1rem; padding-inline: 1rem; }
+dialog::backdrop { background-color: var(--color-surface); opacity: 0.85; }
+dialog h2 { margin-block-start: 0; }
+.viewer { overflow: auto; max-block-size: 65vb; min-inline-size: 3rem; min-block-size: 3rem; }
+.viewer img { display: block; max-inline-size: none; block-size: auto; }
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+<p class="summary-text">Design evidence only. D26 is settled; no new preference ballot.</p>
+<h1>The accepted scan indicator in light and dark</h1>
+<p>Purpose: inspect scan-F's bottom-edge status row, fixed Pause/Resume slot and large-text fit on both Fold panels.
+The bar is 56dp high, its control stays 100dp wide, and the control's actual layout retains a 48dp minimum.
+The status label keeps the accepted single-line ellipsis; a clipped total count is not presented as fully visible.</p>
+<p class="note">Every progress value is authored debug input. No real analysis, worker pause, cache write,
+source discovery or playback occurs. The track peak values are also authored, not results produced by this count.</p>
+<p>The active scan bar reserves its bottom row, unlike the floating error/Undo overlays. Pause/Resume and count
+changes retain that active layout. Authored completion removes the entire bar without a permanent status row;
+this does not select a production completion delay or animation. No new keyboard default, IME or TalkBack study
+is included. No production implementation is authorized.</p>
+__SCAN_INDICATOR_FINDINGS__
+<p>How to respond: nothing is required. Use the optional observations box only if an image shows clipping
+or missing evidence that this page does not already name.</p>
+</header>
+<section aria-labelledby="environment-title">
+<h2 id="environment-title">Inspect the same native conditions</h2>
+<div class="controls">
+<label class="control" for="panel">Panel<select id="panel"><option value="inner">Inner</option><option value="cover">Cover</option></select></label>
+<label class="control" for="scale">Native font scale<select id="scale"><option value="1">100%</option><option value="2">200%</option></select></label>
+<label class="control" for="scheme">Native image theme<select id="scheme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+</div>
+<p id="environment" role="status"></p>
+<p>Thumbnails fit the review column. Open any image to inspect it at 100% logical dp or native pixels.
+These are sanitized app-area crops, not device mockups. Status strips were removed for privacy;
+bottom navigation remains. Logical dp uses the measured 390dpi density, not your monitor's physical size.</p>
+</section>
+<form id="review-form">
+<section aria-labelledby="state-title"><h2 id="state-title">Same scan bar, different authored states</h2>
+<p>These are state and fit witnesses, not competing policies. Native Pause/Resume input and synthetic
+progress/completion transitions are recorded separately from the static images.</p>
+<div class="gallery">
+<figure data-scene="idle"><h3>No active scan</h3><button type="button" class="preview-button"><img alt="Accepted native player without a scan bar or permanent status slot"><span>Open no-bar baseline</span></button><figcaption></figcaption></figure>
+<figure data-scene="running"><h3>Authored analysis in progress</h3><button type="button" class="preview-button"><img alt="Native scan-F bar with an authored count and fixed-width Pause control"><span>Open running scan bar</span></button><figcaption></figcaption></figure>
+<figure data-scene="paused"><h3>Authored analysis paused</h3><button type="button" class="preview-button"><img alt="Native scan-F bar retains its count and fixed control slot while showing Resume"><span>Open paused scan bar</span></button><figcaption></figcaption></figure>
+<figure data-scene="wide-count"><h3>Wider authored count</h3><button type="button" class="preview-button"><img alt="Native scan-F bar with a wider synthetic count in the same fixed Pause slot and one-line status"><span>Open count-width stress</span></button><figcaption></figcaption></figure>
+</div></section>
+<details><summary>Read the verification boundary</summary>
+<p>The host extends ComponentActivity, not MainActivity. Its merged manifest disables production entry and
+playback/analysis services and removes automatic WorkManager initialization. No D27 consent choice is changed.</p>
+<p>The immutable fixture checks phases, whole counts and synthetic event ownership. Pure tests and fresh
+unknown-scene, completed-bar, paused-progress and stalled-running mutants have separate retained reports.</p>
+<p>The initial native draft added 12dp horizontal button padding and clipped Resume at 200% on inner.
+A same-APK comparison reproduced that failure and measured the accepted source padding without changing the
+100dp outer slot or shrinking text. Native button fit and the status label's ellipsis are distinct checks.</p>
+<p>Native Pause/Resume uses actual button taps. Debug start/progress events are delivered to the same activity,
+not a real worker. Completion-return checks compare the player against the no-bar baseline; rectangles alone
+are not glyph bounds or universal accessibility acceptance.</p>
+<p>Raw screenshots, hierarchies, logs and generated identities remain private. Only freshly inspected,
+metadata-stripped app-area crops are embedded here, each checked against its recorded hash.</p>
+<p>The status readings come from the hash-bound inspection record; they are read by eye, not by this page.
+The label clearance figures are re-measured from the embedded images whenever this page is validated.
+Neither is glyph metrics or accessibility acceptance.</p>
+__SCAN_INDICATOR_PROVENANCE__
+</details>
+<fieldset><legend>Optional evidence observations</legend><label for="final-notes">Observed clipping or missing evidence</label>
+<textarea id="final-notes" name="notes" placeholder="Optional observations only; no policy answer is required."></textarea></fieldset>
+<button type="submit">Prepare observations</button>
+<section id="response" hidden aria-labelledby="response-title"><h2 id="response-title">Optional observations to copy</h2>
+<p id="response-status" role="status">Nothing has been sent or saved by this review. No product policy is selected.</p>
+<label for="reply">Prepared observations</label><textarea id="reply" readonly></textarea></section>
+</form>
+<dialog id="preview" aria-labelledby="preview-title">
+<h2 id="preview-title">Native witness</h2>
+<div class="controls"><button type="button" id="close-preview">Close image</button><button type="button" id="zoom-out">Smaller</button>
+<button type="button" id="zoom-in">Larger</button><button type="button" id="reset-preview">Reset 100% dp</button>
+<button type="button" id="native-preview">Native pixels</button></div>
+<p id="preview-scale" role="status"></p><p id="preview-metadata" class="digest"></p>
+<div class="viewer" tabindex="0" role="region" aria-label="Scrollable native witness"><img id="preview-image" alt=""></div>
+</dialog>
+<script>
+//region Native evidence viewer, only checked embedded images and explicit view state
+const images = __SCAN_INDICATOR_IMAGES__;
+const nativeTheme = matchMedia('(prefers-color-scheme: dark)');
+const state = { panel: 'inner', fontScale: 1, theme: 'system', zoom: 1, preview: null };
+const controls = { panel: document.getElementById('panel'), scale: document.getElementById('scale'), scheme: document.getElementById('scheme') };
+const preview = document.getElementById('preview');
+function selectedScheme() { return state.theme === 'system' ? (nativeTheme.matches ? 'dark' : 'light') : state.theme; }
+function imageKey(figure) {
+  return [figure.dataset.source || 'comparison', state.panel, figure.dataset.scene,
+    selectedScheme(), state.fontScale, figure.dataset.position || 'initial'].join('/');
+}
+function metadata(image) {
+  return image.width + ' × ' + image.height + ' retained px · ' + (image.width / (image.density / 160)).toFixed(1) +
+    ' × ' + (image.height / (image.density / 160)).toFixed(1) + ' logical dp · source density ' + image.density +
+    'dpi · ' + image.file + ' · SHA-256 ' + image.hash;
+}
+function render() {
+  document.getElementById('environment').textContent = state.panel + ' panel · ' + state.fontScale * 100 +
+    '% native text · ' + selectedScheme() + ' native images. Thumbnail size is not native font scale.';
+  for (const figure of document.querySelectorAll('figure[data-scene]')) {
+    const image = images[imageKey(figure)];
+    if (!image) throw new Error('Required native witness is absent: ' + imageKey(figure));
+    const element = figure.querySelector('img');
+    element.src = image.source;
+    element.width = image.width;
+    element.height = image.height;
+    figure.querySelector('figcaption').textContent = metadata(image) +
+      ' · ' + image.statusNote;
+  }
+}
+function resizePreview() {
+  if (!state.preview) throw new Error('No native witness is open.');
+  const rootFont = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const logicalWidth = state.preview.width / (state.preview.density / 160);
+  document.getElementById('preview-image').style.inlineSize = logicalWidth * state.zoom / rootFont + 'rem';
+  document.getElementById('preview-scale').textContent = (state.zoom * 100).toFixed(1) +
+    '% logical dp · ' + Math.round(logicalWidth * state.zoom) + ' CSS px displayed width. Pan within the image region.';
+}
+function openPreview(figure) {
+  const image = images[imageKey(figure)];
+  if (!image) throw new Error('Selected native evidence is absent.');
+  state.preview = image;
+  state.zoom = 1;
+  document.getElementById('preview-title').textContent = figure.querySelector('h3').textContent;
+  document.getElementById('preview-metadata').textContent = metadata(image);
+  const element = document.getElementById('preview-image');
+  element.src = image.source;
+  element.alt = figure.querySelector('img').alt;
+  resizePreview();
+  preview.showModal();
+  document.querySelector('.viewer').scrollTo(0, 0);
+}
+for (const figure of document.querySelectorAll('figure[data-scene]')) {
+  figure.querySelector('button').addEventListener('click', () => openPreview(figure));
+}
+controls.panel.addEventListener('change', () => { state.panel = controls.panel.value; render(); });
+controls.scale.addEventListener('change', () => { state.fontScale = Number(controls.scale.value); render(); });
+controls.scheme.addEventListener('change', () => { state.theme = controls.scheme.value; render(); });
+nativeTheme.addEventListener('change', () => { if (state.theme === 'system') render(); });
+document.getElementById('close-preview').addEventListener('click', () => preview.close());
+document.getElementById('zoom-out').addEventListener('click', () => { state.zoom = Math.max(0.125, state.zoom / 1.25); resizePreview(); });
+document.getElementById('zoom-in').addEventListener('click', () => { state.zoom = Math.min(4, state.zoom * 1.25); resizePreview(); });
+document.getElementById('reset-preview').addEventListener('click', () => { state.zoom = 1; resizePreview(); });
+document.getElementById('native-preview').addEventListener('click', () => { state.zoom = state.preview.density / 160; resizePreview(); });
+render();
+//endregion
+
+//region Optional evidence feedback, observations never become policy acceptance
+function prepareReply(event) {
+  event.preventDefault();
+  const form = document.getElementById('review-form');
+  if (!form.reportValidity()) return;
+  const data = new FormData(form);
+  const notes = String(data.get('notes')).trim();
+  document.getElementById('reply').value = 'D26 scan indicator evidence observations\n' +
+    'Authored native scan states only, not real worker progress, control or completion.\n' +
+    'Observations: ' + (notes || 'None.') + '\nNo product-policy selection or production authorization.';
+  document.getElementById('response').hidden = false;
+  document.getElementById('reply').focus();
+}
+function invalidateReply() {
+  document.getElementById('reply').value = '';
+  document.getElementById('response').hidden = true;
+}
+document.getElementById('review-form').addEventListener('input', invalidateReply);
+document.getElementById('review-form').addEventListener('change', invalidateReply);
+document.getElementById('review-form').addEventListener('submit', prepareReply);
+//endregion
+</script>
+</body>
+</html>

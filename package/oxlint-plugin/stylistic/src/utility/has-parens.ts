@@ -45,8 +45,8 @@ export function hasParens({
    */
   const before = sourceText
     .slice(
-      0,
-      child.start,
+    0,
+    child.start,
     )
     .trimEnd();
   /**
@@ -57,5 +57,5 @@ export function hasParens({
     .trimStart();
   return before.endsWith('(',)
     && after
-    .startsWith(')',);
+      .startsWith(')',);
 }

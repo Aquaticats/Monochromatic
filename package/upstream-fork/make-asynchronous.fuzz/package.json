@@ -1,0 +1,23 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/upstream-fork-make-asynchronous.fuzz",
+  "description": "Property-based fuzz campaign for module-make-asynchronous-fork: worker-source fidelity, result and error restoration, abort and member-shape invariants, and a differential oracle against upstream make-asynchronous 2.1.0.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/upstream-fork-make-asynchronous": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "make-asynchronous": "catalog:",
+    "typescript": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/make-asynchronous.fuzz"
+  }
+}

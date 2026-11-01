@@ -7,15 +7,15 @@
 import {
   type Node,
   SyntaxKind,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isBinaryExpression,
   isDecorator,
   isIdentifier,
   isReturnStatement,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import {
   expressionHasParameterOrigin,
@@ -100,7 +100,7 @@ function activateEscapedCallables({
        */
       const declaration = (symbol?.valueDeclaration
         ?? symbol?.declarations
-        .at(0,))?.resolve(project,);
+          .at(0,))?.resolve(project,);
       if ((declaration !== undefined)
         && isEffectCallableDeclaration(declaration,)) {
         stack.push(declaration,);

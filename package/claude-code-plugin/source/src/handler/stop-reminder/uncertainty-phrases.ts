@@ -36,12 +36,12 @@ const RIGHT_SINGLE_QUOTE = '’';
 function normaliseApostrophes(text: string,): string {
   return text
     .replaceAll(
-      LEFT_SINGLE_QUOTE,
-      "'",
+    LEFT_SINGLE_QUOTE,
+    "'",
     )
     .replaceAll(
-      RIGHT_SINGLE_QUOTE,
-      "'",
+    RIGHT_SINGLE_QUOTE,
+    "'",
     );
 }
 
@@ -60,7 +60,10 @@ function normaliseApostrophes(text: string,): string {
  - Uncertainty markers (not sure, hard to say, difficult to tell)
  - Approximation markers (if I recall, from what I recall, as far as I know)
  - Comparative hedges ("worse than most", "more than most", "less than most")
- 
+ - Admitted gaps (I didn't check, I haven't measured, I didn't try, test gap, not verified); the bare
+   adjectives `untested`, `unverified`, `unexplained` and `unmeasured` are left out because they mostly
+   describe a thing, not the agent's own gap
+
  The `\wer than most` variant is handled separately by
  {@link containsErThanMost} since it requires a word-character prefix the
  word-bounded-phrase scan cannot express.
@@ -102,6 +105,64 @@ const UNCERTAINTY_PHRASES: readonly string[] = [
   'worse than most',
   'more than most',
   'less than most',
+  // Admitted gaps: the agent says it skipped a check, which is an uncertainty it can still close.
+  "i didn't check",
+  'i did not check',
+  "i haven't checked",
+  'i have not checked',
+  "i didn't verify",
+  'i did not verify',
+  "i haven't verified",
+  'i have not verified',
+  "i didn't read",
+  'i did not read',
+  "i haven't read",
+  'i have not read',
+  "i didn't test",
+  'i did not test',
+  "i haven't tested",
+  'i have not tested',
+  "i didn't confirm",
+  'i did not confirm',
+  "i haven't confirmed",
+  'i have not confirmed',
+  "i didn't run",
+  'i did not run',
+  "i haven't run",
+  'i have not run',
+  'not verified',
+  'not checked',
+  'not tested',
+  // Admitted gaps in evidence-gathering steps beyond check and verify.
+  "i didn't measure",
+  'i did not measure',
+  "i haven't measured",
+  'i have not measured',
+  "i didn't try",
+  'i did not try',
+  "i haven't tried",
+  'i have not tried',
+  "i didn't look",
+  'i did not look',
+  "i haven't looked",
+  'i have not looked',
+  "i didn't reproduce",
+  'i did not reproduce',
+  "i haven't reproduced",
+  'i have not reproduced',
+  "i didn't rerun",
+  'i did not rerun',
+  "i didn't re-run",
+  'i did not re-run',
+  "i haven't rerun",
+  'i have not rerun',
+  "i haven't re-run",
+  'i have not re-run',
+  "i haven't shown",
+  'i have not shown',
+  // Report labels that name an open gap.
+  'test gap',
+  'not viewed',
 ];
 
 //endregion
@@ -253,5 +314,6 @@ export {
   ER_NOT_FOUND,
   findErThanMost,
   normaliseApostrophes,
+  RIGHT_SINGLE_QUOTE,
   UNCERTAINTY_PHRASES,
 };

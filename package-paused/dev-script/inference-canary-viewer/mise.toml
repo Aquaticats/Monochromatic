@@ -10,11 +10,11 @@ mise run //packages/dev-script/inference-canary-viewer:build:js:client
 node src/build.ts
 """
 
-[tasks.'dev:watch']
+[tasks."dev:watch"]
 description = "Rebuild dashboard on source or canary-lint changes"
 run = "mise watch -w src -w ../inference-canary/src/canary-lint --no-vcs-ignore --debounce 1sec -r -- build"
 
-[tasks.'dev:serve']
+[tasks."dev:serve"]
 description = "Serve the built dashboard locally"
 run = "bun ./dist/final/index.html"
 
@@ -25,7 +25,7 @@ run = [{ tasks = ["dev:*"] }]
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
 [tasks."lint:oxlint"]

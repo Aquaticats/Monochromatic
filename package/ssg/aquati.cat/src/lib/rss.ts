@@ -85,8 +85,8 @@ export function generateLanguageRss(
         categories: post.data
           .tags
           .map(function toCategory(tag,) {
-          return { name: tag, };
-        },),
+            return { name: tag, };
+          },),
       };
     },),
   },);

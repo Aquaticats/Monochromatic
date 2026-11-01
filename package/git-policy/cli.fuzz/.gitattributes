@@ -1,0 +1,6 @@
+# Seed and corpus files are exact fuzz inputs, not text: arguments are split at NUL and
+# may hold non-UTF-8 bytes, and end-of-line normalization would change which input a
+# seed represents. Mark them binary so their bytes are stored verbatim.
+seed/** -text
+corpus/** -text
+artifacts/** -text

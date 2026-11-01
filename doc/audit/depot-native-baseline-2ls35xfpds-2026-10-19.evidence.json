@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T14:57:00Z",
+  "purpose": "Complete build and unit baseline in the prepared native environment.",
+  "runId": "2ls35xfpds",
+  "attemptId": "b4vr4md3tn",
+  "sha": "491aaf47fc2ea27d6e9f6e29e1046323cee36883",
+  "startedAt": "2026-10-19T14:42:00Z",
+  "finishedAt": "2026-10-19T14:56:38Z",
+  "durationSeconds": 878,
+  "prepared": [
+    "pkg-config",
+    "libglib2.0-dev",
+    "libgdk-pixbuf-2.0-dev",
+    "libcairo2-dev",
+    "libpango1.0-dev",
+    "libgtk-3-dev",
+    "libgtk-4-dev",
+    "qt6-base-dev",
+    "qt6-declarative-dev",
+    "podman"
+  ],
+  "buildFailedTasks": [
+    "//package/cli/nested-wayland-session:build",
+    "//package/config/pnpr:build",
+    "//package/desktop-app/ide:build",
+    "//package/git-policy/cli.fuzz:build",
+    "//package/git-policy/cli:build",
+    "//package/linter/monochromatic-lint.fuzz:build",
+    "//package/music-player/design:build",
+    "//package/music-player/android-app:build",
+    "//package/music-player/desktop-app:build",
+    "//package/pi-plugin/auto-mode:build",
+    "//package/ssg/aquati.cat:build",
+    "//package/desktop-app/terminal:build",
+    "//package/webapp-productivity/doodle-widget:build"
+  ],
+  "failureClasses": [
+    {
+      "class": "rootless Podman user namespace",
+      "tasks": ["//package/config/pnpr:build", "//package/desktop-app/ide:build"],
+      "disposition": "environment; newuidmap reports the target process is owned by a different user"
+    },
+    {
+      "class": "cargo vendor sync and download",
+      "tasks": ["//package/git-policy/cli.fuzz:build", "//package/git-policy/cli:build", "//package/linter/monochromatic-lint.fuzz:build"],
+      "disposition": "network or dependency campaign; not a product test failure"
+    },
+    {
+      "class": "music-player design capture precondition",
+      "tasks": ["//package/music-player/design:build"],
+      "disposition": "accepted D56 cover capture has the wrong physical panel size; asset precondition"
+    },
+    {
+      "class": "Android build in the complete fanout",
+      "tasks": ["//package/music-player/android-app:build"],
+      "disposition": "failed in the complete fanout although the bounded Android matrix job passed; fanout interaction or tool state"
+    },
+    {
+      "class": "desktop application build",
+      "tasks": ["//package/music-player/desktop-app:build"],
+      "disposition": "desktop build failure; needs package-level triage"
+    },
+    {
+      "class": "native plugin build",
+      "tasks": ["//package/pi-plugin/auto-mode:build"],
+      "disposition": "native build failure; needs package-level triage"
+    },
+    {
+      "class": "static site build",
+      "tasks": ["//package/ssg/aquati.cat:build"],
+      "disposition": "site generation failure; needs package-level triage"
+    },
+    {
+      "class": "terminal release library build order",
+      "tasks": ["//package/desktop-app/terminal:build"],
+      "disposition": "missing release libghostty-vt output; build-order or prerequisite failure"
+    },
+    {
+      "class": "unresolved JavaScript dependency",
+      "tasks": ["//package/webapp-productivity/doodle-widget:build"],
+      "disposition": "canvg cannot be resolved from jspdf; dependency resolution"
+    },
+    {
+      "class": "Wayland session build",
+      "tasks": ["//package/cli/nested-wayland-session:build"],
+      "disposition": "Wayland build failure; needs package-level triage"
+    }
+  ],
+  "unit": {
+    "outcome": "skipped",
+    "reason": "the build step failed, so the unit step did not run"
+  },
+  "result": "The prepared native environment reduced the build failure set but the complete build is still not known-good. The unit baseline remains invalid because no successful complete build produced its prerequisites.",
+  "rawLog": "doc/audit/depot-native-baseline-2ls35xfpds-2026-10-19.log.gz",
+  "limits": [
+    "This is one prepared-environment run.",
+    "The failure classes are task-level dispositions, not per-test product verdicts.",
+    "The unit baseline is still missing."
+  ]
+}

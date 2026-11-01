@@ -44,8 +44,8 @@ const NOT_A_LIST_SPREAD: unique symbol = Symbol('spread literal container is not
 function isBlankGap(text: string,): boolean {
   return text.trim()
     .replaceAll(
-      ',',
-      '',
+    ',',
+    '',
     )
     .length
     === 0;
@@ -135,7 +135,7 @@ function inlineFix(
      */
     const nextOffset = following.length
       - following.trimStart()
-      .length;
+        .length;
     /**
      End of the removal: through a directly following comma when present.
      */

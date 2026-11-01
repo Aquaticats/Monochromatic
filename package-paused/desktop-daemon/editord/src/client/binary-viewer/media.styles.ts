@@ -11,8 +11,8 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
-import { HALF, } from '@monochromatic-dev/module-const';
+} from '@monochromatic-dev/hyperscript-core/ts';
+import { HALF, } from '@monochromatic-dev/const-core';
 
 /**
  * Full dimension as percentage.

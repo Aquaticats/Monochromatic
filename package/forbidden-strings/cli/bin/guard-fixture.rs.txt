@@ -1,0 +1,72 @@
+//! Disposable fixture consumer; never compiled into the published scanner.
+use forbidden_strings::{Scanner, ScanFinding};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+fn command(mode: &str) -> Output {
+    return Command::new(env!("CARGO_BIN_EXE_forbidden-strings"))
+        .arg(mode).output().expect("fixture executable");
+}
+
+#[test]
+fn standalone_faults_have_real_exit_two_and_redacted_output() {
+    for mode in ["fixture-startup-panic", "fixture-worker-panic"] {
+        let output: Output = command(mode);
+        assert_eq!(output.status.code(), Some(2), "actual CLI exit must be two");
+        assert!(output.stdout.is_empty());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(stderr, "forbidden-strings: scanner operation panicked; no complete scan result is available.\n");
+        assert!(!stderr.contains("SYNTHETIC_PRIVATE"));
+    }
+    let help: Output = command("--help");
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("USAGE:"));
+}
+
+fn host_hook(_information: &std::panic::PanicHookInfo<'_>) {
+    eprintln!("fixture-host-hook-called");
+}
+
+#[test]
+fn public_loader_discards_partial_rules_and_preserves_host_hook() {
+    // This disposable consumer owns its hook; the library must leave it installed during loading.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(host_hook));
+    let root: PathBuf = PathBuf::from(std::env::var_os("SCANNER_GUARD_HOME").expect("disposable home"));
+    let fault: PathBuf = root.join("fixture-load-panic");
+    std::fs::write(&fault, "PARTIAL_FIXTURE_LONG\n").expect("fault rules");
+    let error = match Scanner::load(fault.as_path(), true, true) {
+        Ok(_) => panic!("partial ruleset must not be returned"),
+        Err(failure) => failure,
+    };
+    assert_eq!(error.to_string(), "Forbidden-strings rule loading panicked; no rule set was accepted.");
+    let healthy: PathBuf = root.join("healthy");
+    std::fs::write(&healthy, "HEALTHY_FIXTURE_LONG\n").expect("healthy rules");
+    let scanner: Scanner = Scanner::load(healthy.as_path(), false, true).expect("recovered same-thread load");
+    assert_eq!(scanner.scan(8, Path::new("safe"), b"HEALTHY_FIXTURE_LONG").findings,
+        vec![ScanFinding::Content { line: 1, rule: String::from("0") }]);
+    std::panic::set_hook(previous);
+}
+
+/// Exercise real post-match faults through public content/name boundaries, then reuse that same scanner.
+#[test]
+fn public_scan_catches_faults_without_retaining_partial_hits() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(host_hook));
+    let root: PathBuf = PathBuf::from(std::env::var_os("SCANNER_GUARD_HOME").expect("disposable home"));
+    let rules: PathBuf = root.join("scan-rules");
+    std::fs::write(&rules, "FIXTURE_PRIVATE_FAULT\nHEALTHY_FIXTURE_LONG\n/RX[0-9]{2}/\n").expect("scan rules");
+    let scanner: Scanner = Scanner::load(rules.as_path(), false, true).expect("scanner fixture");
+    let before = scanner.scan(19, Path::new("safe"), b"HEALTHY_FIXTURE_LONG\nRX42\n");
+    assert_eq!(before.findings.len(), 2);
+    let fault = scanner.scan(20, Path::new("safe"), b"FIXTURE_PRIVATE_FAULT RX42");
+    assert_eq!(fault.findings, vec![ScanFinding::EngineError]);
+    let name_fault = scanner.scan(21, Path::new("FIXTURE_PRIVATE_FAULT"), b"HEALTHY_FIXTURE_LONG");
+    assert_eq!(name_fault.display_path, "[REDACTED]");
+    assert_eq!(name_fault.findings, vec![ScanFinding::EngineError,
+        ScanFinding::Content { line: 1, rule: String::from("1") }]);
+    assert!(!format!("{name_fault:?}").contains("FIXTURE_PRIVATE_FAULT"));
+    assert_eq!(before, scanner.scan(19, Path::new("safe"), b"HEALTHY_FIXTURE_LONG\nRX42\n"));
+    assert!(scanner.scan(22, Path::new("safe"), b"ordinary").findings.is_empty());
+    std::panic::set_hook(previous);
+}

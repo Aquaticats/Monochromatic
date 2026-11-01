@@ -1,9 +1,24 @@
-# Extract model selection logic to pi-shared/model-selection
+# Extract model selection logic to agent-harness-shared/model-selection
+
+## Status 2026-10-20
+
+The package moved on 2026-10-20:
+ original `package/pi-shared/model-selection`
+ (`@monochromatic-dev/pi-shared-model-selection`),
+ current `package/agent-harness-shared/model-selection`
+ (`@monochromatic-dev/agent-harness-shared-model-selection`),
+ per Q9 in [the advisor DSH variant grilling](../handover/pi-advisor-dsh-variant-grilling.md).
+ Identifiers in this document were updated in place to the current values;
+ the original values are the ones named in this note.
+ The advisor DSH variant series also extracts a harness-neutral advisor core
+ (`package/agent-harness-shared/advisor`) that consumes this package,
+ and moves the advisor-specific selection wrapper into that core.
+ Planned moves below that are not part of that series stay open.
 
 ## Decisions captured here
 
-- Keep the package at `package/pi-shared/model-selection/` with package name
-  `@monochromatic-dev/pi-shared-model-selection`.
+- Keep the package at `package/agent-harness-shared/model-selection/` with package name
+  `@monochromatic-dev/agent-harness-shared-model-selection`.
 - Use one shared package,
    but split its public surface by dependency tier with subpath exports.
 - Move the full planned surface,
@@ -129,9 +144,9 @@ This plan intentionally chooses a top-level `pi-shared` category instead,
 the extraction and should be kept with the package README.
 
 - Directory:
-   `package/pi-shared/model-selection/`
+   `package/agent-harness-shared/model-selection/`
 - Package name:
-   `@monochromatic-dev/pi-shared-model-selection`
+   `@monochromatic-dev/agent-harness-shared-model-selection`
 - Description:
    shared model selection logic for pi plugins,
    including slug resolution,
@@ -164,7 +179,7 @@ Consumers import heavier modules through explicit subpaths.
    optional wrappers that directly import pi-ai helpers,
    if keeping `modelsAreEqual` is necessary.
 
-Thinking-defaults imports only `@monochromatic-dev/pi-shared-model-selection/core` or the root dependency-free
+Thinking-defaults imports only `@monochromatic-dev/agent-harness-shared-model-selection/core` or the root dependency-free
 surface.
 Advisor and auto-mode may import the heavier subpaths.
 
@@ -201,12 +216,12 @@ Development dependencies:
 - `@earendil-works/pi-coding-agent: catalog:`.
 - `@monochromatic-dev/config-tsdown: workspace:*`.
 - `@monochromatic-dev/config-typescript: workspace:*`.
-- `@monochromatic-dev/module-test: workspace:*`.
+- `@monochromatic-dev/test-harness-core: workspace:*`.
 - `@types/bun: catalog:`.
 
 Consumer dependencies:
 
-- Add `@monochromatic-dev/pi-shared-model-selection: workspace:*` to advisor,
+- Add `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` to advisor,
    auto-mode,
   and thinking-defaults before changing imports.
 - Do not add `@earendil-works/pi-ai` or `@earendil-works/pi-coding-agent` to thinking-defaults unless
@@ -363,7 +378,7 @@ Move budget selection strategy into shared while keeping host-specific auth in a
 Budget selection must accept callbacks instead of importing auto-mode context directly:
 
 ```typescript
-// package/pi-shared/model-selection/src/budget-selection.ts
+// package/agent-harness-shared/model-selection/src/budget-selection.ts
 export type ResolveBudgetAuth<TModel> = (
   options: { readonly model: TModel; },
 ) => Promise<Maybe<BudgetModelAuth>>;
@@ -500,12 +515,12 @@ Add characterization tests before rewiring imports:
 
 ## Migration steps
 
-1.  Scaffold `package/pi-shared/model-selection/` with `package.json`,
+1.  Scaffold `package/agent-harness-shared/model-selection/` with `package.json`,
      `mise.toml`,
     `tsdown.node.config.ts`,
      `README.md`,
      and subpath exports.
-2.  Add `@monochromatic-dev/pi-shared-model-selection: workspace:*` to advisor,
+2.  Add `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` to advisor,
      auto-mode,
     and thinking-defaults.
 3.  Add characterization tests in the three consumers while imports still point at local code.
@@ -537,7 +552,7 @@ Add characterization tests before rewiring imports:
      update auto-mode to a thin
     registry-auth adapter.
 15. Move or rewrite unit tests for every shared module.
-16. Run `mise run //package/pi-shared/model-selection:buildAndTest`.
+16. Run `mise run //package/agent-harness-shared/model-selection:buildAndTest`.
 17. Run `mise run //package/pi-plugin/advisor:buildAndTest`.
 18. Run `mise run //package/pi-plugin/auto-mode:buildAndTest`.
 19. Run `mise run //package/pi-plugin/thinking-default:buildAndTest`.

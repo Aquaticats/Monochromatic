@@ -96,7 +96,8 @@ The search does not exclude an unadvertised branch or a pull request using unrel
 
 ## Work that has happened
 
-The issue page understates implementation work because the merged pull requests did not close or consistently reference `#2758`.
+The issue page understates implementation work because the merged pull requests did not close
+ or consistently reference `#2758`.
 
 - [`#5794`](https://github.com/rolldown/rolldown/pull/5794),
   merged 2025-08-19,
@@ -240,5 +241,6 @@ as the workaround.
 Consequently,
 the limited local activity is expected:
 there is no authorized local upstream implementation to perform,
-and cleanup cannot occur until a released Rolldown version is verified to cover this repository's `type: 'text'` behavior.
+and cleanup cannot occur until a released Rolldown version is verified
+ to cover this repository's `type: 'text'` behavior.
 The original dynamic JSON example working is not enough to remove the plugin.

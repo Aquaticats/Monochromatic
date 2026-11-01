@@ -18,6 +18,22 @@ import type { SeededRandom, } from './seeded-random-fixture.ts';
 //region Planning
 
 /**
+ First reference of a path in window order: whether the path pre-exists or the window adds it, and the change.
+ */
+type FirstReference = Readonly<{
+  kind: 'add' | 'existing';
+  change: ShapeChange
+}>;
+
+/**
+ Path identifier paired with its first reference, as a `Map` entry reads.
+ */
+type FirstReferenceEntry = readonly [
+  number,
+  FirstReference
+];
+
+/**
  One trace commit turned into worker operations.
  */
 export type TraceOperation = Readonly<{
@@ -90,9 +106,9 @@ function isReplayable({
       .length
       <= maxChanges)
     && commit.changes
-    .every(function plainFile(change,) {
-    return (change.mode === 'file') || (change.mode === 'executable');
-  },);
+      .every(function plainFile(change,) {
+        return (change.mode === 'file') || (change.mode === 'executable');
+      },);
 }
 
 /**
@@ -129,11 +145,11 @@ export function selectTraceWindow({
    */
   const eligible = trace.commits
     .filter(function replayable(commit,) {
-    return isReplayable({
-      commit,
-      maxChanges,
+      return isReplayable({
+        commit,
+        maxChanges,
+      },);
     },);
-  },);
   /**
    Window start.
    */
@@ -173,30 +189,27 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
   /**
    First reference of each path in window order.
    */
-  const firstReference = new Map<number, Readonly<{
-    kind: 'add' | 'existing';
-    change: ShapeChange
-  }>>();
+  const firstReference = new Map<number, FirstReference>();
   window.forEach(function recordFirst(commit,) {
     commit.changes
       .forEach(function recordChange(change,) {
-      if ((change.from !== undefined) && (!firstReference.has(change.from,)))
-        firstReference.set(
-          change.from,
-          {
-            kind: 'existing',
-            change,
-          },
-        );
-      if (!firstReference.has(change.path,))
-        firstReference.set(
-          change.path,
-          {
-            kind: (change.kind === 'add') || (change.kind === 'rename') ? 'add' : 'existing',
-            change,
-          },
-        );
-    },);
+        if ((change.from !== undefined) && (!firstReference.has(change.from,)))
+          firstReference.set(
+            change.from,
+            {
+              kind: 'existing',
+              change,
+            },
+          );
+        if (!firstReference.has(change.path,))
+          firstReference.set(
+            change.path,
+            {
+              kind: (change.kind === 'add') || (change.kind === 'rename') ? 'add' : 'existing',
+              change,
+            },
+          );
+      },);
   },);
   return {
     operations: window.map(function operation(
@@ -208,12 +221,12 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
        */
       const changes: TraceOperation['changes'] = commit.changes
         .map(function named(change,) {
-        return {
-          path: tracePath(change.path,),
-          ...(change.from === undefined ? {} : { from: tracePath(change.from,), }),
-          shape: change,
-        };
-      },);
+          return {
+            path: tracePath(change.path,),
+            ...(change.from === undefined ? {} : { from: tracePath(change.from,), }),
+            shape: change,
+          };
+        },);
       return {
         label: `t${String(index,)}`,
         changes,
@@ -225,8 +238,8 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
               === 'rename');
         },)
           .map(function addedPath(change,) {
-          return change.path;
-        },),
+            return change.path;
+          },),
         selected: [...new Set(changes.flatMap(function selectedPaths(change,) {
           return change.from === undefined ? [change.path,] : [
             change.from,
@@ -235,18 +248,18 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
         },),),],
       };
     },),
-    seeds: [...firstReference,].filter(function existing([, reference,],) {
+    seeds: [...firstReference,].filter(function existing([, reference,]: FirstReferenceEntry,) {
       return reference.kind === 'existing';
     },)
-      .map(function seed([id, reference,],) {
-      return {
-        path: tracePath(id,),
-        binary: reference.change
-          .binary,
-        size: reference.change
-          .size,
-      };
-    },),
+      .map(function seed([id, reference,]: FirstReferenceEntry,) {
+        return {
+          path: tracePath(id,),
+          binary: reference.change
+            .binary,
+          size: reference.change
+            .size,
+        };
+      },),
   };
 }
 

@@ -9,18 +9,18 @@ The former version of this file separately claimed that every trace call capture
 and asserted a 5 to 20 times improvement without a runnable measurement.
 That claim confused the logger call with console emission.
 
-The production entry call is `parseCss` in `package/module/css-edit/src/parse.ts:42-48`.
-The other production trace in `package/module/jsonc-edit/src/parse-jsonc.ts:42-52` reports
+The production entry call is `parseCss` in `package/css/core-edit/src/parse.ts:42-48`.
+The other production trace in `package/jsonc-edit/core-ts/src/parse-jsonc.ts:42-52` reports
 an exception-driven parser fallback,
  not function entry.
- `package/module/logger/src/tagged.ts:67-68`
+ `package/logger/core/src/tagged.ts:67-68`
 forwards the public trace method and is not a call site to migrate.
 
 ## Root cause
 
 The logger creates the same kind of record for either level and dispatches it to every
 available sink.
- `package/module/logger/src/create-logger.ts:455-472,579-585`:
+ `package/logger/core/src/create-logger.ts:455-472,579-585`:
 
 ```ts
 function createMethod(level: Level,): (message: string,) => void {
@@ -39,7 +39,7 @@ function createMethod(level: Level,): (message: string,) => void {
     };
 ```
 
-`package/module/logger/src/create-logger.ts:488-493` dispatches the record:
+`package/logger/core/src/create-logger.ts:488-493` dispatches the record:
 
 ```ts
       availableIndices.forEach(function writeToSink(entryIndex,) {
@@ -50,7 +50,7 @@ function createMethod(level: Level,): (message: string,) => void {
       },);
 ```
 
-`package/module/logger/src/create-logger.ts:578-586` binds both levels through that factory:
+`package/logger/core/src/create-logger.ts:578-586` binds both levels through that factory:
 
 ```ts
 const logger: Logger = {
@@ -65,7 +65,7 @@ const logger: Logger = {
 ```
 
 The entry caller constructs the message before calling the logger;
-`package/module/css-edit/src/parse.ts:42-48` contains:
+`package/css/core-edit/src/parse.ts:42-48` contains:
 
 ```ts
 tagged({
@@ -77,7 +77,7 @@ tagged({
 
 The tagged wrapper only prepends its tag,
  regardless of the level;
-`package/module/logger/src/tagged.ts:48-68` contains:
+`package/logger/core/src/tagged.ts:48-68` contains:
 
 ```ts
 debug: function debug(message: string,): void {
@@ -85,7 +85,7 @@ debug: function debug(message: string,): void {
 },
 ```
 
-`package/module/logger/src/tagged.ts:67-69` similarly forwards trace:
+`package/logger/core/src/tagged.ts:67-69` similarly forwards trace:
 
 ```ts
 trace: function trace(message: string,): void {
@@ -94,7 +94,7 @@ trace: function trace(message: string,): void {
 ```
 
 The console sink suppresses **both** levels when verbose output is off;
-`package/module/logger/src/sink/console.ts:26-29,497-504` contains:
+`package/logger/core/src/sink/console.ts:26-29,497-504` contains:
 
 ```ts
 const SILENT_LEVELS: ReadonlySet<string> = new Set([
@@ -103,7 +103,7 @@ const SILENT_LEVELS: ReadonlySet<string> = new Set([
 ],);
 ```
 
-`package/module/logger/src/sink/console.ts:497-504` checks this set:
+`package/logger/core/src/sink/console.ts:497-504` checks this set:
 
 ```ts
 if ((!getVerbose()) && SILENT_LEVELS.has(record.level,))
@@ -114,10 +114,10 @@ This suppression occurs **after** message formatting and logger dispatch.
  It applies to the
 console sink,
  not every sink:
- `package/module/logger/src/default-sinks.node.ts:34-42`
+ `package/logger/core/src/default-sinks.node.ts:34-42`
 includes `createFileSink()`,
  whose `write` method appends JSON records
-(`package/module/logger/src/sink/file.ts:266-279`):
+(`package/logger/core/src/sink/file.ts:266-279`):
 
 ```ts
 createConsoleSink(),
@@ -138,7 +138,7 @@ suppressed file output.
 
 With verbose console output enabled,
  `trace` and `debug` deliberately diverge.
-`package/module/logger/src/sink/console.ts:143-151,255-286` maps trace to `console.trace`;
+`package/logger/core/src/sink/console.ts:143-151,255-286` maps trace to `console.trace`;
 debug writes to process stderr when present and otherwise uses `console.debug`:
 
 ```ts
@@ -153,7 +153,7 @@ const LEVEL_TO_CONSOLE_METHOD: Record<Level,
   };
 ```
 
-`package/module/logger/src/sink/console.ts:264-286` selects stderr for debug and
+`package/logger/core/src/sink/console.ts:264-286` selects stderr for debug and
 calls the mapped console method for trace:
 
 ```ts
@@ -182,7 +182,7 @@ Node 26.8.2 emits stack frames for `console.trace('trace probe')`,
 That occurs when the console emits the trace,
  not at every `logger.trace()` invocation.
 Changing the `parseCss` call would also change its record level and formatted prefix;
-`package/module/logger/src/sink/console.ts:168-173` formats the prefix as:
+`package/logger/core/src/sink/console.ts:168-173` formats the prefix as:
 
 ```ts
 return `[${record.level}] [${
@@ -198,7 +198,7 @@ The verbose console output and its diagnostic stack would change too.
 The logger source was inspected at `a43e52f03bb3021f2b085f480bcde27364cc14b8`.
 The fixture first appears in `e205c9e42`;
  check out that commit or a descendant,
-then build the unchanged logger with `mise run //package/module/logger:build:js:node`.
+then build the unchanged logger with `mise run //package/logger/core:build:js:node`.
 The repeatable fixture is
 [performance.logging.bench.mjs](performance.logging.bench.mjs).
  It calls a tagged logger
@@ -218,7 +218,7 @@ and read-only mounts of the fixture and built logger.
 podman run --rm --memory=2g --cpus=2 --pids-limit=128 --network=none \
   --security-opt=label=disable \
   --volume="$PWD/doc/troubleshooting:/work/doc/troubleshooting:ro" \
-  --volume="$PWD/package/module/logger/dist/final/node:/work/package/module/logger/dist/final/node:ro" \
+  --volume="$PWD/package/logger/core/dist/final/node:/work/package/logger/core/dist/final/node:ro" \
   --workdir=/work docker.io/library/node:26-slim \
   node doc/troubleshooting/performance.logging.bench.mjs noop
 ```
@@ -230,7 +230,7 @@ Run the suppressed and emitted modes with the same container bounds and mounts:
 podman run --rm --memory=2g --cpus=2 --pids-limit=128 --network=none \
   --security-opt=label=disable \
   --volume="$PWD/doc/troubleshooting:/work/doc/troubleshooting:ro" \
-  --volume="$PWD/package/module/logger/dist/final/node:/work/package/module/logger/dist/final/node:ro" \
+  --volume="$PWD/package/logger/core/dist/final/node:/work/package/logger/core/dist/final/node:ro" \
   --workdir=/work docker.io/library/node:26-slim \
   node doc/troubleshooting/performance.logging.bench.mjs suppressed
 ```
@@ -240,7 +240,7 @@ podman run --rm --memory=2g --cpus=2 --pids-limit=128 --network=none \
 podman run --rm --memory=2g --cpus=2 --pids-limit=128 --network=none \
   --security-opt=label=disable \
   --volume="$PWD/doc/troubleshooting:/work/doc/troubleshooting:ro" \
-  --volume="$PWD/package/module/logger/dist/final/node:/work/package/module/logger/dist/final/node:ro" \
+  --volume="$PWD/package/logger/core/dist/final/node:/work/package/logger/core/dist/final/node:ro" \
   --workdir=/work --env=MONOCHROMATIC_VERBOSE=true docker.io/library/node:26-slim \
   node doc/troubleshooting/performance.logging.bench.mjs emitted 2>/dev/null
 ```
@@ -265,7 +265,7 @@ Reproduce the output check without redirecting stderr:
 # From the repository root: verify both enabled console paths
 podman run --rm --memory=2g --cpus=2 --pids-limit=128 --network=none \
   --security-opt=label=disable \
-  --volume="$PWD/package/module/logger/dist/final/node:/logger:ro" \
+  --volume="$PWD/package/logger/core/dist/final/node:/logger:ro" \
   --env=MONOCHROMATIC_VERBOSE=true docker.io/library/node:26-slim \
   node --input-type=module -e '
     import { createLogger, sinks, tagged } from "/logger/index.mjs";
@@ -330,8 +330,8 @@ No logging-performance rule was added to `AGENTS.md`,
    the actual `parseCss` entry uses `tagged(...).trace(`;
   the literal `l.trace(` in `tagged.ts` is the forwarding implementation.
 - Treating `console.trace()` benchmarks as measurements of a suppressed `logger.trace()`:
-  `package/module/logger/src/create-logger.ts:455-490` creates and forwards a record;
-  `package/module/logger/src/sink/console.ts:497-504` suppresses it before emission.
+  `package/logger/core/src/create-logger.ts:455-490` creates and forwards a record;
+  `package/logger/core/src/sink/console.ts:497-504` suppresses it before emission.
 - Treating an overlapping timing band as proof of equivalence:
    the positive control
   confirms sensitivity to stack work,

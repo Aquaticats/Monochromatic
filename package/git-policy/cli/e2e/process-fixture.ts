@@ -193,6 +193,14 @@ export function startProcess(spec: CommandSpec,): RunningProcess {
       ],
     },
   );
+  // A command that cannot start emits `error` on the next tick; without a listener Node ends the whole process,
+  // so the throw below could never reach a caller. The failed start is reported by that throw.
+  child.once(
+    'error',
+    function ignoreStartError(): void {
+      // The `close` event still settles the outcome of a child that did start.
+    },
+  );
   if ((child.pid === undefined) || (child.stdout === null)
     || (child.stderr === null))
     throw new FixtureCommandError(`could not start ${spec.command}`,);

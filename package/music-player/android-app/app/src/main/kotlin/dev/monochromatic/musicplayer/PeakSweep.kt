@@ -52,6 +52,8 @@ package dev.monochromatic.musicplayer
 // import { Context } from "android/content";
 // ```
 import android.content.Context
+import dev.monochromatic.musicplayer.core.MeasurePeakReading
+import dev.monochromatic.musicplayer.core.measurePeakFromReply
 
 // What:     `import android.net.Uri` pulls in `Uri`, Android's parsed
 //           "uniform resource identifier" type (for example a
@@ -354,6 +356,22 @@ suspend fun measureAndCache(
         // ```ts
         //   return "FAILED";
         // ```
+        return SweepOutcome.FAILED
+    }
+    // What:     The native warm call never reports a decode failure; it falls back to a safe gain and caches nothing
+    //           exact.
+    // Why:      D113: a file that cannot be decoded is retried and reported once, so the sweep asks the cache
+    //           whether an exact peak exists now and counts the track as failed when it does not.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!(await peekPeak(fingerprint))?.exact) return SweepOutcome.FAILED;
+    // ```
+    /** The peak now cached for the track, or null when the decode left none. */
+    val cached: MeasurePeakReading? =
+        measurePeakFromReply(NativeBridge.nativePeekPeak(TruePeakGain.handle(context), fingerprint))
+    if (cached?.exact != true) {
+        Log.w(SWEEP_TAG, "true-peak measure left no exact peak for $uri; the file could not be decoded")
         return SweepOutcome.FAILED
     }
     // What:     `return SweepOutcome.MEASURED` exits with the "warmed" outcome. The native side

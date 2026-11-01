@@ -3,7 +3,7 @@
 import { once, } from 'node:events';
 import type { Writable, } from 'node:stream';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   isJsonRpcMessage,
@@ -232,7 +232,7 @@ export async function serve(
           code: JSON_RPC_INVALID_REQUEST,
           message:
             'Invalid JSON-RPC message: requires jsonrpc "2.0", a string method, '
-            + 'a number or string id when present, and object params when present',
+              + 'a number or string id when present, and object params when present',
         },
       };
       queueFrame({

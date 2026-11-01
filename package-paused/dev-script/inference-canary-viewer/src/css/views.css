@@ -30,7 +30,7 @@
     }
   }
 
-  /* stylelint-disable-next-line no-descending-specificity -- nested context differs from :has() rule */
+  /* nested context differs from :has() rule */
   & > .pane {
     padding-block: var(--space-2);
 
@@ -73,7 +73,7 @@
     }
   }
 
-  /* stylelint-disable-next-line no-descending-specificity -- nested context differs from :has() rule */
+  /* nested context differs from :has() rule */
   & > .pane {
     padding-inline: var(--space-3);
 
@@ -112,7 +112,7 @@
     }
   }
 
-  /* stylelint-disable-next-line no-descending-specificity -- nested context differs from :has() rule */
+  /* nested context differs from :has() rule */
   & > .pane {
     padding-inline: var(--space-2);
 

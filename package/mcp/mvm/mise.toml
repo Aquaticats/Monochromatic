@@ -1,19 +1,19 @@
 [tasks.build]
 extends = "build"
 
-[tasks.'build:js']
+[tasks."build:js"]
 extends = "build:js"
 
-[tasks.'build:js:node']
+[tasks."build:js:node"]
 extends = "build:js:node"
 
-[tasks.'watch:build']
+[tasks."watch:build"]
 extends = "watch:build"
 
-[tasks.'watch:build:js']
+[tasks."watch:build:js"]
 extends = "watch:build:js"
 
-[tasks.'watch:build:js:node']
+[tasks."watch:build:js:node"]
 extends = "watch:build:js:node"
 
 [tasks.lint]
@@ -28,7 +28,7 @@ extends = "lint:oxlint"
 [tasks."format:oxlint"]
 extends = "format:oxlint"
 
-[tasks.'test:unit']
+[tasks."test:unit"]
 extends = "test:unit"
 
 [tasks.buildAndTest]

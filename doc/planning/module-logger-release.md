@@ -7,11 +7,11 @@ Status:
  and the release is tagged.
 Owner decisions are recorded here as they land;
  this file is canonical for the release,
- not `package/module/logger/bulletproofing.plan.md`.
+ not `package/logger/core/bulletproofing.plan.md`.
 
 ## Legacy reference
 
-`package/module/logger/bulletproofing.plan.md` (written 2026-06-15,
+`package/logger/core/bulletproofing.plan.md` (written 2026-06-15,
  amended by a GPT Pro review) is a verification program,
  not a release plan.
 The owner classified it as a historical reference written by an unreliable narrator.
@@ -25,7 +25,7 @@ Measured against current code on 2026-09-06:
    console `verify` fails only when `console` or `queueMicrotask` is missing.
 - Gap A3 (retire after 10 failures) is unreachable for every shipped sink,
    which each swallow their own write errors,
-   and it reverses the 2026-06-14 decision in `package/module/logger/DECISIONS.md`.
+   and it reverses the 2026-06-14 decision in `package/logger/core/DECISIONS.md`.
 - Its claim that `%s` in a single-argument `console.info` is interpreted is false on the built artifact:
    `%s%d` reaches stdout literally.
 - Its claim that terminal escapes pass through raw is true on the built artifact:
@@ -41,7 +41,7 @@ Its post-release value (toml-edit verification bar,
    the scope's first publish ever.
    The owner confirms the scope exists and they can publish to it.
 - Driver:
-   `@monochromatic-dev/module-test` is blocked by issue #338 because it depends on the private logger.
+   `@monochromatic-dev/test-harness-core` is blocked by issue #338 because it depends on the private logger.
    Scope is the logger alone,
    as groundwork;
    `module-fs-path` stays private,
@@ -63,9 +63,11 @@ Its post-release value (toml-edit verification bar,
    in-repo `/ts` imports are unaffected.
    `module-caught-value` moves to `devDependencies` (the dist bundles it) and is not published in this release.
 - `flush()` gets a deadline before 0.1.0,
-   exposed as one `createLogger` option `flushDeadlineMs` with a named default chosen after measuring local write latency.
+   exposed as one `createLogger` option `flushDeadlineMs`
+   with a named default chosen after measuring local write latency.
 - The 25 `require-eventual-artifact` findings gate the publish:
-   internals are exported from the entry with an underscore prefix (toml-edit precedent) and their tests import the built artifact.
+   internals are exported from the entry with an underscore prefix (toml-edit precedent)
+   and their tests import the built artifact.
 - The no-backend throw stays in 0.1.0:
    reachable only through `createLogger` with sinks that all fail verify,
    documented,
@@ -95,7 +97,8 @@ Its post-release value (toml-edit verification bar,
    No npm token is ever stored.
 - A `doc/decision/` entry supersedes the "bundle,
    do not publish" direction.
-- The legacy plan becomes a post-release track after a rewrite that fixes its inventory and removes the items decided against here;
+- The legacy plan becomes a post-release track after a rewrite
+   that fixes its inventory and removes the items decided against here;
    a GitHub issue tracks it.
 
 ## Measured state (2026-09-06)
@@ -104,7 +107,7 @@ Its post-release value (toml-edit verification bar,
    ten names probed,
    all 404.
    No local npm login (`npm whoami` returns 401).
-- `package/module/logger/package.json`:
+- `package/logger/core/package.json`:
    `private: true`,
    version 0.0.1,
    no `publishConfig`,
@@ -113,7 +116,7 @@ Its post-release value (toml-edit verification bar,
    `./ts`,
    `./ts/*`.
 - Built dist bundles caught-value (no `@monochromatic-dev` imports in `dist/final/*/index.mjs`);
-   the `./ts` export still imports `@monochromatic-dev/module-caught-value/ts` from source.
+   the `./ts` export still imports `@monochromatic-dev/caught-value-core/ts` from source.
 - `npm pack --dry-run` on the current dist:
    55 files,
    506,898 unpacked bytes,
@@ -153,8 +156,9 @@ Its post-release value (toml-edit verification bar,
    `package/git-policy/cli/package.json` lists `!src/**/*.unit.test.ts`,
    and `npm pack --dry-run` there shows 0 of its 44 unit-test files.
 - `tsconfig.tsbuildinfo` lands in `dist/final/types` because the shared
-   `package/config/typescript/tsconfig.options.json` sets `composite: true` with `outDir` there and no `tsBuildInfoFile`.
-   `package/dev-script/task-util/src/tsc-filter.ts` already deletes `dist/**/*.tsbuildinfo`,
+   `package/config/typescript/tsconfig.options.json` sets `composite: true`
+   with `outDir` there and no `tsBuildInfoFile`.
+   `package/monorepo-task/core-exec/src/tsc-filter.ts` already deletes `dist/**/*.tsbuildinfo`,
    and the root tsconfig redirects its own build info to `.cache/typescript/`.
 - pnpm `publishConfig` can override `exports` (and `bin`,
    `main`,
@@ -197,7 +201,8 @@ Its post-release value (toml-edit verification bar,
    takes `publish-script` and `version-script` inputs,
    and pnpm's own guide publishes with `pnpm publish -r`.
    No `.changeset/` directory exists yet.
-- Prior direction in `doc/handover/cli-git-policies-platform.md` says to bundle logger into public artifacts rather than publish it.
+- Prior direction in `doc/handover/cli-git-policies-platform.md`
+   says to bundle logger into public artifacts rather than publish it.
 
 ## Execution plan
 
@@ -207,7 +212,8 @@ Order matters:
  tooling,
  then verification and the manual bootstrap.
 
-1.   Vet report `doc/audit/tech-npm-release-versioning-and-publishing-vet-2026-09-06.md` for changesets against release-please,
+1.   Vet report `doc/audit/tech-npm-release-versioning-and-publishing-vet-2026-09-06.md`
+     for changesets against release-please,
      semantic-release,
      and manual tags,
      per the `choosing-technology` skill.
@@ -289,13 +295,13 @@ Order matters:
 
 ## Result (2026-09-06)
 
-- `@monochromatic-dev/module-logger@0.1.0` is on the registry (shasum `f19c6f53`,
+- `@monochromatic-dev/logger-core@0.1.0` is on the registry (shasum `f19c6f53`,
    publisher `aquaticat`,
    no provenance);
    a fresh Node 24 project installed it from the registry and logged.
 - Trusted publisher registered for `npm-release.yml` (id `4315f78a-aba0-4cdb-9336-b5f6649d5635`).
 - Version pull request #478 merged as `dfa0e0d58`;
-   tag and GitHub release `@monochromatic-dev/module-logger@0.1.0` created through the GitHub API
+   tag and GitHub release `@monochromatic-dev/logger-core@0.1.0` created through the GitHub API
    (the workflow reports nothing to do for an already-published version,
    and the cli-git wrapper rejects a manual tag push,
    `doc/troubleshooting/cli-git-tag-push-eagain.md`).
@@ -313,3 +319,94 @@ Agent work done:
  #306,
  #307,
  #338) and the legacy plan rewrite.
+
+## Serialized file writes release, 2026-10-16
+
+The owner requested publication of the logger's pending `0.4.1` release.
+This version serializes complete file-sink appends so concurrently queued records larger than a filesystem write chunk
+remain valid JSONL in invocation order.
+The registry still served `0.4.0` when this request arrived.
+The existing `npm-release.yml` attempt
+[38837664209](https://github.com/Aquaticats/Monochromatic/actions/runs/38837664209)
+failed with `ERR_PNPM_FAILED_TO_PUBLISH` and HTTP 404 for `0.4.1`.
+That failure alone does not establish the authentication cause.
+
+The previously verified `npm-publish.yml` workflow now accepts a `module` choice,
+`fs-path` or `logger`,
+and builds and tests the selected module before packing it with pnpm.
+The separate publish job uses npm OIDC and provenance.
+Logger repository metadata now points to `Aquaticats/Monochromatic`.
+The release kept the pending version `0.4.1`.
+
+Commit `61d38bd7041443b236eea75b0a7f00da7e0d53bc` is the source for
+[release run 38838431661](https://github.com/Aquaticats/Monochromatic/actions/runs/38838431661).
+Local `lint:types` and `lint:oxlint` passed with zero warnings and errors.
+The disposable npm consumer has its own private manifest and an explicit installation prefix.
+The workflow succeeded,
+including the build and unit tests.
+npm accepted the upload,
+then made `0.4.1` available at `2026-10-16T02:06:06.290Z`;
+the registry's `latest` tag now resolves to it.
+The registry identifies GitHub Actions as publisher and
+`80363e5d-aede-4258-81ca-d4ee414a90a5` as the trusted publisher configuration.
+Its SLSA provenance names `Aquaticats/Monochromatic`,
+`.github/workflows/npm-publish.yml`,
+and source commit `61d38bd7041443b236eea75b0a7f00da7e0d53bc`.
+Tag `@monochromatic-dev/logger-core@0.4.1` preserves that revision.
+
+A fresh npm installation passed version and repository URL assertions.
+The installed `createLogger`,
+`tagged`,
+and `createFileSink` queued four records with 600000-character payloads,
+flushed them,
+and produced complete JSONL in exact invocation order.
+The `/ts` entry remained unavailable to registry consumers as intended.
+
+Next action:
+none for `0.4.1`.
+
+## Shared completion and file ownership release, 2026-10-18
+
+The owner authorizes the auto-mode investigation's shared logger fix
+and requests a version bump so publication runs.
+Version `0.4.2` deduplicates observation of shared pending sink completions,
+retains every sink invocation,
+and serializes complete file batches without reentrant serialization or same-millisecond filename collisions.
+The package-local rationale and runtime limits are in
+[`write-completion.md`](../../package/logger/core/doc/write-completion.md).
+
+The built-package unit suite and the type check pass.
+Oxlint reports zero warnings and errors across 63 files.
+The capacity regression delivers 100,000 records while retaining 48,304 bytes before continuation drainage,
+compared with the regression's 93,863,816-byte failing baseline.
+Private rebuilt guard mutations fail the completion-identity,
+missing-JSON-value,
+filename-identity and issued-batch-admission regressions without changing the checked-in source.
+
+Version commit `3befa69c148c609f864fdb200c75cbbb6d9e0cce` triggers
+[automatic run 39104844467](https://github.com/Aquaticats/Monochromatic/actions/runs/39104844467).
+Its pnpm publish step reports `ERR_PNPM_FAILED_TO_PUBLISH` with HTTP 404,
+which does not establish the authentication cause.
+The first targeted recovery fails before packing because the generated root Mise configuration has lost
+tasks that were never added to its authoritative source.
+The [targeted-workflow troubleshooting record](../troubleshooting/npm-targeted-workflow-tasks.md)
+records that separate cause and its source-owned repair.
+
+Commit `d6d1d67b069de6dd6cff8dc7543f06bd6fd94caa` is the source named by
+[successful targeted run 39106517976](https://github.com/Aquaticats/Monochromatic/actions/runs/39106517976).
+The registry serves `0.4.2`,
+identifies GitHub Actions and trusted publisher `80363e5d-aede-4258-81ca-d4ee414a90a5`,
+and supplies an SLSA statement naming that commit,
+`.github/workflows/npm-publish.yml`,
+and the successful workflow invocation.
+
+A fresh registry installation in a disposable consumer confirms version and repository metadata,
+imports `createLogger`,
+`tagged` and `createFileSink` through the published exports,
+and confirms the workspace-only `/ts` export remains unavailable.
+Independent verified file sinks retain separate files.
+Five tagged, large and reentrant records parse as complete JSONL,
+with the inner serialized record preceding its outer record.
+
+The release is published and consumer-verified.
+The automatic pnpm workflow's HTTP 404 remains a separate unresolved publishing path.

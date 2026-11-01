@@ -1,5 +1,28 @@
 # Optique removal handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/dev-script/backup-path` is now `package/backup-path/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/token-count` is now `package/llm/token-count`;
+> `package/module/image-diff` is now `package/llm/image-diff`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/git-clone-size` is now `package/git-clone-size/cli`;
+> `package/cli/mutation-test` is now `package/mutation-test/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 ## Status
 
 Planning and user grilling are in progress.
@@ -163,7 +186,8 @@ The command alias `cmp` should canonicalize to `commandPath: ['compare']` and re
   A single-level command uses `commandPath: readonly ['compare']`;
   nested syntax can use `commandPath: readonly ['calico', 'meow']`.
 - Hidden aliases canonicalize their own path segment before output.
-- Each leaf may apply a whole-result Valibot schema after field parsing to validate relationships across supplied options and trailing arguments.
+- Each leaf may apply a whole-result Valibot schema after field parsing
+  to validate relationships across supplied options and trailing arguments.
   This schema may transform values while preserving declared field layout,
   but may not rename,
   nest,
@@ -179,7 +203,8 @@ The command alias `cmp` should canonicalize to `commandPath: ['compare']` and re
 - `--help` and `-h` produce contextual help at the root,
   every intermediate route,
   and every leaf.
-  They are exact reserved parser controls and never appear in an application success value or reach the application handler.
+  They are exact reserved parser controls and never appear
+  in an application success value or reach the application handler.
 - A control-position help spelling is exclusive:
   combining it with an option,
   another command token after it,
@@ -187,7 +212,8 @@ The command alias `cmp` should canonicalize to `commandPath: ['compare']` and re
   Command tokens before it select the help context and do not count as a combination.
 - Literal `--help` and `-h` tokens after the trailing-argument separator remain data under the settled separator rule.
 - Contextual help writes to stdout and settles with status 0.
-  Parser usage and validation failures write every independently recoverable diagnostic followed by full contextual help to stderr and settle with status 2.
+  Parser usage and validation failures write every independently recoverable diagnostic
+  followed by full contextual help to stderr and settle with status 2.
   Grammar issues are ordered by argv token index,
   tail issues follow option-region issues,
   and independent Valibot issues preserve schema order.
@@ -437,7 +463,8 @@ Risks:
 - schema composition could bypass the process adapter's help and status contracts;
 - exposing both `.parse` and `.schema` may create two public seams.
 
-Treat the codec as an optional adapter only if a prototype can use public Standard Schema contracts without weakening parser controls.
+Treat the codec as an optional adapter only if a prototype can use
+public Standard Schema contracts without weakening parser controls.
 It is not the leading core representation.
 
 ### Variant: event grammar as an internal implementation
@@ -612,7 +639,8 @@ and output shape.
   The application receives neither controls nor parser-failure outcomes as business input.
 - Parser controls use stdout and status 0;
   parser failures use stderr and status 2.
-  Every parser failure appends full contextual help after the diagnostic rather than printing a separate help-command hint.
+  Every parser failure appends full contextual help after the diagnostic
+  rather than printing a separate help-command hint.
   Application status 1 remains distinguishable from invalid invocation.
 - Syntax parsing accepts synchronous Valibot schemas only.
   Async schemas fail definition validation.
@@ -646,5 +674,6 @@ When the user returns,
 start from the speculative grammar-algebra section rather than re-presenting the first three designs.
 Ask whether grammar-derived schema synthesis is closer to the missing fourth direction.
 If the user authorizes a design probe,
-build a throwaway compile-only prototype against Valibot `1.4.2` and the listed type gates before choosing a public interface.
+build a throwaway compile-only prototype against Valibot `1.4.2`
+and the listed type gates before choosing a public interface.
 Continue updating this handover as hypotheses are accepted or rejected.

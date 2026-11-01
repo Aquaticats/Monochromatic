@@ -1,5 +1,5 @@
 # Cargo work runs on the HOST when the native dev libraries are present, and
-# falls back to the Fedora build container otherwise (see Containerfile).
+# falls back to the CachyOS build container otherwise (see Containerfile).
 # On non-Linux targets (macOS, Windows) every task takes a NATIVE cargo branch
 # first (process.platform !== 'linux'): no pkg-config/PipeWire probe, no podman
 # fallback (a Linux container cannot produce a macOS or Windows binary), and the
@@ -9,12 +9,16 @@
 #            Tools C compiler (the opus crate's opusic-sys backend builds libopus
 #            1.6.1 from source via cmake). The repo's mise `aqua:Kitware/CMake`
 #            tool provides cmake; `brew install cmake` also works.
-#   Windows: rustup (msvc host) + a nightly toolchain on PATH; Visual Studio (CRT
-#            + Windows SDK); `cmake` on PATH (opusic-sys builds libopus 1.6.1 via
-#            cmake; 1.6.1's cmake_minimum_required is 3.16, so CMake 4 needs no
-#            policy override); and LLVM's `bin` on PATH so `lld-link.exe` (the
-#            linker pinned for windows-msvc in .cargo/config.toml) resolves. See
-#            HANDOVER.windows-toolchain-and-check.md.
+#   Windows: rustup (msvc host) + a nightly toolchain on PATH; Visual Studio (C++
+#            build tools with the CRT, the linker `link.exe` and the Windows SDK, which
+#            rustc finds through vswhere); and `cmake` on PATH (opusic-sys builds
+#            libopus 1.6.1 via cmake; 1.6.1's cmake_minimum_required is 3.16, so
+#            CMake 4 needs no policy override). No LLVM is needed: the linker is
+#            Visual Studio's `link.exe` (doc/decision/music-player-windows-linkers.md).
+#            See HANDOVER.windows-toolchain-and-check.md. The `build:windows-gnu` and
+#            `test:windows-gnu` tasks build the GNU target instead (MSYS2 MinGW-w64
+#            gcc on PATH, no Visual Studio; on Linux they cross-compile in a
+#            container and test under Wine); see README "Windows".
 # Host build deps (layer with rpm-ostree on an immutable Fedora):
 #   pipewire-devel fontconfig-devel freetype-devel
 # plus rustup/cargo and libclang already on PATH; cmake comes from the repo's mise
@@ -22,12 +26,13 @@
 # no system opus-devel is needed) and the host's system `make` is its generator.
 # The cargo_dispatch var (node -e) probes pkg-config for those libraries; when any
 # is missing containerCargo runs the same cargo command in podman instead (package
-# dir bind-mounted at /work, cargo registry in a named volume, `label=disable` to
+# dir bind-mounted at /work plus the sibling ../truepeak-core and the Android test
+# resources mounted read-only, cargo registry in a named volume, `label=disable` to
 # skip SELinux relabeling of the host tree). The *:container tasks call
 # containerCargo directly to force the podman path regardless of host libraries;
 # verify:container is the umbrella assertion.
 # Why podman and not mise-managed deps (conda route rejected):
-# see ../../../doc/decisions/desktop-app-podman-build.md
+# see ../../../doc/decision/desktop-app-podman-build.md
 
 [env]
 # Slint's experimental builtins (FlexboxLayout in the page-tab bar) must be
@@ -55,7 +60,8 @@ SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
 #   at the versioned host libclang, and BINDGEN_EXTRA_CLANG_ARGS supplies the clang
 #   resource dir (globbed so an LLVM bump needs no edit) since libclang in
 #   /usr/lib64 looks beside itself for stdbool.h under /usr/lib/clang/<v>.
-# - containerCargo(args): build the image when missing, then run cargo in podman.
+# - containerCargo(args): build the image when missing, then run cargo in podman, with ../truepeak-core and the Android
+#   test resources mounted read-only beside /work (a Cargo path dependency and the theme-roles drift fixture).
 # - runCargo(args): native off Linux, else host when hostOk, else container.
 # Its imported bindings (execFileSync, globSync) are reused by inline follow-ups,
 # so those must not reimport them.
@@ -70,16 +76,38 @@ const hostEnv = () => {
   const resourceDir = clangDirs[clangDirs.length - 1]
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}` }
 }
-const containerCargo = (cargoArgs) => {
+const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: [], env: [], program: 'cargo' }
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+const containerCargo = (cargoArgs, containerOptions = {}) => {
+  const container = { ...defaultContainer, ...containerOptions }
   let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/music-player'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', '-t', 'localhost/monochromatic/music-player', '-f', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  try { execFileSync('podman', ['image', 'exists', container.image], { stdio: 'ignore' }) } catch { imageExists = false }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments(container.image.split('/').pop()), '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
   // Forward SLINT_EMIT_DEBUG_INFO into the container ONLY when the caller set it
   // (the test + mcp tasks do). podman does not inherit host env, and the
   // ElementHandle / MCP introspection APIs refuse to run without this debug info.
   // Production build tasks never set it, so their container binaries stay lean.
   const debugInfoEnv = process.env.SLINT_EMIT_DEBUG_INFO ? ['-e', 'SLINT_EMIT_DEBUG_INFO=1'] : []
-  execFileSync('podman', ['run', '--rm', '--security-opt', 'label=disable', ...debugInfoEnv, '-v', `${process.cwd()}:/work`, '-v', 'music-player-cargo:/cargo', '-w', '/work', 'localhost/monochromatic/music-player', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  // The crate reads two paths outside its own directory, and the container mounts only the package directory at
+  // /work, so each is mounted read-only where the same relative path from /work finds it: ../truepeak-core is the
+  // Cargo path dependency, and ../android-app/app/src/test/resources holds the theme-roles-vector.txt fixture that
+  // src/theme_roles_fixture_tests.rs compares with the Rust derivation. A missing source fails here by name, never
+  // as a skipped test or a bare podman statfs error. The repository's root clippy.toml (the fleet-wide ban on
+  // Result::unwrap) is mounted at /clippy.toml: clippy searches the ancestors of /work, so the container lint runs
+  // with the same rules as the host lint (issue 1756).
+  const { resolve } = process.getBuiltinModule('node:path')
+  const { existsSync } = process.getBuiltinModule('node:fs')
+  const siblingMounts = [['../truepeak-core', '/truepeak-core'], ['../android-app/app/src/test/resources', '/android-app/app/src/test/resources'], ['../../../clippy.toml', '/clippy.toml']]
+  const siblingMountArgs = siblingMounts.flatMap(([relative, inside]) => {
+    const host = resolve(process.cwd(), relative)
+    if (!existsSync(host)) { throw new Error(`containerCargo needs ${host} (mounted read-only at ${inside}) but it does not exist; run the task from the checked-out package/music-player/desktop-app directory of a full checkout`) }
+    return ['-v', `${host}:${inside}:ro`]
+  })
+  // A private tmpfs at /run/user/0 is the container's XDG_RUNTIME_DIR, because the notification tests' private D-Bus socket needs the
+  // per-user runtime directory (438bc434e4) and a container has none.
+  execFileSync('podman', ['run', '--rm', ...container.limits, '--security-opt', 'label=disable', ...debugInfoEnv, ...container.env, '--tmpfs', '/run/user/0:mode=0700', '--env', 'XDG_RUNTIME_DIR=/run/user/0', '-v', `${process.cwd()}:/work`, ...siblingMountArgs, '-v', `${container.cargoVolume}:/cargo`, '-w', '/work', container.image, container.program, ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => {
   if (process.platform !== 'linux') { execFileSync('cargo', cargoArgs, { stdio: 'inherit' }) }
@@ -88,9 +116,39 @@ const runCargo = (cargoArgs) => {
 }
 """
 
+# Dispatch for the x86_64-pc-windows-gnu tasks. Interpolated after cargo_dispatch, whose bindings it reuses.
+# - On Windows the build is NATIVE: rustup with the GNU target (or a GNU host) and an MSYS2 MinGW-w64 gcc on PATH
+#   (the cmake crate and rustc then use GNU ld through gcc; no Visual Studio is involved).
+# - On Linux it is a CROSS build inside the Containerfile.windows-gnu image (mingw-w64 from CachyOS), capped at 6 GiB and 4
+#   CPUs, with its own target directory so the Linux build cache is untouched; tests run under Wine (the image sets
+#   the cargo runner for this target). The image carries the linker and runner variables, so none are passed here.
+# - macOS cannot run either path.
+windows_gnu_dispatch = """
+const gnuTarget = 'x86_64-pc-windows-gnu'
+const gnuContainer = {
+  image: 'localhost/monochromatic/music-player-windows-gnu',
+  containerfile: 'Containerfile.windows-gnu',
+  cargoVolume: 'music-player-cargo-windows-gnu',
+  limits: ['--memory=6g', '--cpus=4'],
+  env: ['-e', 'CARGO_TARGET_DIR=/work/target/windows-gnu'],
+}
+const runWindowsGnu = (cargoArgs) => {
+  if (process.platform === 'win32') { execFileSync('cargo', cargoArgs, { stdio: 'inherit' }) }
+  else if (process.platform === 'linux') { containerCargo(cargoArgs, gnuContainer) }
+  else { throw new Error(`The x86_64-pc-windows-gnu tasks run on Windows (MSYS2 MinGW-w64) or Linux (container + Wine), not ${process.platform}`) }
+}
+"""
+
 [tasks.image]
-description = "Build the Fedora build/run container image"
-run = "podman build -t localhost/monochromatic/music-player -f Containerfile ."
+description = "Build the CachyOS build/run container image"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player'), '-t', 'localhost/monochromatic/music-player', '-f', 'Containerfile', '.'], { stdio: 'inherit' })
+"""
 
 [tasks.build]
 description = "Release build (macOS/Windows native, else Linux host if dev libs present, else container)"
@@ -135,13 +193,6 @@ run = """
 runCargo(['clippy', '--fix', '--allow-dirty', '--allow-staged', '--allow-no-vcs', '--all-targets'])
 """
 
-[tasks."lint:rust"]
-description = "Run monochromatic-rust-linter (max-lines + require-rustdoc) over this package's .rs"
-# Runs on the HOST, not in the container: the linter is a separate crate with
-# no pipewire/opus/clang deps, so it needs no container. .gitignore-aware
-# walking skips target/ (including Slint's generated .rs).
-run = "cargo run --quiet --manifest-path ../../linter/rust/Cargo.toml -- ."
-
 [tasks.test]
 description = "cargo nextest run (macOS/Windows native, else Linux host if dev libs present, else container)"
 # The native (non-Linux) branch needs cargo-nextest on PATH (`cargo install
@@ -158,12 +209,58 @@ process.env.SLINT_EMIT_DEBUG_INFO = '1'
 runCargo(['nextest', 'run'])
 """
 
+[tasks.notices]
+description = "Write target/THIRD-PARTY-LICENSES.txt: the license notices of every desktop release binary, checked with cargo-about against about.toml"
+# Runs on the HOST with the repository's cargo-about (toolchain.lock.json) and network for `cargo fetch`; no audio or font
+# libraries are needed, because cargo-about and `cargo tree` read metadata and sources without compiling.
+# The alsa-fallback feature is on so the Alpine builds' extra crates (cpal, alsa) are covered too.
+# A build embeds the file only when MUSIC_PLAYER_THIRD_PARTY_LICENSES names it (build.rs, src/licenses.rs):
+#   MUSIC_PLAYER_THIRD_PARTY_LICENSES="$PWD/target/THIRD-PARTY-LICENSES.txt" cargo build --release
+# Decision and allow-list: ../../../doc/decision/music-player-third-party-licenses.md.
+run = "node bin/third-party-notices.mjs --product desktop --features alsa-fallback --output target/THIRD-PARTY-LICENSES.txt"
+
+[tasks."image:windows-gnu"]
+description = "Build the CachyOS cross-compile + Wine image for x86_64-pc-windows-gnu (Linux only)"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), '--memory=4g', '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
+"""
+
+[tasks."build:windows-gnu"]
+description = "Release build for x86_64-pc-windows-gnu with MinGW-w64 GNU ld (native on Windows with MSYS2, else cross-compiled in the container)"
+# Output: target/x86_64-pc-windows-gnu/release/music-player.exe on Windows, and
+# target/windows-gnu/x86_64-pc-windows-gnu/release/music-player.exe from the Linux container.
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.cargo_dispatch}}
+{{vars.windows_gnu_dispatch}}
+runWindowsGnu(['build', '--release', '--target', gnuTarget])
+"""
+
+[tasks."test:windows-gnu"]
+description = "cargo nextest run for x86_64-pc-windows-gnu (native on Windows with MSYS2, else cross-compiled in the container and run under Wine)"
+# Same SLINT_EMIT_DEBUG_INFO reason as the host `test` task. The container forwards it with -e. --no-fail-fast runs every
+# test so that one failure does not hide the others (under Wine a few behave differently from Windows; see README "Windows"),
+# and nextest.windows-gnu.toml makes nextest kill a test that has run for five minutes, because under Wine a test can hang
+# instead of failing. (cargo nextest run takes `--config KEY=VALUE` for Cargo, not for nextest, so the timeout needs this file.)
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.cargo_dispatch}}
+{{vars.windows_gnu_dispatch}}
+process.env.SLINT_EMIT_DEBUG_INFO = '1'
+runWindowsGnu(['nextest', 'run', '--target', gnuTarget, '--no-fail-fast', '--config-file', 'nextest.windows-gnu.toml'])
+"""
+
 [tasks.mcp]
 description = "Build --features slint/mcp (debug) and run HEADLESS with the embedded Slint MCP server on SLINT_MCP_PORT (default 9315) so an agent can drive/inspect the UI. Pass file/folder paths after --."
 usage = '''
 arg "[args]" var=#true help="File or folder paths to enqueue (loaded PAUSED)"
 '''
-# The embedded MCP server (Slint 1.17 `slint/mcp` feature, activated by
+# The embedded MCP server (Slint 1.18 `slint/mcp` feature, activated by
 # SLINT_MCP_PORT) exposes get_element_tree / find_elements_by_id / take_screenshot
 # / click_element / set_element_value etc. over MCP Streamable HTTP on
 # 127.0.0.1:<port>/mcp. The repo-root .mcp.json points Claude at that URL, so a
@@ -205,10 +302,25 @@ execFileSync(bin, extras, { stdio: 'inherit' })
 
 [tasks."lint:slint"]
 description = "Type-check ui/app.slint with slint-viewer --check (compiles the markup, opens no window, exits non-zero on error)"
-# slint-viewer is the same 1.17 compiler family as slint-build, and
+# slint-viewer is the same 1.18 compiler family as slint-build, and
 # SLINT_ENABLE_EXPERIMENTAL_FEATURES (from [env]) enables the FlexboxLayout builtin
 # the UI uses, so this catches .slint markup errors fast without a full Rust build.
 run = "slint-viewer --check ui/app.slint"
+
+[tasks."test:e2e"]
+description = "Release build, then press every D106 shortcut as a real key event in the nested compositor (own PipeWire null sink, scratch XDG dirs)"
+# One task builds, then runs the end-to-end suite, in this order, so a stale binary is never exercised. The suite is the
+# package/music-player/desktop-e2e package: it hosts the release binary in the monochromatic-nested-wayland-session that
+# mise has installed (found with `mise where`, any version from 0.4.0 on), presses keys through the compositor's control socket, and reads state from the app's `ui_state` log lines (the release
+# build has no MCP server), from screenshots, files and the nested clipboard. The command runs in this directory, where
+# it finds target/release/music-player and writes screenshots and e2e-summary.json to target/e2e.
+# Environment: E2E_ONLY (a check id or group prefix to run alone), E2E_OUT (screenshots and summary, default
+# target/e2e), E2E_TMP (scratch root), E2E_LIBRARY_GENERATOR (the library generator script), E2E_COMPOSITOR (a
+# compositor executable to use instead of the mise install).
+run = [
+  { tasks = ["build"] },
+  "node ../desktop-e2e/src/cli.ts",
+]
 
 [tasks.screenshot]
 description = "Render ui/app.slint to target/app.slint.png HEADLESS; set SLINT_SCREENSHOT_WIDTH/HEIGHT for responsive snapshots"
@@ -270,6 +382,35 @@ process.env.SLINT_EMIT_DEBUG_INFO = '1'
 containerCargo(['nextest', 'run', '--release'])
 """
 
+[tasks."test:alpine"]
+description = "Alpine (musl) guard in podman, the same commands as the test-alpine job of .github/workflows/music-player-release.yml: build Containerfile.alpine, cargo nextest, build the app and the nested compositor, then the three smoke scenarios (no sound, ALSA, PipeWire)"
+# Everything runs inside Alpine containers with explicit bounds; the cargo registry and both target directories live under
+# target/alpine-cache (gitignored) so a second run reuses them, as the workflow's actions/cache does. The workflow is the
+# reference: change a command in both places.
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { mkdirSync } = await import('node:fs')
+const { join, resolve } = await import('node:path')
+const packageDir = process.cwd()
+const musicPlayer = resolve(packageDir, '..')
+const compositor = resolve(packageDir, '../../nested-wayland-session/cli')
+const cache = join(packageDir, 'target', 'alpine-cache')
+for (const sub of ['cargo', 'target-app', 'target-nws', 'scratch', 'smoke-out', 'context']) { mkdirSync(join(cache, sub), { recursive: true }) }
+const podman = (args) => execFileSync('podman', args, { stdio: 'inherit' })
+for (const target of ['build', 'smoke']) {
+  podman(['build', '--target', target, '--tag', `music-player-alpine-${target}`, '--file', 'Containerfile.alpine', join(cache, 'context')])
+}
+const bounds = ['--memory=12g', '--cpus=4', '--security-opt', 'label=disable']
+const appMounts = ['--volume', `${musicPlayer}:/src:ro`, '--volume', `${join(cache, 'cargo')}:/cargo`, '--volume', `${join(cache, 'target-app')}:/target`]
+const appEnv = ['--env', 'CARGO_HOME=/cargo', '--env', 'CARGO_TARGET_DIR=/target', '--env', 'CARGO_INCREMENTAL=0', '--env', 'CARGO_PROFILE_DEV_DEBUG=0', '--env', 'SLINT_EMIT_DEBUG_INFO=1', '--env', 'SLINT_ENABLE_EXPERIMENTAL_FEATURES=1']
+podman(['run', '--rm', ...bounds, ...appMounts, '--volume', `${join(cache, 'scratch')}:/src/desktop-app/target`, ...appEnv, '--workdir', '/src/desktop-app', 'music-player-alpine-build', 'cargo', 'nextest', 'run', '--locked', '--features', 'alsa-fallback', '--no-fail-fast'])
+podman(['run', '--rm', ...bounds, ...appMounts, ...appEnv, '--workdir', '/src/desktop-app', 'music-player-alpine-build', 'cargo', 'build', '--locked', '--features', 'alsa-fallback'])
+podman(['run', '--rm', ...bounds, '--volume', `${compositor}:/src:ro`, '--volume', `${join(cache, 'cargo')}:/cargo`, '--volume', `${join(cache, 'target-nws')}:/target`, '--env', 'CARGO_HOME=/cargo', '--env', 'CARGO_TARGET_DIR=/target', '--env', 'CARGO_INCREMENTAL=0', '--env', 'CARGO_PROFILE_RELEASE_LTO=false', '--env', 'CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16', '--workdir', '/src', 'music-player-alpine-build', 'cargo', 'build', '--release', '--locked'])
+podman(['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${join(cache, 'target-app', 'debug', 'music-player')}:/opt/music-player/music-player:ro`, '--volume', `${join(cache, 'target-nws', 'release', 'monochromatic-nested-wayland-session')}:/opt/music-player/nws:ro`, '--volume', `${join(packageDir, 'fixture')}:/opt/music-player/fixture:ro`, '--volume', `${join(cache, 'smoke-out')}:/tmp/smoke-out`, 'music-player-alpine-smoke', 'music-player-smoke'])
+console.error(`smoke screenshots and logs: ${join(cache, 'smoke-out')}`)
+"""
+
 [tasks."verify:container"]
 description = "Assert the container build/clippy/test path works even when the host has the dev libs"
 # Aborts on the first failing step (execFileSync throws) so a broken container
@@ -297,8 +438,12 @@ arg "[args]" var=#true help="File or folder paths to enqueue"
 # session natively: no socket passthrough, no --userns=keep-id, and the .desktop
 # association + LauncherEntry taskbar progress work without the container's SASL
 # EXTERNAL uid juggling. A container-built binary links only against runtime libs
-# present on the host (verified with `ldd`), and a binary built on the older
-# container glibc (Fedora 41) runs on the newer host glibc (Fedora 44+).
+# present on the host (verified with `ldd`). The container is CachyOS, which ships the newest glibc: a plain `cargo build` there on
+# 2026-10-29 gave a binary that needed GLIBC_2.44 (`sinh`, `cosh`) and did not start on a Fedora 44 host with glibc 2.43
+# ("version `GLIBC_2.44' not found"). So the container fallback builds with cargo-zigbuild for x86_64-unknown-linux-gnu.2.39
+# (target/x86_64-unknown-linux-gnu/release/music-player), and the binary needs no glibc newer than 2.39. The run-quick and
+# run-debug tasks do the same with their own profile, flags and target directory. Zig is a stopgap, used only on these build
+# paths: issue #1814 tracks replacing it (candidates without Zig: polyfill-glibc, obggcc).
 #
 # The host environment already provides WAYLAND_DISPLAY, XDG_RUNTIME_DIR, the
 # D-Bus session bus, PipeWire, and the XDG user dirs, so the empty-launch auto-load
@@ -317,7 +462,10 @@ run = """
 const { mkdirSync, copyFileSync } = await import('node:fs')
 const { join } = await import('node:path')
 const home = process.env.HOME ?? ''
-runCargo(['build', '--release'])
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39, so the binary starts on any host with glibc 2.39 or newer.
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--release', '--target', 'x86_64-unknown-linux-gnu.2.39']) } else { runCargo(['build', '--release']) }
+const releaseBinary = viaContainer ? 'target/x86_64-unknown-linux-gnu/release/music-player' : 'target/release/music-player'
 let bin
 if (process.platform !== 'linux') {
   bin = process.platform === 'win32' ? './target/release/music-player.exe' : './target/release/music-player'
@@ -327,12 +475,40 @@ if (process.platform !== 'linux') {
   copyFileSync('share/applications/monochromatic.music-player.desktop', join(appsDir, 'monochromatic.music-player.desktop'))
   const binDir = join(home, '.local/bin')
   mkdirSync(binDir, { recursive: true })
-  copyFileSync('target/release/music-player', join(binDir, 'music-player'))
+  copyFileSync(releaseBinary, join(binDir, 'music-player'))
   bin = join(binDir, 'music-player')
 } else {
-  bin = './target/release/music-player'
+  bin = './' + releaseBinary
 }
 const extras = parseUsageArgs(process.env.usage_args ?? '')
+execFileSync(bin, extras, { stdio: 'inherit' })
+"""
+
+[tasks."run-quick"]
+description = "Release-optimised build WITHOUT link-time optimisation, then run it on the host for fast iteration (pass file/folder paths after --)"
+usage = '''
+arg "[args]" var=#true help="File or folder paths to enqueue"
+'''
+# Middle path between `run` (thin LTO since 2026-10-11, the distributed binary) and `run-debug` (unoptimised, too slow
+# to analyse a library). Measured on this crate on a loaded 16-core host (load average 27 to 43, so compare the settings with each
+# other, not the absolute numbers): rebuilding only this crate took ~300 s with fat LTO, ~60 s with thin LTO and
+# ~17 s with LTO off (two runs each, within 3 s of each other); the binary is 41.6 MB, 46.4 MB and 46.7 MB. Fat LTO
+# spends 287 of the 302 s of rustc time in `LLVM_fatlto` (rustc -Ztime-passes), not in compiling this crate's code.
+# `CARGO_PROFILE_RELEASE_LTO=off` overrides the profile for this run only, so Cargo.toml (generated by file-enforcer)
+# is untouched, and a separate target directory keeps the `run` build cache warm. Like `run-debug`, it does NOT
+# install into ~/.local/bin or the .desktop file.
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.cargo_dispatch}}
+{{vars.parse_usage_args}}
+const { join } = await import('node:path')
+process.env.CARGO_PROFILE_RELEASE_LTO = 'off'
+process.env.CARGO_TARGET_DIR = join(process.cwd(), 'target', 'quick')
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39 (issue #1814 tracks replacing Zig), keeping this task's LTO setting and target directory.
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--release', '--target', 'x86_64-unknown-linux-gnu.2.39'], { env: ['-e', 'CARGO_PROFILE_RELEASE_LTO=off', '-e', 'CARGO_TARGET_DIR=/work/target/quick'] }) } else { runCargo(['build', '--release']) }
+const extras = parseUsageArgs(process.env.usage_args ?? '')
+const bin = process.platform === 'win32' ? './target/quick/release/music-player.exe' : viaContainer ? './target/quick/x86_64-unknown-linux-gnu/release/music-player' : './target/quick/release/music-player'
 execFileSync(bin, extras, { stdio: 'inherit' })
 """
 
@@ -349,9 +525,11 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.cargo_dispatch}}
 {{vars.parse_usage_args}}
-runCargo(['build'])
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39 (issue #1814 tracks replacing Zig).
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--target', 'x86_64-unknown-linux-gnu.2.39']) } else { runCargo(['build']) }
 const extras = parseUsageArgs(process.env.usage_args ?? '')
-const bin = process.platform === 'win32' ? './target/debug/music-player.exe' : './target/debug/music-player'
+const bin = process.platform === 'win32' ? './target/debug/music-player.exe' : viaContainer ? './target/x86_64-unknown-linux-gnu/debug/music-player' : './target/debug/music-player'
 execFileSync(bin, extras, { stdio: 'inherit' })
 """
 
@@ -395,7 +573,10 @@ shell = "node --input-type=module-typescript -e"
 run = """
 const { execFileSync } = await import('node:child_process')
 const { mkdirSync } = await import('node:fs')
-execFileSync('podman', ['build', '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
 const img = 'localhost/monochromatic/icon-tools'
 const mount = `${process.cwd()}:/work`
 const inContainer = (toolArgs) => execFileSync('podman', ['run', '--rm', '--security-opt', 'label=disable', '-v', mount, '-w', '/work', img, ...toolArgs], { stdio: 'inherit' })
@@ -411,7 +592,8 @@ console.log('regenerated asset/music-player.icns and asset/music-player.ico; com
 # Distribution / code signing.
 # The per-OS binaries are still BUILT on their own OS (the Mach-O on the Mac, the
 # .exe on Windows, both via `build`), because cross-compiling a Slint+cpal GUI
-# from Linux is out of scope. Only the bundling + signing + notarization is
+# from Linux is out of scope for what ships. (`build:windows-gnu` does cross-compile the
+# GNU Windows target in a container, as a proof of the toolchain; that .exe has no icon.) Only the bundling + signing + notarization is
 # cross-platform and centralized here on Linux: rcodesign (a repo-wide mise tool)
 # for macOS, osslsigncode (in Containerfile.sign) for Windows. Each task assumes
 # the freshly built binary has been synced into dist/. Real credentials are read
@@ -500,7 +682,10 @@ shell = "node --input-type=module-typescript -e"
 run = """
 const { execFileSync } = await import('node:child_process')
 const { existsSync, mkdirSync } = await import('node:fs')
-execFileSync('podman', ['build', '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
 const exe = process.env.MP_WIN_EXE ?? 'dist/music-player.exe'
 if (!existsSync(exe)) { throw new Error(`Windows exe not found at ${exe}. Build on x13-win then copy target/release/music-player.exe to ${exe}. Build task: //package/music-player/desktop-app:build`) }
 const out = 'dist/music-player-signed.exe'

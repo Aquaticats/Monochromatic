@@ -1,0 +1,25 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/jsonc-edit-core-ts.conformance",
+  "description": "Curated JSONC conformance corpus (VS Code JSONC semantics) for @monochromatic-dev/jsonc-edit-core-ts. Sidecar tooling kept out of the runtime package so its source stays pure production code.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/jsonc-edit-core-ts": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "type-fest": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/jsonc-edit/core-ts.conformance"
+  }
+}

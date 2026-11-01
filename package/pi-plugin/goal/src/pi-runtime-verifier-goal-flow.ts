@@ -134,8 +134,8 @@ async function verifyDiscoveredGoalFlow(
   requireCondition({
     condition: harness.messages
       .every(function containsNoProtocol(message,) {
-      return taskContentHasNoProtocol(message.content,);
-    },),
+        return taskContentHasNoProtocol(message.content,);
+      },),
     message: 'task kickoff exposed harness protocol',
   },);
 

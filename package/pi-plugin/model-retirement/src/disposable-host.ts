@@ -15,14 +15,14 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
 } from 'node:path';
 import { text, } from 'node:stream/consumers';
 import { fileURLToPath, } from 'node:url';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 //region Constants
 
@@ -165,15 +165,15 @@ export type HostRun = {
 export function modelsJsonFixture(): string {
   return JSON.stringify(
     {
-    providers: {
-      [TARGET_PROVIDER]: {
-        modelOverrides: {
-          'gpt-6-luna': { contextWindow: OVERRIDDEN_CONTEXT_WINDOW, },
-          'gpt-6.1-sol': { contextWindow: OVERRIDDEN_CONTEXT_WINDOW, },
+      providers: {
+        [TARGET_PROVIDER]: {
+          modelOverrides: {
+            'gpt-6-luna': { contextWindow: OVERRIDDEN_CONTEXT_WINDOW, },
+            'gpt-6.1-sol': { contextWindow: OVERRIDDEN_CONTEXT_WINDOW, },
+          },
         },
       },
     },
-  },
     null,
     2,
   );
@@ -220,7 +220,7 @@ export async function createDisposableHome(): Promise<{
    Throwaway root holding everything this run writes.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-model-retirement-host-',
   ),);
   /**
@@ -423,10 +423,10 @@ export async function runDisposableHost(
     process.execPath,
     args,
     {
-    cwd,
-    env,
-    signal: AbortSignal.timeout(HOST_TIMEOUT_MS,),
-  },
+      cwd,
+      env,
+      signal: AbortSignal.timeout(HOST_TIMEOUT_MS,),
+    },
   );
   /**
    Captured output, started before stdin closes so nothing is missed.

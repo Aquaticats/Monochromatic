@@ -77,6 +77,11 @@ export class SeededRandomError extends Error {
 export const SEED_MODULUS = 4_294_967_296;
 
 /**
+ The only characters a seed's text may hold.
+ */
+const DECIMAL_DIGITS = '0123456789';
+
+/**
  FNV-1a 32-bit offset basis.
  */
 const FNV_OFFSET = 0x81_1C_9D_C5;
@@ -143,20 +148,20 @@ export function deriveSeed({
       index,
     ) {
     // Labels are ASCII, so code points and code units coincide.
-    return text.codePointAt(index,) ?? 0;
-  },
+      return text.codePointAt(index,) ?? 0;
+    },
   )
     .reduce(
-      function fnvStep(
-        hash,
-        unit,
-      ) {
-    return Math.imul(
-      hash ^ unit,
-      FNV_PRIME,
-    ) >>> 0;
-  },
-      FNV_OFFSET,
+    function fnvStep(
+      hash,
+      unit,
+    ) {
+      return Math.imul(
+        hash ^ unit,
+        FNV_PRIME,
+      ) >>> 0;
+    },
+    FNV_OFFSET,
     );
 }
 
@@ -241,6 +246,9 @@ export function createSeededRandom(seed: number,): SeededRandom {
     next,
     integer,
     pick<const Element,>(items: readonly Element[],): Element {
+      // The empty case is refused before any draw, so the caller sees the argument at fault and the sequence is untouched.
+      if (items.length === 0)
+        throw new SeededRandomError('cannot pick from an empty array',);
       /**
        Chosen element.
        */
@@ -248,7 +256,7 @@ export function createSeededRandom(seed: number,): SeededRandom {
         min: 0,
         max: items.length - 1,
       },)];
-      if ((items.length === 0) || (chosen === undefined))
+      if (chosen === undefined)
         throw new SeededRandomError('cannot pick from an empty array',);
       return chosen;
     },
@@ -319,9 +327,17 @@ export function parseSeed({
       generated: true,
     };
   /**
+   Seed text without surrounding whitespace.
+   */
+  const trimmed = text.trim();
+  // `Number` also reads hexadecimal, binary, octal, exponent and signed spellings, so the digits are checked first.
+  /**
    Parsed decimal seed.
    */
-  const seed = Number(text.trim(),);
+  const seed = trimmed.split('',)
+    .every(function isDecimalDigit(character,) {
+      return DECIMAL_DIGITS.includes(character,);
+    },) ? Number(trimmed,) : Number.NaN;
   if ((!Number.isSafeInteger(seed,)) || (seed < 0)
     || (seed >= SEED_MODULUS))
     throw new SeededRandomError(`seed must be a decimal unsigned 32-bit integer, got ${text}`,);

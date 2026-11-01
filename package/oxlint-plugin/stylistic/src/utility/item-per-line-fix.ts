@@ -207,7 +207,7 @@ export function buildPerLineFix({
         .trim();
       if (raw.endsWith(';',)
         || raw
-        .endsWith(',',)) {
+          .endsWith(',',)) {
         return raw.slice(
           0,
           -1,
@@ -229,7 +229,7 @@ export function buildPerLineFix({
    */
   const hasTrailingDelimiter = trailingRegion.has(',',)
     || trailingRegion
-    .has(';',);
+      .has(';',);
 
   /**
    Items rendered one per line with `childIndent` prefix and the appropriate delimiter suffix.

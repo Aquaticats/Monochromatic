@@ -222,14 +222,14 @@ function sharedRepository(random: Parameters<ScenarioDefinition['repository']>[0
           _unused,
           index,
         ) {
-        return `shared base line ${String(index,)} ${String(random.integer({
+          return `shared base line ${String(index,)} ${String(random.integer({
           min: 0,
           max: LINE_SUFFIX_MAX,
         },),)}`;
-      },
+        },
       ),),
     },],
-    hooks: 'hookdir',
+    hooks: 'config',
     hookEvents: ['pre-commit',],
   },);
 }
@@ -245,6 +245,8 @@ const sharedNonOverlapping: ScenarioDefinition = {
   name: 'shared-file-non-overlapping-hunks',
   group: 'concurrency',
   summary: 'two agents commit the same file with far-apart hunks while the first is still preparing',
+  // The first agent is held in a config `pre-commit` hook (Git 2.54.0).
+  minimumGit: '2.54.0',
   repository: sharedRepository,
   async run(context,) {
     /**
@@ -269,6 +271,8 @@ const sharedOverlapping: ScenarioDefinition = {
   name: 'shared-file-overlapping-hunks',
   group: 'concurrency',
   summary: 'two agents rewrite the same lines; one may fail only as a reported replay conflict',
+  // The first agent is held in a config `pre-commit` hook (Git 2.54.0).
+  minimumGit: '2.54.0',
   repository: sharedRepository,
   async run(context,) {
     /**
@@ -299,8 +303,8 @@ const sharedOverlapping: ScenarioDefinition = {
             .exitCode
             === 1)
             && attempt.outcome
-            .stderr
-            .includes('"type":"core-finding"',);
+              .stderr
+              .includes('"type":"core-finding"',);
         },),
         detail: failed.map(function describe(attempt,) {
           return `${attempt.label} exited ${String(attempt.outcome

@@ -1,0 +1,1309 @@
+# mpm-shadow
+
+Owns this repository's toolchain plan and lock,
+and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
+
+- As `mpm-shadow` it runs the toolchain commands,
+  named after pnpm's
+  (see "Command names follow pnpm"):
+  `install` (alias `i`),
+  `update`,
+  `outdated`,
+  `list` (alias `ls`),
+  `bin`,
+  `prune`,
+  and `verify-archive`.
+- As `mpm` (a link the toolchain plan creates) it finds the real `mpm` on `PATH`,
+  runs it with the arguments untouched and the standard streams inherited,
+  waits for it,
+  deletes the superseded cached versions of this repository's own crates from cargo's registry,
+  and exits with mpm's own status.
+
+## Design rule: pnpm answers first
+
+Where pnpm's behaviour answers a toolchain question
+(the plan,
+the lock,
+`update`,
+`install`,
+`install`,
+or what happens in CI and when frozen),
+mpm-shadow follows it,
+and the change is recorded,
+even when it overrides an earlier decision line.
+Only what pnpm leaves open goes to the owner.
+The user's words:
+"Please go with pnpm style instead of blocking questions that can be resolved by it on me."
+The decisions themselves are in `doc/decision/file-enforcer-rust-rewrite.md`,
+section "Toolchain (mpm-shadow)".
+
+## Command names follow pnpm
+
+The commands are pnpm's,
+with the meaning pnpm gives them,
+checked against the pages on <https://pnpm.io> on 2026-10-31
+and against pnpm 12.16.1 in disposable directories.
+The old names (`sync`,
+`lock`,
+`lock --check`,
+`update --check`,
+`status`,
+`bin-paths`,
+`--frozen-lock`
+and `--no-frozen-lock`)
+no longer exist and have no aliases,
+because pnpm has none.
+
+- `install`:
+  <https://pnpm.io/cli/install>,
+  "Aliases:
+  `i`",
+  `--frozen-lockfile`,
+  `--no-frozen-lockfile`,
+  `--lockfile-only` ("only updates `pnpm-lock.yaml`...
+  Nothing gets written to the `node_modules` directory")
+  and `--offline`.
+  It replaces `sync`.
+- `install --lockfile-only --offline`:
+  replaces `lock`.
+  pnpm's `--offline` resolves from its metadata cache;
+  mpm-shadow has no such cache,
+  so an offline run rewrites only the declaration fields of rows the lock already holds
+  and refuses an entry that needs resolving.
+- `install --lockfile-only --frozen-lockfile`:
+  replaces `lock --check`.
+  The pnpm page says nothing about this combination;
+  measured with pnpm 12.16.1,
+  it exits 0 when the lockfile matches the manifest and 1 (`ERR_PNPM_OUTDATED_LOCKFILE`) when it does not,
+  and writes nothing,
+  which is the check this command did.
+- `outdated`:
+  <https://pnpm.io/cli/outdated>,
+  "exits with code 1 when any dependency is outdated",
+  and takes patterns the way `update` does.
+  It replaces `update --check` and exits 1 when any selected tool would move or a lookup fails.
+  pnpm's `--json`,
+  `--format`
+  and `--long` are not offered:
+  the report is the same text `update` prints.
+- `list`:
+  <https://pnpm.io/cli/list>,
+  "Aliases:
+  `ls`".
+  It replaces `status`.
+  The pnpm page leaves exit codes open,
+  so `list` keeps exiting 1 on drift.
+  pnpm's `--json`,
+  `--parseable`
+  and `--depth` are not offered.
+- `bin`:
+  <https://pnpm.io/cli/bin>,
+  "Prints the directory into which the executables of dependencies are linked",
+  with `--global`.
+  Plain `bin` prints the exposure directory.
+  The page has no `--json`;
+  `bin --json` prints the document the IDE launcher reads (`exposureDir`,
+  `pathDirs`
+  and `bins`),
+  following the `--json` that pnpm's `list` and `outdated` pages document.
+  It replaces `bin-paths`.
+- `--global` also has pnpm's short form `-g`.
+- Unchanged:
+  `update` (<https://pnpm.io/cli/update>),
+  `prune`,
+  which keeps its name,
+  and `verify-archive`,
+  which has no pnpm counterpart.
+
+## Toolchain plan and lock
+
+People edit `toolchain.plan.jsonc` (JSONC:
+comments and trailing commas are allowed).
+mpm-shadow is the only writer and the only checker of `toolchain.lock.json`,
+which stays strict JSON because `jq` readers in CI and Dockerfiles select
+`.tools.<id>.version`,
+`.tools.<id>.artifacts.<platform>.{url,sha256}`
+and `.tools.<id>.options.androidPackages`.
+
+The machine-global toolchain has the same two files in `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`;
+every command takes `--global` to act on them.
+The repository scope is found from the working directory by the nearest `toolchain.plan.jsonc`,
+or from `MONOCHROMATIC_WORKTREE_ROOT`.
+
+### The plan
+
+Every entry has a stable id (an alias,
+like a `package.json` key)
+and a `request`,
+like a `package.json` value:
+`<origin>@<range>`.
+The origin says where versions come from,
+the range says which are wanted
+(`latest`,
+an exact version or tag,
+a channel such as `nightly`,
+or a Java major line such as `21`).
+
+```jsonc
+// toolchain.plan.jsonc
+{
+  "schemaVersion": 1,
+  "tools": {
+    // Why this pin exists belongs here, beside it.
+    "bin": { "request": "github:marcosnils/bin@0.29.4", "route": "archive", "bins": ["bin"] },
+    "age": { "request": "github:FiloSottile/age@latest", "route": "archive", "bins": ["age", "age-keygen"] },
+    "zig": { "request": "zig@0.15.2", "route": "archive", "bins": ["zig"] },
+    "cargo:fd-find": { "request": "cargo:fd-find@latest", "route": "cargo-binstall", "bins": ["fd"] },
+    // `{version}` stands for the resolved version in `packageId` and in `env` values.
+    "rust": {
+      "request": "rust@nightly", "route": "rustup-toolchain", "packageId": "{version}",
+      "bins": ["rustc"], "env": { "RUSTUP_TOOLCHAIN": "{version}" }
+    }
+  }
+}
+```
+
+- A tool is `request`,
+  `route`,
+  optional `manager`,
+  `packageId`
+  and `os`,
+  `bins`,
+  `env`
+  and `options`.
+- The origins are
+  `github:<owner>/<repo>` (a generic release resolver),
+  `npm:`,
+  `cargo:`,
+  `pipx:`,
+  `conda:`,
+  `go:<module>`,
+  `git:<url>` (the range is the revision),
+  and the named resolvers
+  `node`,
+  `go`,
+  `zig`,
+  `rustup`,
+  `aws`,
+  `rust`,
+  `android-sdk`
+  and `java:temurin`.
+- The `@` that separates the range is the last one not preceded by `:` or `/`,
+  so `npm:@actions/languageserver@0.3.61` reads as expected.
+- The routes are
+  `bin-sourced`,
+  `archive`,
+  `cargo-binstall`,
+  `cargo-git`,
+  `mpm-pnpm`,
+  `mpm-uvx`,
+  `go-install`,
+  `rustup-toolchain`,
+  `rustup-components`
+  and `android-sdk`.
+  The route is how a tool installs;
+  the request is where its versions come from.
+- An unknown field or origin is an error naming its path.
+  `version` and `artifacts` are not plan fields:
+  only `update` writes them.
+- Tools install in the order written,
+  except that `bin`,
+  `uv`,
+  `mpm`,
+  `rustup`,
+  `rust`,
+  `cargo-binstall`,
+  `go`,
+  `node`
+  and `pnpm` come first.
+
+#### The `github:` resolver
+
+- It takes the newest release (or the release of the range as a tag,
+  with and without a leading `v`),
+  and for each of the four Linux platforms
+  (`linux-x64`,
+  `linux-x64-musl`,
+  `linux-arm64`,
+  `linux-arm64-musl`)
+  the asset whose name says Linux and the platform's CPU
+  (`x86_64`,
+  `amd64`,
+  `x64`,
+  `aarch64`,
+  `arm64`).
+- It skips checksums,
+  signatures,
+  installer packages,
+  scripts,
+  other operating systems and CPUs,
+  baseline,
+  debug,
+  source,
+  `.full.`
+  and GPU (`vulkan`,
+  `rocm`,
+  `cuda`)
+  builds;
+  an `options.asset` glob that matches a GPU build's name lets that build through,
+  and is the only way to ask for one.
+- It prefers the platform's libc (a `musl` name for a musl platform,
+  otherwise one without),
+  then `.tar.gz`,
+  `.tar.xz`,
+  `.zip`,
+  `.gz`,
+  and a bare file.
+- Two equally good assets are an error that names both.
+  `options.asset` (a glob with `*`) settles it,
+  for example `"asset": "harper-cli-*"` for a release that ships two programs.
+- A platform with no matching asset is left out of the lock
+  and fails at `install` with a message naming it.
+- The version is the tag without its `v` or `name-v` prefix.
+- `options.tagPrefix` picks one program's releases in a repository that tags several
+  (this repository tags `monochromatic-mpm-shadow-v0.2.0`,
+  `monochromatic-lint-v0.4.0`,
+  and so on).
+  With `"request": "github:Aquaticats/Monochromatic@latest"`
+  and `"tagPrefix": "monochromatic-mpm-shadow-v"`,
+  the resolver reads the release list
+  (100 per page,
+  newest first)
+  until a short page or the tenth page,
+  and takes the highest version among the releases that are neither a draft nor a prerelease
+  and whose tag is the prefix followed by one whole version
+  (`1.2.3` or `1.2.3-rc.1`;
+  a `v` in front of it only when the prefix does not end in `v`);
+  the version is that rest of the tag.
+  The list is ordered by creation,
+  not by version:
+  a backport released later sits ahead of the newer line,
+  so the first match is not necessarily the highest version.
+  A tag such as `monochromatic-foo-2-v1.0.0` is a release of another program and never matches
+  the prefix `monochromatic-foo-`.
+  A range names a tag:
+  the prefix and the range as written,
+  then (unless the prefix ends in `v`) the prefix,
+  `v` and the range;
+  a tag that does not continue the prefix with a version is refused.
+  A list with no such release is an error that names the prefix,
+  and says so when the search stopped at its cap of ten pages.
+  Taking the highest version means reading every page until a short one (up to ten),
+  so one lookup can cost ten API requests,
+  each on a new connection because the client keeps none open.
+  GitHub's primary limit for unauthenticated requests is 60 an hour
+  (see
+  [the REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)),
+  and the resolver sends the token of `GITHUB_TOKEN`,
+  or of a logged-in `gh`,
+  when there is one.
+  Changing the prefix is a resolution-affecting edit:
+  it needs `mpm-shadow update`.
+  Characters other than letters,
+  digits,
+  `.`,
+  `_`
+  and `-` are refused.
+
+#### Lock rows
+
+- A downloaded tool is recorded for the four Linux platforms only
+  (the repository's Linux-only stopgap).
+- Zig,
+  Go,
+  Node,
+  rustup,
+  conda
+  and GitHub publish checksums,
+  which the lock records.
+  Java uses the release asset's digest.
+  The Android command-line tools and the AWS CLI publish none,
+  so `update` downloads each once and records the hash of what it got.
+
+### The lock
+
+- The lock is derived from the plan and nothing else.
+  Deleting `toolchain.lock.json` and running `update` rebuilds it
+  (the same versions for exact requests,
+  the newest for `latest`).
+  No resolver reads a previous lock row to learn a repository,
+  a tag shape,
+  an asset
+  or a platform list.
+- Tool entries keep the key order `request, version, route, manager, packageId, bins, os, env, options, artifacts`.
+- A top-level `digest` (`sha256:` and the hash of the compact JSON of everything else) covers the whole content.
+  `install --lockfile-only --frozen-lockfile` recomputes it,
+  so a hand edit of a resolved version,
+  a URL or a hash fails the gate.
+  A reformatted file keeps its digest.
+
+### What the cutover converter must write
+
+For every entry the converter writes a `request` string.
+Package-manager entries keep their specifier:
+`cargo:<crate>@latest`,
+`npm:<name>@latest`,
+`pipx:<name>@latest`
+(`@<version>` where the old request was `pinned`,
+for example `cargo:cargo-fuzz@0.13.2`).
+`manager` and `packageId` become optional because the request names the package;
+`routes`,
+`bins`,
+`os`
+and every `options` field except `cargoGit` (replaced by `git:<url>@<revision>`)
+and `assetPattern` (renamed `asset`) carry over unchanged.
+
+**The `{version}` placeholder is required.**
+Where a field must equal the resolved version,
+the converter must write `{version}`,
+never today's literal:
+
+- `rust`:
+  `"packageId": "{version}"` and `"env": { "RUSTUP_TOOLCHAIN": "{version}" }`.
+- `java`:
+  `"env": { "JAVA_HOME": "java/{version}" }`.
+- `android-sdk`:
+  `"env": { "ANDROID_HOME": "android-sdk/{version}", "ANDROID_SDK_ROOT": "android-sdk/{version}" }`.
+
+A literal such as `nightly-2026-10-30` there would make the first `update` move `version`
+while `packageId` keeps the old date,
+and `rustup toolchain install` would install the stale channel.
+
+Requests for today's downloaded tools,
+each checked by a live `update` in a disposable home against the current lock
+(the four Linux platforms resolve to the same files,
+except where a musl platform now gets the musl build the release offers):
+
+- `bin`:
+  `github:marcosnils/bin@0.29.4` (pinned;
+  keep the `bootstrap` option).
+- `mpm`:
+  `pipx:meta-package-manager@8.2.0`
+  (pinned;
+  keep `route: mpm-uvx` and the `bootstrap` option with `distribution: wheel`).
+- `bun`:
+  `github:oven-sh/bun@bun-v1.3.14` (pinned tag;
+  keep `binAliases`).
+  The baseline platforms (`linux-x64-baseline` and the musl baseline) are no longer recorded.
+- `pnpm`:
+  `github:pnpm/pnpm@latest` (keep `binAliases`).
+- `ripgrep`:
+  `github:BurntSushi/ripgrep@latest`.
+- `node`:
+  `node@latest`.
+- `harper-cli`:
+  `github:Automattic/harper@latest` with `"asset": "harper-cli-*"`.
+- `dprint`:
+  `github:dprint/dprint@latest`.
+- `uv`:
+  `github:astral-sh/uv@latest`.
+- `hyperfine`:
+  `github:sharkdp/hyperfine@latest`.
+- `caddy`:
+  `github:caddyserver/caddy@latest`.
+- `watchexec`:
+  `github:watchexec/watchexec@latest`.
+- `sops`:
+  `github:getsops/sops@latest`.
+- `age`:
+  `github:FiloSottile/age@latest`.
+- `cargo-binstall`:
+  `github:cargo-bins/cargo-binstall@latest`.
+- `cmake`:
+  `github:Kitware/CMake@latest`.
+- `zig`:
+  `zig@0.15.2` (pinned).
+- `conda:bubblewrap`:
+  `conda:bubblewrap@latest` (keep `os: ["linux"]`;
+  the package is a `.conda` file,
+  which `install` unpacks with `unzip` and `tar --zstd`).
+- `taplo`:
+  `github:tamasfe/taplo@latest` (keep `binAliases`).
+- `tombi`:
+  `github:tombi-toml/tombi@latest` with `"asset": "tombi-cli-*"`.
+- `marksman`:
+  `github:artempyanykh/marksman@latest`.
+- `rumdl`:
+  `github:rvben/rumdl@latest`.
+- `github:Feel-ix-343/markdown-oxide`:
+  `github:Feel-ix-343/markdown-oxide@latest`.
+- `zizmor`:
+  `github:zizmorcore/zizmor@latest`.
+- `superhtml`:
+  `github:kristoff-it/superhtml@latest`.
+- `github:docker/docker-language-server`:
+  `github:docker/docker-language-server@latest`.
+- `llama.cpp`:
+  `github:ggml-org/llama.cpp@b9829` (pinned).
+- `opentofu`:
+  `github:opentofu/opentofu@latest`.
+- `hcloud`:
+  `github:hetznercloud/cli@latest`.
+- `betterleaks`:
+  `github:betterleaks/betterleaks@latest`.
+- `java`:
+  `java:temurin@21` (a major line that moves;
+  the version is `temurin-<release>.0.LTS`).
+- `android-sdk`:
+  `android-sdk@latest` (keep `androidPackages`).
+- `rust`:
+  `rust@nightly` (keep `rustComponents` and `rustTargets`).
+- The machine-global plan also holds `go: go@latest`,
+  `aws: aws@latest`,
+  `rustup: rustup@latest`
+  and `go:github.com/charmbracelet/crush@latest` on the `go-install` route.
+
+## Commands
+
+- `mpm-shadow install --lockfile-only --offline`:
+  rewrites the lock's declaration fields from the plan without the network,
+  keeping every resolved version and artifact.
+  It refuses a new tool or a resolution-affecting edit
+  (`request`,
+  `route`,
+  `manager`,
+  `packageId`,
+  `os`,
+  `asset`,
+  `bootstrap`)
+  and names `mpm-shadow update <id>` for just those tools.
+- `mpm-shadow install --lockfile-only --frozen-lockfile`:
+  the toolchain drift gate for CI,
+  beside `file-enforcer check`.
+  Writes nothing.
+  Exits 1 when the plan and lock disagree or the digest does not match.
+  In CI the frozen default applies when a lock exists,
+  so `install --lockfile-only` alone is the same check there.
+- `mpm-shadow install --lockfile-only`:
+  resolves the entries the lock lacks or holds for an older request,
+  writes only their rows,
+  and installs nothing.
+- `mpm-shadow update [<tool>...]`:
+  resolves every tool and writes the whole lock,
+  or,
+  given tool ids,
+  only those (see "Updating named tools").
+  A brand-new downloaded tool is just a new plan entry:
+  every origin has a resolver,
+  and none reads the previous lock.
+- `mpm-shadow outdated [<tool>...]`:
+  reports what `update` would move,
+  writes nothing,
+  installs nothing,
+  and exits 1 when something would move.
+- `mpm-shadow install [--frozen-lockfile | --no-frozen-lockfile]`:
+  first resolves the plan entries the lock lacks or holds for an older request
+  (see "Installing a plan that is ahead of the lock"),
+  then installs every locked tool that is not at its locked version,
+  makes the postinstall links,
+  rebuilds the exposure directory,
+  runs the postinstall commands
+  and then retires the old copies of this repository's tools
+  (see "Old copies of this repository's tools").
+- `mpm-shadow list`:
+  compares the installed tools with the lock.
+  Exits 1 on drift.
+  Also names the old copies of this repository's tools that `install` would retire,
+  which are not drift.
+- `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
+  deletes the cargo tool versions no known lock names
+  and the superseded versions of this repository's release archives (see "Cleanup").
+  Plain `mpm-shadow prune` is unchanged:
+  it cleans cargo's registry.
+- `mpm-shadow verify-archive <tool> <file> [--platform <id>]`:
+  hashes a downloaded file and compares it with the lock's SHA-256 for that tool and platform.
+- `mpm-shadow bin [--json]`:
+  prints the directory the executables are linked into;
+  with `--json`,
+  `exposureDir`,
+  `pathDirs`
+  and `bins` as JSON for the IDE launcher.
+  It reads only the plan and the file system.
+
+`list` refuses when the plan and lock disagree,
+and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update <ids>`;
+`install` does the same when frozen,
+and otherwise updates the lock itself:
+it resolves the new entries and writes the plan's other declaration changes.
+
+### Updating named tools
+
+`mpm-shadow update <tool>...` mirrors `pnpm update <pkg>...`:
+it looks up and moves only the tools it selects,
+and every other lock row keeps its version and artifacts
+(and takes the plan's current `bins`,
+`env`
+and `options`,
+as offline `install --lockfile-only` would give it).
+Adding a tool to the plan and running `mpm-shadow update <new id>` locks that tool alone,
+the way `pnpm install` after adding one dependency resolves only that dependency.
+
+- A name is a tool id,
+  or a pattern in which `*` stands for any run of characters
+  (`mpm-shadow update 'npm:*'`);
+  a leading `!` excludes
+  (`mpm-shadow update 'npm:*' '!npm:wrangler'`),
+  and only exclusions select everything else.
+  This is the pattern grammar of `pnpm update "@babel/*" "!@babel/core"`.
+- A name that matches no tool of the plan is refused with exit code 2,
+  before any lookup,
+  naming it and listing every valid id.
+  pnpm 12.16.1 accepts such a name silently and reports "Already up to date";
+  that hides a typo here,
+  where a name selects what to resolve.
+- A plan entry the lock cannot hold as it is
+  (no lock row,
+  or an edit of `request`,
+  `route`,
+  `manager`,
+  `packageId`,
+  `os`,
+  `options.asset`
+  or `options.bootstrap`)
+  that the names left out is refused,
+  before any lookup,
+  with the ids to add to the command.
+  Writing a lock with such a row kept would fail `install --lockfile-only --frozen-lockfile`,
+  and resolving it unasked would move what the command line did not name.
+  With no lock file every entry is such a row,
+  so a named update cannot create the lock;
+  plain `update` does.
+- `outdated` takes the same names:
+  it reports only the selected tools and exits 1 when one of them would move.
+- Not mirrored:
+  `--latest` (a request's range already says what is wanted),
+  `<tool>@<range>` (people edit the plan,
+  so a range changes there),
+  `--interactive`,
+  `--depth`,
+  and the workspace flags have no counterpart.
+  `update` installs only to retry a failed npm or PyPI lookup,
+  so it already behaves as `--lockfile-only` does.
+- `install --lockfile-only --offline` stays offline.
+  `install` resolves a plan that is ahead of the lock,
+  as the next section says.
+
+### Installing a plan that is ahead of the lock
+
+`mpm-shadow install` mirrors `pnpm install` after a dependency was added to `package.json`:
+the entries the lock cannot hold as they are
+(the same set the named `update` refuses to leave out:
+no lock row,
+or an edit of `request`,
+`route`,
+`manager`,
+`packageId`,
+`os`,
+`options.asset`
+or `options.bootstrap`)
+are resolved,
+only their rows are written to the lock,
+and then the install runs.
+No other row moves,
+exactly as with `mpm-shadow update <those ids>`,
+and the report prints `toolchain install: locked <id> <version> ...` for each.
+
+- **Frozen:**
+  with `--frozen-lockfile`,
+  or when a CI environment is detected,
+  `install` resolves nothing into an existing lock:
+  it refuses as before,
+  names `mpm-shadow update <ids>` for exactly those entries,
+  and says why it did not resolve.
+  pnpm's `--frozen-lockfile` is "true by default in CI environments"
+  and "pnpm detects a CI environment with the same rules as the ci-info package.
+  Set `CI=false` to turn detection off"
+  (<https://pnpm.io/cli/install>).
+  mpm-shadow ports those rules (`src/toolchain/ci_detect.rs`):
+  `CI=false` means not CI,
+  otherwise `CI`,
+  `BUILD_ID`,
+  `BUILD_NUMBER`,
+  `CI_APP_ID`,
+  `CI_BUILD_ID`,
+  `CI_BUILD_NUMBER`,
+  `CI_NAME`,
+  `CONTINUOUS_INTEGRATION`,
+  `RUN_ID`,
+  or a CI vendor's own variable (for example `GITHUB_ACTIONS`) means CI.
+- **`--no-frozen-lockfile`:**
+  resolves even in CI,
+  like pnpm's `--no-frozen-lockfile`.
+  The two switches cannot be combined.
+- **A lock that does not exist** is resolved in full and written by `install`,
+  frozen by CI or not,
+  and then the install runs.
+  pnpm's `--frozen-lockfile` defaults to "true,
+  if a lockfile is present" in CI,
+  so `CI=true pnpm install` with no `pnpm-lock.yaml` resolves and writes one
+  (checked with pnpm 12.16.1 in a disposable directory).
+  `--frozen-lockfile` given explicitly refuses instead,
+  as `pnpm install --frozen-lockfile` does with no lockfile
+  (it fails with `ERR_PNPM_NO_LOCKFILE`),
+  and names `mpm-shadow update`.
+- **A failed lookup** stops `install` before anything is written or installed,
+  naming the entry and the URL.
+- **Offline-fixable edits:**
+  a plan that differs from the lock only in what `install --lockfile-only --offline` fixes
+  (`bins`,
+  `env`,
+  the install options,
+  a removed entry,
+  the order)
+  is written into the lock by a non-frozen `install`,
+  without a lookup and without moving any version,
+  and the report prints `toolchain install: lock updated from the plan: ...` for each change.
+  This is pnpm's non-frozen install,
+  which updates the lockfile for any manifest change.
+  The same write also carries these edits when a new entry is resolved in the same run.
+  Frozen (`--frozen-lockfile`,
+  or CI with a lock present)
+  refuses instead,
+  writes nothing,
+  and names `mpm-shadow install --lockfile-only --offline`.
+- **A lock whose digest does not match**
+  is refused naming the restore,
+  under either policy.
+  `list` never resolves and never writes.
+
+## How it installs
+
+- `rustup toolchain install --no-self-update <channel>`,
+  then `rustup component add` and `rustup target add`,
+  straight from the lock.
+- `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
+  (see "Cargo tool installs").
+- `pnpm add --global <package>@<locked>`
+  and `uv tool install --force <package>==<locked>`,
+  or a wheel whose SHA-256 the lock records.
+- `archive` tools are downloaded,
+  checked against the lock's SHA-256,
+  and only then unpacked with `tar` or `unzip`.
+  A file that does not match is deleted and nothing is installed from it.
+  Every `archive` tool,
+  not only the ones this repository publishes,
+  is unpacked into a hidden staging directory,
+  marked complete,
+  and renamed to the version's name (see "Repository-published tools keep only the newest version");
+  only a release archive of this repository is also checked for its first program,
+  and only for it does the marker decide whether a version counts as installed.
+- `bin-sourced` tools go through the `bin` CLI.
+- A name taken from the plan,
+  the lock or a release tag is joined onto the toolchain root,
+  so each must be one plain directory name:
+  a tool id (after `/`,
+  `:` and `@` are turned into `-`) and a version must not be empty,
+  `.` or `..`,
+  hold `/`,
+  `\` or NUL,
+  or start with a dot,
+  a version must not be `current`,
+  and a tool id must not map to a directory the toolchain root keeps for something else
+  (`cargo`,
+  `downloads`,
+  `exposure`,
+  `launchers`,
+  `bin.config.json`;
+  the ids `bin` and `node` stay allowed,
+  because the shipped lock owns them).
+  A bin name must not be empty,
+  `.` or `..`,
+  or hold `/`,
+  `\` or NUL.
+  The plan and lock decoders,
+  the reader of other worktrees' locks,
+  `update` (for a version taken from a release tag)
+  and the path builders all refuse such a name,
+  and the message names it.
+  Entries in the plan's `postinstall` are not checked this way.
+- mpm is never asked to install or look up a version:
+  mpm 8.2.0 ignores a pinned version for cargo and pnpm,
+  and reports registry failures only in an `errors` array while exiting 0.
+
+## Cargo tool installs
+
+Each `cargo-binstall` tool installs into a cargo root of its own,
+`<toolchain root>/cargo/<crate>/<version>`:
+
+```text
+# shape of the command install starts (the paths are examples)
+cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --version 10.4.2 fd-find
+```
+
+- Binaries land in `<root>/bin` and cargo's own record in `<root>/.crates.toml`.
+  Nothing is written to `$CARGO_HOME/bin` or `$CARGO_HOME/.crates.toml`;
+  only cargo's registry cache and `binstall.toml` still live below `$CARGO_HOME`.
+- `--root` rather than `--install-path`:
+  cargo-binstall 1.26.1 (the locked version) documents `--install-path` as having no effect on a package built from source,
+  and its source (`crates/binstalk/src/ops/resolve/resolution.rs`) fails with `CargoInstallDoesNotSupportInstallPath`
+  when the build-from-source fallback runs with it.
+  `--root` is passed on to the fallback's `cargo install --root`,
+  so one flag isolates both ways of installing.
+- Tracking stays on (no `--no-track`):
+  the root's `.crates.toml` is the record `list` and `install` read,
+  and cargo-binstall's own lock then covers two trees installing one version at once.
+- A directory without a record for the crate is an unfinished install and counts as absent.
+  The legacy `$CARGO_HOME/.crates.toml` and `cargo binstall --list` are never read for this route.
+- The `cargo-git` route already installed with `cargo install --git ... --root <tool install dir>` and is unchanged.
+- Third-party crates coexist per version:
+  each tree's `.cache/toolchain-bin` links the version its own lock names.
+- A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
+  repository's own crates) is repository-published.
+  So is an `archive` tool whose request names `github:Aquaticats/Monochromatic`
+  (in any letter case,
+  because GitHub owner and repository names are case-insensitive)
+  and whose `options.tagPrefix` starts with `monochromatic-`:
+  a release archive of this repository,
+  such as `mpm-shadow` itself,
+  whose plan entry is `github:Aquaticats/Monochromatic@latest` with `"tagPrefix": "monochromatic-mpm-shadow-v"`
+  so that the lock records the archive's SHA-256 for the bootstrap.
+  A tool of any other repository is never judged by this rule,
+  whatever its tag prefix.
+  The plan and lock carry no second list of them.
+  See the next section.
+
+### Repository-published tools keep only the newest version
+
+Older repository-published tools are never kept once a newer one is installed,
+whichever route installed them.
+
+- `install` never installs a version older than the newest finished one in either toolchain root
+  (see "One set across both toolchain roots"),
+  and after installing a version it deletes every older one
+  (for a release archive also the archives downloaded for them).
+  A cargo version is finished when cargo's record names the crate;
+  a release-archive version is finished when its directory carries the completion marker `.mpm-shadow-installed`
+  and the tool's first declared bin is found in it as an executable file
+  (a tool that declares no bin finishes on the marker alone).
+- An archive is unpacked into a hidden staging directory beside the version directory
+  (`.<version>.staging.<process id>`),
+  the first bin of a release archive is looked for in it,
+  the marker is written last,
+  and only then is the staging directory renamed to the version's name.
+  `tar` creates a file with its final mode before it writes the content,
+  so without this a truncated archive would leave an executable of the right name and the wrong bytes
+  at the version's name,
+  count as finished and cause the working older version to be deleted.
+  A failed install removes its staging directory and touches no copy that was already there.
+  A directory without the marker (one an earlier release unpacked in place,
+  or one cut short) is never finished:
+  it is never the newest,
+  so it never causes a deletion or moves `current`,
+  and the next install of that version replaces it.
+  A run killed without cleanup leaves its staging directory behind;
+  nothing reads it and it can be deleted by hand.
+- Downloaded archives are kept in `<toolchain root>/downloads/<tool>/<version>/`
+  and removed with their version.
+- `<toolchain root>/cargo/<crate>/current` (for a release archive,
+  `<toolchain root>/<tool id>/current`) is a link to the newest finished version.
+  Every tree's exposed link goes through it,
+  so deleting an older version never leaves a dangling link,
+  and two trees syncing at once converge on the newest.
+- A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file;
+  on Linux the launcher it makes afterwards is copied through `/proc/self/exe`.
+  Elsewhere no deleted running program can be read,
+  and the sync reports an error that names the vanished path and says to run the command again with the new copy.
+- `list` counts an installed version that is newer than the locked one as satisfied,
+  not drift.
+- A tree whose lock pins an older version than the one that runs is warned,
+  in the same words everywhere:
+
+  ```text
+  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main
+  ```
+
+  `install` and `list` print it as `toolchain <verb>: warning: ...` in their report on standard output;
+  `install --lockfile-only`,
+  `update`,
+  `outdated` and `bin` print the same line on standard error
+  (`bin` writes JSON on standard output);
+  the shim path (`mpm`) resolves no tool versions and prints none.
+
+### One set across both toolchain roots
+
+The repository scope installs into `<data home>/monochromatic-dev/toolchain` and the machine-global scope into `<data home>/monochromatic-dev/toolchain-global`.
+For this repository's own tools the two roots are one set,
+by the owner's decision:
+the newest finished copy wins wherever it is.
+- The copy that runs is the newest finished version across both roots,
+  and the same version in both goes to the scope that asks.
+- A scope whose lock pins an older version than the one that runs installs nothing for the tool (`list` counts the newer copy as satisfied),
+  keeps no older copy of its own,
+  links and launches the newer copy,
+  and warns on every run:
+  in `install`,
+  `list`,
+  `update`,
+  `outdated` and `bin`,
+  and each time the tool runs through its launcher.
+- The warning names the upgrade command of that scope:
+  `mise run toolchain:update` for a tree,
+  and `mise run toolchain:update:global` for the machine-global lock.
+- The exposed links,
+  postinstall links and postinstall commands of both scopes use the winning copy,
+  so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
+- A scope whose lock pins a newer version than any copy installs it into its own root,
+  and `install` then retires the older managed copies in the other root.
+- The sentence for the machine-global lock,
+  in the same words everywhere the tree's sentence appears:
+
+  ```text
+  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mise run toolchain:update:global`
+  ```
+
+#### Older managed copies
+
+After its own installs and links,
+every `install` removes the older managed copies of this repository's tools:
+- Every finished version older than the one that runs,
+  in either root,
+  is removed (a release archive's downloads with it).
+- Equal versions stay,
+  and a directory that is not finished is never judged.
+- Links that resolve to such a version (in `~/.local/bin`,
+  the global farm and every checkout's `.cache/*-bin`) move to the copy that runs first,
+  with the same atomic replacement as for old copies in the shared cargo bin directory,
+  and the places are searched again before the removal.
+- The emptied root keeps its `current` link,
+  which now forwards to the other root's `current`:
+  a launcher record or a link that names the emptied root's `current` keeps running the newest copy and never dangles.
+  The forward is made before the versions go,
+  and only if the root still holds no finished version outside the ones being removed when the plan is applied
+  (another tree may have installed a newer one meanwhile,
+  and it owns its `current`).
+- When the emptied root's scope installs a newer version,
+  its `current` becomes a real link again and the other root forwards instead.
+- `prune --toolchain` leaves a crate directory that holds only such a forward,
+  and never removes a cargo version that the other root's `current` forwards to (it reads only this scope's locks).
+- Every `install`,
+  in either scope,
+  that finds the tool already installed points the winning root's `current` at that root's newest finished version first,
+  so a link left stale there by a run killed between the completion marker and the link cannot make another scope run an older copy.
+- The older copy is never the only working one:
+  it is kept when the tool's own install failed in this run,
+  or when the newest copy's program for a bin is missing or not executable.
+- In the other scope's root it is kept while a place could not be searched (git could not list the worktrees,
+  a listed worktree is missing,
+  a directory could not be read),
+  because that scope's links are not this run's own.
+- An `install --global` searches no checkout,
+  so it keeps the repository root's older copies and a later `install` inside a checkout removes them.
+- The scope's own older copies go whatever the search found.
+- A clone that git does not list for the repository is unseen:
+  its launchers keep working through the forward,
+  and a link that names a version directory itself dangles until that tree's next `install`.
+
+### The launcher
+
+A bare symlink to the binary has nowhere to check the tree's lock,
+so the exposed link of a repository-published tool (`.cache/toolchain-bin/<bin>`)
+and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
+
+- The launcher is a hard link of the `mpm-shadow` that ran `install` (a copy across file systems),
+  with a `<bin>.launch` record beside it naming the tool id,
+  the tree's lock file,
+  the real binary
+  and which scope made it (the warning names that scope's upgrade command).
+  The kernel resolves a symlink chain to its final file,
+  so a hard link per tree is what lets the running process learn which tree's link started it
+  (`/proc/self/exe`).
+- Started under that path,
+  `mpm-shadow` reads the record and the lock,
+  prints the warning above on standard error when the version behind `current` is newer than the lock pins,
+  then replaces itself with the real binary (`exec`):
+  argv,
+  environment,
+  standard streams,
+  exit code and signals are the real program's own,
+  and standard output is never written.
+  An unreadable lock or record never blocks a run.
+- Measured 2026-10-31 with `hyperfine` 2.0.0,
+  400 runs per arm,
+  `cli-git-native --version`
+  (the git wrapper handing `--version` to git),
+  order bare,
+  launcher,
+  copy of bare,
+  launcher with warning,
+  bare,
+  launcher:
+  median wall time 1.47 ms bare against 2.04 ms to 2.09 ms through the launcher,
+  so the launcher adds about 0.6 ms (about 0.5 million instructions) to a call that takes 1.5 ms.
+  Bare against a bare copy and a repeat of bare differed by at most 0.04 ms.
+
+### Cleanup
+
+`mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...` deletes what no known lock names.
+It runs only when asked;
+`install` never deletes another tree's version.
+
+- Known locks are this scope's lock,
+  the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
+  and each file given with `--lock` (a clone that git does not list).
+- A third-party version is kept when any known lock names it;
+  a repository-published crate keeps only its newest finished version,
+  and nothing when no known lock names the crate.
+  A release archive of this repository that some known lock names keeps only its newest finished version too,
+  and its `current` link follows;
+  an archive directory no lock names as a release archive is never judged.
+- It refuses,
+  deleting nothing,
+  when git cannot list the worktrees,
+  when a listed worktree's directory is missing and not marked prunable,
+  or when a known lock exists but cannot be read,
+  or when a known lock names a release archive of this repository under an id,
+  version or first bin that is not one
+  plain directory name.
+  A lock in the TypeScript tool's format is read for `tools.<id>.version`,
+  `route` and `packageId` only.
+- When two known locks name the same release archive with different first bins,
+  the lock read last decides which program shows an install finished
+  (this scope's lock first,
+  then the worktrees',
+  then each `--lock` file).
+- A `--lock` is the only way to protect a tree that git does not list.
+
+### Migration from the shared `$CARGO_HOME/bin`
+
+The first `install` with this layout finds no version directory,
+installs every `cargo-binstall` tool into its own,
+and links the tree's exposure and postinstall links to it.
+`list` reports such a tool as absent until that first `install`.
+Nothing copies or moves the legacy files,
+and a third-party tool's file in `$CARGO_HOME/bin` and its entry in `$CARGO_HOME/.crates.toml` stay exactly as they were.
+This repository's own tools are different:
+their legacy copies in `$CARGO_HOME/bin` are old copies,
+which the same `install` retires (see "Old copies of this repository's tools").
+
+### Old copies of this repository's tools
+
+The rule,
+in the owner's words:
+"No older repo-maintained tools should ever exist when newer is present."
+An old copy is a regular file in the shared cargo bin directory (`$CARGO_HOME/bin`,
+default `~/.cargo/bin`) that is named like a bin the scope's lock declares for a repository-published tool and that mpm-shadow did not install.
+Repository-published has the meaning of the section "Cargo tool installs":
+a `cargo-binstall` crate named `monochromatic-*`,
+or an `archive` tool of `github:Aquaticats/Monochromatic` with a `monochromatic-` tag prefix.
+The retired TypeScript sync put such copies there (measured on the owner's machine on 2026-11-01:
+`cli-git-native`,
+`mpm-shadow`,
+`search-shadow`,
+`monochromatic-lint` and `monochromatic-nested-wayland-session`),
+and links in `~/.local/bin` and in every checkout's `.cache/*-bin` still run them.
+Cargo's records cannot say which copies are old:
+on that machine `.crates2.json` named `monochromatic-git-policy-cli` 0.2.13 for a 0.4.5 binary and had no entry for `mpm-shadow`,
+and a copy placed by hand has no record at all.
+So the decision rests on where the file is.
+`.crates.toml` (the file `cargo uninstall` reads) is consulted for three things only:
+to leave alone a bin it attributes to a crate this repository does not publish,
+to keep a copy it says is newer than the managed one,
+and to choose between `cargo uninstall` and removing the file.
+No runbook step removes an old copy by hand:
+`install` does it,
+as the headings of this section describe.
+
+#### The order
+
+The owner chose "Re-point,
+then remove":
+"After its own newest copy is installed:
+links in known places (~/.local/bin,
+every checkout's .cache/*-bin,
+the global farm) that target an old copy are re-pointed to the managed copy;
+then the old copy and its cargo record are removed,
+each action printed."
+The cost the owner accepted:
+mpm-shadow edits links it did not create,
+but only links that resolve to an old copy of this repository's own tool.
+Every `install`,
+in the repository scope and with `--global`,
+does this once its own installs,
+links,
+exposure directory and postinstall commands are done:
+- Each link in a known place that resolves to the old copy is replaced by a link to the managed copy,
+  atomically:
+  a temporary link is renamed over the old one,
+  so a reader sees one or the other,
+  and the file the old link pointed at is never written through.
+- Only when no link that could be seen resolves to the copy any more,
+  and the managed copy is still an executable file,
+  the copy is removed:
+  with `cargo uninstall --root <cargo home> --bin <bin> -- <crate>` when `.crates.toml` names the bin (which updates cargo's records and leaves every other bin of that crate alone),
+  otherwise the file itself.
+- The crate name comes from a file this program did not write,
+  so it is read again at removal,
+  must still start with `monochromatic-`,
+  and follows `--` so cargo never reads it as an option.
+- A copy that another run already removed (the file,
+  or the file and its record after a `cargo uninstall` that failed on the lock) counts as done,
+  not as a failure.
+- A copy that `.crates.toml` does not name at all (placed by hand,
+  or from a release archive) is removed the same way after its links moved,
+  by the owner's answer of 2026-11-01 to "delete it or keep it":
+  "Keep it as built:
+  any unrecorded copy with a declared bin name is removed after its links are re-pointed."
+- Each action is printed after the counts line,
+  as `toolchain install: re-pointed <link> -> <managed copy>` and `toolchain install: removed <copy> (...)`.
+- A second `install` finds nothing to do and prints nothing.
+
+The mpm-shadow that runs can itself be the old copy it removes.
+On Linux it keeps running from its open file,
+and the launchers it made were made before the removal.
+
+#### Known places
+
+- `~/.local/bin` (the global scope's link directory) and the global exposure directory (`<data home>/monochromatic-dev/toolchain-global/exposure`).
+- The shared cargo bin directory itself,
+  because a link beside the copy (`git` to its sibling `cli-git-native`,
+  relative) would dangle once the copy is gone;
+  rustup's proxies and links to other programs there are never touched.
+- Every directory under `.cache` whose name ends in `-bin` (`cli-git-bin`,
+  `mpm-shadow-bin`,
+  `search-shadow-bin`,
+  `toolchain-bin`) in the scope's own worktree and in every worktree that `git worktree list --porcelain` reports.
+- Only symbolic links directly in those directories are looked at.
+- A link is judged by the file it finally resolves to,
+  never by its text:
+  on the owner's machine `/home` is a link to `var/home`,
+  and links to one copy spell its path both ways.
+- A link to a foreign file,
+  a link that dangles and a regular file (even one with the old copy's bytes) are never touched.
+
+#### Which managed copy a link gets
+
+A re-pointed link names the `current` path of the copy that runs (`<toolchain root>/cargo/<crate>/current/bin/<bin>`,
+or for a release archive the program under `<toolchain root>/<tool id>/current`),
+so a later version change never leaves it dangling.
+That copy is the newest finished one across both toolchain roots (see "One set across both toolchain roots"),
+for a link in `~/.local/bin`,
+in the global farm and in a checkout alike.
+The next `install` in a checkout replaces its link with that tree's own launcher link as usual.
+
+#### When a copy stays
+
+An old copy is kept,
+with `toolchain install: warning: old copy <path> of <id> is kept ...` and the reason,
+when:
+- the tool's own install failed in this run,
+  or no finished managed copy of the bin exists (a version directory that cargo never recorded does not count),
+  because the old copy may be the only working one.
+- cargo's record says the old copy is newer than the managed one:
+  upgrade this tree's lock with `mise run toolchain:update`.
+- the entry in the cargo bin directory is a symbolic link and not a copy.
+- some place could not be searched:
+  git could not list the worktrees,
+  a listed worktree's directory is missing and not marked `prunable`,
+  a directory could not be read,
+  or the run is `install --global`,
+  which has no repository and searches no checkout (run `mpm-shadow install` inside a checkout to finish).
+  The links that can be seen are still moved.
+- a link to the copy appeared after the search,
+  or a link could not be re-pointed (that is also a failure,
+  so `install` exits 1).
+
+A file that cargo's record attributes to a crate this repository does not publish is another program and is not judged at all.
+A `cargo uninstall` that fails (a locked package cache,
+an unreadable record) keeps the copy,
+whose links already moved,
+and is a failure with cargo's message and the remedy:
+fix what cargo reports and run `install` again.
+
+#### Flags and other commands
+
+- `install`,
+  `install --no-frozen-lockfile` and `install --frozen-lockfile` (the default in CI) all do the cleanup:
+  freezing the lock only stops `install` from resolving plan entries into it,
+  and the cleanup reads the lock and the file system and uses no network.
+- `install --lockfile-only`,
+  with or without `--frozen-lockfile` or `--offline`,
+  installs nothing,
+  so no managed copy is made or checked and nothing is re-pointed or removed (`--offline` exists only together with `--lockfile-only`).
+- `update` and `outdated` never do it,
+  not even when `update` installs a prerequisite for a lookup.
+- The removal of older managed copies in either root (see "Older managed copies") follows the same flags:
+  `install` does it with or without `--frozen-lockfile`,
+  `--lockfile-only` never does,
+  and `list` names what `install` would remove.
+- `list` only reads:
+  for each old copy it prints a `toolchain list: warning:` line that says what `install` would do (which links it would re-point,
+  and that it would remove the copy) or why the copy stays,
+  and an old copy is not drift,
+  so the exit code does not change.
+- `prune --toolchain` does not remove old copies:
+  it deletes version directories under the toolchain root that no known lock names,
+  an old copy lies outside that root,
+  and judging one needs the managed copy that only `install` makes sure of.
+- A tree still on the TypeScript toolchain keeps using `$CARGO_HOME/bin`,
+  so a copy it installs there is an old copy again,
+  and the next `install` removes it.
+
+#### Measured behaviour of cargo
+
+Measured on 2026-11-01 (UTC) with cargo 1.101.0-nightly in disposable homes that held copies of the owner's records:
+- `cargo uninstall --root <cargo home> monochromatic-git-policy-cli` removed the file and the entries of both records although `.crates2.json` named another version.
+- A crate named only in `.crates2.json` is "did not match any packages" (exit 101),
+  and so is a crate named in neither record,
+  so `.crates.toml` decides whether cargo is asked.
+- `--bin <name>` on a crate with several bins removed that bin only and rewrote the entry with the others.
+- `cargo uninstall --root <cargo home> --bin <name> -- <crate>` is accepted:
+  `--` before the crate name changes nothing for a real name.
+- An unparseable `.crates2.json` made `cargo uninstall` fail with a message naming the file,
+  in a run of the built binary against a disposable tree.
+
+## Network
+
+Every npm and PyPI version,
+first or later,
+is looked up directly at `registry.npmjs.org` and `pypi.org` over HTTPS.
+crates.io,
+`static.rust-lang.org`,
+`nodejs.org`,
+`go.dev`,
+`proxy.golang.org`,
+`ziglang.org`,
+`api.adoptium.net`,
+`dl.google.com`,
+`api.anaconda.org`
+and the GitHub API are asked the same way.
+The client is `hyper` with `hyper-rustls` (native root certificates),
+HTTPS only,
+with bounded timeouts and sizes,
+and every failure names the URL.
+`curl` is never started.
+
+When an npm or PyPI lookup fails for a tool that is in the lock but not installed,
+plain `update` installs just the missing tools (and `node`,
+`pnpm`
+or `uv` when they need them),
+then looks each one up again once.
+A second failure is final and says the lookup was made twice.
+`outdated` never installs.
+
+## Concurrency
+
+`install --lockfile-only` and `update` read the plan and lock,
+remember their content hashes,
+take an exclusive OS lock for the scope,
+read the hashes again,
+and publish the new lock (a temporary file renamed over the old one) only if neither file changed.
+A changed file refuses the publish and names the file.
+
+## Bootstrap
+
+A fresh machine needs one prebuilt `mpm-shadow` archive whose SHA-256 is in the lock,
+or `cargo install monochromatic-mpm-shadow` after a verified `rustup` install.
+`mpm-shadow verify-archive` checks a downloaded archive against the lock before it is run.
+Containers and CI can use the same `jq`,
+`curl`
+and `sha256sum` pattern they use for Node and pnpm.
+
+## mpm shadow mode
+
+mpm 8.2.0 has no cleanup for its `cargo` manager and removes no previous version on install or upgrade
+(`doc/decision/mpm-toolchain-adoption.md`,
+section on pruning the repository's own crates).
+Plain `cargo install` fills `registry/cache/<index>/<crate>-<version>.crate`
+and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched.
+
+- Runs the real `mpm` as a child,
+  not by replacing itself,
+  because the prune has to run after mpm finishes.
+- Passes arguments through byte for byte,
+  including ones that are not valid UTF-8,
+  and adds nothing to standard output.
+- Exits with mpm's exit code,
+  or `128` plus the signal number when mpm died from a signal.
+- Prunes after every run that started,
+  whatever the exit code and whatever the verb.
+  A run that could not start prunes nothing.
+- Touches only crates whose name starts with `monochromatic-`.
+  For each,
+  it keeps the newest version an install record names as installed,
+  or the newest cached version when no record names the crate,
+  and deletes every other cached archive and extracted source.
+  The records are the version-keyed ones `install` writes under `<toolchain root>/cargo/<crate>/<version>/.crates.toml`,
+  read in both the repository root and the machine-global root
+  (`<data home>/monochromatic-dev/toolchain` and `toolchain-global`,
+  `XDG_DATA_HOME` or `~/.local/share`),
+  and cargo's own `<cargo home>/.crates.toml`,
+  which trees still on the TypeScript toolchain keep writing;
+  the newest across them wins,
+  so a stale legacy file cannot keep an old version or delete a newer cached archive.
+  A version directory without a record is an unfinished install and names nothing.
+- Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
+- Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
+- Shows that it is a shadow in the two places a person looks,
+  after mpm's own output and only after a successful run:
+  a top-level `mpm --version` prints mpm's version text,
+  then one line on standard output,
+  `mpm-shadow <version>, shadowing mpm at <path of the real mpm>`;
+  a top-level `mpm --help` (or `-h`) prints mpm's help,
+  then a blank line and a short section naming the shadow,
+  its version,
+  the real mpm's path,
+  and the prune it runs after every run.
+  This is how `hub` does it:
+  `hub --version` runs `git version` and then prints `hub version <X>`
+  (<https://github.com/mislav/hub/blob/master/commands/version.go>),
+  and `hub help` appends the commands hub adds to git's help.
+- Detects only top-level options,
+  the way mpm's parser reads them:
+  the words before the subcommand,
+  in order,
+  skipping the values of the options that take one
+  (`--verbosity`,
+  `--config`,
+  `-t`,
+  `-j`
+  and the others read from `mpm --help` of mpm 8.2.0;
+  a bare `--color` takes none).
+  The first eager option wins,
+  as in mpm.
+  `mpm install --help`,
+  `mpm help install`,
+  `mpm --help-format json`,
+  `--man`,
+  `--tree`,
+  `--params`,
+  and a failing run print exactly what mpm printed,
+  with mpm's exit status.
+  mpm has no `-V`.
+  A new top-level mpm option that takes a value must be added to `VALUE_OPTIONS` in `src/shadow_notice.rs`.
+
+A cached version that a project's `Cargo.lock` still pins is deleted too when it is not the kept one;
+cargo downloads it again on the next online build,
+but an offline build of that project fails until then.
+
+The artifact is deliberately not named `mpm`,
+so a `target/*/mpm` or a tool `bin/mpm` never shadows mpm by accident.
+The toolchain plan links it as `mpm` into a gitignored directory that comes first on `PATH`.
+
+## Exit codes
+
+- `0`:
+  success.
+- `1`:
+  the plan and lock disagree,
+  the lock's digest does not match,
+  an install,
+  download
+  or lookup failed,
+  or `list` found drift.
+- `2`:
+  a bad command line,
+  or a plan or lock file that cannot be read.
+- `126`:
+  (shadow mode) the real `mpm` was found but could not be started.
+- `127`:
+  (shadow mode) no real `mpm` on `PATH`.
+- Anything else in shadow mode:
+  mpm's own exit code.
+
+## Checks
+
+```bash
+mise run //package/mpm-shadow/cli:lint
+mise run //package/mpm-shadow/cli:lint:clippy
+mise run //package/mpm-shadow/cli:test
+```

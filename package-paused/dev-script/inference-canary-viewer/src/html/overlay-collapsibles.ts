@@ -6,7 +6,7 @@
  */
 import { micromark, } from 'micromark';
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { ProbeDetail, } from '../data/viewer-types.ts';
 

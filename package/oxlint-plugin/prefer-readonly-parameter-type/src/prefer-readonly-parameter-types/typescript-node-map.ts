@@ -7,7 +7,7 @@
 import type {
   Node,
   SourceFile,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';
 

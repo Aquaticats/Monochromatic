@@ -13,8 +13,8 @@
  * Tunable by `--repo-issues=N`, `--burst-events=N`, `--burst-duration-ms=N`.
  */
 
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 
 import {
   createCommentWithEvent,

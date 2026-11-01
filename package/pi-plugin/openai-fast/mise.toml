@@ -25,7 +25,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix', 'src/index.ts', 'src/catalog.ts', 'src/constants.ts', 'src/fast-model-error.ts', 'src/original-dispatch.ts', 'src/priority-provider.ts', 'src/virtual-registration.ts', 'src/priority-stream.ts', 'src/priority-payload.ts', 'src/priority-error.ts', 'src/catalog-credentials.ts', 'src/original-dispatch-types.ts', 'src/priority-target.ts', 'src/keyless-auth.ts'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', 'src/index.ts', 'src/catalog.ts', 'src/constants.ts', 'src/fast-model-error.ts', 'src/original-dispatch.ts', 'src/priority-provider.ts', 'src/virtual-registration.ts', 'src/priority-stream.ts', 'src/priority-payload.ts', 'src/priority-error.ts', 'src/catalog-credentials.ts', 'src/original-dispatch-types.ts', 'src/priority-target.ts', 'src/keyless-auth.ts'])
 """
 
 [tasks."test:unit"]

@@ -7,7 +7,7 @@ Passing `--threads 1` removes it entirely.
 
 ## Symptom
 
-`mise run //package/desktop-app/electron-infra:lint:oxlint`,
+`mise run //package/electron-infra/core:lint:oxlint`,
 run repeatedly with no edit between runs,
 alternates between eight and nine `prefer-readonly-parameter-type` findings.
 The ninth is an offer:
@@ -20,7 +20,7 @@ x prefer-readonly-parameter-type(prefer-readonly-parameter-types): Parameter "{
    ,-[src/wayland-state.ts:166:3]
 ```
 
-`stateMatches` in `package/desktop-app/electron-infra/src/wayland-state.ts:165`
+`stateMatches` in `package/electron-infra/core/src/wayland-state.ts:165`
 reads `Object.entries(expected)` and `observed[key]` and writes nothing,
 so the offer is correct and the runs that omit it are the wrong ones.
 The direction is therefore safe here,
@@ -163,17 +163,17 @@ Sixteen logical CPUs,
 Every run is the same command over the same unmodified working tree at commit `54a1d06d4`:
 
 ```bash
-mise run //package/desktop-app/electron-infra:lint:oxlint 2>&1 \
+mise run //package/electron-infra/core:lint:oxlint 2>&1 \
   | rg --count 'should be readonly'
 ```
 
 The single-threaded form injects `--threads 1` through the wrapper's
 `OXLINT_THREADS` environment variable,
  read at
-`package/dev-script/task-util/src/oxlint-wrapper.ts:50`:
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts:50`:
 
 ```bash
-OXLINT_THREADS=1 mise run //package/desktop-app/electron-infra:lint:oxlint 2>&1 \
+OXLINT_THREADS=1 mise run //package/electron-infra/core:lint:oxlint 2>&1 \
   | rg --count 'should be readonly'
 ```
 
@@ -223,10 +223,10 @@ which this does not affect.
 
 Once the cause is known the flakiness reproduces as a plain function of the file set,
 single-threaded,
- from `package/desktop-app/electron-infra`:
+ from `package/electron-infra/core`:
 
 ```bash
-W=package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs
+W=package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs
 OXLINT_THREADS=1 node "$W" --type-aware src/wayland-state.ts               # 1 offer
 OXLINT_THREADS=1 node "$W" --type-aware src/wayland-state.ts src/wayland-test.ts   # 1 offer
 OXLINT_THREADS=1 node "$W" --type-aware src/                              # 0 offers
@@ -256,7 +256,7 @@ eight of eight multi-threaded repeats agree,
 where seven of seventeen disagreed before,
 and all four file sets that used to disagree now report the same thing.
 Across the workspace the fix withdraws exactly one offer,
-`package/desktop-app/electron-infra/src/wayland-state.ts:166:3`,
+`package/electron-infra/core/src/wayland-state.ts:166:3`,
 the flaky one,
 and moves nothing else.
 

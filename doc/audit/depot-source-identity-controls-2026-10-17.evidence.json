@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-10-17T05:42:39.221Z",
+  "harnessRevision": "4c4063e78bc9aaed8e293c1b478db089d6eef0ce",
+  "task": "//package/dev-script/task-util:trial:depot:ci:source-identity",
+  "taskFileSha256": "98fbef5e6621fe7ad879e7cfa314673ae64583dfc8c4b8b6f9e25b397041667f",
+  "command": [
+    "mise",
+    "run",
+    "//package/dev-script/task-util:trial:depot:ci:source-identity"
+  ],
+  "gitVersion": "git version 2.56.0",
+  "fixtureDirectory": "/var/mnt/encrypted/temp/agent/depot-source-identity-controls-20261017",
+  "sharedSourcesOnlyRead": true,
+  "sharedHarnessFileUnchanged": true,
+  "positives": {
+    "native": {
+      "source": "/home/user/temp/agent/depot-ci-source-truepeak-20261016",
+      "initial": {
+        "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+        "status": ""
+      },
+      "final": {
+        "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+        "status": ""
+      },
+      "before": {
+        "phase": "before",
+        "collectedAt": "2026-10-17T05:42:22.103Z",
+        "identity": {
+          "caseId": "native",
+          "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+          "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+          "trackedStatus": "",
+          "inputs": {
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/android-app/mise.toml": "747b48fbc33271b282674f70d09e4c77f43face8567ceb5295ac58af5cac9dea",
+            "package/music-player/desktop-app/.cargo/config.toml": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640",
+            "package/music-player/desktop-app/Cargo.lock": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4",
+            "package/music-player/desktop-app/Cargo.toml": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c",
+            "package/music-player/desktop-app/mise.toml": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b",
+            "package/music-player/truepeak-core.bench/Cargo.lock": "a78ca43d2e413cdf1364dcc6314335dbc11ad72050c5b1a89602e584bbd69dd9",
+            "package/music-player/truepeak-core.bench/Cargo.toml": "a801dba0d750bfec84bf16378cf095bd0bc21d50cea183b06272aad6ec43c0eb",
+            "package/music-player/truepeak-core.bench/mise.toml": "f2dcdd71d1048ab784d2661000bb7f9d5212b8da6aebdaf58187e70aee672960",
+            "package/music-player/truepeak-core/Cargo.lock": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e",
+            "package/music-player/truepeak-core/Cargo.toml": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1",
+            "package/music-player/truepeak-core/mise.toml": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+          },
+          "manifestSha256": "0ab869b0e2095a9d9cb13d24380f0c48d4aa00d7733b71c8df5ad4a7183db473"
+        }
+      },
+      "after": {
+        "phase": "after",
+        "collectedAt": "2026-10-17T05:42:23.359Z",
+        "identity": {
+          "caseId": "native",
+          "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+          "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+          "trackedStatus": "",
+          "inputs": {
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/android-app/mise.toml": "747b48fbc33271b282674f70d09e4c77f43face8567ceb5295ac58af5cac9dea",
+            "package/music-player/desktop-app/.cargo/config.toml": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640",
+            "package/music-player/desktop-app/Cargo.lock": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4",
+            "package/music-player/desktop-app/Cargo.toml": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c",
+            "package/music-player/desktop-app/mise.toml": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b",
+            "package/music-player/truepeak-core.bench/Cargo.lock": "a78ca43d2e413cdf1364dcc6314335dbc11ad72050c5b1a89602e584bbd69dd9",
+            "package/music-player/truepeak-core.bench/Cargo.toml": "a801dba0d750bfec84bf16378cf095bd0bc21d50cea183b06272aad6ec43c0eb",
+            "package/music-player/truepeak-core.bench/mise.toml": "f2dcdd71d1048ab784d2661000bb7f9d5212b8da6aebdaf58187e70aee672960",
+            "package/music-player/truepeak-core/Cargo.lock": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e",
+            "package/music-player/truepeak-core/Cargo.toml": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1",
+            "package/music-player/truepeak-core/mise.toml": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+          },
+          "manifestSha256": "0ab869b0e2095a9d9cb13d24380f0c48d4aa00d7733b71c8df5ad4a7183db473"
+        }
+      }
+    },
+    "desktop": {
+      "source": "/home/user/temp/agent/depot-ci-source-desktop-20261016",
+      "initial": {
+        "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "status": ""
+      },
+      "final": {
+        "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "status": ""
+      },
+      "before": {
+        "phase": "before",
+        "collectedAt": "2026-10-17T05:42:24.420Z",
+        "identity": {
+          "caseId": "desktop",
+          "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+          "trackedStatus": "",
+          "inputs": {
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/desktop-app/.cargo/config.toml": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07",
+            "package/music-player/desktop-app/Cargo.lock": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895",
+            "package/music-player/desktop-app/Cargo.toml": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d",
+            "package/music-player/desktop-app/mise.toml": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+          },
+          "manifestSha256": "41b74e753e3687928985ebf787cc8fc242ded799eb6f40211e68006f45b377f9"
+        }
+      },
+      "after": {
+        "phase": "after",
+        "collectedAt": "2026-10-17T05:42:25.305Z",
+        "identity": {
+          "caseId": "desktop",
+          "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+          "trackedStatus": "",
+          "inputs": {
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/desktop-app/.cargo/config.toml": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07",
+            "package/music-player/desktop-app/Cargo.lock": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895",
+            "package/music-player/desktop-app/Cargo.toml": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d",
+            "package/music-player/desktop-app/mise.toml": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+          },
+          "manifestSha256": "41b74e753e3687928985ebf787cc8fc242ded799eb6f40211e68006f45b377f9"
+        }
+      }
+    }
+  },
+  "controls": [
+    {
+      "name": "native-before",
+      "caseId": "native",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "7b6bb1e1b8b1704511662ba0f37596fe37764822fa5e97276f13e5cfb40122f0",
+      "stderrSha256": "afaec66ae4264c10154a0a5ffc61ed20ddea8fb8224ab2ad133a973620e16c57"
+    },
+    {
+      "name": "native-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "6c5ad99b146ca73ef297cc3eb12b114deffcefde3403060198d693480c76bbe2",
+      "stderrSha256": "7fe99d7ca518fff504fbe34191eaf7bd263e41a372680ec1f5fa994f1caeb972"
+    },
+    {
+      "name": "desktop-before",
+      "caseId": "desktop",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "226d2f33474f8483c267bf93c65499edf76884bb031b79421b894da0b64d1494",
+      "stderrSha256": "ed7a03b770620bb55c0e3f01bef3b786e0f56f0d060963297b80dbd53b447781"
+    },
+    {
+      "name": "desktop-after",
+      "caseId": "desktop",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "10ead68bdd3f9c04403565c85f4a3cac6128330002b3016322b53513c9c6b693",
+      "stderrSha256": "403adea4f2b8fe844e492fafd1716e4b790f52a2b5cd2d80f3a043dd8d5b07cb"
+    },
+    {
+      "name": "wrong-source",
+      "caseId": "desktop",
+      "phase": "before",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "46be48847c17f7fc4b9f37a283bfecab093d932ed4a14f80a499932a92f955f6",
+      "diagnostic": "ERR_ASSERTION"
+    },
+    {
+      "name": "mutable-before",
+      "caseId": "native",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "7b6bb1e1b8b1704511662ba0f37596fe37764822fa5e97276f13e5cfb40122f0",
+      "stderrSha256": "6ea6abaeca5d0cd1453ffb4a0c57c0de8a06345e76f5c312a82be5660e509b2c"
+    },
+    {
+      "name": "dirty-source",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "18787c5743d4c5a86694846b116b2a77bbdb646c8e9e12068db10784923e5195",
+      "diagnostic": "Coherent replay changed tracked source"
+    },
+    {
+      "name": "configured-input-hidden-by-index",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "4c674ec5a8ee35b5026c4c7e682f49d6e565edb5696a2d93917e69d43a9bc4d0",
+      "diagnostic": "Configured source input differs: mise.lock"
+    },
+    {
+      "name": "missing-before",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "ebca6dac6594d6c201c4fccd41c1fb2b115a069b10882216a8290ced5e8e3818",
+      "diagnostic": "ENOENT"
+    },
+    {
+      "name": "invalid-phase",
+      "caseId": "native",
+      "phase": "afterwards",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "ff6e4fb744a7e59fddcf922ac7a5d6f63b8a8d31ff156bef987203187a0e5dfe",
+      "diagnostic": "Identity phase must be before or after"
+    },
+    {
+      "name": "changed-manifest",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "a3c8c15f58403bb915f966a193a35bb131da0d6b0bda570acd33b79bf81080eb",
+      "diagnostic": "Before and after immutable source records differ"
+    },
+    {
+      "name": "unhashed-0",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "6c5ad99b146ca73ef297cc3eb12b114deffcefde3403060198d693480c76bbe2",
+      "stderrSha256": "280677468584269f555582f566ae08ff4ea1a179e1b3bb41b346cca834f12942"
+    },
+    {
+      "name": "unhashed-1",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "6c5ad99b146ca73ef297cc3eb12b114deffcefde3403060198d693480c76bbe2",
+      "stderrSha256": "ff2427b37115693a386c5f2a6a843683fb521ed412ceb14acaa11a6c23a55ba8"
+    },
+    {
+      "name": "unhashed-2",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "6c5ad99b146ca73ef297cc3eb12b114deffcefde3403060198d693480c76bbe2",
+      "stderrSha256": "a69d47d3b973d050eed29d074bde90c5afe8bd1e6fe7d60393e4a5885bfee088"
+    },
+    {
+      "name": "restored-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "6c5ad99b146ca73ef297cc3eb12b114deffcefde3403060198d693480c76bbe2",
+      "stderrSha256": "636a36ddea05381e3ed3457d1d79858e33eb0e071f1287e66d8e92c51271d3ec"
+    }
+  ],
+  "configuredInputCoverage": [
+    {
+      "path": ".cargo/config.toml",
+      "inConfiguredInputs": false,
+      "changedBytesSha256": "8a119e527f3906931502cde5612c1905624381ae13a0c3906a8b36aa30f5e5c9",
+      "originalBytesSha256": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+      "acceptedChangedBytes": true
+    },
+    {
+      "path": "package/music-player/android-app/rust/Cargo.toml",
+      "inConfiguredInputs": false,
+      "changedBytesSha256": "2ef8bb6b9684e7b7b31e328c2bd45cb9b2a12f13a9b09a72057c1c69fca3742b",
+      "originalBytesSha256": "09819db5daefdbc83f89593b04ac1bbf756a015c1637eec8572f87cbc0e4058f",
+      "acceptedChangedBytes": true
+    },
+    {
+      "path": "package/music-player/android-app/rust/Cargo.lock",
+      "inConfiguredInputs": false,
+      "changedBytesSha256": "284e5e889d56c960a3655b8a6f0fc488fb5188af9d5cd6f6772289dad0d37d89",
+      "originalBytesSha256": "dc19df5ceea71f6e2d0c47cc1bed26e6ec83b6cf9921c0545d11004f90bee17c",
+      "acceptedChangedBytes": true
+    }
+  ],
+  "limitations": [
+    "No cloud dispatch or production test suite executed.",
+    "Untracked files and ignored build outputs are outside the helper contract.",
+    "Index-hidden changes to unenumerated tracked inputs can pass; normal tracked changes are rejected."
+  ],
+  "fixtureDriverSha256": "5863f03594ba0883940704a697e7d898929dbe60cc80d3f8ee241b7d3039669b"
+}

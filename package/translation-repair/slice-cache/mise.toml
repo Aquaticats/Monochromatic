@@ -1,0 +1,56 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/consolidate:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/lane-contest:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-check:build:js:node", "//package/translation-repair/page-pass:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-lane:build:js:node", "//package/translation-repair/translate-stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."cache-account-audit"]
+description = "Ledger M28: before a launch, read every cache version constant the source declares, the commit that set each current value, and every non-test source commit since the earliest of them that no version's account names, then the slice-cache records under the runs directories (count, newest, versions set after it; ledger M57, M81); READ-ONLY, SPENDS NO QUOTA (pass --runs-under dir after --, repeatable, to also search a directory holding runs directories four levels down)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "cache-account-audit"
+run = "node dist/final/node/cache-account-audit.mjs"
+
+[tasks."slice-cost-report"]
+description = "Read the per-slice cost telemetry a pass wrote, and say whether cost tracks slice size or a fixed overhead (pass a log path after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "slice-cost-report"
+run = "node dist/final/node/slice-cost-report.mjs"
+
+[tasks."slice-census"]
+description = "Measure the pinned corpus after slicing: slice size spread, sections only one side carries, and blocks only the translation has; spends no quota"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "slice-census"
+run = "node dist/final/node/slice-census.mjs"

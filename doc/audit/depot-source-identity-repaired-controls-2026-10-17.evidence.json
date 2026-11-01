@@ -1,0 +1,501 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-10-17T05:49:34.381Z",
+  "harnessRevision": "faf388e838737e6b08b9a8075cdcbf4b34f02b2b",
+  "task": "//package/dev-script/task-util:trial:depot:ci:source-identity",
+  "taskFileSha256": "d769e393662c59fef7c00216fe302912f46610520c9ca1de709c1da836f8da8e",
+  "command": [
+    "mise",
+    "run",
+    "//package/dev-script/task-util:trial:depot:ci:source-identity"
+  ],
+  "gitVersion": "git version 2.56.0",
+  "fixtureDirectory": "/var/mnt/encrypted/temp/agent/depot-source-identity-repaired-controls-20261017",
+  "sharedSourcesOnlyRead": true,
+  "sharedHarnessFileUnchanged": true,
+  "positives": {
+    "native": {
+      "source": "/home/user/temp/agent/depot-ci-source-truepeak-20261016",
+      "initial": {
+        "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+        "status": ""
+      },
+      "final": {
+        "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+        "status": ""
+      },
+      "before": {
+        "phase": "before",
+        "collectedAt": "2026-10-17T05:48:13.309Z",
+        "identity": {
+          "caseId": "native",
+          "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+          "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+          "trackedStatus": "",
+          "inputs": {
+            ".cargo/config.toml": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+            ".pnpmfile.policies.json": "fb838192b13f391deab7c988e9daae07a43d5db54bfbcc4753a65d9e3d2c74f2",
+            "bunfig.toml": "433ee4acbd86e36b61ac8606d7dc41be82fdff0f892affd45d32be28c8dba74a",
+            "cli-git.config.jsonc": "831504ddc8487b7e79878e0357392fa0937fef7e73c84fcc5e4143a687ff2cfe",
+            "clippy.toml": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc",
+            "docker-compose.yml": "92c5ac2157cfed0ad149359ce9986890164463150d5abf23ed90c2cbd5356620",
+            "dprint.json": "9e4ada0fb986fb2a4b7cd023b79d356136564c74bb104d707d4592c111777920",
+            "file-enforcer.config.ts": "0a35687a884f92e9fd04e2ec5b8cdfdc0452c2bedb6a02d25ccb7a17c17f13f4",
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.no-env.toml": "8a1541cad6a07d553ff73214ce78348759c2d132748beab9fc4467a2196dfa8b",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "monochromatic-lint.config.jsonc": "bc48bffa773f17342fbee1341063722bb7bb72e5fdfd44a7bc68774c3faf2500",
+            "node.config.json": "5642c9388056b13923039bd49054c620b969eda1c71f1c9f73790bf34d8feacb",
+            "oxlint.config.ts": "d3a7cc1ee8c002479bc1c9b628ce57e04b6a27a97d891b2715313bfcf5bfa54b",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/android-app/mise.toml": "747b48fbc33271b282674f70d09e4c77f43face8567ceb5295ac58af5cac9dea",
+            "package/music-player/android-app/rust/.cargo/config.toml": "bb310a8bbce889186aae8cfde1661a2311743484e9135ca788846a0d41057ff1",
+            "package/music-player/android-app/rust/Cargo.lock": "dc19df5ceea71f6e2d0c47cc1bed26e6ec83b6cf9921c0545d11004f90bee17c",
+            "package/music-player/android-app/rust/Cargo.toml": "09819db5daefdbc83f89593b04ac1bbf756a015c1637eec8572f87cbc0e4058f",
+            "package/music-player/desktop-app/.cargo/config.toml": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640",
+            "package/music-player/desktop-app/Cargo.lock": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4",
+            "package/music-player/desktop-app/Cargo.toml": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c",
+            "package/music-player/desktop-app/mise.toml": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b",
+            "package/music-player/truepeak-core.bench/Cargo.lock": "a78ca43d2e413cdf1364dcc6314335dbc11ad72050c5b1a89602e584bbd69dd9",
+            "package/music-player/truepeak-core.bench/Cargo.toml": "a801dba0d750bfec84bf16378cf095bd0bc21d50cea183b06272aad6ec43c0eb",
+            "package/music-player/truepeak-core.bench/mise.toml": "f2dcdd71d1048ab784d2661000bb7f9d5212b8da6aebdaf58187e70aee672960",
+            "package/music-player/truepeak-core/Cargo.lock": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e",
+            "package/music-player/truepeak-core/Cargo.toml": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1",
+            "package/music-player/truepeak-core/mise.toml": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7",
+            "playwright.browser.config.ts": "22481714fd67d226521833e84b99baa0fe51922d3e2d9c1633ed2d4ae441118f",
+            "playwright.e2e.config.ts": "6b35988518bdae0839af449415228647348ba04322a1c3bc4cf6a255f3a70b6a",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c",
+            "slopo.conf.yaml": "3449c64a7e60e5fc434695b4a7ad5c3d4633ea841c54eaa0235d4699f801801b",
+            "socket.json": "7696f04db14bc1a2b5c90e2989f4dcc5b2ede18b9e187372d2fd76de32684826",
+            "tsconfig.json": "47907a658a585e474edea803471264075658e6c2f9bad7a4c5a3044892bdf1ee"
+          },
+          "manifestSha256": "0ab869b0e2095a9d9cb13d24380f0c48d4aa00d7733b71c8df5ad4a7183db473"
+        }
+      },
+      "after": {
+        "phase": "after",
+        "collectedAt": "2026-10-17T05:48:15.347Z",
+        "identity": {
+          "caseId": "native",
+          "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+          "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+          "trackedStatus": "",
+          "inputs": {
+            ".cargo/config.toml": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+            ".pnpmfile.policies.json": "fb838192b13f391deab7c988e9daae07a43d5db54bfbcc4753a65d9e3d2c74f2",
+            "bunfig.toml": "433ee4acbd86e36b61ac8606d7dc41be82fdff0f892affd45d32be28c8dba74a",
+            "cli-git.config.jsonc": "831504ddc8487b7e79878e0357392fa0937fef7e73c84fcc5e4143a687ff2cfe",
+            "clippy.toml": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc",
+            "docker-compose.yml": "92c5ac2157cfed0ad149359ce9986890164463150d5abf23ed90c2cbd5356620",
+            "dprint.json": "9e4ada0fb986fb2a4b7cd023b79d356136564c74bb104d707d4592c111777920",
+            "file-enforcer.config.ts": "0a35687a884f92e9fd04e2ec5b8cdfdc0452c2bedb6a02d25ccb7a17c17f13f4",
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.no-env.toml": "8a1541cad6a07d553ff73214ce78348759c2d132748beab9fc4467a2196dfa8b",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "monochromatic-lint.config.jsonc": "bc48bffa773f17342fbee1341063722bb7bb72e5fdfd44a7bc68774c3faf2500",
+            "node.config.json": "5642c9388056b13923039bd49054c620b969eda1c71f1c9f73790bf34d8feacb",
+            "oxlint.config.ts": "d3a7cc1ee8c002479bc1c9b628ce57e04b6a27a97d891b2715313bfcf5bfa54b",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/android-app/mise.toml": "747b48fbc33271b282674f70d09e4c77f43face8567ceb5295ac58af5cac9dea",
+            "package/music-player/android-app/rust/.cargo/config.toml": "bb310a8bbce889186aae8cfde1661a2311743484e9135ca788846a0d41057ff1",
+            "package/music-player/android-app/rust/Cargo.lock": "dc19df5ceea71f6e2d0c47cc1bed26e6ec83b6cf9921c0545d11004f90bee17c",
+            "package/music-player/android-app/rust/Cargo.toml": "09819db5daefdbc83f89593b04ac1bbf756a015c1637eec8572f87cbc0e4058f",
+            "package/music-player/desktop-app/.cargo/config.toml": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640",
+            "package/music-player/desktop-app/Cargo.lock": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4",
+            "package/music-player/desktop-app/Cargo.toml": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c",
+            "package/music-player/desktop-app/mise.toml": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b",
+            "package/music-player/truepeak-core.bench/Cargo.lock": "a78ca43d2e413cdf1364dcc6314335dbc11ad72050c5b1a89602e584bbd69dd9",
+            "package/music-player/truepeak-core.bench/Cargo.toml": "a801dba0d750bfec84bf16378cf095bd0bc21d50cea183b06272aad6ec43c0eb",
+            "package/music-player/truepeak-core.bench/mise.toml": "f2dcdd71d1048ab784d2661000bb7f9d5212b8da6aebdaf58187e70aee672960",
+            "package/music-player/truepeak-core/Cargo.lock": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e",
+            "package/music-player/truepeak-core/Cargo.toml": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1",
+            "package/music-player/truepeak-core/mise.toml": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7",
+            "playwright.browser.config.ts": "22481714fd67d226521833e84b99baa0fe51922d3e2d9c1633ed2d4ae441118f",
+            "playwright.e2e.config.ts": "6b35988518bdae0839af449415228647348ba04322a1c3bc4cf6a255f3a70b6a",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c",
+            "slopo.conf.yaml": "3449c64a7e60e5fc434695b4a7ad5c3d4633ea841c54eaa0235d4699f801801b",
+            "socket.json": "7696f04db14bc1a2b5c90e2989f4dcc5b2ede18b9e187372d2fd76de32684826",
+            "tsconfig.json": "47907a658a585e474edea803471264075658e6c2f9bad7a4c5a3044892bdf1ee"
+          },
+          "manifestSha256": "0ab869b0e2095a9d9cb13d24380f0c48d4aa00d7733b71c8df5ad4a7183db473"
+        }
+      }
+    },
+    "desktop": {
+      "source": "/home/user/temp/agent/depot-ci-source-desktop-20261016",
+      "initial": {
+        "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "status": ""
+      },
+      "final": {
+        "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "status": ""
+      },
+      "before": {
+        "phase": "before",
+        "collectedAt": "2026-10-17T05:48:16.760Z",
+        "identity": {
+          "caseId": "desktop",
+          "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+          "trackedStatus": "",
+          "inputs": {
+            ".cargo/config.toml": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+            ".pnpmfile.policies.json": "fb838192b13f391deab7c988e9daae07a43d5db54bfbcc4753a65d9e3d2c74f2",
+            "bunfig.toml": "433ee4acbd86e36b61ac8606d7dc41be82fdff0f892affd45d32be28c8dba74a",
+            "cli-git.config.jsonc": "831504ddc8487b7e79878e0357392fa0937fef7e73c84fcc5e4143a687ff2cfe",
+            "clippy.toml": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc",
+            "docker-compose.yml": "92c5ac2157cfed0ad149359ce9986890164463150d5abf23ed90c2cbd5356620",
+            "dprint.json": "9e4ada0fb986fb2a4b7cd023b79d356136564c74bb104d707d4592c111777920",
+            "file-enforcer.config.ts": "0f52240b770ac6806ec0095c8e9298e6d4321bbabdc006048b92ffc7d9cce7be",
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.no-env.toml": "8a1541cad6a07d553ff73214ce78348759c2d132748beab9fc4467a2196dfa8b",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "monochromatic-lint.config.jsonc": "bc48bffa773f17342fbee1341063722bb7bb72e5fdfd44a7bc68774c3faf2500",
+            "node.config.json": "5642c9388056b13923039bd49054c620b969eda1c71f1c9f73790bf34d8feacb",
+            "oxlint.config.ts": "d3a7cc1ee8c002479bc1c9b628ce57e04b6a27a97d891b2715313bfcf5bfa54b",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/desktop-app/.cargo/config.toml": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07",
+            "package/music-player/desktop-app/Cargo.lock": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895",
+            "package/music-player/desktop-app/Cargo.toml": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d",
+            "package/music-player/desktop-app/mise.toml": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d",
+            "playwright.browser.config.ts": "22481714fd67d226521833e84b99baa0fe51922d3e2d9c1633ed2d4ae441118f",
+            "playwright.e2e.config.ts": "6b35988518bdae0839af449415228647348ba04322a1c3bc4cf6a255f3a70b6a",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c",
+            "slopo.conf.yaml": "3449c64a7e60e5fc434695b4a7ad5c3d4633ea841c54eaa0235d4699f801801b",
+            "socket.json": "7696f04db14bc1a2b5c90e2989f4dcc5b2ede18b9e187372d2fd76de32684826",
+            "tsconfig.json": "47907a658a585e474edea803471264075658e6c2f9bad7a4c5a3044892bdf1ee"
+          },
+          "manifestSha256": "41b74e753e3687928985ebf787cc8fc242ded799eb6f40211e68006f45b377f9"
+        }
+      },
+      "after": {
+        "phase": "after",
+        "collectedAt": "2026-10-17T05:48:18.015Z",
+        "identity": {
+          "caseId": "desktop",
+          "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+          "trackedStatus": "",
+          "inputs": {
+            ".cargo/config.toml": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+            ".pnpmfile.policies.json": "fb838192b13f391deab7c988e9daae07a43d5db54bfbcc4753a65d9e3d2c74f2",
+            "bunfig.toml": "433ee4acbd86e36b61ac8606d7dc41be82fdff0f892affd45d32be28c8dba74a",
+            "cli-git.config.jsonc": "831504ddc8487b7e79878e0357392fa0937fef7e73c84fcc5e4143a687ff2cfe",
+            "clippy.toml": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc",
+            "docker-compose.yml": "92c5ac2157cfed0ad149359ce9986890164463150d5abf23ed90c2cbd5356620",
+            "dprint.json": "9e4ada0fb986fb2a4b7cd023b79d356136564c74bb104d707d4592c111777920",
+            "file-enforcer.config.ts": "0f52240b770ac6806ec0095c8e9298e6d4321bbabdc006048b92ffc7d9cce7be",
+            "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+            "mise.no-env.toml": "8a1541cad6a07d553ff73214ce78348759c2d132748beab9fc4467a2196dfa8b",
+            "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+            "monochromatic-lint.config.jsonc": "bc48bffa773f17342fbee1341063722bb7bb72e5fdfd44a7bc68774c3faf2500",
+            "node.config.json": "5642c9388056b13923039bd49054c620b969eda1c71f1c9f73790bf34d8feacb",
+            "oxlint.config.ts": "d3a7cc1ee8c002479bc1c9b628ce57e04b6a27a97d891b2715313bfcf5bfa54b",
+            "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+            "package/music-player/desktop-app/.cargo/config.toml": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07",
+            "package/music-player/desktop-app/Cargo.lock": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895",
+            "package/music-player/desktop-app/Cargo.toml": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d",
+            "package/music-player/desktop-app/mise.toml": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d",
+            "playwright.browser.config.ts": "22481714fd67d226521833e84b99baa0fe51922d3e2d9c1633ed2d4ae441118f",
+            "playwright.e2e.config.ts": "6b35988518bdae0839af449415228647348ba04322a1c3bc4cf6a255f3a70b6a",
+            "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+            "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c",
+            "slopo.conf.yaml": "3449c64a7e60e5fc434695b4a7ad5c3d4633ea841c54eaa0235d4699f801801b",
+            "socket.json": "7696f04db14bc1a2b5c90e2989f4dcc5b2ede18b9e187372d2fd76de32684826",
+            "tsconfig.json": "47907a658a585e474edea803471264075658e6c2f9bad7a4c5a3044892bdf1ee"
+          },
+          "manifestSha256": "41b74e753e3687928985ebf787cc8fc242ded799eb6f40211e68006f45b377f9"
+        }
+      }
+    }
+  },
+  "controls": [
+    {
+      "name": "native-before",
+      "caseId": "native",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "307a0e1f4180566b8982e23969a09b1f0507e2fe46ee2a3b41edf468ee68240f",
+      "stderrSha256": "667d85fd66e8d0f824841c57083599459f61ac2941b0a3d2e48ce2e2d619c126"
+    },
+    {
+      "name": "native-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "4de0be7a2e5d1a69567eaa5284e72eb3a01e01d0e7a057ddc840e0ed0cf3a31c",
+      "stderrSha256": "8954cef6f7cb8adf1af5b77e26bc22b88f74816a24f8b497a404b0367e6dc1e0"
+    },
+    {
+      "name": "desktop-before",
+      "caseId": "desktop",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "c3da4e191770e8d25796a907cdec0ac07f109a31959459fff60bcbd724220394",
+      "stderrSha256": "6b3d42faca1543b90bf906916a7a77542c80a4ee599039058f1b6b5e263d5bba"
+    },
+    {
+      "name": "desktop-after",
+      "caseId": "desktop",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "cac2d9b80595b05cfbcce50d6d0af22ffebee40ee993e25306f82dd8e28e8d0e",
+      "stderrSha256": "e3b97e43f97bd8f704c99cfea9215b96aad8370f0a8d81834b9e01eb09a40257"
+    },
+    {
+      "name": "wrong-source",
+      "caseId": "desktop",
+      "phase": "before",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "83cb4b1d32e2d4cbccf01bb1190d0e7dbcd53c6a0e0955359d1572cca2fc404b",
+      "diagnostic": "ERR_ASSERTION"
+    },
+    {
+      "name": "mutable-before",
+      "caseId": "native",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "307a0e1f4180566b8982e23969a09b1f0507e2fe46ee2a3b41edf468ee68240f",
+      "stderrSha256": "1242fcfb8172a328bee1b973ec9f1788101e59e127265ebda0f23536f71d2f5f"
+    },
+    {
+      "name": "dirty-source",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "678efc0c01a2ff1090318feaf3566e4bedc78090c93cfd2a036f46f560eeef68",
+      "diagnostic": "Coherent replay changed tracked source"
+    },
+    {
+      "name": "configured-input-hidden-by-index",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "f6ecd72a0668231999842b05ee0549ed4f3a7ae6c7506ff086c22d6736cb9bea",
+      "diagnostic": "Configured source input differs: mise.lock"
+    },
+    {
+      "name": "missing-before",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "b5ff93e89820bdf1dc6a06a32d29c2669f1a60f4d9e546e25cda2d5874ac9621",
+      "diagnostic": "ENOENT"
+    },
+    {
+      "name": "invalid-phase",
+      "caseId": "native",
+      "phase": "afterwards",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "7b9385e5c9cad83cab8d02cbf69fafd644830516c85cf9e5a28b9cd7542aefbc",
+      "diagnostic": "Identity phase must be before or after"
+    },
+    {
+      "name": "changed-manifest",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "c21881b989526af93f9e638cf56f97b106c29838c0946fb864178d92ba6356ca",
+      "diagnostic": "Before and after immutable source records differ"
+    },
+    {
+      "name": "previously-unhashed-0",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "de45cde71e3bbe9d90e30e0224c13a4b29a0e353d454b7e335dd2aa8fbe181e7",
+      "diagnostic": "Configured source input differs: .cargo/config.toml"
+    },
+    {
+      "name": "previously-unhashed-1",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "ba57320fe8b0cbf251b9aa373bb1bc3f369cd0ace5840e4ed8dea48ee8ec1d29",
+      "diagnostic": "Configured source input differs: package/music-player/android-app/rust/Cargo.toml"
+    },
+    {
+      "name": "previously-unhashed-2",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "975d92c9fe921adf1aa5f07dd96f7c9cafff780648c8a3237c59021a5e3a18b1",
+      "diagnostic": "Configured source input differs: package/music-player/android-app/rust/Cargo.lock"
+    },
+    {
+      "name": "restored-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "4de0be7a2e5d1a69567eaa5284e72eb3a01e01d0e7a057ddc840e0ed0cf3a31c",
+      "stderrSha256": "077383277b6206b632d1136119f09a040e07e8bbd71db09720fffae5409cd78d"
+    },
+    {
+      "name": "path-boundary-before",
+      "caseId": "native",
+      "phase": "before",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "5f298f2f9e4dd7e3ae4faf2c67ec92ecd94d56ec477a47f811f2e4a4cd57a4b7",
+      "stderrSha256": "16ca844cccff74d1dc8263167d8a6d615c5722ce8d1c52124ff68316f4202352"
+    },
+    {
+      "name": "path-boundary-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "c528a2b44b18c99b9a038bbd6a36dc2a9cf2fca78976a9f2a22e5e049aa6a6bc",
+      "stderrSha256": "24a0776de83cc6a32aa2fd1a40e5d1732dd2d65aef90ea3c36cddf10f8bef6e5"
+    },
+    {
+      "name": "path-boundary-hidden-change",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 1,
+      "signal": null,
+      "expectedExit": 1,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "8a69e3fa44cffb3329757762d9652e72ea4ffcf8ea0f410a895caaba7858e19e",
+      "diagnostic": "Configured source input differs: package/music-player/truepeak-core/metadata space \"double\" 'single'\nline/Cargo.toml"
+    },
+    {
+      "name": "path-boundary-restored-after",
+      "caseId": "native",
+      "phase": "after",
+      "exitCode": 0,
+      "signal": null,
+      "expectedExit": 0,
+      "stdoutSha256": "c528a2b44b18c99b9a038bbd6a36dc2a9cf2fca78976a9f2a22e5e049aa6a6bc",
+      "stderrSha256": "c33b3477bf8f469a50cc1b6b6f13f6273cc07c11e2b7d429bfe066d153cd6875"
+    }
+  ],
+  "configuredInputCoverage": [
+    {
+      "path": ".cargo/config.toml",
+      "inConfiguredInputs": true,
+      "changedBytesSha256": "8a119e527f3906931502cde5612c1905624381ae13a0c3906a8b36aa30f5e5c9",
+      "originalBytesSha256": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+      "acceptedChangedBytes": false
+    },
+    {
+      "path": "package/music-player/android-app/rust/Cargo.toml",
+      "inConfiguredInputs": true,
+      "changedBytesSha256": "2ef8bb6b9684e7b7b31e328c2bd45cb9b2a12f13a9b09a72057c1c69fca3742b",
+      "originalBytesSha256": "09819db5daefdbc83f89593b04ac1bbf756a015c1637eec8572f87cbc0e4058f",
+      "acceptedChangedBytes": false
+    },
+    {
+      "path": "package/music-player/android-app/rust/Cargo.lock",
+      "inConfiguredInputs": true,
+      "changedBytesSha256": "284e5e889d56c960a3655b8a6f0fc488fb5188af9d5cd6f6772289dad0d37d89",
+      "originalBytesSha256": "dc19df5ceea71f6e2d0c47cc1bed26e6ec83b6cf9921c0545d11004f90bee17c",
+      "acceptedChangedBytes": false
+    }
+  ],
+  "pathBoundary": {
+    "path": "package/music-player/truepeak-core/metadata space \"double\" 'single'\nline/Cargo.toml",
+    "sourceRevision": "44af7a89546fa10e951163d3834a79b54c53192a",
+    "inConfiguredInputs": true,
+    "sha256": "dae5b0d83c5ae00382e71dd585acdf8ab1f4d836c5efe2f3634cad52f6a5b084",
+    "identity": {
+      "caseId": "native",
+      "sourceRevision": "44af7a89546fa10e951163d3834a79b54c53192a",
+      "sourceTree": "d17601516cf645c32b15087e11095193efa649a8",
+      "trackedStatus": "",
+      "inputs": {
+        ".cargo/config.toml": "7352bfbf249b17aa4293845ef4ef6766227e6ed059d3861556595fa543af01f5",
+        ".pnpmfile.policies.json": "fb838192b13f391deab7c988e9daae07a43d5db54bfbcc4753a65d9e3d2c74f2",
+        "bunfig.toml": "433ee4acbd86e36b61ac8606d7dc41be82fdff0f892affd45d32be28c8dba74a",
+        "cli-git.config.jsonc": "831504ddc8487b7e79878e0357392fa0937fef7e73c84fcc5e4143a687ff2cfe",
+        "clippy.toml": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc",
+        "docker-compose.yml": "92c5ac2157cfed0ad149359ce9986890164463150d5abf23ed90c2cbd5356620",
+        "dprint.json": "9e4ada0fb986fb2a4b7cd023b79d356136564c74bb104d707d4592c111777920",
+        "file-enforcer.config.ts": "0a35687a884f92e9fd04e2ec5b8cdfdc0452c2bedb6a02d25ccb7a17c17f13f4",
+        "mise.lock": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+        "mise.no-env.toml": "8a1541cad6a07d553ff73214ce78348759c2d132748beab9fc4467a2196dfa8b",
+        "mise.toml": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c",
+        "monochromatic-lint.config.jsonc": "bc48bffa773f17342fbee1341063722bb7bb72e5fdfd44a7bc68774c3faf2500",
+        "node.config.json": "5642c9388056b13923039bd49054c620b969eda1c71f1c9f73790bf34d8feacb",
+        "oxlint.config.ts": "d3a7cc1ee8c002479bc1c9b628ce57e04b6a27a97d891b2715313bfcf5bfa54b",
+        "package.json": "10bcf78961900dcdfa28d6afb316bd9169c6ee6d8dcdcf9680b8836ec0d9bee0",
+        "package/music-player/android-app/mise.toml": "747b48fbc33271b282674f70d09e4c77f43face8567ceb5295ac58af5cac9dea",
+        "package/music-player/android-app/rust/.cargo/config.toml": "bb310a8bbce889186aae8cfde1661a2311743484e9135ca788846a0d41057ff1",
+        "package/music-player/android-app/rust/Cargo.lock": "dc19df5ceea71f6e2d0c47cc1bed26e6ec83b6cf9921c0545d11004f90bee17c",
+        "package/music-player/android-app/rust/Cargo.toml": "09819db5daefdbc83f89593b04ac1bbf756a015c1637eec8572f87cbc0e4058f",
+        "package/music-player/desktop-app/.cargo/config.toml": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640",
+        "package/music-player/desktop-app/Cargo.lock": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4",
+        "package/music-player/desktop-app/Cargo.toml": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c",
+        "package/music-player/desktop-app/mise.toml": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b",
+        "package/music-player/truepeak-core.bench/Cargo.lock": "a78ca43d2e413cdf1364dcc6314335dbc11ad72050c5b1a89602e584bbd69dd9",
+        "package/music-player/truepeak-core.bench/Cargo.toml": "a801dba0d750bfec84bf16378cf095bd0bc21d50cea183b06272aad6ec43c0eb",
+        "package/music-player/truepeak-core.bench/mise.toml": "f2dcdd71d1048ab784d2661000bb7f9d5212b8da6aebdaf58187e70aee672960",
+        "package/music-player/truepeak-core/Cargo.lock": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e",
+        "package/music-player/truepeak-core/Cargo.toml": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1",
+        "package/music-player/truepeak-core/metadata space \"double\" 'single'\nline/Cargo.toml": "dae5b0d83c5ae00382e71dd585acdf8ab1f4d836c5efe2f3634cad52f6a5b084",
+        "package/music-player/truepeak-core/mise.toml": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7",
+        "playwright.browser.config.ts": "22481714fd67d226521833e84b99baa0fe51922d3e2d9c1633ed2d4ae441118f",
+        "playwright.e2e.config.ts": "6b35988518bdae0839af449415228647348ba04322a1c3bc4cf6a255f3a70b6a",
+        "pnpm-lock.yaml": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049",
+        "pnpm-workspace.yaml": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c",
+        "slopo.conf.yaml": "3449c64a7e60e5fc434695b4a7ad5c3d4633ea841c54eaa0235d4699f801801b",
+        "socket.json": "7696f04db14bc1a2b5c90e2989f4dcc5b2ede18b9e187372d2fd76de32684826",
+        "tsconfig.json": "47907a658a585e474edea803471264075658e6c2f9bad7a4c5a3044892bdf1ee"
+      },
+      "manifestSha256": "4975a7c17425d6954aee385195df8ad139ee7e1535d59b66f956fccc653fd008"
+    },
+    "hiddenChangeRejected": true,
+    "restoredTrackedStatus": ""
+  },
+  "limitations": [
+    "No cloud dispatch or production test suite executed.",
+    "Untracked files and ignored build outputs are outside the helper contract.",
+    "Probes verify the named configured input boundaries rather than every possible repository path."
+  ],
+  "fixtureDriverSha256": "0810977c0cb42991df8ef8d3e6df496499e205173a04828581b4d950a34b794a"
+}

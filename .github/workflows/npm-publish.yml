@@ -1,0 +1,66 @@
+name: npm-publish
+
+# Targeted public release, including validation of the transferred repository's
+# trusted publisher, without publishing unrelated pending package versions.
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package path under package/ to publish from the selected revision'
+        type: choice
+        required: true
+        default: fs-path/core
+        options:
+          - fs-path/core
+          - logger/core
+
+permissions: {}
+
+env:
+  NPM_PACKAGE: ${{ inputs.package }}
+
+concurrency:
+  group: npm-publish-${{ inputs.package }}
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      pnpm_config_dedupe_direct_deps: 'false'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
+      - run: task-run "//package/$NPM_PACKAGE:build"
+      - run: task-run "//package/$NPM_PACKAGE:test:unit"
+      - run: task-run npm:package:pack
+        env:
+          NPM_PACK_DIR: ${{ runner.temp }}/npm-pack
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: package-tarball
+          path: ${{ runner.temp }}/npm-pack/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Set up node and the task CLI
+        uses: ./.github/actions/task-cli-setup
+        with:
+          install-dependencies: 'false'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: package-tarball
+          path: ${{ runner.temp }}/npm-pack
+      - run: task-run npm:package:publish
+        env:
+          NPM_PACK_DIR: ${{ runner.temp }}/npm-pack

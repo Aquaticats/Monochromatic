@@ -1,5 +1,11 @@
 # Pitchfork should complement systemd, not replace it
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `@monochromatic-dev/dev-script-watch-restart` is now `@monochromatic-dev/watch-restart-cli`.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.

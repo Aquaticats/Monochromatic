@@ -4,6 +4,52 @@ Workspace packages for Claude Code plugins,
  plus the source package that owns
 their handler logic.
 
+## Account-wide subagent model policy
+
+Accepted and installed on 2026-10-15.
+The policy covers ordinary Agent delegation on this machine.
+The built-in general-purpose agent defaults to Sonnet;
+explicit Opus and Fable model selections are denied.
+The separately configured Fable advisor remains enabled.
+Forks,
+subagent skills,
+and teammates are outside this policy's scope.
+
+The live configuration is `~/.claude/settings.json`,
+which is outside this repository.
+This committed fragment records the installed values for reconstruction;
+it is not a complete replacement settings file.
+Preserve unrelated settings and existing permission rules when restoring it.
+
+```jsonc
+// ~/.claude/settings.json: merge these fields into the existing configuration.
+{
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "permissions": {
+    "deny": [
+      "Agent(model:*opus*)",
+      "Agent(model:*fable*)"
+    ]
+  },
+  "advisorModel": "fable"
+}
+```
+
+The deny patterns match explicit model arguments;
+they do not inspect the resolved model of custom agent definitions.
+Such definitions can override the Sonnet default,
+including through `model: inherit`.
+No complete prohibition across custom named agents has been demonstrated.
+The installed values were read back and `claude doctor` passed on version 2.1.300;
+model selection and rejection were not verified through a live delegation.
+
+The [research and installation record](../../doc/planning/claude-subagent-model-restrictions.md)
+preserves the mechanism evidence and verification limits.
+The [resume guard observation](./guardrail/README.md#resume-blocking-status)
+records why the existing resume check remains unchanged.
+
 ## Layout
 
 ```text

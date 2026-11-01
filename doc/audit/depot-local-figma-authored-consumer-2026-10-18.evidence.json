@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T21:48:49.890Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "Actual frozen source-owned parser/converter tests; all three local personal export fixtures consumed without network; no compiled-artifact or browser-import claim",
+  "admission": {
+    "path": "doc/audit/depot-local-figma-authored-consumer-admission-2026-10-18.evidence.json",
+    "bytes": 4168,
+    "sha256": "9c789d3908a8daf8dc520a34294d6521eb209238d5ac9420130ca396665055f2"
+  },
+  "runtime": {
+    "node": "v26.12.0",
+    "memoryMax": "2147483648",
+    "cpuMax": "200000 100000",
+    "containerNetwork": "none",
+    "imageId": "7a0d2c0c30811c393f278a255613b2a78cac778438bc06464e4a8b6979c3d4a9",
+    "pnpmVersion": "12.14.0",
+    "dependencyInstallFrozenLockfile": true,
+    "dependencyLifecycleScripts": false
+  },
+  "fixtures": {
+    "count": 3,
+    "actualBytes": 5450481,
+    "allOriginalCopiedAndConsumerIdentitiesMatched": true,
+    "payloadsNamesAndHashesNotPublished": true
+  },
+  "profiles": [
+    {
+      "owner": "package/figma/to-penpot",
+      "file": "package/figma/to-penpot/src/index.unit.test.ts",
+      "sourceIdentity": {
+        "path": "package/figma/to-penpot/src/index.unit.test.ts",
+        "bytes": 14676,
+        "sha256": "3406b280f85a02e71cd669eec2fb30a7dc45963da4c37418d1c1f8432de1feed"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:35:28.975Z",
+      "finishedAt": "2026-10-18T21:35:29.237Z",
+      "sourceLeafLabelsJoinedToPassingOutput": [
+        {
+          "offset": 6436,
+          "name": "converts white"
+        },
+        {
+          "offset": 6622,
+          "name": "converts black"
+        },
+        {
+          "offset": 6808,
+          "name": "converts red"
+        },
+        {
+          "offset": 6992,
+          "name": "converts mid-gray"
+        },
+        {
+          "offset": 7339,
+          "name": "creates one page per canvas"
+        },
+        {
+          "offset": 7614,
+          "name": "sets file name from meta"
+        },
+        {
+          "offset": 7895,
+          "name": "converts frame with fills and strokes"
+        },
+        {
+          "offset": 8735,
+          "name": "converts text node"
+        },
+        {
+          "offset": 9257,
+          "name": "skips DOCUMENT and NONE types"
+        },
+        {
+          "offset": 9912,
+          "name": "creates one page per slide"
+        },
+        {
+          "offset": 10317,
+          "name": "skips internal-only canvases"
+        },
+        {
+          "offset": 10771,
+          "name": "converts slide child text"
+        },
+        {
+          "offset": 11373,
+          "name": "creates pages from canvases"
+        },
+        {
+          "offset": 11800,
+          "name": "produces a valid ZIP with manifest"
+        },
+        {
+          "offset": 12329,
+          "name": "manifest has penpot/export-files type"
+        },
+        {
+          "offset": 12855,
+          "name": "converts a real .fig file end-to-end"
+        },
+        {
+          "offset": 13449,
+          "name": "converts a real .deck file end-to-end"
+        },
+        {
+          "offset": 14015,
+          "name": "converts a real .jam file end-to-end"
+        }
+      ],
+      "sourceLeafLabelCount": 18,
+      "privateRealExportCases": [
+        "converts a real .fig file end-to-end",
+        "converts a real .deck file end-to-end",
+        "converts a real .jam file end-to-end"
+      ],
+      "sourceOnlyImportBoundary": true,
+      "compiledArtifactConsumerNotInferred": true
+    },
+    {
+      "owner": "package/figma/kiwi",
+      "file": "package/figma/kiwi/src/index.unit.test.ts",
+      "sourceIdentity": {
+        "path": "package/figma/kiwi/src/index.unit.test.ts",
+        "bytes": 3646,
+        "sha256": "cb693b2a0abf72d772545712c5222c5469e589b1e01d7d5a7a5a6fc43b364f23"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:35:29.237Z",
+      "finishedAt": "2026-10-18T21:35:29.349Z",
+      "sourceLeafLabelsJoinedToPassingOutput": [
+        {
+          "offset": 974,
+          "name": "reads single byte varuint"
+        },
+        {
+          "offset": 1496,
+          "name": "parses empty schema"
+        },
+        {
+          "offset": 1876,
+          "name": "resolves primitive string type"
+        },
+        {
+          "offset": 2373,
+          "name": "returns sentinel for empty document bytes"
+        },
+        {
+          "offset": 2896,
+          "name": "parses fig magic"
+        },
+        {
+          "offset": 3157,
+          "name": "parses metadata defaults"
+        }
+      ],
+      "sourceLeafLabelCount": 6,
+      "privateRealExportCases": [],
+      "sourceOnlyImportBoundary": true,
+      "compiledArtifactConsumerNotInferred": true
+    }
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-local-figma-authored-consumer-2026-10-18.sources.json.gz",
+    "gzipBytes": 998,
+    "gzipSha256": "e2eb57e29c36e4785c360132f5659260ef74d7a39d41327909852be507ed1b7c",
+    "uncompressedBytes": 3176,
+    "uncompressedSha256": "74afe0290704ea679daac2b69cc9e1b36514da6c5ac2f7289ed15f1afebe825b",
+    "bodies": 4
+  },
+  "cleanup": [
+    {
+      "role": "dependency installer",
+      "absent": true,
+      "probeExit": 1
+    },
+    {
+      "role": "authored consumer",
+      "absent": true,
+      "probeExit": 1
+    }
+  ],
+  "applicationSourceChanges": [],
+  "limits": [
+    "Passing source leaf names are joined to the actual fulfilled-child reports; no independent assertion/branch instrumentation collected",
+    "Frozen authored tests import sibling source and the /ts harness; neither a fresh harness artifact build nor package artifact assertion coverage is claimed",
+    "All eighteen converter and six parser leaf labels pass, including actual fig/deck/jam export cases; Penpot browser import remains unexercised",
+    "Personal fixture payloads, filenames, hashes and environment data remain local",
+    "No new provider allocation, model call, GUI, emulator or daemon start"
+  ]
+}

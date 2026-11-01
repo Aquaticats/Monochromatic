@@ -1,0 +1,1370 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:55:13.924Z",
+  "purpose": "Retain reproducible input versions for the separate immutable legacy owner scan",
+  "source": {
+    "path": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.evidence.json",
+    "sha256": "3b3d8017b4127cb3303426f42861e268c8a01705f917f252f93a557ce17a1962"
+  },
+  "headAtVerification": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+  "rows": [
+    {
+      "path": "doc/audit/depot-android-consumer-2026-10-18.evidence.json",
+      "bytes": 14442,
+      "sha256": "b1e40d416698756af81b035d9ef817bbf0a8f6dd502d18f89edf49117b7f7ca1",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "4983332e11662be51415c9b2ded5865e5d7bd12e"
+    },
+    {
+      "path": "doc/audit/depot-android-device-2026-10-15.evidence.json",
+      "bytes": 14386,
+      "sha256": "f1c5c85e5a9c17bc3ece5466dd7fcbcf76ae33900df317cf1f8f556c16e87c31",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "452a764fab39fd495d3da416cffc00f1ee722f37"
+    },
+    {
+      "path": "doc/audit/depot-arm64-functional-2026-10-18.evidence.json",
+      "bytes": 32677,
+      "sha256": "3518b6fe8b26c0e9232088728c4e69b451880d6c256e9c13d1b17970dfa379cf",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "134acc54950da371250e13c7ea2a9ea7e6f3e89e"
+    },
+    {
+      "path": "doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz",
+      "bytes": 86403,
+      "sha256": "003e3155561cea4636cb927d1709e5e157fa27fa0995e49083632266558390d5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "903275db9bc97b68db2213ef4d857b1c5d505fc3"
+    },
+    {
+      "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
+      "bytes": 211336,
+      "sha256": "5fd82136c26b007aba1dc7c7484d9bb974ac84bf568738e649a3b09a923fd72b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "9e10ec7fb05db0959b851a00f5ddc390bc7c0028"
+    },
+    {
+      "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+      "bytes": 3573335,
+      "sha256": "cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0def02026eeabb382f19bbd1ee3adcfd7d374f01"
+    },
+    {
+      "path": "doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
+      "bytes": 8210,
+      "sha256": "f92c3eb1f7e87bd59c393faa0df7a1f9e42f762bb287cbdb8697154b0c690f6d",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "4e1fa1240309b4848ac9503dc4a1563148f6e536"
+    },
+    {
+      "path": "doc/audit/depot-cache-job-identity-2026-10-18.evidence.json",
+      "bytes": 58179,
+      "sha256": "2a26af4c91d2d4d6bc9e1113c4ffab358cd4f9832504ae7bc3a5fde62d7213da",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "88aee466ed4b4f7811627ff1597b1ccc2e41699b"
+    },
+    {
+      "path": "doc/audit/depot-cache-trust-scope-2026-10-18.evidence.json",
+      "bytes": 60892,
+      "sha256": "a1852177e62eaf690d130a75d0d39fba3a1e0a62536f4e39914d89d1090f3091",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "dad1e3b97db68b53173376930ca917e21591ffe6"
+    },
+    {
+      "path": "doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz",
+      "bytes": 1641463,
+      "sha256": "cab47536cdfa53aa741420880ea2a89000c3490f443ec9e577ee28a83279a1fa",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "612c4156c68d52204d7cc41d0bac3b4068c4f6a7"
+    },
+    {
+      "path": "doc/audit/depot-change-stream-2026-10-15.evidence.json",
+      "bytes": 1603196,
+      "sha256": "ecd67610d9171174028774160f0385cc8b437ea7f1e0ae78b26e6802a30845a9",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "44b9b314b1be4eb5133fcbbcba40f34a849f1ba8"
+    },
+    {
+      "path": "doc/audit/depot-changed-cargo-format-controls-2026-10-17.evidence.json",
+      "bytes": 25018,
+      "sha256": "fc0a05a09c553c34a0158cf8cb892fdac99e0ac2c78d66d064959460b376d1c5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6403886c8391e9c19d36b6af213392967369f2d4"
+    },
+    {
+      "path": "doc/audit/depot-coherent-android-2026-10-17.evidence.json",
+      "bytes": 26367,
+      "sha256": "e5164c86c2545a0d91c2a537154278a82655f967159b9edca3c4b9522d00ec97",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d416c167231efda55553458039da6435244fb087"
+    },
+    {
+      "path": "doc/audit/depot-coherent-android-consumer-2026-10-17.evidence.json",
+      "bytes": 17869,
+      "sha256": "c6b823cb7c8a1e7056a14e5314c1842cc47799bf74eba2926d490ebc98aed519",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ca409d8acd92e159bf37182f5a136478e7957907"
+    },
+    {
+      "path": "doc/audit/depot-coherent-early-results-2026-10-17.evidence.json",
+      "bytes": 338760,
+      "sha256": "41602e67a214e031968333559363d2280abfc78f00b6b6ebd0e48acd556411af",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "96ab1c2f4f04b557e2884c0d58ae5c4eb803cf99"
+    },
+    {
+      "path": "doc/audit/depot-coherent-final-boundaries-2026-10-17.evidence.json",
+      "bytes": 222934,
+      "sha256": "576a8dedaf516c2646d2e1a4263899e13a30a0d989cb484ce38352aebb7342fa",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "42a7ec0bd498f73b45b9c3c16cada419132f61f4"
+    },
+    {
+      "path": "doc/audit/depot-coherent-github-gates-2026-10-17.evidence.json",
+      "bytes": 454824,
+      "sha256": "4ecf55e45cc27b5394934bfb13885aa6c3b09f9bb71d1eda5dc52f8170e1fb32",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0a913c7a6809eb85adcc03e9f93d0b206eb422e5"
+    },
+    {
+      "path": "doc/audit/depot-coherent-host-consumers-2026-10-17.evidence.json",
+      "bytes": 786010,
+      "sha256": "0cf036937d06ec842fa05b018b3e2f0bc28d88099b07ad3c3244a97b0ec9d084",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "bcdfc8df12e0bb55f00971ebfc75eb992c9f5f42"
+    },
+    {
+      "path": "doc/audit/depot-coherent-incident-closures-2026-10-17.evidence.json",
+      "bytes": 14151,
+      "sha256": "755b4d9b8886ff81a75a2f4580d8c4dfd391e1797727d1108fb19f348c167158",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f86a69fee85d5cb63860b1049db37241f6339592"
+    },
+    {
+      "path": "doc/audit/depot-coherent-logger-2026-10-17.evidence.json",
+      "bytes": 7528716,
+      "sha256": "32011794331fb234fdec8867a2d830ed64789052ea40e3721b900d52910a03be",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "9810c1fa06c8c3e0d5bccfa6e21493946b64b4a2"
+    },
+    {
+      "path": "doc/audit/depot-coherent-native-desktop-2026-10-17.evidence.json",
+      "bytes": 611079,
+      "sha256": "bee280b18bef1741aaf3e8aa6c5a334eff4b2ef9f3dffe695dd1b6c3559f96f5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5203def598d0ad9838ae6ce76de2b52234b0e00f"
+    },
+    {
+      "path": "doc/audit/depot-coherent-native-routes-2026-10-17.evidence.json",
+      "bytes": 80192,
+      "sha256": "2ca2f505ba9b897e1b1908c0718fd9c1582ead8460882c08ab545d94ad74ee17",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6a5afa5320464470d81b2024b325a7b21c64e17d"
+    },
+    {
+      "path": "doc/audit/depot-coherent-toml-2026-10-17.evidence.json",
+      "bytes": 18732667,
+      "sha256": "c0cc16785b60aba0597fbc0b8e0ea7b92c16a46d38ecce6bf79d4d72c974e176",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f10ef1c6813853f76738e9d296cc29ac54d262c3"
+    },
+    {
+      "path": "doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json",
+      "bytes": 8964,
+      "sha256": "933fa5192300d380bd01ba456709de4406ce2af7733579a937f4ff6e59d29b1d",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "33acfc492266e98338858abd50f85edeb8698968"
+    },
+    {
+      "path": "doc/audit/depot-common-manifest-route-guards-2026-10-17.evidence.json",
+      "bytes": 588365,
+      "sha256": "a98eb06c2d484353f8b3f8d382d715650fb856435e0fa2b53928205497a0850c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "76383af79620150a28f809a5e78e300d8708529a"
+    },
+    {
+      "path": "doc/audit/depot-complete-android-2026-10-16.evidence.json",
+      "bytes": 23176,
+      "sha256": "3e42de6002c061517a36b873bfa1bd2bd35e85ed4764571603b97bd427d43ed4",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "083d8baef15c8ff3100ce4ce30f51596ebc42022"
+    },
+    {
+      "path": "doc/audit/depot-complete-ci-accounting-2026-10-16.evidence.json",
+      "bytes": 4327952,
+      "sha256": "5ccc81db219c7d5406a7d0673b764b56cbce3ee10b7af8ab3744318fd3c6fa81",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5fcb76fbd689c4c887b6ad8cf33253763cb5907f"
+    },
+    {
+      "path": "doc/audit/depot-complete-cohort-complete-20261017T111555806Z.json",
+      "bytes": 6191,
+      "sha256": "ec26a2edd105dc17fb7f27bbafbe3bd92e9d0f479901e9a5f8938a98b963fc50",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "e90408d518d1e2fa788c0df5fd9cfa56d79b0ae1"
+    },
+    {
+      "path": "doc/audit/depot-complete-cohort-native-recovery-20261018T035939491Z.json",
+      "bytes": 3175,
+      "sha256": "1ca74543a11ad55be26851ed6f3c768b0113f4dd2237d4db7550f10d5369830f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8ce4a334f89c846703958081269df01630580286"
+    },
+    {
+      "path": "doc/audit/depot-complete-cohort-native-runners-20261018T034256508Z.json",
+      "bytes": 3090,
+      "sha256": "209c3238540d7b37df4f7e93aeaeb8ea4d0fc89943199de3f26627d5f0937e3d",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "4675a06f5ba2483420ccd97dcffc546ba442e4d3"
+    },
+    {
+      "path": "doc/audit/depot-complete-coverage-desktop-receipts.json.gz",
+      "bytes": 22756,
+      "sha256": "8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c880d3719a57a2fc64b910d7ed897356de148fa3"
+    },
+    {
+      "path": "doc/audit/depot-complete-coverage-external-generation-receipts.json.gz",
+      "bytes": 1910,
+      "sha256": "899467f33d5eccfb01a1f053db71c773bf4406db86887131698ab59193f67c6b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "25736ef4abd2362c351242bf4bb8d482faf2f4d4"
+    },
+    {
+      "path": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "bytes": 1701669,
+      "sha256": "3a050fdd4e1dc025c0cff57efd77f056504b7fada677e25158f6b50b233a467b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "dfb21579eb15408f8e3ced461f7d09b4ed355bbe"
+    },
+    {
+      "path": "doc/audit/depot-complete-coverage-source-directory-scope.json",
+      "bytes": 11861,
+      "sha256": "9a8dddc95abaab81f28f113a8ff8b980073b4152d7254d24e849a7d2c1a1151b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "cb630b11571d78aad730ca403661056251e47136"
+    },
+    {
+      "path": "doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
+      "bytes": 3341685,
+      "sha256": "11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204",
+      "excludedFromRuntimeSearch": true,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "95736ac8ff4e83b9b889cb95cf308cea44562ad9"
+    },
+    {
+      "path": "doc/audit/depot-complete-dispatch-2026-10-17.evidence.json",
+      "bytes": 217377,
+      "sha256": "57f5bddfbd777f05e850679e391b500a58cf9fbe6428c180ea965aafc0f53b78",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0af1e133a34f9a5bd1ec621209845832ce5e5415"
+    },
+    {
+      "path": "doc/audit/depot-complete-static-registration-2026-10-17.evidence.json",
+      "bytes": 131756,
+      "sha256": "5dfbdf8cd6e2a2445916a1e75bf20752a2609626014f4b31f946ffd674ef3f79",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d2756299eb45c86b14a0d8546f03b4db15e07655"
+    },
+    {
+      "path": "doc/audit/depot-container-concurrency-2026-10-15.evidence.json",
+      "bytes": 3401,
+      "sha256": "e060fbd4f3f24da8a9a36889a76102bef18c38cb34569cc4aa3c3f09b0fec8db",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "24e70767e06d30aa3945f754c6af01fa32ca4f43"
+    },
+    {
+      "path": "doc/audit/depot-container-prerequisites-2026-10-18.evidence.json",
+      "bytes": 10110,
+      "sha256": "2f815850559c5b6bb51179197ce29b014869fcd762b527e73a8cf05a3e140d32",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5c1d5119a015b64fad5b0cab39051aea241fba89"
+    },
+    {
+      "path": "doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
+      "bytes": 15117,
+      "sha256": "f713b99f1f6842cdf206ca2f447af351d6d05ff2ba638633c7a90f7ebadf8a76",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d76e6a0b8903570f9cd86955e4d160c1ef9fa9b0"
+    },
+    {
+      "path": "doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz",
+      "bytes": 25554,
+      "sha256": "c25fc9c62a39f31922736e61ba53fe71217c96e0c77497a613543962331a5ef3",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "1dde44ad58878037f058ec5ed660395ad4f37fff"
+    },
+    {
+      "path": "doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
+      "bytes": 121319,
+      "sha256": "c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "19251764f18a5b3b1cda9d29a840dd29d600ace1"
+    },
+    {
+      "path": "doc/audit/depot-current-host-matched-admission-2026-10-18.evidence.json",
+      "bytes": 17667,
+      "sha256": "a2f5bff513dc8cff4fdacbcb59159ad6d9635b3ad94b37d1688b4db04e680b32",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0c3bab4eb96cea4f2cb4e2b3161cce0ac841a767"
+    },
+    {
+      "path": "doc/audit/depot-desktop-cost-2026-10-15.evidence.json",
+      "bytes": 87151,
+      "sha256": "9a39d2712dbd22dd8cc000e006ae2516d20434589f98f169034af2c13124239c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a1a492d39a374462f8734bb0fbcd730301ccf542"
+    },
+    {
+      "path": "doc/audit/depot-desktop-interaction-2026-10-15.evidence.json",
+      "bytes": 67075,
+      "sha256": "f8ab7e2126e2c35f98c6393d6613feb32061e128fde8f0decaa2751598e1bb30",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "603632935060248923a1f3c182a78beeec75e899"
+    },
+    {
+      "path": "doc/audit/depot-desktop-recovery-2026-10-15.evidence.json",
+      "bytes": 46804,
+      "sha256": "ce0325d1161e129703504a6fe489341b9f77bba97805a7825b78f54fdb1af2e8",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8843f6a6ff28d850352dadaa58c7c1402ab3efbd"
+    },
+    {
+      "path": "doc/audit/depot-developer-platform-research-2026-10-18.evidence.json",
+      "bytes": 53555,
+      "sha256": "b29b58980c8996717e021c268971892bf5753197234d386629976c28d654c4be",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "136cec51008cc9520fc0909e8e034f642e3934a3"
+    },
+    {
+      "path": "doc/audit/depot-developer-sandbox-sdk-2026-10-18.evidence.json",
+      "bytes": 45663,
+      "sha256": "00b33e0e40e7ee248f8c9772ff28dfcb7951d73b2f6a38121d613fbd2893b48f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2b3d93cd99ad0aa054ee8006c7db2c6f35b16d7f"
+    },
+    {
+      "path": "doc/audit/depot-expanded-cost-2026-10-15.evidence.json",
+      "bytes": 9412,
+      "sha256": "74dbf9a52b23101f3df4f45a14840ef6cff51694f61d7893bbc7104373a35421",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "3e58d52ac4918f9cc906be46eb9e0568a3dc2f30"
+    },
+    {
+      "path": "doc/audit/depot-expanded-execution-2026-10-16.evidence.json",
+      "bytes": 185642,
+      "sha256": "f6c1098f67c1dde18d72437b91a83c4f661a9d0b550ea9484ed4900a4054f3f8",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f72b9a928d0f48ef21e02c6ab0e1a9b00f60d330"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.evidence.json",
+      "bytes": 2740,
+      "sha256": "58bbb524494f8369821ea21875da5fb7aef80624579cd9b67b5cb9a771a6a89f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "fb61d0d6361968331f4abfdb70f23880cb59cdc8"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz",
+      "bytes": 5704,
+      "sha256": "254a0f69763e8cccfe6bd0f4d2785e757c8d4fde48e02edf232715a11876c5e5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f2e35e9ec944e5c340e8227d338d017e562332c3"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-corrected-admission-2026-10-18.evidence.json",
+      "bytes": 2783,
+      "sha256": "725641e207c1991b0cdc0b162cc809e4dbcde9b2e5823cea35f77555c09f52c8",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "bb1246660fa61a660c940a8058ed485f224b5b04"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-critical-path-2026-10-18.evidence.json",
+      "bytes": 3826,
+      "sha256": "ddd4e04563e60298ce255244a82dc32cd8de10d94609e8792a4d387e9d277746",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "b72aef7ff0ec814a7e39ac2116ae7d946b7cb573"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.evidence.json",
+      "bytes": 15408,
+      "sha256": "f3f62865ce323d30279fb3099f6dc46a029bb6946d4704ae6cb2c9b6d8243451",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "747bcc814049084869620b799d41b92dd71a4a9f"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
+      "bytes": 154139,
+      "sha256": "f3fb9967cba82508ccf37968ea772c97e2363d39a61df7d2d69ee66d9b9e0a9b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6cad983c4ce45a13918ecc6e372134cf02d9ca7e"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-independent-review-2026-10-18.evidence.json",
+      "bytes": 251690,
+      "sha256": "79e83eb05899fd358739611f6a6092862a4c2c4b3ed98c0d075ddf55e7ef0ea7",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2ab462d1990fe0ac0fc6336507dbebe86b37e0d3"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.evidence.json",
+      "bytes": 10818,
+      "sha256": "142df7b31c3cdee97decbf4ac5e84581c50937388bd663a974e2ba96cb35fa59",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "75ee8994b7d861c014cc552bb4c73b37d5a2ca57"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
+      "bytes": 173906,
+      "sha256": "86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "fbf400af2f3791645284e46a50e4c7bf80ee697e"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.evidence.json",
+      "bytes": 103910,
+      "sha256": "58ab12bcd2f8298b40c2b67b89e47d5f41ffd8d7d0118140d44f611752301573",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "90f38435010e0073a4c133139aa2dbde5b8588a8"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz",
+      "bytes": 118332,
+      "sha256": "63ce6da88139b3b1941f38f015e630d6d4c91f38c07a96fc49fa3b001959c7cd",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "34d3c9c50d6747e93570ec513c71f6bf789c9ed2"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-podman-admission-2026-10-18.evidence.json",
+      "bytes": 3357,
+      "sha256": "e8307a0b893db29051c531e60bc84a391fa337c07f74b67be6a97352640cc0df",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "428281066fb269619eeef2de2de892d764210a1f"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-parity-review-2026-10-18.evidence.json",
+      "bytes": 205865,
+      "sha256": "5091032e5baea83a715ed1237ddc8ee9af81669724e1f8dfc62e04f3ce893f2f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "02de3da569fada2d79e152b6a986c07d26768278"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz",
+      "bytes": 154233,
+      "sha256": "117d2c7103877917eecc037f73ce013766b5f778b56324540de2f34f31aeaaca",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "57015abf26cc1e931505e911a27a80f155b0a8b1"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.evidence.json",
+      "bytes": 11691,
+      "sha256": "aed707e7a9516dd9b0cc7213e0e88e1d156d3c40884b5f2db0978a6c160e12cd",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a3874f2adce72411de0cf7c4bb5f9ad52298a0a9"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
+      "bytes": 18551,
+      "sha256": "122ef60af29ddb193445fead9080bac530ab5cb18879690c1b471154d05ce97c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "dabb6845db82c9b5e4bad908b5e5399643859050"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-preflight-2026-10-18.evidence.json",
+      "bytes": 17215,
+      "sha256": "82dc1deb25be50aa7820971318f60cc3eede3a33aec1481470c9107a06422056",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2d03da1a599ea3133781676d566487930780bda6"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz",
+      "bytes": 1096903,
+      "sha256": "4f173723e155cff0ae91c7c3c794c9ceeed930603f2960bb03b94cc87a233d01",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "bbb22ff55c9a445e86e0b9de397de9cbd0970e4c"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-setup-failure-2026-10-18.evidence.json",
+      "bytes": 14524,
+      "sha256": "40e964283fede600eda165355955732355183b6b30cbe1d458b1f5951beb9270",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f3d209a4002fdeab6171d465361e58a21d49556e"
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
+      "bytes": 2184,
+      "sha256": "caf8e72e975d2bba895c4e734f617d16ea3c2de4b6b13d06d633d987e4a06f01",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d07ab6a67dc3bedd7408a4299fdab54ae0905563"
+    },
+    {
+      "path": "doc/audit/depot-final-evaluation-verification-2026-10-17.evidence.json",
+      "bytes": 5421,
+      "sha256": "61551f5ff0aa589587672924166a397780d9e49fa162e126f777f609a061a643",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "1b8b36699f2be4ffd336d796ad47c7739048850a"
+    },
+    {
+      "path": "doc/audit/depot-final-gates-and-intervals-2026-10-17.evidence.json",
+      "bytes": 2092336,
+      "sha256": "bf705f0b8a9a3019e44629c95206a864838ea0395c7aa5783421520bb7783c6e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "967f729a91ae627144849cf7a5d45d236d6226d9"
+    },
+    {
+      "path": "doc/audit/depot-final-recovery-2026-10-17.evidence.json",
+      "bytes": 2938235,
+      "sha256": "41a9fb7bc0d9e414b81328606372f83b299a716c6b6bf79bae9e3e7cd37d4b2a",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d4cfa2ebc2ca06ed8efb6c8dfc41fce52a70e231"
+    },
+    {
+      "path": "doc/audit/depot-git-host-failure-mapping-2026-10-17.evidence.json",
+      "bytes": 382128,
+      "sha256": "56385df0974ada285434372aab39c76a13e1db8ebd13d1fd9333aef220c6a156",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0e58125097082c9b80fedf3822851a7c98a4172a"
+    },
+    {
+      "path": "doc/audit/depot-github-kvm-documentation-contradiction-2026-10-18.evidence.json",
+      "bytes": 40813,
+      "sha256": "60ac5e5e1a7f8130eee4312d5d7bd65dd671085080ca0039cd74d03dae01154e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ed9f6ba0bee3def2b0a29a01f8112377485cda1f"
+    },
+    {
+      "path": "doc/audit/depot-image-list-empty-output-2026-10-18.evidence.json",
+      "bytes": 15023,
+      "sha256": "b001d52ebfeaa1baf71896f24d4dfa4d0e37c29a5660d18a09763ca327d64a72",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a2747accd608f1df52af1f00702cabc9db215a6d"
+    },
+    {
+      "path": "doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
+      "bytes": 12512,
+      "sha256": "537a75bf0542f03cca5ea03fcdf0299f979aac67a5365d5691790c0d4a0ec617",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "bed15180a51a91b2351ad56976c427ae7ef38ab6"
+    },
+    {
+      "path": "doc/audit/depot-included-allowance-2026-10-18.evidence.json",
+      "bytes": 9042,
+      "sha256": "0c84fcc951f94530feb706daf810cdcd36aee4267ad61230ea4e146d4271aaa3",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "e8ee0b004f0552c27974d07293e5b28625f24f35"
+    },
+    {
+      "path": "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+      "bytes": 112370,
+      "sha256": "197dac272cc047780d092b6b3740c61091805a0aa7b87211cd4406ec1ba784c0",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "44da4a2e8313bcad6bec86dbc1cd160a9dd8b8cc"
+    },
+    {
+      "path": "doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz",
+      "bytes": 5899,
+      "sha256": "c96e692b6dacebaffac76c045c46286fbd49b92262b91b7395dd0bec1597ac6c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ad8627c152d33debe4e46b9a614bbdc414b9ca1b"
+    },
+    {
+      "path": "doc/audit/depot-job-policy-history-2026-10-18.evidence.json",
+      "bytes": 122264,
+      "sha256": "86ba8e4e6c037d9d3b46ab2b13865719631506dc7156b44d969c95cee45d1f50",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "4b516291cd8479ba99a592de9abb1df3c5a222ac"
+    },
+    {
+      "path": "doc/audit/depot-kotlin-gradle-owner-join-2026-10-18.evidence.json",
+      "bytes": 13912,
+      "sha256": "a497e3f495e1818af77eb9a2cba8ab45cbab71b5b59476364fe9cb1993b36614",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2fe5b5f67f3ec017621fd40b8a71385aef8201b8"
+    },
+    {
+      "path": "doc/audit/depot-linker-experiment-2026-10-16.evidence.json",
+      "bytes": 88669,
+      "sha256": "2d240d9597bec5dfada15c13f70d0433a0ad5731b38e6136babe8045d3087d44",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "dd3a7bc71aee57146e1209ee9f6eaa834ce71aae"
+    },
+    {
+      "path": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "bytes": 8976,
+      "sha256": "c52a7c7cbbbae7719035a881194bdda8a07e1810f3743b83893cef6323095825",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8201519c49460b5d9dd4cc4138a0068c535732cd"
+    },
+    {
+      "path": "doc/audit/depot-logger-complete-2026-10-17.evidence.json",
+      "bytes": 3283272,
+      "sha256": "5ce3292d85151dc0a235fed083d35a70f39486d5ec158eed6c82909f5877cf6b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "77c8d2ed4ddc94a13bb26bef2cb4ea8a46c04e0c"
+    },
+    {
+      "path": "doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz",
+      "bytes": 426661,
+      "sha256": "adc0a5e7a443843c07362fb479e5f7d951a71bcd6996e4d6166ea6de80eeb0ef",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8db8cb7f97d9b51e087533ef777b7d11c643a407"
+    },
+    {
+      "path": "doc/audit/depot-logger-host-scope-2026-10-17.evidence.json",
+      "bytes": 243648,
+      "sha256": "d7d8a278ed57b951a382b1df8f9995abb38ed3f2f932c9d9f37a7da78156663a",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "21a2b44371c7feddddd064601ff87a757852788e"
+    },
+    {
+      "path": "doc/audit/depot-logger-primary-failures-2026-10-17.evidence.json",
+      "bytes": 1518813,
+      "sha256": "b44b92a5226a40e894253c8b2087dec63e6067b5b046e7adf5d752ae5b91f6da",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "13fc4765d11f13f9eb438daf1071875f2eab2531"
+    },
+    {
+      "path": "doc/audit/depot-material-owner-completion-queue-2026-10-18.evidence.json",
+      "bytes": 4977,
+      "sha256": "fe4ce24802e265fd23b09285a19b4d17f625b1105f0013b7e21a27e0a521c7d5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "bbce9b7463099a02d2311c8e1701466d737f329d"
+    },
+    {
+      "path": "doc/audit/depot-mvm-guest-files-2026-10-18.evidence.json",
+      "bytes": 52304,
+      "sha256": "9ca21658e97fdfb38d3dbc0021ad9b1e6e9b7ee7bf716730f7aa0f2c84acdc5e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2a1db90c4dba98743ccc88ee2fddafa0045c918b"
+    },
+    {
+      "path": "doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz",
+      "bytes": 63665,
+      "sha256": "6f0bf7c1ea1891b24d8702b373fc9c30b8eb885a0827e6e056cb483cac0183d9",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "25e4ae7b5d2c3773b55b3ee3945280afa844ade1"
+    },
+    {
+      "path": "doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz",
+      "bytes": 181117,
+      "sha256": "9ec38d2f8c3605e9400b0960a24d29196ad012c19f89fb9ce042c4b8e8d2a38f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "9450c405c790f11853b1d1bc4dd4b89137dfe779"
+    },
+    {
+      "path": "doc/audit/depot-mvm-kvm-2026-10-18.evidence.json",
+      "bytes": 699540,
+      "sha256": "27e7ce1448eb866b75cafd47514e39fd3772fd45f75c7847ba6c69f35062fedc",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c7670cf83423e87f79ade44855b59cf84e5cb87a"
+    },
+    {
+      "path": "doc/audit/depot-native-buildkit-job-auth-2026-10-18.evidence.json",
+      "bytes": 82952,
+      "sha256": "036319203a298756080e3d66e9641ac828f92352dd455740e357bc5f5779646a",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "2e9381417e60e0f26bce75ac205f6a34b6c681fd"
+    },
+    {
+      "path": "doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
+      "bytes": 128260,
+      "sha256": "73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "42ef798839682fbaec616bbc5371ee322c830bbb"
+    },
+    {
+      "path": "doc/audit/depot-native-checkout-paths-2026-10-18.evidence.json",
+      "bytes": 7627,
+      "sha256": "c38bf56d09c69dc034284e206dc19824f9aa386b09e8a79481c58e3b73530e73",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0e8b0c8b825cbc5461af105ba5a5ffc40ad7c567"
+    },
+    {
+      "path": "doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz",
+      "bytes": 13893,
+      "sha256": "672193a5ca02e030240664f0812f7b612e7d02b263158b36728346a8c7a29f7e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a208827f1d79f4116a5ba8597682420cc7d38852"
+    },
+    {
+      "path": "doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
+      "bytes": 60781,
+      "sha256": "927514e26567d5ffc53d11e3bbcd03eb140bc00722652c73b07ce5b91e610463",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "27643698995d3d4e2853ea8220dd480fcdbfb9c7"
+    },
+    {
+      "path": "doc/audit/depot-native-consumers-and-variation-2026-10-18.evidence.json",
+      "bytes": 37281,
+      "sha256": "12d27f41eec5221b4a6580ef8bf196bdd122d5b8923420ab5e83ba08fbd19967",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6fd595ca6cfdbb7c413a2236b4f3deff25d91818"
+    },
+    {
+      "path": "doc/audit/depot-native-final-verification-2026-10-18.evidence.json",
+      "bytes": 9918,
+      "sha256": "e690f17901caf217ee4ca3f150f6f4274eddd75a7f171a7dd8a3c7759aee561b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "3a846c01c944df5bb8ab8973bdbdd9ff0b2fb831"
+    },
+    {
+      "path": "doc/audit/depot-native-hybrid-routing-model-2026-10-18.evidence.json",
+      "bytes": 5406,
+      "sha256": "7554500ad61827c3c482b7fcfe0fe1d84ed06a8d34ad6fa0bd08455e929d91ae",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6462b9fd2bb7c9b2ba739310f1dd791e828e5257"
+    },
+    {
+      "path": "doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz",
+      "bytes": 16062,
+      "sha256": "afab7c02d27a17c0e8ac5466fa10a6a12a270a15e77148a3bc7a1e066f99eca4",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "646b24599085b863e732de275a5877b7766c425b"
+    },
+    {
+      "path": "doc/audit/depot-native-orchestration-2026-10-18.evidence.json",
+      "bytes": 107578,
+      "sha256": "6ca4b3da50cca5c5cb663d62e99c60316092401fa940fd9b08356f948dca4d9e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d92c6bbe6d527a0adf02922f1f773cdd40d34a9e"
+    },
+    {
+      "path": "doc/audit/depot-native-recovery-2026-10-17.evidence.json",
+      "bytes": 1227145,
+      "sha256": "70cee58f954ab57b64a30637662de61937038a255085da9a698f191c8bcb9334",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6dc1d71859e6d6843c04dd57dc818d71613dba7b"
+    },
+    {
+      "path": "doc/audit/depot-native-recovery-wave-2026-10-18.evidence.json",
+      "bytes": 1026474,
+      "sha256": "9763b2dd90ac4d6bddbec48e40ff3b901bcc253ea2b767cb728b95e22261359b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "50b75e4756772e6ccea0895d40fb573f066cfe92"
+    },
+    {
+      "path": "doc/audit/depot-native-report-compatibility-2026-10-18.evidence.json",
+      "bytes": 3971,
+      "sha256": "48161849c5dfa540bd39daf8bcbf0159804039bd0bdcc3c44f6e7f1401355659",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "736836342c49f042fa2719562f7ec31e6a85da61"
+    },
+    {
+      "path": "doc/audit/depot-native-runner-first-wave-2026-10-18.evidence.json",
+      "bytes": 695949,
+      "sha256": "839c75e0c403f167740b5f81b5e9e08b2531ff66d4e68acaee078e5c95457cfb",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "71cb4ef5ab892de71bcfa1cce2cf87dc17d8c255"
+    },
+    {
+      "path": "doc/audit/depot-native-runner-followup-2026-10-17.evidence.json",
+      "bytes": 176973,
+      "sha256": "08054c66415a97340b91a1d73535041fd55b6ed36f32c65407bbcf976ab097f7",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "1a9f4be954f890b0d506c2e9ed7312fd4c8f4f31"
+    },
+    {
+      "path": "doc/audit/depot-native-worktree-cleanup-2026-10-18.evidence.json",
+      "bytes": 1408,
+      "sha256": "1f6eecc5981ef593a2fb420693e58e10f721e40ebe9fed23f573d30eae071a75",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "09654cf2d1dec22f4fa0cc2046e6b18c26e56ccd"
+    },
+    {
+      "path": "doc/audit/depot-original-service-git-2026-10-18.evidence.json",
+      "bytes": 11760,
+      "sha256": "f8cb269577759c66d80ba92f11ba80a1fd6336137326f817cfebd12b6e8de3e9",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "593335b87f533b10918508d884018453ba47c854"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
+      "bytes": 104936,
+      "sha256": "1b1dd7688d54bdb0559cf6129d3081b7f60bc964eb841e53b1e4b4a338d2d45e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "39ef85953417eb49705aef425c07d29e5da4e455",
+      "gitBlob": "d5e79b4a66bd080f3165523cfb996f7d016460e2"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+      "bytes": 387034,
+      "sha256": "a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "39ef85953417eb49705aef425c07d29e5da4e455",
+      "gitBlob": "70328327f4cb502e883f0055c3032a7e8dcf6a50"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.evidence.json",
+      "bytes": 1723,
+      "sha256": "434a8e066185d956ec016f56442fe4120726e8f50378aa930de489297671004f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "18496e903fc3d78ff079e2d49374beab98bb4e7c"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz",
+      "bytes": 398912,
+      "sha256": "9a71dca1550e93b8a4cfebd18c28e53ad29347a93a1f31f6a93cddd2aa6903a5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "af5235d1cef5a3e22e8ec3bbfe94221d04891bda"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-independent-arithmetic-2026-10-18.evidence.json",
+      "bytes": 2617,
+      "sha256": "ee0f829b945ba300eca180d0fe8d8262257a11f638dea2c58473de73cf67cd96",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f78545453f2298c942085e0e93a401c192a75ef0"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-ledger-2026-10-18.evidence.json",
+      "bytes": 803424,
+      "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d38a354a642c4709fe019eba3e5c1a86af8387cf"
+    },
+    {
+      "path": "doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
+      "bytes": 8006342,
+      "sha256": "17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a97848321d5bac48ca278653335fa0ee61af23fc"
+    },
+    {
+      "path": "doc/audit/depot-package-directory-census-independent-2026-10-18.evidence.json",
+      "bytes": 1539,
+      "sha256": "ef499a4d33b6d38b2e679e524d00bddde59cb193f88918b7821e0b4ac7f707b2",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "db0478e481e3a59659d07dd942d927d9e270204d"
+    },
+    {
+      "path": "doc/audit/depot-persistent-cache-disk-probe-2026-10-18.evidence.json",
+      "bytes": 183343,
+      "sha256": "103f80fa0bf1b47078c18537c1259743cfa68e100503f7da5c7a880c46308285",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "9ed288cece21deb6fe6b623ae51ab261f18e9eb2"
+    },
+    {
+      "path": "doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz",
+      "bytes": 37381,
+      "sha256": "00d0a6c49fecef1874b044527658e17a2c2ad0cce90a8cf88811d46d8ad96991",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "9ce8468ba1f0b422591da2143718bda60db1f985"
+    },
+    {
+      "path": "doc/audit/depot-physical-test-shards-2026-10-18.evidence.json",
+      "bytes": 274465,
+      "sha256": "8f60677242795919c87c4df463e59867ff3259c3b73bc36b7bfdf531ec9558c0",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "d77b94155477a96170b4ac0919b61305a3a31b8b"
+    },
+    {
+      "path": "doc/audit/depot-platform-overlap-2026-10-15.evidence.json",
+      "bytes": 8910,
+      "sha256": "7e1199720f037cc8b600a3fcaf7a126435768d6f302672f1dfde2c28c9496951",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c31cd5c60b94ebbe5faed59c16f259f5b942e8da"
+    },
+    {
+      "path": "doc/audit/depot-platform-product-correction-2026-10-17.evidence.json",
+      "bytes": 1832,
+      "sha256": "f21f61166a67619374345a8506a38848b88a430508ec2561af0866f6fc54f68c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "a4dbd4f901ed86ff42cea78a3f46321c4fad0316"
+    },
+    {
+      "path": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+      "bytes": 3883626,
+      "sha256": "d3d907ba12236df20900f65ef7109ac2b90c9a9a1ad71a03f1ae3b1bad2ca890",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "66250ecaa13bef5780c314a0fdf8cc2fa07e7729"
+    },
+    {
+      "path": "doc/audit/depot-pnpm-fresh-jobs-2026-10-18.evidence.json",
+      "bytes": 152374,
+      "sha256": "77628e564e183d7fd1c90c4e2e4aa170b6e26bfc6d5c85ad4f87c4db8b365bf6",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "1142aea379c5c697b27a43ba82e8bee309fcd417"
+    },
+    {
+      "path": "doc/audit/depot-prepared-desktop-2026-10-16.evidence.json",
+      "bytes": 15314,
+      "sha256": "6f5fcaf0b9711284fd6dd669e624b3324a6b2dd2f13957519f3a8a2fa5059910",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5959c7983dce9ee7a71d92a30671b0215d70c786"
+    },
+    {
+      "path": "doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz",
+      "bytes": 4979,
+      "sha256": "ae7580dcf37185b3422befd024f4f1fd7fa342e79f3c4d92c3dffafceb899d4e",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "3975dac9141a6f2a7cae6c268edc9414bcefecaa"
+    },
+    {
+      "path": "doc/audit/depot-process-timeouts-2026-10-18.evidence.json",
+      "bytes": 40121,
+      "sha256": "f4235d4ee6c3cbc440d4644d61004f9e731dca279dcc3a8150f8e9fdd76f62b5",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8d3c23376d47a030e91fea7fdfd430aaa25047ae"
+    },
+    {
+      "path": "doc/audit/depot-repository-accounting-2026-10-17.evidence.json",
+      "bytes": 465082,
+      "sha256": "6a5d4bc4266024c9178f906e4240ed278ee33de9e699c3ad7af712c83f658716",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "01e4c41347ef8ffaf8388a75f1324663ae1630f1"
+    },
+    {
+      "path": "doc/audit/depot-resumed-cost-2026-10-16.evidence.json",
+      "bytes": 564830,
+      "sha256": "165ed637700860e4621ba267fa7bbbd1d0da8357a7fb8def49a33785e2de745b",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "aadd212a0a5cf55d2c921e09b96b22857a42038b"
+    },
+    {
+      "path": "doc/audit/depot-resumed-cost-verification-2026-10-16.evidence.json",
+      "bytes": 10919,
+      "sha256": "aa0bc890dbc300777bb2709ec99eda933bbeb76917122d0ab04acb44d3c7b4dc",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c40633e7a9607fdc0346bab1bc819df8978fa123"
+    },
+    {
+      "path": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+      "bytes": 45098,
+      "sha256": "2e2a331991486c50af1fac361f04f99dcd964c4deb7b4b4dc599cd936b5f5609",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "3d9195282b03084062be6a15b092728232261736"
+    },
+    {
+      "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
+      "bytes": 2136385,
+      "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "e2dddb6649e635b6fcf8c80b830729dea3df619a"
+    },
+    {
+      "path": "doc/audit/depot-route-source-guards-2026-10-17.evidence.json",
+      "bytes": 451429,
+      "sha256": "32bcc9636ab3883cffb6f4701f2998a08b3f4a9469ce22fc6f365f9eb2cbba24",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0ea8f4e74c07b5b40d5358a13f0e79fd70625a8c"
+    },
+    {
+      "path": "doc/audit/depot-runner-sizing-2026-10-15.38819692881.evidence.json",
+      "bytes": 28587,
+      "sha256": "e59b92226db0939f7010a157e7aecee55f5ee840c345bb06ec7fe28451aec0c0",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "22fdc3d4f1ac0a1c56002d23a4c904a36f4b0a1b"
+    },
+    {
+      "path": "doc/audit/depot-runner-sizing-2026-10-15.38820672079.evidence.json",
+      "bytes": 19269,
+      "sha256": "698ac279952fbffd63e12154258bed13ccd9736c4a964dcc1da36c8d2468ba8c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5719a3fda3a8856fa7526c2c53e9f2e22eb34794"
+    },
+    {
+      "path": "doc/audit/depot-runner-sizing-2026-10-15.38822116503.evidence.json",
+      "bytes": 32375,
+      "sha256": "a618ae6afbf56d27c646d5d22ad30173fbc8535137f33072a398db75aa89dfab",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "f049fde37018bba3690516231a98395aee267e67"
+    },
+    {
+      "path": "doc/audit/depot-runner-sizing-2026-10-15.38822116510.evidence.json",
+      "bytes": 21826,
+      "sha256": "cdfe292834cdc0f320a68e394f4e4abbc051f11434ea2d4c30ff8671813cf849",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "7041858a9c909b8a23420fe5c1f4e82e582b9a1c"
+    },
+    {
+      "path": "doc/audit/depot-runtime-platform-2026-10-18.evidence.json",
+      "bytes": 41178,
+      "sha256": "bd7343f9da42347e1f4120db594e1a16e81138c4a0ca46f81007fb575466fa56",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "207dedf0996653984dbd30538f816c3b7ef316d2"
+    },
+    {
+      "path": "doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz",
+      "bytes": 5262,
+      "sha256": "fa455b4dd47abbfa7dce33d590a6ee1b0edf9d9d3657d35a829c0c6a1a062c1c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "48491c8789408967c15ab4b19a4eb1ecaec60155"
+    },
+    {
+      "path": "doc/audit/depot-runtime-pr-2026-10-18.evidence.json",
+      "bytes": 68505,
+      "sha256": "77c81b7a905aea61dd169168be35fd285668d7368c22bf176f171a102d95fb57",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "25ada28e4de0defc6cee4cd41576e4bad8750a55"
+    },
+    {
+      "path": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+      "bytes": 538476,
+      "sha256": "6dda590c2b8cfe131ade20f2368cc366f2ef92e294a6b380b4f9ac5c8327d1ff",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c60c8b8ab7f19ad84ab76c7a8962cf4912a506e4"
+    },
+    {
+      "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
+      "bytes": 13526147,
+      "sha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "25342d6fe630072b3ecbb30993d463aa9ee7d577"
+    },
+    {
+      "path": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+      "bytes": 11483893,
+      "sha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "60db34cac7d53f9460ab0f760e6c89a18a080f10"
+    },
+    {
+      "path": "doc/audit/depot-rust-package-result-projection-2026-10-18.evidence.json",
+      "bytes": 296039,
+      "sha256": "0c27752e2d5375833d4369d36e9a92a68be83a94824ff29ee3e4c16972131674",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6c21d2ef2a5ad7a32f2f8088451982cee7bf161f"
+    },
+    {
+      "path": "doc/audit/depot-sccache-fresh-jobs-2026-10-18.evidence.json",
+      "bytes": 225156,
+      "sha256": "c9196d4dc5123d5af0d9d6dd55e64a7b6b8740d5562204717072df0d83b37f03",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "b2520622146bc3d91688d361536b4e912c11a2c5"
+    },
+    {
+      "path": "doc/audit/depot-scorecard-graphql-fixtures-2026-10-15.evidence.json",
+      "bytes": 4942,
+      "sha256": "11443932cac2891dc40a21e45e831fe437b0e88ca67c10fa7717f43c43cf05b7",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "596125aaf9eec57cabde0a7885373e13f870f9d0"
+    },
+    {
+      "path": "doc/audit/depot-scorecard-graphql-live-2026-10-15.evidence.json",
+      "bytes": 287,
+      "sha256": "2510fb6ecebe35c973448ac7d2bbf6609db1e08be7ef2a8aa06571a2205a2dd0",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "728606d149fcf371770b891c54ec9d4186b47afa"
+    },
+    {
+      "path": "doc/audit/depot-scorecard-graphql-production-2026-10-15.evidence.json",
+      "bytes": 2550,
+      "sha256": "cf7ae07529c26d0ab9a6b4687ca6c146e7144129c29b9658cba48edb4e5a2299",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "8670b34012b8a2e49ec293a51712bee1353b82dd"
+    },
+    {
+      "path": "doc/audit/depot-sdk-custom-runtime-2026-10-18.evidence.json",
+      "bytes": 62613,
+      "sha256": "c59389080c2afdb1f0333aad47f39222655803b966b085cc865724938f49a862",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ac79b586a3efffc142967597a33678e7a52974fb"
+    },
+    {
+      "path": "doc/audit/depot-semgrep-invocation-2026-10-18.evidence.json",
+      "bytes": 46118,
+      "sha256": "79d82f7b24fc9e650a1b34464b267970f710926af77282d8c982bd158c6ce5e3",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "50b7d787737012364f688b34836266e6dde5f347"
+    },
+    {
+      "path": "doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz",
+      "bytes": 12731,
+      "sha256": "7f63cb6479bccb4295cad18cfc553c6d7e9e98c69a7a27f840fd79a926d00015",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "387f9e66874c3a3c98de1dff0a5d435a60b092c1"
+    },
+    {
+      "path": "doc/audit/depot-service-containers-2026-10-18.archives.json.gz",
+      "bytes": 20148,
+      "sha256": "1d548493228ec9950b9de34d9b70b1107734a72a600e7ee9a7ad3218fc1a6b20",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "11cd8b7ecfbd99d9b8dccedaa0ae779d9386b509"
+    },
+    {
+      "path": "doc/audit/depot-service-containers-2026-10-18.evidence.json",
+      "bytes": 109619,
+      "sha256": "263c908bbac51e083607a34fe45f98a1e484b5b748ad89ca59430d27390e7dd2",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "efd876446e84d0bdb4e9774e9b49cea1d5a54e68"
+    },
+    {
+      "path": "doc/audit/depot-source-identity-controls-2026-10-17.evidence.json",
+      "bytes": 15835,
+      "sha256": "143dfcc502b8d25941b527800a55ad5a39b57cc3698f1d4c5e314d5134c88c25",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ebfa2e563eb123ad73c40ab4136cee12f84f9eed"
+    },
+    {
+      "path": "doc/audit/depot-source-identity-index-controls-2026-10-17.evidence.json",
+      "bytes": 27673,
+      "sha256": "a2aa4609a608e1d3cd9b6c35d5f15d64e8570b02cf6d5750484722799a045d5d",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "080b1a904c7ef5a32015ef63a965b8563cea2280"
+    },
+    {
+      "path": "doc/audit/depot-source-identity-repaired-controls-2026-10-17.evidence.json",
+      "bytes": 30222,
+      "sha256": "08245bd036ff8d82a2ebebbf06ced2a4ae3e1cd7d2f311a7fa6fe85f25768397",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "65c83ac4368511d6cf9c0dc6399d942ee2122c9c"
+    },
+    {
+      "path": "doc/audit/depot-test-feature-2026-10-16.evidence.json",
+      "bytes": 14859,
+      "sha256": "70b818e89b42884f96d8d467184f5a5a3ae55ed83193dc897a3cc9adc03e2a7c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "780f9662c26a6a35fc2bd61c21748ade394f0171"
+    },
+    {
+      "path": "doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json",
+      "bytes": 40888,
+      "sha256": "d797f2e82d4a411f04ca850b4c0d90c6ae6bc122a7937d98d26cbd7a25acd605",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "134df02f36ac421e5ed4074e4ed92698d5c7428d"
+    },
+    {
+      "path": "doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz",
+      "bytes": 256546,
+      "sha256": "3b4525feba218b90c267124259fb9ad3eb8ab6701f98c38a36ff3ba2c40962bb",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "b8c8136a62c37036d21d4fd5705b1c4eb0fa1ed2"
+    },
+    {
+      "path": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
+      "bytes": 12057855,
+      "sha256": "31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "45ea38fc2e1aec183e917dd16373888081d1603d"
+    },
+    {
+      "path": "doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
+      "bytes": 710921,
+      "sha256": "7bbdb669aec26a41aec88713f77ad39311cc5777caa112d06099c8eaea279c39",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "b771179bee8488904e3b0355d516d3ecffe68972"
+    },
+    {
+      "path": "doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+      "bytes": 296300,
+      "sha256": "baa57122526e9d5093b6b8e18e208bd492680b45b54dc10ac2aa213fe96e8b1d",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "5f6adc9c18b4f58705b66d7ce072172f511402da"
+    },
+    {
+      "path": "doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json",
+      "bytes": 17636162,
+      "sha256": "a7d5411bc7bc7212eddf681ec333fb0d3d47465654f2e5147af6b936a9e5f13c",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "6d59cae8cc8462167fa3f1dc3a5b6807f25cd522"
+    },
+    {
+      "path": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
+      "bytes": 100312,
+      "sha256": "88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "57695d809231775e9c49dbdf3e94e1c63affbec4"
+    },
+    {
+      "path": "doc/audit/depot-trial-2026-10-15.evidence.json",
+      "bytes": 9124,
+      "sha256": "bdd2d37ac032024335046f77bb6ac29278abbfd2087e82d8dc2198bd87a15daa",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "ebedee2adca313766c9e04d72e48dbf100adbff6"
+    },
+    {
+      "path": "doc/audit/depot-vm-artifact-consumer-2026-10-17.evidence.json",
+      "bytes": 330848,
+      "sha256": "6702f80e608be015659b50da3cab25a4a32ce77b757986a920c538fdb0d0e310",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "c763d5d17f08e8b89b4369674d151b2f688001d3"
+    },
+    {
+      "path": "doc/audit/depot-vm-cohort-preparation-2026-10-17.evidence.json",
+      "bytes": 44309,
+      "sha256": "4a841df44ba8e901cdb2ea7cbd6b7dbd4f3dead8effeba314ef67d596447a747",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "7427015cf86cf6607ddcc28e5c1e0d8bf0b6c10e"
+    },
+    {
+      "path": "doc/audit/depot-vm-recovery-2026-10-17.evidence.json",
+      "bytes": 13848,
+      "sha256": "31644fd287d0c18933fa383954b3464efcbe7442f31927625cb2897742aac255",
+      "excludedFromRuntimeSearch": false,
+      "gitCommit": "8385465ed1f0680cd957100635d03f2b5e9f1504",
+      "gitBlob": "0425cad19e2cd82dea3dd1167ab0c8e8d98755fc"
+    }
+  ],
+  "verification": {
+    "allInputBytesJoinedToRetainedGitBlobs": true,
+    "joinedInputs": 169,
+    "newCloudAllocations": 0,
+    "outcomeScanRepeated": false
+  }
+}

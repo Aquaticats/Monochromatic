@@ -33,7 +33,7 @@ run = "bun src/abort.ts"
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
 [tasks."lint:oxlint"]

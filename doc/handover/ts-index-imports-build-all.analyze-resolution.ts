@@ -10,7 +10,7 @@
 //
 // Self-imports are EXCLUDED: the by-name lib smoke tests deliberately import a
 // package's own `.` (built dist) to exercise the bundle, e.g. build-tool-css's
-// build.unit.test.ts importing '@monochromatic-dev/build-tool-css'. Those are
+// build.unit.test.ts importing '@monochromatic-dev/css-cli'. Those are
 // the intended dist resolutions and not violations.
 import { Glob } from 'bun';
 import {
@@ -76,7 +76,7 @@ for (const rel of new Glob('package/**/package.json').scanSync(root)) {
   ));
   if (((typeof json.name) === 'string')
     && json.name
-    .startsWith(SCOPE)) {
+      .startsWith(SCOPE)) {
     pkgByName.set(
       json.name,
       {
@@ -237,7 +237,7 @@ for (const rel of new Glob('package/**/*.{ts,tsx,mts,cts}').scanSync(root)) {
       resolved: null,
       bucket: 'unknown-target'
     });
-    continue; }
+      continue; }
     const targetName = SCOPE + unscoped;
     const isSelf = importer === targetName;
     const exempt = isExemptTarget(unscoped);
@@ -274,7 +274,7 @@ for (const f of findings) (byBucket.get(f.bucket)
     f.bucket,
     []
   )
-  .get(f.bucket)!).push(f);
+    .get(f.bucket)!).push(f);
 
 console.log(`total @monochromatic-dev import-context specifiers: ${findings.length}\n`);
 for (const [bucket, fs] of [...byBucket.entries()].toSorted((
@@ -283,7 +283,7 @@ for (const [bucket, fs] of [...byBucket.entries()].toSorted((
 ) => b[1]
   .length
   - a[1]
-  .length)) {
+    .length)) {
   console.log(`  ${bucket}: ${fs.length}`);
 }
 

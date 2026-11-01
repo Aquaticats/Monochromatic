@@ -15,7 +15,7 @@
  */
 
 import type { ParsedMutationContractBlock, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
-import type { Type, } from 'typescript/unstable/sync';
+import type { Type, } from 'typescript/sync';
 
 import {
   asParameterIndex,

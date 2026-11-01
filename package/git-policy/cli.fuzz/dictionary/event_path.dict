@@ -1,0 +1,11 @@
+# Bytes that are not UTF-8 alone, and sequences UTF-8 forbids.
+"\xe9"
+"\xff"
+"\xc3\xa9"
+"\xc0\xaf"
+"\xed\xa0\x80"
+"\xe2\x82"
+"/"
+"\x22"
+"\x5c"
+"\x0a"

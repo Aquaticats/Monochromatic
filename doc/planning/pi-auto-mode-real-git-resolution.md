@@ -8,7 +8,7 @@ The user confirmed common-platform-path priority and then authorized implementat
 
 Implementation landed in these commits:
 
-- `a671af16e` added `@monochromatic-dev/git-executable`;
+- `a671af16e` added `@monochromatic-dev/git-executable-core`;
 - `a8fd5b68e` hardened resolver diagnostics and platform-path tests;
 - `2aef2d409` migrated git-policy-cli and deleted its resolver copy;
 - `612ae1853` migrated auto-mode and deleted its resolver copy;
@@ -63,7 +63,7 @@ The resolver belongs behind one owned module interface.
 
 ## Recommendation
 
-Create `package/git/executable` as `@monochromatic-dev/git-executable`.
+Create `package/git-executable/core` as `@monochromatic-dev/git-executable-core`.
 Move real-Git executable selection from git-policy-cli into that package,
 then make git-policy-cli and auto-mode depend on it through `/ts`.
 
@@ -82,7 +82,7 @@ while preserving locality for guardrail policy.
 The external seam should expose one operation:
 
 ```ts
-// package/git/executable/src/index.ts
+// package/git-executable/core/src/index.ts
 export async function resolveRealGit(
   options?: ResolveRealGitOptions,
 ): Promise<string>;
@@ -174,7 +174,7 @@ That later change needs structured path-signal evidence so secret and home-dotfi
 
 Move the implementation and resolver tests,
 not merely a wrapper,
-to `@monochromatic-dev/git-executable`.
+to `@monochromatic-dev/git-executable-core`.
 Git-policy-cli should import the shared module and retain no candidate-selection markers of its own.
 
 This preserves git-policy-cli's current common-path priority while removing implementation ownership from a CLI

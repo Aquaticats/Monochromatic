@@ -270,7 +270,8 @@ Tradeoff: this abandons Oxlint's alternative lifecycle and its intended future i
   Schema controls validity, not timing.
 - Adding `defaultOptions` does not populate registration context.
   `lint.ts` chooses defaults while beginning each file.
-- Capturing null in `createOnce` and expecting later `Object.defineProperty` calls to update local binding does not work.
+- Capturing null in `createOnce` and expecting later `Object.defineProperty` calls
+  to update local binding does not work.
   Only later reads through `context.options` see current descriptor value.
 - Catching null and selecting fallback inside `createOnce` silently ignores valid per-file configuration.
   It avoids crash by replacing requested semantics with fallback.

@@ -11,8 +11,8 @@
  * Pure math on plain number pairs: no three.js types, so the whole module
  * is unit-testable in node.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 /**
  * Logger root shared by the glass demo client modules.

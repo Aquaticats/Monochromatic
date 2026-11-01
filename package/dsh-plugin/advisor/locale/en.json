@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Advisor",
+    "description": "Consults independent scoped reviewer models with the current conversation context, giving DSH agents the same advisor behavior the pi extension has: unified pi-advisor.json config, the advisor tool, and the /advisor command."
+  }
+}

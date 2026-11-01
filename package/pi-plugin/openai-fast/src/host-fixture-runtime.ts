@@ -67,20 +67,20 @@ export async function fixtureRuntime({
     await writeFile(
       home.modelsPath,
       JSON.stringify({ providers: { 'openai-codex': {
-      headers: {
-        'x-config-provider': 'configured-provider',
-        'X-Shared': 'provider-value',
-      },
-      modelOverrides: { 'gpt-host-fixture': {
-        name: 'Configured fixture',
-        contextWindow: 333_333,
-        maxTokens: 16_384,
         headers: {
-          'x-config-model': 'original-model-only',
-          'x-shared': 'model-value',
+          'x-config-provider': 'configured-provider',
+          'X-Shared': 'provider-value',
         },
-      }, },
-    }, }, },),
+        modelOverrides: { 'gpt-host-fixture': {
+          name: 'Configured fixture',
+          contextWindow: 333_333,
+          maxTokens: 16_384,
+          headers: {
+            'x-config-model': 'original-model-only',
+            'x-shared': 'model-value',
+          },
+        }, },
+      }, }, },),
     );
   }
   /**
@@ -90,8 +90,8 @@ export async function fixtureRuntime({
   await credentials.modify(
     CODEX_PROVIDER,
     function seed(): Promise<ReturnType<typeof fixtureCredential>> {
-    return Promise.resolve(fixtureCredential({ expired, },),);
-  },
+      return Promise.resolve(fixtureCredential({ expired, },),);
+    },
   );
   /**
    Real runtime resolves config and auth without reading ambient stores.

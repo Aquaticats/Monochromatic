@@ -161,7 +161,8 @@ In particular,
 `edit`,
 `pause`,
 `resume`,
-and `--tokens` remain reserved rejected prefixes so an old command does not silently start a goal named after the removed operation.
+and `--tokens` remain reserved rejected prefixes so an old command does not silently start a goal named after the
+removed operation.
 
 ### Starting and replacing a goal
 
@@ -525,7 +526,8 @@ A stale `goal_complete` call is rejected by the tool's own execution logic.
 That rejection has no effect on sibling or later unrelated tools.
 
 The built-extension verifier must assert that the registered event inventory contains no `tool_call` handler.
-The crash-regression integration test must exercise ordinary built-in and custom tools after aborted and errored goal turns.
+The crash-regression integration test must exercise ordinary built-in and custom tools after aborted
+and errored goal turns.
 
 ## Completion contract
 
@@ -537,8 +539,10 @@ Pi then executes the complete assistant tool batch in source order.
 Require `goal_complete` to be the final tool call in its assistant message.
 Earlier sibling calls finish first and their finalized results become reviewer evidence.
 If a later sibling call exists,
-reject completion before reviewer invocation and instruct the model to submit completion only after every remaining action.
-This prevents approval from racing work scheduled after the completion request without forbidding already ordered evidence-producing calls.
+reject completion before reviewer invocation and instruct the model to submit completion only after every remaining
+action.
+This prevents approval from racing work scheduled after the completion request without forbidding already ordered
+evidence-producing calls.
 
 ### Local preflight
 
@@ -591,7 +595,8 @@ then truncate transcript history deterministically to fit.
 Record truncation in review details and logs.
 
 Compaction does not authorize adding pre-start material.
-The reviewer serializer may use raw post-start branch entries rather than a compaction summary that also covers pre-goal history.
+The reviewer serializer may use raw post-start branch entries rather than a compaction summary that also covers
+pre-goal history.
 It must preserve finalized recent evidence and make any older-context omission explicit to the reviewer.
 
 ### Reviewer rubric
@@ -624,7 +629,8 @@ Resolve the effective Pi model scope through
 `@monochromatic-dev/pi-shared-model-selection`.
 
 Exclude the active primary model by exact `provider/id` identity.
-The initial reviewer is the eligible scoped model with the highest expected call cost for its model-specific serialized input estimate and fixed reviewer output reserve.
+The initial reviewer is the eligible scoped model with the highest expected call cost for its model-specific serialized
+input estimate and fixed reviewer output reserve.
 This is the same default-selection principle used by Advisor.
 
 Goal review has no configuration file.
@@ -676,7 +682,8 @@ while the transport machinery accepts the tool name as a contract input.
 
 ### Auto-mode transport and fallback policy
 
-Extract and reuse auto-mode's structured-judge transport and fallback orchestration rather than copying it into the goal package.
+Extract and reuse auto-mode's structured-judge transport and fallback orchestration rather than copying it into the
+goal package.
 Preserve these behaviors:
 
 1. Call the selected reviewer with forced structured-tool choice.
@@ -694,7 +701,8 @@ Preserve these behaviors:
 6. Run selected fallback attempts concurrently.
 7. The first fallback promise fulfilled with a successfully parsed valid verdict wins,
    whether approval or denial.
-8. A fallback rejected by transport or contract failure does not settle the race while another fallback can still return a verdict.
+8. A fallback rejected by transport or contract failure does not settle the race
+while another fallback can still return a verdict.
    In auto-mode's current source,
    a valid denial is a fulfilled verdict and therefore can win;
    `rejected contender` refers to a rejected promise,
@@ -810,7 +818,8 @@ Copying that policy would let retries,
 provider support,
 timeout handling,
 and fallback races drift.
-Depending directly on auto-mode's extension entry point would couple one deployable plugin to another plugin's command and security-policy surface.
+Depending directly on auto-mode's extension entry point would couple one deployable plugin to another plugin's command
+and security-policy surface.
 
 Create reusable Pi infrastructure instead:
 
@@ -934,8 +943,8 @@ Create `package/pi-plugin/goal/` with:
 
 Expected workspace dependencies include:
 
-- `@monochromatic-dev/module-caught-value`
-- `@monochromatic-dev/module-logger`
+- `@monochromatic-dev/caught-value-core`
+- `@monochromatic-dev/logger-core`
 - `@monochromatic-dev/ownership-marker-foreign-borrowed`
 - `@monochromatic-dev/pi-shared-model-review`
 - `@monochromatic-dev/pi-shared-model-selection`
@@ -952,7 +961,7 @@ Development dependencies follow sibling built Pi packages:
 - Pi peer packages from the pnpm catalog
 - `@monochromatic-dev/config-tsdown`
 - `@monochromatic-dev/config-typescript`
-- `@monochromatic-dev/module-test`
+- `@monochromatic-dev/test-harness-core`
 - `@types/node`
 
 Add the normal package files:
@@ -1002,7 +1011,7 @@ Tests drive the same controller interface with in-memory adapters.
 
 ## Logging
 
-Use tagged loggers from `@monochromatic-dev/module-logger`.
+Use tagged loggers from `@monochromatic-dev/logger-core`.
 Log at module and function boundaries.
 
 Required debug or higher records include:
@@ -1039,7 +1048,7 @@ prefer identifiers and lengths over raw text.
 ## Test plan
 
 All behavior tests import built output from `dist/final/node/index.mjs` unless they are fixtures or test-only adapters.
-Use `@monochromatic-dev/module-test/ts`.
+Use `@monochromatic-dev/test-harness-core/ts`.
 Run builds and tests through package-scoped mise tasks.
 
 ### Command tests
@@ -1391,7 +1400,8 @@ Implementation is incomplete until it includes:
 - mode-specific manual fallback behavior
 - verification commands and disposable-state guarantees
 
-The goal README must warn that completion review sends post-goal session context to another configured provider and may incur provider cost.
+The goal README must warn that completion review sends post-goal session context to another configured provider
+and may incur provider cost.
 It must explain that no pre-goal or abandoned-branch context is sent.
 
 ## Sequencing and commits

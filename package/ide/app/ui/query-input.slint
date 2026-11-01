@@ -1,0 +1,204 @@
+// Single-line text box for the find text and the search query, built on `TextInput`.
+// It reproduces the toolkit's fluent `LineEdit` (Slint 1.18.1 `widgets/fluent/lineedit.slint` on
+// `widgets/common/lineedit-base.slint`): placeholder, selection colors, scrolling of long text, input-method
+// preedit, the context menu, the focus mark, and the accessible text input.
+// Selected text takes the ink its owner passes, the one native code chooses from the selection fill for every
+// selection, instead of the toolkit's accent ink, which is black in the dark scheme.
+// It differs in the clear control. The toolkit's is a 16px wide cell whose width cannot be set from outside;
+// here it is a 48px by 48px layout cell of this box, so its click target meets the minimum on its own
+// and never overlaps the text.
+import { Palette } from "std-widgets.slint";
+
+export component QueryInput inherits Rectangle {
+    in property <string> placeholder-text;
+    in property <bool> enabled: true;
+    // Accessible name of the clear control, which says what it clears.
+    in property <string> clear-label: "Clear text";
+    // Ink of selected text. The owner passes the ink native code chooses from the selection fill, so the boxes
+    // draw selections like the source view and the selected rows; the toolkit's accent ink is the fallback.
+    in property <brush> selected-ink: Palette.accent-foreground;
+    in-out property <string> text <=> input.text;
+    out property <bool> has-focus: input.has-focus;
+    // The toolkit's rule for its clear control: text is present, the box is enabled, and it has keyboard focus.
+    out property <bool> clear-shown: root.text != "" && root.enabled && input.has-focus;
+    // The clear cell's place in the window and its size, for geometry checks.
+    out property <length> clear-x: clear-cell.absolute-position.x;
+    out property <length> clear-y: clear-cell.absolute-position.y;
+    out property <length> clear-width: clear-cell.width;
+    out property <length> clear-height: clear-cell.height;
+    callback edited(string);
+    public function select-all() { input.select-all(); }
+    // Same steps as the toolkit's clear control: empty the text, report the edit, keep focus in the box.
+    public function clear() {
+        input.text = "";
+        root.edited("");
+        input.focus();
+    }
+    // Fluent palette values that `Palette` does not export, copied for both schemes
+    // (Slint 1.18.1 `widgets/fluent/styling.slint`).
+    private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    private property <brush> text-secondary: root.dark ? #FFFFFFC9 : #00000099;
+    private property <brush> text-disabled: root.dark ? #FFFFFF5E : #0000005E;
+    private property <brush> control-disabled: root.dark ? #FFFFFF0A : #F9F9F94D;
+    private property <brush> control-input-active: root.dark ? #1E1E1EB3 : #FFFFFF;
+    private property <brush> ink: root.enabled ? Palette.foreground : root.text-disabled;
+    private property <length> side-padding: 12px;
+    // The toolkit keeps the caret this far from both ends of the visible text while a long text scrolls.
+    private property <length> scroll-margin: 2 * root.side-padding;
+    // The clear control's layout cell. Its glyph stays 16px; the rest of the cell is its click target.
+    private property <length> clear-size: 48px;
+
+    forward-focus: input;
+    accessible-role: text-input;
+    accessible-enabled: root.enabled;
+    accessible-value <=> root.text;
+    accessible-placeholder-text: root.placeholder-text;
+    accessible-action-set-value(value) => {
+        root.text = value;
+        root.edited(value);
+    }
+    accessible-action-set-selection-offsets(anchor, focus) => { input.set-selection-offsets(anchor, focus); }
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    // Leading padding, room for a few characters, and the clear cell.
+    min-width: root.side-padding + 36px + root.clear-size;
+    min-height: root.clear-size;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: root.dark
+        ? @linear-gradient(180deg, #FFFFFF14 99.98%, #FFFFFF8A 100%, #FFFFFF8A 100%)
+        : @linear-gradient(180deg, #0000000F 99.99%, #00000073 100%, #00000073 100%);
+    background: !root.enabled ? root.control-disabled
+        : (input.has-focus ? root.control-input-active : Palette.control-background);
+
+    HorizontalLayout {
+        padding-left: root.side-padding;
+        spacing: 0px;
+        Rectangle {
+            horizontal-stretch: 1;
+            // A clipped or zero-width `TextInput` cannot be focused, so the text area keeps one pixel.
+            min-width: 1px;
+            clip: true;
+            Text {
+                width: 100%;
+                height: 100%;
+                vertical-alignment: center;
+                // Composition text from an input method counts as text: the placeholder yields to it.
+                text: root.text == "" && input.preedit-text == "" ? root.placeholder-text : "";
+                color: root.enabled ? root.text-secondary : root.text-disabled;
+                // The box already reports its placeholder to accessibility tools.
+                accessible-role: none;
+            }
+            ContextMenuArea {
+                enabled: root.enabled;
+                Menu {
+                    if root.enabled: MenuItem {
+                        title: "Undo";
+                        activated => { input.undo(); }
+                    }
+                    if root.enabled: MenuItem {
+                        title: "Redo";
+                        activated => { input.redo(); }
+                    }
+                    if root.enabled: MenuSeparator { }
+                    MenuItem {
+                        title: "Cut";
+                        enabled: root.enabled;
+                        activated => { input.cut(); }
+                    }
+                    MenuItem {
+                        title: "Copy";
+                        enabled: root.text != "";
+                        activated => { input.copy(); }
+                    }
+                    MenuItem {
+                        title: "Paste";
+                        enabled: root.enabled;
+                        activated => { input.paste(); }
+                    }
+                    MenuItem {
+                        title: "Select All";
+                        enabled: root.text != "";
+                        activated => { input.select-all(); }
+                    }
+                }
+                input := TextInput {
+                    private property <length> computed-x;
+                    // A text wider than the box scrolls so that the caret stays visible.
+                    x: min(0px, max(parent.width - self.width - self.text-cursor-width, self.computed-x));
+                    width: max(parent.width - self.text-cursor-width, self.preferred-width);
+                    height: 100%;
+                    vertical-alignment: center;
+                    single-line: true;
+                    enabled: root.enabled;
+                    color: root.ink;
+                    selection-background-color: Palette.selection-background;
+                    // The user chose on 2026-10-06 the same ink as every other selection on this fill.
+                    selection-foreground-color: root.enabled ? root.selected-ink
+                        : (root.dark ? #FFFFFF87 : #FFFFFF);
+                    // The box is the accessible text input; this inner item must not appear a second time.
+                    accessible-role: none;
+                    cursor-position-changed(position) => {
+                        if position.x + self.computed-x < root.scroll-margin {
+                            self.computed-x = root.scroll-margin - position.x;
+                        } else if position.x + self.computed-x > parent.width - root.scroll-margin - self.text-cursor-width {
+                            self.computed-x = parent.width - position.x - root.scroll-margin - self.text-cursor-width;
+                        }
+                    }
+                    edited => { root.edited(self.text); }
+                }
+            }
+        }
+        // The trailing layout cell: 12px of padding while the clear control is hidden, and the control's
+        // whole 48px wide click target while it is shown. It is never drawn over the text or a neighbor.
+        clear-cell := Rectangle {
+            width: root.clear-shown ? root.clear-size : root.side-padding;
+            Rectangle {
+                visible: root.clear-shown;
+                width: 100%;
+                height: 100%;
+                accessible-role: button;
+                accessible-label: root.clear-label;
+                accessible-action-default => { root.clear(); }
+                // Hover shows a filled plate with a boundary; a press makes the fill and the boundary heavier.
+                // The plate covers the whole 48px cell, the whole click target (the user's choice of 2026-10-06).
+                // Fill and boundary are translucent, so the box's border under the plate shows through it;
+                // the focus line is drawn after the plate and stays whole above it.
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 4px;
+                    background: Palette.foreground.with-alpha(clear-touch.pressed ? 0.24 : (clear-touch.has-hover ? 0.1 : 0));
+                    border-width: clear-touch.pressed ? 2px : (clear-touch.has-hover ? 1px : 0px);
+                    border-color: Palette.foreground.with-alpha(clear-touch.pressed ? 0.8 : 0.5);
+                }
+                Image {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 16px;
+                    height: 16px;
+                    source: @image-url("../asset/icon/clear.svg");
+                    colorize: root.ink;
+                    accessible-role: none;
+                }
+                // The whole cell takes the click. It is not a focus stop, so the click leaves focus in the text.
+                clear-touch := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { root.clear(); }
+                }
+            }
+        }
+    }
+
+    // The toolkit's focus mark: a 2px accent line along the bottom edge, inset by the corner radius,
+    // together with the brighter fill behind the text.
+    Rectangle {
+        x: root.border-radius;
+        y: parent.height - self.height;
+        width: parent.width - 2 * root.border-radius;
+        height: 2px;
+        border-radius: 1px;
+        background: input.has-focus && root.enabled ? Palette.accent-background : transparent;
+    }
+}

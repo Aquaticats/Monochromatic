@@ -1,13 +1,13 @@
 {
- "catalogGeneratedAt": "2026-10-01T18:57:11.882Z",
+ "catalogGeneratedAt": "2026-10-15T19:00:55.287Z",
  "catalogSchemaVersion": 6,
- "entryCount": 1604,
- "retirementCount": 551,
+ "entryCount": 1714,
+ "retirementCount": 596,
  "abstentions": {
-  "keeperAmbiguity": 14,
-  "unorderedPair": 15,
+  "keeperAmbiguity": 13,
+  "unorderedPair": 12,
   "loserNewerThanKeeper": 0,
-  "versionlessProtected": 6,
+  "versionlessProtected": 7,
   "duplicateIdentity": 0
  },
  "retirements": [
@@ -22,6 +22,12 @@
    "api": "bedrock-converse-stream",
    "retiredId": "anthropic.claude-fable-5",
    "keeperId": "anthropic.claude-fable-5-1"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "anthropic.claude-haiku-5-5"
   },
   {
    "provider": "amazon-bedrock",
@@ -74,6 +80,12 @@
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
+   "retiredId": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "au.anthropic.claude-haiku-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
    "retiredId": "au.anthropic.claude-opus-4-6-v1",
    "keeperId": "au.anthropic.claude-opus-5-5"
   },
@@ -116,6 +128,12 @@
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
+   "retiredId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "eu.anthropic.claude-haiku-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
    "retiredId": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
    "keeperId": "eu.anthropic.claude-opus-5-5"
   },
@@ -147,25 +165,37 @@
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "eu.anthropic.claude-sonnet-4-20250514-v1:0",
-   "keeperId": "eu.anthropic.claude-sonnet-5"
+   "keeperId": "eu.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-   "keeperId": "eu.anthropic.claude-sonnet-5"
+   "keeperId": "eu.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "eu.anthropic.claude-sonnet-4-6",
-   "keeperId": "eu.anthropic.claude-sonnet-5"
+   "keeperId": "eu.anthropic.claude-sonnet-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "eu.anthropic.claude-sonnet-5",
+   "keeperId": "eu.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "global.anthropic.claude-fable-5",
    "keeperId": "global.anthropic.claude-fable-5-1"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "global.anthropic.claude-haiku-5-5"
   },
   {
    "provider": "amazon-bedrock",
@@ -244,6 +274,12 @@
    "api": "bedrock-converse-stream",
    "retiredId": "global.xai.grok-4.6",
    "keeperId": "global.xai.grok-4.7"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "jp.anthropic.claude-haiku-5-5"
   },
   {
    "provider": "amazon-bedrock",
@@ -332,6 +368,12 @@
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
+   "retiredId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "keeperId": "us.anthropic.claude-haiku-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
    "retiredId": "us.anthropic.claude-opus-4-1-20250805-v1:0",
    "keeperId": "us.anthropic.claude-opus-5-5"
   },
@@ -369,19 +411,25 @@
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "us.anthropic.claude-sonnet-4-20250514-v1:0",
-   "keeperId": "us.anthropic.claude-sonnet-5"
+   "keeperId": "us.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-   "keeperId": "us.anthropic.claude-sonnet-5"
+   "keeperId": "us.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "us.anthropic.claude-sonnet-4-6",
-   "keeperId": "us.anthropic.claude-sonnet-5"
+   "keeperId": "us.anthropic.claude-sonnet-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "us.anthropic.claude-sonnet-5",
+   "keeperId": "us.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
@@ -446,8 +494,14 @@
   {
    "provider": "anthropic",
    "api": "anthropic-messages",
+   "retiredId": "claude-haiku-4-5",
+   "keeperId": "claude-haiku-5-5"
+  },
+  {
+   "provider": "anthropic",
+   "api": "anthropic-messages",
    "retiredId": "claude-haiku-4-5-20251001",
-   "keeperId": "claude-haiku-4-5"
+   "keeperId": "claude-haiku-5-5"
   },
   {
    "provider": "anthropic",
@@ -510,139 +564,139 @@
    "keeperId": "claude-sonnet-5-5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4.1",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.1",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.2",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.4",
    "keeperId": "gpt-5.5"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4.1-mini",
    "keeperId": "gpt-5.4-mini"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5-mini",
    "keeperId": "gpt-5.4-mini"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4.1-nano",
    "keeperId": "gpt-5.4-nano"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5-nano",
    "keeperId": "gpt-5.4-nano"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4o-2024-05-13",
    "keeperId": "gpt-4o-2024-11-20"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-4o-2024-08-06",
    "keeperId": "gpt-4o-2024-11-20"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5-chat-latest",
    "keeperId": "gpt-5.3-chat-latest"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.2-chat-latest",
    "keeperId": "gpt-5.3-chat-latest"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5-pro",
    "keeperId": "gpt-5.5-pro"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.2-pro",
    "keeperId": "gpt-5.5-pro"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.4-pro",
    "keeperId": "gpt-5.5-pro"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.6-luna",
    "keeperId": "gpt-6-luna"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-5.6-sol",
    "keeperId": "gpt-6.1-sol"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "gpt-6-sol",
    "keeperId": "gpt-6.1-sol"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "o1",
    "keeperId": "o3"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "o1-pro",
    "keeperId": "o3-pro"
   },
   {
-   "provider": "azure-openai-responses",
+   "provider": "azure",
    "api": "azure-openai-responses",
    "retiredId": "o3-mini",
    "keeperId": "o4-mini"
@@ -699,49 +753,61 @@
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
    "retiredId": "claude-fable-5",
-   "keeperId": "claude-fable-5.1"
+   "keeperId": "claude-fable-5-1"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-opus-4.5",
-   "keeperId": "claude-opus-5.5"
+   "retiredId": "claude-haiku-4-5",
+   "keeperId": "claude-haiku-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-opus-4.6",
-   "keeperId": "claude-opus-5.5"
+   "retiredId": "claude-opus-4-5",
+   "keeperId": "claude-opus-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-opus-4.7",
-   "keeperId": "claude-opus-5.5"
+   "retiredId": "claude-opus-4-6",
+   "keeperId": "claude-opus-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-opus-4.8",
-   "keeperId": "claude-opus-5.5"
+   "retiredId": "claude-opus-4-7",
+   "keeperId": "claude-opus-5-5"
+  },
+  {
+   "provider": "cloudflare-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "claude-opus-4-8",
+   "keeperId": "claude-opus-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
    "retiredId": "claude-opus-5",
-   "keeperId": "claude-opus-5.5"
+   "keeperId": "claude-opus-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-sonnet-4.5",
-   "keeperId": "claude-sonnet-5"
+   "retiredId": "claude-sonnet-4-5",
+   "keeperId": "claude-sonnet-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "claude-sonnet-4.6",
-   "keeperId": "claude-sonnet-5"
+   "retiredId": "claude-sonnet-4-6",
+   "keeperId": "claude-sonnet-5-5"
+  },
+  {
+   "provider": "cloudflare-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "claude-sonnet-5",
+   "keeperId": "claude-sonnet-5-5"
   },
   {
    "provider": "cloudflare-ai-gateway",
@@ -819,7 +885,13 @@
    "provider": "cloudflare-ai-gateway",
    "api": "openai-responses",
    "retiredId": "gpt-5.6-sol",
-   "keeperId": "gpt-6-sol"
+   "keeperId": "gpt-6.1-sol"
+  },
+  {
+   "provider": "cloudflare-ai-gateway",
+   "api": "openai-responses",
+   "retiredId": "gpt-6-sol",
+   "keeperId": "gpt-6.1-sol"
   },
   {
    "provider": "cloudflare-ai-gateway",
@@ -844,6 +916,12 @@
    "api": "anthropic-messages",
    "retiredId": "claude-fable-5",
    "keeperId": "claude-fable-5.1"
+  },
+  {
+   "provider": "github-copilot",
+   "api": "anthropic-messages",
+   "retiredId": "claude-haiku-4.5",
+   "keeperId": "claude-haiku-5.5"
   },
   {
    "provider": "github-copilot",
@@ -1230,12 +1308,6 @@
    "keeperId": "kimi-k3"
   },
   {
-   "provider": "nvidia",
-   "api": "openai-completions",
-   "retiredId": "moonshotai/kimi-k2.6",
-   "keeperId": "moonshotai/kimi-k3"
-  },
-  {
    "provider": "openai-codex",
    "api": "openai-codex-responses",
    "retiredId": "gpt-5.6-luna",
@@ -1394,12 +1466,6 @@
   {
    "provider": "opencode-go",
    "api": "openai-completions",
-   "retiredId": "deepseek-v4-flash",
-   "keeperId": "deepseek-v4.1-flash"
-  },
-  {
-   "provider": "opencode-go",
-   "api": "openai-completions",
    "retiredId": "glm-5.2",
    "keeperId": "glm-5.3"
   },
@@ -1418,12 +1484,6 @@
   {
    "provider": "opencode-go",
    "api": "openai-responses",
-   "retiredId": "grok-4.6",
-   "keeperId": "grok-4.7"
-  },
-  {
-   "provider": "opencode-go",
-   "api": "openai-responses",
    "retiredId": "muse-spark-1.2-contributor",
    "keeperId": "muse-spark-1.3-contributor"
   },
@@ -1432,6 +1492,12 @@
    "api": "anthropic-messages",
    "retiredId": "claude-fable-5",
    "keeperId": "claude-fable-5-1"
+  },
+  {
+   "provider": "opencode",
+   "api": "anthropic-messages",
+   "retiredId": "claude-haiku-4-5",
+   "keeperId": "claude-haiku-5-5"
   },
   {
    "provider": "opencode",
@@ -1664,6 +1730,12 @@
   {
    "provider": "openrouter",
    "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-haiku-4.5",
+   "keeperId": "anthropic/claude-haiku-5.5"
+  },
+  {
+   "provider": "openrouter",
+   "api": "anthropic-messages",
    "retiredId": "anthropic/claude-opus-4.1",
    "keeperId": "anthropic/claude-opus-5.5"
   },
@@ -1696,12 +1768,6 @@
    "api": "anthropic-messages",
    "retiredId": "anthropic/claude-opus-5",
    "keeperId": "anthropic/claude-opus-5.5"
-  },
-  {
-   "provider": "openrouter",
-   "api": "anthropic-messages",
-   "retiredId": "anthropic/claude-sonnet-4",
-   "keeperId": "anthropic/claude-sonnet-5.5"
   },
   {
    "provider": "openrouter",
@@ -1750,6 +1816,12 @@
    "api": "openai-completions",
    "retiredId": "anthropic/claude-fable-5:batch",
    "keeperId": "anthropic/claude-fable-5.1:batch"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "anthropic/claude-haiku-4.5:batch",
+   "keeperId": "anthropic/claude-haiku-5.5:batch"
   },
   {
    "provider": "openrouter",
@@ -1906,6 +1978,12 @@
    "api": "openai-completions",
    "retiredId": "inception/mercury-2",
    "keeperId": "inception/mercury-2.5"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "inclusionai/ling-3.0-flash",
+   "keeperId": "inclusionai/ling-3.1-flash"
   },
   {
    "provider": "openrouter",
@@ -2259,13 +2337,25 @@
    "provider": "openrouter",
    "api": "openai-completions",
    "retiredId": "openai/gpt-5.6-sol-pro:batch",
-   "keeperId": "openai/gpt-6-sol-pro:batch"
+   "keeperId": "openai/gpt-6.1-sol-pro:batch"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "openai/gpt-6-sol-pro:batch",
+   "keeperId": "openai/gpt-6.1-sol-pro:batch"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
    "retiredId": "openai/gpt-5.6-sol:batch",
-   "keeperId": "openai/gpt-6-sol:batch"
+   "keeperId": "openai/gpt-6.1-sol:batch"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "openai/gpt-6-sol:batch",
+   "keeperId": "openai/gpt-6.1-sol:batch"
   },
   {
    "provider": "openrouter",
@@ -2294,14 +2384,20 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "qwen/qwen3-235b-a22b-2507",
-   "keeperId": "qwen/qwen3-235b-a22b"
+   "retiredId": "qwen/qwen3.5-plus-02-15",
+   "keeperId": "qwen/qwen3.7-plus"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "qwen/qwen3.7-max",
-   "keeperId": "qwen/qwen3.8-max-0902"
+   "retiredId": "qwen/qwen3.5-plus-20260420",
+   "keeperId": "qwen/qwen3.7-plus"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "qwen/qwen3.6-plus",
+   "keeperId": "qwen/qwen3.7-plus"
   },
   {
    "provider": "openrouter",
@@ -2338,6 +2434,12 @@
    "api": "openai-completions",
    "retiredId": "qwen/qwen3.7-flash",
    "keeperId": "qwen/qwen3.8-flash"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "qwen/qwen3.7-max",
+   "keeperId": "qwen/qwen3.8-max-0902"
   },
   {
    "provider": "openrouter",
@@ -2508,6 +2610,18 @@
    "keeperId": "sourceful/riverflow-v2.5-pro"
   },
   {
+   "provider": "openrouter",
+   "api": "typesafe-system-one",
+   "retiredId": "nace-ai/drex-v1.5",
+   "keeperId": "nace-ai/drex-v2.0"
+  },
+  {
+   "provider": "openrouter",
+   "api": "typesafe-system-one",
+   "retiredId": "typesafe/jev-1.13",
+   "keeperId": "typesafe/jev-1.14"
+  },
+  {
    "provider": "qwen-token-plan-cn",
    "api": "openai-completions",
    "retiredId": "deepseek-v4-flash",
@@ -2642,6 +2756,12 @@
   {
    "provider": "radius",
    "api": "pi-messages",
+   "retiredId": "claude-haiku-4-5",
+   "keeperId": "claude-haiku-5-5"
+  },
+  {
+   "provider": "radius",
+   "api": "pi-messages",
    "retiredId": "claude-opus-4-5",
    "keeperId": "claude-opus-5-5"
   },
@@ -2690,12 +2810,6 @@
   {
    "provider": "together",
    "api": "openai-completions",
-   "retiredId": "deepseek-ai/DeepSeek-V4-Pro-0813",
-   "keeperId": "deepseek-ai/DeepSeek-V4-Pro"
-  },
-  {
-   "provider": "together",
-   "api": "openai-completions",
    "retiredId": "MiniMaxAI/MiniMax-M2.7",
    "keeperId": "MiniMaxAI/MiniMax-M3"
   },
@@ -2704,30 +2818,6 @@
    "api": "openai-completions",
    "retiredId": "zai-org/GLM-5.2",
    "keeperId": "zai-org/GLM-5.3"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "alibaba/qwen3-max-preview",
-   "keeperId": "alibaba/qwen-3.6-max-preview"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "alibaba/qwen3-max",
-   "keeperId": "alibaba/qwen3.8-max"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "alibaba/qwen3.7-max",
-   "keeperId": "alibaba/qwen3.8-max"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "alibaba/qwen3.8-max-0902",
-   "keeperId": "alibaba/qwen3.8-max"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2762,8 +2852,14 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "anthropic/claude-3-haiku",
-   "keeperId": "anthropic/claude-haiku-4.5"
+   "retiredId": "alibaba/qwen3.7-max",
+   "keeperId": "alibaba/qwen3.8-max"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "alibaba/qwen3.8-max-0902",
+   "keeperId": "alibaba/qwen3.8-max"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2774,8 +2870,20 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "anthropic/claude-opus-4",
-   "keeperId": "anthropic/claude-opus-5.5"
+   "retiredId": "anthropic/claude-fable-5-batch",
+   "keeperId": "anthropic/claude-fable-5.1-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-haiku-4.5",
+   "keeperId": "anthropic/claude-haiku-5.5"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-haiku-4.5-batch",
+   "keeperId": "anthropic/claude-haiku-5.5-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2806,6 +2914,36 @@
    "api": "anthropic-messages",
    "retiredId": "anthropic/claude-opus-5",
    "keeperId": "anthropic/claude-opus-5.5"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-opus-4.5-batch",
+   "keeperId": "anthropic/claude-opus-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-opus-4.6-batch",
+   "keeperId": "anthropic/claude-opus-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-opus-4.7-batch",
+   "keeperId": "anthropic/claude-opus-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-opus-4.8-batch",
+   "keeperId": "anthropic/claude-opus-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-opus-5-batch",
+   "keeperId": "anthropic/claude-opus-5.5-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2842,6 +2980,24 @@
    "api": "anthropic-messages",
    "retiredId": "anthropic/claude-sonnet-5",
    "keeperId": "anthropic/claude-sonnet-5.5"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-sonnet-4.5-batch",
+   "keeperId": "anthropic/claude-sonnet-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-sonnet-4.6-batch",
+   "keeperId": "anthropic/claude-sonnet-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "anthropic/claude-sonnet-5-batch",
+   "keeperId": "anthropic/claude-sonnet-5.5-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2900,6 +3056,30 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "google/gemini-2.5-flash-batch",
+   "keeperId": "google/gemini-3.7-flash-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "google/gemini-3-flash-batch",
+   "keeperId": "google/gemini-3.7-flash-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "google/gemini-3.5-flash-batch",
+   "keeperId": "google/gemini-3.7-flash-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "google/gemini-3.6-flash-batch",
+   "keeperId": "google/gemini-3.7-flash-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "google/gemini-2.5-flash-lite",
    "keeperId": "google/gemini-3.5-flash-lite"
   },
@@ -2908,6 +3088,18 @@
    "api": "anthropic-messages",
    "retiredId": "google/gemini-3.1-flash-lite",
    "keeperId": "google/gemini-3.5-flash-lite"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "google/gemini-2.5-flash-lite-batch",
+   "keeperId": "google/gemini-3.5-flash-lite-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "google/gemini-3.1-flash-lite-batch",
+   "keeperId": "google/gemini-3.5-flash-lite-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -2978,6 +3170,12 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "mistral/mistral-large-3",
+   "keeperId": "mistral/mistral-large-4"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "moonshotai/kimi-k2",
    "keeperId": "moonshotai/kimi-k3"
   },
@@ -3026,6 +3224,30 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "openai/gpt-4.1-batch",
+   "keeperId": "openai/gpt-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5-batch",
+   "keeperId": "openai/gpt-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.2-batch",
+   "keeperId": "openai/gpt-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.4-batch",
+   "keeperId": "openai/gpt-5.5-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "openai/gpt-4.1-fast",
    "keeperId": "openai/gpt-5.5-fast"
   },
@@ -3062,6 +3284,18 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "openai/gpt-4.1-mini-batch",
+   "keeperId": "openai/gpt-5.4-mini-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5-mini-batch",
+   "keeperId": "openai/gpt-5.4-mini-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "openai/gpt-4.1-mini-fast",
    "keeperId": "openai/gpt-5.4-mini-fast"
   },
@@ -3082,6 +3316,18 @@
    "api": "anthropic-messages",
    "retiredId": "openai/gpt-5-nano",
    "keeperId": "openai/gpt-5.4-nano"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-4.1-nano-batch",
+   "keeperId": "openai/gpt-5.4-nano-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5-nano-batch",
+   "keeperId": "openai/gpt-5.4-nano-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3122,8 +3368,20 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5-pro-batch",
+   "keeperId": "openai/gpt-5.5-pro-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "openai/gpt-5.6-luna",
    "keeperId": "openai/gpt-6-luna"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.6-luna-batch",
+   "keeperId": "openai/gpt-6-luna-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3142,6 +3400,18 @@
    "api": "anthropic-messages",
    "retiredId": "openai/gpt-6-sol",
    "keeperId": "openai/gpt-6.1-sol"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.6-sol-batch",
+   "keeperId": "openai/gpt-6.1-sol-batch"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-6-sol-batch",
+   "keeperId": "openai/gpt-6.1-sol-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3184,12 +3454,6 @@
    "api": "anthropic-messages",
    "retiredId": "spacexai/grok-4.6",
    "keeperId": "spacexai/grok-4.7"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "stepfun/step-3.5-flash",
-   "keeperId": "stepfun/step-3.7-flash"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3250,6 +3514,12 @@
    "api": "anthropic-messages",
    "retiredId": "zai/glm-5.2-fast",
    "keeperId": "zai/glm-5.3-fast"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "typesafe-system-one",
+   "retiredId": "typesafe-ai/jev-1.13.0",
+   "keeperId": "typesafe-ai/jev-1.14.0"
   },
   {
    "provider": "xai",

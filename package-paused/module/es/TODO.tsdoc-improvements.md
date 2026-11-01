@@ -50,12 +50,14 @@
 
 #### Function Utilities Documentation
 
-- [ ] **[`function.deConcurrency.ts`](src/function.deConcurrency.ts:1)**: [`deConcurrency()`](src/function.deConcurrency.ts:1)
+- [ ] **[`function.deConcurrency.ts`](src/function.deConcurrency.ts:1)**:
+  [`deConcurrency()`](src/function.deConcurrency.ts:1)
   - Missing comprehensive documentation
   - Need examples of concurrent execution prevention
   - Document performance implications
 
-- [ ] **[`function.ignoreExtraArgs.ts`](src/function.ignoreExtraArgs.ts:40)**: [`ignoreExtraArgs()`](src/function.ignoreExtraArgs.ts:40)
+- [ ] **[`function.ignoreExtraArgs.ts`](src/function.ignoreExtraArgs.ts:40)**:
+  [`ignoreExtraArgs()`](src/function.ignoreExtraArgs.ts:40)
   - Good documentation, needs usage examples
   - Add examples with callback scenarios
 
@@ -75,7 +77,8 @@
 
 #### Complex Functions Needing Enhanced Documentation
 
-- [ ] **[`boolean.equal.ts`](src/boolean.equal.ts:174)**: [`equal()`](src/boolean.equal.ts:174) and [`equalAsync()`](src/boolean.equal.ts:543)
+- [ ] **[`boolean.equal.ts`](src/boolean.equal.ts:174)**:
+  [`equal()`](src/boolean.equal.ts:174) and [`equalAsync()`](src/boolean.equal.ts:543)
   - Has basic documentation, needs comprehensive examples
   - Document deep equality algorithm
   - Add performance considerations for large objects
@@ -146,7 +149,8 @@
 
 Functions with poor parameter documentation:
 
-- [ ] Review all functions for parameter descriptions following the rule: "Avoid `the`, `a`, `an` in `@param` descriptions"
+- [ ] Review all functions for parameter descriptions following the rule:
+  "Avoid `the`, `a`, `an` in `@param` descriptions"
 - [ ] Ensure parameter descriptions add context beyond just repeating the name
 - [ ] Fix parameter descriptions that just restate the parameter name
 
@@ -263,6 +267,7 @@ Functions that need `@example` tags with practical usage:
 
 ## Cross-References
 
-- [**Code Quality Todo**](../../TODO.code-quality.md#testing-requirements-and-standards): TSDoc standards and linting rules
+- [**Code Quality Todo**](../../TODO.code-quality.md#testing-requirements-and-standards):
+  TSDoc standards and linting rules
 - [**Documentation Todo**](../../TODO.documentation.md#api-documentation-automation): Automated documentation generation
 - [**Build System Todo**](../../TODO.build-system.md#validation-and-testing): Documentation validation in build process

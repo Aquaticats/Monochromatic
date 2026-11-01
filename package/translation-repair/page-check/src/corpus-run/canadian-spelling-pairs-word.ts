@@ -1,0 +1,202 @@
+//region Canadian spelling pairs: word by word
+// The pairs no ending pattern covers: British forms Canadian English writes
+// the American way, then American forms it writes the British way. Kept apart
+// from `canadian-spelling-pairs.ts`, which states the sources the pairs rest
+// on and spreads this map in its place, so neither file outgrows the line
+// budget.
+
+/**
+ American or British spelling, lower case, to the Canadian one, which is lower
+ case too except "ID". A map, as every table keyed by text is (ledger B77).
+ */
+export const WORD_PAIRS: ReadonlyMap<string, string> = new Map([
+  // British forms Canadian English writes the American way.
+  [
+    'aluminium',
+    'aluminum',
+  ],
+  [
+    'judgement',
+    'judgment',
+  ],
+  [
+    'judgements',
+    'judgments',
+  ],
+  [
+    'maths',
+    'math',
+  ],
+  [
+    'programme',
+    'program',
+  ],
+  [
+    'programmes',
+    'programs',
+  ],
+  [
+    'pajamas',
+    'pyjamas',
+  ],
+  [
+    'mustache',
+    'moustache',
+  ],
+  [
+    'tyre',
+    'tire',
+  ],
+  [
+    'tyres',
+    'tires',
+  ],
+  [
+    'kerb',
+    'curb',
+  ],
+  [
+    'sceptic',
+    'skeptic',
+  ],
+  [
+    'sceptics',
+    'skeptics',
+  ],
+  [
+    'sceptical',
+    'skeptical',
+  ],
+  [
+    'scepticism',
+    'skepticism',
+  ],
+  [
+    'oestrogen',
+    'estrogen',
+  ],
+  [
+    'haemorrhage',
+    'hemorrhage',
+  ],
+  [
+    'haemoglobin',
+    'hemoglobin',
+  ],
+  [
+    'anaemia',
+    'anemia',
+  ],
+  [
+    'anaemic',
+    'anemic',
+  ],
+  [
+    'paediatric',
+    'pediatric',
+  ],
+  [
+    'paediatrician',
+    'pediatrician',
+  ],
+  [
+    'oesophagus',
+    'esophagus',
+  ],
+  [
+    'diarrhoea',
+    'diarrhea',
+  ],
+  [
+    'foetus',
+    'fetus',
+  ],
+  [
+    'foetal',
+    'fetal',
+  ],
+  [
+    'leukaemia',
+    'leukemia',
+  ],
+  [
+    'orthopaedic',
+    'orthopedic',
+  ],
+  [
+    'anaesthesia',
+    'anesthesia',
+  ],
+  [
+    'anaesthetic',
+    'anesthetic',
+  ],
+  [
+    'gynaecology',
+    'gynecology',
+  ],
+  [
+    'gynaecologist',
+    'gynecologist',
+  ],
+  [
+    'oedema',
+    'edema',
+  ],
+  // American forms Canadian English writes the British way.
+  [
+    'gray',
+    'grey',
+  ],
+  [
+    'grays',
+    'greys',
+  ],
+  [
+    'grayish',
+    'greyish',
+  ],
+  [
+    'graying',
+    'greying',
+  ],
+  [
+    'catalog',
+    'catalogue',
+  ],
+  [
+    'catalogs',
+    'catalogues',
+  ],
+  [
+    'defense',
+    'defence',
+  ],
+  [
+    'defenses',
+    'defences',
+  ],
+  [
+    'offense',
+    'offence',
+  ],
+  [
+    'offenses',
+    'offences',
+  ],
+  [
+    'liquorice',
+    'licorice',
+  ],
+  // CLASS ONE HUNDRED SIXTY-NINE (TianqiChen6667, 2026-09-26): "she used this
+  // id on basically all of her social media platforms" for 这个id. The pinned
+  // archive writes ID on three pages and lowercase id on none, and the
+  // psychoanalytic id appears nowhere in the corpus, so the word has no second
+  // sense a respelling could damage here.
+  [
+    'id',
+    'ID',
+  ],
+],);
+
+//endregion Canadian spelling pairs: word by word

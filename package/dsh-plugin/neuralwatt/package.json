@@ -1,0 +1,66 @@
+{
+  "name": "@monochromatic-dev/dsh-plugin-neuralwatt",
+  "description": "NeuralWatt provider for DSH: owns the neuralwatt pi-ai route over the shipped llm-pi-ai adapter, with the model list fetched live from the NeuralWatt API carrying accurate context windows and thinking levels, and a checked-in snapshot standing in while the API is unreachable",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "dsh": "0.2.1-rc.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dsh-plugin/neuralwatt"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "cordis.patch.yml",
+    "locale/en.json",
+    "locale/zh.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "dsh-bundle",
+    "dsh-plugin",
+    "neuralwatt",
+    "llm-provider",
+    "model-list"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:",
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

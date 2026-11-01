@@ -30,3 +30,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+
+[tasks."dependencies:lock"]
+description = "Update the workspace lock for this package without installing or running lifecycle scripts"
+run = "pnpm install --filter @monochromatic-dev/pi-plugin-auto-mode --lockfile-only --ignore-scripts --offline"

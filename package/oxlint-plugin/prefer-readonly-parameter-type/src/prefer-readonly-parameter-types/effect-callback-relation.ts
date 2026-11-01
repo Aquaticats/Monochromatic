@@ -71,7 +71,7 @@ export function propagateCallbackRelations({
      Summary for passed callback declaration, absent when none is named or built.
      */
     const callbackSummary = ((callbackKey === undefined)
-        || (callbackKey === OWNED_CALLABLE_UNAVAILABLE))
+      || (callbackKey === OWNED_CALLABLE_UNAVAILABLE))
       ? undefined
       : summaries.get(callbackKey,);
     if (callbackSummary === undefined) {

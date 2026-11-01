@@ -1,0 +1,3022 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T11:10:48.643Z",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "fixedNameHarness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+  "contentBoundHarness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+  "contentBoundFirstConsumerPassed": true,
+  "contentBoundActualFullRerunConsumerPassed": true,
+  "currentProducerHashSourceControlsPerConsumer": 6,
+  "tenDistinctProviderSandboxesAcrossFullRerun": true,
+  "phases": [
+    {
+      "label": "fixed-name-first-attempt",
+      "run": "1jqm5wjmlj",
+      "attempt": 1,
+      "rawAggregateStatus": "failed",
+      "source": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+      "jobs": [
+        {
+          "jobId": "82m7t0lts5",
+          "name": "consumer",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "vplq2j2v86",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "7qhl4ck8sspm1vbs1d7j",
+              "session_id": "24b43683-2b3e-47e8-a3d8-bc923abed86c",
+              "started_at": "2026-10-18T10:05:53Z",
+              "finished_at": "2026-10-18T10:06:14Z"
+            }
+          ]
+        },
+        {
+          "jobId": "dt70xgdbzv",
+          "name": "state",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "vm0b8rj1dg",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "4hmnhw1x53m1rw0xw4p3",
+              "session_id": "645fc33d-a87c-42d0-8f8a-11205f24eb0c",
+              "started_at": "2026-10-18T10:03:05Z",
+              "finished_at": "2026-10-18T10:05:19Z"
+            }
+          ]
+        },
+        {
+          "jobId": "hpgdwhqbt5",
+          "name": "timeout",
+          "status": "cancelled",
+          "attempts": [
+            {
+              "attempt_id": "dc9lkvg6hm",
+              "attempt": 1,
+              "status": "cancelled",
+              "sandbox_id": "vhl485jxb9sz7k3sj01n",
+              "session_id": "93ac7ec0-4aa2-45c0-9459-df0cad25cb34",
+              "started_at": "2026-10-18T10:03:05Z",
+              "finished_at": "2026-10-18T10:05:07Z"
+            }
+          ]
+        },
+        {
+          "jobId": "svvnqr8dvl",
+          "name": "parallel_default",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "xkkj6m6vtt",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "sgpkmz8rctk6fr165ns4",
+              "session_id": "efd45c95-7b18-4c53-8d5e-b312b666ce70",
+              "started_at": "2026-10-18T10:05:21Z",
+              "finished_at": "2026-10-18T10:05:51Z"
+            }
+          ]
+        },
+        {
+          "jobId": "t4cdl9lbgw",
+          "name": "parallel_allrun",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "kvkrjtn1r9",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "j3gdzgfp952knfjkwf98",
+              "session_id": "79307e89-4a58-44b0-9eee-875e9dc69cdc",
+              "started_at": "2026-10-18T10:05:09Z",
+              "finished_at": "2026-10-18T10:05:47Z"
+            }
+          ]
+        }
+      ],
+      "currentArtifacts": [
+        {
+          "artifact": {
+            "artifact_id": "01a14e79-7d08-7e7b-9dcc-c1268eb5e280",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "t4cdl9lbgw",
+            "job_key": "_inline_0.yaml:parallel_allrun",
+            "attempt_id": "kvkrjtn1r9",
+            "attempt": 1,
+            "name": "research-native-semantics-allrun",
+            "size_bytes": 873,
+            "created_at": "2026-10-18T10:05:47Z"
+          },
+          "bytes": 873,
+          "sha256": "9983d9eb096ff0b722e097b422f8dac0d79e1c9fb0c5c4a952ada12c34818d0f",
+          "members": [
+            "parallel-allrun.json",
+            "sibling-finished",
+            "failure-started",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-allrun.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-allrun",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "returnedAt": "2026-10-18T10:05:37.401Z",
+                "siblingFinishedAtReturn": true,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:05:46.413Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14e79-1181-7952-a82d-e50060d12d89",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "dt70xgdbzv",
+            "job_key": "_inline_0.yaml:state",
+            "attempt_id": "vm0b8rj1dg",
+            "attempt": 1,
+            "name": "research-native-semantics-state",
+            "size_bytes": 3732,
+            "created_at": "2026-10-18T10:05:19Z"
+          },
+          "bytes": 3732,
+          "sha256": "6c716ad15e3cc6063a6863256936751fd5121a9368881c964a7b97e3d9c36950",
+          "members": [
+            "absorbed-attempts.json",
+            "parallel-a-first.json",
+            "parallel-a-started",
+            "parallel-a-next.json",
+            "parallel-assertion.json",
+            "parallel-b-first.json",
+            "parallel-b-next.json",
+            "parallel-b-started",
+            "retry-assertion.json",
+            "retry-attempts.json",
+            "state.json",
+            "timeout-renew-completed-1.json",
+            "timeout-renew-completed-2.json",
+            "timeout-renew.json"
+          ],
+          "observations": [
+            {
+              "member": "absorbed-attempts.json",
+              "value": [
+                {
+                  "probe": "absorbed",
+                  "attempt": 1,
+                  "at": "2026-10-18T10:05:18.082Z"
+                },
+                {
+                  "probe": "absorbed",
+                  "attempt": 2,
+                  "at": "2026-10-18T10:05:18.446Z"
+                }
+              ]
+            },
+            {
+              "member": "parallel-a-first.json",
+              "value": {
+                "role": "a",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:03:26.595Z"
+              }
+            },
+            {
+              "member": "parallel-a-next.json",
+              "value": {
+                "role": "a",
+                "ownEnvironment": "a",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:03:27.090Z"
+              }
+            },
+            {
+              "member": "parallel-assertion.json",
+              "value": {
+                "passed": true,
+                "branches": [
+                  {
+                    "first": {
+                      "role": "a",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:03:26.595Z"
+                    },
+                    "next": {
+                      "role": "a",
+                      "ownEnvironment": "a",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:03:27.090Z"
+                    }
+                  },
+                  {
+                    "first": {
+                      "role": "b",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:03:26.617Z"
+                    },
+                    "next": {
+                      "role": "b",
+                      "ownEnvironment": "b",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:03:27.058Z"
+                    }
+                  }
+                ],
+                "env": {
+                  "a": "a",
+                  "b": "b"
+                },
+                "outputs": {
+                  "a": "a",
+                  "b": "b"
+                }
+              }
+            },
+            {
+              "member": "parallel-b-first.json",
+              "value": {
+                "role": "b",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:03:26.617Z"
+              }
+            },
+            {
+              "member": "parallel-b-next.json",
+              "value": {
+                "role": "b",
+                "ownEnvironment": "b",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:03:27.058Z"
+              }
+            },
+            {
+              "member": "retry-assertion.json",
+              "value": {
+                "passed": true,
+                "attempts": [
+                  {
+                    "attempt": 1,
+                    "at": "2026-10-18T10:03:25.044Z",
+                    "pid": 1415
+                  },
+                  {
+                    "attempt": 2,
+                    "at": "2026-10-18T10:03:25.434Z",
+                    "pid": 1447
+                  },
+                  {
+                    "attempt": 3,
+                    "at": "2026-10-18T10:03:25.749Z",
+                    "pid": 1479
+                  }
+                ],
+                "env": "3",
+                "output": "3"
+              }
+            },
+            {
+              "member": "retry-attempts.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "at": "2026-10-18T10:03:25.044Z",
+                  "pid": 1415
+                },
+                {
+                  "attempt": 2,
+                  "at": "2026-10-18T10:03:25.434Z",
+                  "pid": 1447
+                },
+                {
+                  "attempt": 3,
+                  "at": "2026-10-18T10:03:25.749Z",
+                  "pid": 1479
+                }
+              ]
+            },
+            {
+              "member": "state.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "state",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "renewal": [
+                  {
+                    "attempt": 1,
+                    "pid": 1703,
+                    "parentPid": 1694,
+                    "startedAt": "2026-10-18T10:03:27.805Z",
+                    "intendedHoldMilliseconds": 70000
+                  },
+                  {
+                    "attempt": 2,
+                    "pid": 1735,
+                    "parentPid": 1726,
+                    "startedAt": "2026-10-18T10:04:27.752Z",
+                    "intendedHoldMilliseconds": 50000
+                  }
+                ],
+                "firstTimedOutDescendantCompleted": true,
+                "descendantCleanupGuaranteeAsserted": false,
+                "absorbed": [
+                  {
+                    "probe": "absorbed",
+                    "attempt": 1,
+                    "at": "2026-10-18T10:05:18.082Z"
+                  },
+                  {
+                    "probe": "absorbed",
+                    "attempt": 2,
+                    "at": "2026-10-18T10:05:18.446Z"
+                  }
+                ],
+                "retry": {
+                  "passed": true,
+                  "attempts": [
+                    {
+                      "attempt": 1,
+                      "at": "2026-10-18T10:03:25.044Z",
+                      "pid": 1415
+                    },
+                    {
+                      "attempt": 2,
+                      "at": "2026-10-18T10:03:25.434Z",
+                      "pid": 1447
+                    },
+                    {
+                      "attempt": 3,
+                      "at": "2026-10-18T10:03:25.749Z",
+                      "pid": 1479
+                    }
+                  ],
+                  "env": "3",
+                  "output": "3"
+                },
+                "parallel": {
+                  "passed": true,
+                  "branches": [
+                    {
+                      "first": {
+                        "role": "a",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:03:26.595Z"
+                      },
+                      "next": {
+                        "role": "a",
+                        "ownEnvironment": "a",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:03:27.090Z"
+                      }
+                    },
+                    {
+                      "first": {
+                        "role": "b",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:03:26.617Z"
+                      },
+                      "next": {
+                        "role": "b",
+                        "ownEnvironment": "b",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:03:27.058Z"
+                      }
+                    }
+                  ],
+                  "env": {
+                    "a": "a",
+                    "b": "b"
+                  },
+                  "outputs": {
+                    "a": "a",
+                    "b": "b"
+                  }
+                },
+                "exhaustedStep": {
+                  "outcome": "failure",
+                  "conclusion": "success"
+                }
+              }
+            },
+            {
+              "member": "timeout-renew-completed-1.json",
+              "value": {
+                "attempt": 1,
+                "completedAt": "2026-10-18T10:04:37.815Z"
+              }
+            },
+            {
+              "member": "timeout-renew-completed-2.json",
+              "value": {
+                "attempt": 2,
+                "completedAt": "2026-10-18T10:05:17.758Z"
+              }
+            },
+            {
+              "member": "timeout-renew.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "pid": 1703,
+                  "parentPid": 1694,
+                  "startedAt": "2026-10-18T10:03:27.805Z",
+                  "intendedHoldMilliseconds": 70000
+                },
+                {
+                  "attempt": 2,
+                  "pid": 1735,
+                  "parentPid": 1726,
+                  "startedAt": "2026-10-18T10:04:27.752Z",
+                  "intendedHoldMilliseconds": 50000
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14e79-e7d1-7322-8518-51515d269f75",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "82m7t0lts5",
+            "job_key": "_inline_0.yaml:consumer",
+            "attempt_id": "vplq2j2v86",
+            "attempt": 1,
+            "name": "research-native-semantics-consumer",
+            "size_bytes": 634,
+            "created_at": "2026-10-18T10:06:14Z"
+          },
+          "bytes": 634,
+          "sha256": "d2004720371c75f672af3a44e38da9133b12897f2a8e69a6e28242f112c3cd9c",
+          "members": [
+            "consumer.json"
+          ],
+          "observations": [
+            {
+              "member": "consumer.json",
+              "value": {
+                "passed": true,
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "receipts": [
+                  {
+                    "probe": "state",
+                    "path": "received/state.json",
+                    "bytes": 2234,
+                    "sha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f",
+                    "expectedProducerSha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-default",
+                    "path": "received/parallel-default.json",
+                    "bytes": 462,
+                    "sha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390",
+                    "expectedProducerSha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-allrun",
+                    "path": "received/parallel-allrun.json",
+                    "bytes": 460,
+                    "sha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767",
+                    "expectedProducerSha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  }
+                ],
+                "needs": {
+                  "parallel_allrun": {
+                    "outputs": {
+                      "receipt_sha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767"
+                    },
+                    "result": "success"
+                  },
+                  "parallel_default": {
+                    "outputs": {
+                      "receipt_sha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390"
+                    },
+                    "result": "success"
+                  },
+                  "state": {
+                    "outputs": {
+                      "receipt_sha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f"
+                    },
+                    "result": "success"
+                  },
+                  "timeout": {
+                    "outputs": {},
+                    "result": "cancelled"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14e79-8d98-7ef2-9f91-ece127c20a7c",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "svvnqr8dvl",
+            "job_key": "_inline_0.yaml:parallel_default",
+            "attempt_id": "xkkj6m6vtt",
+            "attempt": 1,
+            "name": "research-native-semantics-default",
+            "size_bytes": 877,
+            "created_at": "2026-10-18T10:05:51Z"
+          },
+          "bytes": 877,
+          "sha256": "acb5f1c91f0c5d158c2eff834e3be0cf352f97b34c2fe312bda41804c293e282",
+          "members": [
+            "parallel-default.json",
+            "sibling-finished",
+            "sibling-started",
+            "failure-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-default.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-default",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "returnedAt": "2026-10-18T10:05:41.617Z",
+                "siblingFinishedAtReturn": false,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:05:50.624Z"
+              }
+            }
+          ]
+        }
+      ],
+      "consumer": {
+        "passed": true,
+        "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+        "receipts": [
+          {
+            "probe": "state",
+            "path": "received/state.json",
+            "bytes": 2234,
+            "sha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f",
+            "expectedProducerSha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-default",
+            "path": "received/parallel-default.json",
+            "bytes": 462,
+            "sha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390",
+            "expectedProducerSha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-allrun",
+            "path": "received/parallel-allrun.json",
+            "bytes": 460,
+            "sha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767",
+            "expectedProducerSha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          }
+        ],
+        "needs": {
+          "parallel_allrun": {
+            "outputs": {
+              "receipt_sha256": "8160c04032e9b625f985f3099e50f0ff204883fd41802f2032b9695c893e7767"
+            },
+            "result": "success"
+          },
+          "parallel_default": {
+            "outputs": {
+              "receipt_sha256": "afaa77719f92c70f4d2c34f064ebcf16fa8876cdd700307339a7c2b169b27390"
+            },
+            "result": "success"
+          },
+          "state": {
+            "outputs": {
+              "receipt_sha256": "2fff556899b52cea970929b9b87651e65601ebd3ce21054e3673b7080570844f"
+            },
+            "result": "success"
+          },
+          "timeout": {
+            "outputs": {},
+            "result": "cancelled"
+          }
+        }
+      },
+      "relevantEvents": [
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:06:13.287Z",
+          "body": "Found 3 artifact(s)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:06:13.288Z",
+          "body": "- research-native-semantics-allrun (ID: 8282037184921433, Size: 873, Expected Digest: sha256:9983d9eb096ff0b722e097b422f8dac0d79e1c9fb0c5c4a952ada12c34818d0f)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:06:13.288Z",
+          "body": "- research-native-semantics-default (ID: 8203535999153898, Size: 877, Expected Digest: sha256:acb5f1c91f0c5d158c2eff834e3be0cf352f97b34c2fe312bda41804c293e282)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:06:13.288Z",
+          "body": "- research-native-semantics-state (ID: 7842896495633388, Size: 3732, Expected Digest: sha256:6c716ad15e3cc6063a6863256936751fd5121a9368881c964a7b97e3d9c36950)"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:03:25.348Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":1,\"at\":\"2026-10-18T10:03:25.346Z\"}"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:04:25.66Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":2,\"at\":\"2026-10-18T10:04:25.658Z\"}"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:05:07.393Z",
+          "body": "##[error]The job was canceled because it exceeded the maximum execution time of 2 minutes."
+        }
+      ],
+      "rawLogHashes": [
+        {
+          "file": "job-82m7t0lts5.jsonl",
+          "bytes": 97080,
+          "sha256": "2aa1af99da9336d7cc5b28a4277fc39bd2728dc9d33f0480464f65c137339821",
+          "published": false
+        },
+        {
+          "file": "job-dt70xgdbzv.jsonl",
+          "bytes": 117560,
+          "sha256": "dc33ee1cd0873431375c8db220ac2a76092d432ac6d8d749625669b97abe80f3",
+          "published": false
+        },
+        {
+          "file": "job-hpgdwhqbt5.jsonl",
+          "bytes": 87002,
+          "sha256": "b40cf12d4c5820a54f30f57e037d72b42693d57172717dca65146c27bd9edc0b",
+          "published": false
+        },
+        {
+          "file": "job-svvnqr8dvl.jsonl",
+          "bytes": 89753,
+          "sha256": "858c6532cd44cfdbff6aa3c1d2d642010bf3230ad3603be6000c8147c89f6137",
+          "published": false
+        },
+        {
+          "file": "job-t4cdl9lbgw.jsonl",
+          "bytes": 89720,
+          "sha256": "63b40518b926cb04d406e8832fe3c5cf369d883d4141b7bcbc45b5783952ac60",
+          "published": false
+        }
+      ]
+    },
+    {
+      "label": "fixed-name-full-rerun",
+      "run": "1jqm5wjmlj",
+      "attempt": 2,
+      "rawAggregateStatus": "failed",
+      "source": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+      "jobs": [
+        {
+          "jobId": "82m7t0lts5",
+          "name": "consumer",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "vplq2j2v86",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "7qhl4ck8sspm1vbs1d7j",
+              "session_id": "24b43683-2b3e-47e8-a3d8-bc923abed86c",
+              "started_at": "2026-10-18T10:05:53Z",
+              "finished_at": "2026-10-18T10:06:14Z"
+            },
+            {
+              "attempt_id": "rbbps97mtj",
+              "attempt": 2,
+              "status": "failed",
+              "sandbox_id": "n4kpz9tm12x4tnzx1q0z",
+              "session_id": "37dd8276-2bbd-4fa1-8433-6cfa62922de6",
+              "started_at": "2026-10-18T10:13:55Z",
+              "finished_at": "2026-10-18T10:14:15Z"
+            }
+          ]
+        },
+        {
+          "jobId": "dt70xgdbzv",
+          "name": "state",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "vm0b8rj1dg",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "4hmnhw1x53m1rw0xw4p3",
+              "session_id": "645fc33d-a87c-42d0-8f8a-11205f24eb0c",
+              "started_at": "2026-10-18T10:03:05Z",
+              "finished_at": "2026-10-18T10:05:19Z"
+            },
+            {
+              "attempt_id": "gt1dt2nnbq",
+              "attempt": 2,
+              "status": "finished",
+              "sandbox_id": "gpj3n7769wdf6j7mtmtk",
+              "session_id": "fe33ad03-b262-486a-b2e4-ca315445deac",
+              "started_at": "2026-10-18T10:11:07Z",
+              "finished_at": "2026-10-18T10:13:21Z"
+            }
+          ]
+        },
+        {
+          "jobId": "hpgdwhqbt5",
+          "name": "timeout",
+          "status": "cancelled",
+          "attempts": [
+            {
+              "attempt_id": "dc9lkvg6hm",
+              "attempt": 1,
+              "status": "cancelled",
+              "sandbox_id": "vhl485jxb9sz7k3sj01n",
+              "session_id": "93ac7ec0-4aa2-45c0-9459-df0cad25cb34",
+              "started_at": "2026-10-18T10:03:05Z",
+              "finished_at": "2026-10-18T10:05:07Z"
+            },
+            {
+              "attempt_id": "hnsq093m4n",
+              "attempt": 2,
+              "status": "cancelled",
+              "sandbox_id": "4tcmst8l3zhn796nsx4j",
+              "session_id": "718a423d-5b97-40c0-889a-079c95c0c035",
+              "started_at": "2026-10-18T10:11:07Z",
+              "finished_at": "2026-10-18T10:13:09Z"
+            }
+          ]
+        },
+        {
+          "jobId": "svvnqr8dvl",
+          "name": "parallel_default",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "xkkj6m6vtt",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "sgpkmz8rctk6fr165ns4",
+              "session_id": "efd45c95-7b18-4c53-8d5e-b312b666ce70",
+              "started_at": "2026-10-18T10:05:21Z",
+              "finished_at": "2026-10-18T10:05:51Z"
+            },
+            {
+              "attempt_id": "txxg9dpsxk",
+              "attempt": 2,
+              "status": "failed",
+              "sandbox_id": "bzl3x95csn476xp0w8c0",
+              "session_id": "e7553940-7e15-4fe0-a4d2-68afef263dcc",
+              "started_at": "2026-10-18T10:13:23Z",
+              "finished_at": "2026-10-18T10:13:53Z"
+            }
+          ]
+        },
+        {
+          "jobId": "t4cdl9lbgw",
+          "name": "parallel_allrun",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "kvkrjtn1r9",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "j3gdzgfp952knfjkwf98",
+              "session_id": "79307e89-4a58-44b0-9eee-875e9dc69cdc",
+              "started_at": "2026-10-18T10:05:09Z",
+              "finished_at": "2026-10-18T10:05:47Z"
+            },
+            {
+              "attempt_id": "bsgc8m79dd",
+              "attempt": 2,
+              "status": "failed",
+              "sandbox_id": "sm8ddwk81h65kj7kzq3c",
+              "session_id": "27332f5f-55dd-42f2-839e-1b344bc82cf3",
+              "started_at": "2026-10-18T10:13:11Z",
+              "finished_at": "2026-10-18T10:13:49Z"
+            }
+          ]
+        }
+      ],
+      "currentArtifacts": [
+        {
+          "artifact": {
+            "artifact_id": "01a14e80-d7c4-7cf3-91c7-e4f6e9a92cf3",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "t4cdl9lbgw",
+            "job_key": "_inline_0.yaml:parallel_allrun",
+            "attempt_id": "bsgc8m79dd",
+            "attempt": 2,
+            "name": "research-native-semantics-allrun",
+            "size_bytes": 873,
+            "created_at": "2026-10-18T10:13:49Z"
+          },
+          "bytes": 873,
+          "sha256": "4027aee6a01033fcca9578f8545764a75974ddef9c9afe41cb411f060ca501b0",
+          "members": [
+            "failure-started",
+            "parallel-allrun.json",
+            "sibling-finished",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-allrun.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-allrun",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "returnedAt": "2026-10-18T10:13:39.433Z",
+                "siblingFinishedAtReturn": true,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:13:48.437Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14e80-6be0-71a0-8d82-c5bcdf2c9ea9",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "dt70xgdbzv",
+            "job_key": "_inline_0.yaml:state",
+            "attempt_id": "gt1dt2nnbq",
+            "attempt": 2,
+            "name": "research-native-semantics-state",
+            "size_bytes": 3727,
+            "created_at": "2026-10-18T10:13:21Z"
+          },
+          "bytes": 3727,
+          "sha256": "a5172c2334da977744c12b772d910b9af95c9fbaa186abbdebc6825f22d5e8cb",
+          "members": [
+            "parallel-a-first.json",
+            "parallel-a-next.json",
+            "absorbed-attempts.json",
+            "parallel-a-started",
+            "parallel-assertion.json",
+            "parallel-b-first.json",
+            "parallel-b-next.json",
+            "parallel-b-started",
+            "retry-assertion.json",
+            "state.json",
+            "retry-attempts.json",
+            "timeout-renew-completed-1.json",
+            "timeout-renew-completed-2.json",
+            "timeout-renew.json"
+          ],
+          "observations": [
+            {
+              "member": "parallel-a-first.json",
+              "value": {
+                "role": "a",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:11:28.596Z"
+              }
+            },
+            {
+              "member": "parallel-a-next.json",
+              "value": {
+                "role": "a",
+                "ownEnvironment": "a",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:11:29.060Z"
+              }
+            },
+            {
+              "member": "absorbed-attempts.json",
+              "value": [
+                {
+                  "probe": "absorbed",
+                  "attempt": 1,
+                  "at": "2026-10-18T10:13:20.048Z"
+                },
+                {
+                  "probe": "absorbed",
+                  "attempt": 2,
+                  "at": "2026-10-18T10:13:20.396Z"
+                }
+              ]
+            },
+            {
+              "member": "parallel-assertion.json",
+              "value": {
+                "passed": true,
+                "branches": [
+                  {
+                    "first": {
+                      "role": "a",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:11:28.596Z"
+                    },
+                    "next": {
+                      "role": "a",
+                      "ownEnvironment": "a",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:11:29.060Z"
+                    }
+                  },
+                  {
+                    "first": {
+                      "role": "b",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:11:28.553Z"
+                    },
+                    "next": {
+                      "role": "b",
+                      "ownEnvironment": "b",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:11:29.067Z"
+                    }
+                  }
+                ],
+                "env": {
+                  "a": "a",
+                  "b": "b"
+                },
+                "outputs": {
+                  "a": "a",
+                  "b": "b"
+                }
+              }
+            },
+            {
+              "member": "parallel-b-first.json",
+              "value": {
+                "role": "b",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:11:28.553Z"
+              }
+            },
+            {
+              "member": "parallel-b-next.json",
+              "value": {
+                "role": "b",
+                "ownEnvironment": "b",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:11:29.067Z"
+              }
+            },
+            {
+              "member": "retry-assertion.json",
+              "value": {
+                "passed": true,
+                "attempts": [
+                  {
+                    "attempt": 1,
+                    "at": "2026-10-18T10:11:27.066Z",
+                    "pid": 1413
+                  },
+                  {
+                    "attempt": 2,
+                    "at": "2026-10-18T10:11:27.453Z",
+                    "pid": 1445
+                  },
+                  {
+                    "attempt": 3,
+                    "at": "2026-10-18T10:11:27.800Z",
+                    "pid": 1477
+                  }
+                ],
+                "env": "3",
+                "output": "3"
+              }
+            },
+            {
+              "member": "state.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "state",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "renewal": [
+                  {
+                    "attempt": 1,
+                    "pid": 1703,
+                    "parentPid": 1694,
+                    "startedAt": "2026-10-18T10:11:29.736Z",
+                    "intendedHoldMilliseconds": 70000
+                  },
+                  {
+                    "attempt": 2,
+                    "pid": 1735,
+                    "parentPid": 1726,
+                    "startedAt": "2026-10-18T10:12:29.740Z",
+                    "intendedHoldMilliseconds": 50000
+                  }
+                ],
+                "firstTimedOutDescendantCompleted": true,
+                "descendantCleanupGuaranteeAsserted": false,
+                "absorbed": [
+                  {
+                    "probe": "absorbed",
+                    "attempt": 1,
+                    "at": "2026-10-18T10:13:20.048Z"
+                  },
+                  {
+                    "probe": "absorbed",
+                    "attempt": 2,
+                    "at": "2026-10-18T10:13:20.396Z"
+                  }
+                ],
+                "retry": {
+                  "passed": true,
+                  "attempts": [
+                    {
+                      "attempt": 1,
+                      "at": "2026-10-18T10:11:27.066Z",
+                      "pid": 1413
+                    },
+                    {
+                      "attempt": 2,
+                      "at": "2026-10-18T10:11:27.453Z",
+                      "pid": 1445
+                    },
+                    {
+                      "attempt": 3,
+                      "at": "2026-10-18T10:11:27.800Z",
+                      "pid": 1477
+                    }
+                  ],
+                  "env": "3",
+                  "output": "3"
+                },
+                "parallel": {
+                  "passed": true,
+                  "branches": [
+                    {
+                      "first": {
+                        "role": "a",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:11:28.596Z"
+                      },
+                      "next": {
+                        "role": "a",
+                        "ownEnvironment": "a",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:11:29.060Z"
+                      }
+                    },
+                    {
+                      "first": {
+                        "role": "b",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:11:28.553Z"
+                      },
+                      "next": {
+                        "role": "b",
+                        "ownEnvironment": "b",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:11:29.067Z"
+                      }
+                    }
+                  ],
+                  "env": {
+                    "a": "a",
+                    "b": "b"
+                  },
+                  "outputs": {
+                    "a": "a",
+                    "b": "b"
+                  }
+                },
+                "exhaustedStep": {
+                  "outcome": "failure",
+                  "conclusion": "success"
+                }
+              }
+            },
+            {
+              "member": "retry-attempts.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "at": "2026-10-18T10:11:27.066Z",
+                  "pid": 1413
+                },
+                {
+                  "attempt": 2,
+                  "at": "2026-10-18T10:11:27.453Z",
+                  "pid": 1445
+                },
+                {
+                  "attempt": 3,
+                  "at": "2026-10-18T10:11:27.800Z",
+                  "pid": 1477
+                }
+              ]
+            },
+            {
+              "member": "timeout-renew-completed-1.json",
+              "value": {
+                "attempt": 1,
+                "completedAt": "2026-10-18T10:12:39.745Z"
+              }
+            },
+            {
+              "member": "timeout-renew-completed-2.json",
+              "value": {
+                "attempt": 2,
+                "completedAt": "2026-10-18T10:13:19.746Z"
+              }
+            },
+            {
+              "member": "timeout-renew.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "pid": 1703,
+                  "parentPid": 1694,
+                  "startedAt": "2026-10-18T10:11:29.736Z",
+                  "intendedHoldMilliseconds": 70000
+                },
+                {
+                  "attempt": 2,
+                  "pid": 1735,
+                  "parentPid": 1726,
+                  "startedAt": "2026-10-18T10:12:29.740Z",
+                  "intendedHoldMilliseconds": 50000
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14e80-e907-7e7a-b653-9990e646b766",
+            "run_id": "1jqm5wjmlj",
+            "workflow_id": "4j4wdvjpc8",
+            "workflow_path": "",
+            "job_id": "svvnqr8dvl",
+            "job_key": "_inline_0.yaml:parallel_default",
+            "attempt_id": "txxg9dpsxk",
+            "attempt": 2,
+            "name": "research-native-semantics-default",
+            "size_bytes": 877,
+            "created_at": "2026-10-18T10:13:53Z"
+          },
+          "bytes": 877,
+          "sha256": "66c38efdb078b7b88ad61a12b9a85ee44cf9542716ad05f4acc1dd4332fe34be",
+          "members": [
+            "failure-started",
+            "parallel-default.json",
+            "sibling-finished",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-default.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-default",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "bf3c4a98b32826c1c16e8755b8775256340fab79",
+                "returnedAt": "2026-10-18T10:13:43.748Z",
+                "siblingFinishedAtReturn": false,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:13:52.761Z"
+              }
+            }
+          ]
+        }
+      ],
+      "consumer": null,
+      "relevantEvents": [
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:14.771Z",
+          "body": "Found 4 artifact(s)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:14.771Z",
+          "body": "- research-native-semantics-default (ID: 8599506400099527, Size: 877, Expected Digest: sha256:66c38efdb078b7b88ad61a12b9a85ee44cf9542716ad05f4acc1dd4332fe34be)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:14.771Z",
+          "body": "- research-native-semantics-state (ID: 8354399515399274, Size: 3727, Expected Digest: sha256:a5172c2334da977744c12b772d910b9af95c9fbaa186abbdebc6825f22d5e8cb)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:14.771Z",
+          "body": "- research-native-semantics-allrun (ID: 8282037184921433, Size: 873, Expected Digest: sha256:9983d9eb096ff0b722e097b422f8dac0d79e1c9fb0c5c4a952ada12c34818d0f)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:14.771Z",
+          "body": "- research-native-semantics-consumer (ID: 7154803618068432, Size: 634, Expected Digest: sha256:d2004720371c75f672af3a44e38da9133b12897f2a8e69a6e28242f112c3cd9c)"
+        },
+        {
+          "job": "job-82m7t0lts5.jsonl",
+          "timestamp": "2026-10-18T10:14:15.173Z",
+          "body": "ArtifactAdmissionFailure [Error]: Research artifact differs from its current producer output hash"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:11:27.245Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":1,\"at\":\"2026-10-18T10:11:27.243Z\"}"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:12:27.594Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":2,\"at\":\"2026-10-18T10:12:27.592Z\"}"
+        },
+        {
+          "job": "job-hpgdwhqbt5.jsonl",
+          "timestamp": "2026-10-18T10:13:09.392Z",
+          "body": "##[error]The job was canceled because it exceeded the maximum execution time of 2 minutes."
+        }
+      ],
+      "rawLogHashes": [
+        {
+          "file": "job-82m7t0lts5.jsonl",
+          "bytes": 100009,
+          "sha256": "c789979a576125ffe8773d7f3135d3e18c138efd78d3888f023b750de4682213",
+          "published": false
+        },
+        {
+          "file": "job-dt70xgdbzv.jsonl",
+          "bytes": 117525,
+          "sha256": "73e0f7c8a2061dacf0da0bf9d57741aaa52869ab16d0884b50c6480bad36e646",
+          "published": false
+        },
+        {
+          "file": "job-hpgdwhqbt5.jsonl",
+          "bytes": 86993,
+          "sha256": "ce3520bdbac48a14e9288a75417809701c3fccdce2cbb3cc82752ebefc4dfb6c",
+          "published": false
+        },
+        {
+          "file": "job-svvnqr8dvl.jsonl",
+          "bytes": 89686,
+          "sha256": "bd29027de6baae8ba1460b5392c1ecd4031996226bbeebe56561d7ac31ed046e",
+          "published": false
+        },
+        {
+          "file": "job-t4cdl9lbgw.jsonl",
+          "bytes": 89750,
+          "sha256": "8677b75447f79cd986516660a72c32447b0b35c30d7382fc2b728568eacf9bca",
+          "published": false
+        }
+      ]
+    },
+    {
+      "label": "content-bound-first-attempt",
+      "run": "w9jdpj5f1l",
+      "attempt": 1,
+      "rawAggregateStatus": "failed",
+      "source": "46fab80ef500e7d857cdb822085c03f899e266ff",
+      "jobs": [
+        {
+          "jobId": "1t4bgg6sgl",
+          "name": "parallel_default",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "k4m45mlc5k",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "sgks85rk43gbrfm5bbtn",
+              "session_id": "8397fcff-00f8-47c8-bbb6-8d7f0b056c6c",
+              "started_at": "2026-10-18T10:49:12Z",
+              "finished_at": "2026-10-18T10:49:42Z"
+            }
+          ]
+        },
+        {
+          "jobId": "gz6hg5czmq",
+          "name": "state",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "t2xh7xzxks",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "1q163ndsq3djc03qq8tz",
+              "session_id": "3e2201b3-4e4d-4f98-8577-beedeccb803d",
+              "started_at": "2026-10-18T10:46:56Z",
+              "finished_at": "2026-10-18T10:49:11Z"
+            }
+          ]
+        },
+        {
+          "jobId": "q9m8jlzwn3",
+          "name": "parallel_allrun",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "t038qkw1xn",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "rtx9fkjhn1gj6mdkc9z0",
+              "session_id": "991d5bb6-3ed3-49ea-8b92-780cafe8559a",
+              "started_at": "2026-10-18T10:49:00Z",
+              "finished_at": "2026-10-18T10:49:38Z"
+            }
+          ]
+        },
+        {
+          "jobId": "rsdsx8t8tr",
+          "name": "timeout",
+          "status": "cancelled",
+          "attempts": [
+            {
+              "attempt_id": "92dwj7rh5p",
+              "attempt": 1,
+              "status": "cancelled",
+              "sandbox_id": "7dv2sxf2cvrc0jqqt7r4",
+              "session_id": "46d12b6e-ff1e-4827-ae40-907b26661377",
+              "started_at": "2026-10-18T10:46:56Z",
+              "finished_at": "2026-10-18T10:48:58Z"
+            }
+          ]
+        },
+        {
+          "jobId": "vkq7lbfj4q",
+          "name": "consumer",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "jhg0zkdcfr",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "n4wmgfnbss0rthcsmm37",
+              "session_id": "4699d945-1e92-4e9a-854f-043cd975042e",
+              "started_at": "2026-10-18T10:49:44Z",
+              "finished_at": "2026-10-18T10:50:05Z"
+            }
+          ]
+        }
+      ],
+      "currentArtifacts": [
+        {
+          "artifact": {
+            "artifact_id": "01a14ea2-0d00-7e71-93d9-3897b418c5f5",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "vkq7lbfj4q",
+            "job_key": "_inline_0.yaml:consumer",
+            "attempt_id": "jhg0zkdcfr",
+            "attempt": 1,
+            "name": "research-native-semantics-consumer",
+            "size_bytes": 634,
+            "created_at": "2026-10-18T10:50:05Z"
+          },
+          "bytes": 634,
+          "sha256": "f1e621664b77ad97f549aedc55a0e87a654148970a6e5c626576064778529799",
+          "members": [
+            "consumer.json"
+          ],
+          "observations": [
+            {
+              "member": "consumer.json",
+              "value": {
+                "passed": true,
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "receipts": [
+                  {
+                    "probe": "state",
+                    "path": "received/state.json",
+                    "bytes": 2234,
+                    "sha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831",
+                    "expectedProducerSha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-default",
+                    "path": "received/parallel-default.json",
+                    "bytes": 462,
+                    "sha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9",
+                    "expectedProducerSha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-allrun",
+                    "path": "received/parallel-allrun.json",
+                    "bytes": 460,
+                    "sha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b",
+                    "expectedProducerSha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  }
+                ],
+                "needs": {
+                  "parallel_allrun": {
+                    "outputs": {
+                      "receipt_sha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b"
+                    },
+                    "result": "success"
+                  },
+                  "parallel_default": {
+                    "outputs": {
+                      "receipt_sha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9"
+                    },
+                    "result": "success"
+                  },
+                  "state": {
+                    "outputs": {
+                      "receipt_sha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831"
+                    },
+                    "result": "success"
+                  },
+                  "timeout": {
+                    "outputs": {},
+                    "result": "cancelled"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ea1-b402-785f-ba0a-5a01a69ef4b9",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "1t4bgg6sgl",
+            "job_key": "_inline_0.yaml:parallel_default",
+            "attempt_id": "k4m45mlc5k",
+            "attempt": 1,
+            "name": "research-native-semantics-default-4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9",
+            "size_bytes": 877,
+            "created_at": "2026-10-18T10:49:42Z"
+          },
+          "bytes": 877,
+          "sha256": "423f0558fff4de650344785d7c6736003ff033d28042d9e23294db17095a8142",
+          "members": [
+            "failure-started",
+            "parallel-default.json",
+            "sibling-finished",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-default.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-default",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "returnedAt": "2026-10-18T10:49:32.895Z",
+                "siblingFinishedAtReturn": false,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:49:41.906Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ea1-a4bd-7286-91ad-37aaf19fb8f5",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "q9m8jlzwn3",
+            "job_key": "_inline_0.yaml:parallel_allrun",
+            "attempt_id": "t038qkw1xn",
+            "attempt": 1,
+            "name": "research-native-semantics-allrun-b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b",
+            "size_bytes": 872,
+            "created_at": "2026-10-18T10:49:38Z"
+          },
+          "bytes": 872,
+          "sha256": "b9f04ad998cb91021dda3cb10df2e92a129ecde0b6f9f86cd487f6ef8b49b242",
+          "members": [
+            "parallel-allrun.json",
+            "failure-started",
+            "sibling-finished",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-allrun.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-allrun",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "returnedAt": "2026-10-18T10:49:28.987Z",
+                "siblingFinishedAtReturn": true,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:49:37.999Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ea1-3795-73c7-b9a9-a13023fb3bec",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "gz6hg5czmq",
+            "job_key": "_inline_0.yaml:state",
+            "attempt_id": "t2xh7xzxks",
+            "attempt": 1,
+            "name": "research-native-semantics-state-b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831",
+            "size_bytes": 3730,
+            "created_at": "2026-10-18T10:49:10Z"
+          },
+          "bytes": 3730,
+          "sha256": "54db1a859fa5f0e9dae26d6db4500fc98f9512855e8c3fe67040c1056d1f894a",
+          "members": [
+            "absorbed-attempts.json",
+            "parallel-a-first.json",
+            "parallel-a-next.json",
+            "parallel-a-started",
+            "parallel-assertion.json",
+            "parallel-b-first.json",
+            "parallel-b-next.json",
+            "parallel-b-started",
+            "retry-assertion.json",
+            "retry-attempts.json",
+            "state.json",
+            "timeout-renew-completed-1.json",
+            "timeout-renew-completed-2.json",
+            "timeout-renew.json"
+          ],
+          "observations": [
+            {
+              "member": "absorbed-attempts.json",
+              "value": [
+                {
+                  "probe": "absorbed",
+                  "attempt": 1,
+                  "at": "2026-10-18T10:49:09.418Z"
+                },
+                {
+                  "probe": "absorbed",
+                  "attempt": 2,
+                  "at": "2026-10-18T10:49:09.708Z"
+                }
+              ]
+            },
+            {
+              "member": "parallel-a-first.json",
+              "value": {
+                "role": "a",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:47:17.968Z"
+              }
+            },
+            {
+              "member": "parallel-a-next.json",
+              "value": {
+                "role": "a",
+                "ownEnvironment": "a",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:47:18.451Z"
+              }
+            },
+            {
+              "member": "parallel-assertion.json",
+              "value": {
+                "passed": true,
+                "branches": [
+                  {
+                    "first": {
+                      "role": "a",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:47:17.968Z"
+                    },
+                    "next": {
+                      "role": "a",
+                      "ownEnvironment": "a",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:47:18.451Z"
+                    }
+                  },
+                  {
+                    "first": {
+                      "role": "b",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:47:17.935Z"
+                    },
+                    "next": {
+                      "role": "b",
+                      "ownEnvironment": "b",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:47:18.413Z"
+                    }
+                  }
+                ],
+                "env": {
+                  "a": "a",
+                  "b": "b"
+                },
+                "outputs": {
+                  "a": "a",
+                  "b": "b"
+                }
+              }
+            },
+            {
+              "member": "parallel-b-first.json",
+              "value": {
+                "role": "b",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:47:17.935Z"
+              }
+            },
+            {
+              "member": "parallel-b-next.json",
+              "value": {
+                "role": "b",
+                "ownEnvironment": "b",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:47:18.413Z"
+              }
+            },
+            {
+              "member": "retry-assertion.json",
+              "value": {
+                "passed": true,
+                "attempts": [
+                  {
+                    "attempt": 1,
+                    "at": "2026-10-18T10:47:16.366Z",
+                    "pid": 1416
+                  },
+                  {
+                    "attempt": 2,
+                    "at": "2026-10-18T10:47:16.736Z",
+                    "pid": 1448
+                  },
+                  {
+                    "attempt": 3,
+                    "at": "2026-10-18T10:47:17.105Z",
+                    "pid": 1480
+                  }
+                ],
+                "env": "3",
+                "output": "3"
+              }
+            },
+            {
+              "member": "retry-attempts.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "at": "2026-10-18T10:47:16.366Z",
+                  "pid": 1416
+                },
+                {
+                  "attempt": 2,
+                  "at": "2026-10-18T10:47:16.736Z",
+                  "pid": 1448
+                },
+                {
+                  "attempt": 3,
+                  "at": "2026-10-18T10:47:17.105Z",
+                  "pid": 1480
+                }
+              ]
+            },
+            {
+              "member": "state.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "state",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "renewal": [
+                  {
+                    "attempt": 1,
+                    "pid": 1704,
+                    "parentPid": 1695,
+                    "startedAt": "2026-10-18T10:47:19.147Z",
+                    "intendedHoldMilliseconds": 70000
+                  },
+                  {
+                    "attempt": 2,
+                    "pid": 1736,
+                    "parentPid": 1727,
+                    "startedAt": "2026-10-18T10:48:19.122Z",
+                    "intendedHoldMilliseconds": 50000
+                  }
+                ],
+                "firstTimedOutDescendantCompleted": true,
+                "descendantCleanupGuaranteeAsserted": false,
+                "absorbed": [
+                  {
+                    "probe": "absorbed",
+                    "attempt": 1,
+                    "at": "2026-10-18T10:49:09.418Z"
+                  },
+                  {
+                    "probe": "absorbed",
+                    "attempt": 2,
+                    "at": "2026-10-18T10:49:09.708Z"
+                  }
+                ],
+                "retry": {
+                  "passed": true,
+                  "attempts": [
+                    {
+                      "attempt": 1,
+                      "at": "2026-10-18T10:47:16.366Z",
+                      "pid": 1416
+                    },
+                    {
+                      "attempt": 2,
+                      "at": "2026-10-18T10:47:16.736Z",
+                      "pid": 1448
+                    },
+                    {
+                      "attempt": 3,
+                      "at": "2026-10-18T10:47:17.105Z",
+                      "pid": 1480
+                    }
+                  ],
+                  "env": "3",
+                  "output": "3"
+                },
+                "parallel": {
+                  "passed": true,
+                  "branches": [
+                    {
+                      "first": {
+                        "role": "a",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:47:17.968Z"
+                      },
+                      "next": {
+                        "role": "a",
+                        "ownEnvironment": "a",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:47:18.451Z"
+                      }
+                    },
+                    {
+                      "first": {
+                        "role": "b",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:47:17.935Z"
+                      },
+                      "next": {
+                        "role": "b",
+                        "ownEnvironment": "b",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:47:18.413Z"
+                      }
+                    }
+                  ],
+                  "env": {
+                    "a": "a",
+                    "b": "b"
+                  },
+                  "outputs": {
+                    "a": "a",
+                    "b": "b"
+                  }
+                },
+                "exhaustedStep": {
+                  "outcome": "failure",
+                  "conclusion": "success"
+                }
+              }
+            },
+            {
+              "member": "timeout-renew-completed-1.json",
+              "value": {
+                "attempt": 1,
+                "completedAt": "2026-10-18T10:48:29.156Z"
+              }
+            },
+            {
+              "member": "timeout-renew-completed-2.json",
+              "value": {
+                "attempt": 2,
+                "completedAt": "2026-10-18T10:49:09.127Z"
+              }
+            },
+            {
+              "member": "timeout-renew.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "pid": 1704,
+                  "parentPid": 1695,
+                  "startedAt": "2026-10-18T10:47:19.147Z",
+                  "intendedHoldMilliseconds": 70000
+                },
+                {
+                  "attempt": 2,
+                  "pid": 1736,
+                  "parentPid": 1727,
+                  "startedAt": "2026-10-18T10:48:19.122Z",
+                  "intendedHoldMilliseconds": 50000
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "consumer": {
+        "passed": true,
+        "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+        "receipts": [
+          {
+            "probe": "state",
+            "path": "received/state.json",
+            "bytes": 2234,
+            "sha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831",
+            "expectedProducerSha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-default",
+            "path": "received/parallel-default.json",
+            "bytes": 462,
+            "sha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9",
+            "expectedProducerSha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-allrun",
+            "path": "received/parallel-allrun.json",
+            "bytes": 460,
+            "sha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b",
+            "expectedProducerSha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          }
+        ],
+        "needs": {
+          "parallel_allrun": {
+            "outputs": {
+              "receipt_sha256": "b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b"
+            },
+            "result": "success"
+          },
+          "parallel_default": {
+            "outputs": {
+              "receipt_sha256": "4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9"
+            },
+            "result": "success"
+          },
+          "state": {
+            "outputs": {
+              "receipt_sha256": "b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831"
+            },
+            "result": "success"
+          },
+          "timeout": {
+            "outputs": {},
+            "result": "cancelled"
+          }
+        }
+      },
+      "relevantEvents": [
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:47:16.459Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":1,\"at\":\"2026-10-18T10:47:16.458Z\"}"
+        },
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:48:16.81Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":2,\"at\":\"2026-10-18T10:48:16.808Z\"}"
+        },
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:48:58.517Z",
+          "body": "##[error]The job was canceled because it exceeded the maximum execution time of 2 minutes."
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:50:03.865Z",
+          "body": "- research-native-semantics-state-b98bf67959cdc8dd214b5851a9b34470dfc6ac4ad3e8db694fe514b45abac831 (ID: 7326366488142408, Size: 3730, Expected Digest: sha256:54db1a859fa5f0e9dae26d6db4500fc98f9512855e8c3fe67040c1056d1f894a)"
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:50:04.104Z",
+          "body": "- research-native-semantics-default-4f4806ac11e0d340adf17c6dc905316f467fb5c0c1edf02a587e81b2ed815dd9 (ID: 1159959301612784, Size: 877, Expected Digest: sha256:423f0558fff4de650344785d7c6736003ff033d28042d9e23294db17095a8142)"
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:50:04.323Z",
+          "body": "- research-native-semantics-allrun-b17cc8689922a34832d647bf61bd6b47227d3ae05c996f61f4855ade04a1455b (ID: 1972468216390345, Size: 872, Expected Digest: sha256:b9f04ad998cb91021dda3cb10df2e92a129ecde0b6f9f86cd487f6ef8b49b242)"
+        }
+      ],
+      "rawLogHashes": [
+        {
+          "file": "job-1t4bgg6sgl.jsonl",
+          "bytes": 89904,
+          "sha256": "98f71a12f14cf1f51cc66832a23e521905206d7db02ac49e7290976312d61ef2",
+          "published": false
+        },
+        {
+          "file": "job-gz6hg5czmq.jsonl",
+          "bytes": 117626,
+          "sha256": "9306c0ab3248335f109d47531b64da3db5c83bc7274a929a5db9848f100f78de",
+          "published": false
+        },
+        {
+          "file": "job-q9m8jlzwn3.jsonl",
+          "bytes": 89901,
+          "sha256": "f3799088af1113c262ebf5f5db7d4efa2cd4dc2dfd436997ed548fed42b23c13",
+          "published": false
+        },
+        {
+          "file": "job-rsdsx8t8tr.jsonl",
+          "bytes": 86965,
+          "sha256": "34cdbf9cf953bddec5ef29c778affd1247a72ff65759d13dfd89c9067f0a502b",
+          "published": false
+        },
+        {
+          "file": "job-vkq7lbfj4q.jsonl",
+          "bytes": 98983,
+          "sha256": "3128a0d6578dc9bb1889058c7a160e45b3917a87cf08a6532a0554f0ab9b352c",
+          "published": false
+        }
+      ]
+    },
+    {
+      "label": "content-bound-full-rerun",
+      "run": "w9jdpj5f1l",
+      "attempt": 2,
+      "rawAggregateStatus": "failed",
+      "source": "46fab80ef500e7d857cdb822085c03f899e266ff",
+      "jobs": [
+        {
+          "jobId": "1t4bgg6sgl",
+          "name": "parallel_default",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "k4m45mlc5k",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "sgks85rk43gbrfm5bbtn",
+              "session_id": "8397fcff-00f8-47c8-bbb6-8d7f0b056c6c",
+              "started_at": "2026-10-18T10:49:12Z",
+              "finished_at": "2026-10-18T10:49:42Z"
+            },
+            {
+              "attempt_id": "qlls9qsr51",
+              "attempt": 2,
+              "status": "failed",
+              "sandbox_id": "hvcf9hf8n5p89lk2nhkg",
+              "session_id": "d70c8e2c-2651-4649-8fa0-6f87b58c0dfc",
+              "started_at": "2026-10-18T10:58:11Z",
+              "finished_at": "2026-10-18T10:58:42Z"
+            }
+          ]
+        },
+        {
+          "jobId": "gz6hg5czmq",
+          "name": "state",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "t2xh7xzxks",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "1q163ndsq3djc03qq8tz",
+              "session_id": "3e2201b3-4e4d-4f98-8577-beedeccb803d",
+              "started_at": "2026-10-18T10:46:56Z",
+              "finished_at": "2026-10-18T10:49:11Z"
+            },
+            {
+              "attempt_id": "sqpst4wj8b",
+              "attempt": 2,
+              "status": "finished",
+              "sandbox_id": "0d1cvct8tx2znzff0fv8",
+              "session_id": "1ba4a7b9-5650-4f1b-bdf0-cf99931c7d74",
+              "started_at": "2026-10-18T10:55:55Z",
+              "finished_at": "2026-10-18T10:58:09Z"
+            }
+          ]
+        },
+        {
+          "jobId": "q9m8jlzwn3",
+          "name": "parallel_allrun",
+          "status": "failed",
+          "attempts": [
+            {
+              "attempt_id": "t038qkw1xn",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "rtx9fkjhn1gj6mdkc9z0",
+              "session_id": "991d5bb6-3ed3-49ea-8b92-780cafe8559a",
+              "started_at": "2026-10-18T10:49:00Z",
+              "finished_at": "2026-10-18T10:49:38Z"
+            },
+            {
+              "attempt_id": "69mh6dx0fc",
+              "attempt": 2,
+              "status": "failed",
+              "sandbox_id": "9147dw46v8rxd3d5t929",
+              "session_id": "b62ae3e2-f1c0-4ee1-a4c4-e82d236caee8",
+              "started_at": "2026-10-18T10:57:58Z",
+              "finished_at": "2026-10-18T10:58:36Z"
+            }
+          ]
+        },
+        {
+          "jobId": "rsdsx8t8tr",
+          "name": "timeout",
+          "status": "cancelled",
+          "attempts": [
+            {
+              "attempt_id": "92dwj7rh5p",
+              "attempt": 1,
+              "status": "cancelled",
+              "sandbox_id": "7dv2sxf2cvrc0jqqt7r4",
+              "session_id": "46d12b6e-ff1e-4827-ae40-907b26661377",
+              "started_at": "2026-10-18T10:46:56Z",
+              "finished_at": "2026-10-18T10:48:58Z"
+            },
+            {
+              "attempt_id": "9jw6vcx3r6",
+              "attempt": 2,
+              "status": "cancelled",
+              "sandbox_id": "hvfrcvpb3xh8zblfmchz",
+              "session_id": "c7243a2b-b542-480e-9716-d7d23bfd4020",
+              "started_at": "2026-10-18T10:55:55Z",
+              "finished_at": "2026-10-18T10:57:57Z"
+            }
+          ]
+        },
+        {
+          "jobId": "vkq7lbfj4q",
+          "name": "consumer",
+          "status": "finished",
+          "attempts": [
+            {
+              "attempt_id": "jhg0zkdcfr",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "n4wmgfnbss0rthcsmm37",
+              "session_id": "4699d945-1e92-4e9a-854f-043cd975042e",
+              "started_at": "2026-10-18T10:49:44Z",
+              "finished_at": "2026-10-18T10:50:05Z"
+            },
+            {
+              "attempt_id": "pnddq729j1",
+              "attempt": 2,
+              "status": "finished",
+              "sandbox_id": "q89kjk4gb000mt7cqjg7",
+              "session_id": "30c55190-37b4-4a48-b250-b23220577f88",
+              "started_at": "2026-10-18T10:58:44Z",
+              "finished_at": "2026-10-18T10:59:05Z"
+            }
+          ]
+        }
+      ],
+      "currentArtifacts": [
+        {
+          "artifact": {
+            "artifact_id": "01a14ea9-d71a-7792-8ce6-33213658cdff",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "q9m8jlzwn3",
+            "job_key": "_inline_0.yaml:parallel_allrun",
+            "attempt_id": "69mh6dx0fc",
+            "attempt": 2,
+            "name": "research-native-semantics-allrun-abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065",
+            "size_bytes": 872,
+            "created_at": "2026-10-18T10:58:35Z"
+          },
+          "bytes": 872,
+          "sha256": "0ff8036f87840d385302b9c01ab3b727c586060b63540b2eba576847a1be8c48",
+          "members": [
+            "failure-started",
+            "sibling-finished",
+            "parallel-allrun.json",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-allrun.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-allrun",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "returnedAt": "2026-10-18T10:58:26.240Z",
+                "siblingFinishedAtReturn": true,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:58:35.251Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14eaa-4b1b-75f8-8e11-29031372465f",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "vkq7lbfj4q",
+            "job_key": "_inline_0.yaml:consumer",
+            "attempt_id": "pnddq729j1",
+            "attempt": 2,
+            "name": "research-native-semantics-consumer",
+            "size_bytes": 632,
+            "created_at": "2026-10-18T10:59:05Z"
+          },
+          "bytes": 632,
+          "sha256": "399c95ba2fd6171d9a9cb84b57880a3858c152b7dc9513c9cd30242bab54e32b",
+          "members": [
+            "consumer.json"
+          ],
+          "observations": [
+            {
+              "member": "consumer.json",
+              "value": {
+                "passed": true,
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "receipts": [
+                  {
+                    "probe": "state",
+                    "path": "received/state.json",
+                    "bytes": 2234,
+                    "sha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0",
+                    "expectedProducerSha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-default",
+                    "path": "received/parallel-default.json",
+                    "bytes": 462,
+                    "sha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16",
+                    "expectedProducerSha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  },
+                  {
+                    "probe": "parallel-allrun",
+                    "path": "received/parallel-allrun.json",
+                    "bytes": 460,
+                    "sha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065",
+                    "expectedProducerSha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065",
+                    "controls": [
+                      {
+                        "name": "source",
+                        "rejected": true
+                      },
+                      {
+                        "name": "producer-hash",
+                        "rejected": true
+                      }
+                    ]
+                  }
+                ],
+                "needs": {
+                  "parallel_allrun": {
+                    "outputs": {
+                      "receipt_sha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065"
+                    },
+                    "result": "success"
+                  },
+                  "parallel_default": {
+                    "outputs": {
+                      "receipt_sha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16"
+                    },
+                    "result": "success"
+                  },
+                  "state": {
+                    "outputs": {
+                      "receipt_sha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0"
+                    },
+                    "result": "success"
+                  },
+                  "timeout": {
+                    "outputs": {},
+                    "result": "cancelled"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ea9-efbf-7324-89fc-563378467428",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "1t4bgg6sgl",
+            "job_key": "_inline_0.yaml:parallel_default",
+            "attempt_id": "qlls9qsr51",
+            "attempt": 2,
+            "name": "research-native-semantics-default-519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16",
+            "size_bytes": 877,
+            "created_at": "2026-10-18T10:58:42Z"
+          },
+          "bytes": 877,
+          "sha256": "94801b022b683e651c474da8040d24f5e4164b16d33f7917ec1ec9e3ed513d54",
+          "members": [
+            "failure-started",
+            "parallel-default.json",
+            "sibling-finished",
+            "sibling-started"
+          ],
+          "observations": [
+            {
+              "member": "parallel-default.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "parallel-default",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "returnedAt": "2026-10-18T10:58:32.469Z",
+                "siblingFinishedAtReturn": false,
+                "actual": {
+                  "failureStarted": true,
+                  "siblingStarted": true,
+                  "siblingFinished": true
+                },
+                "descendantCleanupGuaranteeAsserted": false,
+                "at": "2026-10-18T10:58:41.473Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ea9-704a-75ae-b7d9-4c16d196a3d6",
+            "run_id": "w9jdpj5f1l",
+            "workflow_id": "l8z45gww6h",
+            "workflow_path": "",
+            "job_id": "gz6hg5czmq",
+            "job_key": "_inline_0.yaml:state",
+            "attempt_id": "sqpst4wj8b",
+            "attempt": 2,
+            "name": "research-native-semantics-state-8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0",
+            "size_bytes": 3728,
+            "created_at": "2026-10-18T10:58:09Z"
+          },
+          "bytes": 3728,
+          "sha256": "1f0382d36f05d20fb1025127e2ba74afbc0ae5ebd5dcb24aa5bdc3808ff792a8",
+          "members": [
+            "parallel-a-first.json",
+            "absorbed-attempts.json",
+            "parallel-a-next.json",
+            "parallel-a-started",
+            "parallel-assertion.json",
+            "parallel-b-first.json",
+            "parallel-b-next.json",
+            "parallel-b-started",
+            "retry-assertion.json",
+            "retry-attempts.json",
+            "state.json",
+            "timeout-renew-completed-1.json",
+            "timeout-renew-completed-2.json",
+            "timeout-renew.json"
+          ],
+          "observations": [
+            {
+              "member": "parallel-a-first.json",
+              "value": {
+                "role": "a",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:56:16.741Z"
+              }
+            },
+            {
+              "member": "absorbed-attempts.json",
+              "value": [
+                {
+                  "probe": "absorbed",
+                  "attempt": 1,
+                  "at": "2026-10-18T10:58:08.228Z"
+                },
+                {
+                  "probe": "absorbed",
+                  "attempt": 2,
+                  "at": "2026-10-18T10:58:08.533Z"
+                }
+              ]
+            },
+            {
+              "member": "parallel-a-next.json",
+              "value": {
+                "role": "a",
+                "ownEnvironment": "a",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:56:17.181Z"
+              }
+            },
+            {
+              "member": "parallel-assertion.json",
+              "value": {
+                "passed": true,
+                "branches": [
+                  {
+                    "first": {
+                      "role": "a",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:56:16.741Z"
+                    },
+                    "next": {
+                      "role": "a",
+                      "ownEnvironment": "a",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:56:17.181Z"
+                    }
+                  },
+                  {
+                    "first": {
+                      "role": "b",
+                      "siblingFilesystemVisible": true,
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:56:16.740Z"
+                    },
+                    "next": {
+                      "role": "b",
+                      "ownEnvironment": "b",
+                      "siblingEnvironmentAbsent": true,
+                      "at": "2026-10-18T10:56:17.223Z"
+                    }
+                  }
+                ],
+                "env": {
+                  "a": "a",
+                  "b": "b"
+                },
+                "outputs": {
+                  "a": "a",
+                  "b": "b"
+                }
+              }
+            },
+            {
+              "member": "parallel-b-first.json",
+              "value": {
+                "role": "b",
+                "siblingFilesystemVisible": true,
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:56:16.740Z"
+              }
+            },
+            {
+              "member": "parallel-b-next.json",
+              "value": {
+                "role": "b",
+                "ownEnvironment": "b",
+                "siblingEnvironmentAbsent": true,
+                "at": "2026-10-18T10:56:17.223Z"
+              }
+            },
+            {
+              "member": "retry-assertion.json",
+              "value": {
+                "passed": true,
+                "attempts": [
+                  {
+                    "attempt": 1,
+                    "at": "2026-10-18T10:56:15.236Z",
+                    "pid": 1414
+                  },
+                  {
+                    "attempt": 2,
+                    "at": "2026-10-18T10:56:15.583Z",
+                    "pid": 1446
+                  },
+                  {
+                    "attempt": 3,
+                    "at": "2026-10-18T10:56:15.940Z",
+                    "pid": 1478
+                  }
+                ],
+                "env": "3",
+                "output": "3"
+              }
+            },
+            {
+              "member": "retry-attempts.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "at": "2026-10-18T10:56:15.236Z",
+                  "pid": 1414
+                },
+                {
+                  "attempt": 2,
+                  "at": "2026-10-18T10:56:15.583Z",
+                  "pid": 1446
+                },
+                {
+                  "attempt": 3,
+                  "at": "2026-10-18T10:56:15.940Z",
+                  "pid": 1478
+                }
+              ]
+            },
+            {
+              "member": "state.json",
+              "value": {
+                "schemaVersion": 1,
+                "probe": "state",
+                "passed": true,
+                "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+                "renewal": [
+                  {
+                    "attempt": 1,
+                    "pid": 1707,
+                    "parentPid": 1698,
+                    "startedAt": "2026-10-18T10:56:17.940Z",
+                    "intendedHoldMilliseconds": 70000
+                  },
+                  {
+                    "attempt": 2,
+                    "pid": 1739,
+                    "parentPid": 1730,
+                    "startedAt": "2026-10-18T10:57:17.873Z",
+                    "intendedHoldMilliseconds": 50000
+                  }
+                ],
+                "firstTimedOutDescendantCompleted": true,
+                "descendantCleanupGuaranteeAsserted": false,
+                "absorbed": [
+                  {
+                    "probe": "absorbed",
+                    "attempt": 1,
+                    "at": "2026-10-18T10:58:08.228Z"
+                  },
+                  {
+                    "probe": "absorbed",
+                    "attempt": 2,
+                    "at": "2026-10-18T10:58:08.533Z"
+                  }
+                ],
+                "retry": {
+                  "passed": true,
+                  "attempts": [
+                    {
+                      "attempt": 1,
+                      "at": "2026-10-18T10:56:15.236Z",
+                      "pid": 1414
+                    },
+                    {
+                      "attempt": 2,
+                      "at": "2026-10-18T10:56:15.583Z",
+                      "pid": 1446
+                    },
+                    {
+                      "attempt": 3,
+                      "at": "2026-10-18T10:56:15.940Z",
+                      "pid": 1478
+                    }
+                  ],
+                  "env": "3",
+                  "output": "3"
+                },
+                "parallel": {
+                  "passed": true,
+                  "branches": [
+                    {
+                      "first": {
+                        "role": "a",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:56:16.741Z"
+                      },
+                      "next": {
+                        "role": "a",
+                        "ownEnvironment": "a",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:56:17.181Z"
+                      }
+                    },
+                    {
+                      "first": {
+                        "role": "b",
+                        "siblingFilesystemVisible": true,
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:56:16.740Z"
+                      },
+                      "next": {
+                        "role": "b",
+                        "ownEnvironment": "b",
+                        "siblingEnvironmentAbsent": true,
+                        "at": "2026-10-18T10:56:17.223Z"
+                      }
+                    }
+                  ],
+                  "env": {
+                    "a": "a",
+                    "b": "b"
+                  },
+                  "outputs": {
+                    "a": "a",
+                    "b": "b"
+                  }
+                },
+                "exhaustedStep": {
+                  "outcome": "failure",
+                  "conclusion": "success"
+                }
+              }
+            },
+            {
+              "member": "timeout-renew-completed-1.json",
+              "value": {
+                "attempt": 1,
+                "completedAt": "2026-10-18T10:57:27.948Z"
+              }
+            },
+            {
+              "member": "timeout-renew-completed-2.json",
+              "value": {
+                "attempt": 2,
+                "completedAt": "2026-10-18T10:58:07.879Z"
+              }
+            },
+            {
+              "member": "timeout-renew.json",
+              "value": [
+                {
+                  "attempt": 1,
+                  "pid": 1707,
+                  "parentPid": 1698,
+                  "startedAt": "2026-10-18T10:56:17.940Z",
+                  "intendedHoldMilliseconds": 70000
+                },
+                {
+                  "attempt": 2,
+                  "pid": 1739,
+                  "parentPid": 1730,
+                  "startedAt": "2026-10-18T10:57:17.873Z",
+                  "intendedHoldMilliseconds": 50000
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "consumer": {
+        "passed": true,
+        "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+        "receipts": [
+          {
+            "probe": "state",
+            "path": "received/state.json",
+            "bytes": 2234,
+            "sha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0",
+            "expectedProducerSha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-default",
+            "path": "received/parallel-default.json",
+            "bytes": 462,
+            "sha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16",
+            "expectedProducerSha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          },
+          {
+            "probe": "parallel-allrun",
+            "path": "received/parallel-allrun.json",
+            "bytes": 460,
+            "sha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065",
+            "expectedProducerSha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065",
+            "controls": [
+              {
+                "name": "source",
+                "rejected": true
+              },
+              {
+                "name": "producer-hash",
+                "rejected": true
+              }
+            ]
+          }
+        ],
+        "needs": {
+          "parallel_allrun": {
+            "outputs": {
+              "receipt_sha256": "abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065"
+            },
+            "result": "success"
+          },
+          "parallel_default": {
+            "outputs": {
+              "receipt_sha256": "519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16"
+            },
+            "result": "success"
+          },
+          "state": {
+            "outputs": {
+              "receipt_sha256": "8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0"
+            },
+            "result": "success"
+          },
+          "timeout": {
+            "outputs": {},
+            "result": "cancelled"
+          }
+        }
+      },
+      "relevantEvents": [
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:56:15.003Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":1,\"at\":\"2026-10-18T10:56:15.001Z\"}"
+        },
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:57:15.315Z",
+          "body": "{\"probe\":\"backoff\",\"attempt\":2,\"at\":\"2026-10-18T10:57:15.313Z\"}"
+        },
+        {
+          "job": "job-rsdsx8t8tr.jsonl",
+          "timestamp": "2026-10-18T10:57:57.237Z",
+          "body": "##[error]The job was canceled because it exceeded the maximum execution time of 2 minutes."
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:59:04.122Z",
+          "body": "- research-native-semantics-state-8f327ee458ce4ab3c5b18a5d36781f723a4a98997cb9b149679b116f21736ec0 (ID: 5319700353838588, Size: 3728, Expected Digest: sha256:1f0382d36f05d20fb1025127e2ba74afbc0ae5ebd5dcb24aa5bdc3808ff792a8)"
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:59:04.373Z",
+          "body": "- research-native-semantics-default-519da2548842260655fd90ea8840da1d72dbe2336c1c13ff5ac92d1369e1ac16 (ID: 2540499878639181, Size: 877, Expected Digest: sha256:94801b022b683e651c474da8040d24f5e4164b16d33f7917ec1ec9e3ed513d54)"
+        },
+        {
+          "job": "job-vkq7lbfj4q.jsonl",
+          "timestamp": "2026-10-18T10:59:04.607Z",
+          "body": "- research-native-semantics-allrun-abaefddd91cd759dc3be44fa8a4b7927dae2e49831a7f21f8749c4e65015e065 (ID: 6476559126802961, Size: 872, Expected Digest: sha256:0ff8036f87840d385302b9c01ab3b727c586060b63540b2eba576847a1be8c48)"
+        }
+      ],
+      "rawLogHashes": [
+        {
+          "file": "job-1t4bgg6sgl.jsonl",
+          "bytes": 91802,
+          "sha256": "51a12761a72330f717205102e54ee82d022a1827848df4974c280540bea5fc50",
+          "published": false
+        },
+        {
+          "file": "job-gz6hg5czmq.jsonl",
+          "bytes": 117641,
+          "sha256": "be703737b63d773936812212774f245e4ce292909e0de42c9d245359f86a538b",
+          "published": false
+        },
+        {
+          "file": "job-q9m8jlzwn3.jsonl",
+          "bytes": 89850,
+          "sha256": "104d6706577b084e1bf91364e7a343100d5e55a5ed9ca6edb083bc6e565904ff",
+          "published": false
+        },
+        {
+          "file": "job-rsdsx8t8tr.jsonl",
+          "bytes": 87028,
+          "sha256": "f34488c5b1b5adaccbce1dc9c93dac1bb8b3e98c21417a9d3606ef3975680b50",
+          "published": false
+        },
+        {
+          "file": "job-vkq7lbfj4q.jsonl",
+          "bytes": 98981,
+          "sha256": "8e79081ca9ec7724169095f9cefce22413ddb7422191a8518b4f4f680358067b",
+          "published": false
+        }
+      ]
+    }
+  ],
+  "publishedSelectorControls": {
+    "observedAt": "2026-10-18T10:34:25.835Z",
+    "library": "@actions/artifact6.2.1",
+    "action": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "packageIntegrity": "sha512-sJGH0mhEbEjBCw7o6SaLhUU66u27aFW8HTfkIb5Tk2/Wy0caUDc+oYQEgnuFN7a0HCpAbQyK0U6U7XUJDgDWrw==",
+    "exactSelectorSha256": "e6a9afab1bce89167059495a9e966a001b8a00876d3f0dfbbf745f7b33a8edab",
+    "original": {
+      "name": "research-native-semantics-allrun",
+      "id": 8282037184921433,
+      "createdAt": "2026-10-18T10:05:47Z",
+      "sha256": "9983d9eb096ff0b722e097b422f8dac0d79e1c9fb0c5c4a952ada12c34818d0f"
+    },
+    "rerun": {
+      "name": "research-native-semantics-allrun",
+      "id": 6837401340876611,
+      "createdAt": "2026-10-18T10:13:49Z",
+      "sha256": "4027aee6a01033fcca9578f8545764a75974ddef9c9afe41cb411f060ca501b0"
+    },
+    "monotonicPositiveSelectedNewest": true,
+    "actualIdsSelectOlder": true,
+    "observedIdsAreSafeIntegers": true,
+    "distinctNamesPreservedBoth": true,
+    "backendIdConstructionCauseEstablished": false,
+    "cloudWorkaroundVerified": false
+  },
+  "consumerGuardMutationControls": {
+    "harness": "40d8e4d6c4e21e29acb27768d2a7ba5b124f0428",
+    "originalConfigSha256": "3cc6c712df0cc6309074d1bd5a99535ce511682403ddf0df1426325953e52a73",
+    "restored": true,
+    "records": [
+      {
+        "label": "positive",
+        "status": 0,
+        "codeSha256": "f935c2abdeaed545437ccd1638cd2c59a357681d6fc58960675c11850eb5bec7",
+        "logSha256": "d0bcccd36e01e707abcf82d203e49cb2e6df704190a66bbb969395cb095a959f",
+        "expectedDiagnostic": null
+      },
+      {
+        "label": "producer-hash-guard-removed",
+        "status": 1,
+        "codeSha256": "8c116c4092e8e8091801f30829a01c47c5e208090845deeb07e141449ed44bd1",
+        "logSha256": "ef9451572e1475f4a675175780065af488b375bbf17879c25ce4920940884e0b",
+        "expectedDiagnostic": "Artifact producer-hash rejection control failed"
+      },
+      {
+        "label": "source-guard-removed",
+        "status": 1,
+        "codeSha256": "6660d9f87f06383d27019233799b49d4ee0ae0a523937ec50c696e305bad5062",
+        "logSha256": "1a9cb1f97b9060547b8d7f49357e53753fc24d2d930aa66aa5fddf527f5cce57",
+        "expectedDiagnostic": "Artifact source rejection control failed"
+      },
+      {
+        "label": "restored-positive",
+        "status": 0,
+        "codeSha256": "f935c2abdeaed545437ccd1638cd2c59a357681d6fc58960675c11850eb5bec7",
+        "logSha256": "d0bcccd36e01e707abcf82d203e49cb2e6df704190a66bbb969395cb095a959f",
+        "expectedDiagnostic": null
+      }
+    ]
+  },
+  "artifactSdkProvenance": {
+    "version": "6.2.1",
+    "gitHead": null,
+    "integrity": "sha512-sJGH0mhEbEjBCw7o6SaLhUU66u27aFW8HTfkIb5Tk2/Wy0caUDc+oYQEgnuFN7a0HCpAbQyK0U6U7XUJDgDWrw==",
+    "archiveBytes": 55442,
+    "sha256": "0a35cda3ce8b20d6b753f185abc9f54b0ab085ad11b9fca4fc2305bfa11ffb2a",
+    "observedAt": "2026-10-18T10:27:47.334Z",
+    "action": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+  },
+  "archive": {
+    "path": "depot-native-orchestration-2026-10-18.archives.json.gz",
+    "bytes": 16062,
+    "sha256": "afab7c02d27a17c0e8ac5466fa10a6a12a270a15e77148a3bc7a1e066f99eca4",
+    "originalZipCount": 15
+  },
+  "fullRerunAdmission": {
+    "run": "w9jdpj5f1l",
+    "workflow": "l8z45gww6h",
+    "harness": "46fab80ef500e7d857cdb822085c03f899e266ff",
+    "admittedAt": "2026-10-18T10:55:52.605Z",
+    "maximumConcurrentJobs": 2,
+    "addedFullWindowReservationUsd": 0.132,
+    "cumulativeConservativeReservationUsd": 0.822,
+    "campaignGuardUsd": 1,
+    "primaryQuestion": "Do exact content-bound names select all current producer receipts on a real complete workflow rerun?"
+  },
+  "interpretations": [
+    "The fixed-name rerun consumer rejected an older archive; content-bound names passed both actual attempts.",
+    "The historical selector-control receipt deliberately preserves its then-false cloudWorkaroundVerified field; the later cloud phases establish the workaround independently.",
+    "Raw aggregate failure includes intentionally failed parallel jobs and a cancelled timeout. Ordinary job-level continuation remains a separate isolated comparison.",
+    "Both normal parallel and allrun blocks have observed later sibling completion; no descendant-termination guarantee is asserted.",
+    "Each step retry retains filesystem state; the full rerun has new provider sandbox identities and freshly generated receipt hashes.",
+    "Raw action logs may contain signed URLs and are kept private; only filtered numeric-ID/digest/error events and raw-log hashes are public.",
+    "Native archive verification uses API byte sizes, local SHA256 and CRC; no native server-provided digest is claimed.",
+    "Terminal API states and budget reservations do not prove deallocation timing or actual billing."
+  ],
+  "causalQualification": {
+    "sdkNumericOrderingVulnerabilityProven": true,
+    "actualStaleArchiveSelected": true,
+    "failingActionRawPreFilterResponseCaptured": false,
+    "bothSameNameRowsVisibleAtFailureProven": false,
+    "specificIncidentMechanismIsolatedFromVisibilityRace": false,
+    "contentBoundFreshAndFullRerunConsumersVerified": true,
+    "independentReview": "../planning/depot-orchestration-independent-review.md"
+  }
+}

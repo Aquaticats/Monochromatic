@@ -12,7 +12,7 @@ import {
   type Backend,
   resolveBackendKind,
   selectBackend,
-} from '@monochromatic-dev/cli-mvm/ts';
+} from '@monochromatic-dev/mvm-cli/ts';
 import {
   type OptionalDescribedString,
   optionalString,

@@ -9,12 +9,12 @@ SyntaxError: Identifier 'execFileSync' has already been declared
 ```
 
 The emitting tool is Node while evaluating mise's assembled `run` source.
-The affected task was `//package/cli/nested-wayland-session:run`.
+The affected task was `//package/nested-wayland-session/cli:run`.
 Build and test tasks still worked because they used only the shared dispatch snippet.
 
 ## Cause
 
-`package/cli/nested-wayland-session/mise.toml` defines `vars.cargo_dispatch` as executable JavaScript.
+`package/nested-wayland-session/cli/mise.toml` defines `vars.cargo_dispatch` as executable JavaScript.
 That snippet imports `execFileSync`.
 The `run` task interpolated the snippet and then imported `execFileSync` again:
 
@@ -52,7 +52,7 @@ A single owner keeps interpolated task code readable and prevents divergent impo
 Run the actual task rather than only its build dependency:
 
 ```sh
-mise run //package/cli/nested-wayland-session:run -- --color-scheme dark -- app
+mise run //package/nested-wayland-session/cli:run -- --color-scheme dark -- app
 ```
 
 The task must pass argument parsing,

@@ -1,36 +1,79 @@
-//! The engine worker thread and the AAudio realtime callback. The worker owns the
-//! decode `Source`, the SPSC ring producer, and the AAudio stream, and is the only
-//! thread that touches them; the callback (on AAudio's realtime thread) owns the
-//! ring consumer and only pops/gates/advances. Load and seek both rebuild the
-//! output through `reconfigure_output`, which is how the ring is flushed (the
+//! The engine worker thread and the AAudio realtime callback.
+//!  The worker owns the
+//! decode `Source`,
+//!  the SPSC ring producer,
+//!  and the AAudio stream,
+//!  and is the only
+//! thread that touches them;
+//!  the callback (on AAudio's realtime thread) owns the
+//! ring consumer and only pops/gates/advances.
+//!  Load and seek both rebuild the
+//! output through `reconfigure_output`,
+//!  which is how the ring is flushed (the
 //! desktop engine's mechanism).
 //!
-//! Mental model for a TypeScript reader: this is the audio side of an Android music
-//! player written in Rust. AAudio is Android's native low-latency audio output API
-//! (the counterpart to cpal/CoreAudio/WASAPI on desktop). "SPSC ring" is a
-//! single-producer/single-consumer ring buffer: a fixed-size lock-free queue split
-//! into a WRITE end (the producer, on this worker thread) and a READ end (the
-//! consumer, on AAudio's realtime thread). The worker decodes audio in chunks and
-//! pushes samples into the WRITE end; AAudio calls our callback on a realtime thread
-//! whenever the speakers need more samples, and that callback pops from the READ end.
-//! Because the two ends live on different threads, the queue is the only thing they
-//! share, and it needs no lock.
+//! Mental model for a TypeScript reader:
+//!  this is the audio side of an Android music
+//! player written in Rust.
+//!  AAudio is Android's native low-latency audio output API
+//! (the counterpart to cpal/CoreAudio/WASAPI on desktop).
+//!  "SPSC ring" is a
+//! single-producer/single-consumer ring buffer:
+//!  a fixed-size lock-free queue split
+//! into a WRITE end (the producer,
+//!  on this worker thread) and a READ end (the
+//! consumer,
+//!  on AAudio's realtime thread).
+//!  The worker decodes audio in chunks and
+//! pushes samples into the WRITE end;
+//!  AAudio calls our callback on a realtime thread
+//! whenever the speakers need more samples,
+//!  and that callback pops from the READ end.
+//! Because the two ends live on different threads,
+//!  the queue is the only thing they
+//! share,
+//!  and it needs no lock.
 //!
-//! Realtime-thread rule (the reason the code is shaped this way): the AAudio callback
-//! runs on a hard-realtime thread, so it must NEVER allocate memory, take a lock, or
-//! block. All of those can stall and cause an audible glitch. That is why decoding
-//! (which allocates) happens on this worker thread, and the callback only pops, scales
-//! samples, and writes into a buffer AAudio handed it.
+//! Realtime-thread rule (the reason the code is shaped this way):
+//!  the AAudio callback
+//! runs on a hard-realtime thread,
+//!  so it must NEVER allocate memory,
+//!  take a lock,
+//!  or
+//! block.
+//!  All of those can stall and cause an audible glitch.
+//!  That is why decoding
+//! (which allocates) happens on this worker thread,
+//!  and the callback only pops,
+//!  scales
+//! samples,
+//!  and writes into a buffer AAudio handed it.
 
-/// What:     `use std::os::raw::c_void;`. `c_void` is Rust's stand-in for C's `void`
-///           type, used only inside raw-pointer types like `*mut c_void` ("a pointer
-///           to memory of unknown type"). The `::` segments are a module path: crate
-///           `std`, module `os`, module `raw`, type `c_void`. Siblings you might
-///           expect in `std::os::raw`: `c_char`, `c_int`, etc. (the C primitive
-///           mirrors); we need only the opaque-pointer one.
-/// Why:      AAudio's data callback hands us the speaker buffer as a raw `*mut c_void`
-///           (a bare memory address with no type), which we later reinterpret as `f32`
-///           samples; this import names that pointer's element type.
+/// What:
+///      `use std::os::raw::c_void;`.
+///  `c_void` is Rust's stand-in for C's `void`
+///           type,
+///  used only inside raw-pointer types like `*mut c_void` ("a pointer
+///           to memory of unknown type").
+///  The `::` segments are a module path:
+///  crate
+///           `std`,
+///  module `os`,
+///  module `raw`,
+///  type `c_void`.
+///  Siblings you might
+///           expect in `std::os::raw`:
+///  `c_char`,
+///  `c_int`,
+///  etc. (the C primitive
+///           mirrors);
+///  we need only the opaque-pointer one.
+/// Why:
+///       AAudio's data callback hands us the speaker buffer as a raw `*mut c_void`
+///           (a bare memory address with no type),
+///  which we later reinterpret as `f32`
+///           samples;
+///  this import names that pointer's element type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,16 +81,24 @@
 /// ```
 use std::os::raw::c_void;
 
-/// What:     `use std::sync::atomic::Ordering;`. `Ordering` is an enum describing how
+/// What:
+///      `use std::sync::atomic::Ordering;`.
+///  `Ordering` is an enum describing how
 ///           strictly an atomic read/write is ordered against OTHER memory operations
-///           on the same thread. Siblings (variants) range from `Relaxed` (loosest:
+///           on the same thread.
+///  Siblings (variants) range from `Relaxed` (loosest:
 ///           the access is indivisible but not ordered against anything else) through
 ///           `Acquire`/`Release` (used to publish/observe data across threads) to
-///           `SeqCst` (strictest). An "atomic" operation is one the hardware performs
-///           indivisibly, so two threads can touch the value without a lock.
-/// Why:      Every read/write of the shared `Control` atomics below must pass an
-///           `Ordering`; we pass `Acquire`/`Release` to safely hand data between the
-///           worker thread and the realtime callback, and `AcqRel` for read-modify-write.
+///           `SeqCst` (strictest).
+///  An "atomic" operation is one the hardware performs
+///           indivisibly,
+///  so two threads can touch the value without a lock.
+/// Why:
+///       Every read/write of the shared `Control` atomics below must pass an
+///           `Ordering`;
+///  we pass `Acquire`/`Release` to safely hand data between the
+///           worker thread and the realtime callback,
+///  and `AcqRel` for read-modify-write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,14 +106,26 @@ use std::os::raw::c_void;
 /// ```
 use std::sync::atomic::Ordering;
 
-/// What:     `use std::sync::mpsc::{Receiver, TryRecvError};`. `mpsc` is "multi-producer,
-///           single-consumer": a thread-safe channel/queue for passing values between
-///           threads. `Receiver<T>` is the READ end of that channel (where we pull
-///           `Command`s out). `TryRecvError` is the error type returned when a
-///           NON-blocking receive cannot produce a value, with two cases: `Empty` (no
-///           message right now) and `Disconnected` (every sender is gone). Sibling you
-///           might expect: `Sender<T>`, the WRITE end, which lives in `engine.rs` not here.
-/// Why:      The worker pulls playback commands (load/seek/quit) from the `Receiver`,
+/// What:
+///      `use std::sync::mpsc::{Receiver, TryRecvError};`.
+///  `mpsc` is "multi-producer,
+///           single-consumer":
+///  a thread-safe channel/queue for passing values between
+///           threads.
+///  `Receiver<T>` is the READ end of that channel (where we pull
+///           `Command`s out).
+///  `TryRecvError` is the error type returned when a
+///           NON-blocking receive cannot produce a value,
+///  with two cases:
+///  `Empty` (no
+///           message right now) and `Disconnected` (every sender is gone).
+///  Sibling you
+///           might expect:
+///  `Sender<T>`,
+///  the WRITE end,
+///  which lives in `engine.rs` not here.
+/// Why:
+///       The worker pulls playback commands (load/seek/quit) from the `Receiver`,
 ///           and distinguishes "nothing queued yet" from "the engine handle was dropped"
 ///           via the two `TryRecvError` cases.
 ///
@@ -72,12 +135,21 @@ use std::sync::atomic::Ordering;
 /// ```
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-/// What:     `use std::sync::Arc;`. `Arc<T>` is an ATOMICALLY reference-counted shared
-///           pointer: cloning it bumps a thread-safe counter, and the inner `T` is freed
-///           when the last clone drops. Sibling: `Rc<T>`, the same idea but NOT
+/// What:
+///      `use std::sync::Arc;`.
+///  `Arc<T>` is an ATOMICALLY reference-counted shared
+///           pointer:
+///  cloning it bumps a thread-safe counter,
+///  and the inner `T` is freed
+///           when the last clone drops.
+///  Sibling:
+///  `Rc<T>`,
+///  the same idea but NOT
 ///           thread-safe (single-thread only).
-/// Why:      The shared `Control` block must live in two threads at once (this worker
-///           and the realtime callback); `Arc` lets both hold a clone of one block.
+/// Why:
+///       The shared `Control` block must live in two threads at once (this worker
+///           and the realtime callback);
+///  `Arc` lets both hold a clone of one block.
 ///           `Rc` would not compile because the block crosses a thread boundary.
 ///
 /// In TS you'd write (pseudocode):
@@ -86,10 +158,17 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 /// ```
 use std::sync::Arc;
 
-/// What:     `use std::thread;`. The standard-library threading module, which provides
-///           `thread::sleep` (pause the current thread). We import the MODULE here (and
-///           write `thread::sleep` below), not a specific item.
-/// Why:      The worker naps with `thread::sleep` when there is no work, to top the ring
+/// What:
+///      `use std::thread;`.
+///  The standard-library threading module,
+///  which provides
+///           `thread::sleep` (pause the current thread).
+///  We import the MODULE here (and
+///           write `thread::sleep` below),
+///  not a specific item.
+/// Why:
+///       The worker naps with `thread::sleep` when there is no work,
+///  to top the ring
 ///           up without burning a CPU core.
 ///
 /// In TS you'd write (pseudocode):
@@ -98,10 +177,18 @@ use std::sync::Arc;
 /// ```
 use std::thread;
 
-/// What:     `use std::time::Duration;`. `Duration` is a span of time (seconds plus
-///           nanoseconds) used by `thread::sleep` and timers. It is a value type, not a
-///           wall-clock instant; sibling you might expect: `Instant`, a point in time.
-/// Why:      We build a fixed 5-millisecond `Duration` (the idle nap) as a named const
+/// What:
+///      `use std::time::Duration;`.
+///  `Duration` is a span of time (seconds plus
+///           nanoseconds) used by `thread::sleep` and timers.
+///  It is a value type,
+///  not a
+///           wall-clock instant;
+///  sibling you might expect:
+///  `Instant`,
+///  a point in time.
+/// Why:
+///       We build a fixed 5-millisecond `Duration` (the idle nap) as a named const
 ///           below and pass it to `thread::sleep`.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,14 +197,28 @@ use std::thread;
 /// ```
 use std::time::Duration;
 
-/// What:     `use ndk::audio::{ ... };`. `ndk` is the Rust binding to Android's NDK
-///           (Native Development Kit). This pulls in several AAudio types at once:
-///           `AudioCallbackResult` (an enum the data callback returns: `Continue` or
-///           `Stop`), `AudioDirection` (input vs output), `AudioFormat` (the sample
-///           format, e.g. PCM float), `AudioPerformanceMode` (latency-vs-power hint),
-///           `AudioStream` (an open stream handle), and `AudioStreamBuilder` (the
+/// What:
+///      `use ndk::audio::{ ... };`.
+///  `ndk` is the Rust binding to Android's NDK
+///           (Native Development Kit).
+///  This pulls in several AAudio types at once:
+///           `AudioCallbackResult` (an enum the data callback returns:
+///  `Continue` or
+///           `Stop`),
+///  `AudioDirection` (input vs output),
+///  `AudioFormat` (the sample
+///           format,
+///  e.g. PCM float),
+///  `AudioPerformanceMode` (latency-vs-power hint),
+///           `AudioStream` (an open stream handle),
+///  and `AudioStreamBuilder` (the
 ///           builder used to configure and open a stream).
-/// Why:      We build, configure, open, and run an AAudio output stream below, which
+/// Why:
+///       We build,
+///  configure,
+///  open,
+///  and run an AAudio output stream below,
+///  which
 ///           needs all of these types.
 ///
 /// In TS you'd write (pseudocode):
@@ -129,14 +230,24 @@ use ndk::audio::{
     AudioStreamBuilder,
 };
 
-/// What:     `use ringbuf::traits::{Consumer, Producer, Split};`. These are TRAITS
-///           (interfaces): importing them brings their methods into scope. `Split`
+/// What:
+///      `use ringbuf::traits::{Consumer, Producer, Split};`.
+///  These are TRAITS
+///           (interfaces):
+///  importing them brings their methods into scope.
+///  `Split`
 ///           gives `.split()` (cut one ring buffer into a producer half and a consumer
-///           half). `Producer` gives `.push_slice(...)` (write samples into the WRITE
-///           end). `Consumer` gives `.pop_slice(...)` (drain samples from the READ end).
+///           half).
+///  `Producer` gives `.push_slice(...)` (write samples into the WRITE
+///           end).
+///  `Consumer` gives `.pop_slice(...)` (drain samples from the READ end).
 ///           In Rust a trait's methods are callable only when the trait is in scope.
-/// Why:      We split the ring buffer, push from the producer on this thread, and pop
-///           from the consumer in the callback; all three method families need their
+/// Why:
+///       We split the ring buffer,
+///  push from the producer on this thread,
+///  and pop
+///           from the consumer in the callback;
+///  all three method families need their
 ///           trait imported.
 ///
 /// In TS you'd write (pseudocode):
@@ -145,13 +256,20 @@ use ndk::audio::{
 /// ```
 use ringbuf::traits::{Consumer, Producer, Split};
 
-/// What:     `use ringbuf::{HeapCons, HeapProd, HeapRb};`. `HeapRb<T>` is a
-///           heap-allocated ring buffer (a fixed-size circular queue). `.split()` yields
-///           a `HeapProd<T>` (the WRITE end) and a `HeapCons<T>` (the READ end). We name
+/// What:
+///      `use ringbuf::{HeapCons, HeapProd, HeapRb};`.
+///  `HeapRb<T>` is a
+///           heap-allocated ring buffer (a fixed-size circular queue).
+///  `.split()` yields
+///           a `HeapProd<T>` (the WRITE end) and a `HeapCons<T>` (the READ end).
+///  We name
 ///           all three because the worker holds the `HeapProd<f32>` and the callback
-///           holds the `HeapCons<f32>`. Both halves can live on different threads
-///           (single-producer, single-consumer).
-/// Why:      A lock-free hand-off of `f32` audio samples from the decode thread to the
+///           holds the `HeapCons<f32>`.
+///  Both halves can live on different threads
+///           (single-producer,
+///  single-consumer).
+/// Why:
+///       A lock-free hand-off of `f32` audio samples from the decode thread to the
 ///           realtime audio thread.
 ///
 /// In TS you'd write (pseudocode):
@@ -160,12 +278,19 @@ use ringbuf::traits::{Consumer, Producer, Split};
 /// ```
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 
-/// What:     `use symphonia::core::formats::probe::Hint;`. `symphonia` is a pure-Rust
-///           audio-decoding library. `Hint` is a small struct that lets you HINT the
+/// What:
+///      `use symphonia::core::formats::probe::Hint;`.
+///  `symphonia` is a pure-Rust
+///           audio-decoding library.
+///  `Hint` is a small struct that lets you HINT the
 ///           container/codec (e.g. a file extension) to speed up format detection;
-///           empty hints just mean "figure it out from the bytes". The `::` segments are
+///           empty hints just mean "figure it out from the bytes".
+///  The `::` segments are
 ///           a module path into the crate.
-/// Why:      `decode::open_media_source` takes a `Hint`; we hand it a fresh, empty hint
+/// Why:
+///       `decode::open_media_source` takes a `Hint`;
+///  we hand it a fresh,
+///  empty hint
 ///           and let symphonia probe the actual bytes.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,12 +299,18 @@ use ringbuf::{HeapCons, HeapProd, HeapRb};
 /// ```
 use symphonia::core::formats::probe::Hint;
 
-/// What:     `use crate::decode::{self, Source};`. `crate::` means "from the root of THIS
-///           crate" (this Rust package), not an external dependency. This imports both
-///           the `decode` MODULE itself (the `self` keyword, so we can call
+/// What:
+///      `use crate::decode::{self, Source};`.
+///  `crate::` means "from the root of THIS
+///           crate" (this Rust package),
+///  not an external dependency.
+///  This imports both
+///           the `decode` MODULE itself (the `self` keyword,
+///  so we can call
 ///           `decode::open_media_source`) and the `Source` TRAIT (the decoder interface
 ///           with `spec()`/`next_chunk()`/`seek()`) from inside it.
-/// Why:      We open a decoder via `decode::open_media_source` and store it behind the
+/// Why:
+///       We open a decoder via `decode::open_media_source` and store it behind the
 ///           `Source` interface so the worker is decoder-agnostic.
 ///
 /// In TS you'd write (pseudocode):
@@ -189,12 +320,20 @@ use symphonia::core::formats::probe::Hint;
 /// ```
 use crate::decode::{self, Source};
 
-/// What:     `use crate::engine::{Command, Control, MILLIS_PER_SEC};`. From this crate's
-///           `engine` module: `Command` is the worker's input enum (`Load`/`Seek`/`Quit`);
-///           `Control` is the shared, all-atomic control/telemetry block read by Kotlin
-///           and written by the worker and callback; `MILLIS_PER_SEC` is the constant
+/// What:
+///      `use crate::engine::{Command, Control, MILLIS_PER_SEC};`.
+///  From this crate's
+///           `engine` module:
+///  `Command` is the worker's input enum (`Load`/`Seek`/`Quit`);
+///           `Control` is the shared,
+///  all-atomic control/telemetry block read by Kotlin
+///           and written by the worker and callback;
+///  `MILLIS_PER_SEC` is the constant
 ///           `1000.0` for the duration unit.
-/// Why:      The worker receives `Command`s, reads and writes `Control`'s atomics, and
+/// Why:
+///       The worker receives `Command`s,
+///  reads and writes `Control`'s atomics,
+///  and
 ///           converts seconds to milliseconds with `MILLIS_PER_SEC`.
 ///
 /// In TS you'd write (pseudocode):
@@ -203,9 +342,12 @@ use crate::decode::{self, Source};
 /// ```
 use crate::engine::{Command, Control, MILLIS_PER_SEC};
 
-/// What:     `use crate::error::PlayerError;`. Our one app-wide error type (a tagged
+/// What:
+///      `use crate::error::PlayerError;`.
+///  Our one app-wide error type (a tagged
 ///           union of failure cases) from this crate's `error` module.
-/// Why:      `reconfigure_output` and the AAudio helpers return `PlayerError` so the
+/// Why:
+///       `reconfigure_output` and the AAudio helpers return `PlayerError` so the
 ///           `?` operator can propagate any failure uniformly.
 ///
 /// In TS you'd write (pseudocode):
@@ -214,13 +356,26 @@ use crate::engine::{Command, Control, MILLIS_PER_SEC};
 /// ```
 use crate::error::PlayerError;
 
-/// What:     `const MIN_RING: usize = 8192;`. A compile-time constant named `MIN_RING`
-///           of type `usize`. `usize` is the unsigned integer wide enough to address any
-///           byte/index in memory on this platform (32 bits on a 32-bit OS, 64 bits on a
-///           64-bit OS); siblings the reader might expect: `u32`, `u64`, `i32`, `i64`.
-///           `8192` is the floor capacity, in samples, for the ring buffer.
-/// Why:      `usize` (not `u32`/`u64`) because this number is used as a buffer length and
-///           every std collection sizing API wants `usize`; mixing widths forces casts.
+/// What:
+///      `const MIN_RING: usize = 8192;`.
+///  A compile-time constant named `MIN_RING`
+///           of type `usize`.
+///  `usize` is the unsigned integer wide enough to address any
+///           byte/index in memory on this platform (32 bits on a 32-bit OS,
+///  64 bits on a
+///           64-bit OS);
+///  siblings the reader might expect:
+///  `u32`,
+///  `u64`,
+///  `i32`,
+///  `i64`.
+///           `8192` is the floor capacity,
+///  in samples,
+///  for the ring buffer.
+/// Why:
+///       `usize` (not `u32`/`u64`) because this number is used as a buffer length and
+///           every std collection sizing API wants `usize`;
+///  mixing widths forces casts.
 ///           A floor keeps the ring big enough to ride out scheduling jitter even for a
 ///           degenerate low-rate/mono track.
 ///
@@ -230,12 +385,19 @@ use crate::error::PlayerError;
 /// ```
 const MIN_RING: usize = 8192;
 
-/// What:     `const IDLE_SLEEP: Duration = Duration::from_millis(5);`. A constant named
-///           `IDLE_SLEEP` of type `Duration` (a time span). `Duration::from_millis(5)`
+/// What:
+///      `const IDLE_SLEEP: Duration = Duration::from_millis(5);`.
+///  A constant named
+///           `IDLE_SLEEP` of type `Duration` (a time span).
+///  `Duration::from_millis(5)`
 ///           is an "associated function" (a static/factory method on the `Duration`
-///           type, reached with `::`) that builds a 5-millisecond span.
-/// Why:      The nap length when the ring is full or nothing is loaded: short enough to
-///           keep the ~1s buffer topped up, long enough not to spin a CPU core.
+///           type,
+///  reached with `::`) that builds a 5-millisecond span.
+/// Why:
+///       The nap length when the ring is full or nothing is loaded:
+///  short enough to
+///           keep the ~1s buffer topped up,
+///  long enough not to spin a CPU core.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -243,22 +405,50 @@ const MIN_RING: usize = 8192;
 /// ```
 const IDLE_SLEEP: Duration = Duration::from_millis(5);
 
-/// What:     `struct WorkerState { ... }` declares a record type holding everything the
-///           worker thread owns across iterations. Fields:
-///           - `source: Option<Box<dyn Source>>`. `Box<dyn Source>` is an OWNING pointer
-///             to a heap-allocated value that implements the `Source` trait, where the
-///             exact decoder type is erased ("dyn" = dynamic dispatch). `Option<T>` is
-///             Rust's "value or nothing" (it has no `null`); `Some(x)` carries a value,
-///             `None` is empty. Siblings of `Box<T>`: `Rc<T>`/`Arc<T>` (shared, refcounted).
-///           - `stream: Option<AudioStream>`. The current AAudio stream, owned, or `None`.
-///           - `prod: Option<HeapProd<f32>>`. The ring's WRITE end, owned, or `None`.
-///           - `pending: Vec<f32>`. A growable, heap-allocated, OWNED array of `f32`
-///             samples. Siblings: `&[f32]` (a borrowed view) and `[f32; N]` (a fixed-size
-///             stack array); we use `Vec` because the length varies per chunk and we own it.
-///           - `pending_pos: usize`. A read cursor (an index) into `pending`.
-/// Why:      Keeping one struct lets the worker carry the decoder, output stream, ring
-///           producer, and the leftover-samples carryover across loop iterations. `Box`
-///           (not `Rc`/`Arc`) because only this thread ever touches the source. `Vec`
+/// What:
+///      `struct WorkerState { ... }` declares a record type holding everything the
+///           worker thread owns across iterations.
+///  Fields:
+///           - `source: Option<Box<dyn Source>>`.
+///  `Box<dyn Source>` is an OWNING pointer
+///             to a heap-allocated value that implements the `Source` trait,
+///  where the
+///             exact decoder type is erased ("dyn" = dynamic dispatch).
+///  `Option<T>` is
+///             Rust's "value or nothing" (it has no `null`);
+///  `Some(x)` carries a value,
+///             `None` is empty.
+///  Siblings of `Box<T>`:
+///  `Rc<T>`/`Arc<T>` (shared,
+///  refcounted).
+///           - `stream: Option<AudioStream>`.
+///  The current AAudio stream,
+///  owned,
+///  or `None`.
+///           - `prod: Option<HeapProd<f32>>`.
+///  The ring's WRITE end,
+///  owned,
+///  or `None`.
+///           - `pending: Vec<f32>`.
+///  A growable,
+///  heap-allocated,
+///  OWNED array of `f32`
+///             samples.
+///  Siblings:
+///  `&[f32]` (a borrowed view) and `[f32; N]` (a fixed-size
+///             stack array);
+///  we use `Vec` because the length varies per chunk and we own it.
+///           - `pending_pos: usize`.
+///  A read cursor (an index) into `pending`.
+/// Why:
+///       Keeping one struct lets the worker carry the decoder,
+///  output stream,
+///  ring
+///           producer,
+///  and the leftover-samples carryover across loop iterations.
+///  `Box`
+///           (not `Rc`/`Arc`) because only this thread ever touches the source.
+///  `Vec`
 ///           (not `&[f32]`) because the carryover must outlive the decode call that
 ///           produced it.
 ///
@@ -273,13 +463,22 @@ const IDLE_SLEEP: Duration = Duration::from_millis(5);
 /// }
 /// ```
 struct WorkerState {
-    /// What:     `source: Option<Box<dyn Source>>`. The decoder for the loaded track, or
-    ///           `None` when nothing is loaded. `Box<dyn Source>` is an owning heap
+    /// What:
+    ///      `source: Option<Box<dyn Source>>`.
+    ///  The decoder for the loaded track,
+    ///  or
+    ///           `None` when nothing is loaded.
+    ///  `Box<dyn Source>` is an owning heap
     ///           pointer behind the `Source` interface (the concrete decoder type is
-    ///           hidden). The backing file is a `dup`-ed `content://` Android file
-    ///           descriptor. Sibling you might expect: `&dyn Source` (a borrow) but we OWN
+    ///           hidden).
+    ///  The backing file is a `dup`-ed `content://` Android file
+    ///           descriptor.
+    ///  Sibling you might expect:
+    ///  `&dyn Source` (a borrow) but we OWN
     ///           it so it lives as long as the track is loaded.
-    /// Why:      The worker pulls chunks from this each pump; wrapping in `Option` lets
+    /// Why:
+    ///       The worker pulls chunks from this each pump;
+    ///  wrapping in `Option` lets
     ///           "nothing loaded" be a first-class state rather than a null pointer.
     ///
     /// In TS you'd write (pseudocode):
@@ -287,10 +486,16 @@ struct WorkerState {
     /// source: Source | null;
     /// ```
     source: Option<Box<dyn Source>>,
-    /// What:     `stream: Option<AudioStream>`. The current AAudio output stream, owned,
-    ///           or `None` before the first track. Dropping the `AudioStream` value closes
+    /// What:
+    ///      `stream: Option<AudioStream>`.
+    ///  The current AAudio output stream,
+    ///  owned,
+    ///           or `None` before the first track.
+    ///  Dropping the `AudioStream` value closes
     ///           the stream and stops the realtime callback firing.
-    /// Why:      We rebuild this per track (load/seek), and storing it in `Option` lets us
+    /// Why:
+    ///       We rebuild this per track (load/seek),
+    ///  and storing it in `Option` lets us
     ///           set it to `None` to tear the old one down before opening a new one.
     ///
     /// In TS you'd write (pseudocode):
@@ -298,9 +503,16 @@ struct WorkerState {
     /// stream: AudioStream | null;
     /// ```
     stream: Option<AudioStream>,
-    /// What:     `prod: Option<HeapProd<f32>>`. The ring buffer's WRITE end for `f32`
-    ///           samples, owned, or `None`. The decode pump pushes into this.
-    /// Why:      Recreated per track alongside the stream; `Option` models the "no ring
+    /// What:
+    ///      `prod: Option<HeapProd<f32>>`.
+    ///  The ring buffer's WRITE end for `f32`
+    ///           samples,
+    ///  owned,
+    ///  or `None`.
+    ///  The decode pump pushes into this.
+    /// Why:
+    ///       Recreated per track alongside the stream;
+    ///  `Option` models the "no ring
     ///           yet" state.
     ///
     /// In TS you'd write (pseudocode):
@@ -308,11 +520,18 @@ struct WorkerState {
     /// prod: RingProducer | null;
     /// ```
     prod: Option<HeapProd<f32>>,
-    /// What:     `pending: Vec<f32>`. An OWNED, growable array of leftover decoded samples
-    ///           that a full ring could not accept yet (backpressure carryover). `Vec<f32>`
-    ///           (not `&[f32]` borrowed, not `[f32; N]` fixed-size) because the length
+    /// What:
+    ///      `pending: Vec<f32>`.
+    ///  An OWNED,
+    ///  growable array of leftover decoded samples
+    ///           that a full ring could not accept yet (backpressure carryover).
+    ///  `Vec<f32>`
+    ///           (not `&[f32]` borrowed,
+    ///  not `[f32; N]` fixed-size) because the length
     ///           varies and the worker owns these bytes until they are pushed.
-    /// Why:      When the ring is full mid-chunk, we stash the unpushed tail here and
+    /// Why:
+    ///       When the ring is full mid-chunk,
+    ///  we stash the unpushed tail here and
     ///           retry next pump instead of dropping or re-decoding audio.
     ///
     /// In TS you'd write (pseudocode):
@@ -320,10 +539,16 @@ struct WorkerState {
     /// pending: number[];
     /// ```
     pending: Vec<f32>,
-    /// What:     `pending_pos: usize`. A read cursor (index) into `pending`: how many of
-    ///           its samples have already been pushed into the ring. `usize` because it is
-    ///           an array index (siblings `u32`/`u64`/`i32`; std indexing wants `usize`).
-    /// Why:      Lets us resume pushing the carryover from where we left off without
+    /// What:
+    ///      `pending_pos: usize`.
+    ///  A read cursor (index) into `pending`:
+    ///  how many of
+    ///           its samples have already been pushed into the ring.
+    ///  `usize` because it is
+    ///           an array index (siblings `u32`/`u64`/`i32`;
+    ///  std indexing wants `usize`).
+    /// Why:
+    ///       Lets us resume pushing the carryover from where we left off without
     ///           reallocating or shifting the `Vec`.
     ///
     /// In TS you'd write (pseudocode):
@@ -331,21 +556,44 @@ struct WorkerState {
     /// pendingPos: number;
     /// ```
     pending_pos: usize,
+    /// What:
+    ///      `loads_handled: u64`.
+    ///  How many `Command::Load` requests the worker has started handling,
+    ///           counting the one in progress.
+    /// Why:
+    ///       Kotlin counts the loads it queues; this count names the load a failure belongs to,
+    ///  because the
+    ///           worker handles loads in the order they were queued.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// loadsHandled: number;
+    /// ```
+    loads_handled: u64,
 }
 
-/// What:     `impl WorkerState { ... }`. An `impl` block attaches methods/associated
-///           functions to the `WorkerState` type. Here it holds just the constructor.
-/// Why:      Group the "how to build a fresh WorkerState" function with the type.
+/// What:
+///      `impl WorkerState { ... }`.
+///  An `impl` block attaches methods/associated
+///           functions to the `WorkerState` type.
+///  Here it holds just the constructor.
+/// Why:
+///       Group the "how to build a fresh WorkerState" function with the type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class WorkerState { /* methods, e.g. a constructor, go here */ }
 /// ```
 impl WorkerState {
-    /// What:     `fn new() -> WorkerState`. An ASSOCIATED function (no `self` parameter,
-    ///           so it is called as `WorkerState::new()`, like a static factory) that
-    ///           returns a fresh, empty `WorkerState`.
-    /// Why:      One place that defines the "nothing loaded" starting state.
+    /// What:
+    ///      `fn new() -> WorkerState`.
+    ///  An ASSOCIATED function (no `self` parameter,
+    ///           so it is called as `WorkerState::new()`,
+    ///  like a static factory) that
+    ///           returns a fresh,
+    ///  empty `WorkerState`.
+    /// Why:
+    ///       One place that defines the "nothing loaded" starting state.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -371,19 +619,34 @@ impl WorkerState {
             prod: None,
             pending: Vec::new(),
             pending_pos: 0,
+            loads_handled: 0,
         }
     }
 }
 
-/// What:     `pub(crate) fn worker_run(rx: Receiver<Command>, control: Arc<Control>)`.
-///           `pub(crate)` means "visible everywhere inside THIS crate, but not exported
-///           to other crates" (a narrower visibility than plain `pub`). This is the
-///           worker thread's entry point. `rx: Receiver<Command>` is the READ end of the
-///           command channel, taken BY VALUE (the worker now owns it). `control: Arc<Control>`
-///           is a shared, refcounted handle to the control block, also taken by value
-///           (the caller handed us our own clone). The function returns nothing (no `->`).
-/// Why:      This runs on the dedicated worker thread: it drains commands, decodes audio
-///           into the ring, and naps when idle. Returning ends the thread and drops the
+/// What:
+///      `pub(crate) fn worker_run(rx: Receiver<Command>, control: Arc<Control>)`.
+///           `pub(crate)` means "visible everywhere inside THIS crate,
+///  but not exported
+///           to other crates" (a narrower visibility than plain `pub`).
+///  This is the
+///           worker thread's entry point.
+///  `rx: Receiver<Command>` is the READ end of the
+///           command channel,
+///  taken BY VALUE (the worker now owns it).
+///  `control: Arc<Control>`
+///           is a shared,
+///  refcounted handle to the control block,
+///  also taken by value
+///           (the caller handed us our own clone).
+///  The function returns nothing (no `->`).
+/// Why:
+///       This runs on the dedicated worker thread:
+///  it drains commands,
+///  decodes audio
+///           into the ring,
+///  and naps when idle.
+///  Returning ends the thread and drops the
 ///           AAudio stream (stopping audio).
 ///
 /// In TS you'd write (pseudocode):
@@ -542,20 +805,39 @@ pub(crate) fn worker_run(rx: Receiver<Command>, control: Arc<Control>) {
     }
 }
 
-/// What:     `fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::File, play: bool)`.
-///           A private function (no `pub`). `state: &mut WorkerState` is an EXCLUSIVE
-///           borrow (we mutate the worker state). `control: &Arc<Control>` is a SHARED
-///           read-only borrow of the refcounted control handle. `file: std::fs::File` is
-///           taken BY VALUE (the worker now owns the open file). `play: bool` says whether
+/// What:
+///      `fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::File, play: bool)`.
+///           A private function (no `pub`).
+///  `state: &mut WorkerState` is an EXCLUSIVE
+///           borrow (we mutate the worker state).
+///  `control: &Arc<Control>` is a SHARED
+///           read-only borrow of the refcounted control handle.
+///  `file: std::fs::File` is
+///           taken BY VALUE (the worker now owns the open file).
+///  `play: bool` says whether
 ///           to start playing once loaded.
-/// Why:      Open the file, reset telemetry, build the output, and set the play gate. Any
-///           failure leaves the engine idle (no source, silent).
+/// Why:
+///       Open the file,
+///  reset telemetry,
+///  build the output,
+///  and set the play gate.
+///  Any
+///           failure leaves the engine idle (no source,
+///  silent).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function handleLoad(state: WorkerState, control: Control, file: File, play: boolean): void { ... }
 /// ```
 fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::File, play: bool) {
+    // What:     `state.loads_handled += 1;`. Count this load before any early return below.
+    // Why:      A failure names its load by this number, and Kotlin counts queued loads the same way.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // state.loadsHandled += 1;
+    // ```
+    state.loads_handled += 1;
     // What:     `state.stream = None;`. Overwrite the stream field with the empty `Option`.
     //           Assigning `None` DROPS the previous `AudioStream`, which closes it and
     //           stops its callback.
@@ -628,16 +910,21 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
         // // source = the opened decoder
         // ```
         Ok(source) => source,
-        // What:     `Err(_) => return`. The failure arm. `Err(_)` matches any error; the
-        //           `_` is a wildcard that DISCARDS the error value (we don't inspect it).
-        //           `return` exits `handle_load` early, leaving the engine idle.
-        // Why:      If the file cannot be decoded, abandon the load silently.
+        // What:     `Err(_) => { fail_load(state, control); return; }`. The failure arm. `Err(_)` matches any
+        //           error; the `_` is a wildcard that DISCARDS the error value (we don't inspect it).
+        //           `fail_load` resets the track facts and publishes this load's number as the failed one,
+        //           then `return` exits `handle_load` early, leaving the engine idle.
+        // Why:      If the file cannot be decoded, abandon the load, but let Kotlin report it: the error value
+        //           carries nothing the report needs.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // // on any error: return;
+        // // on any error: failLoad(state, control); return;
         // ```
-        Err(_) => return,
+        Err(_) => {
+            fail_load(state, control);
+            return;
+        }
     };
     // What:     `let spec = source.spec();`. Call the `spec()` method on the decoder; it
     //           returns an `AudioSpec` value (a small COPY containing `rate: u32`,
@@ -650,7 +937,7 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     // const spec = source.spec();
     // ```
     let spec = source.spec();
-    // What:     `if spec.rate == 0 || spec.channels == 0 { return; }`. Guard: `||` is
+    // What:     `if spec.rate == 0 || spec.channels == 0 { fail_load(state, control); return; }`. Guard: `||` is
     //           logical OR. If either the sample rate or channel count is zero (an invalid
     //           or empty track), `return` early. These comparisons and `||` are
     //           character-identical to TS.
@@ -661,6 +948,7 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     // if (spec.rate === 0 || spec.channels === 0) return;
     // ```
     if spec.rate == 0 || spec.channels == 0 {
+        fail_load(state, control);
         return;
     }
     // What:     `control.rate.store(spec.rate, Ordering::Release);`. `control.rate` is an
@@ -775,15 +1063,16 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     // catch { /* recovery below */ }
     // ```
     if reconfigure_output(state, control, spec.rate, spec.channels).is_err() {
-        // What:     `control.playing.store(false, Ordering::Release);`. On output-build
-        //           failure, atomically force the play gate to `false` with `Release`.
-        // Why:      Nothing can play if the output failed; ensure we are paused/silent.
+        // What:     `fail_load(state, control);`. On output-build failure, force the play gate to `false`,
+        //           reset the track facts and report this load as failed.
+        // Why:      Nothing can play if the output failed; without the reset the deck keeps the previous track's
+        //           duration, and without the report Kotlin never learns the load failed.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // Atomics.store(control.playing, 0, 0 /* false */);
+        // failLoad(state, control);
         // ```
-        control.playing.store(false, Ordering::Release);
+        fail_load(state, control);
         // What:     `state.source = None;`. Drop the just-loaded decoder by setting the
         //           field back to the empty `Option`.
         // Why:      Undo the load so the engine is fully idle (no source, silent) after the
@@ -797,11 +1086,50 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     }
 }
 
-/// What:     `fn handle_seek(state: &mut WorkerState, control: &Arc<Control>, position_sec: f64)`.
-///           A private function. `&mut WorkerState` is an exclusive borrow (we mutate it);
-///           `&Arc<Control>` a shared read-only borrow; `position_sec: f64` is the target
-///           position in seconds (a 64-bit float; sibling `f32` would lose seek precision).
-/// Why:      Reposition the loaded source and rebuild the output (which flushes the ring).
+/// What:
+///      `fn fail_load(state: &WorkerState, control: &Arc<Control>)`.
+///  Resets every track fact the previous track left in `control` (silent,
+///           not ended,
+///  no rate,
+///  no channels,
+///  no length,
+///  no position) and then publishes this load's
+///           sequence number as the failed one.
+/// Why:
+///       A load whose file opens but does not decode used to return with the
+///           previous track's duration and play state still in `control`,
+///  and nothing told Kotlin;
+///  the deck then
+///           showed a stale length and playback stalled in silence.
+///  The sequence number is stored last so a reader
+///           that sees it also sees the reset.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function failLoad(state: WorkerState, control: Control): void { ... }
+/// ```
+fn fail_load(state: &WorkerState, control: &Arc<Control>) {
+    control.playing.store(false, Ordering::Release);
+    control.ended.store(false, Ordering::Release);
+    control.decode_done.store(false, Ordering::Release);
+    control.rate.store(0, Ordering::Release);
+    control.channels.store(0, Ordering::Release);
+    control.start_frame.store(0, Ordering::Release);
+    control.frames_played.store(0, Ordering::Release);
+    control.duration_ms.store(0, Ordering::Release);
+    control.failed_load.store(state.loads_handled, Ordering::Release);
+}
+
+/// What:
+///      `fn handle_seek(state: &mut WorkerState, control: &Arc<Control>, position_sec: f64)`.
+///           A private function.
+///  `&mut WorkerState` is an exclusive borrow (we mutate it);
+///           `&Arc<Control>` a shared read-only borrow;
+///  `position_sec: f64` is the target
+///           position in seconds (a 64-bit float;
+///  sibling `f32` would lose seek precision).
+/// Why:
+///       Reposition the loaded source and rebuild the output (which flushes the ring).
 ///           The play gate is left untouched.
 ///
 /// In TS you'd write (pseudocode):
@@ -978,13 +1306,22 @@ fn handle_seek(state: &mut WorkerState, control: &Arc<Control>, position_sec: f6
     let _ = reconfigure_output(state, control, rate, channels);
 }
 
-/// What:     `fn reconfigure_output(state: &mut WorkerState, control: &Arc<Control>, rate: u32, channels: u16) -> Result<(), PlayerError>`.
-///           A private function. `&mut WorkerState` exclusive borrow (we replace its
-///           stream/prod). `&Arc<Control>` shared borrow. `rate: u32` the sample rate;
-///           `channels: u16` the channel count (a small unsigned count; siblings `u8`/`u32`).
-///           Returns `Result<(), PlayerError>`: success carries the empty unit `()` (like
-///           `void`), failure carries our error. The signature is split across lines for width.
-/// Why:      Drop the old output and build a fresh ring + AAudio stream at the track's rate,
+/// What:
+///      `fn reconfigure_output(state: &mut WorkerState, control: &Arc<Control>, rate: u32, channels: u16) -> Result<(), PlayerError>`.
+///           A private function.
+///  `&mut WorkerState` exclusive borrow (we replace its
+///           stream/prod).
+///  `&Arc<Control>` shared borrow.
+///  `rate: u32` the sample rate;
+///           `channels: u16` the channel count (a small unsigned count;
+///  siblings `u8`/`u32`).
+///           Returns `Result<(), PlayerError>`:
+///  success carries the empty unit `()` (like
+///           `void`),
+///  failure carries our error.
+///  The signature is split across lines for width.
+/// Why:
+///       Drop the old output and build a fresh ring + AAudio stream at the track's rate,
 ///           moving the new consumer into the stream's data callback.
 ///
 /// In TS you'd write (pseudocode):
@@ -1269,13 +1606,23 @@ fn reconfigure_output(
     return Ok(())
 }
 
-/// What:     `fn pump(state: &mut WorkerState, control: &Control) -> bool`. A private
-///           function. `&mut WorkerState` exclusive borrow (we mutate `pending`/`prod`).
+/// What:
+///      `fn pump(state: &mut WorkerState, control: &Control) -> bool`.
+///  A private
+///           function.
+///  `&mut WorkerState` exclusive borrow (we mutate `pending`/`prod`).
 ///           `&Control` is a shared READ-ONLY borrow of the control block directly (note:
-///           NOT `&Arc<Control>` here, just `&Control`; the `Arc` deref-coerces to a plain
-///           reference). Returns a `bool`: did any samples get accepted this call?
-/// Why:      Push one unit of decoded audio (carryover first, then a fresh chunk) and report
-///           whether work happened, so the caller knows whether to nap.
+///           NOT `&Arc<Control>` here,
+///  just `&Control`;
+///  the `Arc` deref-coerces to a plain
+///           reference).
+///  Returns a `bool`:
+///  did any samples get accepted this call?
+/// Why:
+///       Push one unit of decoded audio (carryover first,
+///  then a fresh chunk) and report
+///           whether work happened,
+///  so the caller knows whether to nap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1575,18 +1922,41 @@ fn pump(state: &mut WorkerState, control: &Control) -> bool {
     return did_work
 }
 
-/// What:     `fn audio_callback(cons: &mut HeapCons<f32>, data: *mut c_void, frames: i32, control: &Control, channels: usize) -> AudioCallbackResult`.
-///           The realtime data callback (called by AAudio on its realtime thread). Params:
-///           `cons: &mut HeapCons<f32>` (the ring's READ end, borrowed MUTABLY so popping
-///           advances its cursor); `data: *mut c_void` (a RAW writable pointer to the speaker
-///           buffer, untyped); `frames: i32` (how many frames to fill); `control: &Control`
-///           (shared read-only borrow of the control block); `channels: usize` (interleaved
-///           channel count). Returns `AudioCallbackResult` (`Continue` or `Stop`). The
+/// What:
+///      `fn audio_callback(cons: &mut HeapCons<f32>, data: *mut c_void, frames: i32, control: &Control, channels: usize) -> AudioCallbackResult`.
+///           The realtime data callback (called by AAudio on its realtime thread).
+///  Params:
+///           `cons: &mut HeapCons<f32>` (the ring's READ end,
+///  borrowed MUTABLY so popping
+///           advances its cursor);
+///  `data: *mut c_void` (a RAW writable pointer to the speaker
+///           buffer,
+///  untyped);
+///  `frames: i32` (how many frames to fill);
+///  `control: &Control`
+///           (shared read-only borrow of the control block);
+///  `channels: usize` (interleaved
+///           channel count).
+///  Returns `AudioCallbackResult` (`Continue` or `Stop`).
+///  The
 ///           signature is split across lines for width.
-/// Why:      Fill `data` with the next frames: silence when paused, otherwise pop from the
-///           ring, apply volume, zero-fill underrun, flag end-of-track, advance the counter.
-/// Gotcha:   This runs on a HARD-REALTIME thread: it must never allocate, lock, or block, or
-///           the audio glitches. That constraint shapes every line below.
+/// Why:
+///       Fill `data` with the next frames:
+///  silence when paused,
+///  otherwise pop from the
+///           ring,
+///  apply volume,
+///  zero-fill underrun,
+///  flag end-of-track,
+///  advance the counter.
+/// Gotcha:
+///    This runs on a HARD-REALTIME thread:
+///  it must never allocate,
+///  lock,
+///  or block,
+///  or
+///           the audio glitches.
+///  That constraint shapes every line below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1767,21 +2137,23 @@ fn audio_callback(
             control.ended.store(true, Ordering::Release);
         }
     }
-    // What:     `if let Some(frames) = popped.checked_div(channels) { ... }`. `checked_div`
-    //           divides `popped` (a SAMPLE count) by `channels`, returning `None` when
-    //           `channels == 0` (a checked divide that cannot divide-by-zero) and
-    //           `Some(frames)` otherwise, where `frames` is the FRAME count (samples per
-    //           frame equals channels). The `if let` runs the body only on `Some`.
+    // What:     `if let Some(played_frames) = popped.checked_div(channels) { ... }`.
+    //           `checked_div` divides `popped` (a SAMPLE count) by `channels`, returning
+    //           `None` when `channels == 0` (a checked divide that cannot divide-by-zero)
+    //           and `Some(played_frames)` otherwise, where `played_frames` is the FRAME
+    //           count (samples per frame equals channels). The `if let` runs the body only
+    //           on `Some`. The name differs from the `frames` callback parameter so the
+    //           played count never shadows the requested one.
     // Why:      Only advance the played-frame counter when channels is valid; `checked_div`
     //           folds the zero-guard and the divide into one call (no separate `> 0` check).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const frames = channels > 0 ? Math.floor(popped / channels) : null;
-    // if (frames !== null) { ... }
+    // const playedFrames = channels > 0 ? Math.floor(popped / channels) : null;
+    // if (playedFrames !== null) { ... }
     // ```
-    if let Some(frames) = popped.checked_div(channels) {
-        // What:     `control.frames_played.fetch_add(frames as u64, Ordering::AcqRel);`.
+    if let Some(played_frames) = popped.checked_div(channels) {
+        // What:     `control.frames_played.fetch_add(played_frames as u64, Ordering::AcqRel);`.
         //           `as u64` CASTS the `usize` frame count to the atomic's 64-bit width.
         //           `.fetch_add(delta, ordering)` atomically ADDS the delta to the counter
         //           (a read-modify-write). `Ordering::AcqRel` is both Acquire and Release at
@@ -1793,11 +2165,11 @@ fn audio_callback(
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // Atomics.add(control.framesPlayed, 0, frames);
+        // Atomics.add(control.framesPlayed, 0, playedFrames);
         // ```
         control
             .frames_played
-            .fetch_add(frames as u64, Ordering::AcqRel);
+            .fetch_add(played_frames as u64, Ordering::AcqRel);
     }
     // What:     `AudioCallbackResult::Continue`. The `Continue` variant as the function's
     //           TAIL EXPRESSION (no trailing `;`), so it is what the callback returns,
@@ -1811,12 +2183,19 @@ fn audio_callback(
     return AudioCallbackResult::Continue
 }
 
-/// What:     `fn audio_error<E: std::fmt::Debug>(error: E) -> PlayerError`. A GENERIC
-///           function: `<E: std::fmt::Debug>` introduces one type parameter `E` constrained
+/// What:
+///      `fn audio_error<E: std::fmt::Debug>(error: E) -> PlayerError`.
+///  A GENERIC
+///           function:
+///  `<E: std::fmt::Debug>` introduces one type parameter `E` constrained
 ///           (the `:` is a trait BOUND) to types that implement `std::fmt::Debug` (the
-///           developer-facing `{:?}` formatting trait). `error: E` takes any such value BY
-///           VALUE; it returns a `PlayerError`.
-/// Why:      AAudio builder/stream calls return DIFFERENT error types; one generic helper
+///           developer-facing `{:?}` formatting trait).
+///  `error: E` takes any such value BY
+///           VALUE;
+///  it returns a `PlayerError`.
+/// Why:
+///       AAudio builder/stream calls return DIFFERENT error types;
+///  one generic helper
 ///           turns any of them into our single `PlayerError` so callers can `?` them.
 ///
 /// In TS you'd write (pseudocode):

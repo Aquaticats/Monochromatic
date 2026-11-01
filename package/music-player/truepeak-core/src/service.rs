@@ -1,13 +1,28 @@
 //! The cache-aware resolve that composes the cache and the resolver (service feature).
 //!
 //! This is the one call both the foreground current track and the background warming loop
-//! make: return the cached decision, or open the source, resolve it under the policy, store
-//! the result, and return it. The opener is invoked only on a miss, so a cache hit never
-//! decodes. The platform still owns concurrency, priority, and cancellation; this is only the
-//! per-track get-or-resolve, which the platform drives in whatever loop it likes.
+//! make:
+//!  return the cached decision,
+//!  or open the source,
+//!  resolve it under the policy,
+//!  store
+//! the result,
+//!  and return it.
+//!  The opener is invoked only on a miss,
+//!  so a cache hit never
+//! decodes.
+//!  The platform still owns concurrency,
+//!  priority,
+//!  and cancellation;
+//!  this is only the
+//! per-track get-or-resolve,
+//!  which the platform drives in whatever loop it likes.
 
-/// What:     `use crate::cache::{CacheError, DecisionCache};`. The cache handle and its error.
-/// Why:      This reads and writes through the cache.
+/// What:
+///      `use crate::cache::{CacheError, DecisionCache};`.
+///  The cache handle and its error.
+/// Why:
+///       This reads and writes through the cache.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -15,8 +30,11 @@
 /// ```
 use crate::cache::{CacheError, DecisionCache};
 
-/// What:     `use crate::decision::Decision;`. The value returned.
-/// Why:      Both a hit and a fresh resolve produce one.
+/// What:
+///      `use crate::decision::Decision;`.
+///  The value returned.
+/// Why:
+///       Both a hit and a fresh resolve produce one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,8 +42,11 @@ use crate::cache::{CacheError, DecisionCache};
 /// ```
 use crate::decision::Decision;
 
-/// What:     `use crate::error::TruePeakError;`. The opener and resolver error.
-/// Why:      Mapped into a `CacheError` so the return type stays single.
+/// What:
+///      `use crate::error::TruePeakError;`.
+///  The opener and resolver error.
+/// Why:
+///       Mapped into a `CacheError` so the return type stays single.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,8 +54,11 @@ use crate::decision::Decision;
 /// ```
 use crate::error::TruePeakError;
 
-/// What:     `use crate::policy::Policy;`. The active policy.
-/// Why:      It supplies the identity for the cache key and the resolve parameters.
+/// What:
+///      `use crate::policy::Policy;`.
+///  The active policy.
+/// Why:
+///       It supplies the identity for the cache key and the resolve parameters.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,9 +66,13 @@ use crate::error::TruePeakError;
 /// ```
 use crate::policy::Policy;
 
-/// What:     `use crate::bucketpolicy::TrackProvenance;`. The provenance signals that pick
+/// What:
+///      `use crate::bucketpolicy::TrackProvenance;`.
+///  The provenance signals that pick
 ///           a long track's bucket.
-/// Why:      The caller supplies them; the resolve on a miss is steered by them.
+/// Why:
+///       The caller supplies them;
+///  the resolve on a miss is steered by them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,8 +80,11 @@ use crate::policy::Policy;
 /// ```
 use crate::bucketpolicy::TrackProvenance;
 
-/// What:     `use crate::resolve::resolve_decision_for;`. The blocking measurement.
-/// Why:      Called on a cache miss to produce the decision under the track's bucket.
+/// What:
+///      `use crate::resolve::resolve_decision_for;`.
+///  The blocking measurement.
+/// Why:
+///       Called on a cache miss to produce the decision under the track's bucket.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,8 +92,11 @@ use crate::bucketpolicy::TrackProvenance;
 /// ```
 use crate::resolve::resolve_decision_for;
 
-/// What:     `use crate::source::TruePeakSource;`. The decoded-audio contract.
-/// Why:      The opener returns a boxed one on a miss.
+/// What:
+///      `use crate::source::TruePeakSource;`.
+///  The decoded-audio contract.
+/// Why:
+///       The opener returns a boxed one on a miss.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,17 +104,32 @@ use crate::resolve::resolve_decision_for;
 /// ```
 use crate::source::TruePeakSource;
 
-/// What:     `pub async fn cached_or_resolve<Open>(cache: &DecisionCache, policy: &Policy,
+/// What:
+///      `pub async fn cached_or_resolve<Open>(cache: &DecisionCache, policy: &Policy,
 ///           fingerprint: u64, decoder_stack_id: u64, open: Open) -> Result<Decision,
 ///           CacheError> where Open: FnOnce() -> Result<Box<dyn TruePeakSource>,
-///           TruePeakError>`. Return the cached decision, or open, resolve, store, and
-///           return. `Open` is a one-shot closure (sibling `Fn`/`FnMut`) called only on a
-///           miss; `Box<dyn TruePeakSource>` (sibling `&mut dyn`) is an owned source the
+///           TruePeakError>`.
+///  Return the cached decision,
+///  or open,
+///  resolve,
+///  store,
+///  and
+///           return.
+///  `Open` is a one-shot closure (sibling `Fn`/`FnMut`) called only on a
+///           miss;
+///  `Box<dyn TruePeakSource>` (sibling `&mut dyn`) is an owned source the
 ///           closure hands over.
-/// Why:      One entry point for the foreground track and the warming loop, so both share
-///           the cache, the policy, and the precedence rules.
-/// Gotcha:   The resolve performs a BLOCKING full or probe scan, so call this where blocking
-///           decode is acceptable (a worker thread or a blocking-tolerant task); the platform
+/// Why:
+///       One entry point for the foreground track and the warming loop,
+///  so both share
+///           the cache,
+///  the policy,
+///  and the precedence rules.
+/// Gotcha:
+///    The resolve performs a BLOCKING full or probe scan,
+///  so call this where blocking
+///           decode is acceptable (a worker thread or a blocking-tolerant task);
+///  the platform
 ///           owns that scheduling and any concurrency around it.
 ///
 /// In TS you'd write (pseudocode):
@@ -171,9 +220,14 @@ where
     return Ok(decision)
 }
 
-/// What:     `#[cfg(test)] #[path = "service_tests.rs"] mod tests;`. Test-only submodule in
-///           the sibling file, gated to test builds of the `service` feature.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "service_tests.rs"] mod tests;`.
+///  Test-only submodule in
+///           the sibling file,
+///  gated to test builds of the `service` feature.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

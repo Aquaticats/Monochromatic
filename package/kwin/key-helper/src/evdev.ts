@@ -18,7 +18,7 @@ import {
   readFile,
 } from 'node:fs/promises';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
@@ -272,64 +272,64 @@ export async function startEvdevMonitor({
   stream.on(
     'data',
     function onData(chunk: Buffer): void {
-    for (let offset = 0; offset < chunk.length;) {
+      for (let offset = 0; offset < chunk.length;) {
       /**
        Bytes copied from this chunk into the record on this step.
        */
-      const copied = Math.min(
-        EVENT_SIZE - monitor.filled,
-        chunk.length - offset
-      );
-      chunk.copy(
-        record,
-        monitor.filled,
-        offset,
-        offset + copied
-      );
-      monitor.filled += copied;
-      offset += copied;
-      if (monitor.filled !== EVENT_SIZE) {
-        continue;
-      }
-      monitor.filled = 0;
+        const copied = Math.min(
+          EVENT_SIZE - monitor.filled,
+          chunk.length - offset
+        );
+        chunk.copy(
+          record,
+          monitor.filled,
+          offset,
+          offset + copied
+        );
+        monitor.filled += copied;
+        offset += copied;
+        if (monitor.filled !== EVENT_SIZE) {
+          continue;
+        }
+        monitor.filled = 0;
       /**
        Decoded fields of the completed record.
        */
-      const {
-        type,
-        code,
-        value
-      } = decodeEvent(record);
-      if (type !== EV_KEY) {
-        continue;
-      }
+        const {
+          type,
+          code,
+          value
+        } = decodeEvent(record);
+        if (type !== EV_KEY) {
+          continue;
+        }
       /**
        Result of folding this key event into the detector.
        */
-      const {
-        state: nextState,
-        doubleShift
-      } = reduceShiftEvent({
-        state: monitor.state,
-        event: {
-          isShift: (code === KEY_LEFTSHIFT) || (code === KEY_RIGHTSHIFT),
-          value,
-          now: performance.now(),
-        },
-      });
-      monitor.state = nextState;
-      if (doubleShift) {
-        onDoubleShift();
+        const {
+          state: nextState,
+          doubleShift
+        } = reduceShiftEvent({
+          state: monitor.state,
+          event: {
+            isShift: (code === KEY_LEFTSHIFT) || (code === KEY_RIGHTSHIFT),
+            value,
+            now: performance.now(),
+          },
+        });
+        monitor.state = nextState;
+        if (doubleShift) {
+          onDoubleShift();
+        }
       }
     }
-  }
   );
 
   stream.on(
     'error',
     function onError(error: ForeignBorrowed<Error>): void {
-    console.error(`[key-helper] evdev read error: ${error.message}`);
-  }
+      console.error(`[key-helper] evdev read error: ${error.message}`);
+    }
   );
 
   console.log(`[key-helper] monitoring ${devicePath} for double-shift`);

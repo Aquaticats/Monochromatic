@@ -125,9 +125,9 @@ function plainTextResponse({
   return new Response(
     omitBody ? null : body,
     {
-    status,
-    headers,
-  },
+      status,
+      headers,
+    },
   );
 }
 
@@ -277,9 +277,9 @@ export function preflightResponse(): Response {
   return new Response(
     null,
     {
-    status: NO_CONTENT,
-    headers,
-  },
+      status: NO_CONTENT,
+      headers,
+    },
   );
 }
 
@@ -336,9 +336,9 @@ export function methodNotAllowedResponse({ method, }: MethodNotAllowedResponsePa
   return new Response(
     message,
     {
-    status: METHOD_NOT_ALLOWED,
-    headers,
-  },
+      status: METHOD_NOT_ALLOWED,
+      headers,
+    },
   );
 }
 

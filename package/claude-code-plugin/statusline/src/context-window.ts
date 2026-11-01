@@ -97,8 +97,8 @@ function formatUsedTokens(used: number,): string {
      */
     const onesGroup = String(used % THOUSANDS,)
       .padStart(
-        THOUSANDS_GROUP_WIDTH,
-        '0',
+      THOUSANDS_GROUP_WIDTH,
+      '0',
       );
     return `${thousandsGroup},${onesGroup}`;
   }

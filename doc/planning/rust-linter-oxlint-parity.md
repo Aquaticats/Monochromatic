@@ -180,7 +180,7 @@ Four custom oxlint plugins are authored in-repo under `package/oxlint-plugin/`
 so third-party rule authoring is load-bearing for TypeScript.
 
 Existing consumer tooling that a shared diagnostic schema would unlock for free:
-`package/dev-script/task-util/src/oxlint-wrapper.ts` (281 lines),
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts` (281 lines),
 `oxlint-augment.ts` (683),
 `oxlint-guidance.ts` (140),
 `oxlint-fix-loop.ts`.
@@ -240,8 +240,13 @@ In scope:
  autofix pipeline,
  custom plugin loading,
  language server.
-Out of scope:
+Out of scope in the original 2026-07-25 decision:
  semantic and type-aware analysis.
+On 2026-10-04,
+the user selected full semantic enforcement for the new unified-linter `rust/require-explicit-types` rule.
+That accepted addition supersedes this exclusion for the new rule;
+see `doc/planning/unified-linter.md`.
+The original constraints and consequences remain recorded as history.
 Consequence:
  the `Rule` trait must carry fix edits from the start,
 rule registration needs a runtime seam rather than `all_rules()`,
@@ -297,6 +302,30 @@ Settled alongside it,
   directives comply.
   This is a superset of oxlint's behaviour,
    not parity with it.
+
+Built:
+ 2026-10-18,
+in `package/linter/monochromatic-lint`,
+on branch `feat/lint-directives`
+(engine commit `b564c7ad15`,
+rule declarations `82d69a4036`;
+merge `6808166dfd`).
+The spelling is `monochromatic-lint-disable`,
+`-enable`,
+`-disable-line` and `-disable-next-line`;
+the grammar,
+the stricter readings taken where this document was silent,
+the new `directive/*` finding identifiers
+and the oxlint-spelled options
+`--report-unused-disable-directives` and `--report-unused-disable-directives-severity`
+are in the package README section "Inline directives".
+Rust directives are `//` and `/* */` comments;
+doc comments are not directives,
+although the coverage ledger listed "any comment token".
+Markdown directives are HTML comments,
+and MDX has none.
+The `README.md:66` and `README.md:132` lines cited above no longer exist in the package README;
+its section "Inline directives" replaces them.
 
 ### D3. Config file format and location
 
@@ -528,9 +557,9 @@ bearing,
  not stylistic.
 
 Available for the text-predicate half where one is needed:
-`package/rust-module/forbidden-regex`,
+`package/forbidden-strings/core`,
 the in-house linear-time engine with fuzz and bench harnesses,
-already consumed by `package/cli/forbidden-strings` over a path dependency.
+already consumed by `package/forbidden-strings/cli` over a path dependency.
 Using it rather than `regex` satisfies RG2 and the `no-regex` lint rule by construction.
 
 ### D5. Crate layout
@@ -559,8 +588,8 @@ Chosen:
 - Rule plugin crates are their own packages.
 
 Reproduces the shape the repo already uses:
-`package/rust-module/forbidden-regex` is a library package consumed by
-`package/cli/forbidden-strings` over a `../../rust-module/forbidden-regex`
+`package/forbidden-strings/core` is a library package consumed by
+`package/forbidden-strings/cli` over a `../../forbidden-strings/core`
 path dependency.
 No Cargo workspace is introduced,
  so the invariant in
@@ -908,6 +937,9 @@ rather than one umbrella task:
     variant.
      Verified by a fixture where a directive targets a
     non-suppressible rule.
+     Built 2026-10-18 (merge `6808166dfd`);
+    that fixture is `a_listed_unsuppressible_rule_is_refused_and_reported`
+    in `package/linter/monochromatic-lint/src/directive_apply_tests.rs`.
 6.  Autofix pipeline:
      fix model,
      three fix kinds,

@@ -24,11 +24,11 @@
  @module
  */
 
-import type { CallExpression, } from 'typescript/unstable/ast';
+import type { CallExpression, } from 'typescript/ast';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { effectOriginLocation, } from './effect-origin-location.ts';
 import { expressionCanCarryMutableState, } from './effect-primitive-origin.ts';

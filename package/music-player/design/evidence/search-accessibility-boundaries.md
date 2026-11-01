@@ -179,7 +179,7 @@ The user may correct or veto this policy in chat.
    expose a single action target with folder/track type,
   own name,
   disambiguating parent context and the real action (“open folder”,
-  “play track”,
+  “play track” (D127 later changed this action to “select track”),
   or current-track play/pause),
   without duplicate title speech or an icon-only cue.
   Visible D59 bold/accent highlights need not be read out as a separate

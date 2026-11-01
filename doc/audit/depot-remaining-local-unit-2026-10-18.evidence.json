@@ -1,0 +1,1108 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T22:01:59.142Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "All nine unchanged remaining authored source files executed; successful fresh Node harness build and built-export it self-test; exact missing fixture failures retained",
+  "admission": {
+    "path": "doc/audit/depot-remaining-local-unit-admission-2026-10-18.evidence.json",
+    "bytes": 4710,
+    "sha256": "8c6f441fd28ab14aa751ef07f94bec44ac5c6111857ab09f9f178450720816b9"
+  },
+  "harnessBuild": {
+    "literalOwningMiseTask": "//package/module/test:build:js:node",
+    "exitCode": 0,
+    "startedAt": "2026-10-18T21:52:45.693Z",
+    "finishedAt": "2026-10-18T21:52:46.843Z",
+    "nodeArtifact": {
+      "path": "package/module/test/dist/final/node/index.mjs",
+      "bytes": 17010,
+      "sha256": "5c3a69d57804a24f64503ed5f8bd32259fcbb3635ae7578d2adc432123b96e65"
+    }
+  },
+  "runtime": {
+    "node": "v26.12.0",
+    "memoryMax": "2147483648",
+    "cpuMax": "200000 100000",
+    "consumerNetwork": "none",
+    "personalFixturesMounted": false,
+    "DEBUGRequested": true,
+    "perCaseDebugEmissionObserved": false
+  },
+  "profiles": [
+    {
+      "owner": "package/desktop-daemon/hall-monitor",
+      "file": "package/desktop-daemon/hall-monitor/src/analyze.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/desktop-daemon/hall-monitor/src/analyze.unit.test.ts",
+        "bytes": 6757,
+        "sha256": "b4c93bd5018539a07d316aacf4dc571284e858449d03e726e7a51153b95a9d16",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:46.974Z",
+      "finishedAt": "2026-10-18T21:52:47.095Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 992,
+          "name": "returns `from` for empty input",
+          "state": "PASS"
+        },
+        {
+          "offset": 1221,
+          "name": "returns `from` unchanged when it is already past the end",
+          "state": "PASS"
+        },
+        {
+          "offset": 1481,
+          "name": "returns `from` unchanged when it equals the length",
+          "state": "PASS"
+        },
+        {
+          "offset": 1733,
+          "name": "returns `from` unchanged when the cursor is on a non-blank char",
+          "state": "PASS"
+        },
+        {
+          "offset": 1998,
+          "name": "skips a run of spaces",
+          "state": "PASS"
+        },
+        {
+          "offset": 2222,
+          "name": "skips a run of tabs",
+          "state": "PASS"
+        },
+        {
+          "offset": 2445,
+          "name": "skips an interleaved run of spaces and tabs",
+          "state": "PASS"
+        },
+        {
+          "offset": 2694,
+          "name": "returns the length when the remainder is all blanks",
+          "state": "PASS"
+        },
+        {
+          "offset": 2947,
+          "name": "starts skipping from the given offset, not the string start",
+          "state": "PASS"
+        },
+        {
+          "offset": 3211,
+          "name": "does not skip a newline, carriage return, form feed, or vertical tab",
+          "state": "PASS"
+        },
+        {
+          "offset": 3823,
+          "name": "stops at the first non-blank after skipping spaces then tab",
+          "state": "PASS"
+        },
+        {
+          "offset": 4087,
+          "name": "skips a long blank run in one linear pass",
+          "state": "PASS"
+        },
+        {
+          "offset": 4553,
+          "name": "reads the canonical verdict line after a single space",
+          "state": "PASS"
+        },
+        {
+          "offset": 4856,
+          "name": "reads the verdict with no separating whitespace",
+          "state": "PASS"
+        },
+        {
+          "offset": 5073,
+          "name": "reads the verdict after multiple spaces and tabs",
+          "state": "PASS"
+        },
+        {
+          "offset": 5376,
+          "name": "matches the verdict line case-insensitively",
+          "state": "PASS"
+        },
+        {
+          "offset": 5586,
+          "name": "does not read across a newline after the prefix, falling back to keyword scan",
+          "state": "PASS"
+        },
+        {
+          "offset": 5831,
+          "name": "falls back to the UNPRODUCTIVE keyword when no canonical line is present",
+          "state": "PASS"
+        },
+        {
+          "offset": 6086,
+          "name": "defaults to PRODUCTIVE when neither a line nor the keyword is present",
+          "state": "PASS"
+        },
+        {
+          "offset": 6335,
+          "name": "reads the canonical line across a long inline blank run without overflowing",
+          "state": "PASS"
+        }
+      ],
+      "passed": 20,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/desktop-daemon/hall-monitor",
+      "file": "package/desktop-daemon/hall-monitor/src/infra/lock.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/desktop-daemon/hall-monitor/src/infra/lock.unit.test.ts",
+        "bytes": 5063,
+        "sha256": "522c293c16192d199eccc3a18722d2ec6d0483c22ec06b77d8cd98995dfba40b",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.095Z",
+      "finishedAt": "2026-10-18T21:52:47.205Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 1015,
+          "name": "returns an empty array for empty input",
+          "state": "PASS"
+        },
+        {
+          "offset": 1199,
+          "name": "returns an empty array for all-spaces input",
+          "state": "PASS"
+        },
+        {
+          "offset": 1393,
+          "name": "returns an empty array for mixed all-whitespace input",
+          "state": "PASS"
+        },
+        {
+          "offset": 1604,
+          "name": "returns a single token when there is no whitespace",
+          "state": "PASS"
+        },
+        {
+          "offset": 1809,
+          "name": "splits two space-separated tokens",
+          "state": "PASS"
+        },
+        {
+          "offset": 2042,
+          "name": "drops a leading separator",
+          "state": "PASS"
+        },
+        {
+          "offset": 2269,
+          "name": "drops a trailing separator",
+          "state": "PASS"
+        },
+        {
+          "offset": 2497,
+          "name": "drops both leading and trailing separators",
+          "state": "PASS"
+        },
+        {
+          "offset": 2745,
+          "name": "collapses consecutive internal separators into no empty tokens",
+          "state": "PASS"
+        },
+        {
+          "offset": 3034,
+          "name": "treats every whitespace kind as a token break",
+          "state": "PASS"
+        },
+        {
+          "offset": 3389,
+          "name": "extracts the inode field from a realistic /proc/net/unix row",
+          "state": "PASS"
+        },
+        {
+          "offset": 3827,
+          "name": "returns a single token for one whitespace-bounded character",
+          "state": "PASS"
+        },
+        {
+          "offset": 4041,
+          "name": "handles a long single token in one linear pass",
+          "state": "PASS"
+        },
+        {
+          "offset": 4579,
+          "name": "handles a long run of many tokens without quadratic blowup",
+          "state": "PASS"
+        }
+      ],
+      "passed": 14,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/dev-script/page-weight",
+      "file": "package/dev-script/page-weight/src/html.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/dev-script/page-weight/src/html.unit.test.ts",
+        "bytes": 4187,
+        "sha256": "d1afe703235abb1242d65897f4ae29479fbb3e76e28dbd74eaee1c27ed164e1a",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.205Z",
+      "finishedAt": "2026-10-18T21:52:47.351Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 956,
+          "name": "returns an empty token for the empty string",
+          "state": "PASS"
+        },
+        {
+          "offset": 1148,
+          "name": "returns an empty token for an all-whitespace line",
+          "state": "PASS"
+        },
+        {
+          "offset": 1349,
+          "name": "returns an empty token for a line of every ASCII whitespace character",
+          "state": "PASS"
+        },
+        {
+          "offset": 1578,
+          "name": "returns the whole string when there is no whitespace",
+          "state": "PASS"
+        },
+        {
+          "offset": 1789,
+          "name": "returns the leading token up to the first space",
+          "state": "PASS"
+        },
+        {
+          "offset": 1998,
+          "name": "skips leading whitespace before the token",
+          "state": "PASS"
+        },
+        {
+          "offset": 2204,
+          "name": "skips leading whitespace and ignores trailing whitespace",
+          "state": "PASS"
+        },
+        {
+          "offset": 2423,
+          "name": "treats a tab as a token boundary",
+          "state": "PASS"
+        },
+        {
+          "offset": 2609,
+          "name": "treats a newline as a token boundary",
+          "state": "PASS"
+        },
+        {
+          "offset": 2799,
+          "name": "treats a carriage return as a token boundary",
+          "state": "PASS"
+        },
+        {
+          "offset": 2997,
+          "name": "treats a form feed as a token boundary",
+          "state": "PASS"
+        },
+        {
+          "offset": 3189,
+          "name": "treats a vertical tab as a token boundary",
+          "state": "PASS"
+        },
+        {
+          "offset": 3384,
+          "name": "does not treat a non-breaking space as a boundary (ASCII-only set)",
+          "state": "PASS"
+        },
+        {
+          "offset": 3661,
+          "name": "skips a long leading-whitespace run without overflowing the stack",
+          "state": "PASS"
+        },
+        {
+          "offset": 3901,
+          "name": "scans a long token run without overflowing the stack",
+          "state": "PASS"
+        }
+      ],
+      "passed": 15,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/dev-script/page-weight",
+      "file": "package/dev-script/page-weight/src/url-detect.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/dev-script/page-weight/src/url-detect.unit.test.ts",
+        "bytes": 4202,
+        "sha256": "b0e14b80d7d0055957d0f3ee206c2a3fb44476a5b74774ad3a967ed8e4b6c129",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.352Z",
+      "finishedAt": "2026-10-18T21:52:47.464Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 907,
+          "name": "returns false for the empty string",
+          "state": "PASS"
+        },
+        {
+          "offset": 1089,
+          "name": "returns false for a single character (too short for scheme + colon)",
+          "state": "PASS"
+        },
+        {
+          "offset": 1305,
+          "name": "accepts a minimal one-letter scheme",
+          "state": "PASS"
+        },
+        {
+          "offset": 1489,
+          "name": "accepts an https URL",
+          "state": "PASS"
+        },
+        {
+          "offset": 1675,
+          "name": "accepts a data URI",
+          "state": "PASS"
+        },
+        {
+          "offset": 1866,
+          "name": "is case-insensitive on the scheme",
+          "state": "PASS"
+        },
+        {
+          "offset": 2065,
+          "name": "accepts schemes containing +, ., and - body characters",
+          "state": "PASS"
+        },
+        {
+          "offset": 2275,
+          "name": "rejects a relative path",
+          "state": "PASS"
+        },
+        {
+          "offset": 2457,
+          "name": "rejects a protocol-relative URL (first char is a slash)",
+          "state": "PASS"
+        },
+        {
+          "offset": 2682,
+          "name": "rejects a scheme that starts with a digit",
+          "state": "PASS"
+        },
+        {
+          "offset": 2878,
+          "name": "rejects a scheme that starts with a body symbol",
+          "state": "PASS"
+        },
+        {
+          "offset": 3079,
+          "name": "rejects when no colon terminates the run",
+          "state": "PASS"
+        },
+        {
+          "offset": 3270,
+          "name": "rejects when a non-scheme char precedes the colon",
+          "state": "PASS"
+        },
+        {
+          "offset": 3478,
+          "name": "rejects when whitespace breaks the run before the colon",
+          "state": "PASS"
+        },
+        {
+          "offset": 3685,
+          "name": "scans a long scheme body terminated by a colon without overflowing the stack",
+          "state": "PASS"
+        },
+        {
+          "offset": 3933,
+          "name": "returns false for a long body with no terminating colon",
+          "state": "PASS"
+        }
+      ],
+      "passed": 16,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/module/hyperscript",
+      "file": "package/module/hyperscript/src/css/index.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/module/hyperscript/src/css/index.unit.test.ts",
+        "bytes": 16348,
+        "sha256": "aa6d4f2fa0f00a4f91581f15c6661171a3cf389964b17f175744373054d96e29",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.464Z",
+      "finishedAt": "2026-10-18T21:52:47.576Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 411,
+          "name": "creates a simple rule with declarations",
+          "state": "PASS"
+        },
+        {
+          "offset": 677,
+          "name": "creates a rule with no declarations",
+          "state": "PASS"
+        },
+        {
+          "offset": 839,
+          "name": "creates a rule with a single declaration",
+          "state": "PASS"
+        },
+        {
+          "offset": 1035,
+          "name": "preserves CSS custom property names",
+          "state": "PASS"
+        },
+        {
+          "offset": 1284,
+          "name": "handles complex selectors",
+          "state": "PASS"
+        },
+        {
+          "offset": 1627,
+          "name": "nests child rules inside a parent",
+          "state": "PASS"
+        },
+        {
+          "offset": 1994,
+          "name": "nests multiple children",
+          "state": "PASS"
+        },
+        {
+          "offset": 2620,
+          "name": "nests children without parent declarations",
+          "state": "PASS"
+        },
+        {
+          "offset": 2929,
+          "name": "deeply nests rules",
+          "state": "PASS"
+        },
+        {
+          "offset": 3389,
+          "name": "creates a media query with child rules",
+          "state": "PASS"
+        },
+        {
+          "offset": 3806,
+          "name": "creates a layer block with rules",
+          "state": "PASS"
+        },
+        {
+          "offset": 4165,
+          "name": "creates a scope block",
+          "state": "PASS"
+        },
+        {
+          "offset": 4511,
+          "name": "nests at-rules inside at-rules",
+          "state": "PASS"
+        },
+        {
+          "offset": 5101,
+          "name": "creates a @property rule",
+          "state": "PASS"
+        },
+        {
+          "offset": 5534,
+          "name": "creates a @font-face rule",
+          "state": "PASS"
+        },
+        {
+          "offset": 5997,
+          "name": "creates a @counter-style rule",
+          "state": "PASS"
+        },
+        {
+          "offset": 6384,
+          "name": "creates a @layer statement",
+          "state": "PASS"
+        },
+        {
+          "offset": 6614,
+          "name": "creates a @charset statement",
+          "state": "PASS"
+        },
+        {
+          "offset": 6796,
+          "name": "creates an @import statement",
+          "state": "PASS"
+        },
+        {
+          "offset": 7014,
+          "name": "creates an @import with layer",
+          "state": "PASS"
+        },
+        {
+          "offset": 7259,
+          "name": "creates a @namespace statement",
+          "state": "PASS"
+        },
+        {
+          "offset": 7538,
+          "name": "creates an at-rule with no params",
+          "state": "PASS"
+        },
+        {
+          "offset": 7738,
+          "name": "injects raw CSS inside a rule",
+          "state": "PASS"
+        },
+        {
+          "offset": 7963,
+          "name": "injects raw CSS inside an at-rule",
+          "state": "PASS"
+        },
+        {
+          "offset": 8269,
+          "name": "separates decls from following raw with semicolon",
+          "state": "PASS"
+        },
+        {
+          "offset": 8589,
+          "name": "separates raw from following children with semicolon",
+          "state": "PASS"
+        },
+        {
+          "offset": 8967,
+          "name": "chains decls, raw, and children with proper separators",
+          "state": "PASS"
+        },
+        {
+          "offset": 9521,
+          "name": "omits separator when decls is empty and children follow",
+          "state": "PASS"
+        },
+        {
+          "offset": 9851,
+          "name": "omits separator when raw is empty and children follow",
+          "state": "PASS"
+        },
+        {
+          "offset": 10177,
+          "name": "concatenates duplicate child strings without stray separators",
+          "state": "PASS"
+        },
+        {
+          "offset": 10692,
+          "name": "cssMin joins values with comma-space",
+          "state": "PASS"
+        },
+        {
+          "offset": 10881,
+          "name": "cssMax joins values with comma-space",
+          "state": "PASS"
+        },
+        {
+          "offset": 11066,
+          "name": "cssMax accepts a calc() expression as a value",
+          "state": "PASS"
+        },
+        {
+          "offset": 11302,
+          "name": "cssClamp emits min, ideal, max in order",
+          "state": "PASS"
+        },
+        {
+          "offset": 11556,
+          "name": "cssClamp accepts mixed string and branded values",
+          "state": "PASS"
+        },
+        {
+          "offset": 11889,
+          "name": "cssRandom emits min and max as a two-argument call",
+          "state": "PASS"
+        },
+        {
+          "offset": 12078,
+          "name": "cssRandom appends step as a bare positional fourth argument",
+          "state": "PASS"
+        },
+        {
+          "offset": 12326,
+          "name": "cssRandom prepends a random-key when one is supplied",
+          "state": "PASS"
+        },
+        {
+          "offset": 12597,
+          "name": "cssRandom omits step when a key is supplied without one",
+          "state": "PASS"
+        },
+        {
+          "offset": 12934,
+          "name": "composes declarations via object spread",
+          "state": "PASS"
+        },
+        {
+          "offset": 13407,
+          "name": "composes parameterized declarations",
+          "state": "PASS"
+        },
+        {
+          "offset": 14060,
+          "name": "generates a design token layer",
+          "state": "PASS"
+        },
+        {
+          "offset": 15139,
+          "name": "generates a component with nested hover and focus",
+          "state": "PASS"
+        }
+      ],
+      "passed": 43,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/module/hyperscript",
+      "file": "package/module/hyperscript/src/html/index.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/module/hyperscript/src/html/index.unit.test.ts",
+        "bytes": 2517,
+        "sha256": "b9357ab7f59a3c33b84c6b3f2e56f82a7e2fbbc9deab65d53f01139cfb3591c2",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.577Z",
+      "finishedAt": "2026-10-18T21:52:47.689Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 200,
+          "name": "lowercases and dashes a single interior capital (flexDirection)",
+          "state": "PASS"
+        },
+        {
+          "offset": 470,
+          "name": "dashes backgroundColor",
+          "state": "PASS"
+        },
+        {
+          "offset": 703,
+          "name": "leaves an all-lowercase property unchanged (display)",
+          "state": "PASS"
+        },
+        {
+          "offset": 951,
+          "name": "emits a leading dash for a leading capital",
+          "state": "PASS"
+        },
+        {
+          "offset": 1207,
+          "name": "dashes a trailing capital",
+          "state": "PASS"
+        },
+        {
+          "offset": 1417,
+          "name": "dashes each of consecutive capitals",
+          "state": "PASS"
+        },
+        {
+          "offset": 1636,
+          "name": "maps an empty property name to an empty kebab string",
+          "state": "PASS"
+        },
+        {
+          "offset": 1870,
+          "name": "leaves already-kebab input unchanged",
+          "state": "PASS"
+        },
+        {
+          "offset": 2116,
+          "name": "converts a long all-uppercase run in a single linear pass",
+          "state": "PASS"
+        }
+      ],
+      "passed": 9,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/module/hyperscript",
+      "file": "package/module/hyperscript/src/xml/index.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/module/hyperscript/src/xml/index.unit.test.ts",
+        "bytes": 5753,
+        "sha256": "615ea548015473c58860894d25e3456c0afc3e2de9807d52255bdfcfec060a4d",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.690Z",
+      "finishedAt": "2026-10-18T21:52:47.800Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 166,
+          "name": "creates a simple element with text content",
+          "state": "PASS"
+        },
+        {
+          "offset": 364,
+          "name": "self-closes elements with no content",
+          "state": "PASS"
+        },
+        {
+          "offset": 524,
+          "name": "self-closes elements with attrs but no content",
+          "state": "PASS"
+        },
+        {
+          "offset": 782,
+          "name": "does not self-close when text is provided",
+          "state": "PASS"
+        },
+        {
+          "offset": 962,
+          "name": "does not self-close when raw is provided",
+          "state": "PASS"
+        },
+        {
+          "offset": 1149,
+          "name": "does not self-close when children array is non-empty",
+          "state": "PASS"
+        },
+        {
+          "offset": 1413,
+          "name": "self-closes when children array is empty",
+          "state": "PASS"
+        },
+        {
+          "offset": 1593,
+          "name": "escapes text content",
+          "state": "PASS"
+        },
+        {
+          "offset": 1817,
+          "name": "escapes double quotes in text",
+          "state": "PASS"
+        },
+        {
+          "offset": 2040,
+          "name": "escapes single quotes (apostrophes) in text",
+          "state": "PASS"
+        },
+        {
+          "offset": 2258,
+          "name": "escapes attribute values",
+          "state": "PASS"
+        },
+        {
+          "offset": 2477,
+          "name": "does not escape raw content",
+          "state": "PASS"
+        },
+        {
+          "offset": 2740,
+          "name": "renders multiple attributes in order",
+          "state": "PASS"
+        },
+        {
+          "offset": 2995,
+          "name": "renders namespaced tag names",
+          "state": "PASS"
+        },
+        {
+          "offset": 3208,
+          "name": "renders namespaced attributes",
+          "state": "PASS"
+        },
+        {
+          "offset": 3621,
+          "name": "concatenates text, raw, and children in order",
+          "state": "PASS"
+        },
+        {
+          "offset": 3943,
+          "name": "concatenates multiple children",
+          "state": "PASS"
+        },
+        {
+          "offset": 4343,
+          "name": "handles deeply nested elements",
+          "state": "PASS"
+        },
+        {
+          "offset": 4780,
+          "name": "handles RSS-like structure",
+          "state": "PASS"
+        }
+      ],
+      "passed": 19,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/rolldown-plugin/import-attributes",
+      "file": "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts",
+        "bytes": 2736,
+        "sha256": "1a803e8c2897b6012ae43deb08d07fc15f6511eee679bfbf581e90587fe143cc",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 1,
+      "startedAt": "2026-10-18T21:52:47.800Z",
+      "finishedAt": "2026-10-18T21:52:47.944Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 1234,
+          "name": "transforms static import with { type: \"text\" }",
+          "state": "FAIL"
+        },
+        {
+          "offset": 1525,
+          "name": "transforms dynamic import() with { with: { type: \"text\" } }",
+          "state": "FAIL"
+        },
+        {
+          "offset": 1784,
+          "name": "transforms re-export with { type: \"text\" }",
+          "state": "FAIL"
+        },
+        {
+          "offset": 2027,
+          "name": "ignores imports without with clause",
+          "state": "FAIL"
+        }
+      ],
+      "passed": 0,
+      "failed": 4,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/rolldown-plugin/import-attributes",
+      "file": "package/rolldown-plugin/import-attributes/src/transform-helpers.unit.test.ts",
+      "role": "unchanged existing source-import owner",
+      "sourceIdentity": {
+        "path": "package/rolldown-plugin/import-attributes/src/transform-helpers.unit.test.ts",
+        "bytes": 4642,
+        "sha256": "362c0bb8313ff3f988ee4ee4a5d33c2f2b4a0e49194e2d88761f79d0f2f5cb0d",
+        "role": "unchanged existing source-import owner"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:47.944Z",
+      "finishedAt": "2026-10-18T21:52:48.049Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 1212,
+          "name": "returns the starting index for empty input",
+          "state": "PASS"
+        },
+        {
+          "offset": 1419,
+          "name": "skips an all-whitespace run to end of string",
+          "state": "PASS"
+        },
+        {
+          "offset": 1632,
+          "name": "returns the starting index when the cursor is already on a non-whitespace char",
+          "state": "PASS"
+        },
+        {
+          "offset": 1879,
+          "name": "returns the index unchanged when the cursor equals s.length",
+          "state": "PASS"
+        },
+        {
+          "offset": 2105,
+          "name": "returns the index unchanged when the cursor is past s.length",
+          "state": "PASS"
+        },
+        {
+          "offset": 2332,
+          "name": "advances past a single space",
+          "state": "PASS"
+        },
+        {
+          "offset": 2527,
+          "name": "advances past a single tab",
+          "state": "PASS"
+        },
+        {
+          "offset": 2721,
+          "name": "advances past a single newline",
+          "state": "PASS"
+        },
+        {
+          "offset": 2919,
+          "name": "advances past a single carriage return",
+          "state": "PASS"
+        },
+        {
+          "offset": 3125,
+          "name": "advances past a mixed run of all four whitespace chars",
+          "state": "PASS"
+        },
+        {
+          "offset": 3355,
+          "name": "stops at a form feed (outside the four-char set that \\s would match)",
+          "state": "PASS"
+        },
+        {
+          "offset": 3595,
+          "name": "scans the whitespace gap mid-string after a quoted path",
+          "state": "PASS"
+        },
+        {
+          "offset": 3834,
+          "name": "skips trailing whitespace with no following token to end of string",
+          "state": "PASS"
+        },
+        {
+          "offset": 4072,
+          "name": "skips a long whitespace run in one linear pass without stack overflow",
+          "state": "PASS"
+        },
+        {
+          "offset": 4332,
+          "name": "finds the first non-whitespace char after a long whitespace run",
+          "state": "PASS"
+        }
+      ],
+      "passed": 15,
+      "failed": 0,
+      "importBoundary": "unchanged source-import owner; package artifact assertions not inferred"
+    },
+    {
+      "owner": "package/module/test",
+      "file": "package/module/test/src/it.unit.test.ts",
+      "role": "existing harness failure/timeout/repeat self-test against rebuilt node artifact",
+      "sourceIdentity": {
+        "path": "package/module/test/src/it.unit.test.ts",
+        "bytes": 4249,
+        "sha256": "6db6986f28ddc4fe22bf9cdaf40274ef257cf583c7e6eb6f05e31dbcdca7ab4f",
+        "role": "existing harness failure/timeout/repeat self-test against rebuilt node artifact"
+      },
+      "exitCode": 0,
+      "startedAt": "2026-10-18T21:52:48.049Z",
+      "finishedAt": "2026-10-18T21:52:48.380Z",
+      "sourceLeafLabels": [
+        {
+          "offset": 359,
+          "name": "returns name on success",
+          "state": "PASS"
+        },
+        {
+          "offset": 607,
+          "name": "wraps failure with name and cause",
+          "state": "PASS"
+        },
+        {
+          "offset": 1131,
+          "name": "respects timeout",
+          "state": "PASS"
+        },
+        {
+          "offset": 1660,
+          "name": "skip returns name without running fn",
+          "state": "PASS"
+        },
+        {
+          "offset": 2086,
+          "name": "repeats runs fn the expected number of times",
+          "state": "PASS"
+        },
+        {
+          "offset": 2484,
+          "name": "repeats stops on first failure",
+          "state": "PASS"
+        },
+        {
+          "offset": 3015,
+          "name": "fails treats throwing test as pass",
+          "state": "PASS"
+        },
+        {
+          "offset": 3365,
+          "name": "fails treats passing test as failure",
+          "state": "PASS"
+        },
+        {
+          "offset": 3754,
+          "name": "fails with repeats requires every run to throw",
+          "state": "PASS"
+        }
+      ],
+      "passed": 9,
+      "failed": 0,
+      "importBoundary": "Node package export from freshly rebuilt harness"
+    }
+  ],
+  "ordinarySourceOwners": {
+    "files": 9,
+    "passingFiles": 8,
+    "failedFiles": 1,
+    "passingLeafLabels": 151,
+    "failedLeafLabels": 4
+  },
+  "builtHarnessSelfTest": {
+    "file": "package/module/test/src/it.unit.test.ts",
+    "exitCode": 0,
+    "passingOuterLeafLabels": 9,
+    "negativeControls": "Existing assertions verify caught failures, unexpected passes, timeouts and repeat termination; nested deliberate attempts are not added as owner case counts"
+  },
+  "fixtureResolutionFailure": {
+    "emitter": "rolldown@1.2.13",
+    "code": "UNRESOLVED_ENTRY",
+    "requestedDirectory": "package/rolldown-plugin/import-attributes/src/fixtures",
+    "frozenDirectory": "package/rolldown-plugin/import-attributes/src/fixture",
+    "affectedLeafLabels": [
+      "transforms static import with { type: \"text\" }",
+      "transforms dynamic import() with { with: { type: \"text\" } }",
+      "transforms re-export with { type: \"text\" }",
+      "ignores imports without with clause"
+    ],
+    "successfulTransformationAssertionNotReached": true,
+    "sourceAssertionLimitation": {
+      "case": "ignores imports without with clause",
+      "actualEntry": "entry-static.ts",
+      "actualAssertion": "output.length > 0",
+      "qualification": "This named case supplies the text-attribute fixture, not a plain-import negative input, and does not assert absence of plugin transformation"
+    }
+  },
+  "separateLoggerDiagnostic": {
+    "message": "logger internal error: file sink verification failed: ENOENT: no such file or directory, mkdir '/workspace/node_modules/.monochromatic'",
+    "scope": "Read-only research workspace; separate file-sink boundary; controlled writable-directory recurrence test pending",
+    "doesNotEstablishCauseOfEntryResolutionFailure": true
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-remaining-local-unit-2026-10-18.sources.json.gz",
+    "gzipBytes": 5327,
+    "gzipSha256": "22cecfc123460fbc5529654a5e622e0ae6e72d93249290b0f46d0cc6c8d2504f",
+    "uncompressedBytes": 34159,
+    "uncompressedSha256": "0537c8d9f8431afb69f66c03e6fb45acc62be8d651b0a48db33569818f84c3ee",
+    "bodies": 22
+  },
+  "cleanup": [
+    {
+      "role": "harness build",
+      "absent": true,
+      "probeExit": 1
+    },
+    {
+      "role": "authored consumers",
+      "absent": true,
+      "probeExit": 1
+    }
+  ],
+  "applicationSourceChanges": [],
+  "limits": [
+    "Normal owner leaf labels join actual fulfilled-child reports or named FAIL entries; assertion and branch instrumentation are not claimed",
+    "Successful source-import tests do not become compiled package API assertions",
+    "Four integration cases fail during entry resolution before their behavior assertions; plugin constructor execution is not excluded",
+    "The separately passing built-harness self-test is not counted as a newly covered product owner",
+    "No fixture alias, logger environment correction, application fix, new provider allocation, model call or device launch performed"
+  ]
+}

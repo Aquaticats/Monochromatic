@@ -1,17 +1,31 @@
 //! The shared Catmull-Rom true-peak meter.
 //!
 //! This is the one measurement unit that makes full-scan peaks and window-probe peaks
-//! comparable: both feed the SAME meter. It reads decoded interleaved `f32` PCM,
-//! keeps a four-sample sliding window per channel, and once a channel has four real
-//! samples it samples the reconstructed curve at one quarter, one half, and three
-//! quarters between the two middle samples, tracking the largest magnitude. The gain
+//! comparable:
+//!  both feed the SAME meter.
+//!  It reads decoded interleaved `f32` PCM,
+//! keeps a four-sample sliding window per channel,
+//!  and once a channel has four real
+//! samples it samples the reconstructed curve at one quarter,
+//!  one half,
+//!  and three
+//! quarters between the two middle samples,
+//!  tracking the largest magnitude.
+//!  The gain
 //! math that turns the measured peak into a normalization gain lives in `gain.rs`.
 
-/// What:     `const HALF: f32 = 1.0 / 2.0;`. The fraction one-half. Composed from the
+/// What:
+///      `const HALF: f32 = 1.0 / 2.0;`.
+///  The fraction one-half.
+///  Composed from the
 ///           always-allowed `-2..=2` range rather than written as a bare `0.5`
-///           literal. `f32` (sibling `f64`) to match the PCM sample type.
-/// Why:      Used as the Catmull-Rom 1/2 scale factor and to build the sample offsets
-///           below; the repo bans bare fractional literals, so it is composed.
+///           literal.
+///  `f32` (sibling `f64`) to match the PCM sample type.
+/// Why:
+///       Used as the Catmull-Rom 1/2 scale factor and to build the sample offsets
+///           below;
+///  the repo bans bare fractional literals,
+///  so it is composed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,9 +33,13 @@
 /// ```
 const HALF: f32 = 1.0 / 2.0;
 
-/// What:     `const QUARTER: f32 = HALF / 2.0;`. One-quarter (0.25), built from HALF.
+/// What:
+///      `const QUARTER: f32 = HALF / 2.0;`.
+///  One-quarter (0.25),
+///  built from HALF.
 ///           `f32` (sibling `f64`) to match the sample type.
-/// Why:      The first of three interior sample positions between two samples.
+/// Why:
+///       The first of three interior sample positions between two samples.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,9 +47,12 @@ const HALF: f32 = 1.0 / 2.0;
 /// ```
 const QUARTER: f32 = HALF / 2.0;
 
-/// What:     `const THREE_QUARTERS: f32 = HALF + QUARTER;`. Three-quarters (0.75).
+/// What:
+///      `const THREE_QUARTERS: f32 = HALF + QUARTER;`.
+///  Three-quarters (0.75).
 ///           `f32` (sibling `f64`) to match the sample type.
-/// Why:      The third interior sample position.
+/// Why:
+///       The third interior sample position.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,10 +60,14 @@ const QUARTER: f32 = HALF / 2.0;
 /// ```
 const THREE_QUARTERS: f32 = HALF + QUARTER;
 
-/// What:     `const WINDOW: usize = 4;`. Number of consecutive samples the cubic
-///           interpolation needs (two on each side of the interval it fills). `usize`
+/// What:
+///      `const WINDOW: usize = 4;`.
+///  Number of consecutive samples the cubic
+///           interpolation needs (two on each side of the interval it fills).
+///  `usize`
 ///           (siblings `u32`/`u64`) because it sizes and indexes arrays.
-/// Why:      Catmull-Rom evaluates the curve between the 2nd and 3rd of four points.
+/// Why:
+///       Catmull-Rom evaluates the curve between the 2nd and 3rd of four points.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,11 +75,15 @@ const THREE_QUARTERS: f32 = HALF + QUARTER;
 /// ```
 const WINDOW: usize = 4;
 
-/// What:     `fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32`.
+/// What:
+///      `fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32`.
 ///           Evaluate the Catmull-Rom cubic through four equally-spaced points at
-///           position `t` (0.0..=1.0) on the segment BETWEEN `p1` and `p2`. Positional
+///           position `t` (0.0..=1.0) on the segment BETWEEN `p1` and `p2`.
+///  Positional
 ///           params match the surrounding Rust style (Rust has no object params).
-/// Why:      Estimates the waveform between two samples, where inter-sample peaks live.
+/// Why:
+///       Estimates the waveform between two samples,
+///  where inter-sample peaks live.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,55 +118,87 @@ fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
         + (3.0 * p1 - 3.0 * p2 + p3 - p0) * t3)
 }
 
-/// What:     `pub struct TruePeakMeter { ... }`. Running state for the streaming peak
-///           scan: how many channels, a 4-sample sliding window PER channel, how many
-///           real samples each channel has seen, the next sample's channel index
-///           (so chunk boundaries that fall mid-frame still route correctly), and the
-///           largest magnitude so far. `pub` so the shared service and tests can feed
+/// What:
+///      `pub struct TruePeakMeter { ... }`.
+///  Running state for the streaming peak
+///           scan:
+///  how many channels,
+///  a 4-sample sliding window PER channel,
+///  how many
+///           real samples each channel has seen,
+///  the next sample's channel index
+///           (so chunk boundaries that fall mid-frame still route correctly),
+///  and the
+///           largest magnitude so far.
+///  `pub` so the shared service and tests can feed
 ///           it directly.
-/// Why:      Lets a caller scan a track chunk by chunk without holding the whole track
-///           in memory (constant memory: a few floats per channel).
+/// Why:
+///       Lets a caller scan a track chunk by chunk without holding the whole track
+///           in memory (constant memory:
+///  a few floats per channel).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class TruePeakMeter { channels: number; win: number[][]; filled: number[]; cursor: number; peak: number; }
 /// ```
 pub struct TruePeakMeter {
-    /// What:     `channels: usize`. Channel count (interleave width). `usize`
+    /// What:
+    ///      `channels: usize`.
+    ///  Channel count (interleave width).
+    ///  `usize`
     ///           (siblings `u16`/`u32`) because it indexes the per-channel vectors.
-    /// Why:      Demultiplex interleaved samples into per-channel windows.
+    /// Why:
+    ///       Demultiplex interleaved samples into per-channel windows.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// channels: number;
     /// ```
     channels: usize,
-    /// What:     `win: Vec<[f32; WINDOW]>`. One fixed-size array of the last 4 samples
-    ///           per channel. `[f32; 4]` is a fixed-length array (sibling `Vec<f32>`,
-    ///           a growable one); fixed because the window never changes size.
-    /// Why:      Cubic interpolation needs the latest four samples of a channel.
+    /// What:
+    ///      `win: Vec<[f32; WINDOW]>`.
+    ///  One fixed-size array of the last 4 samples
+    ///           per channel.
+    ///  `[f32; 4]` is a fixed-length array (sibling `Vec<f32>`,
+    ///           a growable one);
+    ///  fixed because the window never changes size.
+    /// Why:
+    ///       Cubic interpolation needs the latest four samples of a channel.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// win: number[][]; // each inner array length 4
     /// ```
     win: Vec<[f32; WINDOW]>,
-    /// What:     `filled: Vec<usize>`. Per channel, how many real samples have arrived
-    ///           (capped at WINDOW). `usize` counts.
-    /// Why:      Only interpolate once a channel's window holds four real samples.
+    /// What:
+    ///      `filled: Vec<usize>`.
+    ///  Per channel,
+    ///  how many real samples have arrived
+    ///           (capped at WINDOW).
+    ///  `usize` counts.
+    /// Why:
+    ///       Only interpolate once a channel's window holds four real samples.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// filled: number[];
     /// ```
     filled: Vec<usize>,
-    /// What:     `cursor: usize`. The channel index the NEXT fed sample belongs to.
+    /// What:
+    ///      `cursor: usize`.
+    ///  The channel index the NEXT fed sample belongs to.
     ///           `usize` (sibling `u32`) because it indexes the per-channel vectors.
-    /// Why:      A decoded chunk can end mid-frame, so the next chunk's first sample is
-    ///           not necessarily channel 0; persisting the cursor across `feed` calls
+    /// Why:
+    ///       A decoded chunk can end mid-frame,
+    ///  so the next chunk's first sample is
+    ///           not necessarily channel 0;
+    ///  persisting the cursor across `feed` calls
     ///           keeps channel routing correct at chunk seams (part of `meter_id`).
-    /// Gotcha:   The old per-flavor meters recomputed `index % channels` from each
-    ///           chunk's local index, silently assuming whole-frame chunks; this field
+    /// Gotcha:
+    ///    The old per-flavor meters recomputed `index % channels` from each
+    ///           chunk's local index,
+    ///  silently assuming whole-frame chunks;
+    ///  this field
     ///           removes that assumption.
     ///
     /// In TS you'd write (pseudocode):
@@ -145,8 +206,11 @@ pub struct TruePeakMeter {
     /// cursor: number; // next sample's channel
     /// ```
     cursor: usize,
-    /// What:     `peak: f32`. Largest absolute sample or interpolated value seen so far.
-    /// Why:      This is the measured true peak when the scan ends.
+    /// What:
+    ///      `peak: f32`.
+    ///  Largest absolute sample or interpolated value seen so far.
+    /// Why:
+    ///       This is the measured true peak when the scan ends.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -155,18 +219,29 @@ pub struct TruePeakMeter {
     peak: f32,
 }
 
-/// What:     `impl TruePeakMeter { ... }`. The meter's behaviour: construction, feeding
-///           samples, and reading the accumulated peak.
-/// Why:      Rust separates a type's fields (the struct) from its methods (the impl).
+/// What:
+///      `impl TruePeakMeter { ... }`.
+///  The meter's behaviour:
+///  construction,
+///  feeding
+///           samples,
+///  and reading the accumulated peak.
+/// Why:
+///       Rust separates a type's fields (the struct) from its methods (the impl).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class TruePeakMeter { /* methods */ }
 /// ```
 impl TruePeakMeter {
-    /// What:     `pub fn new(channels: usize) -> TruePeakMeter`. Build a meter sized for
-    ///           `channels` channels, all windows zeroed, cursor at channel 0.
-    /// Why:      Starting state for a scan.
+    /// What:
+    ///      `pub fn new(channels: usize) -> TruePeakMeter`.
+    ///  Build a meter sized for
+    ///           `channels` channels,
+    ///  all windows zeroed,
+    ///  cursor at channel 0.
+    /// Why:
+    ///       Starting state for a scan.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -192,10 +267,15 @@ impl TruePeakMeter {
         }
     }
 
-    /// What:     `pub fn feed(&mut self, chunk: &[f32])`. Push one interleaved chunk of
-    ///           samples through the meter. `&mut self` borrows the meter mutably;
+    /// What:
+    ///      `pub fn feed(&mut self, chunk: &[f32])`.
+    ///  Push one interleaved chunk of
+    ///           samples through the meter.
+    ///  `&mut self` borrows the meter mutably;
     ///           `&[f32]` is a borrowed read-only slice.
-    /// Why:      Update the running peak with this block of audio, continuing channel
+    /// Why:
+    ///       Update the running peak with this block of audio,
+    ///  continuing channel
     ///           routing from wherever the previous chunk ended.
     ///
     /// In TS you'd write (pseudocode):
@@ -242,9 +322,12 @@ impl TruePeakMeter {
         }
     }
 
-    /// What:     `pub fn peak(&self) -> f32`. Read the largest magnitude seen so far.
+    /// What:
+    ///      `pub fn peak(&self) -> f32`.
+    ///  Read the largest magnitude seen so far.
     ///           `&self` borrows the meter read-only.
-    /// Why:      A streaming caller (full scan or window probe) reads the peak after
+    /// Why:
+    ///       A streaming caller (full scan or window probe) reads the peak after
     ///           feeding all chunks without owning the meter's internals.
     ///
     /// In TS you'd write (pseudocode):
@@ -262,17 +345,33 @@ impl TruePeakMeter {
         return self.peak
     }
 
-    /// What:     `pub fn take_peak(&mut self) -> f32`. Read the largest magnitude seen
+    /// What:
+    ///      `pub fn take_peak(&mut self) -> f32`.
+    ///  Read the largest magnitude seen
     ///           since the last take (or since construction) and RESET that running
-    ///           maximum to zero, while leaving the per-channel window, fill counts, and
-    ///           channel cursor untouched. `&mut self` borrows the meter mutably.
-    /// Why:      Segmented measurement: feed one segment (a bin or a window), take its
-    ///           peak, then continue feeding the next segment with no discontinuity in
-    ///           the sliding window. Resetting only the peak (not the window) keeps the
-    ///           inter-sample interpolation continuous across segment boundaries, so the
+    ///           maximum to zero,
+    ///  while leaving the per-channel window,
+    ///  fill counts,
+    ///  and
+    ///           channel cursor untouched.
+    ///  `&mut self` borrows the meter mutably.
+    /// Why:
+    ///       Segmented measurement:
+    ///  feed one segment (a bin or a window),
+    ///  take its
+    ///           peak,
+    ///  then continue feeding the next segment with no discontinuity in
+    ///           the sliding window.
+    ///  Resetting only the peak (not the window) keeps the
+    ///           inter-sample interpolation continuous across segment boundaries,
+    ///  so the
     ///           union of segment peaks equals the continuous full-track peak exactly.
-    /// Gotcha:   This resets the running max; `peak()` after a take reflects only samples
-    ///           fed since. To keep a global maximum, fold the returned values yourself.
+    /// Gotcha:
+    ///    This resets the running max;
+    ///  `peak()` after a take reflects only samples
+    ///           fed since.
+    ///  To keep a global maximum,
+    ///  fold the returned values yourself.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -307,10 +406,15 @@ impl TruePeakMeter {
         return peak
     }
 
-    /// What:     `fn push(&mut self, channel: usize, sample: f32)`. Slide one sample
-    ///           into a channel's window, update the raw peak, and (once the window is
+    /// What:
+    ///      `fn push(&mut self, channel: usize, sample: f32)`.
+    ///  Slide one sample
+    ///           into a channel's window,
+    ///  update the raw peak,
+    ///  and (once the window is
     ///           full) sample the interpolated curve between the two middle points.
-    /// Why:      The core inter-sample peak step.
+    /// Why:
+    ///       The core inter-sample peak step.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -419,16 +523,28 @@ impl TruePeakMeter {
     }
 }
 
-/// What:     `pub fn true_peak_interleaved(samples: &[f32], channels: usize) -> f32`.
+/// What:
+///      `pub fn true_peak_interleaved(samples: &[f32], channels: usize) -> f32`.
 ///           Run the streaming meter over an ALREADY-decoded slice of interleaved
-///           `f32` PCM and return the measured true peak. `samples: &[f32]` is a
-///           borrowed, read-only view; `channels` is the interleave width.
-/// Why:      A one-shot convenience for tests and synthetic on-device checks: feed a
+///           `f32` PCM and return the measured true peak.
+///  `samples: &[f32]` is a
+///           borrowed,
+///  read-only view;
+///  `channels` is the interleave width.
+/// Why:
+///       A one-shot convenience for tests and synthetic on-device checks:
+///  feed a
 ///           known signal straight into the production meter and assert the result,
-///           with no decoder. It shares the exact meter path the streaming scan uses.
-/// Gotcha:   Feeds the whole slice as ONE chunk; that is equivalent to many chunks,
-///           because the meter's per-channel window, `filled`, and `cursor` state
-///           persist across samples, so chunk boundaries never move the result.
+///           with no decoder.
+///  It shares the exact meter path the streaming scan uses.
+/// Gotcha:
+///    Feeds the whole slice as ONE chunk;
+///  that is equivalent to many chunks,
+///           because the meter's per-channel window,
+///  `filled`,
+///  and `cursor` state
+///           persist across samples,
+///  so chunk boundaries never move the result.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -475,12 +591,18 @@ pub fn true_peak_interleaved(samples: &[f32], channels: usize) -> f32 {
     return meter.peak()
 }
 
-/// What:     `#[cfg(test)] #[path = "meter_tests.rs"] mod tests;` declares a test-only
+/// What:
+///      `#[cfg(test)] #[path = "meter_tests.rs"] mod tests;` declares a test-only
 ///           submodule whose code lives in the sibling file `meter_tests.rs`.
-///           `#[cfg(test)]` gates it to test builds; `#[path = "..."]` aims the module
-///           at a flat sibling file. The file stays the `tests` child of meter, so its
+///           `#[cfg(test)]` gates it to test builds;
+///  `#[path = "..."]` aims the module
+///           at a flat sibling file.
+///  The file stays the `tests` child of meter,
+///  so its
 ///           `use super::*` reaches the module's private items unchanged.
-/// Why:      Keep `meter.rs` to production code; tests live beside it without inflating
+/// Why:
+///       Keep `meter.rs` to production code;
+///  tests live beside it without inflating
 ///           this file or its max-lines budget (sibling `*_tests.rs` files are exempt).
 ///
 /// In TS you'd write (pseudocode):

@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "Accepted: at most one of --startup, --pathname, optionally with --list.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

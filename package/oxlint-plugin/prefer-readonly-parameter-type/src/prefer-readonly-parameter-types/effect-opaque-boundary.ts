@@ -4,8 +4,8 @@
  @module
  */
 
-import type { CallExpression, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { CallExpression, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import type { EffectSlot, } from './effect-slot-identity.ts';
 import {

@@ -55,13 +55,15 @@ run,
    high
 - Key finding:
    Architecturally Cordova is the same WKWebView-JIT substrate as Capacitor on all three walls:
-   app code is JavaScript executing only in the out-of-process WebKit content process (no in-process JS/managed runtime in CordovaLib,
+   app code is JavaScript executing only in the out-of-process WebKit content process (no in-process JS/managed runtime
+   in CordovaLib,
    confirmed by zero JavaScriptCore hits),
    native plugins link Go/Rust static libs exactly like a plain native iOS app (pluginHandlers.
   js framework/customFramework/podspec) and bridge over objc_msgSend (CDVCommandQueue.
   m:
   188),
-   and Cordova core ships zero background-transfer machinery so background URLSession/BGProcessingTask is plugin-authored.
+   and Cordova core ships zero background-transfer machinery so background URLSession/BGProcessingTask is
+   plugin-authored.
    The only material difference from Capacitor is project management:
    Cordova generates and owns the Xcode project,
    Podfile and `Info.plist` via prepare.
@@ -87,7 +89,8 @@ App logic is JavaScript and genuinely relies on a JIT,
  and ships no in-process JavaScriptCore,
  Mono,
  V8,
- or bytecode interpreter (grep for JavaScriptCore|JSContext|JSValue|evaluateScript across CordovaLib and cordova-js-src returned zero hits).
+ or bytecode interpreter (grep for JavaScriptCore|JSContext|JSValue|evaluateScript across CordovaLib
+ and cordova-js-src returned zero hits).
  So the app process never needs W^X-violating executable memory;
  the only JIT lives in the sanctioned out-of-process WebKit,
  exactly like Capacitor.
@@ -149,17 +152,23 @@ swift (CordovaLib itself is a normal native lib)
 Cordova-ios core ships NO background-transfer machinery.
  grep across CordovaLib/,
  templates/,
- lib/ for BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration|backgroundFetch returned zero matches (exit 1),
+ lib/ for
+ BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration|backgroundFetch
+ returned zero matches (exit 1),
  and the project template `Info.plist` (templates/project/App/`App-Info.plist`) declares no UIBackgroundModes.
  Background work is therefore per-plugin native code,
  identical to a plain native iOS app:
- a plugin would create a background URLSessionConfiguration for pCloud uploads and schedule BGProcessingTask for idle/charging windows,
- adding UIBackgroundModes / BGTaskSchedulerPermittedIdentifiers via the plugin's config-file edits to the generated `Info.plist`.
- The multi-hour kopia snapshot must be restructured around background URLSession + BGProcessingTask just as on any iOS framework;
+ a plugin would create a background URLSessionConfiguration for pCloud uploads
+ and schedule BGProcessingTask for idle/charging windows,
+ adding UIBackgroundModes / BGTaskSchedulerPermittedIdentifiers via the plugin's config-file edits to the generated
+ `Info.plist`.
+ The multi-hour kopia snapshot must be restructured around background URLSession + BGProcessingTask just as on any iOS
+ framework;
  Cordova neither helps nor hinders this beyond giving the plugin a normal native surface to write it.
 
 Source:
- empty grep (BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration over /tmp/agent/cordova-audit/CordovaLib /tmp/agent/cordova-audit/templates /tmp/agent/cordova-audit/lib,
+ empty grep (BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration over
+ /tmp/agent/cordova-audit/CordovaLib /tmp/agent/cordova-audit/templates /tmp/agent/cordova-audit/lib,
  exit 1);
  /tmp/agent/cordova-audit/templates/project/App/`App-Info.plist` (no UIBackgroundModes);
  plugin native mechanism per lib/plugman/pluginHandlers.
@@ -199,7 +208,8 @@ Feasible:
  yes
 
 Mechanism:
- A native plugin uses NSURLSession (including background URLSessionConfiguration for resumable/streamed uploads to pCloud),
+ A native plugin uses NSURLSession (including background URLSessionConfiguration for resumable/streamed uploads to
+ pCloud),
  exposed to JS over the CDVPlugin bridge;
  or the linked Rust core can drive its own HTTPS client (e.g. reqwest) from the static lib.
  ATS applies;
@@ -252,7 +262,8 @@ m line 188)
 
 Minimal app:
  `cordova create gate && cordova platform add ios`,
- then add one native plugin that links a tiny Rust staticlib (a single exported `extern \"C\" fn add(a,b)->i64`) packaged as an .
+ then add one native plugin that links a tiny Rust staticlib (a single exported `extern \"C\" fn add(a,b)->i64`)
+ packaged as an .
 xcframework via plugin.
 xml's framework tag (customFramework:
 true),
@@ -263,7 +274,8 @@ true),
  the WebView page calls cordova.
 exec(...) into the plugin,
  the plugin invokes the Rust symbol,
- and the device shows the FFI-computed value rendered in the WebView (proves wall 1 link+call works and wall 2 is satisfied because JS runs in WebKit while native AOT code does the FFI).
+ and the device shows the FFI-computed value rendered in the WebView (proves wall 1 link+call works
+ and wall 2 is satisfied because JS runs in WebKit while native AOT code does the FFI).
  A failure would be a link error at build time or an EXC_BAD_ACCESS/codesign-execmem crash on call,
  neither of which is expected given the standard native link path.
  Because it needs the physical iPhone X + CLI signing,
@@ -293,7 +305,8 @@ xcframework (or Go + gomobile for a Go c-archive).
 - HTTPS streaming client + background URLSession vet:
    native background URLSessionConfiguration plugin,
    resumable uploads to pCloud,
-   BGProcessingTask scheduling and `Info.plist` UIBackgroundModes/BGTaskSchedulerPermittedIdentifiers injection via plugin config-file edits
+   BGProcessingTask scheduling and `Info.plist` UIBackgroundModes/BGTaskSchedulerPermittedIdentifiers injection via
+   plugin config-file edits
 - Audio plugin vet:
    AVAudioSession category/activation,
    UIBackgroundModes audio for background playback,
@@ -333,7 +346,8 @@ xcframework (or Go + gomobile for a Go c-archive).
    /tmp/agent/cordova-audit/CordovaLib/Classes/Public/CDVCommandQueue.
   m line 188
 - No in-process JavaScriptCore/JSContext/JSValue in CordovaLib (app code runs only in out-of-process WebKit):
-   grep -rln 'JavaScriptCore|JSContext|JSValue|evaluateScript' /tmp/agent/cordova-audit/CordovaLib /tmp/agent/cordova-audit/cordova-js-src -> zero matches (exit 1)
+   grep -rln 'JavaScriptCore|JSContext|JSValue|evaluateScript' /tmp/agent/cordova-audit/CordovaLib
+   /tmp/agent/cordova-audit/cordova-js-src -> zero matches (exit 1)
 - Plugins link custom frameworks/static libs (customFramework,
    link,
    embed,
@@ -352,7 +366,8 @@ xcframework (or Go + gomobile for a Go c-archive).
   swift
 - Cordova core ships no background-transfer machinery;
    no UIBackgroundModes in template:
-   grep BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration over /tmp/agent/cordova-audit/{CordovaLib,
+   grep BGTaskScheduler|BGProcessingTask|UIBackgroundModes|beginBackgroundTask|backgroundSessionConfiguration over
+   /tmp/agent/cordova-audit/{CordovaLib,
   templates,
   lib} -> exit 1;
    /tmp/agent/cordova-audit/templates/project/App/`App-Info.plist`
@@ -381,7 +396,8 @@ xcframework (or Go + gomobile for a Go c-archive).
    The audit states:
    "the podspec tag (line 155) lets the plugin pull a CocoaPods dependency.
   " But /tmp/agent/cordova-audit/lib/plugman/pluginHandlers.
-  js line 155 is actually `if (obj.type !== 'podspec')` inside the framework UNINSTALL handler -- an uninstall-guard negation,
+  js line 155 is actually `if (obj.type !== 'podspec')` inside the framework UNINSTALL handler -- an uninstall-guard
+  negation,
    not a podspec-tag install handler.
    pluginHandlers.
   js contains no `podspec:` handler entry;

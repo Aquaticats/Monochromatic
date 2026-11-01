@@ -286,7 +286,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'azure-openai-responses') {
     /**
@@ -302,7 +302,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'bedrock-converse-stream') {
     /**
@@ -318,7 +318,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'google-generative-ai') {
     /**
@@ -334,7 +334,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'google-vertex') {
     /**
@@ -350,7 +350,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'mistral-conversations') {
     /**
@@ -366,7 +366,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'openai-codex-responses') {
     /**
@@ -382,7 +382,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'openai-completions') {
     /**
@@ -398,7 +398,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   if (model.api === 'openai-responses') {
     /**
@@ -414,7 +414,7 @@ function streamStructuredReview(
       isolateReviewModel(selected.model,),
       providerContext,
       providerOptions,
-    );
+      );
   }
   throw new Error(
     `No Pi AI API implementation available for structured reviewer ${model.provider}/${model.id} using ${model.api}. Supported APIs: ${SUPPORTED_APIS}`,

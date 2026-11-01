@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T00:51:15Z",
+  "provider": "native Depot CI",
+  "orgId": "l4zncjjbj5",
+  "runId": "gns8864w4s",
+  "workflow": "native-step-semantics.yml",
+  "ref": "research/depot-native-orchestration-20261018",
+  "sha": "1373e624739fbc93502b0c8ca502820c6ff99b45",
+  "purpose": "Run the unrun parallel-step correction 2519664ed7 and capture the parallel default versus allrun receipts.",
+  "boundedResources": {
+    "jobs": 5,
+    "maxJobTimeoutMinutes": 5,
+    "expectedElapsedMinutes": 22,
+    "costCeilingUsd": 0.13
+  },
+  "jobStatuses": {
+    "state": "finished",
+    "timeout": "cancelled",
+    "parallel_default": "failed_intentional_control",
+    "parallel_allrun": "failed_intentional_control",
+    "consumer": "finished"
+  },
+  "receipts": {
+    "parallel-default": {
+      "schemaVersion": 1,
+      "probe": "parallel-default",
+      "passed": true,
+      "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "harness": "1373e624739fbc93502b0c8ca502820c6ff99b45",
+      "returnedAt": "2026-10-19T00:51:10.864Z",
+      "siblingFinishedAtReturn": false,
+      "actual": {
+        "failureStarted": true,
+        "siblingStarted": true,
+        "siblingFinished": true
+      },
+      "descendantCleanupGuaranteeAsserted": false
+    },
+    "parallel-allrun": {
+      "schemaVersion": 1,
+      "probe": "parallel-allrun",
+      "passed": true,
+      "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "harness": "1373e624739fbc93502b0c8ca502820c6ff99b45",
+      "returnedAt": "2026-10-19T00:51:05.499Z",
+      "siblingFinishedAtReturn": true,
+      "actual": {
+        "failureStarted": true,
+        "siblingStarted": true,
+        "siblingFinished": true
+      },
+      "descendantCleanupGuaranteeAsserted": false
+    }
+  },
+  "artifacts": {
+    "parallel-default": {
+      "artifactId": "7686553712015466",
+      "zipSha256": "ac162f048763b7438d6f56c70aabb12564a0658a89e0f4a73193981b239562ca",
+      "bytes": 876
+    },
+    "parallel-allrun": {
+      "artifactId": "696924124206556",
+      "zipSha256": "d551e1097b1be3215200abcb274995ebcd0abef63326805954e32aa5c934b42a",
+      "bytes": 873
+    }
+  },
+  "interpretation": "The default step returned before the sibling finished; the allrun step returned after the sibling finished. Neither receipt asserts descendant cleanup. The workflow and two job statuses are failed because the probe intentionally throws; the receipts are the acceptance evidence.",
+  "limits": [
+    "Single run at the frozen application base and research harness.",
+    "The timeout job was cancelled; its observation is retained separately.",
+    "No descendant termination, billing release, or production scheduling claim follows."
+  ]
+}

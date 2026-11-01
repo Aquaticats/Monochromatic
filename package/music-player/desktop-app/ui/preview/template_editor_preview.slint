@@ -1,0 +1,135 @@
+// Preview windows for the template editor, drawn from the Android Track rows captures. Each window fixes the scheme
+// through Theme.scheme-override so that light and dark render separately. The status bar is not part of the app,
+// so the windows are the page height only.
+import { Theme } from "../theme.slint";
+import { TemplateEditor, EditorFieldRow, EditorPreviewRow } from "../template_editor.slint";
+
+// Default Track rows editor with the library-free sample values the captures show (D95 note).
+component DefaultTrackRowsEditor inherits TemplateEditor {
+    title: "Track rows";
+    text: "$tf(mi(len), m:ss)$ $mi(peak)$";
+    preview-rows: [
+        { title: "Track title", supporting: "3:20 −1.0 dBTP" },
+        { title: "Track not analyzed yet", supporting: "3:20" },
+    ];
+    notes: ["Your library has no tracks yet. These are sample values."];
+    fields: [
+        { label: "Title", insert: "mi(title)", value: "Track title" },
+        { label: "File name", insert: "mi(file)", value: "File name" },
+        { label: "Extension", insert: "mi(ext)", value: "flac" },
+        { label: "Folder", insert: "mi(folder)", value: "Folder" },
+        { label: "Path", insert: "mi(path)", value: "Folder/File name.flac" },
+        { label: "Duration", insert: "mi(len)", value: "200" },
+        { label: "True peak", insert: "mi(peak)", value: "−1.0 dBTP" },
+    ];
+    can-reset: false;
+}
+
+// Track rows editor on library tracks, with an unknown field named in the template (D95, mistake state).
+// The library values are the Camellia tracks of the review captures, except the folder, path, duration and peak,
+// which the captures do not show and are chosen here.
+component MistakeTrackRowsEditor inherits TemplateEditor {
+    title: "Track rows";
+    text: "$tf(mi(len), m:ss)$ $mi(peek)$";
+    preview-rows: [
+        { title: "Another Xronixle", supporting: "4:35 −1.2 dBTP" },
+        { title: "Burning Aquamarine", supporting: "5:12" },
+    ];
+    notes: ["From your library.", "Rows keep the last valid template."];
+    mistake-lines: ["mi: unknown field peek"];
+    fields: [
+        { label: "Title", insert: "mi(title)", value: "Another Xronixle" },
+        { label: "File name", insert: "mi(file)", value: "かめりあ(Camellia) - Another Xronixle" },
+        { label: "Extension", insert: "mi(ext)", value: "flac" },
+        { label: "Folder", insert: "mi(folder)", value: "Camellia" },
+        { label: "Path", insert: "mi(path)", value: "Camellia/Another Xronixle.flac" },
+        { label: "Duration", insert: "mi(len)", value: "275" },
+        { label: "True peak", insert: "mi(peak)", value: "−1.2 dBTP" },
+    ];
+    can-reset: true;
+}
+
+// Track rows editor with the caret inside the tf call, so the typing help shows (the argument is in format).
+// The library values match MistakeTrackRowsEditor, and the note is the one the library state shows.
+component HelpTrackRowsEditor inherits TemplateEditor {
+    title: "Track rows";
+    text: "$tf(mi(len), m:ss)$ $mi(peak)$";
+    preview-rows: [
+        { title: "Another Xronixle", supporting: "4:35 −1.2 dBTP" },
+        { title: "Burning Aquamarine", supporting: "5:12" },
+    ];
+    notes: ["From your library."];
+    has-help: true;
+    help-signature: "tf(seconds, [format])";
+    help-description: "Format: h, m and s for hours, minutes and seconds; a doubled letter pads with a zero; text between apostrophes is kept. Without it, m:ss.";
+    fields: [
+        { label: "Title", insert: "mi(title)", value: "Another Xronixle" },
+        { label: "File name", insert: "mi(file)", value: "かめりあ(Camellia) - Another Xronixle" },
+        { label: "Extension", insert: "mi(ext)", value: "flac" },
+        { label: "Folder", insert: "mi(folder)", value: "Camellia" },
+        { label: "Path", insert: "mi(path)", value: "Camellia/Another Xronixle.flac" },
+        { label: "Duration", insert: "mi(len)", value: "275" },
+        { label: "True peak", insert: "mi(peak)", value: "−1.2 dBTP" },
+    ];
+    can-reset: false;
+}
+
+// Cover width editor in light, 443 px wide.
+export component EditorCoverLight inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 1; }
+
+    DefaultTrackRowsEditor {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Cover width editor in dark.
+export component EditorCoverDark inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 2; }
+
+    DefaultTrackRowsEditor {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Inner editor in dark, 850 px wide as the inner capture is.
+export component EditorInnerDark inherits Window {
+    width: 850px;
+    height: 826px;
+    init => { Theme.scheme-override = 2; }
+
+    DefaultTrackRowsEditor {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Cover width editor in light with a mistake line under the field.
+export component EditorMistakeCoverLight inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 1; }
+
+    MistakeTrackRowsEditor {
+        width: parent.width;
+        height: parent.height;
+    }
+}
+
+// Cover width editor in light with the typing help for tf under the field.
+export component EditorHelpCoverLight inherits Window {
+    width: 443px;
+    height: 932px;
+    init => { Theme.scheme-override = 1; }
+
+    HelpTrackRowsEditor {
+        width: parent.width;
+        height: parent.height;
+    }
+}

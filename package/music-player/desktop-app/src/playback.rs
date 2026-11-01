@@ -1,11 +1,19 @@
-//! Pure playback helpers with no audio device or threading: the per-sample
-//! output stage (volume, headroom, clamp) and the path-to-file expansion the
-//! queue needs. Kept apart from `engine`/`controller` so these can be unit
+//! Pure playback helpers with no audio device or threading:
+//!  the per-sample
+//! output stage (volume,
+//!  headroom,
+//!  clamp) and the path-to-file expansion the
+//! queue needs.
+//!  Kept apart from `engine`/`controller` so these can be unit
 //! -tested directly and so each file stays within the line budget.
 
-/// What:     `use std::path::{Path, PathBuf};`. `Path` is a borrowed path view;
-///           `PathBuf` is the owned, growable version (like `&str` vs `String`).
-/// Why:      The helpers take borrowed paths and return owned ones.
+/// What:
+///      `use std::path::{Path, PathBuf};`.
+///  `Path` is a borrowed path view;
+///           `PathBuf` is the owned,
+///  growable version (like `&str` vs `String`).
+/// Why:
+///       The helpers take borrowed paths and return owned ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -13,15 +21,32 @@
 /// ```
 use std::path::{Path, PathBuf};
 
-/// What:     `const AUDIO_EXTENSIONS: &[&str] = &[ ... ];`. `&[&str]` is a BORROWED
-///           slice (sibling: the owned `Vec<&str>`) of borrowed string slices, each
-///           pointing at text baked into the binary. The file extensions (lowercased,
-///           no leading dot) this player treats as playable, matching the documented
-///           codec set: FLAC, WAV/PCM, MP3, Vorbis (Ogg), Opus, AAC-LC/ALAC (MP4),
+/// What:
+///      `const AUDIO_EXTENSIONS: &[&str] = &[ ... ];`.
+///  `&[&str]` is a BORROWED
+///           slice (sibling:
+///  the owned `Vec<&str>`) of borrowed string slices,
+///  each
+///           pointing at text baked into the binary.
+///  The file extensions (lowercased,
+///           no leading dot) this player treats as playable,
+///  matching the documented
+///           codec set:
+///  FLAC,
+///  WAV/PCM,
+///  MP3,
+///  Vorbis (Ogg),
+///  Opus,
+///  AAC-LC/ALAC (MP4),
 ///           and AIFF.
-/// Why:      A folder holds more than music (cover art, playlists, and system files
-///           like `.DS_Store` / `.nomedia` / `.database_uuid`); this allowlist is the
-///           single rule deciding what a scan enqueues, so junk never reaches the queue.
+/// Why:
+///       A folder holds more than music (cover art,
+///  playlists,
+///  and system files
+///           like `.DS_Store` / `.nomedia` / `.database_uuid`);
+///  this allowlist is the
+///           single rule deciding what a scan enqueues,
+///  so junk never reaches the queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,11 +58,15 @@ const AUDIO_EXTENSIONS: &[&str] = &[
     "aifc",
 ];
 
-/// What:     `const APPLE_DOUBLE_PREFIX: &str = "._"`. `&str` is a borrowed string
-///           slice (sibling: owned `String`) pointing at text baked into the binary.
+/// What:
+///      `const APPLE_DOUBLE_PREFIX: &str = "._"`.
+///  `&str` is a borrowed string
+///           slice (sibling:
+///  owned `String`) pointing at text baked into the binary.
 ///           It holds the two-character prefix Apple uses for AppleDouble resource-fork
 ///           sidecar files.
-/// Why:      Naming the marker once keeps desktop scanning aligned with the Android sources.
+/// Why:
+///       Naming the marker once keeps desktop scanning aligned with the Android sources.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,10 +74,17 @@ const AUDIO_EXTENSIONS: &[&str] = &[
 /// ```
 const APPLE_DOUBLE_PREFIX: &str = "._";
 
-/// What:     `fn is_apple_double_sidecar(path: &Path) -> bool`. Private predicate that
-///           checks the final filename for Apple's `._` sidecar prefix. `&Path` is a
-///           borrowed filesystem path; `bool` is Rust's true/false type, like TS `boolean`.
-/// Why:      AppleDouble files often copy the real track's extension, so extension filtering
+/// What:
+///      `fn is_apple_double_sidecar(path: &Path) -> bool`.
+///  Private predicate that
+///           checks the final filename for Apple's `._` sidecar prefix.
+///  `&Path` is a
+///           borrowed filesystem path;
+///  `bool` is Rust's true/false type,
+///  like TS `boolean`.
+/// Why:
+///       AppleDouble files often copy the real track's extension,
+///  so extension filtering
 ///           alone would enqueue `._song.mp3` as if it were a real track.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,12 +126,19 @@ fn is_apple_double_sidecar(path: &Path) -> bool {
     }
 }
 
-/// What:     `pub(crate) fn is_audio_file(path: &Path) -> bool`. True when the path's
+/// What:
+///      `pub(crate) fn is_audio_file(path: &Path) -> bool`.
+///  True when the path's
 ///           filename is not an AppleDouble sidecar and its extension is in
-///           `AUDIO_EXTENSIONS`, compared case-insensitively. `&Path` is a borrowed path
-///           (read-only). `pub(crate)` so the session pruner reuses the same rule (visible
+///           `AUDIO_EXTENSIONS`,
+///  compared case-insensitively.
+///  `&Path` is a borrowed path
+///           (read-only).
+///  `pub(crate)` so the session pruner reuses the same rule (visible
 ///           inside this crate but not outside it).
-/// Why:      One predicate decides "does this belong in a music queue", shared by the
+/// Why:
+///       One predicate decides "does this belong in a music queue",
+///  shared by the
 ///           folder scan and the session restore so they cannot disagree.
 ///
 /// In TS you'd write (pseudocode):
@@ -153,15 +196,24 @@ pub(crate) fn is_audio_file(path: &Path) -> bool {
     }
 }
 
-/// What:     `pub(crate) fn process_sample(sample: f32, gain: f32) -> f32`. The
-///           per-sample output stage: apply the combined gain (user volume times the
-///           track's normalization gain), then hard-clamp into the valid PCM range.
+/// What:
+///      `pub(crate) fn process_sample(sample: f32, gain: f32) -> f32`.
+///  The
+///           per-sample output stage:
+///  apply the combined gain (user volume times the
+///           track's normalization gain),
+///  then hard-clamp into the valid PCM range.
 ///           `pub(crate)` makes it visible to the controller module but not outside the
-///           crate. A plain free function (not a method) so it is unit-testable.
-/// Why:      One spot defines exactly what reaches the ring buffer, so the clamp guard
-///           cannot be skipped and its behaviour can be tested directly. Headroom now
+///           crate.
+///  A plain free function (not a method) so it is unit-testable.
+/// Why:
+///       One spot defines exactly what reaches the ring buffer,
+///  so the clamp guard
+///           cannot be skipped and its behaviour can be tested directly.
+///  Headroom now
 ///           comes from per-track true-peak normalization folded into `gain` (see the
-///           `truepeak` and `measure` modules), not a fixed factor here.
+///           `truepeak` and `measure` modules),
+///  not a fixed factor here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,11 +240,18 @@ pub(crate) fn process_sample(sample: f32, gain: f32) -> f32 {
     return (sample * gain).clamp(-1.0, 1.0)
 }
 
-/// What:     `pub(crate) fn frames_to_secs(frames: u64, rate: u32) -> f64`. Convert a
-///           frame count to seconds at a given sample rate, returning `0.0` when the
-///           rate is unknown (`0`). `f64` (sibling: `f32`) is the seconds-as-f64 time
-///           contract shared across threads; `u64`/`u32` are unsigned counts.
-/// Why:      Both the session snapshot and the position throttle need frames -> secs;
+/// What:
+///      `pub(crate) fn frames_to_secs(frames: u64, rate: u32) -> f64`.
+///  Convert a
+///           frame count to seconds at a given sample rate,
+///  returning `0.0` when the
+///           rate is unknown (`0`).
+///  `f64` (sibling:
+///  `f32`) is the seconds-as-f64 time
+///           contract shared across threads;
+///  `u64`/`u32` are unsigned counts.
+/// Why:
+///       Both the session snapshot and the position throttle need frames -> secs;
 ///           one helper keeps the divide-by-zero guard in a single place.
 ///
 /// In TS you'd write (pseudocode):
@@ -224,12 +283,21 @@ pub(crate) fn frames_to_secs(frames: u64, rate: u32) -> f64 {
     return frames as f64 / rate as f64
 }
 
-/// What:     `pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf>`. Turn
-///           the opened paths into a flat file list: a directory expands to every file
-///           under it, RECURSIVELY (subfolders included); a plain path passes through
-///           unchanged. Takes the vector BY VALUE (owned) so it can move each path out.
+/// What:
+///      `pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf>`.
+///  Turn
+///           the opened paths into a flat file list:
+///  a directory expands to every file
+///           under it,
+///  RECURSIVELY (subfolders included);
+///  a plain path passes through
+///           unchanged.
+///  Takes the vector BY VALUE (owned) so it can move each path out.
 ///           `pub(crate)` so the controller can call it.
-/// Why:      The queue holds files, but the UI opens a folder, which should enqueue all
+/// Why:
+///       The queue holds files,
+///  but the UI opens a folder,
+///  which should enqueue all
 ///           of its tracks.
 ///
 /// In TS you'd write (pseudocode):
@@ -316,11 +384,20 @@ pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     return out
 }
 
-/// What:     `fn collect_dir_files(root: &Path) -> Vec<PathBuf>`. Walk a directory tree
-///           and return every file under it, sorted within each folder, with a folder's
-///           own files listed before its subfolders' files. `&Path` is a borrowed path
-///           (we only read it). Private: only `expand_paths` calls it.
-/// Why:      Opening a folder should enqueue all its tracks, including nested ones.
+/// What:
+///      `fn collect_dir_files(root: &Path) -> Vec<PathBuf>`.
+///  Walk a directory tree
+///           and return every file under it,
+///  sorted within each folder,
+///  with a folder's
+///           own files listed before its subfolders' files.
+///  `&Path` is a borrowed path
+///           (we only read it).
+///  Private:
+///  only `expand_paths` calls it.
+/// Why:
+///       Opening a folder should enqueue all its tracks,
+///  including nested ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,216 +408,22 @@ pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 /// }
 /// ```
 fn collect_dir_files(root: &Path) -> Vec<PathBuf> {
-    // What:     `let mut out: Vec<PathBuf> = Vec::new();`. The collected files.
-    // Why:      Accumulate across the whole walk.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const out: string[] = [];
-    // ```
-    let mut out: Vec<PathBuf> = Vec::new();
-
-    // What:     `let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];`. A work-list
-    //           of directories still to visit, seeded with the root. `vec![...]` is the
-    //           macro that builds a vector literal; `root.to_path_buf()` copies the
-    //           borrowed `&Path` into an OWNED `PathBuf` we can store.
-    // Why:      An explicit stack walks the tree ITERATIVELY (no recursion), so a deeply
-    //           nested folder cannot overflow the call stack.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const stack: string[] = [root];
-    // ```
-    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
-
-    // What:     `while let Some(dir) = stack.pop() { ... }`. Pop directories until the
-    //           work-list is empty. `stack.pop()` returns `Option<PathBuf>`: `Some(dir)`
-    //           while items remain, `None` when done (ends the loop).
-    // Why:      Process every pending directory.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // while (stack.length) { const dir = stack.pop()!; ... }
-    // ```
-    while let Some(dir) = stack.pop() {
-        // What:     `let entries = match std::fs::read_dir(&dir) { ... };`. List the
-        //           directory; `read_dir` returns `Result<ReadDir>` (an iterator of
-        //           entries). `&dir` lends the path.
-        // Why:      Gather this folder's children, robust to unreadable folders.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // let entries; try { entries = readdir(dir); } catch (e) { console.error(e); continue; }
-        // ```
-        let entries = match std::fs::read_dir(&dir) {
-            // What:     `Ok(e) => e`. The directory iterator.
-            // Why:      Walk its entries.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // entries = e;
-            // ```
-            Ok(e) => e,
-            // What:     `Err(e) => { tracing::warn!(...); continue; }`. Log a structured
-            //           event; `continue` skips to the next work-list item.
-            // Why:      One bad folder should not abort the whole walk.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // catch (e) { logger.warn(e); continue; }
-            // ```
-            Err(e) => {
-                tracing::warn!(dir = %dir.display(), error = %e, "cannot read dir");
-                continue;
-            }
-        };
-
-        // What:     `let mut files: Vec<PathBuf> = Vec::new();`. Files directly in this
-        //           folder.
-        // Why:      Collected, sorted, then appended.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const files: string[] = [];
-        // ```
-        let mut files: Vec<PathBuf> = Vec::new();
-        // What:     `let mut subdirs: Vec<PathBuf> = Vec::new();`. Subfolders found in
-        //           this folder.
-        // Why:      Pushed onto the work-stack after sorting.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const subdirs: string[] = [];
-        // ```
-        let mut subdirs: Vec<PathBuf> = Vec::new();
-
-        // What:     `for entry in entries.flatten() { ... }`. Each `read_dir` item is a
-        //           `Result<DirEntry>`; `.flatten()` yields only the `Ok` values,
-        //           silently dropping unreadable entries. So `entry` is a `DirEntry`.
-        // Why:      Iterate readable entries; skip broken ones robustly.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // for (const entry of entries.filter((e) => e.ok).map((e) => e.value)) { ... }
-        // ```
-        for entry in entries.flatten() {
-            // What:     `let file_type = match entry.file_type() { ... };`.
-            //           `entry.file_type()` reports the entry kind WITHOUT following
-            //           symlinks (returns `Result<FileType>`); on error skip it.
-            // Why:      The non-following check lets us refuse to descend into symlinked
-            //           directories, avoiding infinite loops on a symlink cycle.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // let ft; try { ft = entry.fileType(); } catch { continue; }
-            // ```
-            let file_type = match entry.file_type() {
-                // What:     `Ok(ft) => ft`. The entry's type.
-                // Why:      Classify below.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // ft = entry.fileType();
-                // ```
-                Ok(ft) => ft,
-                // What:     `Err(_) => continue`. Unreadable type: skip this entry. `_`
-                //           ignores the error value.
-                // Why:      Be robust.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // catch { continue; }
-                // ```
-                Err(_) => continue,
-            };
-            // What:     `let p = entry.path();`. The entry's full path.
-            // Why:      Stored in one of the two buckets.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const p = entry.path;
-            // ```
-            let p = entry.path();
-            // What:     `if file_type.is_dir() { subdirs.push(p); } else if p.is_file() && is_audio_file(&p) { files.push(p); }`.
-            //           A REAL subdirectory (symlinks excluded by `file_type`) goes on
-            //           the work-list; a file is kept ONLY when it resolves to a real
-            //           file (`p.is_file()` DOES follow symlinks, so symlinked files
-            //           still count) AND its extension is in the audio allowlist
-            //           (`is_audio_file`, borrowing `&p`). A symlinked directory matches
-            //           neither and is ignored (loop-safe).
-            // Why:      Recurse into real folders; enqueue only audio files, so cover
-            //           art, playlists, and system files (`.DS_Store`, `.nomedia`,
-            //           `.database_uuid`, `._song.mp3`, ...) never enter the queue.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (ft.isDirectory()) subdirs.push(p);
-            // else if (isFile(p) && isAudioFile(p)) files.push(p);
-            // ```
-            if file_type.is_dir() {
-                subdirs.push(p);
-            } else if p.is_file() && is_audio_file(&p) {
-                files.push(p);
-            }
-        }
-
-        // What:     `files.sort();`. Sort this folder's files alphabetically IN PLACE
-        //           (mutates `files`).
-        // Why:      Deterministic queue order.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // files.sort();
-        // ```
-        files.sort();
-        // What:     `subdirs.sort();`. Sort subfolders alphabetically in place.
-        // Why:      Deterministic descent order.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // subdirs.sort();
-        // ```
-        subdirs.sort();
-
-        // What:     `out.extend(files);`. Append this folder's files (a parent's files
-        //           precede its children's), MOVING them into `out`.
-        // Why:      Add the folder's tracks to the result.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // out.push(...files);
-        // ```
-        out.extend(files);
-
-        // What:     `for dir in subdirs.into_iter().rev() { stack.push(dir); }`. Push
-        //           subfolders in REVERSE sorted order. `into_iter()` consumes the vec
-        //           by value; `.rev()` reverses the iteration.
-        // Why:      The stack pops last-in-first-out, so reversing here makes the
-        //           subfolders pop back out in sorted (ascending) order.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // for (const dir of [...subdirs].reverse()) stack.push(dir);
-        // ```
-        for dir in subdirs.into_iter().rev() {
-            stack.push(dir);
-        }
-    }
-
-    // What:     `out`. Tail expression -> the recursively collected files.
-    // Why:      Hand back every file under `root`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return out;
-    // ```
-    return out
+    // What:     `crate::scan_stream::scan_streaming(root, usize::MAX, &mut |_batch| {})`. The one folder walk of the
+    //           app, called with a report callback that ignores its batches.
+    // Why:      The streaming walk (which also reports batches, for Search while the scan runs) and this plain walk
+    //           must list the same tracks in the same order, so they share one implementation.
+    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut |_batch| {});
 }
 
-/// What:     `pub(crate) fn file_name_of(path: &Path) -> String`. The display filename
-///           of a path (final component), or the whole path if it has none. `pub(crate)`
+/// What:
+///      `pub(crate) fn file_name_of(path: &Path) -> String`.
+///  The display filename
+///           of a path (final component),
+///  or the whole path if it has none.
+///  `pub(crate)`
 ///           so the controller can call it.
-/// Why:      Filename-only metadata policy for the UI.
+/// Why:
+///       Filename-only metadata policy for the UI.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -578,14 +461,20 @@ pub(crate) fn file_name_of(path: &Path) -> String {
     }
 }
 
-/// What:     `#[cfg(test)] #[path = "playback_tests.rs"] mod tests;` declares a
+/// What:
+///      `#[cfg(test)] #[path = "playback_tests.rs"] mod tests;` declares a
 ///           test-only submodule whose code lives in the sibling file
-///           `playback_tests.rs`. `#[cfg(test)]` gates it to test builds only;
+///           `playback_tests.rs`.
+///  `#[cfg(test)]` gates it to test builds only;
 ///           `#[path = "..."]` aims the module at a flat sibling file instead of the
-///           default `playback/tests.rs` subdirectory lookup. The file stays the
-///           `tests` CHILD of playback, so its `use super::*` reaches the module items
+///           default `playback/tests.rs` subdirectory lookup.
+///  The file stays the
+///           `tests` CHILD of playback,
+///  so its `use super::*` reaches the module items
 ///           (including private ones) unchanged.
-/// Why:      Keep `playback.rs` to production code; the tests live beside it without
+/// Why:
+///       Keep `playback.rs` to production code;
+///  the tests live beside it without
 ///           inflating this file or its max-lines budget (sibling `*_tests.rs` files
 ///           are exempt from the linter).
 ///

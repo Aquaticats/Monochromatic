@@ -4,7 +4,8 @@ Status as of 2026-06-13 (fifth handover):
  the testing-infrastructure axis is now run to Android depth,
  not
 just enumerated,
- in two new reports under `../decisions/ios-iphone-x-vet-report/`.
+ in two new reports under `../decisions/ios-iphone-x-vet-report/` (moved on 2026-07-15 to
+`../decision/ios-iphone-x-vet-report/`).
  `vet-ui-automation.md`:
 black-box e2e is XCUITest/WebDriverAgent (the iOS primitive,
  the UiAutomator analog) wrapped by Appium 3.5.0

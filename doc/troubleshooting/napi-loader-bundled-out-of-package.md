@@ -1,4 +1,6 @@
-# Sätteri 0.10.5 throws `Cannot find native binding` when rolldown inlines its napi loader into another package's `dist/final/node/`, because the loader resolves bindings from `import.meta.url`
+# Sätteri 0.10.5 throws `Cannot find native binding`
+when rolldown inlines its napi loader into another package's `dist/final/node/`,
+because the loader resolves bindings from `import.meta.url`
 
 A napi loader finds its platform binding relative to its own file.
 Bundling copies that file somewhere else.

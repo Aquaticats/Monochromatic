@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T21:04:42.765Z",
+  "scope": "Second and final admitted native SSH attempt; bounded same-binary preinstall passes, paused transport and workflow resume remain unqualified",
+  "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "runId": "sn950h8xcj",
+  "jobId": "lxkdfrx3dh",
+  "attemptId": "bv33fqpvnp",
+  "sandboxId": "rj3swc2414jr0f2g4jjg",
+  "campaignAttempt": 2,
+  "maximumCampaignAttempts": 2,
+  "startedAt": "2026-10-18T20:58:28.019Z",
+  "finishedAt": "2026-10-18T21:01:02.241Z",
+  "localCleanupAt": "2026-10-18T21:01:02.305Z",
+  "terminalStatus": "cancelled",
+  "controllerReapedExit": 1,
+  "transportConsumers": [
+    {
+      "transport": "direct-ssh",
+      "clientExitCode": 255,
+      "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+      "responseMatched": true,
+      "remoteUid": 0,
+      "remoteGid": 0,
+      "syntheticWorkflowEnvironment": null,
+      "inputBytes": 2170,
+      "inputSha256": "56b41dc7cf3a610e5c6fc052ddf5cfa38d9e5aa5b6f0f8a5bef3438736e2071c",
+      "stdoutSha256": "b6e936a1cc30a5f39f26430003c665ab8bfbcd7298a2d2960ce3452a0bb66f92",
+      "stderrSha256": "b07556fc8fde6c206920e0c20fbbe8ebf459e0a9b763c1b26c1d3ce8ec77d134",
+      "ownedClientCleanup": {
+        "rootPid": 204522,
+        "rootStartTime": "6287036",
+        "rootReaped": true,
+        "deadlineReached": false,
+        "signals": [],
+        "owned": [
+          {
+            "pid": 204522,
+            "state": "R",
+            "parentPid": 186933,
+            "group": 204522,
+            "session": 204522,
+            "startTime": "6287036",
+            "remaining": false
+          },
+          {
+            "pid": 205748,
+            "state": "R",
+            "parentPid": 204522,
+            "group": 204522,
+            "session": 204522,
+            "startTime": "6287179",
+            "remaining": false
+          }
+        ],
+        "allOwnedAbsent": true
+      }
+    },
+    {
+      "transport": "cli-pty",
+      "clientExitCode": 0,
+      "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+      "responseMatched": true,
+      "remoteUid": 1001,
+      "remoteGid": 117,
+      "syntheticWorkflowEnvironment": null,
+      "inputBytes": 2167,
+      "inputSha256": "0aa95cd18022616106c071817c3804ad0742475a1f4fd573202692510f65cc87",
+      "stdoutSha256": "4f6e19d11798283d5c760006165c7992bb6c412852b6fc7e253baa2a8750a4dd",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownedClientCleanup": {
+        "rootPid": 206920,
+        "rootStartTime": "6287258",
+        "rootReaped": true,
+        "deadlineReached": false,
+        "signals": [],
+        "owned": [
+          {
+            "pid": 206920,
+            "state": "D",
+            "parentPid": 186933,
+            "group": 206920,
+            "session": 206920,
+            "startTime": "6287258",
+            "remaining": false
+          },
+          {
+            "pid": 206931,
+            "state": "R",
+            "parentPid": 206920,
+            "group": 206931,
+            "session": 206931,
+            "startTime": "6287258",
+            "remaining": false
+          }
+        ],
+        "allOwnedAbsent": true
+      }
+    }
+  ],
+  "tmatePreinstall": {
+    "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+    "url": "https://github.com/tmate-io/tmate/releases/download/2.4.0/tmate-2.4.0-static-linux-amd64.tar.xz",
+    "archiveBytes": 1252460,
+    "archiveSha256": "6e503a1a3b0f9117bce6ff7cc30cf61bdc79e9b32d074cf96deb0264e067a60d",
+    "executableBytes": 3135320,
+    "executableSha256": "d2fff992e40ce18ff81b9a92fa1cb93a56fb5a82c1cc428204552d8dfa1bc04f",
+    "version": "tmate 2.4.0",
+    "downloadDeadlineMs": 15000,
+    "installDependencies": false
+  },
+  "pausedTargetObserved": false,
+  "workflowReadbackObserved": false,
+  "passed": false,
+  "remainingAdmittedAttempts": 0,
+  "askpassSocketAbsent": true,
+  "privateOriginals": {
+    "stateBytes": 6212142,
+    "stateSha256": "fa4bcdbb14394738b885a4fc3b7057901c14dbbca6870982b56a8f83f903d4dc",
+    "lastLogBytes": 82366,
+    "lastLogSha256": "80c0400baeba303b1bbea5116d508d23df04b9dcfed7711b29596d6585642f96",
+    "lastLogEvents": 264,
+    "terminalStatusBytes": 1033,
+    "terminalStatusSha256": "a354998665a2f4d8c591fdeb211627446fa342df62eb27e0386ff35523c3523d"
+  },
+  "allocationStatusSelection": {
+    "runId": "sn950h8xcj",
+    "status": "cancelled",
+    "workflows": [
+      {
+        "workflowId": "f150w16414",
+        "jobs": [
+          {
+            "jobId": "lxkdfrx3dh",
+            "jobKey": "_inline_0.yaml:ssh-proof",
+            "status": "cancelled",
+            "attempts": [
+              {
+                "attemptId": "bv33fqpvnp",
+                "status": "cancelled",
+                "startedAt": null,
+                "finishedAt": null,
+                "createdAt": null,
+                "sandboxId": "rj3swc2414jr0f2g4jjg"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "limits": [
+    "No observed paused target under the retained parser and log window; not a proof that tmate is unsupported",
+    "No blocking instruction or cause established",
+    "No third attempt under the admitted campaign",
+    "Direct SSH challenge execution with client exit255 is partial qualification",
+    "No exact tmate process absence, credential revocation, VM deallocation or invoice claim"
+  ]
+}

@@ -6,8 +6,8 @@ import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker
 import {
   ADVISOR_OPERATION_TYPE,
   ADVISOR_TOOL_NAME,
-} from './constants.ts';
-import type { AdvisorOperationSnapshot, } from './operation-types.ts';
+  type AdvisorOperationSnapshot,
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Failed tool operation awaiting Pi's tool-result finalization hook.
@@ -48,20 +48,20 @@ export function registerAdvisorFailureAccounting(pi: ForeignHostCapability<Exten
       readonly toolName: string;
       readonly toolCallId: string
     }) {
-    if (event.toolName !== ADVISOR_TOOL_NAME)
-      return undefined;
+      if (event.toolName !== ADVISOR_TOOL_NAME)
+        return undefined;
     /**
      Matching failed execution snapshot, never a different tool's accounting.
      */
-    const operation = pending.get(event.toolCallId,);
-    if (operation === undefined)
-      return undefined;
-    pending.delete(event.toolCallId,);
-    return {
-      details: { operation, },
-      usage: operation.usage,
-    };
-  },
+      const operation = pending.get(event.toolCallId,);
+      if (operation === undefined)
+        return undefined;
+      pending.delete(event.toolCallId,);
+      return {
+        details: { operation, },
+        usage: operation.usage,
+      };
+    },
   );
   pi.on(
     'session_shutdown',

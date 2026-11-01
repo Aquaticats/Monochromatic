@@ -158,7 +158,7 @@ const files = [
 
 In this repo,
  the dot-plus-arg walk pulled in a 3.97 GB qcow2 VM disk image at
-`package/dev-script/vm-builder/output/qcow2/disk.qcow2` plus other
+`package/vm-builder/cli/output/qcow2/disk.qcow2` plus other
 multi-megabyte binaries.
  Reading the qcow2 into a string allocates about 4 GB on
 V8's heap,
@@ -213,15 +213,15 @@ This repo has workspace package `node_modules` symlinks that can loop back into
 other workspace packages:
 
 ```text
-package/module/test/node_modules/@monochromatic-dev/config-tsdown -> ../../../../config/tsdown
-package/config/tsdown/node_modules/@monochromatic-dev/module-test -> ../../../../module/test
+package/test-harness/core/node_modules/@monochromatic-dev/config-tsdown -> ../../../../config/tsdown
+package/config/tsdown/node_modules/@monochromatic-dev/test-harness-core -> ../../../../test-harness/core
 ```
 
 The repeated path exists and resolves back to `package/config/tsdown`:
 
 ```text
-package/module/test/node_modules/@monochromatic-dev/config-tsdown
-  /node_modules/@monochromatic-dev/module-test
+package/test-harness/core/node_modules/@monochromatic-dev/config-tsdown
+  /node_modules/@monochromatic-dev/test-harness-core
   /node_modules/@monochromatic-dev/config-tsdown
 ```
 
@@ -457,7 +457,7 @@ Tradeoffs:
 
 ## What does not work
 
-- Adding `!package/dev-script/vm-builder/output/**` and `!**/*.qcow2` to the
+- Adding `!package/vm-builder/cli/output/**` and `!**/*.qcow2` to the
   config `ignores`:
    tested,
    still OOMs.

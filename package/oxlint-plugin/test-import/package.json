@@ -9,14 +9,14 @@
     "monochromatic"
   ],
   "dependencies": {
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@oxlint/plugins": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/oxlint-plugin-test-support": "workspace:*",
     "@types/node": "catalog:",
     "type-fest": "catalog:"

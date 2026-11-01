@@ -49,9 +49,11 @@ GPT-shaped ids always resolve to `xhigh`.
 
 Non-GPT ids resolve to `xhigh` when the model supports it.
 Pi treats `xhigh` as opt-in:
-a model supports `xhigh` only when it declares `reasoning` and maps `xhigh` to a non-null value in its `thinkingLevelMap`,
- so a missing `xhigh` entry means unsupported (unlike the other levels,
- where a missing entry falls back to provider defaults).
+a model supports `xhigh` only when it declares `reasoning`
+and maps `xhigh` to a non-null value in its `thinkingLevelMap`,
+so a missing `xhigh` entry means unsupported
+(unlike the other levels,
+where a missing entry falls back to provider defaults).
 Models without that mapping resolve to `high`.
 
 Examples that resolve to `xhigh`:

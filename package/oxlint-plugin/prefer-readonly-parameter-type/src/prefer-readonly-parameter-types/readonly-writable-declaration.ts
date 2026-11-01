@@ -4,12 +4,12 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import type {
   IndexInfo,
   Project,
   Symbol as TypeScriptSymbol,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import type { WritableDeclarationOwner, } from './readonly-classification-model.ts';
 import { declarationIsReadonly, } from './readonly-declaration.ts';

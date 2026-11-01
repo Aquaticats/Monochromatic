@@ -270,7 +270,7 @@ all with exit code zero:
 
 ### Fetch the body and the comment thread as two calls
 
-This is the workaround `package/pi-plugin/search-fetch` adopted,
+This is the workaround `package/search-fetch/pi-plugin` adopted,
 and the one the upstream reviewer recommended in `cli/cli#2462`.
 
 ```bash
@@ -279,10 +279,10 @@ gh issue view "$URL" --comments &
 wait
 ```
 
-The planner in `package/pi-plugin/search-fetch/src/gh-invocation-plan.ts` emits both invocations as one
+The planner in `package/search-fetch/pi-plugin/src/gh-invocation-plan.ts` emits both invocations as one
 attempt,
 marking the body read required and the comment read optional,
-and `package/pi-plugin/search-fetch/src/gh-client.ts` runs them concurrently,
+and `package/search-fetch/pi-plugin/src/gh-client.ts` runs them concurrently,
 drops empty parts,
 and joins the rest with a blank line.
 

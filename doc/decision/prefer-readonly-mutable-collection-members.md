@@ -201,7 +201,7 @@ account of the two channels before reusing anything from this one about which me
    The helper
   it calls clears a `Set`,
    now a derived mutation.
-- `package/module/caught-value` still reports its two argument-side findings,
+- `package/caught-value/core` still reports its two argument-side findings,
    unchanged,
    as the control.
 - Warm `//package/config/oxlint:lint:oxlint`:

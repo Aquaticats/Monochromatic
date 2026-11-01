@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The accepted keyboard map and focus-owner demonstration</title>
+<style>
+:root { color-scheme: light dark; font-family: system-ui, sans-serif;
+--color-background: #fcf9ff; --color-text: #201e26; --color-panel: #f0ecf5;
+--color-focus: #4f378b; --color-line: #79727f; --color-action: #e7dff8; }
+@media (prefers-color-scheme: dark) {
+:root { --color-background: #000; --color-text: #eee7f6; --color-panel: #17151d;
+--color-focus: #d0bcff; --color-line: #a49aac; --color-action: #302a3d; }
+}
+* { box-sizing: border-box; }
+body { margin-block: 0; margin-inline: auto; padding-block: 2rem; padding-inline: 1rem;
+max-inline-size: 68rem; color: var(--color-text); background-color: var(--color-background); line-height: 1.6; }
+h1 { font-size: clamp(1.5rem,4vi,2.4rem); line-height: 1.25; }
+h2 { margin-block-start: 2rem; }
+p { max-inline-size: 52rem; }
+button,input,select,textarea { font: inherit; color: var(--color-text); background-color: var(--color-action);
+min-inline-size: 3rem; min-block-size: 3rem; border-width: 0.125rem;
+border-style: solid; border-color: var(--color-line); border-radius: 0.5rem; }
+button,select { padding-block: 0.6rem; padding-inline: 1rem; }
+input,textarea { padding-block: 0.5rem; padding-inline: 0.75rem; }
+input[type="range"] { inline-size: min(100%,28rem); }
+:where(button,input,select,textarea,summary,[tabindex]):focus-visible {
+outline-width: 0.2rem; outline-style: solid; outline-color: var(--color-focus); outline-offset: 0.2rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.note { border-inline-start-width: 0.3rem; border-inline-start-style: solid; border-inline-start-color: var(--color-focus);
+padding-inline-start: 1rem; }
+.focus-zone { min-inline-size: 3rem; min-block-size: 3rem; padding-block: 1rem; padding-inline: 1rem;
+border-width: 0.125rem; border-style: solid; border-color: var(--color-line);
+border-radius: 0.75rem; background-color: var(--color-panel); }
+.focus-zone:focus { border-color: var(--color-focus); }
+#query { inline-size: min(100%,32rem); }
+kbd { font-weight: 700; }
+li { margin-block: 0.75rem; }
+summary { min-inline-size: 3rem; min-block-size: 3rem; cursor: pointer; font-weight: 700; }
+dialog { inline-size: min(32rem,calc(100vi - 2rem)); max-block-size: calc(100vb - 2rem);
+color: var(--color-text); background-color: var(--color-panel); border-width: 0.125rem;
+border-style: solid; border-color: var(--color-line); border-radius: 0.75rem;
+padding-block: 1rem; padding-inline: 1rem; }
+#reply,#notes { display: block; inline-size: 100%; min-block-size: 8rem; }
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+<p>Accepted design (D102) and isolated behavior demonstration. No native application binding is implemented.</p>
+<h1>One keyboard map, with editing and controls owning their keys</h1>
+<p>Purpose: complete D25's whole-map IntelliJ alignment pass without asking about individual key labels.
+D25's Ctrl+F and Ctrl+O reservations are settled, and the human accepted the whole map as built (D102). The consequential concern is preventing
+caret motion or a focused button from also changing playback.</p>
+<p class="note">This is an HTML behavior sandbox, not an Android/Slint screen mockup. It reads no files,
+plays no audio and implements no matcher. Platform shortcut delivery, media keys, IME behavior and native
+accessibility are unverified. The map and the playback-area scope are accepted; this page does not prove any platform delivers the keys.</p>
+</header>
+<section aria-labelledby="map-title">
+<h2 id="map-title">Accepted map</h2>
+<label for="platform">Inspect platform convention</label>
+<select id="platform"><option value="windows-linux">Windows/Linux map</option><option value="mac">macOS map</option></select>
+<ul id="map"></ul>
+<p>Search and Settings use current IntelliJ precedents. Reveal-current uses its go-to-location precedent.
+Transport and mode keys are product exceptions, not claims that IntelliJ performs music operations.
+The macOS track fallback uses the IDE's previous/next-tab chords rather than Control+arrow workspace chords.</p>
+<p>Advantages: one consistent action vocabulary, no in-app volume shortcuts, preserved caret and widget keys.
+Tradeoffs: some familiar draft assignments change, and OS reservations still need native verification.
+There is no valid reason to offer the superseded volume draft as another option.</p>
+</section>
+<section id="demo" aria-labelledby="demo-title">
+<h2 id="demo-title">Inspect ownership and consequences</h2>
+<p>Focus the playback shortcut area itself to try its transport keys; its buttons and slider retain their own keys. Focus the query or seek slider to see those controls
+retain their own keys. Space on a focused button activates that button only once.
+Application shortcuts are active within this demonstration and its popup, not the surrounding review notes.</p>
+<div class="controls">
+<button id="focus-player" type="button">Focus playback shortcut area</button>
+<button id="search-button" type="button">Search</button>
+<button id="picker-button" type="button">Folder picker</button>
+<button id="settings-button" type="button">Settings</button>
+<button id="reveal-button" type="button">Reveal current track</button>
+</div>
+<section id="player" class="focus-zone" role="group" aria-label="Playback shortcut area" tabindex="0">
+<h3>Authored player state</h3>
+<p id="player-state" role="status"></p>
+<div class="controls"><button id="previous" type="button">Previous track</button>
+<button id="toggle" type="button">Play</button><button id="next" type="button">Next track</button>
+<button id="mode" type="button">Cycle end-of-track mode</button></div>
+<p>Authored rows for current-track reveal, not real indexed files:</p>
+<div class="controls"><button id="track0" type="button">Authored track 1</button>
+<button id="track1" type="button">Authored track 2</button><button id="track2" type="button">Authored track 3</button></div>
+<label for="seek">Focused seek slider, native arrow-key behavior</label>
+<input id="seek" type="range" min="0" max="300" step="5" value="60">
+<p id="seek-state"></p>
+</section>
+<section id="search" hidden aria-labelledby="search-title">
+<h3 id="search-title">Search editing, not matching</h3>
+<label for="query">Authored query text</label><input id="query" type="text" value="" autocomplete="off">
+<p>Query text is not evaluated. Control/Option arrows remain caret keys; no track changes follow from them.
+Refocusing this visit preserves its query. Escape returns to this authored player state; a new visit starts empty.</p>
+<button id="back" type="button">Back to player</button>
+</section>
+<p id="last-action" class="note" role="status"></p>
+<p id="counts"></p>
+</section>
+<dialog id="popup" aria-labelledby="popup-title"><h2 id="popup-title">Authored popup</h2>
+<p id="popup-body"></p><button id="close-popup" type="button">Close popup</button></dialog>
+<section aria-labelledby="boundary-title">
+<h2 id="boundary-title">Boundaries and review</h2>
+<p>The folder picker navigates the current library; it is not the filesystem chooser that changes sources.
+The demonstration's popup does not enumerate or change any real source. OS volume and media keys stay with their
+platform owners. Templates and unsaved-editor behavior remain undesigned; this map does not silently settle them.</p>
+<p>Inspect the full map and its focus consequences. Observations are optional; no key-by-key vote is requested.
+No production implementation or new IME study is authorized by this artifact.</p>
+<form id="review"><label for="notes">Optional whole-map corrections or missing consequences</label>
+<textarea id="notes"></textarea><button type="submit">Prepare observations</button>
+<section id="response" hidden><h3>Observations to copy</h3><p>Nothing is sent or saved by this page.</p>
+<label for="reply">Prepared observations</label><textarea id="reply" readonly></textarea></section></form>
+</section>
+<script>
+//region Pure shortcut classification, unknown platform data throws instead of choosing a fallback
+const modes = ['Repeat track','In order','Shuffle folder','Shuffle all'];
+const modeMarks = ['↻','→','⤨','⤨'];
+let state = { platform: 'windows-linux', playing: false, track: 0, mode: 1, inSearch: false,
+  transportActions: 0, revealActions: 0, sourceChanges: 0, last: 'Focus a region to inspect its keys.' };
+function element(id) {
+  const value = document.getElementById(id);
+  if (!value) throw new Error('Required keyboard demonstration element is absent: ' + id);
+  return value;
+}
+function shortcutAction(request) {
+  if (!['windows-linux','mac'].includes(request.platform)) throw new Error('Unknown keyboard-map platform.');
+  if (request.composing) return 'owner';
+  if (request.inPopup) return request.key === 'Escape' ? 'close-popup' : 'owner';
+  const primary = request.platform === 'mac' ? request.metaKey : request.ctrlKey;
+  const otherPrimary = request.platform === 'mac' ? request.ctrlKey : request.metaKey;
+  if (!otherPrimary && primary && !request.altKey && !request.shiftKey && request.key.toLowerCase() === 'f') return 'search';
+  if (!otherPrimary && primary && !request.altKey && !request.shiftKey && request.key.toLowerCase() === 'o') return 'picker';
+  if (request.platform === 'mac' && request.metaKey && !request.ctrlKey && !request.altKey && !request.shiftKey && request.key === ',') return 'settings';
+  if (request.platform === 'windows-linux' && request.ctrlKey && request.altKey && !request.metaKey && !request.shiftKey && request.key.toLowerCase() === 's') return 'settings';
+  if (!otherPrimary && primary && !request.altKey && !request.shiftKey && request.key.toLowerCase() === (request.platform === 'mac' ? 'l' : 'g')) return 'reveal';
+  if (request.key === 'Escape' && request.inSearch) return 'back';
+  if (request.owner === 'editor' || request.owner === 'control') return 'owner';
+  if (request.owner !== 'player') return 'unbound';
+  if (request.repeat) return 'ignore-repeat';
+  if (!request.ctrlKey && !request.metaKey && !request.altKey && !request.shiftKey && request.key === ' ') return 'toggle';
+  if (request.ctrlKey && !request.metaKey && !request.altKey && !request.shiftKey && request.key.toLowerCase() === 'm') return 'mode';
+  if (request.platform === 'windows-linux' && request.ctrlKey && !request.metaKey && !request.altKey && !request.shiftKey) {
+    if (request.key === 'ArrowLeft') return 'previous';
+    if (request.key === 'ArrowRight') return 'next';
+  }
+  if (request.platform === 'mac' && request.metaKey && request.shiftKey && !request.ctrlKey && !request.altKey) {
+    if (request.key === '[' || request.key === '{') return 'previous';
+    if (request.key === ']' || request.key === '}') return 'next';
+  }
+  return 'unbound';
+}
+function render() {
+  element('player-state').textContent = (state.playing ? '▶ Playing' : 'Ⅱ Paused') + ' · Authored track ' + (state.track + 1) + ' · ' + modeMarks[state.mode] + ' ' + modes[state.mode];
+  element('toggle').textContent = state.playing ? 'Pause' : 'Play';
+  element('search').hidden = !state.inSearch;
+  element('last-action').textContent = state.last;
+  element('counts').textContent = 'Transport actions: ' + state.transportActions + ' · Reveal actions: ' + state.revealActions + ' · Source changes: ' + state.sourceChanges;
+  element('seek-state').textContent = 'Authored seek position: ' + element('seek').value + ' seconds.';
+  for (let index = 0; index < 3; index++) {
+    element('track' + index).textContent = 'Authored track ' + (index + 1) + (index === state.track ? ' · Current track' : '');
+    element('track' + index).style.fontWeight = index === state.track ? '700' : '400';
+  }
+}
+function renderMap() {
+  const mac = state.platform === 'mac';
+  const rows = [
+    [(mac ? 'Command' : 'Ctrl') + '+F','Enter Search or refocus the same visit without clearing its query.'],
+    [(mac ? 'Command' : 'Ctrl') + '+O','Open/focus the current-library folder picker, not choose a new library root.'],
+    [mac ? 'Command+Comma' : 'Ctrl+Alt+S','Open in-app Settings.'],
+    [mac ? 'Command+L' : 'Ctrl+G','Reveal the current track without starting or substituting another track.'],
+    [mac ? 'Command+Shift+[/]' : 'Ctrl+Left/Right','Previous/next track only while the playback shortcut area itself is focused; editors and focused controls retain their own keys.'],
+    ['Space','Toggle playback while the shortcut area itself is focused; otherwise type a space or activate the focused control.'],
+    ['Ctrl+M','Cycle end-of-track mode while the shortcut area itself is focused, a product exception on both models.'],
+    ['Arrow keys','Native caret, focus or focused-control navigation. No global seek or volume alias.'],
+    ['Tab / Shift+Tab','Native focus movement without a second transport action.'],
+    ['Unmodified letters','Text belongs to its focused widget. No global letter-to-track or letter-to-folder binding is added; native folder typeahead is not modelled here.'],
+    ['Escape','Dismiss the innermost popup, otherwise return from Search when the surrounding surface owns Escape.'],
+    ['Hardware media and volume keys','Platform-owned delivery, not demonstrated or intercepted here.']
+  ];
+  element('map').replaceChildren();
+  for (const [key, meaning] of rows) {
+    const item = document.createElement('li');
+    const label = document.createElement('kbd');
+    label.textContent = key;
+    item.append(label, document.createTextNode(': ' + meaning));
+    element('map').append(item);
+  }
+}
+//endregion
+
+//region Authored transitions, no source, audio or matcher operations are reachable
+function action(name) {
+  if (name === 'search') {
+    if (!state.inSearch) element('query').value = '';
+    state = { ...state, inSearch: true, last: 'Search focused. Same-visit query is preserved.' };
+    render(); element('query').focus(); return;
+  }
+  if (name === 'picker' || name === 'settings') {
+    element('popup-title').textContent = name === 'picker' ? 'Current-library folder picker' : 'In-app Settings';
+    element('popup-body').textContent = 'Authored popup only. No files, source grants or real settings are touched.';
+    element('popup').showModal(); return;
+  }
+  if (name === 'close-popup') { element('popup').close(); return; }
+  if (name === 'back') { state = { ...state, inSearch: false, last: 'Returned to authored player; next Search visit is new.' }; render(); element('player').focus(); return; }
+  if (name === 'reveal') { state = { ...state, revealActions: state.revealActions + 1, last: 'Focused the current authored track; playback and source are unchanged.' }; render(); element('track' + state.track).scrollIntoView({ block: 'nearest' }); element('track' + state.track).focus(); return; }
+  if (name === 'toggle') state = { ...state, playing: !state.playing, transportActions: state.transportActions + 1, last: 'Authored play/pause toggle, no audio.' };
+  else if (name === 'previous' || name === 'next') state = { ...state, track: (state.track + (name === 'next' ? 1 : 2)) % 3, transportActions: state.transportActions + 1, last: 'Changed authored track only, no files or audio.' };
+  else if (name === 'mode') state = { ...state, mode: (state.mode + 1) % modes.length, last: 'Changed authored end-of-track mode.' };
+  else throw new Error('Unknown authored keyboard action: ' + name);
+  render();
+}
+function ownerOf(target) {
+  if (!(target instanceof Element)) return 'surface';
+  if (target.matches('input[type=text],textarea,[contenteditable=true]')) return 'editor';
+  if (target.matches('button,input,select,summary')) return 'control';
+  if (target === element('player')) return 'player';
+  return 'surface';
+}
+for (const [id, name] of [['search-button','search'],['picker-button','picker'],['settings-button','settings'],['reveal-button','reveal'],['previous','previous'],['toggle','toggle'],['next','next'],['mode','mode'],['back','back'],['close-popup','close-popup']]) {
+  element(id).addEventListener('click', () => action(name));
+}
+for (let index = 0; index < 3; index++) {
+  element('track' + index).addEventListener('click', () => {
+    if (index === state.track) { action('toggle'); return; }
+    state = { ...state, track: index, playing: true, transportActions: state.transportActions + 1,
+      last: 'Selected an authored track, no files or audio.' };
+    render();
+  });
+}
+element('focus-player').addEventListener('click', () => element('player').focus());
+element('seek').addEventListener('input', render);
+element('platform').addEventListener('change', () => { state = { ...state, platform: element('platform').value }; renderMap(); render(); });
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented) return;
+  if (!(event.target instanceof Element)) return;
+  if (!event.target.closest('#demo') && !element('popup').open) return;
+  const resolved = shortcutAction({ platform: state.platform, key: event.key, ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, repeat: event.repeat,
+    owner: ownerOf(event.target), inPopup: element('popup').open, inSearch: state.inSearch,
+    composing: event.isComposing });
+  if (resolved === 'owner' || resolved === 'unbound') return;
+  event.preventDefault();
+  if (resolved === 'ignore-repeat') return;
+  action(resolved);
+});
+renderMap(); render();
+//endregion
+
+//region Optional whole-map observations, inert text never becomes approval or implementation authority
+function invalidate() { element('response').hidden = true; element('reply').value = ''; }
+element('notes').addEventListener('input', invalidate);
+element('review').addEventListener('submit', event => {
+  event.preventDefault();
+  element('reply').value = 'Keyboard-map observations: ' + (element('notes').value.trim() || 'None.') + '\nNo production implementation authorized.';
+  element('response').hidden = false;
+});
+//endregion
+</script>
+</body>
+</html>

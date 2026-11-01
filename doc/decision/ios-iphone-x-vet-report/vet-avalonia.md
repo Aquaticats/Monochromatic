@@ -24,7 +24,8 @@ run,
   NET-for-iOS (Microsoft.
   iOS) workload;
    no JIT on device.
-   An optional non-JIT Mono bytecode INTERPRETER (UseInterpreter/MtouchInterpreter) is available as a fallback for code that needs dynamic codegen (off by default in release).
+   An optional non-JIT Mono bytecode INTERPRETER (UseInterpreter/MtouchInterpreter) is available as a fallback for code
+   that needs dynamic codegen (off by default in release).
    Engine:
    MonoVM full-AOT.
    Avalonia itself contributes no runtime;
@@ -50,12 +51,15 @@ run,
   NET-for-iOS (Microsoft.
   iOS) workload,
    so on a device its app code runs as Mono FULL-AOT native ARM64 (no JIT,
-   wall 2 satisfied) and it links/calls native Go or Rust static libs via ordinary P/Invoke (proven in-tree by the bundled native SkiaSharp/HarfBuzz/Metal bindings,
+   wall 2 satisfied) and it links/calls native Go
+   or Rust static libs via ordinary P/Invoke (proven in-tree by the bundled native SkiaSharp/HarfBuzz/Metal bindings,
    wall 1 satisfied).
    It contributes NO audio subsystem,
-   which means the existing Rust symphonia+cpal core is reused unchanged behind FFI (cpal already has a CoreAudio backend) rather than rewritten on AVAudioEngine.
+   which means the existing Rust symphonia+cpal core is reused unchanged behind FFI
+   (cpal already has a CoreAudio backend) rather than rewritten on AVAudioEngine.
    All three iOS walls are clearable;
-   the differentiator versus MAUI is only the UI layer (Avalonia draws its own controls with Skia/Metal instead of mapping to native UIKit),
+   the differentiator versus MAUI is only the UI layer
+   (Avalonia draws its own controls with Skia/Metal instead of mapping to native UIKit),
    not the runtime/FFI/background story,
    which are identical.
 
@@ -71,7 +75,8 @@ NET-for-iOS uses Mono full-AOT to produce a native ARM64 binary;
  Microsoft docs:
  'there is a security restriction on iOS,
  set by Apple,
- which disallows the execution of dynamically generated code on a device... iOS and Mac Catalyst apps use an Ahead of Time (AOT) compiler to compile the managed code.
+ which disallows the execution of dynamically generated code on a device...
+ iOS and Mac Catalyst apps use an Ahead of Time (AOT) compiler to compile the managed code.
 ' A JIT attempt under aot-only mode throws System.
 ExecutionEngineException 'Attempting to JIT compile method while running in aot-only mode'.
  An optional Mono INTERPRETER (UseInterpreter/MtouchInterpreter) covers Reflection.
@@ -96,9 +101,12 @@ Feasible:
 
 Mechanism:
  P/Invoke (DllImport / LibraryImport) plus the ObjCRuntime/Foundation Objective-C bindings.
- A Go gomobile c-archive or Rust staticlib is added to the app project as a NativeReference / native lib and called from C# via [DllImport("__Internal")] extern declarations against its exported C ABI (with delegate* unmanaged<> callbacks).
+ A Go gomobile c-archive or Rust staticlib is added to the app project as a NativeReference / native lib and called
+ from C# via [DllImport("__Internal")] extern declarations against its exported C ABI
+ (with delegate* unmanaged<> callbacks).
  This native-link-and-call path is already proven in-tree:
- Avalonia links the native SkiaSharp (libSkiaSharp C/C++) and HarfBuzzSharp libraries and drives Apple's Metal framework through bound native types (IMTLDevice/IMTLCommandQueue),
+ Avalonia links the native SkiaSharp (libSkiaSharp C/C++) and HarfBuzzSharp libraries
+ and drives Apple's Metal framework through bound native types (IMTLDevice/IMTLCommandQueue),
  and CoreFoundation/libc via DllImport.
  So kopia-as-Go-c-archive or a Rust staticlib is callable via the identical P/Invoke mechanism.
 
@@ -143,7 +151,9 @@ cs (ObserveDidEnterBackground pauses render link);
 iOS/AvaloniaAppDelegate.
 cs (DidEnterBackground observer);
  Microsoft.
-iOS binding <https://learn.microsoft.com/en-us/dotnet/api/foundation.nsurlsessionconfiguration.backgroundsessionconfiguration> (Assembly Microsoft.
+iOS binding
+<https://learn.microsoft.com/en-us/dotnet/api/foundation.nsurlsessionconfiguration.backgroundsessionconfiguration>
+(Assembly Microsoft.
 iOS.
 dll,
  namespace Foundation)
@@ -195,7 +205,8 @@ iOS runtime;
  Avalonia imposes nothing.
 
 Source:
- <https://learn.microsoft.com/en-us/dotnet/api/foundation.nsurlsessionconfiguration.backgroundsessionconfiguration> (NSUrlSession in Microsoft.
+ <https://learn.microsoft.com/en-us/dotnet/api/foundation.nsurlsessionconfiguration.backgroundsessionconfiguration>
+ (NSUrlSession in Microsoft.
 iOS.
 dll,
  the HttpClient backing handler on iOS);
@@ -224,7 +235,8 @@ iOS AVFoundation bindings,
 
 Rust core reuse:
  REUSED via FFI.
- Because Avalonia provides no audio at all and the runtime is full-AOT C# that links native libraries via P/Invoke (proven by SkiaSharp/HarfBuzz/Metal in-tree),
+ Because Avalonia provides no audio at all and the runtime is full-AOT C#
+ that links native libraries via P/Invoke (proven by SkiaSharp/HarfBuzz/Metal in-tree),
  the symphonia+cpal Rust core links as a staticlib and is called over its C ABI.
  Nothing forces a rewrite onto AVAudioEngine;
  cpal already targets CoreAudio on Apple.
@@ -233,7 +245,8 @@ Rust core reuse:
  not a decoder/output rewrite.
 
 Source:
- repo-wide null search (rg -i 'avaudio|coreaudio|audiounit|symphonia|opus' over /tmp/agent/avalonia-audit/src returned no audio engine);
+ repo-wide null search
+ (rg -i 'avaudio|coreaudio|audiounit|symphonia|opus' over /tmp/agent/avalonia-audit/src returned no audio engine);
  P/Invoke proof /tmp/agent/avalonia-audit/src/iOS/Avalonia.
 iOS/Interop.
 cs and SkiaSharp native link build/SkiaSharp.
@@ -245,7 +258,8 @@ Minimal app:
  `dotnet new` a net-ios Avalonia single-view app head (AvaloniaAppDelegate<App>) referencing Avalonia.
 iOS + Avalonia.
 Skia;
- add a tiny Rust staticlib exposing `extern \"C\" int add(int,int)` (and a second symbol that spins a CoreAudio sine via cpal) linked as a NativeReference,
+ add a tiny Rust staticlib exposing `extern \"C\" int add(int,int)`
+ (and a second symbol that spins a CoreAudio sine via cpal) linked as a NativeReference,
  called from C# via [DllImport(\"__Internal\")];
  build in RELEASE (AOT,
  not simulator),
@@ -253,7 +267,8 @@ Skia;
  install on the iPhone X.
  On-device signals that confirm viability:
  (1) Avalonia UI renders via Metal/Skia at the CADisplayLink rate with no System.
-ExecutionEngineException 'Attempting to JIT compile method while running in aot-only mode' in device console (proves full-AOT executes app code);
+ExecutionEngineException 'Attempting to JIT compile method
+while running in aot-only mode' in device console (proves full-AOT executes app code);
  (2) the P/Invoke call into the Rust staticlib returns the right value (proves wall-1 native-static-lib linking);
  (3) cpal emits the sine through the speaker (proves Rust audio core reuse).
  Refute signal:
@@ -267,7 +282,8 @@ Toolchain:
  .
 NET 9/10 SDK with the `ios` workload (`dotnet workload install ios`);
  Rust with the `aarch64-apple-ios` target (or Go with gomobile for the kopia c-archive) to build the staticlib;
- a paid Apple Developer signing identity + provisioning profile for the iPhone X (matching the existing CLI codesign path in this repo's runbook).
+ a paid Apple Developer signing identity + provisioning profile for the iPhone X
+ (matching the existing CLI codesign path in this repo's runbook).
 
 ## Supporting-stack vets this framework drags in
 
@@ -280,7 +296,8 @@ NET 9/10 SDK with the `ios` workload (`dotnet workload install ios`);
 - HTTPS streaming + background URLSession vet:
    HttpClient/NSUrlSessionHandler chunked upload to pCloud with CreateBackgroundSessionConfiguration resumption
 - Background execution vet:
-   BGProcessingTaskRequest scheduling + URLSession background completion handlers under iOS idle/charging constraints (multi-hour snapshot restructure)
+   BGProcessingTaskRequest scheduling + URLSession background completion handlers under iOS idle/charging constraints
+   (multi-hour snapshot restructure)
 - Audio vet:
    link symphonia+cpal Rust staticlib,
    drive CoreAudio output,
@@ -372,7 +389,8 @@ NET 9/10 SDK with the `ios` workload (`dotnet workload install ios`);
    Wall-2 quotes are verbatim-faithful to the Microsoft Learn doc:
    "there is a security restriction on iOS,
    set by Apple,
-   which disallows the execution of dynamically generated code on a device" and "iOS and Mac Catalyst apps use an Ahead of Time (AOT) compiler to compile the managed code" both appear word-for-word,
+   which disallows the execution of dynamically generated code on a device" and "iOS
+   and Mac Catalyst apps use an Ahead of Time (AOT) compiler to compile the managed code" both appear word-for-word,
    as does the System.
   ExecutionEngineException message "Attempting to JIT compile method while running in aot-only mode".
    The UseInterpreter/MtouchInterpreter non-JIT interpreter mechanism (covering Reflection.
@@ -406,7 +424,8 @@ NET 9/10 SDK with the `ios` workload (`dotnet workload install ios`);
   cs demonstrates [DllImport] against NAMED dynamic libraries (CoreFoundation framework path,
    /usr/lib/libc.
   dylib),
-   not the [DllImport("__Internal")] static-archive variant the audit extrapolates for a kopia Go c-archive / Rust staticlib;
+   not the [DllImport("__Internal")] static-archive variant the audit extrapolates for a kopia Go c-archive / Rust
+   staticlib;
    the extrapolation is technically correct but the cited file shows the named-dylib pattern,
    not the __Internal static-link pattern.
 - Sources checked:

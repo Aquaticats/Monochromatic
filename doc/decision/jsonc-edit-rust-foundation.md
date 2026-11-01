@@ -25,12 +25,12 @@ Accepted,
 Two selection runs under `.agents/skills/choosing-technology/SKILL.md` produced the evidence:
 
 - [`tech-jsonc-edit-rust-parser-foundation-vet-2026-09-24-63342231.md`](../audit/tech-jsonc-edit-rust-parser-foundation-vet-2026-09-24-63342231.md)
-   scored the repository-owned translation 23 of 25 and the `biome_json_parser` 0.5.7 projection composition
-   10 of 25,
+   scored the repository-owned translation 23 of 25
+   and the `biome_json_parser` 0.5.7 projection composition 10 of 25,
    with the owned candidate rated at least as high on every frozen criterion.
 - [`tech-jsonc-edit-rust-exact-number-foundation-vet-2026-09-24-e8e0034a.md`](../audit/tech-jsonc-edit-rust-exact-number-foundation-vet-2026-09-24-e8e0034a.md)
-   saturated with one survivor after 13303 registry records were screened and every published alternative
-   exited on a source-verified hard gate.
+   saturated with one survivor after 13303 registry records were screened
+   and every published alternative exited on a source-verified hard gate.
 
 Both survivors were validated at equal depth:
  the shared TypeScript conformance corpus,

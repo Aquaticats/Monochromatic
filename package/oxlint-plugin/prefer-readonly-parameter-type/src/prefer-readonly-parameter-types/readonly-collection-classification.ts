@@ -8,7 +8,7 @@ import type {
   Checker,
   Type,
   TypeReference,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { combineClassifications, } from './readonly-classification-combine.ts';
 import {
@@ -192,7 +192,9 @@ function classifyTuple({
       },);
     },);
   return combineClassifications([
-    ...type.readonly
+    ...type
+      .getTarget()
+      .readonly
       ? []
       : [mutableReadonlyClassification({
         kind: 'tuple',

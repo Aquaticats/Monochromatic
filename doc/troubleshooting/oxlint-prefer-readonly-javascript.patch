@@ -1,0 +1,48 @@
+diff --git a/internal/rules/prefer_readonly/prefer_readonly.go b/internal/rules/prefer_readonly/prefer_readonly.go
+index 3b5d8be..c59af3e 100644
+--- a/internal/rules/prefer_readonly/prefer_readonly.go
++++ b/internal/rules/prefer_readonly/prefer_readonly.go
+@@ -388,6 +388,16 @@ func getCustomReportNode(sourceFile *ast.SourceFile, declarationNode *ast.Node,
+ var PreferReadonlyRule = rule.Rule{
+ 	Name: "prefer-readonly",
+ 	Run: func(ctx rule.RuleContext, options any) rule.RuleListeners {
++		// What: The compiler predicate recognizes JavaScript and JSX source grammars.
++		// Why: Those grammars cannot represent the readonly modifier this rule inserts.
++		// TypeScript equivalent: if (isJavaScriptFile(ctx.sourceFile)) return {};
++		if ast.IsSourceFileJS(ctx.SourceFile) {
++			// What: An empty listener map schedules no class analysis for this source.
++			// Why: This preserves JavaScript grammar without changing TypeScript analysis.
++			// TypeScript equivalent: return {};
++			return rule.RuleListeners{}
++		}
++
+ 		opts := utils.UnmarshalOptions[PreferReadonlyOptions](options, "prefer-readonly")
+ 
+ 		classScopeStack := make([]*classScope, 0, 1)
+diff --git a/internal/rules/prefer_readonly/prefer_readonly_test.go b/internal/rules/prefer_readonly/prefer_readonly_test.go
+index f82ae9a..a546bf1 100644
+--- a/internal/rules/prefer_readonly/prefer_readonly_test.go
++++ b/internal/rules/prefer_readonly/prefer_readonly_test.go
+@@ -10,6 +10,22 @@ import (
+ func TestPreferReadonlyRule(t *testing.T) {
+ 	t.Parallel()
+ 	rule_tester.RunRuleTester(fixtures.GetRootDir(), "tsconfig.minimal.json", t, &PreferReadonlyRule, []rule_tester.ValidTestCase{
++		// What: The explicit filename selects JavaScript rather than TypeScript syntax.
++		// Why: A private JavaScript field cannot receive a TypeScript readonly modifier.
++		// TypeScript equivalent: { fileName: 'readonly.js', code: 'class Example { #value = 1; }' }
++		{FileName: "readonly.js", TSConfig: "./tsconfig.checkJs.json", Code: `class Example { #value = 1; read() { return this.#value; } }`},
++		// What: This case selects CommonJS JavaScript using the .cjs filename.
++		// Why: The same field must stay valid in the CommonJS grammar.
++		// TypeScript equivalent: { fileName: 'readonly.cjs', code: 'class Example { #value = 1; }' }
++		{FileName: "readonly.cjs", TSConfig: "./tsconfig.checkJs.json", Code: `class Example { #value = 1; read() { return this.#value; } }`},
++		// What: This case selects ESM JavaScript using the .mjs filename.
++		// Why: It reproduces the auto-mode consumer's actual source grammar.
++		// TypeScript equivalent: { fileName: 'readonly.mjs', code: 'class Example { #value = 1; }' }
++		{FileName: "readonly.mjs", TSConfig: "./tsconfig.checkJs.json", Code: `class Example { #value = 1; read() { return this.#value; } }`},
++		// What: This case selects JavaScript with JSX enabled using the .jsx filename.
++		// Why: JSX still cannot accept the TypeScript-only readonly modifier.
++		// TypeScript equivalent: { fileName: 'readonly.jsx', code: 'class Example { #value = 1; }' }
++		{FileName: "readonly.jsx", TSConfig: "./tsconfig.checkJs.json", Code: `class Example { #value = 1; read() { return this.#value; } }`},
+ 		{Code: `function ignore() {}`},
+ 		{Code: `const ignore = function () {};`},
+ 		{Code: `const ignore = () => {};`},

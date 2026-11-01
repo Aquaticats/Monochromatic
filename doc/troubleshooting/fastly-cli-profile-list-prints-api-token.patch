@@ -1,0 +1,216 @@
+diff --git a/pkg/commands/profile/list.go b/pkg/commands/profile/list.go
+index 1264c73..73c3514 100644
+--- a/pkg/commands/profile/list.go
++++ b/pkg/commands/profile/list.go
+@@ -15,6 +15,8 @@ import (
+ type ListCommand struct {
+ 	argparser.Base
+ 	argparser.JSONOutput
++
++	reveal bool
+ }
+ 
+ // NewListCommand returns a usable command registered under the parent.
+@@ -22,13 +24,17 @@ func NewListCommand(parent argparser.Registerer, g *global.Data) *ListCommand {
+ 	var c ListCommand
+ 	c.Globals = g
+ 	c.CmdClause = parent.Command("list", "List user profiles (deprecated: use 'fastly auth list' instead)")
++	c.CmdClause.Flag("reveal", "Show the full token value (use with care)").BoolVar(&c.reveal)
+ 	c.RegisterFlagBool(c.JSONFlag()) // --json
+ 	return &c
+ }
+ 
+ // Exec invokes the application logic for the command.
+ func (c *ListCommand) Exec(_ io.Reader, out io.Writer) error {
+-	if !c.Globals.Flags.Quiet && !c.JSONOutput.Enabled {
++	// text.Deprecated writes to stderr, so the notice never polluted the --json
++	// payload on stdout. Suppressing it there removed the command's only warning
++	// in the mode that serialised the most credentials.
++	if !c.Globals.Flags.Quiet {
+ 		text.Deprecated("This command will be removed in a future release. Use 'fastly auth list' instead.\n\n")
+ 	}
+ 
+@@ -36,7 +42,7 @@ func (c *ListCommand) Exec(_ io.Reader, out io.Writer) error {
+ 		return fsterr.ErrInvalidVerboseJSONCombo
+ 	}
+ 
+-	if ok, err := c.WriteJSON(out, c.Globals.Config.Auth.Tokens); ok {
++	if ok, err := c.WriteJSON(out, jsonPayload(c.Globals.Config.Auth.Tokens, c.reveal)); ok {
+ 		return err
+ 	}
+ 
+@@ -56,27 +62,67 @@ func (c *ListCommand) Exec(_ io.Reader, out io.Writer) error {
+ 				text.Break(out)
+ 			}
+ 			text.Info(out, "Default profile highlighted in red.\n\n")
+-			display(defaultName, at, true, out, text.BoldRed)
++			display(defaultName, at, true, c.reveal, out, text.BoldRed)
+ 		}
+ 	}
+ 
+ 	for name, at := range c.Globals.Config.Auth.Tokens {
+ 		if name != defaultName {
+ 			text.Break(out)
+-			display(name, at, false, out, text.Bold)
++			display(name, at, false, c.reveal, out, text.Bold)
+ 		}
+ 	}
+ 	return nil
+ }
+ 
+-func display(name string, at *config.AuthToken, isDefault bool, out io.Writer, style func(a ...any) string) {
++// jsonPayload returns the token map to serialise. Without --reveal it returns a
++// copy whose credential fields are masked, leaving the caller's config untouched.
++func jsonPayload(tokens config.AuthTokens, reveal bool) config.AuthTokens {
++	if reveal {
++		return tokens
++	}
++
++	redacted := make(config.AuthTokens, len(tokens))
++	for name, at := range tokens {
++		if at == nil {
++			redacted[name] = nil
++			continue
++		}
++		copied := *at
++		copied.Token = maskedToken(at.Token)
++		copied.AccessToken = maskedToken(at.AccessToken)
++		copied.RefreshToken = maskedToken(at.RefreshToken)
++		redacted[name] = &copied
++	}
++	return redacted
++}
++
++// maskedToken mirrors pkg/commands/auth/show.go, which already masks by default
++// and reveals only behind an explicit --reveal flag, so this deprecated command
++// and the replacement its own notice names agree on one shape.
++func maskedToken(token string) string {
++	switch {
++	case token == "":
++		return ""
++	case len(token) > 8:
++		return token[:4] + "..." + token[len(token)-4:]
++	default:
++		return "****"
++	}
++}
++
++func display(name string, at *config.AuthToken, isDefault bool, reveal bool, out io.Writer, style func(a ...any) string) {
+ 	text.Output(out, style(name))
+ 	text.Break(out)
+ 	text.Output(out, "%s: %t", style("Default"), isDefault)
+ 	if at.Email != "" {
+ 		text.Output(out, "%s: %s", style("Email"), at.Email)
+ 	}
+-	text.Output(out, "%s: %s", style("Token"), at.Token)
++	token := at.Token
++	if !reveal {
++		token = maskedToken(token)
++	}
++	text.Output(out, "%s: %s", style("Token"), token)
+ 	isSSO := at.Type == config.AuthTokenTypeSSO
+ 	text.Output(out, "%s: %t", style("SSO"), isSSO)
+ 	if isSSO {
+diff --git a/pkg/commands/profile/profile_test.go b/pkg/commands/profile/profile_test.go
+index 3d14d85..77557af 100644
+--- a/pkg/commands/profile/profile_test.go
++++ b/pkg/commands/profile/profile_test.go
+@@ -213,6 +213,49 @@ func TestProfileList(t *testing.T) {
+ 					},
+ 				},
+ 			},
++			WantOutputs: []string{
++				"Default profile highlighted in red.",
++				"foo\n\nDefault: true\nEmail: foo@example.com\nToken: ****",
++				"bar\n\nDefault: false\nEmail: bar@example.com\nToken: ****",
++			},
++			DontWantOutputs: []string{
++				"Token: 123",
++				"Token: 456",
++			},
++		},
++		{
++			Name: "validate --reveal prints the full token values",
++			Args: "--reveal",
++			Env: &testutil.EnvConfig{
++				Opts: &testutil.EnvOpts{
++					Copy: []testutil.FileIO{
++						{
++							Src: filepath.Join("testdata", "config.toml"),
++							Dst: "config.toml",
++						},
++					},
++				},
++				EditScenario: func(scenario *testutil.CLIScenario, rootdir string) {
++					scenario.ConfigPath = filepath.Join(rootdir, "config.toml")
++				},
++			},
++			ConfigFile: &config.File{
++				Auth: config.Auth{
++					Default: "foo",
++					Tokens: config.AuthTokens{
++						"foo": &config.AuthToken{
++							Type:  config.AuthTokenTypeStatic,
++							Token: "123",
++							Email: "foo@example.com",
++						},
++						"bar": &config.AuthToken{
++							Type:  config.AuthTokenTypeStatic,
++							Token: "456",
++							Email: "bar@example.com",
++						},
++					},
++				},
++			},
+ 			WantOutputs: []string{
+ 				"Default profile highlighted in red.",
+ 				"foo\n\nDefault: true\nEmail: foo@example.com\nToken: 123",
+@@ -298,6 +341,48 @@ func TestProfileList(t *testing.T) {
+ 					},
+ 				},
+ 			},
++			WantOutputs: []string{
++				`"bar"`,
++				`"token": "****"`,
++				`"foo"`,
++			},
++			DontWantOutputs: []string{
++				`"token": "456"`,
++				`"token": "123"`,
++			},
++		},
++		{
++			Name: "validate --json with --reveal still displays the full token values",
++			Args: "--json --reveal",
++			Env: &testutil.EnvConfig{
++				Opts: &testutil.EnvOpts{
++					Copy: []testutil.FileIO{
++						{
++							Src: filepath.Join("testdata", "config.toml"),
++							Dst: "config.toml",
++						},
++					},
++				},
++				EditScenario: func(scenario *testutil.CLIScenario, rootdir string) {
++					scenario.ConfigPath = filepath.Join(rootdir, "config.toml")
++				},
++			},
++			ConfigFile: &config.File{
++				Auth: config.Auth{
++					Tokens: config.AuthTokens{
++						"foo": &config.AuthToken{
++							Type:  config.AuthTokenTypeStatic,
++							Token: "123",
++							Email: "foo@example.com",
++						},
++						"bar": &config.AuthToken{
++							Type:  config.AuthTokenTypeStatic,
++							Token: "456",
++							Email: "bar@example.com",
++						},
++					},
++				},
++			},
+ 			WantOutputs: []string{
+ 				`"bar"`,
+ 				`"token": "456"`,

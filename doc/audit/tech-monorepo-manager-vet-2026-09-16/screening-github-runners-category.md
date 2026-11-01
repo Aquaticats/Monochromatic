@@ -8,33 +8,48 @@ Entries keep input order, which is the discovery pass star order.
 
 - `earthly/earthly`
   - URL: https://github.com/earthly/earthly
-  - verdict: monorepo manager (borderline: per-directory Earthfiles with cross-directory target references that Earthly builds first; no workspace discovery, affected selection, or run-in-all-projects command)
-  - decisive quote: "Earthly is great for both monorepos and polyrepos. You can split your build logic across multiple Earthfiles, placing some deeper inside the directory structure or even in other repositories. Referencing targets from other Earthfiles is easy regardless of where they are stored." (README.md); "references the `html` target of the directory `../html` ... Earthly executes its build for the `html` target" (examples/monorepo/README.md)
+  - verdict: monorepo manager (borderline: per-directory Earthfiles with cross-directory target references that Earthly
+  - builds first; no workspace discovery, affected selection, or run-in-all-projects command)
+  - decisive quote: "Earthly is great for both monorepos and polyrepos. You can split your build logic across multiple
+  - Earthfiles, placing some deeper inside the directory structure or even in other repositories. Referencing targets
+  - from other Earthfiles is easy regardless of where they are stored." (README.md); "references the `html` target of
+  - the directory `../html` ... Earthly executes its build for the `html` target" (examples/monorepo/README.md)
   - archived: false
 - `oxequa/realize`
   - URL: https://github.com/oxequa/realize
-  - verdict: component (borderline: Go-centric live-reload watcher; the HTTP interface is its web panel's websocket, which pushes project state as JSON and accepts settings JSON; no relationships between projects)
-  - decisive quote: "Manage multiple projects at the same time." and "--server -> Enable the web server" (README.md); `e.GET("/ws", s.projects)` sends `json.Marshal(s.Parent)` and writes received JSON through `s.Parent.Settings.Write` (realize/server.go)
+  - verdict: component (borderline: Go-centric live-reload watcher; the HTTP interface is its web panel's websocket,
+  - which pushes project state as JSON and accepts settings JSON; no relationships between projects)
+  - decisive quote: "Manage multiple projects at the same time." and "--server -> Enable the web server" (README.md);
+  - `e.GET("/ws", s.projects)` sends `json.Marshal(s.Parent)` and writes received JSON through
+  - `s.Parent.Settings.Write` (realize/server.go)
   - archived: false
 - `BobBuildTool/bob`
   - URL: https://github.com/BobBuildTool/bob
-  - verdict: monorepo manager (borderline: bitbake/portage-style package build orchestrator for embedded systems, where recipes define packages with dependencies; not a source-workspace task runner)
-  - decisive quote: "Bob closely tracks the input of all packages. This includes all checked out sources and the dependencies to other packages. If something is changed Bob can accurately determine which packages have to be rebuilt." (doc/tutorial/fingerprints.rst)
+  - verdict: monorepo manager (borderline: bitbake/portage-style package build orchestrator for embedded systems, where
+  - recipes define packages with dependencies; not a source-workspace task runner)
+  - decisive quote: "Bob closely tracks the input of all packages. This includes all checked out sources and the
+  - dependencies to other packages. If something is changed Bob can accurately determine which packages have to be
+  - rebuilt." (doc/tutorial/fingerprints.rst)
   - archived: false
 - `omio-labs/myke`
   - URL: https://github.com/omio-labs/myke
-  - verdict: monorepo manager (borderline: discovers projects and runs a task across all or tagged projects; no dependency ordering between projects)
-  - decisive quote: "`myke build` runs build in all projects" and "`myke <tag>/build` runs build in all projects tagged `<tag>`" (README.md)
+  - verdict: monorepo manager (borderline: discovers projects and runs a task across all or tagged projects; no
+  - dependency ordering between projects)
+  - decisive quote: "`myke build` runs build in all projects" and "`myke <tag>/build` runs build in all projects tagged
+  - `<tag>`" (README.md)
   - archived: false
 - `no0dles/hammerkit`
   - URL: https://github.com/no0dles/hammerkit
   - verdict: monorepo manager
-  - decisive quote: "In a monorepo every package needs the same `install`/`build` steps, and packages depend on each other in a specific order. Hammerkit handles both with includes (reuse a task definition in each package's directory) and references (wire up cross-package order)." (docs/guides/monorepo.md)
+  - decisive quote: "In a monorepo every package needs the same `install`/`build` steps, and packages depend on each
+  - other in a specific order. Hammerkit handles both with includes (reuse a task definition in each package's
+  - directory) and references (wire up cross-package order)." (docs/guides/monorepo.md)
   - archived: false
 - `tuist/once`
   - URL: https://github.com/tuist/once
   - verdict: monorepo manager
-  - decisive quote: "The Once graph describes the named parts of a workspace and what Once can do with them." and "Targets live in package-level `once.toml` files" (web/priv/docs/guide/graph/index.md)
+  - decisive quote: "The Once graph describes the named parts of a workspace and what Once can do with them." and
+  - "Targets live in package-level `once.toml` files" (web/priv/docs/guide/graph/index.md)
   - archived: false
 - `nadlejs/nadle`
   - URL: https://github.com/nadlejs/nadle
@@ -43,52 +58,73 @@ Entries keep input order, which is the discovery pass star order.
   - archived: false
 - `kraken-build/kraken`
   - URL: https://github.com/kraken-build/kraken
-  - verdict: monorepo manager (Gradle-style project and subproject tree with task addresses; its README says the OSS components are poorly documented)
-  - decisive quote: under the heading "Building subprojects": "The `kraken` CLI supports running in a sub project, but requires that you point it to the root of your project using the `-p,--project-dir` option." (docs/docs/krakenw.md); the repository's own `.kraken.py` calls `project.subproject("kraken-build")`
+  - verdict: monorepo manager (Gradle-style project and subproject tree with task addresses; its README says the OSS
+  - components are poorly documented)
+  - decisive quote: under the heading "Building subprojects": "The `kraken` CLI supports running in a sub project, but
+  - requires that you point it to the root of your project using the `-p,--project-dir` option."
+  - (docs/docs/krakenw.md); the repository's own `.kraken.py` calls `project.subproject("kraken-build")`
   - archived: false
 - `fbecart/zinoma`
   - URL: https://github.com/fbecart/zinoma
-  - verdict: monorepo manager (borderline: named projects imported explicitly, with target dependencies across projects; no workspace discovery; watch mode has no RPC interface)
-  - decisive quote: "Imported projects need to have a name defined. This name becomes a key to the `imports` object. Imported targets should be referred to with their fully qualified name: `project_name::target_name`." (CHANGELOG.md)
+  - verdict: monorepo manager (borderline: named projects imported explicitly, with target dependencies across
+  - projects; no workspace discovery; watch mode has no RPC interface)
+  - decisive quote: "Imported projects need to have a name defined. This name becomes a key to the `imports` object.
+  - Imported targets should be referred to with their fully qualified name: `project_name::target_name`." (CHANGELOG.md)
   - archived: false
 - `metaist/ds`
   - URL: https://github.com/metaist/ds
-  - verdict: monorepo manager (borderline: reads npm, uv, rye, and Cargo workspace members and runs a task in each; no dependency ordering between members)
-  - decisive quote: "Workspaces are a way of managing multiple sub-projects from a top-level." (docs/workspaces.md); `ds --workspace '*' test   # special match that means "all workspaces"` (docs/workspaces.md)
+  - verdict: monorepo manager (borderline: reads npm, uv, rye, and Cargo workspace members and runs a task in each; no
+  - dependency ordering between members)
+  - decisive quote: "Workspaces are a way of managing multiple sub-projects from a top-level." (docs/workspaces.md);
+  - `ds --workspace '*' test   # special match that means "all workspaces"` (docs/workspaces.md)
   - archived: false
 - `GriffinCanCode/bldr`
   - URL: https://github.com/GriffinCanCode/bldr
   - verdict: monorepo manager
-  - decisive quote: "High-performance build system for polyglot monorepos." and "bldr query 'deps(//src:app)'" (README.md)
+  - decisive quote: "High-performance build system for polyglot monorepos." and "bldr query 'deps(//src:app)'"
+  - (README.md)
   - archived: false
 - `OctaHive/octa`
   - URL: https://github.com/OctaHive/octa
   - verdict: monorepo manager
-  - decisive quote: "A root Octafile can automatically discover Octafiles in monorepo projects" and "Wildcards work uniformly for both forms, such as `octa 'packages:*:build'`" (README.md)
+  - decisive quote: "A root Octafile can automatically discover Octafiles in monorepo projects" and "Wildcards work
+  - uniformly for both forms, such as `octa 'packages:*:build'`" (README.md)
   - archived: false
 - `Jomy10/beaver`
   - URL: https://github.com/Jomy10/beaver
-  - verdict: monorepo manager (borderline: C/C++-centric build system with named projects, including imported CMake, Cargo, SwiftPM, and Meson projects, and target dependencies across projects)
-  - decisive quote: "Dependencies from other projects are referred to using the project:target syntax" (examples/multi-project/beaver.rb); "Beaver also integrates with other build systems so you can have dependencies that use other build systems." (README.md)
+  - verdict: monorepo manager (borderline: C/C++-centric build system with named projects, including imported CMake,
+  - Cargo, SwiftPM, and Meson projects, and target dependencies across projects)
+  - decisive quote: "Dependencies from other projects are referred to using the project:target syntax"
+  - (examples/multi-project/beaver.rb); "Beaver also integrates with other build systems so you can have dependencies
+  - that use other build systems." (README.md)
   - archived: false
 - `meta-company/makex`
   - URL: https://github.com/meta-company/makex
-  - verdict: monorepo manager (borderline: a Bazel-like workspace root with `//path` task references across Makex files; no per-project units)
-  - decisive quote: "Workspaces define the roots or boundaries of projects or a repository. Workspaces use the special `//` prefix marker in paths to refer to Tasks consistently in a workspace" (documents/source/workspaces.md); README features list "Dependency Graphs" and "Workspaces"
+  - verdict: monorepo manager (borderline: a Bazel-like workspace root with `//path` task references across Makex
+  - files; no per-project units)
+  - decisive quote: "Workspaces define the roots or boundaries of projects or a repository. Workspaces use the special
+  - `//` prefix marker in paths to refer to Tasks consistently in a workspace" (documents/source/workspaces.md); README
+  - features list "Dependency Graphs" and "Workspaces"
   - archived: false
 - `gregnazario/must`
   - URL: https://github.com/gregnazario/must
   - verdict: monorepo manager
-  - decisive quote: "Demonstrates: Multi-package monorepo with cross-package dependencies, per-package workdir, and umbrella recipes." with layout `apps/api/Mustfile.toml`, `apps/web/Mustfile.toml`, `libs/core/Mustfile.toml` (examples/monorepo-workspace/Mustfile.toml)
+  - decisive quote: "Demonstrates: Multi-package monorepo with cross-package dependencies, per-package workdir, and
+  - umbrella recipes." with layout `apps/api/Mustfile.toml`, `apps/web/Mustfile.toml`, `libs/core/Mustfile.toml`
+  - (examples/monorepo-workspace/Mustfile.toml)
   - archived: false
 
 ## Category mismatch
 
-- `go-task/task`: Makefile-style task runner; includes only import Taskfiles, with no project graph (ambiguous): "If you want to share tasks between different projects (Taskfiles), you can use" includes (website/src/latest/docs/guide.md)
+- `go-task/task`: Makefile-style task runner; includes only import Taskfiles, with no project graph (ambiguous): "If
+- you want to share tasks between different projects (Taskfiles), you can use" includes
+- (website/src/latest/docs/guide.md)
 - `cake-build/cake`: C# build automation scripts without a workspace model
 - `SCons/scons`: file-level Make-style build tool
 - `pydoit/doit`: file-dependency task runner for one project
-- `nat-n/poethepoet`: Python project task runner; monorepo support is include files, with no project graph (ambiguous): "collect tasks from multiple projects into one ... organize your code in a monorepo" via include files (docs/guides/include_guide.rst)
+- `nat-n/poethepoet`: Python project task runner; monorepo support is include files, with no project graph (ambiguous):
+- "collect tasks from multiple projects into one ... organize your code in a monorepo" via include files
+- (docs/guides/include_guide.rst)
 - `apenwarr/redo`: Make-style file build tool
 - `stepchowfun/toast`: containerized task runner for one repository
 - `jacobdeichert/mask`: Markdown-defined command runner
@@ -109,7 +145,8 @@ Entries keep input order, which is the discovery pass star order.
 - `zaaack/foy`: Node task runner
 - `rliebz/tusk`: YAML task runner
 - `opsxcq/tasker`: Docker-based task runner
-- `dreadl0ck/zeus`: single-project Make alternative whose web interface is unfinished (ambiguous): "The Webinterface will allow to track the build status ... NOTE: This is still work in progress"
+- `dreadl0ck/zeus`: single-project Make alternative whose web interface is unfinished (ambiguous): "The Webinterface
+- will allow to track the build status ... NOTE: This is still work in progress"
 - `zyedidia/knit`: Make/mk-style build tool
 - `gulien/orbit`: command runner with file templating
 - `ali77gh/bake-rs`: script runner
@@ -134,7 +171,8 @@ Entries keep input order, which is the discovery pass star order.
 - `shannonmoeller/ygor`: Node task toolkit
 - `suzuki-shunsuke/cmdx`: task runner with prompts
 - `jez/bask`: Bash task runner
-- `sakerbuild/saker.build`: language-agnostic build system whose daemon serves only its own builds (ambiguous): "you can optionally use a build daemon for your builds ... they keep data in memory and watch the file system for changes"
+- `sakerbuild/saker.build`: language-agnostic build system whose daemon serves only its own builds (ambiguous): "you
+- can optionally use a build daemon for your builds ... they keep data in memory and watch the file system for changes"
 - `upcmd/up`: provisioning and workflow automation CLI
 - `cesar-douady/open-lmake`: Make-like build system
 - `jjzcru/elk`: YAML task runner
@@ -165,9 +203,11 @@ Entries keep input order, which is the discovery pass star order.
 - `Junker/faber`: Scheme task runner
 - `frissyn/pyke`: Make-like Python utility
 - `team23/b5`: agency-wide per-project task runner
-- `bab-sh/bab`: Taskfile-style runner with namespaced includes only (ambiguous): "Import tasks from other Babfiles (namespaced)"
+- `bab-sh/bab`: Taskfile-style runner with namespaced includes only (ambiguous): "Import tasks from other Babfiles
+- (namespaced)"
 - `s4m-mo/sandcastle`: YAML task runner
-- `state-alchemists/zrb`: automation framework whose server is a task web UI, not a watch process (ambiguous): "zrb server start ... to see your tasks in a clean, user-friendly interface"
+- `state-alchemists/zrb`: automation framework whose server is a task web UI, not a watch process (ambiguous): "zrb
+- server start ... to see your tasks in a clean, user-friendly interface"
 - `adamralph/simple-targets-csx` (archived): C# target runner
 - `alecthomas/bit`: build tool with target dependencies
 - `pyrustic/backstage`: scripting language and task automation
@@ -185,7 +225,9 @@ Entries keep input order, which is the discovery pass star order.
 - `mikosik/smooth-build`: functional build language
 - `wrapl/rabs`: imperative build system
 - `metaory/mxflow-cli`: task runner
-- `FabienArcellier/alfred-cli`: subprojects only namespace commands, with no cross-project runs or relationships (ambiguous): "At the root of the project, you will have access to all the commands of all the subprojects using the subproject name ``alfred project1 ci``" (docs/source/benefits.rst)
+- `FabienArcellier/alfred-cli`: subprojects only namespace commands, with no cross-project runs or relationships
+- (ambiguous): "At the root of the project, you will have access to all the commands of all the subprojects using the
+- subproject name ``alfred project1 ci``" (docs/source/benefits.rst)
 - `giann/fourmi` (archived): Lua task runner
 - `gobuffalo/grift`: Go task runner
 - `riotkit-org/riotkit-do` (archived): Makefile/Gradle-style task executor
@@ -193,7 +235,8 @@ Entries keep input order, which is the discovery pass star order.
 - `koddr/yatr`: per-project Makefile replacement
 - `egordm/nauman`: local job automation
 - `melbahja/ron`: Bash task runner
-- `quake-build/quake-old` (archived): Nushell meta-build system with no documented project model (ambiguous): "quake's documentation is currently undergoing a rewrite"
+- `quake-build/quake-old` (archived): Nushell meta-build system with no documented project model (ambiguous): "quake's
+- documentation is currently undergoing a rewrite"
 - `TheOnlyMrCat/runscript`: project build and run command manager
 - `Zemerik/Task-Runner`: CLI task runner
 - `areller/denogent`: TypeScript build pipeline
@@ -211,7 +254,8 @@ Entries keep input order, which is the discovery pass star order.
 - `fn-go/fn`: Fnfile function runner
 - `habilyildirim/Enmafile`: Make-like build system
 - `xpybuild/xpybuild`: Python build-file build system
-- `iPeluwa/rush`: single-file runner whose monorepo example hand-writes root tasks (ambiguous): "Monorepo Development" section defines tasks such as `cmd: npm run build --workspace=frontend`
+- `iPeluwa/rush`: single-file runner whose monorepo example hand-writes root tasks (ambiguous): "Monorepo Development"
+- section defines tasks such as `cmd: npm run build --workspace=frontend`
 - `frozzare/max`: YAML task runner
 - `gouline/molot`: execution orchestrator
 - `Fuzzlix/omm`: Lua make tool
@@ -222,7 +266,8 @@ Entries keep input order, which is the discovery pass star order.
 - `Serpent-Tools/serpentine`: workflow runner
 - `fasibio/gomake`: Make alternative
 - `runok-cli/runok`: npm scripts replacement
-- `palfrey/tuvix` (archived): archived experimental engine with no documented workspace model (ambiguous): "Experimental hermetic build engine with Starlark"
+- `palfrey/tuvix` (archived): archived experimental engine with no documented workspace model (ambiguous):
+- "Experimental hermetic build engine with Starlark"
 - `lesiw/ops`: SDLC framework in Go
 - `thomas3577/tano`: Deno task runner
 - `azutoolkit/topia`: task composer with watcher but no RPC, IPC, or HTTP interface
@@ -242,7 +287,9 @@ Entries keep input order, which is the discovery pass star order.
 - `upsight/ron`: Go build task CLI
 - `CorvidLabs/fledge`: per-project dev-loop CLI
 - `Joxit/runtasktic`: task sequencing with notifications
-- `jjangga0214/haetae`: incremental runner that selects affected files, not projects (ambiguous): "Running only affected test files ... with language-specific automatic dependency graph detection" (README of haetae-org/haetae, the move target)
+- `jjangga0214/haetae`: incremental runner that selects affected files, not projects (ambiguous): "Running only
+- affected test files ... with language-specific automatic dependency graph detection" (README of haetae-org/haetae,
+- the move target)
 - `SujalChoudhari/Forge`: Make and GitHub Actions hybrid
 - `getpipe-dev/pipe`: shell pipeline workflow
 - `mdops-org/mdops-cli`: README-driven tasks
@@ -250,7 +297,8 @@ Entries keep input order, which is the discovery pass star order.
 - `nullbadger/neomake`: Make alternative
 - `MaxChip101/Makeup`: build system
 - `AcrylicShrimp/piped`: pipeline orchestrator
-- `quake-build/quake`: Nushell meta-build system rewrite with no documented project model (ambiguous): "quake is a meta-build system powered by Nushell"
+- `quake-build/quake`: Nushell meta-build system rewrite with no documented project model (ambiguous): "quake is a
+- meta-build system powered by Nushell"
 - `ForNeVeR/Meganob`: F# task-dependency build system
 - `jakegut/yabs`: build system
 - `ChrisMcKenzie/achieve`: development task automation
@@ -268,14 +316,18 @@ Entries keep input order, which is the discovery pass star order.
 - `kevgo/atalanta`: per-directory stack task launcher
 - `jamielsharief/task-runner`: project task runner
 - `SierraSoftworks/Executor`: script task runner
-- `Jakkoble/HexaTask`: containerized job runner prototype; its gRPC links its own services and nothing watches files (ambiguous): "This project is explicitly designed as an architectural prototype"
+- `Jakkoble/HexaTask`: containerized job runner prototype; its gRPC links its own services and nothing watches files
+- (ambiguous): "This project is explicitly designed as an architectural prototype"
 - `Ayehavgunne/mog`: task runner
 - `jharrilim/runt`: polyglot task CLI generator
-- `neural-chilli/fkn`: single repo-local task file (ambiguous): "one file defines how the repo is built, checked, run, and exposed to agents"
+- `neural-chilli/fkn`: single repo-local task file (ambiguous): "one file defines how the repo is built, checked, run,
+- and exposed to agents"
 - `Unviray/pun`: Python task runner
-- `kanarus/cargo-metask`: runs tasks from one Cargo.toml metadata table, with no documented cross-member runs (ambiguous): "Cargo task runner for {package, workspace}.metadata.tasks"
+- `kanarus/cargo-metask`: runs tasks from one Cargo.toml metadata table, with no documented cross-member runs
+- (ambiguous): "Cargo task runner for {package, workspace}.metadata.tasks"
 - `fezcode/gobake`: Go Recipe.go build orchestrator
-- `nsrosenqvist/croft`: single-project dev-loop tool; its watch mode and TUI have no RPC interface (ambiguous): "Croft is a per-project dev-loop tool"
+- `nsrosenqvist/croft`: single-project dev-loop tool; its watch mode and TUI have no RPC interface (ambiguous): "Croft
+- is a per-project dev-loop tool"
 - `alloc/picorun`: parallel task runner
 - `trinhminhtriet/tash`: YAML local and remote task runner
 - `RealOrangeOne/pike`: task runner
@@ -285,7 +337,8 @@ Entries keep input order, which is the discovery pass star order.
 - `MrMaxie/bunbun`: Node task runner
 - `brad-jones/drun`: Dart task runner
 - `ricardobeat/taks`: JavaScript task runner
-- `NWelde/better-ci`: CI pipeline engine that selects jobs by path, with no project model (ambiguous): "Jobs declare which files they care about. `--git-diff` runs only the jobs whose source files actually changed"
+- `NWelde/better-ci`: CI pipeline engine that selects jobs by path, with no project model (ambiguous): "Jobs declare
+- which files they care about. `--git-diff` runs only the jobs whose source files actually changed"
 - `vincbro/godo`: Make-inspired build system
 - `0918nobita/lets` (archived): experimental meta-build system
 - `jeanlauliac/upd`: file update build tool
@@ -334,7 +387,8 @@ Entries keep input order, which is the discovery pass star order.
 - `ecma-make/ecmake`: JavaScript make
 - `jgrey4296/doot`: doit fork
 - `Hand-of-Doom/budgie`: task runner
-- `neural-chilli/qp`: task runner whose MCP server is dormant (ambiguous): "This package is intentionally disabled at the product level for now." (internal/mcp/README.md)
+- `neural-chilli/qp`: task runner whose MCP server is dormant (ambiguous): "This package is intentionally disabled at
+- the product level for now." (internal/mcp/README.md)
 - `hopenbuild/App-hopen`: build system and task runner
 - `nksaraf/elf`: YAML task runner
 - `matanlurey/chore.dart` (archived): task runner
@@ -346,7 +400,8 @@ Entries keep input order, which is the discovery pass star order.
 - `MRThugh/SAZA`: Python task-based build system
 - `Qix-/tag` (archived): task runner and build specification language
 - `tillahoffmann/cook-build-archive` (archived): task-centric build system
-- `antonsynd/chiri`: per-package build CLI wrapper (ambiguous): "I don't plan to expand its feature set to dependency modeling."
+- `antonsynd/chiri`: per-package build CLI wrapper (ambiguous): "I don't plan to expand its feature set to dependency
+- modeling."
 - `aszecsei/please`: task runner
 - `mattritterspach-personal/flowrunner`: DAG task runner
 - `trashify/ok-runner`: task runner
@@ -358,7 +413,8 @@ Entries keep input order, which is the discovery pass star order.
 - `troykinsella/friggen`: task runner
 - `fboender/sla`: simple automator
 - `freddiefujiwara/yoboo`: YAML task runner
-- `kinematic-ci/machinery`: task automation web platform, not a watch process (ambiguous): "A general purpose task automation platform"
+- `kinematic-ci/machinery`: task automation web platform, not a watch process (ambiguous): "A general purpose task
+- automation platform"
 - `CodeTease/p`: task runner
 - `cognis-digital/taskforge`: declarative task runner
 - `lepton9/ztask`: workflow task runner
@@ -405,7 +461,9 @@ Entries keep input order, which is the discovery pass star order.
 - READMEs:
   51 fetched with `gh api repos/<o>/<r>/readme`, all without errors.
   42 were read in full or through their relevant head.
-  9 long ones (`earthly/earthly`, `state-alchemists/zrb`, `iPeluwa/rush`, `OctaHive/octa`, `neural-chilli/fkn`, `NWelde/better-ci`, `gregnazario/must`, `mikeleppane/uvtx`, `dreadl0ck/zeus`) were searched for workspace, project, watch, daemon, server, RPC, and MCP terms, and the matching sections were read.
+  9 long ones (`earthly/earthly`, `state-alchemists/zrb`, `iPeluwa/rush`, `OctaHive/octa`, `neural-chilli/fkn`,
+  `NWelde/better-ci`, `gregnazario/must`, `mikeleppane/uvtx`, `dreadl0ck/zeus`) were searched for workspace, project,
+  watch, daemon, server, RPC, and MCP terms, and the matching sections were read.
 - Beyond READMEs:
   some READMEs did not settle the question, so the following repository files were read through `gh api`:
   `go-task/task` `website/src/latest/docs/guide.md` (search only),
@@ -422,15 +480,20 @@ Entries keep input order, which is the discovery pass star order.
 - Code search:
   20 `search/code` queries through `runners-g1/code-search.ts`, with a 7-second gap between queries.
   3 queries returned 0 even though the repository contains the term:
-  `gregnazario/must` for `monorepo` (the example `Mustfile.toml` says "monorepo") and for `workspace`, and `haetae-org/haetae` for `monorepo` (its docs index says "monorepo").
-  GitHub's code search index is therefore incomplete for some repositories, so a 0 result was never used as evidence of absence.
+  `gregnazario/must` for `monorepo` (the example `Mustfile.toml` says "monorepo") and for `workspace`, and
+  `haetae-org/haetae` for `monorepo` (its docs index says "monorepo").
+  GitHub's code search index is therefore incomplete for some repositories, so a 0 result was never used as evidence of
+  absence.
   Related files were read directly instead.
 - Borderline rule, applied the same way to every repository:
   - promote when the tool's own docs describe multiple projects, packages, or directory units as a supported layout,
-    and the tool can run work across those units (dependencies between units' tasks, running a task in every member, affected selection, or a graph);
-  - a generic include or import feature without that multi-project framing counts as a mismatch (`go-task/task`, `bab-sh/bab`);
+    and the tool can run work across those units (dependencies between units' tasks, running a task in every member,
+    affected selection, or a graph);
+  - a generic include or import feature without that multi-project framing counts as a mismatch (`go-task/task`,
+  - `bab-sh/bab`);
   - `nat-n/poethepoet` is the closest mismatch and the call the rule separates least cleanly.
-    Its docs do mention monorepos, but the documented mechanism copies another file's task definitions into one project's task list,
+    Its docs do mention monorepos, but the documented mechanism copies another file's task definitions into one
+    project's task list,
     optionally with a separate `cwd`.
     It documents no project units, no fan-out across members, and no dependencies between projects.
     Revisit it if include-based composition should count;
@@ -439,8 +502,10 @@ Entries keep input order, which is the discovery pass star order.
     `metaist/ds` and `omio-labs/myke` run tasks across projects but have no dependency order between projects,
     and `earthly/earthly` and `meta-company/makex` link targets by path rather than modeling projects.
   - The component category was applied only to a persistent watch process that has an RPC, IPC, or HTTP interface.
-    Watch modes without such an interface (`fbecart/zinoma`, `go-godo/godo`, `taskctl/taskctl`, `mikeleppane/uvtx`, and others) did not qualify.
-    Servers that are not watch processes (`state-alchemists/zrb`, `kinematic-ci/machinery`, `Jakkoble/HexaTask`) did not qualify.
+    Watch modes without such an interface (`fbecart/zinoma`, `go-godo/godo`, `taskctl/taskctl`, `mikeleppane/uvtx`, and
+    others) did not qualify.
+    Servers that are not watch processes (`state-alchemists/zrb`, `kinematic-ci/machinery`, `Jakkoble/HexaTask`) did
+    not qualify.
     A dormant MCP server (`neural-chilli/qp`) did not qualify.
 - Nothing was installed or run.
   Nothing under the Monochromatic worktree was modified;

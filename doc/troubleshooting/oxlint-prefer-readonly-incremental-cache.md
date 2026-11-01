@@ -100,7 +100,7 @@ The cache-hit branch in `effect-demand-index.ts` therefore returns without repop
 A warm completeness assertion sees a caller edge with no callee summary and no omission identity,
 then throws `Owned effect edge lacks callee summary`.
 
-A one-worker cold-to-warm control over `package/module/translation-repair` measured:
+A one-worker cold-to-warm control over `package/translation-repair` measured:
 
 - cold:
   188 findings,
@@ -119,7 +119,8 @@ A one-worker cold-to-warm control over `package/module/translation-repair` measu
 The warm cache therefore changes semantic coverage,
 worker count changes the surviving diagnostic fingerprint,
 and default-worker warning volume remains unstable.
-The controlled matrix does not prove that a cache-write race or scheduling alone caused earlier non-isolated diagnostic-count variation.
+The controlled matrix does not prove that a cache-write race
+or scheduling alone caused earlier non-isolated diagnostic-count variation.
 This is not a performance-only regression.
 The plugin logger's warnings are outside Oxlint's diagnostic channel,
 so the damaged 166-finding run still prints `Found 0 warnings`.
@@ -234,7 +235,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--type-aware'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--type-aware'])
 """
 ```
 
@@ -374,7 +375,7 @@ const cached = packageIdentityByRoot.get(rootAndName.packageRoot,);
 The observed run wrote 21,616 `intrinsic-effect-query` records,
 including 11,878 failed reads of a `src/package.json` path.
 The file sink appends every record as JSONL at
-`package/module/logger/src/sink/file.ts:274-283`:
+`package/logger/core/src/sink/file.ts:274-283`:
 
 ```typescript
 async function write(record: object,): Promise<void> {
@@ -611,7 +612,7 @@ measured:
 Before schema 2,
 the same edit cost 13.7 seconds and preserved no entries.
 
-End-to-end `mise run //package/dev-script/file-enforcer:lint:oxlint` measured:
+End-to-end `mise run //package/file-enforcer/core:lint:oxlint` measured:
 
 - analyzer-digest rotation:
   24.5 seconds,

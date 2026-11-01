@@ -100,25 +100,43 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up node and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        install: false
-        cache: true
-
-    - name: Install Java
-      run: mise install java
+        install-dependencies: 'false'
+    - name: Install the JDK
+      # toolchain.lock.json (repository root) is the source of truth for every tool version
+      # (doc/decision/mpm-toolchain-adoption.md): `tools.java` pins temurin-21.0.12+8.0.LTS and records
+      # the vendor archives, which this step fetches and SHA-256 checks. The vendor archive replaces
+      # the setup-java action, which would need an allow-list entry.
+      shell: bash
+      run: |
+        set -euo pipefail
+        version=$(jq --raw-output '.tools.java.version' toolchain.lock.json)
+        case "$version" in
+          '' | null) echo '::error::No Java version in toolchain.lock.json.' >&2; exit 1 ;;
+        esac
+        case "${{ runner.os }}-${{ runner.arch }}" in
+          Linux-X64) platform=linux-x64 ;;
+          Linux-ARM64) platform=linux-arm64 ;;
+          *) echo "unsupported runner ${{ runner.os }}-${{ runner.arch }}" >&2; exit 1 ;;
+        esac
+        url=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].url' toolchain.lock.json)
+        sum=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].sha256' toolchain.lock.json)
+        install_dir="$RUNNER_TEMP/$version"
+        mkdir -p "$install_dir"
+        curl --fail --silent --show-error --location --output "$RUNNER_TEMP/jdk.tar.gz" "$url"
+        echo "$sum  $RUNNER_TEMP/jdk.tar.gz" | sha256sum --check
+        tar --extract --gzip --file "$RUNNER_TEMP/jdk.tar.gz" --directory "$install_dir" --strip-components=1
+        echo "JAVA_HOME=$install_dir" >> "$GITHUB_ENV"
+        echo "$install_dir/bin" >> "$GITHUB_PATH"
+        "$install_dir/bin/java" -version
 
     - name: Build and resolve signed Central bundle
       env:
         ORG_GRADLE_PROJECT_signingKey: ${{ secrets.MAVEN_SIGNING_KEY }}
         ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-      run: mise run //package/linter/kotlin:verify:publication
+      run: task-run //package/linter/kotlin:verify:publication
 
     - name: Validate Central bundle
       shell: node {0}

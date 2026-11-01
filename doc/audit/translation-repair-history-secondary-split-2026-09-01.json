@@ -1,0 +1,153 @@
+{
+  "format": "translation-repair-formatted-history-split-v1",
+  "sourceSegmentCount": 24,
+  "splitSourceCount": 16,
+  "finalSegmentCount": 41,
+  "records": [
+    {
+      "sourceName": "translation-repair-history-01-early-foundation-segment-01.md",
+      "sourceDigest": "38f1333a7a5549010932d84818e7e3d10d80f8eec23d4eca0b4e79aca14648a2",
+      "partNames": [
+        "translation-repair-history-01-early-foundation-segment-01-part-01.md",
+        "translation-repair-history-01-early-foundation-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-01-early-foundation-segment-03.md",
+      "sourceDigest": "51aaad4df3c5fbdaba1e96c250979513dec14563880eb464d111671eba9571bc",
+      "partNames": [
+        "translation-repair-history-01-early-foundation-segment-03-part-01.md",
+        "translation-repair-history-01-early-foundation-segment-03-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-02-2026-08-05-to-07-segment-01.md",
+      "sourceDigest": "fb232e1ba1d8666e4cb2ebf5c161a740c490750a0f64cfe9c7e265d9bb55cb78",
+      "partNames": [
+        "translation-repair-history-02-2026-08-05-to-07-segment-01-part-01.md",
+        "translation-repair-history-02-2026-08-05-to-07-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-02-2026-08-05-to-07-segment-02.md",
+      "sourceDigest": "118fa22641a7361a490cfb00e6a287d643ba453e5ecb350d7e74f86416ac3538",
+      "partNames": [
+        "translation-repair-history-02-2026-08-05-to-07-segment-02-part-01.md",
+        "translation-repair-history-02-2026-08-05-to-07-segment-02-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-03-2026-08-07-to-12-segment-01.md",
+      "sourceDigest": "2564d1ef986d5968f3ca1d9b548ec93ec26b73f56610a096370d23dacfb6f2f3",
+      "partNames": [
+        "translation-repair-history-03-2026-08-07-to-12-segment-01-part-01.md",
+        "translation-repair-history-03-2026-08-07-to-12-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-04-2026-08-12-to-15-segment-01.md",
+      "sourceDigest": "717eb736ec5db34ca3933b324b1d0b81d4a50642696c3f827b6ec344fe50e2d7",
+      "partNames": [
+        "translation-repair-history-04-2026-08-12-to-15-segment-01-part-01.md",
+        "translation-repair-history-04-2026-08-12-to-15-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-04-2026-08-12-to-15-segment-02.md",
+      "sourceDigest": "236223b1423216b83f5ea6ff185c17a4aaedc564ad0f6b2a976249502f2e2a7a",
+      "partNames": [
+        "translation-repair-history-04-2026-08-12-to-15-segment-02-part-01.md",
+        "translation-repair-history-04-2026-08-12-to-15-segment-02-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-05-2026-08-15-to-19-segment-01.md",
+      "sourceDigest": "1c13126ba239b296abe059331594c03d688fc3e6e9482ea117b95e59e8624c28",
+      "partNames": [
+        "translation-repair-history-05-2026-08-15-to-19-segment-01-part-01.md",
+        "translation-repair-history-05-2026-08-15-to-19-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-05-2026-08-15-to-19-segment-02.md",
+      "sourceDigest": "2e2cbadbd7723596d4df2ec787adb122910e879c8f1c737eb1955e9d77a68ef0",
+      "partNames": [
+        "translation-repair-history-05-2026-08-15-to-19-segment-02-part-01.md",
+        "translation-repair-history-05-2026-08-15-to-19-segment-02-part-02.md",
+        "translation-repair-history-05-2026-08-15-to-19-segment-02-part-03.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-06-2026-08-19-to-21-segment-01.md",
+      "sourceDigest": "a60fe0e8f653a1e4a171d209d5f1ad2245ea75774376c9963bf4cbc2325368eb",
+      "partNames": [
+        "translation-repair-history-06-2026-08-19-to-21-segment-01-part-01.md",
+        "translation-repair-history-06-2026-08-19-to-21-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-07-2026-08-21-to-23-segment-01.md",
+      "sourceDigest": "972620c2cb49937af91628d3da1479c0c1ee4fc94ff06bd31b87e2d8c1b79f8c",
+      "partNames": [
+        "translation-repair-history-07-2026-08-21-to-23-segment-01-part-01.md",
+        "translation-repair-history-07-2026-08-21-to-23-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-08-2026-08-23-decisions-segment-01.md",
+      "sourceDigest": "a38ab7336f65338cc115703ac638b5ca2791c2687a5697cd90f1183b18ffc0cf",
+      "partNames": [
+        "translation-repair-history-08-2026-08-23-decisions-segment-01-part-01.md",
+        "translation-repair-history-08-2026-08-23-decisions-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-08-2026-08-23-decisions-segment-02.md",
+      "sourceDigest": "357ca196b9fc4fccc3e8dd41ff4d14d3994fddb59e0b0b53fd3554fd8fb2e313",
+      "partNames": [
+        "translation-repair-history-08-2026-08-23-decisions-segment-02-part-01.md",
+        "translation-repair-history-08-2026-08-23-decisions-segment-02-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-09-2026-08-23-to-24-segment-01.md",
+      "sourceDigest": "9ed5c5cc9ed8703ee4c5613116c87e6a36e6c0b30353a264e4ccefb3f11be749",
+      "partNames": [
+        "translation-repair-history-09-2026-08-23-to-24-segment-01-part-01.md",
+        "translation-repair-history-09-2026-08-23-to-24-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-10-2026-08-25-calibration-segment-01.md",
+      "sourceDigest": "56f7baa1f28d41fd4186cab3a4c47301f203896ae3d97cd8267e36dc877039a0",
+      "partNames": [
+        "translation-repair-history-10-2026-08-25-calibration-segment-01-part-01.md",
+        "translation-repair-history-10-2026-08-25-calibration-segment-01-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    },
+    {
+      "sourceName": "translation-repair-history-10-2026-08-25-calibration-segment-02.md",
+      "sourceDigest": "4c4bc9f36fcff88ae92532b536bbd3def3c22e39a14503fa730a770491970701",
+      "partNames": [
+        "translation-repair-history-10-2026-08-25-calibration-segment-02-part-01.md",
+        "translation-repair-history-10-2026-08-25-calibration-segment-02-part-02.md"
+      ],
+      "sourceReassembledFromRawParts": true
+    }
+  ]
+}

@@ -4,8 +4,8 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { Node, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 /**
  Prefix the checker gives a well-known symbol member's escaped name.

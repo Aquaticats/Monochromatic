@@ -1,4 +1,5 @@
-# mise 2026.7.0: any invocation fails with "no data key retrieved from metadata" inside containers that carry an age-encrypted env file but no age identity
+# mise 2026.7.0: any invocation fails with "no data key retrieved from metadata"
+inside containers that carry an age-encrypted env file but no age identity
 
 ## Symptom
 
@@ -101,7 +102,7 @@ Failing harness (repo copy including `.env.local.json`,
  no age key):
 
 ```bash
-podman build --file package/cli/mutation-test/runtime/Containerfile \
+podman build --file package/mutation-test/cli/runtime/Containerfile \
   --tag localhost/mutation-test-runtime:probe /path/to/repo-with-env-local
 # fails at the RUN step that invokes mise, with the symptom above
 ```
@@ -109,8 +110,8 @@ podman build --file package/cli/mutation-test/runtime/Containerfile \
 Working harness (identical build with the secrets file excluded):
 
 ```bash
-podman build --file package/cli/mutation-test/runtime/Containerfile \
-  --ignorefile package/cli/mutation-test/runtime/containerignore \
+podman build --file package/mutation-test/cli/runtime/Containerfile \
+  --ignorefile package/mutation-test/cli/runtime/containerignore \
   --tag localhost/mutation-test-runtime:probe /path/to/repo
 # mise trust + mise install + pnpm install complete
 ```
@@ -134,10 +135,10 @@ invocations where the age identity is available.
   A different XDG config root can hide the host identity and produce the same decryption failure.
   Pass `env XDG_CONFIG_HOME=<fixture> ...` as the hosted child command instead,
   so mise keeps its normal identity location and only the app receives disposable configuration.
-  This was verified with `//package/cli/nested-wayland-session:run`.
+  This was verified with `//package/nested-wayland-session/cli:run`.
 - Exclude `.env.local.json` (and `mise.local.toml`) from the container
   build context:
-   `package/cli/mutation-test/runtime/containerignore`,
+   `package/mutation-test/cli/runtime/containerignore`,
   passed via `podman build --ignorefile` and hashed into the image tag.
   Verified by the working harness above and by the subsequent green
   mutation runs.

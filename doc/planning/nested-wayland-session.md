@@ -253,4 +253,8 @@ This document is the plain-language overview.
 The full technical decision,
  the on-hardware measurements,
  and the source reviews of every option we considered
-are recorded in doc/decision/nested-wayland-session.md and the vet-reports folder beside it.
+are recorded in doc/decision/nested-wayland-session.md and the `nested-wayland-session-vet-report/` folder beside it.
+
+The `nested-wayland-session-vet-reports/` folder name predates the 2026-07-15 singularization.
+The folder became `nested-wayland-session-vet-report/` on 2026-07-15 (`bd19d57e20`),
+so the `nested-wayland-session-vet-reports/` spelling no longer resolves.

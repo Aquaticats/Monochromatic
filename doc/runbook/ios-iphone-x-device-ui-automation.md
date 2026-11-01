@@ -5,7 +5,7 @@
 This runbook is the manual close-out for the one iOS vetting step that could not be automated over SSH:
 running black-box UI automation (XCUITest / WebDriverAgent) against the physical iPhone X (iOS 16.7.16).
  The
-simulator leg is already complete (`../decisions/ios-iphone-x-vet-reports/vet-ui-automation.md`,
+simulator leg is already complete (`../decision/ios-iphone-x-vet-report/vet-ui-automation.md`,
  section 3).
  The
 device leg is blocked by a host-toolchain gap,

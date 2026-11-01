@@ -1,0 +1,165 @@
+name: weekly-native
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  matrix:
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 120
+    env:
+      # The file-enforcer CLI README asks CI to set the server's idle time low, for a deterministic shutdown.
+      FILE_ENFORCER_IDLE_SECONDS: '2'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Admission
+        shell: bash
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+
+          const meters = ['buildMinutes', 'nativeMinutes', 'githubRunnerMinutes', 'passingTestResults', 'storageGb'];
+          const ledger = JSON.parse(readFileSync('doc/planning/depot-admission-ledger.json', 'utf8'));
+          const reservation = JSON.parse(readFileSync('doc/planning/depot-weekly-native-reservation.json', 'utf8'));
+          if (reservation.used === true) {
+            console.error('reservation is already used; dispatch a new single-use reservation');
+            process.exit(1);
+          }
+          const plan = ledger.plans[ledger.activePlan];
+          if (plan === undefined) {
+            console.error(`unknown active plan: ${ledger.activePlan}`);
+            process.exit(1);
+          }
+          const byAllocation = new Map();
+          for (const attempt of ledger.attempts) {
+            if (attempt.status === 'cancelled') continue;
+            const current = byAllocation.get(attempt.allocationId) ?? { meters: {}, usd: 0 };
+            for (const meter of meters) {
+              current.meters[meter] = Math.max(current.meters[meter] ?? 0, attempt.meters[meter] ?? 0);
+            }
+            current.usd = Math.max(current.usd, attempt.reservedUsd);
+            byAllocation.set(attempt.allocationId, current);
+          }
+          const used = Object.fromEntries(meters.map((meter) => [meter, 0]));
+          let usedUsd = 0;
+          for (const entry of byAllocation.values()) {
+            for (const meter of meters) used[meter] += entry.meters[meter] ?? 0;
+            usedUsd += entry.usd;
+          }
+          used.storageGb += ledger.storageAverageGb ?? 0;
+          const requested = reservation.meters ?? {};
+          const overMeter = meters.find((meter) => used[meter] + (requested[meter] ?? 0) > plan[meter]);
+          const overCeiling = usedUsd + (reservation.reservedUsd ?? 0) > ledger.ceilingUsd;
+          if (overMeter !== undefined || overCeiling) {
+            const reason = overMeter !== undefined
+              ? `${overMeter} would exceed the ${ledger.activePlan} allowance`
+              : `reservation would exceed the USD ${ledger.ceilingUsd} ceiling`;
+            console.error(`not admitted: ${reason}`);
+            process.exit(1);
+          }
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Admitted ${reservation.id} for ${reservation.meters.nativeMinutes} native minutes and USD ${reservation.reservedUsd}.\n`);
+          console.log(`admitted ${reservation.id}`);
+          NODE
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
+        with:
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
+      - name: Install the repository tools
+        uses: ./.github/actions/repo-tools-setup
+        with:
+          tools: file-enforcer mpm-shadow
+      - name: Prepare dependencies
+        run: task-run prepare:pnpm
+      - name: Static checks
+        id: static
+        continue-on-error: true
+        timeout-minutes: 15
+        run: task-run lint:monochromatic-lint
+      - name: Node and Rust fast subset build
+        id: fast_build
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          task-run //package/logger/core:build
+          task-run //package/upstream-fork/p-map:build
+          task-run //package/toml-edit/core:build
+          task-run //package/forbidden-strings/cli:build
+          task-run //package/linter/monochromatic-lint:build
+      - name: Node and Rust fast subset unit
+        id: fast_unit
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          task-run //package/logger/core:test:unit
+          task-run //package/upstream-fork/p-map:test:unit
+          task-run //package/toml-edit/core:test:unit
+          task-run //package/forbidden-strings/cli:test
+          task-run //package/linter/monochromatic-lint:test
+      - name: BuildKit and Bake container producer
+        id: buildkit
+        continue-on-error: true
+        timeout-minutes: 35
+        run: |
+          cd package/terminal/app
+          sudo podman build --memory=16g --tag localhost/monochromatic/terminal --file Containerfile .
+          cd ../ide
+          sudo podman build --memory=16g --tag localhost/monochromatic/ide --file Containerfile .
+      - name: Android consumer
+        id: android
+        continue-on-error: true
+        timeout-minutes: 35
+        run: |
+          task-run prepare:android
+          task-run //package/music-player/android-app:build
+      - name: Install VM prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-utils qemu-system-x86 libvirt-clients libvirt-daemon-system
+          sudo chmod 666 /dev/kvm || true
+          sudo -u "$USER" /usr/sbin/libvirtd --session --daemon || true
+      - name: VM and desktop consumer
+        id: vm
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          LIBVIRT_DEFAULT_URI: qemu:///session
+          VMSYNC_E2E_GUEST: linux
+        run: task-run //package/vmsync/cli:test:e2e
+      - name: Write evidence
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module - <<'NODE'
+          import { writeFileSync, appendFileSync } from 'node:fs';
+
+          const categories = [
+            { name: 'static checks', command: 'task-run lint:monochromatic-lint', outcome: '${{ steps.static.outcome }}' },
+            { name: 'Node and Rust test consumers', command: 'fast subset build and unit', outcome: '${{ steps.fast_build.outcome }} / ${{ steps.fast_unit.outcome }}' },
+            { name: 'browser and E2E consumers', command: 'none selected', outcome: 'incomplete' },
+            { name: 'packaged artifacts and host consumers', command: 'none selected', outcome: 'incomplete' },
+            { name: 'OS, architecture and application consumers', command: 'task-run //package/vmsync/cli:test:e2e', outcome: '${{ steps.vm.outcome }}' },
+            { name: 'VM, desktop and Android consumers', command: 'Android build and vmsync e2e', outcome: '${{ steps.android.outcome }} / ${{ steps.vm.outcome }}' },
+            { name: 'BuildKit and Bake container producers', command: 'task-run //package/ide/app:runtime', outcome: '${{ steps.buildkit.outcome }}' },
+            { name: 'Depot Tests', command: 'none selected', outcome: 'incomplete' },
+            { name: 'cache and Disk', command: 'none selected', outcome: 'incomplete' },
+            { name: 'SDK VM profiles', command: 'none selected', outcome: 'incomplete' },
+          ];
+          const evidence = {
+            schemaVersion: 1,
+            profile: 'weekly-native-matrix',
+            runId: '${{ github.run_id }}',
+            sha: '${{ github.sha }}',
+            reservation: 'weekly-native-2026-10-19',
+            categories,
+          };
+          writeFileSync('weekly-native-evidence.json', `${JSON.stringify(evidence, null, 2)}\n`);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```json\n' + `${JSON.stringify(evidence, null, 2)}\n` + '```\n');
+          NODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: weekly-native-evidence
+          path: weekly-native-evidence.json

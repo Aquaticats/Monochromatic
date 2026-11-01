@@ -43,7 +43,9 @@
 Current CLI tools in [`package.json` bin field](package.json:48):
 
 - [ ] **`checkBuild`**: [`mise.checkBuild.ts`](src/mise.checkBuild.ts:1): Enhance build validation
-- [ ] **`checkDependencies`**: [`mise.checkDependencies.ts`](src/mise.checkDependencies.ts:1): Enhance dependency validation
+- [ ] **`checkDependencies`**:
+      [`mise.checkDependencies.ts`](src/mise.checkDependencies.ts:1):
+      Enhance dependency validation
 - [ ] **`checkGitHooks`**: [`mise.checkGitHooks.ts`](src/mise.checkGitHooks.ts:1): Enhance git hook validation
 - [ ] **`checkTools`**: [`mise.checkTools.ts`](src/mise.checkTools.ts:1): Enhance tool validation
 - [ ] **`bunCompile`**: [`mise.bunCompile.ts`](src/mise.bunCompile.ts:1): Enhance compilation utilities

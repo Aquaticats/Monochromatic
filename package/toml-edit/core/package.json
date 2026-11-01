@@ -1,0 +1,47 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/toml-edit-core",
+  "description": "Comment-preserving TOML edit utility built on toml-eslint-parser. Free-function API over an immutable TomlEditState; splice and canonical fidelity modes.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "node": "./dist/final/node/index.mjs",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "toml-eslint-parser": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/test-fixture-toml-edit": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/toml-edit/core"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

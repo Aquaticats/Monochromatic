@@ -23,8 +23,8 @@
  */
 
 import { LibsqlDialect, } from '@libsql/kysely-libsql';
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 import {
   type Auth,
   betterAuth,

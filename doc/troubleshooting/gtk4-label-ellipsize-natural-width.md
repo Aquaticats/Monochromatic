@@ -11,7 +11,7 @@ consulted,
  and no
 reaction to `set_hexpand(false)`.
 
-Found while building `package/desktop-app/file-manager-gtk-sticky`:
+Found while building `package/file-manager/variant-gtk-sticky`:
  every pane header shows a
 long absolute path in an ellipsized label,
  and the strip's per-column 320px `GtkFixed` canvases
@@ -123,7 +123,7 @@ Environment:
  GTK 4.22.4 (`pkg-config --modversion gtk4`),
  gtk4-rs 0.11,
  Wayland,
-hosted in `package/cli/nested-wayland-session` at 800x600.
+hosted in `package/nested-wayland-session/cli` at 800x600.
 
 Harness 1,
  minimal probe (proves `set_hexpand(false)` itself works,

@@ -5,7 +5,7 @@
  * The client SPA reads the JSON island on boot and renders all
  * screens client-side so the build stays single-file.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Renders the single-file HTML document.

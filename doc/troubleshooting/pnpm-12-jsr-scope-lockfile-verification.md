@@ -96,7 +96,8 @@ The map comes from `config.resolved_registries()`
  (`pnpm/crates/package-manager/src/build_resolution_verifiers.rs:101`),
  which is `registries_by_scope` plus `default`
  (`pnpm/crates/config/src/lib.rs:2786`).
-`registries_by_scope` is documented as "populated from `.npmrc` `@scope:registry=...` and the scopes a `pnpm-workspace.yaml#registries` entry declares"
+`registries_by_scope` is documented as "populated from `.npmrc` `@scope:registry=...`
+and the scopes a `pnpm-workspace.yaml#registries` entry declares"
  (`pnpm/crates/config/src/lib.rs:1464`).
 The fetch went to the default registry,
  so at verification time the map had no `@jsr` key even though `pnpm config get` reported the route.

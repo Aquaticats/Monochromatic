@@ -42,11 +42,35 @@ fn starts_are_monotonic_and_bounded() {
     assert_eq!(*starts.last().unwrap(), last_start);
 }
 
-// A single window starts at the beginning; zero windows produce no starts.
+// A single window starts at the final legal start, so it covers the ending of a track that peaks near its end.
 #[test]
-fn degenerate_window_counts() {
-    assert_eq!(window_frame_starts(1000, 1, 100), vec![0]);
+fn a_single_window_starts_at_the_final_legal_start() {
+    assert_eq!(window_frame_starts(1000, 1, 100), vec![900]);
+    // One frame longer than the window: the only legal starts are 0 and 1, and the final one is 1.
+    assert_eq!(window_frame_starts(101, 1, 100), vec![1]);
+}
+
+// A single window on a track no longer than the window has only one legal start, frame 0.
+#[test]
+fn a_single_window_on_a_track_no_longer_than_the_window_starts_at_zero() {
+    assert_eq!(window_frame_starts(100, 1, 100), vec![0]);
+    assert_eq!(window_frame_starts(50, 1, 100), vec![0]);
+}
+
+// Zero windows produce no starts.
+#[test]
+fn zero_windows_produce_no_starts() {
     assert_eq!(window_frame_starts(1000, 0, 100), Vec::<u64>::new());
+}
+
+// The last window starts at the final legal start for every window count, so the ending is always covered.
+#[test]
+fn the_last_window_starts_at_the_final_legal_start_for_every_count() {
+    for count in 1..=9_usize {
+        let starts = window_frame_starts(1000, count, 100);
+        assert_eq!(starts.len(), count);
+        assert_eq!(*starts.last().unwrap(), 900, "count {count}: {starts:?}");
+    }
 }
 
 // A track shorter than one window still produces in-range starts (all at 0).

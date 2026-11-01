@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-18T08:18:59.265Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "producer": {
+    "run": "1jxc80q7q7",
+    "harness": "8256d8bb9dd20b8c9b373c2c08b0a73560d93564",
+    "artifactBoundary": "Exact matching debug and AndroidTest APK pair from the successful cloud producer; producer layout/signature/JVM evidence is separate"
+  },
+  "apks": [
+    {
+      "name": "debug.apk",
+      "bytes": 164612582,
+      "sha256": "96c1c48857fc6d6acf0f8bb488586cfefb39fd2950cb202685f15c7520c82eca"
+    },
+    {
+      "name": "androidTest.apk",
+      "bytes": 491989,
+      "sha256": "f1e75619b158d07ce3fdec9af1cd6fa084e4645acec2aff9af7f83865cd4aa49"
+    }
+  ],
+  "pairCertificateSha256": "7c8f12e78d80aec6227ee5b54cab2b0d144ce818e31e28f6e6b81825b5dc68eb",
+  "consumer": {
+    "location": "Owned local private emulator",
+    "emulatorVersion": "37.2.12.0",
+    "headful": true,
+    "gpu": "host",
+    "requestedGuestCores": 4,
+    "requestedGuestMemoryMiB": 4096,
+    "requestedUnitMemoryMaxBytes": 12884901888,
+    "device": {
+      "api": "37",
+      "abi": "x86_64",
+      "pageSizeBytes": 16384,
+      "fontScale": "1.0"
+    },
+    "privateFactoryReset": true,
+    "privateSdCardDisabled": true,
+    "originalOwnedDeviceUsed": false,
+    "originalOwnedConfigUnchanged": true,
+    "firstLaunchPermissionDialogObserved": true,
+    "runtimePermissionsGrantedOnlyInPrivateCopy": true,
+    "matchingPairForegroundVerified": true
+  },
+  "inventedMedia": [
+    {
+      "name": "depot-trial.flac",
+      "bytes": 71147,
+      "sha256": "ba9b4c9709e97c7d96c82d816d20af3d8851edcfbffd1769bb6b7a2abb5dd269"
+    },
+    {
+      "name": "depot-trial.opus",
+      "bytes": 98890,
+      "sha256": "db5d33a5786b0bc477d3a6506b20c037282eb7d34c1f87ae87a8bf3e34aa30ea"
+    },
+    {
+      "name": "depot-trial.mp3",
+      "bytes": 40456,
+      "sha256": "54c3927ce4b70c7d1bf1779833e401ce9f453caba0c72873a157f590c3b0c3c4"
+    }
+  ],
+  "indexedMediaRows": "Row: 0 _id=36, duration=10000, is_music=1, _display_name=depot-trial.flac\nRow: 1 _id=37, duration=10000, is_music=1, _display_name=depot-trial.opus\nRow: 2 _id=38, duration=10057, is_music=1, _display_name=depot-trial.mp3\n",
+  "sourceInputs": [
+    {
+      "name": "NativeBridgeTest.kt",
+      "sha256": "047837df443c0bf889878539b512c3a24655cac249c3f076c4072ba0fef615f1"
+    },
+    {
+      "name": "PeakSweepWorkerTest.kt",
+      "sha256": "b879a7915627276d84de6eee3b9470682d92537686434703b20ad89c7711858a"
+    },
+    {
+      "name": "RustEngineTest.kt",
+      "sha256": "8d6f656a06aa72a5f31481353019efe692753b041f66de766406fb95fdd99a8a"
+    },
+    {
+      "name": "SessionStoreTest.kt",
+      "sha256": "24b4950034a13c141cace7d9be92c8a22b91943f1f5f268ca75903d3b98965f3"
+    }
+  ],
+  "sourceDerivedCatalog": [
+    "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintMatchesTheReferenceKnownAnswersOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+    "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+    "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+    "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys",
+    "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination"
+  ],
+  "results": {
+    "startedAt": "2026-10-18T08:18:53.121Z",
+    "finishedAt": "2026-10-18T08:18:59.265Z",
+    "command": {
+      "status": 0,
+      "signal": null
+    },
+    "catalogMatches": true,
+    "runnerCompleted": true,
+    "executed": 16,
+    "passed": 14,
+    "failed": 2,
+    "skipped": 0,
+    "allPassed": false,
+    "cases": [
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "1",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "truePeakServiceOpensAndResolvesOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "2",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "symphoniaRegistryInitializesOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "3",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "opusDecoderConstructsOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "4",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "decodeFromContentFd"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "5",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "6",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "nativePingCrossesJniBoundary"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "7",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "aaudioOutputLatencyOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "8",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "benchmarkNativeDecode"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintMatchesTheReferenceKnownAnswersOnDevice",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "9",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "fingerprintMatchesTheReferenceKnownAnswersOnDevice"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "current": "10",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "nativeTruePeakInterpolatesInterSamplePeaks"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "current": "11",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "measureAndCacheMeasuresThenCachesOneTrack"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "current": "12",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "workerSweepsBoundedShareAndSucceeds"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "current": "13",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "autoAdvancesOnceOnNaturalEnd"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+        "status": 0,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "current": "14",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stream": ".",
+          "test": "playsPausesSeeksThroughRustEngine"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination",
+        "status": -2,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "current": "15",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference",
+          "stream": "",
+          "test": "migratesEveryLegacyCombination"
+        }
+      },
+      {
+        "id": "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys",
+        "status": -2,
+        "fields": {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "current": "16",
+          "id": "AndroidJUnitRunner",
+          "numtests": "16",
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference",
+          "stream": "",
+          "test": "currentPlaybackModeWinsOverLegacyKeys"
+        }
+      }
+    ]
+  },
+  "cleanup": {
+    "commands": [
+      {
+        "id": "sync-first",
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "id": "sync-second",
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "id": "graceful-emu-kill",
+        "status": 0,
+        "stdout": "OK: killing emulator, bye bye\r\nOK\r\n",
+        "stderr": ""
+      }
+    ],
+    "complete": true,
+    "unitState": "inactive",
+    "adbServer": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "privateListeners": [],
+    "ownedConfigUnchanged": true
+  },
+  "rawInstrumentation": {
+    "encoding": "gzip+base64",
+    "bytes": 13755,
+    "sha256": "83d8054a1950a8a7dfce8d4c273aaccdf8a32a6f4f3be131ae357de60b3545a1",
+    "compressedBytes": 1094,
+    "compressedSha256": "2e155622b2e53e0c09aec0b58a45bf8bb4221d263c9059628b9ff1a85cb08e32",
+    "data": "H4sIAAAAAAAAA+2ZUXPaOBCAn8+/Qnlqmel5DpqkV2Z4oITM0CbAYGf62FHkja1ir3zSipT++hub9HJ3CTWEYCsdXjLECFn78bHSekfjIJxdXQ7HYT8cTcZfgrAfXgVdJlJuTC+ChZ8pVCLRKuMkhZ9ZI0We8iVof8xJLuCDllEMIRjyRusms1oDUq+9doSMen2MtJLRxyuUNLOIoNeORpsRGDK99unaMYY08KznbRdCd+18xQ17pC1Mgc8D0AspYJIDmj5GMzAqXYCZ4BkU19dM8mUwORt22XoKvwp0vwaKf9RLsdOAuj+FaJZZniiUfAaxNKSXI5QkeSq/O+phAwQrPNwdYc0SvnVNQpVbcwZCRaAHCg1pK8hN+xpAV2HfDuxq1u7YNe2iEtu5VtlAIQHSeeSUbA0Aq5Bta2I1K3bimmI3EmPQuZZII3MGBDqTKA1JMcn5Xxb6GA0SjjEEgEYW0TqZ9hrgWmHivsDWLOx6DA0Ji2UEU4nxQCtjwHxE+UFZjLheOqVkA+QqlHw6upqle+eadJzbSKqJpdzSBSdAsXQyDTYArsK5J5OrWbk/XVPuGlAkGdfzVSirE7RTsjWArEK2JzCrWbP3rmn2r2PKJSeRgAkTmMENaEABn1DdYh/NLWg3y90GeG5+7nsWoDUL2l5/v0YPfOHds9QREuhcpZzAlK8DnuVp+ZZxyswmQG50/tud5G5Klk/EbwHyz0rPQW8G072OyiNhVDRVMuDG6rLw4yKBy9W/RXrA8oKZIISai/k+PX4p9CtUfiaWDZjsXIPltlx8GYcpq0GIgoSXbAMrBEC018T6UiBWCLkzxd1UnFlDQ4wlbrg5NdFh2SaCilTKLal+tOAoil+6gAmOOVnN0yHu9Qn5C8BcVY8/mVy9gjrXiyniMFNuDZgAYG7CRCsbJ/dxueSde42ZHfHtJl8AxkiFASm9IcAm+jTbxVB12JSxLk72wwXo5QXEXCwHKruWRQ2gcJ+uug6bi3nvK19wP+UY+2ObplMli/pn+E1AXtDpsj4RZDkxUkziQs2BLaQmy1OWASUqYq/4alm+WLUZ/XKzj6b6R6Fv2P9HlA3Jb+THQA8Gv75fUEBaYvyGSaTWK6aQcYY2TZm6/gqC2D+f8X7jxDb/Jvxcw415/Z9Lc+oevztubTtTqnj0YKL2+9NtJyrk8H/u6esH4+fUfXvc8ip/TEOtlWYSWcUNtltuq+sd1PlV1dk5b/6+vizZT+J0rjl7t7JpypfXXMwvVQSfJZrJAvSK5SdY7rWadJ3hYfNxKYNspOujieSks80etNl9DlvRQaT95NRHNqbZMLi6CO9d9UKZQZed+J1TL0xAA7st/nTYDZdp8Wi167Vbz3yYOgjsjMBPPEt1WvvJbQcznDFjx9R23h9dXM2GwdHRkVe8YZi22GXt0zeMnf9ILazjPUyCd6mr7f0N17pBQ7s1AAA="
+  },
+  "limitations": [
+    "Frozen e02 cohort only; newer main instrumentation classes are excluded.",
+    "Source-derived catalog matched executed identities; the two failed assertions keep aggregate acceptance red.",
+    "A local x86_64 sixteen-KB consumer does not qualify Arm64 execution or every Android device.",
+    "No Android emulator ran headless or inside a cloud/container worker.",
+    "Raw device logcat and private host paths are retained privately, not embedded here."
+  ]
+}

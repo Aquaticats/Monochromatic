@@ -1,5 +1,5 @@
 /**
- Node programs the container suite installs as Git hooks and editors.
+ Node programs the container suite registers as config hooks and installs as editors.
 
  Hooks and editors are Node programs rather than shell scripts (AGENTS.md SCR).
  Every hook appends one JSON line per run to `hooks.jsonl`,
@@ -164,50 +164,47 @@ export async function installPrograms(toolsDir: string,): Promise<Readonly<{
 }
 
 /**
- Installs hookdir hooks that delegate to the shared program.
+ Config section name of the hook registered for an event.
 
- @param hooksDir - hook directory Git reads
+ @param event - hook event
 
- @param hookProgram - shared program path
-
- @param events - events to install
+ @returns friendly name shared by `hook.<name>.command`,
+ `hook.<name>.event`,
+ and `hook.<name>.enabled`
 
  @example
  ```ts
- await installHookdirHooks({ hooksDir: '/work/s1/repo/.git/hooks', hookProgram, events: ['pre-commit'] });
+ configHookName('pre-commit');
  ```
  */
-export async function installHookdirHooks({
-  hooksDir,
-  hookProgram,
-  events,
-}: Readonly<{
-  hooksDir: string;
-  hookProgram: string;
-  events: readonly HookEvent[];
-}>,): Promise<void> {
-  await mkdir(
-    hooksDir,
-    { recursive: true, },
-  );
-  await Promise.all(events.map(async function installHook(event,) {
-    /**
-     Hook path Git executes for the event.
-     */
-    const hookPath = join(
-      hooksDir,
-      event,
-    );
-    await writeFile(
-      hookPath,
-      `#!/usr/bin/env node\nprocess.argv.splice(2, 0, ${JSON.stringify(event,)});\nrequire(${JSON.stringify(hookProgram,)});\n`,
-      { mode: EXECUTABLE_MODE, },
-    );
-    await chmod(
-      hookPath,
-      EXECUTABLE_MODE,
-    );
-  },),);
+export function configHookName(event: HookEvent,): string {
+  return `e2e-${event}`;
+}
+
+/**
+ Git `-c` arguments that switch the suite's config hooks off for one real-Git run,
+ so fixture setup commits do not run workload hooks.
+ `core.hooksPath=/dev/null` does not do this:
+ it only silences traditional hooks,
+ which the wrapper does not support
+ (`doc/troubleshooting/git-hook-disable-switches.md`).
+
+ @param events - events whose hooks are switched off
+
+ @returns `-c` argument pairs to put before the Git subcommand
+
+ @example
+ ```ts
+ hookDisableArguments(['pre-commit']);
+ ```
+ */
+export function hookDisableArguments(events: readonly HookEvent[],): readonly string[] {
+  return events.flatMap(function disable(event,) {
+    return [
+      '-c',
+      `hook.${configHookName(event,)}.enabled=false`,
+    ];
+  },);
 }
 
 /**
@@ -236,7 +233,7 @@ export function configHookArguments({
     /**
      Config section name for this hook.
      */
-    const name = `e2e-${event}`;
+    const name = configHookName(event,);
     return [
       [
         'config',

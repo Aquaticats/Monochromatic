@@ -8,8 +8,8 @@ import {
   type Checker,
   type Project,
   SymbolFlags,
-} from 'typescript/unstable/sync';
-import type { Node, } from 'typescript/unstable/ast';
+} from 'typescript/sync';
+import type { Node, } from 'typescript/ast';
 import {
   isArrayLiteralExpression,
   isAssertionExpression,
@@ -25,7 +25,7 @@ import {
   isSpreadAssignment,
   isSpreadElement,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import { packagedCallableOrigins, } from './effect-packaged-callable-origins.ts';
 import { expressionElementOrigins, } from './effect-element-origin.ts';
@@ -178,51 +178,51 @@ export function parameterIndexes({
     if (isObjectLiteralExpression(current,)) {
       current.properties
         .forEach(function collectProperty(property,): void {
-        if (isPropertyAssignment(property,)) {
+          if (isPropertyAssignment(property,)) {
           /**
            Authored property name used to select callee-mutated target.
            */
-          const propertyName = property.name
-            .getText();
+            const propertyName = property.name
+              .getText();
           /* A property holding a callable does have a readable value, and reading it
            * still finds nothing: what reaches a parameter is the body the callee runs. */
-          if (isFunctionLikeDeclaration(property.initializer,)) {
-            collectPackagedCallable(property.initializer,);
+            if (isFunctionLikeDeclaration(property.initializer,)) {
+              collectPackagedCallable(property.initializer,);
+              return;
+            }
+            collect(property.initializer,);
             return;
           }
-          collect(property.initializer,);
-          return;
-        }
-        if (isShorthandPropertyAssignment(property,)) {
+          if (isShorthandPropertyAssignment(property,)) {
           /**
            Value symbol hidden behind object shorthand property symbol.
            */
-          const valueSymbol = checker.getShorthandAssignmentValueSymbol(property,);
-          if (valueSymbol !== undefined) {
+            const valueSymbol = checker.getShorthandAssignmentValueSymbol(property,);
+            if (valueSymbol !== undefined) {
             /**
              Caller parameter origins represented by shorthand value.
              */
-            const shorthandOrigins = bindingOriginBySymbolId.get(valueSymbol.id,)
-              ?? NO_SLOT_ORIGIN;
-            if (expressionCanCarryMutableState({
-              checker,
-              node: property.name,
-            },))
-              shorthandOrigins.forEach(function collectShorthand(origin,): void {
-                origins.add(origin,);
-              },);
+              const shorthandOrigins = bindingOriginBySymbolId.get(valueSymbol.id,)
+                ?? NO_SLOT_ORIGIN;
+              if (expressionCanCarryMutableState({
+                checker,
+                node: property.name,
+              },))
+                shorthandOrigins.forEach(function collectShorthand(origin,): void {
+                  origins.add(origin,);
+                },);
+            }
+            return;
           }
-          return;
-        }
-        if (isSpreadAssignment(property,)) {
-          collect(property.expression,);
-          return;
-        }
+          if (isSpreadAssignment(property,)) {
+            collect(property.expression,);
+            return;
+          }
         /* Whatever is left has no property value this walk can read. An accessor
          * computes one by running its body when the callee reads the property; a method
          * is a body the callee calls. Both reach a parameter only through that body, so
          * both are scanned for named bindings. */
-        collectPackagedCallable(property,);
+          collectPackagedCallable(property,);
         },);
       return;
     }
@@ -268,27 +268,27 @@ export function parameterIndexes({
     if (isArrayLiteralExpression(current,)) {
       current.elements
         .forEach(function collectElement(element,): void {
-        if (!isSpreadElement(element,)) {
-          if (isFunctionLikeDeclaration(element,)) {
-            collectPackagedCallable(element,);
+          if (!isSpreadElement(element,)) {
+            if (isFunctionLikeDeclaration(element,)) {
+              collectPackagedCallable(element,);
+              return;
+            }
+            collect(element,);
             return;
           }
-          collect(element,);
-          return;
-        }
         /**
          Spread source type used to prove newly allocated arrays retain no
          caller-reachable object when every copied element is primitive.
          */
-        const spreadType = checker.getTypeAtLocation(element.expression,);
-        if ((spreadType !== undefined)
-          && receiverElementsArePrimitive({
-            checker,
-            type: spreadType,
-          },))
-          return;
-        collect(element.expression,);
-      },);
+          const spreadType = checker.getTypeAtLocation(element.expression,);
+          if ((spreadType !== undefined)
+            && receiverElementsArePrimitive({
+              checker,
+              type: spreadType,
+            },))
+            return;
+          collect(element.expression,);
+        },);
     }
   }
   collect(node,);
@@ -366,7 +366,7 @@ export function callableDeclaration({
      */
     const handle = declarationSymbol?.valueDeclaration
       ?? declarationSymbol?.declarations
-      .at(0,);
+        .at(0,);
     /**
      Resolved declaration in current project.
      */
@@ -397,7 +397,7 @@ export function callableDeclaration({
     || isWorkspaceSourceFileName(sourceFile.fileName,)
     || ((analysisRoot !== undefined)
       && sourceFile.fileName
-      .startsWith(analysisRoot,)))
+        .startsWith(analysisRoot,)))
     return declaration;
   return OWNED_CALLABLE_UNAVAILABLE;
 }
@@ -440,7 +440,7 @@ export function addOpaqueEffect({
   provenanceFacts.add(provenance,);
   summary.opaqueProvenanceBySlot
     .set(
-      affectedSlot,
-      provenanceFacts,
+    affectedSlot,
+    provenanceFacts,
     );
 }

@@ -1,0 +1,22 @@
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.release]
+description = "Bump a crate's version and its exact pins, check, dry-run publish and commit: `-- --crate-name <name> --crate-dir <dir> --scope <scope> [options] <from> <to> <note>` (see README.md)"
+run = "node bin/release.ts"
+
+[tasks."release:wait"]
+description = "Wait for the publish workflow run of a commit, then verify crates.io and the GitHub release: `-- --crate-name <name> [options] <sha> <version>` (see README.md)"
+run = "node bin/wait-publish.ts"

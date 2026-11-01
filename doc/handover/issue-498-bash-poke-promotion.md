@@ -1,5 +1,11 @@
 # Issue #498 bash-poke promotion handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
 ## Authority and state
 
 The user asked to resolve Aquaticat/Monochromatic#498 and invoked the grilling skill.

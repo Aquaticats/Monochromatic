@@ -49,7 +49,9 @@ and `git.CMD`,
 while retaining existing self-shim byte inspection for every candidate.
 
 Non-Windows platforms continue probing only `git`.
-The resolver accepts injected platform and PATHEXT values so Linux unit tests can reproduce Windows naming without pretending to execute a Windows binary.
+The resolver accepts injected platform and PATHEXT values
+so Linux unit tests can reproduce Windows naming
+without pretending to execute a Windows binary.
 
 ## Verification
 
@@ -60,7 +62,8 @@ and proves the resolver selects the executable path.
 The package resolver unit test,
 type check,
 and zero-warning Oxlint pass locally.
-Final cross-platform hosted workflow run `29171565815` passed this user boundary with Git installed on an actual Windows runner.
+Final cross-platform hosted workflow run `29171565815`
+passed this user boundary with Git installed on an actual Windows runner.
 
 ## Rejected hypotheses
 

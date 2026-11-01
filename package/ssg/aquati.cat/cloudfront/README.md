@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`aws.aquati.cat` must reach the primary origin as `aquati.cat`
+`amazon.aquati.cat` must reach the primary origin as `aquati.cat`
 for both HTTP Host and TLS SNI.
 The existing cache and origin-request policies forward the viewer hostname.
 The live Free flat-rate plan rejects the otherwise-equivalent custom cache policy that removes `host`.
@@ -44,7 +44,9 @@ Source SHA-256:
 Function:
 `AquatiCat-OriginHost`.
 ARN:
-`arn:aws:cloudfront::016042452668:function/AquatiCat-OriginHost`.
+`arn:aws:cloudfront::<account-id>:function/AquatiCat-OriginHost`.
+Redacted on 2026-10-09 because this repository is public.
+Recover `<account-id>` with `aws sts get-caller-identity --query Account`.
 Runtime:
 `cloudfront-js-2.0`.
 Event:
@@ -72,10 +74,15 @@ No function-source change was required.
 The Test API does not verify origin overrides.
 Actual requests through a disposable distribution with the original policies demonstrated
 HTTP 502 without the function and matching origin content with it.
-The same published bytes were then deployed to `EYK5GXXEGWEYZ` at `aws.aquati.cat`.
+The same published bytes were then deployed to `<distribution-id>` at `aws.aquati.cat`.
+That hostname moved to `amazon.aquati.cat` on 2026-10-09;
+ this sentence keeps the name
+the deployment actually used.
+Redacted on 2026-10-09;
+ recover it with `aws cloudfront list-distributions`.
 Live verification passed at `2026-09-07T21:42:12Z`;
 deployed distribution ETag:
-`E1VC38T7YXB528`.
+`<etag>`.
 The full config comparison showed only the viewer-request function association changed.
 Both policies and the active Free subscription remain unchanged.
 The disposable distribution and unused custom cache policy are deleted.

@@ -4,7 +4,7 @@
  Renders a `<time>` element with a human-readable date string
  and machine-readable `datetime` attribute.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  Renders a date as a `<time>` element with locale-formatted text.

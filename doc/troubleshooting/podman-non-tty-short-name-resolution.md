@@ -458,16 +458,25 @@ security rationale,
 A version-only comment that the same policy remains in 5.8.4 would amount to a non-additive “still happens” report,
 so no upstream comment or new issue should be filed.
 
-[pull-command]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/cmd/podman/images/pull.go#L220-L228
-[abi-pull]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/pkg/domain/infra/abi/images.go#L307-L314
-[libimage-resolve]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/common/libimage/pull.go#L558-L565
-[resolver-entry]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L243-L264
-[resolver-alias]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L279-L307
-[alias-value]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/sysregistriesv2/shortnames.go#L213-L230
-[resolver-candidates]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L312-L332
-[resolver-tty]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L340-L353
+[pull-command]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/cmd/podman/images/pull.go#L220-L228
+[abi-pull]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/pkg/domain/infra/abi/images.go#L307-L314
+[libimage-resolve]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/common/libimage/pull.go#L558-L565
+[resolver-entry]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L243-L264
+[resolver-alias]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L279-L307
+[alias-value]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/sysregistriesv2/shortnames.go#L213-L230
+[resolver-candidates]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L312-L332
+[resolver-tty]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go#L340-L353
 [issue-11530]: https://github.com/podman-container-tools/podman/issues/11530
 [issue-11530-closing]: https://github.com/podman-container-tools/podman/issues/11530#issuecomment-917564959
 [issue-11530-qualified]: https://github.com/podman-container-tools/podman/issues/11530#issuecomment-917369275
 [pr-29682]: https://github.com/podman-container-tools/podman/pull/29682
-[contributing]: https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/CONTRIBUTING.md#reporting-issues
+[contributing]:
+https://github.com/podman-container-tools/podman/blob/5431df23c742e5edea35bef34eed696f4db0106b/CONTRIBUTING.md#reporting-issues

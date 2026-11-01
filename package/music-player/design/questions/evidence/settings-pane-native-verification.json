@@ -1,0 +1,699 @@
+{
+  "schema": 1,
+  "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+  "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+  "scope": "Authored switch states with touches on the actual rows and Back target, the system Back key and one authored reopen event, in an isolated debug host; no preference is stored and no setting takes effect.",
+  "isolation": {
+    "productionActivityDisabled": true,
+    "productionServicesDisabled": true,
+    "workInitializerRemoved": true,
+    "explicitDebugHost": "SettingsPaneActivity"
+  },
+  "runtime": {
+    "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+    "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+    "startupOutputSha256": "4cbca410869c1b650b4faddc46359978ebc382250483585347bdfb68bc0d9c5a",
+    "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94"
+  },
+  "runtimeOwnerEvidence": {
+    "startupOutputSha256Verified": true,
+    "softwareRenderingDiagnostic": "ERROR        | Your GPU cannot be used for hardware rendering. Consider using software rendering.",
+    "ownerExitStatus": 0,
+    "ownerExitSource": "Recorded by the parent process that owned the bounded emulator container.",
+    "ownerStarted": "2026-10-05T18:09:35.240Z",
+    "ownerEnded": "2026-10-05T18:34:04.115Z"
+  },
+  "rendererLimit": "LLVM llvmpipe software rendering despite the requested host GPU path. Successful capture and exit are not diagnostic-free or general stability claims.",
+  "supersededBuilds": [
+    {
+      "prototypeCommit": "6bc622ff7bc138d5f949c88cca92d24a16270570",
+      "apkSha256": "40d0b0e4ab592e920372be8d4771fb9381e4e885501b54f575ac3db567a11f0d",
+      "outcome": "Three rows and a closing sentence. Every measured rule and input check passed, then fresh inspection rejected it: in dark, the header Back glyph and title and the retained deck title and transport buttons drew black, and separators differed by a pixel across the fold connector. Its captures stay private."
+    },
+    {
+      "prototypeCommit": "483f16cdd4c0bda6269ae2e4666732db6407ce75",
+      "apkSha256": "85e4a2080d1d737eb01a16bdcc5172bcc7103fe014770891d68d3cdf1854ca50",
+      "outcome": "Three rows and a closing sentence. Inspected and published, then withdrawn when the human removed the true-peak analysis switch (D84) and the closing sentence (D85); its published files are replaced by this cohort and remain in git history."
+    }
+  ],
+  "interruptedVisits": [
+    "A second visit, on the withdrawn three-row build, failed before its first capture when a 15 s podman bound expired under host load.",
+    "A fourth visit, the first on this build, failed before its first capture: while it dismissed a startup Application Not Responding dialog, the guest killed the hierarchy dump with exit status 137.",
+    "A fifth visit captured the inner panel, then stopped on the cover when a late configuration change recreated the host after its launch; its own restoration then failed on a 15 s podman bound and was rerun by hand.",
+    "A sixth visit captured and was inspected on both panels, then its emulator crashed with a segmentation fault in the GL translator during the input stage, before restoration; a recovery boot restored its own recorded baseline once the crash's stale AVD locks were removed.",
+    "Each ended with every recorded field restored and no matching runtime remaining, and none supplies evidence."
+  ],
+  "visualInspection": {
+    "inspectedAfresh": true,
+    "inspectedOn": "2026-10-05",
+    "inspector": "The continuation session that built the two-row study; it also inspected the withdrawn three-row study, whose first build this same kind of inspection rejected. No prior inspection was transferred.",
+    "pairsInspected": 12,
+    "freshRetainedRgbAgainstRawCaptures": true,
+    "sha256": "a84fe1fc67b7dc292081c690e696e7f1261cd4a3245a518e8ed12f29c61f750e",
+    "findings": {
+      "privacy": "Only authored folder, artist and track labels, authored peak values, D11's copy and the anonymous gesture handle remain. No status strip, notification, account, path or device identifier is visible. In one image, the unfolded closed player in light at 100% text, the system's navigation strip shows no gesture handle; it was the first capture of the visit, the same state captured later in the input stage shows the handle, and the cause was not established. The strip is the system's, below the measured application root, and no rule or comparison reads it.",
+      "darkColours": "In dark the header Back arrow and title, and the retained deck title, subtitle and transport buttons, are drawn in the theme's light text colour on the dark surfaces, as on the accepted Search page. The page below the rows is true black.",
+      "separators": "The header rule and both row separators run continuously across the unfolded panel's right half and have the same colour inside the fold connector as beyond it, in both themes.",
+      "rows": "Two rows are drawn, with no analysis row and no closing sentence. Each switch sits at the trailing edge, aligned with the first line of its title, and shows its authored position in both themes. At 200% text on the unfolded panel both titles wrap to two lines, and Resume where I left off leaves the single word off on its second line. On the cover at 200% that title stays on one line.",
+      "scrolling": "No column scrolls on either panel at either text size, and both rows are wholly shown above the gesture handle. Nothing is drawn below the last separator, so most of the page is empty: the two rows take the top part of the page and the rest is plain page colour down to the gesture handle, most visibly on the cover at 100% text.",
+      "leftHalf": "With Settings open on the unfolded panel, the left half keeps the same folder browser and full deck as the accepted Search page, narrower than the closed player's browser, so fewer folder names fit per line. At 200% text its browser viewport ends partway through a line of names, as on the Search page.",
+      "cover": "On the cover the page is one full-width destination with the same header. The Back arrow keeps its 24dp glyph while the title grows at 200% text, so the arrow reads smaller beside the title; the 48dp target is unchanged."
+    }
+  },
+  "contexts": [
+    {
+      "key": "inner-light-s100",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 4023288,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 4023288,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": {
+        "region": [
+          0,
+          136,
+          1038,
+          2074
+        ],
+        "comparedPixels": 2011644,
+        "differingPixels": 79051
+      },
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "inner-dark-s100",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 4023288,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 4023288,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": {
+        "region": [
+          0,
+          136,
+          1038,
+          2074
+        ],
+        "comparedPixels": 2011644,
+        "differingPixels": 79036
+      },
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "inner-light-s200",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 4023288,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 4023288,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": {
+        "region": [
+          0,
+          136,
+          1038,
+          2074
+        ],
+        "comparedPixels": 2011644,
+        "differingPixels": 70479
+      },
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "inner-dark-s200",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 4023288,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 4023288,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": {
+        "region": [
+          0,
+          136,
+          1038,
+          2074
+        ],
+        "comparedPixels": 2011644,
+        "differingPixels": 70487
+      },
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "cover-light-s100",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 2390040,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 2390040,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover",
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "cover-dark-s100",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 2390040,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 2390040,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover",
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "cover-light-s200",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 2390040,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 2390040,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover",
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    },
+    {
+      "key": "cover-dark-s200",
+      "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+      "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+      "toggles": [
+        {
+          "id": "strip-common-prefixes",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        },
+        {
+          "id": "resume-where-left-off",
+          "scrolledToEndFirst": false,
+          "changedPixelsInsideRow": 8694,
+          "changedPixelsOutsideRow": 0,
+          "changedPixelsInsideSwitch": 8694
+        }
+      ],
+      "eachRowToggledOnceAndBackByTouch": true,
+      "toggleLeftOtherRowsAndGeometryUnchanged": true,
+      "toggleBackRestoredAppPixels": 2390040,
+      "backTargetClosedOnce": true,
+      "authoredReopenRestoredOpenedBaseline": true,
+      "systemBackClosedOnce": true,
+      "closedPlayerMatchesFreshBaselineBothTimes": 2390040,
+      "hostCreatedOnceAcrossInputs": true,
+      "eventCounts": {
+        "open": 1,
+        "back": 2,
+        "toggle:strip-common-prefixes": 2,
+        "toggle:resume-where-left-off": 2
+      },
+      "changedPixelGeometryAndCountControlsRejected": true,
+      "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover",
+      "scope": "Touches on the actual row and Back targets, the system Back key and one authored reopen event; no preference is stored and no production setting changes."
+    }
+  ],
+  "actionReplay": {
+    "scope": "Offline recomputation from retained native-action screenshots, records and logs; no device was started.",
+    "liveManifestSha256": "6f1defc678025216c97f3f69c9a9c49e8ff1fc4a45341bd7325f62dbed938120",
+    "everyLiveManifestFieldRecomputed": true,
+    "perStepEventLedgerChecked": true,
+    "capturesReplayed": 72,
+    "environments": [
+      {
+        "key": "inner-light-s100",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          1132,
+          166,
+          1249,
+          283
+        ],
+        "rowHeightsPixels": [
+          216,
+          216
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 4023288,
+        "openedLeftHalfAgainstClosedPlayer": {
+          "region": [
+            0,
+            136,
+            1038,
+            2074
+          ],
+          "comparedPixels": 2011644,
+          "differingPixels": 79051
+        }
+      },
+      {
+        "key": "inner-dark-s100",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          1132,
+          166,
+          1249,
+          283
+        ],
+        "rowHeightsPixels": [
+          216,
+          216
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 4023288,
+        "openedLeftHalfAgainstClosedPlayer": {
+          "region": [
+            0,
+            136,
+            1038,
+            2074
+          ],
+          "comparedPixels": 2011644,
+          "differingPixels": 79036
+        }
+      },
+      {
+        "key": "inner-light-s200",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          1132,
+          166,
+          1249,
+          283
+        ],
+        "rowHeightsPixels": [
+          629,
+          538
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 4023288,
+        "openedLeftHalfAgainstClosedPlayer": {
+          "region": [
+            0,
+            136,
+            1038,
+            2074
+          ],
+          "comparedPixels": 2011644,
+          "differingPixels": 70479
+        }
+      },
+      {
+        "key": "inner-dark-s200",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          1132,
+          166,
+          1249,
+          283
+        ],
+        "rowHeightsPixels": [
+          629,
+          538
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 4023288,
+        "openedLeftHalfAgainstClosedPlayer": {
+          "region": [
+            0,
+            136,
+            1038,
+            2074
+          ],
+          "comparedPixels": 2011644,
+          "differingPixels": 70487
+        }
+      },
+      {
+        "key": "cover-light-s100",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          39,
+          182,
+          156,
+          299
+        ],
+        "rowHeightsPixels": [
+          216,
+          216
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 2390040,
+        "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover"
+      },
+      {
+        "key": "cover-dark-s100",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          39,
+          182,
+          156,
+          299
+        ],
+        "rowHeightsPixels": [
+          216,
+          216
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 2390040,
+        "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover"
+      },
+      {
+        "key": "cover-light-s200",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          39,
+          182,
+          156,
+          299
+        ],
+        "rowHeightsPixels": [
+          629,
+          435
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 2390040,
+        "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover"
+      },
+      {
+        "key": "cover-dark-s200",
+        "capturesReplayed": 9,
+        "scrolledToReachARow": false,
+        "backTarget": [
+          39,
+          182,
+          156,
+          299
+        ],
+        "rowHeightsPixels": [
+          629,
+          435
+        ],
+        "scrollMaxPixels": 0,
+        "comparedAppPixels": 2390040,
+        "openedLeftHalfAgainstClosedPlayer": "not-applicable-on-cover"
+      }
+    ]
+  },
+  "staticCohort": {
+    "images": 24,
+    "panels": [
+      "inner",
+      "cover"
+    ],
+    "schemes": [
+      "light",
+      "dark"
+    ],
+    "fontScales": [
+      1,
+      2
+    ],
+    "views": [
+      "closed",
+      "accepted",
+      "inverse"
+    ],
+    "authoredStates": {
+      "closed": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "accepted": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "inverse": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      }
+    },
+    "endOfColumnViews": 0,
+    "noGlyphOrAccessibilityAcceptanceClaim": true
+  },
+  "tests": {
+    "fixtureCases": 12,
+    "positiveReportSha256": "720b0725dda03c57fcad7727ebf811b9b0b4e7d3a54ff8fb7b7cab742c0711a3",
+    "restoredReportSha256": "720b0725dda03c57fcad7727ebf811b9b0b4e7d3a54ff8fb7b7cab742c0711a3",
+    "restoredReportByteIdenticalToPositive": true,
+    "mutants": [
+      {
+        "scope": "unknown-scene",
+        "intendedFailingTest": "unknownSceneIsRejected",
+        "reportSha256": "700454b9057aa520116c73bfcf5f293d260014594a8c6ad29fa49079e8f4e1ae"
+      },
+      {
+        "scope": "copy-drift",
+        "intendedFailingTest": "rowsKeepAcceptedOrderAndCopy",
+        "reportSha256": "52e5bea435c55761c92b8c48e147987a32808a31a0334658f3e517c9844d9408"
+      },
+      {
+        "scope": "row-position-swap",
+        "intendedFailingTest": "rowPositionsFollowState",
+        "reportSha256": "5cdd68cfcddf69945dee62ab212b4932b258edd8caaa98e17540a2d24990df0e"
+      },
+      {
+        "scope": "unknown-event",
+        "intendedFailingTest": "unknownEventIsRejected",
+        "reportSha256": "91ec37e65d92377ab4121cc8f1d55b11fcfae85a381cee16dcc2c5895cab99d7"
+      },
+      {
+        "scope": "cross-row-toggle",
+        "intendedFailingTest": "resumeToggleChangesOnlyItsRow",
+        "reportSha256": "dba0d25a5574141133d3d196f8288db10cceec44f86105d5b19c9882ea7f9320"
+      },
+      {
+        "scope": "reinstated-analysis-toggle",
+        "intendedFailingTest": "removedAnalysisToggleIsRejected",
+        "reportSha256": "72807a2c71f7804a94b013317b0fe93aad4980bfc1870ba1ce7eaea4eebdc257"
+      }
+    ]
+  },
+  "lint": {
+    "fullPackagePassed": false,
+    "inheritedErrors": 5,
+    "warnings": 65,
+    "hints": 2,
+    "inheritedErrorKinds": {
+      "MissingSuperCall": 3,
+      "NewApi": 2
+    },
+    "settingsPaneFindings": 0,
+    "privateReportSha256": "9889e5495fed6df111999f6e0838d834e1d7715fa7b96e20032a6d4b03f0ce58"
+  },
+  "restoration": {
+    "exactRecordedFields": true,
+    "fieldNames": [
+      "fontScale",
+      "nightMode",
+      "deviceState",
+      "accessibilityEnabled",
+      "enabledAccessibilityServices",
+      "geometry",
+      "fingerprint"
+    ],
+    "readbackAttempts": 1,
+    "separateBaseAndOverrideEqualityClaimed": false,
+    "ownerExitStatus": 0,
+    "matchingRuntimeAbsentAtPublication": true
+  }
+}

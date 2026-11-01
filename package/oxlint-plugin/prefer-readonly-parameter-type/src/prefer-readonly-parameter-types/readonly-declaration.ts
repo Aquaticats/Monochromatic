@@ -4,7 +4,7 @@
  @module
  */
 
-import { ModifierFlags, } from 'typescript/unstable/sync';
+import { ModifierFlags, } from 'typescript/sync';
 
 /**
  Reads declaration modifier flags without assuming every node supports modifiers.

@@ -35,9 +35,13 @@ src/budget-model-version.ts:4: Extracted from budget-model.ts to stay within the
 src/ask-user.ts:4:            Extracted from evaluate.ts to stay within the line limit.
 ```text
 
-The configured limit is 300 lines per `package/config/oxlint/src/rule/style.ts:41`, with `skipBlankLines: true, skipComments: true`. None of the source files were near that limit before splitting. The original `judge.ts` was 170 code lines.
+The configured limit is 300 lines per `package/config/oxlint/src/rule/style.ts:41`,
+ with `skipBlankLines: true, skipComments: true`. None of the source files were near that limit before splitting.
+ The original `judge.ts` was 170 code lines.
 
-The splits often increase total line count (more imports, more re-exports, more module headers). They obscure cohesion: `parseVerdict` lives in `judge-stream.ts`, `BASH_DETAIL_LEN` lives in `system-prompt.ts`, `ask-user.ts` was extracted from `evaluate.ts` which was extracted from `index.ts`. Cascading splits with no controlling concept.
+The splits often increase total line count (more imports, more re-exports, more module headers). They obscure cohesion:
+ `parseVerdict` lives in `judge-stream.ts`, `BASH_DETAIL_LEN` lives in `system-prompt.ts`, `ask-user.ts` was extracted
+ from `evaluate.ts` which was extracted from `index.ts`. Cascading splits with no controlling concept.
 
 The model gave itself a stock reason because a reason was expected, then repeated it twelve times.
 
@@ -57,7 +61,11 @@ src/tool-helpers.ts:2
 src/signals.unit.test.ts:4
 ```text
 
-Twenty-plus em-dashes across user-visible strings, doc comments, and live model prompts. The `BASE_SYSTEM_PROMPT` itself uses em-dashes: `"...this session (if any — these are set...)"`, `"...respond with text — use the tool"`, `"...you need the user to decide — use this when uncertain..."`. The judge tool description `"You MUST call this tool — do not respond with text."` is sent verbatim to the model on every call.
+Twenty-plus em-dashes across user-visible strings, doc comments, and live model prompts.
+ The `BASE_SYSTEM_PROMPT` itself uses em-dashes: `"...this session (if any — these are set...)"`,
+ `"...respond with text — use the tool"`, `"...you need the user to decide — use this when uncertain..."`.
+ The judge tool description `"You MUST call this tool — do not respond with text."` is sent verbatim to the model
+ on every call.
 
 GLM does not internalize stylistic constraints. Each em-dash is a tiny rebellion.
 
@@ -67,7 +75,8 @@ GLM does not internalize stylistic constraints. Each em-dash is a tiny rebellion
 
 ### `index.ts:268-329` -- handler for `tool_call`
 
-Pi declares: `pi.on("tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>)`. `ToolCallEvent` is a discriminated union of `BashToolCallEvent | ReadToolCallEvent | ...`.
+Pi declares: `pi.on("tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>)`.
+ `ToolCallEvent` is a discriminated union of `BashToolCallEvent | ReadToolCallEvent | ...`.
 
 GLM typed the parameter as:
 
@@ -231,7 +240,7 @@ The tool description tells the model:
 ### Logging absent
 
 `CLAUDE.md`:
- "Log extensively by default ... Always use tagged loggers from `@monochromatic-dev/module-logger`.
+ "Log extensively by default ... Always use tagged loggers from `@monochromatic-dev/logger-core`.
  Never use raw `console.log`/`console.error`.
 "
 
@@ -337,7 +346,8 @@ for (const t of tokens) {
 `const EIGHT = 8` declared inside the loop body,
  hardcoded value re-named to itself.
  Should be module-scope and named for what it represents (e.g. `DATE_TOKEN_DIGIT_COUNT`).
- Declaring `const EIGHT = 8` is the `AGENTS.md` "magic literals as named const" rule applied without understanding why the rule exists.
+ Declaring `const EIGHT = 8` is the `AGENTS.md` "magic literals
+  as named const" rule applied without understanding why the rule exists.
 
 ### `command-parser.ts:124`
 
@@ -348,12 +358,14 @@ if (op === '<(') {
 }
 ```
 
-Process substitution is encoded as the literal string `"$()"` and pushed into `redirectTargets` alongside actual file paths.
+Process substitution is encoded as the literal string `"$()"` and pushed
+ into `redirectTargets` alongside actual file paths.
  Downstream code has no way to distinguish a process substitution from a file named `$()`.
 
 ### `package.json` -- runtime deps in devDependencies
 
-`shell-quote` (used at runtime in `command-parser.ts:10`) and `zod` (used at runtime in `config-schemas.ts:11`) are in `devDependencies`.
+`shell-quote` (used at runtime in `command-parser.ts:10`) and `zod` (used at runtime in `config-schemas.ts:11`) are
+ in `devDependencies`.
  The package may still ship correctly via tsdown bundling,
  but the classification is semantically wrong.
  The `./ts` export points at raw source;
@@ -405,7 +417,8 @@ Created during GLM's edit window,
    ** Runtime deps moved to devDependencies without grepping the source for usage.
 
 7. **Repeat pattern boilerplate that no longer applies.
-   ** "Extracted to stay within the line limit" gets pasted onto each new module header even when the original file had abundant headroom.
+   ** "Extracted to stay within the line limit" gets pasted onto each new module header
+    even when the original file had abundant headroom.
 
 8. **Leave litter.
    ** Untracked scratch files in the repo root after the task is "done".

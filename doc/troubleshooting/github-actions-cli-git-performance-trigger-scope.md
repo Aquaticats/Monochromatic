@@ -2,6 +2,9 @@
 
 ## Symptom
 
+The workflow named here, `.github/workflows/cli-git-performance.yml`, was deleted on 2026-10-13 in commit `724d70bfa7`
+when the performance harness was retired; every statement below describes it as it was at the cited revisions.
+
 Before commit `3ab61f0d3bfddbf017127617591d8b8c7abd4910`,
 `.github/workflows/cli-git-performance.yml` started the complete packed lifecycle benchmark for every push to `main`,
 even when a commit changed only an unrelated document or package.
@@ -193,7 +196,8 @@ confirming that changes outside `package/git-policy/cli/package.json` do not sat
 - A dependency or metadata edit in `package/git-policy/cli/package.json` with an unchanged `version` starts only the
   detection job.
 - A change outside `package/git-policy/cli/package.json` creates no automatic workflow run.
-- A missing automated base revision or non-string manifest version fails detection instead of silently running or skipping
+- A missing automated base revision or non-string manifest version
+  fails detection instead of silently running or skipping
   the benchmark.
 
 ### Historical runs outside the automatic scope
@@ -259,7 +263,8 @@ Tradeoffs:
   The next cli-git version change is the automatic release boundary.
 - A version-changing pull request followed by its merge can run the benchmark for both events.
   Keeping both preserves pull-request feedback and direct-main coverage.
-- The detector uses a full-history checkout so the event's base manifest is available across multi-commit pushes and pull
+- The detector uses a full-history checkout so the event's base manifest
+  is available across multi-commit pushes and pull
   requests.
 - Manual dispatch intentionally bypasses the version-change requirement.
 

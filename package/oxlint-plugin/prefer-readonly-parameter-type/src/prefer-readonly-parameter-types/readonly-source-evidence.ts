@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type { Context, } from '@oxlint/plugins';
 
@@ -58,7 +58,7 @@ const l = tagged({ tag: 'readonly-source-evidence', },);
 const evidenceBySourceFile = new WeakMap<
   ReturnType<typeof openSemanticFile>['sourceFile'],
   ReadonlySourceEvidence
->();
+  >();
 
 /**
  Mutable cache counters exposed as immutable snapshots.

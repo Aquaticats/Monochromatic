@@ -4,7 +4,7 @@
  * Uses h-html to produce a self-contained page with inlined CSS and the
  * pre-bundled client script.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Renders the HUD chrome: brand, score, hint, and backend badge.

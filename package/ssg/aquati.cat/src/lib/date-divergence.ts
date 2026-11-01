@@ -60,8 +60,8 @@ type DateComparison = {
 function isoCalendarDate(date: Date,): string {
   return date.toISOString()
     .slice(
-      0,
-      ISO_DATE_LENGTH,
+    0,
+    ISO_DATE_LENGTH,
     );
 }
 

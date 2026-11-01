@@ -156,7 +156,7 @@ export const destroyTool: ToolEntry = defineTool({
           tag: 'destroy_vm',
           text:
             `Provide either \`name\` or \`all: true\`, not both. Received name "${name}" `
-            + `alongside all: true, and destroying every VM is not what naming one asks for. `
+              + `alongside all: true, and destroying every VM is not what naming one asks for. `
               + `Send only \`name\` to destroy that VM, or only \`all: true\` to destroy every VM.`,
         },);
       }

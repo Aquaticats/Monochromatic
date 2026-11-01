@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-18T04:29:47.608Z",
+  "scopeAuthorization": "Execute the missing Depot native runner evaluation while preserving historical source cases.",
+  "fingerprintInput": {
+    "schemaVersion": 1,
+    "subject": "Depot complete CI trial",
+    "scope": "Evaluate frozen source cases and authorized native runner follow-up for intentional GitHub/Depot routing.",
+    "hardConstraints": [
+      "Future all-provider monthly ceiling USD 200; prefer Developer when practical",
+      "No account-wide access or subscription changes",
+      "No application source fixes",
+      "Preserve four historical source cases and six original harnesses",
+      "Record source, common manifest and original artifact-consumer evidence",
+      "Value unfinished waiting once at CAD 8.975 per hour"
+    ],
+    "deployment": {
+      "originalCohort": "complete-20261017T111555806Z",
+      "supplementalCohorts": [
+        "native-recovery-20261018T035939491Z",
+        "native-runners-20261018T034256508Z"
+      ],
+      "providers": [
+        "Depot CI",
+        "Depot GitHub Actions runners",
+        "GitHub hosted runners",
+        "Local Android consumer"
+      ]
+    },
+    "trustBoundary": "Scoped CI credentials, source checkouts, runner resources and build artifacts",
+    "incumbent": {
+      "name": "GitHub Actions hosted service",
+      "version": null
+    },
+    "baseCategories": [
+      "Inspectable open-source local technology",
+      "Managed service or SaaS"
+    ],
+    "overlays": [
+      "CI high-trust execution",
+      "Multi-platform and browser claims",
+      "Native and prebuilt artifact boundaries",
+      "Selective provider routing"
+    ]
+  },
+  "canonicalization": "RFC 8785 ordering for this I-JSON input; strings normalized to NFC, set-valued arrays deduplicated and sorted.",
+  "canonicalInput": "{\"baseCategories\":[\"Inspectable open-source local technology\",\"Managed service or SaaS\"],\"deployment\":{\"originalCohort\":\"complete-20261017T111555806Z\",\"providers\":[\"Depot CI\",\"Depot GitHub Actions runners\",\"GitHub hosted runners\",\"Local Android consumer\"],\"supplementalCohorts\":[\"native-recovery-20261018T035939491Z\",\"native-runners-20261018T034256508Z\"]},\"hardConstraints\":[\"Future all-provider monthly ceiling USD 200; prefer Developer when practical\",\"No account-wide access or subscription changes\",\"No application source fixes\",\"Preserve four historical source cases and six original harnesses\",\"Record source, common manifest and original artifact-consumer evidence\",\"Value unfinished waiting once at CAD 8.975 per hour\"],\"incumbent\":{\"name\":\"GitHub Actions hosted service\",\"version\":null},\"overlays\":[\"CI high-trust execution\",\"Multi-platform and browser claims\",\"Native and prebuilt artifact boundaries\",\"Selective provider routing\"],\"schemaVersion\":1,\"scope\":\"Evaluate frozen source cases and authorized native runner follow-up for intentional GitHub/Depot routing.\",\"subject\":\"Depot complete CI trial\",\"trustBoundary\":\"Scoped CI credentials, source checkouts, runner resources and build artifacts\"}",
+  "fingerprint": "8024f142c314b7384a015376ce121c553e1ad83f32072b4f6b5eb3898a1f754a",
+  "skill": {
+    "path": ".agents/skills/choosing-technology/SKILL.md",
+    "commit": "37117e36397e30233062828581a5e38217da9458",
+    "sha256": "552ac9955299b65a9f921a4e836b60a3fabc15d3477eeb8ec2bfb3f400647f9b"
+  },
+  "report": {
+    "path": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-18.md",
+    "sha256": "918a76a33386f90a9504d1b192770ff7b391ef0f6854711d3df4a1bcc110c709"
+  },
+  "priorUpdate": {
+    "path": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-17.md",
+    "beforeSha256": "9cd350730fe8ec88851137681d0c2a7a31b98c7326a51ac98d311cd8731eaa3c",
+    "afterSha256": "bd364b935a1231131d13ca2abf41f5106e193656cd9c8215d1f7e26b7b298bab",
+    "scopeFingerprintUnchanged": true
+  },
+  "priorVerificationReceiptsRemainHistorical": true
+}

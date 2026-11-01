@@ -8,9 +8,9 @@ import type {
   AssignmentPrefix as UnbashAssignmentPrefix,
   Case as UnbashCase,
   Command as UnbashCommand,
-  Node as UnbashNode,
+  SyntaxNode as UnbashNode,
   ParameterExpansionPart as UnbashParameterExpansionPart,
-  Redirect as UnbashRedirect,
+  Redirection as UnbashRedirect,
   Statement as UnbashStatement,
   Word as UnbashWord,
 } from 'unbash';
@@ -198,46 +198,55 @@ function parameterWordItems(
     readonly context: ShellCommandContext;
   },
 ): WorkItem[] {
-  return [
-    ...(part.operand === undefined
-      ? []
-      : wordWorkItems({
-        word: part.operand,
+  /**
+   Index substitutions execute independently of an optional parameter operation.
+   */
+  const indexItems = part.index === undefined ? [] : wordWorkItems({
+    word: part.index,
+    context,
+  },);
+  /**
+   Discriminated operation contains only the words belonging to that expansion form.
+   */
+  const {operation} = part;
+  if (operation === undefined)
+    return indexItems;
+  if ('operand' in operation) {
+    return [
+      ...indexItems,
+      ...(operation.operand === undefined ? [] : wordWorkItems({
+        word: operation.operand,
         context,
-      })),
-    ...(part.slice === undefined
-      ? []
-      : [
-        ...wordWorkItems({
-          word: part.slice
-            .offset,
-          context,
-        },),
-        ...(part.slice
-          .length
-          === undefined
-          ? []
-          : wordWorkItems({
-            word: part.slice
-              .length,
-            context,
-          })),
-      ]),
-    ...(part.replace === undefined
-      ? []
-      : [
-        ...wordWorkItems({
-          word: part.replace
-            .pattern,
-          context,
-        },),
-        ...wordWorkItems({
-          word: part.replace
-            .replacement,
-          context,
-        },),
-      ]),
-  ];
+      },)),
+    ];
+  }
+  if (operation.type === 'Slice') {
+    return [
+      ...indexItems,
+      ...wordWorkItems({
+        word: operation.offset,
+        context,
+      },),
+      ...(operation.length === undefined ? [] : wordWorkItems({
+        word: operation.length,
+        context,
+      },)),
+    ];
+  }
+  if (operation.type === 'Replace') {
+    return [
+      ...indexItems,
+      ...wordWorkItems({
+        word: operation.pattern,
+        context,
+      },),
+      ...wordWorkItems({
+        word: operation.replacement,
+        context,
+      },),
+    ];
+  }
+  return indexItems;
 }
 
 /**
@@ -265,16 +274,17 @@ function assignmentWordItems(
 ): WorkItem[] {
   return assignments.flatMap(function assignmentWords(assignment,): WorkItem[] {
     return [
+      ...(assignment.index === undefined ? [] : wordWorkItems({
+        word: assignment.index,
+        context,
+      },)),
       ...wordsWorkItems({
-        words: assignment.array ?? [],
+        words: assignment.value
+          .type
+          === 'ArrayValue' ? assignment.value
+            .elements : [assignment.value,],
         context,
       },),
-      ...(assignment.value === undefined
-        ? []
-        : wordWorkItems({
-          word: assignment.value,
-          context,
-        })),
     ];
   },);
 }
@@ -303,20 +313,22 @@ function redirectWordItems(
   },
 ): WorkItem[] {
   return redirects.flatMap(function redirectWords(redirect,): WorkItem[] {
-    return [
-      ...(redirect.target === undefined
-        ? []
-        : wordWorkItems({
-          word: redirect.target,
-          context,
-        })),
-      ...(redirect.body === undefined
-        ? []
-        : wordWorkItems({
-          word: redirect.body,
-          context,
-        })),
-    ];
+    if (redirect.type === 'HereDoc') {
+      if (redirect.body
+        .parts
+        === undefined)
+        return [];
+      return [{
+        kind: 'parts',
+        parts: redirect.body
+          .parts,
+        context,
+      },];
+    }
+    return redirect.target === undefined ? [] : wordWorkItems({
+      word: redirect.target,
+      context,
+    },);
   },);
 }
 
@@ -381,7 +393,10 @@ function commandWordItems(
 ): WorkItem[] {
   return [
     ...assignmentWordItems({
-      assignments: command.prefix,
+      assignments: command.prefix
+        .filter(function isAssignment(prefix,) {
+          return prefix.type === 'Assignment';
+        },),
       context,
     },),
     ...(command.name === undefined
@@ -390,10 +405,18 @@ function commandWordItems(
         word: command.name,
         context,
       })),
-    ...wordsWorkItems({
-      words: command.suffix,
-      context,
-    },),
+    ...command.args
+      .flatMap(function argumentItems(argument,): WorkItem[] {
+        if (argument.type === 'Assignment')
+          return assignmentWordItems({
+            assignments: [argument,],
+            context,
+          },);
+        return wordWorkItems({
+          word: argument,
+          context,
+        },);
+      },),
     ...redirectWordItems({
       redirects: [
         ...command.redirects,

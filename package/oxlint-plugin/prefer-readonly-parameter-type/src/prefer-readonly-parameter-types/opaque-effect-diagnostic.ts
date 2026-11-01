@@ -209,8 +209,8 @@ export function opaqueEffectReport({
     messageId: onlyCollectionMembers
       ? 'opaqueCollectionEffect'
       : onlyInputMethods
-      ? 'opaqueMethodEffect'
-      : 'opaqueEffect',
+        ? 'opaqueMethodEffect'
+        : 'opaqueEffect',
     data: {
       inputSubject: onlyInputMethods
         ? inputMethodUsageSubject({

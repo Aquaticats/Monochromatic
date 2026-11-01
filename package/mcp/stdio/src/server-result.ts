@@ -4,8 +4,11 @@
 import {
   type CacheHint,
   type DiscoverResult,
+  type ListResourcesResult,
   type ListToolsResult,
   type McpResult,
+  type ReadResourceResult,
+  type ResourceDescriptor,
   RESULT_TYPE_COMPLETE,
   type ServerCapabilities,
   SUPPORTED_PROTOCOL_VERSIONS,
@@ -18,6 +21,7 @@ import {
 } from './protocol-meta.ts';
 
 import type {
+  ResourceContents,
   ToolCallResult,
   ToolDefinition,
 } from './protocol-tool.ts';
@@ -133,6 +137,91 @@ export function buildListToolsResult(
   return {
     resultType: RESULT_TYPE_COMPLETE,
     tools,
+    ttlMs: cache.ttlMs,
+    cacheScope: cache.cacheScope,
+    _meta: serverInfoMeta({ serverInfo, },),
+  };
+}
+
+//endregion
+
+//region Resource listing result: answers `resources/list`
+
+/**
+ Builds the payload for `resources/list`.
+ Emits no `nextCursor`: a stdio server lists every resource in one page.
+ 
+ @param resources - Descriptors of every currently readable resource.
+ 
+ @param serverInfo - Identity stamped into result metadata.
+ 
+ @param cache - Freshness hint telling clients how long to reuse this listing.
+ 
+ @returns Listing payload carrying every readable resource.
+ 
+ @example
+ ```ts
+ buildListResourcesResult({
+   resources: [],
+   serverInfo: { name: 'search-fetch-mcp', version: '0.1.0' },
+   cache: { ttlMs: 0, cacheScope: 'private' },
+ });
+ ```
+ */
+export function buildListResourcesResult(
+  {
+    resources,
+    serverInfo,
+    cache,
+  }: {
+    readonly resources: readonly ResourceDescriptor[];
+    readonly serverInfo: Implementation;
+    readonly cache: CacheHint;
+  },
+): ListResourcesResult {
+  return {
+    resultType: RESULT_TYPE_COMPLETE,
+    resources,
+    ttlMs: cache.ttlMs,
+    cacheScope: cache.cacheScope,
+    _meta: serverInfoMeta({ serverInfo, },),
+  };
+}
+
+/**
+ Builds the payload for `resources/read`.
+ 
+ @param contents - Contents of the one resource that was read.
+ 
+ @param serverInfo - Identity stamped into result metadata.
+ 
+ @param cache - Freshness hint telling clients how long to reuse this payload.
+ 
+ @returns Read payload carrying the resource contents.
+ 
+ @example
+ ```ts
+ buildReadResourceResult({
+   contents: [{ uri: 'search-fetch://response/abc', text: 'full response text' }],
+   serverInfo: { name: 'search-fetch-mcp', version: '0.1.0' },
+   cache: { ttlMs: 0, cacheScope: 'private' },
+ });
+ ```
+ */
+export function buildReadResourceResult(
+  {
+    contents,
+    serverInfo,
+    cache,
+  }: {
+    readonly contents: readonly ResourceContents[];
+    readonly serverInfo: Implementation;
+    readonly cache: CacheHint;
+  },
+): ReadResourceResult {
+  return {
+    resultType: RESULT_TYPE_COMPLETE,
+    contents,
     ttlMs: cache.ttlMs,
     cacheScope: cache.cacheScope,
     _meta: serverInfoMeta({ serverInfo, },),

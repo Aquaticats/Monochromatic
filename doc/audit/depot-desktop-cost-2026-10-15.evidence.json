@@ -1,0 +1,2569 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-16T01:00:10.254Z",
+  "scope": "Authorized trial cost research; not production migration or plan-change authorization.",
+  "sourceJob": {
+    "endpoint": "repos/Aquaticats/Monochromatic/actions/jobs/116749813259",
+    "responseSha256": "cfb02d38c8e34491d22d62c62618e4cccda4a4345daa220f70ead85f7ee21938",
+    "response": {
+      "id": 116749813259,
+      "run_id": 38831098294,
+      "workflow_name": "Depot trial desktop interaction",
+      "head_branch": "trial/depot-20261015",
+      "run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/38831098294",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOKlVnec8AAAAbLtTGCw",
+      "head_sha": "aa25cce3386f50873acb1921892d5a730e042b29",
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/jobs/116749813259",
+      "html_url": "https://github.com/Aquaticats/Monochromatic/actions/runs/38831098294/job/116749813259",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-16T00:43:26Z",
+      "started_at": "2026-10-16T00:43:27Z",
+      "completed_at": "2026-10-16T00:50:48Z",
+      "name": "desktop",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-16T00:43:34Z",
+          "completed_at": "2026-10-16T00:43:34Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-16T00:43:34Z",
+          "completed_at": "2026-10-16T00:43:46Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-16T00:43:46Z",
+          "completed_at": "2026-10-16T00:43:47Z"
+        },
+        {
+          "name": "Install build runtimes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-16T00:43:47Z",
+          "completed_at": "2026-10-16T00:44:00Z"
+        },
+        {
+          "name": "Probe desktop session prerequisites",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-16T00:44:00Z",
+          "completed_at": "2026-10-16T00:44:01Z"
+        },
+        {
+          "name": "Provision desktop prerequisites",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-16T00:44:01Z",
+          "completed_at": "2026-10-16T00:44:13Z"
+        },
+        {
+          "name": "Install workspace dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-16T00:44:13Z",
+          "completed_at": "2026-10-16T00:44:15Z"
+        },
+        {
+          "name": "Build the desktop application",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-16T00:44:15Z",
+          "completed_at": "2026-10-16T00:46:02Z"
+        },
+        {
+          "name": "Build the compositor",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-16T00:46:02Z",
+          "completed_at": "2026-10-16T00:47:27Z"
+        },
+        {
+          "name": "Exercise every desktop session with the fallback fixture and folder chooser",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 10,
+          "started_at": "2026-10-16T00:47:27Z",
+          "completed_at": "2026-10-16T00:50:46Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-16T00:50:46Z",
+          "completed_at": "2026-10-16T00:50:46Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-16T00:50:46Z",
+          "completed_at": "2026-10-16T00:50:46Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/116749813259",
+      "labels": [
+        "depot-ubuntu-24.04-16"
+      ],
+      "runner_id": 81,
+      "runner_name": "depot-x83bvb97r8",
+      "runner_group_id": 1,
+      "runner_group_name": "default"
+    }
+  },
+  "observed": {
+    "jobSeconds": 441,
+    "elapsedMinutes": 7.35,
+    "runnerMultiplier": 8,
+    "normalizedRunnerMinutes": 58.8,
+    "overageValueUsd": 0.3528,
+    "interactionStepSeconds": 199,
+    "fullSuitePassed": false,
+    "totals": {
+      "passed": 116,
+      "failed": 1,
+      "notInjectable": 1
+    },
+    "sessions": [
+      {
+        "session": "wide",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "start/page",
+            "detail": "launch shows the player page, nothing playing, no ring :: folder \"Aaa Tones\", app pid 24806 in unit music-player-e2e-24741-wide",
+            "logLine": 2521
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/tab-order",
+            "detail": "Tab walks folder picker, track list, deck controls, search, settings, then wraps :: open-pill > folder-list > track-list > seek > previous > play > next > mode-group > search > settings > open-pill > folder-list > track-list",
+            "logLine": 2522
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/shift-tab",
+            "detail": "Shift+Tab walks the same order backwards, no trap :: folder-list > open-pill > settings > search > mode-group",
+            "logLine": 2523
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/ring-visible",
+            "detail": "a key press turns the ring on",
+            "logLine": 2524
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/ring-moves",
+            "detail": "the focus ring (2 px primary and 1 px on-primary) moves with Tab: pixels differ between two focus positions :: 2016 pixels differ, in {\"x\":57,\"y\":5,\"width\":438,\"height\":140}",
+            "logLine": 2525
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/alt-1-2",
+            "detail": "Alt+1 and Alt+2 focus the folder list and the track list",
+            "logLine": 2526
+          },
+          {
+            "outcome": "PASS",
+            "id": "focus/pointer-hides-ring",
+            "detail": "a pointer press turns the ring off",
+            "logLine": 2527
+          },
+          {
+            "outcome": "PASS",
+            "id": "play/enter-plays-row",
+            "detail": "Alt+2 then Enter selects the row under the ring, and Enter again plays it (D124) :: ring on \"01 Alpha tone\", now playing index 30, duration 200 s",
+            "logLine": 2528
+          },
+          {
+            "outcome": "PASS",
+            "id": "audio/private-sink",
+            "detail": "playback goes to the private null sink (node id) and nowhere else :: 1 output streams, 1 links, all to node 45; sink node 45",
+            "logLine": 2529
+          },
+          {
+            "outcome": "PASS",
+            "id": "play/space-list",
+            "detail": "Space toggles play and pause in the track list",
+            "logLine": 2530
+          },
+          {
+            "outcome": "PASS",
+            "id": "play/space-folder-list",
+            "detail": "Space toggles play and pause in the folder list",
+            "logLine": 2531
+          },
+          {
+            "outcome": "PASS",
+            "id": "play/space-button",
+            "detail": "Space on the focused Play button presses it once",
+            "logLine": 2532
+          },
+          {
+            "outcome": "PASS",
+            "id": "mode/ctrl-shift-digits",
+            "detail": "Ctrl+Shift+1 to 4 pick Repeat, In order, Shuffle folder, Shuffle all :: 1->0 2->1 3->2 4->3",
+            "logLine": 2533
+          },
+          {
+            "outcome": "PASS",
+            "id": "mode/ctrl-m",
+            "detail": "Ctrl+M cycles the mode through all four and wraps :: 1 > 2 > 3 > 0 > 1",
+            "logLine": 2534
+          },
+          {
+            "outcome": "PASS",
+            "id": "track/ctrl-right-left",
+            "detail": "Ctrl+Right is the next track and Ctrl+Left the previous :: 30 > 31 > 30",
+            "logLine": 2535
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/ctrl-home",
+            "detail": "Ctrl+Home restarts the track :: position 0.00 s",
+            "logLine": 2536
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/alt-right",
+            "detail": "Alt+Right seeks +10 s :: position 10.00 s",
+            "logLine": 2537
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/alt-shift-right",
+            "detail": "Alt+Shift+Right seeks +60 s :: position 70.00 s",
+            "logLine": 2538
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/alt-left",
+            "detail": "Alt+Left seeks -10 s :: position 60.00 s",
+            "logLine": 2539
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/alt-shift-left",
+            "detail": "Alt+Shift+Left seeks -60 s :: position 0.00 s",
+            "logLine": 2540
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/alt-right-held",
+            "detail": "a held Alt+Right keeps seeking (key repeat) :: 190.0 s gained in 0.9 s (each press is 10 s)",
+            "logLine": 2541
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/hold-repeat-count",
+            "detail": "a held Alt+Right repeats at the rate and delay the compositor announces, and not at all when repeat is off :: 60.0 s with repeat 5 a second after 400 ms, 10.0 s with repeat off",
+            "logLine": 2542
+          },
+          {
+            "outcome": "PASS",
+            "id": "seek/bar-arrows",
+            "detail": "a focused seek bar moves with Left and Right :: 0.0 > 5.0 > 0.0 s",
+            "logLine": 2543
+          },
+          {
+            "outcome": "PASS",
+            "id": "mode/group-arrows",
+            "detail": "a focused mode group moves with Left and Right :: 1 > 2 > 1",
+            "logLine": 2544
+          },
+          {
+            "outcome": "PASS",
+            "id": "browse/alt-down-up",
+            "detail": "Alt+Down and Alt+Up show the next and previous folder :: Aaa Tones > Mmm Tones > Zzz Tones > Mmm Tones",
+            "logLine": 2545
+          },
+          {
+            "outcome": "PASS",
+            "id": "browse/ctrl-shift-g",
+            "detail": "Ctrl+Shift+G shows the folder of the playing track :: folder \"Aaa Tones\"",
+            "logLine": 2546
+          },
+          {
+            "outcome": "PASS",
+            "id": "browse/ctrl-g",
+            "detail": "Ctrl+G shows the playing track",
+            "logLine": 2547
+          },
+          {
+            "outcome": "PASS",
+            "id": "browse/ctrl-o",
+            "detail": "Ctrl+O puts the keyboard in the folder list (two-pane layout)",
+            "logLine": 2548
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/ring-start",
+            "detail": "the ring starts on the current folder :: ring on \"Aaa Tones\"",
+            "logLine": 2549
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/down-up-home-end",
+            "detail": "Down, Up, Home and End move the folder ring :: Home Aaa Tones, Down F, Up Aaa Tones, End Zzz Tones",
+            "logLine": 2550
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/page-keys",
+            "detail": "PageUp and PageDown move the folder ring to the ends of a short list :: PageUp Aaa Tones, PageDown Zzz Tones",
+            "logLine": 2551
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/letter",
+            "detail": "a letter jumps to the first folder starting with it :: ring on \"Zzz Tones\"",
+            "logLine": 2552
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/left-right",
+            "detail": "Left and Right also move the folder ring :: Zzz Tones > Mmm Tones > Zzz Tones",
+            "logLine": 2553
+          },
+          {
+            "outcome": "PASS",
+            "id": "folder-list/enter",
+            "detail": "Enter shows the folder under the ring :: folder \"Zzz Tones\"",
+            "logLine": 2554
+          },
+          {
+            "outcome": "PASS",
+            "id": "track-list/keys",
+            "detail": "Down, Up, Home, End, PageUp and PageDown move the track ring :: Home \"01 Omega tone\", Down \"99 Trash me\", Up \"01 Omega tone\", End \"99 Trash me\", PageUp \"01 Omega tone\", PageDown \"99 Trash me\"",
+            "logLine": 2555
+          },
+          {
+            "outcome": "PASS",
+            "id": "track-list/enter-selects-then-toggles",
+            "detail": "Enter on a row selects it paused, Enter on the selected row plays it, and the next Enter pauses it (D124) :: index 64 selected paused, then playing, then paused",
+            "logLine": 2556
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/ctrl-shift-c",
+            "detail": "Ctrl+Shift+C copies the file name of the row under the ring to the clipboard :: clipboard of wayland-1: \"99 Trash me.wav\"",
+            "logLine": 2557
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/ctrl-shift-e",
+            "detail": "Ctrl+Shift+E opens the file manager on the folder of the row :: xdg-open /home/runner/temp/agent/music-player-e2e/run-MN3jrQ/library/Zzz Tones",
+            "logLine": 2558
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/shift-f10-unbound",
+            "detail": "Shift+F10 opens nothing: it is Run in JetBrains and is not used (D114) :: no menu, no page change, no shortcut use",
+            "logLine": 2559
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/alt-enter",
+            "detail": "Alt+Enter opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide",
+            "logLine": 2560
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/menu-key",
+            "detail": "the Menu key opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide",
+            "logLine": 2561
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/menu-access-key",
+            "detail": "the access letter D of File details runs that row and closes the menu :: the menu closed after one use of an access letter; /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/wide/shots/wide-access-key-notice.png",
+            "logLine": 2562
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/menu-keys",
+            "detail": "in the open track menu Down, Up, Enter and Escape work (menu opened by right click) :: menu_ring null > 0 > 1 > 0; Enter ran row 0; closed (index 64)",
+            "logLine": 2563
+          },
+          {
+            "outcome": "PASS",
+            "id": "row/delete",
+            "detail": "Delete moves the file of the row to the trash (scratch XDG trash), with an Undo message :: moved to /home/runner/temp/agent/music-player-e2e/run-MN3jrQ/wide-xdg/data/Trash/files/99 Trash me.wav",
+            "logLine": 2564
+          },
+          {
+            "outcome": "PASS",
+            "id": "menu/opens-at-pointer",
+            "detail": "a right click opens the track menu at the pointer (pulled back only to stay inside the window), in the two-pane layout :: click 520,80 gave a card at 520,80 (312 wide); click 700,80 gave a card at 688,80 (312 wide); click 990,80 gave a card at 688,80 (312 wide)",
+            "logLine": 2565
+          },
+          {
+            "outcome": "PASS",
+            "id": "menu/shortcut-hints-fit",
+            "detail": "the track menu is wider than 280 px, so the longest shortcut hint is not cut at the card edge :: 312 px wide",
+            "logLine": 2566
+          },
+          {
+            "outcome": "PASS",
+            "id": "tooltip/search-shows-shortcut",
+            "detail": "hovering the Search button shows a tooltip that names Ctrl+F :: 5734 pixels changed, in {\"x\":46,\"y\":8,\"width\":954,\"height\":662}; the text is in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/wide/shots/wide-tooltip-search.png",
+            "logLine": 2567
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/ctrl-f",
+            "detail": "Ctrl+F opens Search with the query field focused :: focus search-field",
+            "logLine": 2568
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/bare-keys-are-text",
+            "detail": "bare keys do nothing as shortcuts in the Search field, and typing works :: query \"tone \"",
+            "logLine": 2569
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/down-up-enter",
+            "detail": "Down and Up move through results, Enter opens one and leaves Search :: ring 0 > 1 > 0; opened index 64",
+            "logLine": 2570
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/escape",
+            "detail": "Escape leaves Search",
+            "logLine": 2571
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/unicode-text",
+            "detail": "typing Björk, かめりあ and Hangul with an emoji puts exactly that text in the Search field :: the field held Björk, かめりあ, 한국어😀 exactly",
+            "logLine": 2572
+          },
+          {
+            "outcome": "PASS",
+            "id": "search/result-selects-then-toggles",
+            "detail": "a Search result for another track selects it paused and stops the playing track; the same result again plays it (D127) :: track 64 played; the result selected 32 paused (playing false); the same result played it (playing true)",
+            "logLine": 2573
+          },
+          {
+            "outcome": "PASS",
+            "id": "click-through/unreadable-row-stays-selected",
+            "detail": "a row whose file cannot be opened stays the selected row, and the next click on it loads it once it decodes (D128) :: row 30 stayed selected and paused through two tries; after repair it played (true)",
+            "logLine": 2574
+          },
+          {
+            "outcome": "PASS",
+            "id": "double-shift/opens-search",
+            "detail": "two quick Shift taps open Search on the player page",
+            "logLine": 2575
+          },
+          {
+            "outcome": "PASS",
+            "id": "double-shift/slow",
+            "detail": "two slow Shift taps (600 ms apart) do nothing",
+            "logLine": 2576
+          },
+          {
+            "outcome": "PASS",
+            "id": "double-shift/interrupted",
+            "detail": "a key between the Shift taps cancels the double tap",
+            "logLine": 2577
+          },
+          {
+            "outcome": "PASS",
+            "id": "double-shift/with-key",
+            "detail": "Shift held with another key is not a tap",
+            "logLine": 2578
+          },
+          {
+            "outcome": "SKIP",
+            "id": "double-shift/repeat",
+            "detail": "a held Shift with repeats is not a double tap :: a modifier key never repeats on Wayland (the client skips modifiers when it repeats a held key, so holding Shift gives one press and one release, as on a real desktop); the case cannot occur, and the pure detector test covers the sequence",
+            "logLine": 2579
+          },
+          {
+            "outcome": "PASS",
+            "id": "settings/ctrl-alt-s",
+            "detail": "Ctrl+Alt+S opens Settings with the list focused :: focus ",
+            "logLine": 2580
+          },
+          {
+            "outcome": "PASS",
+            "id": "settings/ctrl-f-nothing",
+            "detail": "Ctrl+F does nothing in Settings",
+            "logLine": 2581
+          },
+          {
+            "outcome": "PASS",
+            "id": "settings/double-shift-nothing",
+            "detail": "double Shift does nothing in Settings",
+            "logLine": 2582
+          },
+          {
+            "outcome": "PASS",
+            "id": "settings/escape-ladder",
+            "detail": "template field: the first Escape returns to the list row, the second closes Settings; bare keys do nothing in the field :: field \"template-field\" > \"settings-list\" (settings-list) > page Player",
+            "logLine": 2583
+          },
+          {
+            "outcome": "PASS",
+            "id": "settings/screens-after",
+            "detail": "the player page is back with focus restored for keys",
+            "logLine": 2584
+          },
+          {
+            "outcome": "PASS",
+            "id": "badges/after-300ms",
+            "detail": "Ctrl held: no badge before 300 ms, badges after, gone on release :: shown at about 313 ms with [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G]; 1993 pixels differ with badges, 0 after release; badges 0",
+            "logLine": 2585
+          },
+          {
+            "outcome": "PASS",
+            "id": "badges/narrow-with-shift",
+            "detail": "adding Shift narrows the badges to the Ctrl+Shift chords; releasing Shift brings the Ctrl badges back :: Ctrl [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G] > Ctrl+Shift [open-folder=O, mode-repeat=1, mode-in-order=2, mode-shuffle-folder=3, mode-shuffle-all=4, deck-folder=G, editor-reset=Backspace]",
+            "logLine": 2586
+          },
+          {
+            "outcome": "PASS",
+            "id": "badges/alt",
+            "detail": "Alt held shows the seek and focus badges :: [folder-list=1, track-list=2, seek-back=Left, seek-forward=Right]",
+            "logLine": 2587
+          },
+          {
+            "outcome": "PASS",
+            "id": "badges/quick-chord",
+            "detail": "a quick chord (under 300 ms) never flashes the badges",
+            "logLine": 2588
+          },
+          {
+            "outcome": "PASS",
+            "id": "badges/no-pointer-input",
+            "detail": "badges never take pointer input: a click through a shown badge reaches the control beneath",
+            "logLine": 2589
+          },
+          {
+            "outcome": "PASS",
+            "id": "click-through/row-select-then-toggle",
+            "detail": "a click on an unselected row selects it paused, and clicks on the selected row play it, then pause it (D124) :: A (0) selected, played true; B (2) selected paused true, played true, paused true",
+            "logLine": 2590
+          },
+          {
+            "outcome": "PASS",
+            "id": "click-through/search-wide",
+            "detail": "clicks on the empty Search page do not reach the hidden track list, and typing still works :: query \"tone\" typed after the clicks; the same click on the player page answers",
+            "logLine": 2591
+          },
+          {
+            "outcome": "PASS",
+            "id": "click-through/toast-wide",
+            "detail": "a click on the body of a toast does not play the track row under it :: the click on the toast changed nothing; the same click after the toast left reaches the row under it",
+            "logLine": 2592
+          },
+          {
+            "outcome": "PASS",
+            "id": "lists/picker-follows-search-result",
+            "detail": "after a Search result opens a folder far from the picker position, the folder picker scrolls to it :: Zzz Tones at offset 296, then Aaa Tones at offset 10",
+            "logLine": 2593
+          },
+          {
+            "outcome": "PASS",
+            "id": "lists/track-list-keeps-place-across-breakpoint",
+            "detail": "the track list keeps its scroll position when the window narrows below 600 px and widens again :: offset 672 kept at 443 px (672) and at 1000 px (672)",
+            "logLine": 2594
+          },
+          {
+            "outcome": "PASS",
+            "id": "layout/breakpoint-599",
+            "detail": "a window 599 px wide folds the layout, and the screenshot is exactly 599 px wide :: folded at 599x800",
+            "logLine": 2595
+          },
+          {
+            "outcome": "PASS",
+            "id": "layout/breakpoint-600",
+            "detail": "a window 600 px wide unfolds the layout, and the screenshot is exactly 600 px wide :: unfolded at 600x800",
+            "logLine": 2596
+          }
+        ],
+        "passed": 75,
+        "failed": 0,
+        "notInjectable": 1,
+        "terminalSummary": {
+          "passed": 75,
+          "failed": 0,
+          "notInjectable": 1,
+          "seconds": 75.2,
+          "logLine": 2677
+        },
+        "exitCode": 0
+      },
+      {
+        "session": "narrow",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "folded/tab-order",
+            "detail": "folded layout: Tab walks the folder trigger and Open, the track list, the deck, search, settings :: folder-trigger > open-pill > track-list > seek > previous > play > next > mode-group > search > settings",
+            "logLine": 2688
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/alt-1-opens-picker",
+            "detail": "Alt+1 opens the folder picker overlay and focuses its list :: picker_open true, focus folder-list",
+            "logLine": 2689
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/escape-closes-picker",
+            "detail": "Escape closes the picker overlay and focuses the track list, without leaving the page",
+            "logLine": 2690
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/ctrl-o-toggles",
+            "detail": "Ctrl+O opens the picker and Ctrl+O closes it",
+            "logLine": 2691
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/alt-2-closes-picker",
+            "detail": "Alt+2 closes the picker and focuses the track list",
+            "logLine": 2692
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/escape-on-player",
+            "detail": "Escape on the player page with nothing open does nothing",
+            "logLine": 2693
+          },
+          {
+            "outcome": "PASS",
+            "id": "folded/picker-enter-focuses-tracks",
+            "detail": "Enter on a folder in the picker shows it and moves the keyboard to the track list :: Aaa Tones > F",
+            "logLine": 2694
+          },
+          {
+            "outcome": "PASS",
+            "id": "editor-page/enter-and-escape",
+            "detail": "Settings list Enter opens the editor page; Escape returns to the Settings list; Escape leaves Settings :: TemplateEditor (focus ) > Settings (focus ) > Player",
+            "logLine": 2695
+          },
+          {
+            "outcome": "PASS",
+            "id": "editor-page/ctrl-enter",
+            "detail": "Ctrl+Enter applies the template and returns to the Settings list",
+            "logLine": 2696
+          },
+          {
+            "outcome": "PASS",
+            "id": "click-through/search-narrow",
+            "detail": "clicks on the empty Search page do not reach the hidden pause button, mode group or track list :: no click reached the player under Search; the mode segment answers the same click on the player page",
+            "logLine": 2697
+          }
+        ],
+        "passed": 10,
+        "failed": 0,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 10,
+          "failed": 0,
+          "notInjectable": 0,
+          "seconds": 5.3,
+          "logLine": 2712
+        },
+        "exitCode": 0
+      },
+      {
+        "session": "dialog",
+        "checks": [
+          {
+            "outcome": "FAIL",
+            "id": "browse/ctrl-shift-o",
+            "detail": "Ctrl+Shift+O opens the system folder dialog :: no dialog window covered the player (0 pixels differ)",
+            "logLine": 2723
+          },
+          {
+            "outcome": "PASS",
+            "id": "dialog/focus-returns",
+            "detail": "after the system folder dialog closes, the player window has the keyboard again and a key reaches it :: ok 1 index=0 app-id=monochromatic.music-player title=Music%20Player focused=true; Ctrl+F opened Search with focus search-field",
+            "logLine": 2724
+          }
+        ],
+        "passed": 1,
+        "failed": 1,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 1,
+          "failed": 1,
+          "notInjectable": 0,
+          "seconds": 16.9,
+          "logLine": 2731
+        },
+        "exitCode": 1
+      },
+      {
+        "session": "auto-play",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "auto-play/off-by-default-click-selects-paused",
+            "detail": "with no saved setting Auto-play on select is off, and a click on another row selects it paused (D124, D129) :: row A 30 played; the click on row B 31 left it paused with the setting off",
+            "logLine": 2753
+          },
+          {
+            "outcome": "PASS",
+            "id": "auto-play/switch-turns-it-on",
+            "detail": "End and Space on the Auto-play on select row of Settings turn the setting on and leave Settings open (D129) :: the switch row turned the setting on in place",
+            "logLine": 2754
+          },
+          {
+            "outcome": "PASS",
+            "id": "auto-play/on-click-selects-and-plays",
+            "detail": "with the setting on, a click on another row selects it and starts it at once; the selected row still toggles (D129) :: row A 30 played at once (true), row B 31 played at once (true) and the next click paused it (true)",
+            "logLine": 2755
+          },
+          {
+            "outcome": "PASS",
+            "id": "auto-play/setting-survives-restart",
+            "detail": "the setting is still on after Ctrl+Q and a restart, and a click on a row plays it at once (D129) :: the setting stayed on; the click on row 31 played at once",
+            "logLine": 2757
+          }
+        ],
+        "passed": 4,
+        "failed": 0,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 4,
+          "failed": 0,
+          "notInjectable": 0,
+          "seconds": 4.9,
+          "logLine": 2766
+        },
+        "exitCode": 0
+      },
+      {
+        "session": "quit",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "quit/ctrl-q",
+            "detail": "Ctrl+Q quits the app :: process 26965 ended",
+            "logLine": 2777
+          }
+        ],
+        "passed": 1,
+        "failed": 0,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 1,
+          "failed": 0,
+          "notInjectable": 0,
+          "seconds": 0.9,
+          "logLine": 2783
+        },
+        "exitCode": 0
+      },
+      {
+        "session": "states",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "states/reading",
+            "detail": "while the folder is read the window says \"Reading your library\" and the deck is off, not \"No folder is open\" :: pane \"Reading your library\", deck_disabled true, shot /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/states/shots/states-main-states-reading.png",
+            "logLine": 2794
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/reading-ends",
+            "detail": "when the scan ends the pane goes, the first folder shows and the deck works :: folder \"Aaa Folder\", deck_disabled false",
+            "logLine": 2795
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/loose-letter-folder",
+            "detail": "loose files sit in the virtual folder of their letter, shown after the real folders :: ring on \"L\"",
+            "logLine": 2796
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/play-with-nothing-selected",
+            "detail": "Space with nothing selected starts the first track of the folder on screen instead of flipping to Pause :: playing track 3, position 0",
+            "logLine": 2797
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/window-title",
+            "detail": "the window title is the cleaned title the deck shows, without folder, extension or the shared prefix :: title \"ok One\"",
+            "logLine": 2798
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/in-order-stops",
+            "detail": "In order plays the folder to its end, stops with the first track loaded, and Play starts it again :: stopped at track 3, played again at track 3",
+            "logLine": 2799
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/single-folder-name",
+            "detail": "a library with one top-level folder shows that folder by its own name, not a letter :: folder \"Only Artist\"",
+            "logLine": 2801
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/natural-order",
+            "detail": "tracks are listed in natural order: Take 2 before Take 3 before Take 10 :: first \"2 Zed\", last \"10 Zed\"",
+            "logLine": 2802
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/no-audio-folder",
+            "detail": "a folder without audio is named on its own line and the deck is off :: pane \"No audio found in | states-empty-library\", shot /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/states/shots/states-empty-states-no-audio.png",
+            "logLine": 2804
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/refresh-initial",
+            "detail": "the library the app starts on is measured by itself, once per file :: 2 measured",
+            "logLine": 2806
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/refresh-replaced-file",
+            "detail": "a file replaced on disk with different audio is measured again while the app runs, with no key pressed :: 2 decodes before, then one more",
+            "logLine": 2807
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/refresh-new-file",
+            "detail": "a file added to the folder is listed and measured by itself :: measured",
+            "logLine": 2808
+          },
+          {
+            "outcome": "PASS",
+            "id": "states/refresh-broken-file-once",
+            "detail": "a file that cannot be decoded is reported once, however often the library changes afterwards :: reported once",
+            "logLine": 2809
+          }
+        ],
+        "passed": 13,
+        "failed": 0,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 13,
+          "failed": 0,
+          "notInjectable": 0,
+          "seconds": 20.1,
+          "logLine": 2827
+        },
+        "exitCode": 0
+      },
+      {
+        "session": "visual",
+        "checks": [
+          {
+            "outcome": "PASS",
+            "id": "visual/dark-3B82F6",
+            "detail": "focus ring and badges in dark with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 528 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-3B82F6-*.png",
+            "logLine": 2838
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/dark-22C55E",
+            "detail": "focus ring and badges in dark with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 526 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-22C55E-*.png",
+            "logLine": 2840
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/light-3B82F6",
+            "detail": "focus ring and badges in light with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 524 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-light-3B82F6-*.png",
+            "logLine": 2842
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/light-22C55E",
+            "detail": "focus ring and badges in light with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 522 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in /home/runner/work/Monochromatic/Monochromatic/package/music-player/desktop-app/target/e2e/visual/shots/visual-light-22C55E-*.png",
+            "logLine": 2844
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/menu-dark-3B82F6",
+            "detail": "the track menu in dark with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 67,70,79",
+            "logLine": 2846
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/rings-dark-3B82F6",
+            "detail": "the focus ring in dark with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 528 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role",
+            "logLine": 2847
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/menu-dark-22C55E",
+            "detail": "the track menu in dark with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 64,73,67",
+            "logLine": 2849
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/rings-dark-22C55E",
+            "detail": "the focus ring in dark with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 526 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role",
+            "logLine": 2850
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/menu-light-3B82F6",
+            "detail": "the track menu in light with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 196,199,208",
+            "logLine": 2852
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/rings-light-3B82F6",
+            "detail": "the focus ring in light with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 524 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role",
+            "logLine": 2853
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/menu-light-22C55E",
+            "detail": "the track menu in light with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 191,202,196",
+            "logLine": 2855
+          },
+          {
+            "outcome": "PASS",
+            "id": "visual/rings-light-22C55E",
+            "detail": "the focus ring in light with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 522 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role",
+            "logLine": 2856
+          }
+        ],
+        "passed": 12,
+        "failed": 0,
+        "notInjectable": 0,
+        "terminalSummary": {
+          "passed": 12,
+          "failed": 0,
+          "notInjectable": 0,
+          "seconds": 73.4,
+          "logLine": 2873
+        },
+        "exitCode": 0
+      }
+    ]
+  },
+  "sourceLog": {
+    "file": "completed-116749813259.log",
+    "sha256": "e9399b47d9beb07326cdf74fff6a2b486cf7acce5b969bbb72dc2735b05d6785"
+  },
+  "history": {
+    "path": "doc/audit/depot-change-stream-2026-10-15.evidence.json",
+    "sha256": "ecd67610d9171174028774160f0385cc8b437ea7f1e0ae78b26e6802a30845a9",
+    "window": {
+      "start": "2026-10-08T00:00:00Z",
+      "endExclusive": "2026-10-15T00:00:00Z",
+      "days": 7
+    },
+    "selectedCount": 59,
+    "selector": "events where affectedGroups includes musicDesktop",
+    "events": [
+      {
+        "runId": 37791998645,
+        "observedAt": "2026-10-08T14:23:01Z",
+        "utcDay": "2026-10-08",
+        "headSha": "6c0e006f4aaf40dd2857f93afaf34777bb491319"
+      },
+      {
+        "runId": 37795976366,
+        "observedAt": "2026-10-08T14:51:59Z",
+        "utcDay": "2026-10-08",
+        "headSha": "e36886bf203401ad79af575d6fff8e9cd20f9d17"
+      },
+      {
+        "runId": 37799625137,
+        "observedAt": "2026-10-08T15:18:20Z",
+        "utcDay": "2026-10-08",
+        "headSha": "67d45a314c5933466e955df0020a5a843751aa1f"
+      },
+      {
+        "runId": 37805563842,
+        "observedAt": "2026-10-08T16:01:51Z",
+        "utcDay": "2026-10-08",
+        "headSha": "7715f8b5e6c856b37a471d98d18688edf6bcba38"
+      },
+      {
+        "runId": 37993952381,
+        "observedAt": "2026-10-09T21:31:20Z",
+        "utcDay": "2026-10-09",
+        "headSha": "05f551626b5e14049d2770f08552889ce8ddb016"
+      },
+      {
+        "runId": 37994290099,
+        "observedAt": "2026-10-09T21:34:45Z",
+        "utcDay": "2026-10-09",
+        "headSha": "72fa358873fa415a704a93d87c1283e5ad261872"
+      },
+      {
+        "runId": 37995034392,
+        "observedAt": "2026-10-09T21:42:16Z",
+        "utcDay": "2026-10-09",
+        "headSha": "aaf40a1c1ffbc5062fd9e52206cdb93446a66522"
+      },
+      {
+        "runId": 38056014392,
+        "observedAt": "2026-10-10T13:31:02Z",
+        "utcDay": "2026-10-10",
+        "headSha": "e9c8871a41f5ba34bb3fb42e7ded9c8546924ed4"
+      },
+      {
+        "runId": 38077279933,
+        "observedAt": "2026-10-10T18:48:40Z",
+        "utcDay": "2026-10-10",
+        "headSha": "b111c0ca39af91dee25c248b27153806e69fff6d"
+      },
+      {
+        "runId": 38090324218,
+        "observedAt": "2026-10-10T22:09:02Z",
+        "utcDay": "2026-10-10",
+        "headSha": "1b6677a9afb8982ecc3a9908646bc84f34ae9ee2"
+      },
+      {
+        "runId": 38147186672,
+        "observedAt": "2026-10-11T14:26:29Z",
+        "utcDay": "2026-10-11",
+        "headSha": "1843d4f3d531216cec4f30898794624ea4c37690"
+      },
+      {
+        "runId": 38165344690,
+        "observedAt": "2026-10-11T18:48:18Z",
+        "utcDay": "2026-10-11",
+        "headSha": "9b95bfb673eb5fa9cb5edb20513f48ebc050dc6c"
+      },
+      {
+        "runId": 38165789261,
+        "observedAt": "2026-10-11T18:54:39Z",
+        "utcDay": "2026-10-11",
+        "headSha": "a4b08d54a0cd6c2fb80f1d3aab740786ee1f40bb"
+      },
+      {
+        "runId": 38171335336,
+        "observedAt": "2026-10-11T20:14:05Z",
+        "utcDay": "2026-10-11",
+        "headSha": "a1a19ca57e6d67f21d61e250e8611cd44418764e"
+      },
+      {
+        "runId": 38171373414,
+        "observedAt": "2026-10-11T20:14:37Z",
+        "utcDay": "2026-10-11",
+        "headSha": "6f82b290c22c97a92d5d1afe364978c20f3853e2"
+      },
+      {
+        "runId": 38172309220,
+        "observedAt": "2026-10-11T20:27:49Z",
+        "utcDay": "2026-10-11",
+        "headSha": "86e7b2fe262e44e1a97e9c251d26ac80adf58c45"
+      },
+      {
+        "runId": 38175706571,
+        "observedAt": "2026-10-11T21:16:51Z",
+        "utcDay": "2026-10-11",
+        "headSha": "414e181591305bb7b2c83b4e0e996097fb70b4f7"
+      },
+      {
+        "runId": 38176320507,
+        "observedAt": "2026-10-11T21:25:43Z",
+        "utcDay": "2026-10-11",
+        "headSha": "440b403c2320a4c39616f59b4452d59f8cb110be"
+      },
+      {
+        "runId": 38182208286,
+        "observedAt": "2026-10-11T22:53:43Z",
+        "utcDay": "2026-10-11",
+        "headSha": "2c62b1feb6502853b1c765081bbf8805a3d33dcb"
+      },
+      {
+        "runId": 38184323032,
+        "observedAt": "2026-10-11T23:27:04Z",
+        "utcDay": "2026-10-11",
+        "headSha": "7f3b3520b2816f9a4db7af8f9cecd979bf4a58d5"
+      },
+      {
+        "runId": 38185723975,
+        "observedAt": "2026-10-11T23:49:36Z",
+        "utcDay": "2026-10-11",
+        "headSha": "966f717dbd38a6004d3e945478befba0b8047688"
+      },
+      {
+        "runId": 38185842894,
+        "observedAt": "2026-10-11T23:51:31Z",
+        "utcDay": "2026-10-11",
+        "headSha": "7fb4f43afc8142555224ad9fefdc210d2b5f5924"
+      },
+      {
+        "runId": 38186974405,
+        "observedAt": "2026-10-12T00:10:04Z",
+        "utcDay": "2026-10-12",
+        "headSha": "30d4a1c79d4ed5580279d1df879535a46c7c3b88"
+      },
+      {
+        "runId": 38190320505,
+        "observedAt": "2026-10-12T01:02:14Z",
+        "utcDay": "2026-10-12",
+        "headSha": "c34e4acfb56c46b53832e03f2f73132a6da61fbc"
+      },
+      {
+        "runId": 38191740728,
+        "observedAt": "2026-10-12T01:24:08Z",
+        "utcDay": "2026-10-12",
+        "headSha": "843697790f6b5466b99e79ec512fd77129587cc8"
+      },
+      {
+        "runId": 38193702091,
+        "observedAt": "2026-10-12T01:54:27Z",
+        "utcDay": "2026-10-12",
+        "headSha": "486a34cd3995aaf4f35a7d2d36dc461550442df0"
+      },
+      {
+        "runId": 38195395493,
+        "observedAt": "2026-10-12T02:20:26Z",
+        "utcDay": "2026-10-12",
+        "headSha": "5d09211486d83a8d4b5371ff17ca1d7c7014bbe2"
+      },
+      {
+        "runId": 38196074599,
+        "observedAt": "2026-10-12T02:30:45Z",
+        "utcDay": "2026-10-12",
+        "headSha": "1403118357eaec941c6045a32beb1d5921ffefd3"
+      },
+      {
+        "runId": 38202566263,
+        "observedAt": "2026-10-12T04:08:23Z",
+        "utcDay": "2026-10-12",
+        "headSha": "d5d424f8ab0ff790e41e62eafed41b5d291e74bc"
+      },
+      {
+        "runId": 38207750643,
+        "observedAt": "2026-10-12T05:23:51Z",
+        "utcDay": "2026-10-12",
+        "headSha": "3d1fc968e2fd09981ce51e6a92d41808fde7ba9a"
+      },
+      {
+        "runId": 38222165193,
+        "observedAt": "2026-10-12T08:12:27Z",
+        "utcDay": "2026-10-12",
+        "headSha": "e30ace9cadae4697a5b0889acbee26ce3aba41d2"
+      },
+      {
+        "runId": 38232134941,
+        "observedAt": "2026-10-12T09:47:18Z",
+        "utcDay": "2026-10-12",
+        "headSha": "2fa18ada079512305d54c3ef5f8436bbb3f68a77"
+      },
+      {
+        "runId": 38245656960,
+        "observedAt": "2026-10-12T11:54:20Z",
+        "utcDay": "2026-10-12",
+        "headSha": "4219f6b819967eab648559758e533c31ba2dc76b"
+      },
+      {
+        "runId": 38275640034,
+        "observedAt": "2026-10-12T16:11:21Z",
+        "utcDay": "2026-10-12",
+        "headSha": "278217291659cc1a8a666416d34f5c4803934171"
+      },
+      {
+        "runId": 38276633679,
+        "observedAt": "2026-10-12T16:19:52Z",
+        "utcDay": "2026-10-12",
+        "headSha": "e64f02e07e069ca6019d26a91ca72fea363c7983"
+      },
+      {
+        "runId": 38278398240,
+        "observedAt": "2026-10-12T16:34:58Z",
+        "utcDay": "2026-10-12",
+        "headSha": "a0552c4cfcccbdb7a026a919b1336d15cabc38da"
+      },
+      {
+        "runId": 38287038982,
+        "observedAt": "2026-10-12T17:51:49Z",
+        "utcDay": "2026-10-12",
+        "headSha": "43b87c1ce332188e6c706597a3fbf7433657f6e8"
+      },
+      {
+        "runId": 38325734541,
+        "observedAt": "2026-10-13T00:08:13Z",
+        "utcDay": "2026-10-13",
+        "headSha": "c7e7e9fe9481a0b72bd8fd14734d3d844b31d952"
+      },
+      {
+        "runId": 38383454951,
+        "observedAt": "2026-10-13T10:27:15Z",
+        "utcDay": "2026-10-13",
+        "headSha": "ef1b2ddbc0c7b273f1030bb65e1716d78bf7b670"
+      },
+      {
+        "runId": 38430712127,
+        "observedAt": "2026-10-13T16:27:55Z",
+        "utcDay": "2026-10-13",
+        "headSha": "80f7a3f69a240edb3bb15072b95bd970e97fa630"
+      },
+      {
+        "runId": 38466115472,
+        "observedAt": "2026-10-13T20:51:22Z",
+        "utcDay": "2026-10-13",
+        "headSha": "7a1cead3f323704a11ed1970cb9c6a120f006207"
+      },
+      {
+        "runId": 38472078826,
+        "observedAt": "2026-10-13T21:38:08Z",
+        "utcDay": "2026-10-13",
+        "headSha": "9e633292e7fdc18cd43d568dfe3e7518aedda569"
+      },
+      {
+        "runId": 38487537244,
+        "observedAt": "2026-10-13T23:59:33Z",
+        "utcDay": "2026-10-13",
+        "headSha": "a0a2f11da808dcb9d37ca1b57c6962c828c889de"
+      },
+      {
+        "runId": 38487744339,
+        "observedAt": "2026-10-14T00:01:33Z",
+        "utcDay": "2026-10-14",
+        "headSha": "5cd5c99a678c06d55884159ce1a457ffd728a79e"
+      },
+      {
+        "runId": 38502830794,
+        "observedAt": "2026-10-14T02:47:00Z",
+        "utcDay": "2026-10-14",
+        "headSha": "c954f74798ee47c027ee3d9a31811de6345ca328"
+      },
+      {
+        "runId": 38562123908,
+        "observedAt": "2026-10-14T12:12:46Z",
+        "utcDay": "2026-10-14",
+        "headSha": "02240f43f03ec8d1de1154b5a909efe9feb6f667"
+      },
+      {
+        "runId": 38567397884,
+        "observedAt": "2026-10-14T12:54:11Z",
+        "utcDay": "2026-10-14",
+        "headSha": "5631bd165825c0c8b4f0bb84b36de9cb7336c32b"
+      },
+      {
+        "runId": 38568650576,
+        "observedAt": "2026-10-14T13:03:27Z",
+        "utcDay": "2026-10-14",
+        "headSha": "f7bd83fe93d2ceaef8406461a996cabc0ff0ddaf"
+      },
+      {
+        "runId": 38569096611,
+        "observedAt": "2026-10-14T13:06:44Z",
+        "utcDay": "2026-10-14",
+        "headSha": "51f93ce4887a141fbb2f007c95e0b95046dfe6c3"
+      },
+      {
+        "runId": 38569887085,
+        "observedAt": "2026-10-14T13:12:36Z",
+        "utcDay": "2026-10-14",
+        "headSha": "a1dba4c4b2ea89df9abb3316134cd9dc1e6bc514"
+      },
+      {
+        "runId": 38570757375,
+        "observedAt": "2026-10-14T13:18:58Z",
+        "utcDay": "2026-10-14",
+        "headSha": "cc0c5e12fbd8af0d9fa1a1e920f9c6e2a53a944e"
+      },
+      {
+        "runId": 38584041823,
+        "observedAt": "2026-10-14T14:50:04Z",
+        "utcDay": "2026-10-14",
+        "headSha": "cab5d1665a9c794265da53fe9e4f464e3eafebbd"
+      },
+      {
+        "runId": 38584819405,
+        "observedAt": "2026-10-14T14:55:18Z",
+        "utcDay": "2026-10-14",
+        "headSha": "cc981da981150731f92dcd05ee655fbcf3194f39"
+      },
+      {
+        "runId": 38610609934,
+        "observedAt": "2026-10-14T17:54:18Z",
+        "utcDay": "2026-10-14",
+        "headSha": "60537c82247d5e3bad7404bed2ee24d7ad8c3b36"
+      },
+      {
+        "runId": 38610747949,
+        "observedAt": "2026-10-14T17:55:16Z",
+        "utcDay": "2026-10-14",
+        "headSha": "68cfbdc82ed442201fb44da8e627b5ff589dce77"
+      },
+      {
+        "runId": 38635360769,
+        "observedAt": "2026-10-14T20:49:57Z",
+        "utcDay": "2026-10-14",
+        "headSha": "4e71750a221f8b1b3303f9fccf7bc9b9ae6a4322"
+      },
+      {
+        "runId": 38639025459,
+        "observedAt": "2026-10-14T21:16:57Z",
+        "utcDay": "2026-10-14",
+        "headSha": "973572ea1235101f6094a2023b9db75bee5d3917"
+      },
+      {
+        "runId": 38641256841,
+        "observedAt": "2026-10-14T21:34:07Z",
+        "utcDay": "2026-10-14",
+        "headSha": "d159a71d5c124fc2d81f605cdc088c959d44371b"
+      },
+      {
+        "runId": 38653407049,
+        "observedAt": "2026-10-14T23:20:00Z",
+        "utcDay": "2026-10-14",
+        "headSha": "a78327609526a620fa79ddd7901d49a355d53bab"
+      }
+    ],
+    "daily": [
+      {
+        "utcDay": "2026-10-08",
+        "selectedCount": 4
+      },
+      {
+        "utcDay": "2026-10-09",
+        "selectedCount": 3
+      },
+      {
+        "utcDay": "2026-10-10",
+        "selectedCount": 3
+      },
+      {
+        "utcDay": "2026-10-11",
+        "selectedCount": 12
+      },
+      {
+        "utcDay": "2026-10-12",
+        "selectedCount": 15
+      },
+      {
+        "utcDay": "2026-10-13",
+        "selectedCount": 6
+      },
+      {
+        "utcDay": "2026-10-14",
+        "selectedCount": 16
+      }
+    ]
+  },
+  "baseline": {
+    "path": "doc/audit/depot-expanded-cost-2026-10-15.evidence.json",
+    "sha256": "74dbf9a52b23101f3df4f45a14840ef6cff51694f61d7893bbc7104373a35421",
+    "generatedAt": "2026-10-16T00:18:28.423Z"
+  },
+  "priorFailure": {
+    "path": "doc/audit/depot-desktop-interaction-2026-10-15.evidence.json",
+    "sha256": "f8ab7e2126e2c35f98c6393d6613feb32061e128fde8f0decaa2751598e1bb30",
+    "run": "38830049770",
+    "job": "116746502593",
+    "revision": "0995d00e8d",
+    "jobSeconds": 403,
+    "sessions": [
+      {
+        "session": "wide",
+        "passed": 69,
+        "failed": 0,
+        "aborted": true,
+        "exitCode": 1
+      },
+      {
+        "session": "narrow",
+        "passed": 10,
+        "failed": 0,
+        "aborted": false,
+        "exitCode": 0
+      },
+      {
+        "session": "dialog",
+        "passed": 1,
+        "failed": 1,
+        "aborted": false,
+        "exitCode": 1
+      },
+      {
+        "session": "auto-play",
+        "passed": 4,
+        "failed": 0,
+        "aborted": false,
+        "exitCode": 0
+      },
+      {
+        "session": "quit",
+        "passed": 1,
+        "failed": 0,
+        "aborted": false,
+        "exitCode": 0
+      },
+      {
+        "session": "states",
+        "passed": 13,
+        "failed": 0,
+        "aborted": false,
+        "exitCode": 0
+      },
+      {
+        "session": "visual",
+        "passed": 12,
+        "failed": 0,
+        "aborted": false,
+        "exitCode": 0
+      }
+    ],
+    "limitations": [
+      "Wide session aborted before its remaining assertions; session completion is not full-suite success.",
+      "No physical GPU; direct headless software compositor, private audio sinks.",
+      "Fixture selection and missing chooser backend are tested by a separate subsequent trial."
+    ]
+  },
+  "pricing": {
+    "checkedAt": "2026-10-16T01:00:10.257Z",
+    "runnerTypes": "https://depot.dev/docs/github-actions/runner-types",
+    "runnerBilling": "https://depot.dev/docs/github-actions/overview#pricing",
+    "plans": "https://depot.dev/pricing",
+    "runnerBaseMinuteUsd": 0.006,
+    "ciBaseMinuteUsd": 0.006,
+    "containerMinuteUsd": 0.04,
+    "developer": {
+      "subscriptionUsd": 20,
+      "includedRunnerMinutes": 2000,
+      "includedCiMinutes": 2000,
+      "includedContainerMinutes": 500
+    },
+    "startup": {
+      "subscriptionUsd": 200,
+      "includedRunnerMinutes": 20000,
+      "includedCiMinutes": 20000,
+      "includedContainerMinutes": 5000
+    }
+  },
+  "method": {
+    "periodDays": 7,
+    "projectedMonthDays": 30,
+    "normalizedMinuteFormula": "consumedSeconds / 60 * runnerMultiplier * projectedMonthDays / periodDays",
+    "cancellationFormula": "sum(min(jobSeconds, nextSelectedArrival - currentArrival)); final attempt runs to completion",
+    "additionalMeaning": "Keep desktop container build and add the complete desktop E2E job including its own native builds.",
+    "replacementMeaning": "Remove only the desktop container workload from the baseline, then add the complete desktop E2E job. This is an accounting substitution, not proof of equal packaged-container coverage.",
+    "pricingFormula": "subscription + max(0,ci-includedCi)*0.006 + max(0,runner-includedRunner)*0.006 + max(0,container-includedContainer)*0.04"
+  },
+  "assumptions": [
+    "Repeat the sampled seven-day arrival mix for 30 days.",
+    "One 441-second desktop attempt per selected arrival; fixed duration is a scenario input, not a distribution.",
+    "Start and cancel immediately; no cancellation latency, retries, or cross-product credits.",
+    "Cancel only superseded desktop checks; explicitly requested release runs are separate.",
+    "Daily-latest selects the final affected revision of each UTC day; its real start policy and daytime GitHub allocation are not measured."
+  ],
+  "limitations": [
+    "Desktop job failed one dialog assertion and skipped one non-injectable check; full-suite success is not established.",
+    "Earlier wide-session abort and dialog failure remain retained separately; changed inputs are not unchanged-input timing repetitions.",
+    "GitHub job timestamps are a runner usage proxy, not a provider invoice.",
+    "No physical GPU or hardware audio device is measured; desktop sessions used a software compositor and private audio sink.",
+    "Replacement removes separate container artifact coverage; executable equivalence and artifact handoff were not tested.",
+    "Browser suites, other-package checks and consumer closure, native lint, fuzz/conformance, platform/release checks",
+    "Local emulator resource use, agent-requested cloud experiments, reruns, environment refresh and storage retention",
+    "GitHub artifact storage, paid larger runners if selected, optional test-result upload, and taxes",
+    "Further dialog repairs, reruns, runtime spread, other platform/browser/package coverage, storage, transfer, agent experiments, taxes, and device execution remain excluded."
+  ],
+  "controls": {
+    "cancellation": {
+      "attempts": 2,
+      "completed": 1,
+      "cancelled": 1,
+      "consumedSeconds": 70,
+      "attemptDetails": [
+        {
+          "start": 0,
+          "consumedSeconds": 10,
+          "cancelled": true
+        },
+        {
+          "start": 10,
+          "consumedSeconds": 60,
+          "cancelled": false
+        }
+      ]
+    },
+    "uncancelled": {
+      "attempts": 2,
+      "completed": 2,
+      "cancelled": 0,
+      "consumedSeconds": 120,
+      "attemptDetails": [
+        {
+          "start": 0,
+          "consumedSeconds": 60,
+          "cancelled": false
+        },
+        {
+          "start": 10,
+          "consumedSeconds": 60,
+          "cancelled": false
+        }
+      ]
+    },
+    "exactCompletionBoundary": {
+      "attempts": 2,
+      "completed": 2,
+      "cancelled": 0,
+      "consumedSeconds": 120,
+      "attemptDetails": [
+        {
+          "start": 0,
+          "consumedSeconds": 60,
+          "cancelled": false
+        },
+        {
+          "start": 60,
+          "consumedSeconds": 60,
+          "cancelled": false
+        }
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "mode": "every-affected",
+      "desktop": {
+        "attempts": 59,
+        "completed": 59,
+        "cancelled": 0,
+        "consumedSeconds": 26019,
+        "attemptDetails": [
+          {
+            "start": 1791469381,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791471119,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791472700,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791475311,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791581480,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791581685,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791582136,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791639062,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791658120,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791670142,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791728789,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791744498,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791744879,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791749645,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791749677,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791750469,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791753411,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791753943,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791759223,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791761224,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791762576,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791762691,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791763804,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791766934,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791768248,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791770067,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791771626,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791772245,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791778103,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791782631,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791792747,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791798438,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791806060,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791821481,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791821992,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791822898,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791827509,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791850093,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791887235,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791908875,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791924682,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791927488,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791935973,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791936093,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791946020,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791979966,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791982451,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791983007,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791983204,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791983556,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791983938,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791989404,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791989718,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792000458,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792000516,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792010997,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792012617,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792013647,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792020000,
+            "consumedSeconds": 441,
+            "cancelled": false
+          }
+        ],
+        "monthlyRunnerBaseMinutes": 14868
+      },
+      "baselineSnapshot": {
+        "mode": "every-affected",
+        "details": [
+          {
+            "name": "audio-core",
+            "group": "musicCore",
+            "seconds": 136.452,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 68,
+            "completed": 68,
+            "cancelled": 0,
+            "consumedSeconds": 9278.736000000004,
+            "unfinishedUnionSeconds": 9023.475993871689,
+            "monthlyBaseMinutes": 1325.533714285715
+          },
+          {
+            "name": "logger-representative",
+            "group": "logger",
+            "seconds": 45.918,
+            "multiplier": 1,
+            "product": "ci",
+            "attempts": 50,
+            "completed": 50,
+            "cancelled": 0,
+            "consumedSeconds": 2295.8999999999983,
+            "unfinishedUnionSeconds": 2234.309999227524,
+            "monthlyBaseMinutes": 163.99285714285702
+          },
+          {
+            "name": "android-host",
+            "group": "musicAndroid",
+            "seconds": 100.149,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 54,
+            "completed": 54,
+            "cancelled": 0,
+            "consumedSeconds": 5408.046000000001,
+            "unfinishedUnionSeconds": 5365.896996259689,
+            "monthlyBaseMinutes": 772.5780000000002
+          },
+          {
+            "name": "android-apks",
+            "group": "musicAndroid",
+            "seconds": 231,
+            "multiplier": 8,
+            "product": "runner",
+            "run": "38826684750",
+            "attempts": 54,
+            "completed": 54,
+            "cancelled": 0,
+            "consumedSeconds": 12474,
+            "unfinishedUnionSeconds": 12035,
+            "monthlyBaseMinutes": 7128
+          },
+          {
+            "name": "desktop-cold-container",
+            "group": "musicDesktop",
+            "seconds": 266.987178922,
+            "multiplier": 1,
+            "product": "container",
+            "attempts": 59,
+            "completed": 59,
+            "cancelled": 0,
+            "consumedSeconds": 15752.243556397987,
+            "unfinishedUnionSeconds": 14877.320489168167,
+            "monthlyBaseMinutes": 1125.1602540284275
+          }
+        ],
+        "monthlyMinutes": {
+          "ci": 2262.104571428572,
+          "runner": 7128,
+          "container": 1125.1602540284275
+        },
+        "developerMeasuredSubtotalUsd": 77.34703758970853,
+        "startupMeasuredSubtotalUsd": 200
+      },
+      "additional": {
+        "monthlyMinutes": {
+          "ci": 2262.104571428572,
+          "runner": 21996,
+          "container": 1125.1602540284275
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 1.5726274285714317,
+          "runnerOverageUsd": 119.976,
+          "containerOverageUsd": 25.0064101611371,
+          "measuredSubtotalUsd": 166.55503758970852
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 11.976,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 211.976
+        }
+      },
+      "replacement": {
+        "removedContainerMinutes": 1125.1602540284275,
+        "monthlyMinutes": {
+          "ci": 2262.104571428572,
+          "runner": 21996,
+          "container": 0
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 1.5726274285714317,
+          "runnerOverageUsd": 119.976,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 141.54862742857142
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 11.976,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 211.976
+        }
+      }
+    },
+    {
+      "mode": "cancel-superseded",
+      "desktop": {
+        "attempts": 59,
+        "completed": 49,
+        "cancelled": 10,
+        "consumedSeconds": 23765,
+        "attemptDetails": [
+          {
+            "start": 1791469381,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791471119,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791472700,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791475311,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791581480,
+            "consumedSeconds": 205,
+            "cancelled": true
+          },
+          {
+            "start": 1791581685,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791582136,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791639062,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791658120,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791670142,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791728789,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791744498,
+            "consumedSeconds": 381,
+            "cancelled": true
+          },
+          {
+            "start": 1791744879,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791749645,
+            "consumedSeconds": 32,
+            "cancelled": true
+          },
+          {
+            "start": 1791749677,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791750469,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791753411,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791753943,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791759223,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791761224,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791762576,
+            "consumedSeconds": 115,
+            "cancelled": true
+          },
+          {
+            "start": 1791762691,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791763804,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791766934,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791768248,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791770067,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791771626,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791772245,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791778103,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791782631,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791792747,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791798438,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791806060,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791821481,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791821992,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791822898,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791827509,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791850093,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791887235,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791908875,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791924682,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791927488,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791935973,
+            "consumedSeconds": 120,
+            "cancelled": true
+          },
+          {
+            "start": 1791936093,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791946020,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791979966,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791982451,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791983007,
+            "consumedSeconds": 197,
+            "cancelled": true
+          },
+          {
+            "start": 1791983204,
+            "consumedSeconds": 352,
+            "cancelled": true
+          },
+          {
+            "start": 1791983556,
+            "consumedSeconds": 382,
+            "cancelled": true
+          },
+          {
+            "start": 1791983938,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791989404,
+            "consumedSeconds": 314,
+            "cancelled": true
+          },
+          {
+            "start": 1791989718,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792000458,
+            "consumedSeconds": 58,
+            "cancelled": true
+          },
+          {
+            "start": 1792000516,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792010997,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792012617,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792013647,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792020000,
+            "consumedSeconds": 441,
+            "cancelled": false
+          }
+        ],
+        "monthlyRunnerBaseMinutes": 13580
+      },
+      "baselineSnapshot": {
+        "mode": "cancel-superseded",
+        "details": [
+          {
+            "name": "audio-core",
+            "group": "musicCore",
+            "seconds": 136.452,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 68,
+            "completed": 63,
+            "cancelled": 5,
+            "consumedSeconds": 9023.476000000004,
+            "unfinishedUnionSeconds": 9023.475993871689,
+            "monthlyBaseMinutes": 1289.0680000000007
+          },
+          {
+            "name": "logger-representative",
+            "group": "logger",
+            "seconds": 45.918,
+            "multiplier": 1,
+            "product": "ci",
+            "attempts": 50,
+            "completed": 45,
+            "cancelled": 5,
+            "consumedSeconds": 2234.309999999998,
+            "unfinishedUnionSeconds": 2234.309999227524,
+            "monthlyBaseMinutes": 159.5935714285713
+          },
+          {
+            "name": "android-host",
+            "group": "musicAndroid",
+            "seconds": 100.149,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 54,
+            "completed": 53,
+            "cancelled": 1,
+            "consumedSeconds": 5365.897000000001,
+            "unfinishedUnionSeconds": 5365.896996259689,
+            "monthlyBaseMinutes": 766.5567142857144
+          },
+          {
+            "name": "android-apks",
+            "group": "musicAndroid",
+            "seconds": 231,
+            "multiplier": 8,
+            "product": "runner",
+            "run": "38826684750",
+            "attempts": 54,
+            "completed": 50,
+            "cancelled": 4,
+            "consumedSeconds": 12035,
+            "unfinishedUnionSeconds": 12035,
+            "monthlyBaseMinutes": 6877.142857142857
+          },
+          {
+            "name": "desktop-cold-container",
+            "group": "musicDesktop",
+            "seconds": 266.987178922,
+            "multiplier": 1,
+            "product": "container",
+            "attempts": 59,
+            "completed": 53,
+            "cancelled": 6,
+            "consumedSeconds": 14877.32048286599,
+            "unfinishedUnionSeconds": 14877.320489168167,
+            "monthlyBaseMinutes": 1062.665748776142
+          }
+        ],
+        "monthlyMinutes": {
+          "ci": 2215.218285714286,
+          "runner": 6877.142857142857,
+          "container": 1062.665748776142
+        },
+        "developerMeasuredSubtotalUsd": 73.06079680818854,
+        "startupMeasuredSubtotalUsd": 200
+      },
+      "additional": {
+        "monthlyMinutes": {
+          "ci": 2215.218285714286,
+          "runner": 20457.142857142855,
+          "container": 1062.665748776142
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 1.2913097142857168,
+          "runnerOverageUsd": 110.74285714285713,
+          "containerOverageUsd": 22.506629951045678,
+          "measuredSubtotalUsd": 154.54079680818853
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 2.7428571428571304,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 202.74285714285713
+        }
+      },
+      "replacement": {
+        "removedContainerMinutes": 1062.665748776142,
+        "monthlyMinutes": {
+          "ci": 2215.218285714286,
+          "runner": 20457.142857142855,
+          "container": 0
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 1.2913097142857168,
+          "runnerOverageUsd": 110.74285714285713,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 132.03416685714285
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 2.7428571428571304,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 202.74285714285713
+        }
+      }
+    },
+    {
+      "mode": "daily-latest",
+      "desktop": {
+        "attempts": 7,
+        "completed": 7,
+        "cancelled": 0,
+        "consumedSeconds": 3087,
+        "attemptDetails": [
+          {
+            "start": 1791475311,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791582136,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791670142,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791762691,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791827509,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1791935973,
+            "consumedSeconds": 441,
+            "cancelled": false
+          },
+          {
+            "start": 1792020000,
+            "consumedSeconds": 441,
+            "cancelled": false
+          }
+        ],
+        "monthlyRunnerBaseMinutes": 1764
+      },
+      "baselineSnapshot": {
+        "mode": "daily-latest",
+        "details": [
+          {
+            "name": "audio-core",
+            "group": "musicCore",
+            "seconds": 136.452,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 7,
+            "completed": 7,
+            "cancelled": 0,
+            "consumedSeconds": 955.164,
+            "unfinishedUnionSeconds": 955.1639993190765,
+            "monthlyBaseMinutes": 136.452
+          },
+          {
+            "name": "logger-representative",
+            "group": "logger",
+            "seconds": 45.918,
+            "multiplier": 1,
+            "product": "ci",
+            "attempts": 6,
+            "completed": 6,
+            "cancelled": 0,
+            "consumedSeconds": 275.508,
+            "unfinishedUnionSeconds": 275.5079998970032,
+            "monthlyBaseMinutes": 19.679142857142857
+          },
+          {
+            "name": "android-host",
+            "group": "musicAndroid",
+            "seconds": 100.149,
+            "multiplier": 2,
+            "product": "ci",
+            "attempts": 7,
+            "completed": 7,
+            "cancelled": 0,
+            "consumedSeconds": 701.043,
+            "unfinishedUnionSeconds": 701.0429995059967,
+            "monthlyBaseMinutes": 100.149
+          },
+          {
+            "name": "android-apks",
+            "group": "musicAndroid",
+            "seconds": 231,
+            "multiplier": 8,
+            "product": "runner",
+            "run": "38826684750",
+            "attempts": 7,
+            "completed": 7,
+            "cancelled": 0,
+            "consumedSeconds": 1617,
+            "unfinishedUnionSeconds": 1617,
+            "monthlyBaseMinutes": 924
+          },
+          {
+            "name": "desktop-cold-container",
+            "group": "musicDesktop",
+            "seconds": 266.987178922,
+            "multiplier": 1,
+            "product": "container",
+            "attempts": 7,
+            "completed": 7,
+            "cancelled": 0,
+            "consumedSeconds": 1868.9102524540003,
+            "unfinishedUnionSeconds": 1868.9102532863617,
+            "monthlyBaseMinutes": 133.49358946100003
+          }
+        ],
+        "monthlyMinutes": {
+          "ci": 256.2801428571429,
+          "runner": 924,
+          "container": 133.49358946100003
+        },
+        "developerMeasuredSubtotalUsd": 20,
+        "startupMeasuredSubtotalUsd": 200
+      },
+      "additional": {
+        "monthlyMinutes": {
+          "ci": 256.2801428571429,
+          "runner": 2688,
+          "container": 133.49358946100003
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 4.128,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 24.128
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 0,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 200
+        }
+      },
+      "replacement": {
+        "removedContainerMinutes": 133.49358946100003,
+        "monthlyMinutes": {
+          "ci": 256.2801428571429,
+          "runner": 2688,
+          "container": 0
+        },
+        "developer": {
+          "subscriptionUsd": 20,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 4.128,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 24.128
+        },
+        "startup": {
+          "subscriptionUsd": 200,
+          "ciOverageUsd": 0,
+          "runnerOverageUsd": 0,
+          "containerOverageUsd": 0,
+          "measuredSubtotalUsd": 200
+        }
+      }
+    }
+  ]
+}

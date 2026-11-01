@@ -47,7 +47,7 @@ function hasYieldsTag(result: ReadonlyDeep<TsdocParseResult>,): boolean {
   Generates numbers.
  
   @yields sequential integers
-  *\/
+ *\/
  function* count(): Generator<number> { yield 1; }
  ```
  */

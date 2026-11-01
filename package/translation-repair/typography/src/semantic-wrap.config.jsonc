@@ -1,0 +1,18 @@
+// Configuration `monochromatic-lint` reads when the package wraps a passage
+// (`semantic-wrap-binary.ts` names it with `--config`). It selects the one
+// rule that puts line breaks back after a break-point character.
+//
+// The severity is "warn" on purpose. With "error" the program exits with
+// status 1 whenever a finding survives its fix passes, even though the wrapped
+// text is on standard output; the in-process wrap this replaced returned that
+// text and ignored what survived, and a wrap that stopped a paid run over a
+// cosmetic leftover would be worse than the leftover. A run that cannot be
+// trusted to be complete still exits with status 2, which the package refuses.
+[
+  {
+    "files": ["**/*.md"],
+    "rules": {
+      "markdown/semantic-line-breaks": { "severity": "warn" }
+    }
+  }
+]

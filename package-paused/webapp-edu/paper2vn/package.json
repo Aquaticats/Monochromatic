@@ -7,9 +7,9 @@
   "main": "src/build.ts",
   "version": "0.0.1",
   "dependencies": {
-    "@monochromatic-dev/module-hyperscript": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "pdfjs-dist": "catalog:",
     "typesafe-i18n": "catalog:"
   },

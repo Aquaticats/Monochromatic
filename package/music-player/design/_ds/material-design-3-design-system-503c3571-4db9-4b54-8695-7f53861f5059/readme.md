@@ -2,14 +2,16 @@
 
 A design system built from Google's official **Material Design 3** documentation site (m3.material.io),
  including the "M3 Expressive" update.
- This is a personal-use design-system recreation for prototyping — **any product built from it must credit Google's Material Design 3** as the source design language.
+ This is a personal-use design-system recreation for prototyping — **any product built from it must credit Google's
+ Material Design 3** as the source design language.
  Not affiliated with or endorsed by Google.
 
 **Source material:**
  a full offline (SingleFile) capture of `m3.material.io` — styles,
  foundations,
  component specs,
- and images — supplemented with exact token values read from Google's open-source `material-components/material-web` GitHub repo (`tokens/versions/latest/sass/`),
+ and images — supplemented with exact token values read from Google's open-source `material-components/material-web`
+ GitHub repo (`tokens/versions/latest/sass/`),
  which is the canonical machine-readable source for M3's color roles,
  type scale,
  shape,
@@ -45,7 +47,8 @@ Material Design 3 is Google's cross-platform design system for building adaptive
 ## Components represented
 
 There is one product here:
- **the Material Design 3 system itself** — a UI kit (`ui_kits/m3-docs-site/`) recreates the m3.material.io documentation site's own chrome (nav rail,
+ **the Material Design 3 system itself** — a UI kit (`ui_kits/m3-docs-site/`) recreates the m3.material.io
+ documentation site's own chrome (nav rail,
  hero cards,
  styles/components index) as a demonstration of the tokens and components in use.
 
@@ -85,7 +88,8 @@ There is one product here:
    tone 80 dark).
 - **Type:**
    Roboto (`md.ref.typeface.brand` and `.plain`,
-   both Roboto in the default theme) across 5 roles × 3 sizes (display/headline/title/body/label × large/medium/small) = 15 styles,
+   both Roboto in the default theme) across 5 roles × 3 sizes (display/headline/title/body/label × large/medium/small)
+   = 15 styles,
    each with an "emphasized" (heavier-weight) counterpart new in M3 Expressive.
 - **Spacing:**
    an 8dp grid (`space100`=8 … `space900`=72),
@@ -118,7 +122,8 @@ There is one product here:
    6 levels (0–5),
    each a two-part umbra/penumbra shadow tinted with `md.sys.color.shadow` (black).
    Increasingly,
-   elevation is signaled by *tonal surface* (a lighter/darker fill) rather than shadow depth — shadows are reserved for genuinely floating elements (FAB,
+   elevation is signaled by *tonal surface* (a lighter/darker fill) rather than shadow depth — shadows are reserved for
+   genuinely floating elements (FAB,
    menu,
    dialog).
 - **Corner radius:**
@@ -170,7 +175,8 @@ There is one product here:
 
 - `assets/logo/m3-mark.svg` — the Material Design 3 favicon/wordmark glyph (the only "logo" the source provides;
    M3 has no separate brand logotype beyond this mark and the plain wordmark "Material Design 3").
-- `assets/fonts/` — self-hosted Material Symbols variable font + Google Sans / Google Sans Text (used only by the docs-site UI kit recreation;
+- `assets/fonts/` — self-hosted Material Symbols variable font + Google Sans / Google Sans Text (used only by the
+docs-site UI kit recreation;
    product UI uses Roboto,
    loaded from Google Fonts in `tokens/fonts.css`).
 - `assets/img/` — hero and section imagery captured from m3.material.io (home page cards,
@@ -219,7 +225,8 @@ There is one product here:
    link states,
    and `.md-state-layer` hover/press mechanism shared by every component.
 
-All values are copied verbatim from `material-components/material-web@main` (`tokens/versions/latest/sass/`) — never rounded or approximated.
+All values are copied verbatim from `material-components/material-web@main` (`tokens/versions/latest/sass/`) — never
+rounded or approximated.
 
 ## Components (31)
 
@@ -266,7 +273,8 @@ All values are copied verbatim from `material-components/material-web@main` (`to
    `Icon`
 
 **Intentional additions:**
- `Icon` (a thin wrapper around the Material Symbols glyph font — needed since M3 icons aren't a per-icon SVG set) and `Toolbar` (a simplified version of M3's floating/docked toolbar spec).
+ `Icon` (a thin wrapper around the Material Symbols glyph font — needed since M3 icons aren't a per-icon SVG set)
+ and `Toolbar` (a simplified version of M3's floating/docked toolbar spec).
  `Carousel`,
  `DatePicker`,
  and `TimePicker` from the full M3 catalog were **not built** — they are complex,
@@ -313,5 +321,6 @@ SKILL.md                        Claude Code / Agent Skills compatible entry poin
 - `Carousel`,
    `DatePicker`,
    `TimePicker` are documented in the M3 catalog but not built here (see "Intentional additions" above).
-- The static reference palette (11 extra hues beyond primary/secondary/tertiary) is included in `tokens/palette.css` but has no semantic role mapping — use it only for data-viz/illustration accents,
+- The static reference palette (11 extra hues beyond primary/secondary/tertiary) is included in `tokens/palette.css`
+but has no semantic role mapping — use it only for data-viz/illustration accents,
    not UI chrome.

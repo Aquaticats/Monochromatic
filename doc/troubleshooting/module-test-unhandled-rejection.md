@@ -14,7 +14,7 @@ separate async-failure warning that fails the file.
 At 2026-09-06 20:05 UTC,
 the same detached-rejection probe produced different results from the two existing artifacts:
 
-- Ordinary `@monochromatic-dev/module-test` import selected `dist/final/node/index.mjs`.
+- Ordinary `@monochromatic-dev/test-harness-core` import selected `dist/final/node/index.mjs`.
   Node 26.8.1 printed `Error: boundary probe escaped rejection` and exited 1.
   Neither `SIBLING_FINISHED` nor `ROOT_RESOLVED` appeared,
   and no harness async-failure diagnostic appeared.
@@ -33,7 +33,7 @@ This assessment made no implementation edits or builds.
 
 ### Why the passing regression missed the ordinary import
 
-`package/module/test/package.json:12` selects a separate Node artifact:
+`package/test-harness/core/package.json:12` selects a separate Node artifact:
 
 ```json
 "node": "./dist/final/node/index.mjs",
@@ -56,10 +56,10 @@ if (key === 'default' || conditions.has(key)) {
   const conditionalTarget = target[key];
 ```
 
-The probe's `import.meta.resolve('@monochromatic-dev/module-test')`
+The probe's `import.meta.resolve('@monochromatic-dev/test-harness-core')`
 confirmed the actual target before importing it in a disposable child process.
 However,
-`package/module/test/src/rejection-fixture-scenario.ts:18`
+`package/test-harness/core/src/rejection-fixture-scenario.ts:18`
 bypasses that selection:
 
 ```ts
@@ -77,7 +77,7 @@ the working neutral build loads its observation code lazily from another chunk.
 
 ### Reproduce both current delivery paths without rebuilding
 
-From `package/module/test`,
+From `package/test-harness/core`,
 the following bounded probe uses separate disposable working directories under the user's scratch root.
 It preserves the repository artifacts and records both output streams and process statuses.
 
@@ -90,7 +90,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { text } from "node:stream/consumers";
 const targets = [
-  { label: "ordinary-node-import", url: import.meta.resolve("@monochromatic-dev/module-test") },
+  { label: "ordinary-node-import", url: import.meta.resolve("@monochromatic-dev/test-harness-core") },
   { label: "explicit-neutral-artifact", url: new URL("./dist/final/neutral/index.mjs", import.meta.url).href },
 ];
 const program = `
@@ -159,7 +159,7 @@ The harness reproduction isolates the detached rejection directly.
 
 ### The test function's returned promise is already observed
 
-`package/module/test/src/it.ts:111` starts the supplied function and awaits its promise:
+`package/test-harness/core/src/it.ts:111` starts the supplied function and awaits its promise:
 
 ```ts
 const promise = fn(ctx,);
@@ -174,7 +174,7 @@ The positive control that changed `void Promise.reject(...)` to `await Promise.r
 produced `[issue483] [leaks] [FAIL]` and executed the later sibling.
 
 The reported logger mutation has such a separate branch.
-`package/module/logger/src/create-logger.ts:249` awaits the tracked write in an async cleanup function:
+`package/logger/core/src/create-logger.ts:249` awaits the tracked write in an async cleanup function:
 
 ```ts
 async function removePendingWriteWhenSettled(
@@ -185,7 +185,7 @@ async function removePendingWriteWhenSettled(
 }
 ```
 
-The caller at `package/module/logger/src/create-logger.ts:284` discards the cleanup promise:
+The caller at `package/logger/core/src/create-logger.ts:284` discards the cleanup promise:
 
 ```ts
 void removePendingWriteWhenSettled({ trackedWrite, },);
@@ -264,7 +264,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { setTimeout as wait } from "node:timers/promises";
-const entry = pathToFileURL(resolve("package/module/test/src/index.ts"));
+const entry = pathToFileURL(resolve("package/test-harness/core/src/index.ts"));
 process.chdir(tmpdir());
 const { describe, it } = await import(entry.href);
 await describe({
@@ -417,7 +417,7 @@ Its cost is that `saves settings` stays marked passed despite causing the file f
 The original recommendation of A is retracted.
 The user correctly challenged its fit with the existing architecture:
 printing a later FAIL cannot revise a resolved descriptor promise or a parent's collected results.
-`package/module/test/src/describe.ts:365` collects settled child results locally:
+`package/test-harness/core/src/describe.ts:365` collects settled child results locally:
 
 ```ts
 const settled = await awaitSettleWithTimeoutLogging();
@@ -471,10 +471,10 @@ From the repository root,
 run the package tasks in order:
 
 ```bash
-mise run //package/module/test:build:js:browser
-mise run //package/module/test:test:unit
-mise run //package/module/test:lint:types
-mise run //package/module/test:lint:oxlint
+mise run //package/test-harness/core:build:js:browser
+mise run //package/test-harness/core:test:unit
+mise run //package/test-harness/core:lint:types
+mise run //package/test-harness/core:lint:oxlint
 ```
 
 The tests launch plain Node child processes against the explicitly selected neutral artifact,

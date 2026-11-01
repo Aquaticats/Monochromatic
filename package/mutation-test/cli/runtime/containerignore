@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/dist
+**/.cache
+**/target
+**/output
+**/corpus
+**/.stryker-tmp
+.env.local.json
+mise.local.toml
+.claude

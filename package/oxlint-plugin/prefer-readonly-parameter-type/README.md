@@ -27,7 +27,8 @@ Every call reached from caller-owned state has one accepted outcome:
 - default-library collection member's effect on its receiver's structure is derivable from the paired
   read-only view,
   and every caller-supplied observer it hands receiver state to is owned source whose own effects propagate;
-- exact `ForeignHostCapability` marker plus `@mutates` contract bounds runtime-owned host behavior after inference fails;
+- exact `ForeignHostCapability` marker plus `@mutates` contract bounds
+  runtime-owned host behavior after inference fails;
 - rule rejects call as opaque.
 
 Missing source,
@@ -149,6 +150,11 @@ repository-relative path,
 and line,
 not a semantic handle tied to a replaceable project object.
 Default-library and external-library declarations never become editable producer origins.
+A declaration is workspace source when its real path lies outside every `node_modules` directory,
+whatever the program's external-library flag says.
+A workspace package reached through a `node_modules` symbolic link is flagged as an external-library module,
+yet its type and callable declarations still name the producer to edit,
+so it gets the same unique-origin guidance as a declaration in the importing project.
 Distinct producers on one source line retain distinct full-offset identities.
 Local arrays,
 object literals,
@@ -180,7 +186,8 @@ and stale-contract reports.
 ## Demand and cache boundaries
 
 Each active source expands analysis through exact owned callee and callback identities only.
-A reached `ForeignBorrowed` candidate asks TypeScript for exact signature usages and walks backwards through callable owners.
+A reached `ForeignBorrowed` candidate asks TypeScript for exact signature usages
+and walks backwards through callable owners.
 Inline collection observers use their containing call directly,
 and referenced observers use their argument reference when TypeScript correctly reports no direct invocation.
 Non-call escapes,
@@ -196,7 +203,7 @@ When several split rules are enabled in one Oxlint worker,
 the first rule computes callable and parameter evidence,
 and sibling reporters reuse the completed immutable result.
 Failed or partial computations are never cached.
-Schema-8 persistent entries validate exact source,
+Schema-10 persistent entries validate exact source,
 module,
 semantic call,
 compiler-option,
@@ -204,11 +211,120 @@ declaration-surface,
 and lockfile identities across later processes.
 They also persist validated source-local callable omissions and every distinct bounded reason category,
 so a warm process preserves the cold process's narrow fail-closed state and explains why coverage narrowed.
+A source whose scan applied the effect of an installed package's shipped implementation also persists the omissions
+met inside that implementation,
+one record per implementation source with its count and reason categories.
+Its cached summaries already carry the applied effect,
+so a restored source never opens the implementation again,
+and the record is what lets the restore report what the cold scan reported.
+Each such source is reported once per process.
 Cold and restored omissions emit concise `warn` records,
 while caught stacks remain available only at debug level.
 `closeSemanticBridge()` clears every process cache.
 
+The persistent cache is bounded per dependency root:
+at most 1 GiB (1024 MiB) and 16384 entries,
+with the oldest entries evicted first and any entry older than 7 days removed.
+The 36 packages under `package/translation-repair/` need 8269 entries and 508,090,059 bytes between them,
+so smaller bounds made each package's lint evict the others' entries and run cold
+(312 s for the family warm, against 71 s with larger bounds).
+The bounds sit at about twice that measured need.
+
 CLI diagnostics are authoritative because Oxlint's language server does not execute JavaScript plugins.
+
+## Cross-project sharing
+
+Each TypeScript project analyses every source it reaches,
+including the sources of the workspace packages it imports,
+so one source is analysed once for every project that reaches it.
+Direct summaries of a source are therefore shared across projects whenever every input to its analysis agrees.
+A shared entry lives at `shared/<hash of the file name>/<key digest>.json` under the cache root,
+and a read tries the shared entry first and the project's own entry second.
+
+### The key
+
+The key digests everything that can change one source's direct summaries:
+
+- the analyzer digest, which covers the cache schema, the TypeScript version, and the implementation bytes;
+- the file name and the digest of the source text;
+- the closure,
+  which holds every file reached through a module reference,
+  with its content digest,
+  whether the analysis indexes it,
+  its default-library flag,
+  and its module format.
+  The walk follows static imports,
+  `export ... from`,
+  `import x = require(...)`,
+  literal dynamic imports,
+  and literal `import()` types through declaration and external files;
+- the ambient surface,
+  which holds every program file that applies without an import:
+  scripts (the default libraries included),
+  files with module or global augmentations or ambient module names,
+  and declaration files with `export as namespace`.
+  A `/// <reference types>` directive is not walked,
+  because the file it adds applies to every source only through this surface;
+- the augmentation surface and the lockfile digest;
+- the compiler options by value,
+  from the explicit list of keyed options in `shared-analysis-options.ts`;
+- the external analysis root.
+
+The key leaves out the project's file list,
+its declaration files that no source reaches,
+and the options that only steer module resolution
+(`paths`, `baseUrl`, `rootDirs`, `rootDir`, `outDir`, `declarationDir`, `tsBuildInfoFile`, `typeRoots`,
+`mapRoot`, `sourceRoot`, `project`, `configFilePath`, `pathsBasePath`).
+A change in what a reference resolves to changes the closure, so two projects whose `paths` differ share an entry
+exactly when the files their references reach agree.
+
+### Fallbacks
+
+A source that cannot be keyed completely keeps its per-project entry,
+and the reason is counted while verification is on:
+
+- `unknown-option:<name>`:
+  the project sets a compiler option on neither list,
+  so a TypeScript option added later cannot be shared by accident,
+  and every source of the project falls back;
+- `script-source`:
+  the source is a global script rather than a module;
+- `implicit-import-file`:
+  the closure reaches a `.tsx`, `.jsx`, `.astro`, `.mdx`, `.vue`, or `.svelte` file,
+  whose runtime import from `jsxImportSource` the parser does not list;
+- `unresolved-specifier`:
+  a module reference resolves to no program file;
+- `no-source-digest`:
+  a closure file has no content digest or program metadata in the snapshot;
+- `file-not-in-program`:
+  a closure file is absent from the program that was asked to list its references.
+
+A shared entry is also written only when the dependency closure the persistent cache records is resolved.
+An `import()` type whose argument is not a string literal fails that closure,
+so a source reaching one is never written as a shared entry.
+
+### Verification
+
+`PRPT_VERIFY_SHARED=1` analyses every shared hit afresh and compares callable summaries,
+omitted callables,
+omission reasons,
+and omissions inside installed packages with the entry that was read.
+Each difference is logged as an error and counted as a mismatch.
+`PRPT_VERIFY_SHARED_DIR=<directory>` makes each process write a counter file named `<pid>-<thread>.json`
+(eligible keys, shared writes, invalid entries, misses, hits, cross-project hits, verified hits, mismatches,
+fallbacks by reason, and the mismatch records),
+and a `<pid>-<thread>-keys.jsonl` trace of each key's components.
+`PRPT_VERIFY_SHARED_CLOSURES=1` adds a `-closures.jsonl` trace of the closure behind each key.
+
+Verification is a probe, not a gate setting.
+The fresh analysis repeats the work that sharing saves,
+so it is several times slower:
+the 36 packages under `package/translation-repair/` lint cold in about 131 s without it,
+and a cold run with it took 410 s and more.
+It compares hits only,
+so it cannot see a source that should have shared and did not.
+A shared entry whose payload was changed by hand is reported as a mismatch naming the summary,
+which is the positive control for the mode.
 
 ## Ownership marker
 
@@ -243,7 +359,8 @@ See the
 
 Invoking a caller-provided callback is an affected capability.
 The rule tracks invocation separately from referent mutation,
-so an implementation-derived callback call does not automatically claim mutation of the function object or every captured value.
+so an implementation-derived callback call does not automatically claim mutation
+of the function object or every captured value.
 Unknown and external callbacks remain fail closed.
 
 ## What counts as an external call
@@ -392,7 +509,8 @@ Package acceptance includes:
   split-rule ownership,
   suggestion,
   bridge lifecycle,
-  and cache-sharing tests;
+  and cache-sharing tests,
+  including the cases that name each sharing fallback and the cases where two projects must not share;
 - conditional exports,
   runtime re-exports,
   declaration and runtime sibling mismatch,

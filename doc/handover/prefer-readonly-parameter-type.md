@@ -1,5 +1,15 @@
 # Handover: making `prefer-readonly-parameter-type` bulletproof
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/rss` is now `package/rss/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/kv-store` is now `package/kv-store/core`.
+
 Live document.
  Updated as work lands,
  not at the end.
@@ -1634,6 +1644,68 @@ What survives without qualification:
  What needs measuring rather than asserting is whether this workspace's installed dependencies reach the
  channel at all,
  which is what #113 was actually about and which one worker does not prevent.
+
+## TypeScript 7.1.0-beta move, 2026-10-20
+
+The workspace now pins `'typescript': '7.1.0-beta'`
+(`pnpm-workspace.yaml`,
+npm `beta` dist-tag,
+published 2026-10-20T16:45:47.402Z).
+Commits in order:
+`27b1cf2eec` (catalog pin,
+lockfile,
+`minimumReleaseAgeExclude` entries),
+`92b92380bc` (API entry-point imports),
+`1ab344bd64` (docs),
+`e4b2e1d72e` (API surface migration in `prefer-readonly-parameter-type`),
+`787241da40` (fixture and harness test alignment),
+`62ca73197b` (retired the `typescript-tuple-serialization-failed` category),
+`ac0023ebe5` (omission tests driven from seeded records).
+
+### Decisions taken this day
+
+- The four omission-pathway tests rewrite to 7.1 as the only baseline
+ (user direction:
+ "pretend we were always on 7.1 beta+ and change what's there to match").
+ They seed the persisted omission record as fixture data,
+ so the persistence,
+ restore,
+ cross-process reporting and installed-package propagation contracts stay pinned end to end.
+- The `minimumReleaseAgeExclude` entries stay until `7.1.0` stable
+ (user choice,
+ 2026-10-20).
+ They bypass the workspace's 24-hour `minimumReleaseAge` hold for `typescript@7.1.0-beta` and for
+ the `@typescript/*` scope.
+
+### What the move changed observably
+
+- The 7.0.2 tuple-serialization checker panic is gone
+ (`doc/troubleshooting/typescript-instantiated-tuple-serialization.md`).
+- `Type.isTupleType()` now answers true for tuple references,
+ unmasking one sound preference offer on `readStoredPair` in `readonly-tuple-exposure-invalid.ts`
+ (`doc/troubleshooting/typescript-is-tuple-type-tuple-reference.md`).
+ The writers stay silent on the `referentMutated=[0]` attribution pin.
+- `semantic-overlay-filesystem.ts` returns `serverFS.useOS` on a cache miss,
+ because 7.1 treats a `readFile` `undefined` answer as "absent" where 7.0.2 fell back to the OS.
+- Inferred projects report `configFileName === undefined`
+ (7.0.2 spelled `/dev/null/inferred`).
+
+### Open items
+
+- The `@typescript/*` `minimumReleaseAgeExclude` entry is broader than the seven platform binaries;
+ tightening it to version-scoped entries is a follow-up candidate when the exclusions are revisited
+ on `7.1.0` stable.
+- `semantic-request-memo.ts`'s allow-list purity evidence is pinned to `typescript/v7.0.2`
+ (`microsoft/typescript-go` `2bd066d87f5bafd315be9f40889d0a60b9e58e0b`,
+ `internal/api/session.go`);
+ re-audit against the `7.1.0-beta` session surface is recommended.
+
+### Next action
+
+Nothing queued.
+The suite is green
+(`mise run //package/oxlint-plugin/prefer-readonly-parameter-type:test:unit` and `lint:types`),
+and the open items wait on `7.1.0` stable or on a user go-ahead.
 
 ## Primary records
 

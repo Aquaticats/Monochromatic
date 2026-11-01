@@ -1,5 +1,10 @@
 # deepmerge-ts 8.0.2 clean-room docs oracle
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`.
+
 ## Purpose
 
 This audit checks npm `deepmerge-ts@8.0.2` against a specification derived only from its documentation.

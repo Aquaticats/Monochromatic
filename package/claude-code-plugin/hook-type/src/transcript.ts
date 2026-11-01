@@ -38,6 +38,14 @@ type TranscriptContentBlock = {
   readonly text?: string;
 
   /**
+   Reasoning text, present on `thinking` blocks.
+
+   Stays on this machine: readers never send it to an external provider,
+   and records derived from it carry hashes and indexes instead of text.
+   */
+  readonly thinking?: string;
+
+  /**
    Tool arguments, present on `tool_use` blocks.
    
    Values stay `unknown` so each reader narrows the arguments it cares about
@@ -58,6 +66,18 @@ type TranscriptRecord = {
    Record kind, such as `user`, `assistant`, or `attachment`.
    */
   readonly type?: string;
+
+  /**
+   Queue action on a `queue-operation` record: `enqueue`, `dequeue`, or `remove`.
+   */
+  readonly operation?: string;
+
+  /**
+   Queued text on a `queue-operation` record, such as a `<task-notification>` block.
+
+   Absent on a `dequeue`, which takes the head of the queue without naming it.
+   */
+  readonly content?: string;
 
   /**
    `true` for records belonging to a subagent branch rather than the main thread.

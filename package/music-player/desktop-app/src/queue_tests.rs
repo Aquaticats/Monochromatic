@@ -70,13 +70,13 @@ fn set_tracks_starts_at_first() {
 }
 
 #[test]
-fn advance_loops_within_scope_when_repeat_track_off() {
+fn manual_next_loops_within_scope_in_order() {
     let mut q = Queue::with_rng_seed(1);
     q.set_tracks(paths(3));
     // What:     natural=false (user pressed Next). Bare names share one `#`
     //           page, so the scope is all three; advance walks 1, 2, then
-    //           WRAPS to 0 (no stop-at-end mode any more), then 1.
-    // Why:      Off scope loops within the page once exhausted.
+    //           WRAPS to 0 (a manual Next wraps; only a natural end stops), then 1.
+    // Why:      A manual Next always has a target.
     assert_eq!(q.advance(false), Some(1));
     assert_eq!(q.advance(false), Some(2));
     assert_eq!(q.advance(false), Some(0));
@@ -474,4 +474,139 @@ fn shuffle_page_uses_displayed_page_and_keeps_current() {
         seen.insert(q.advance(false).unwrap());
     }
     assert_eq!(seen, std::collections::HashSet::from([2, 3]));
+}
+
+#[test]
+fn peek_next_natural_on_an_empty_queue_is_none() {
+    let mut q = Queue::with_rng_seed(1);
+    assert_eq!(q.peek_next_natural(), None);
+}
+
+#[test]
+fn peek_next_natural_in_order_names_the_next_track_without_moving() {
+    let mut q = Queue::with_rng_seed(1);
+    q.set_tracks(paths(3));
+    assert_eq!(q.peek_next_natural(), Some(1));
+    assert_eq!(q.current_index(), Some(0));
+    assert_eq!(q.advance(true), Some(1));
+    assert_eq!(q.peek_next_natural(), Some(2));
+    assert_eq!(q.advance(true), Some(2));
+    // In order stops at the end of the folder (D2), so nothing is named after the last track, exactly as `advance` does.
+    assert_eq!(q.peek_next_natural(), None);
+    assert_eq!(q.current_index(), Some(2));
+    assert_eq!(q.advance(true), None);
+    assert_eq!(q.current_index(), Some(2), "the cursor stays on the last track until the caller rewinds");
+}
+
+#[test]
+fn peek_next_natural_repeat_names_the_same_track() {
+    let mut q = Queue::with_rng_seed(1);
+    q.set_tracks(paths(3));
+    q.set_playback_mode(PlaybackMode::Repeat);
+    assert_eq!(q.peek_next_natural(), Some(0));
+    assert_eq!(q.advance(true), Some(0));
+}
+
+#[test]
+fn peek_next_natural_in_shuffle_commits_the_pick_that_advance_then_takes() {
+    for mode in [PlaybackMode::ShuffleAll, PlaybackMode::ShufflePage] {
+        let mut q = Queue::with_rng_seed(777);
+        q.set_tracks(paths(6));
+        q.set_playback_mode(mode);
+        for _ in 0..12 {
+            let before = q.current_index();
+            let peeked = q.peek_next_natural();
+            assert_eq!(q.current_index(), before, "peeking must not move the cursor");
+            // Peeking again without advancing names the same track: the pick is committed once.
+            assert_eq!(q.peek_next_natural(), peeked);
+            assert_eq!(q.advance(true), peeked);
+        }
+    }
+}
+
+#[test]
+fn peek_next_natural_follows_the_history_after_prev() {
+    let mut q = Queue::with_rng_seed(5);
+    q.set_tracks(paths(6));
+    q.set_playback_mode(PlaybackMode::ShuffleAll);
+    let first = q.advance(false);
+    let second = q.advance(false);
+    assert_eq!(q.prev(), first);
+    assert_eq!(q.peek_next_natural(), second);
+    assert_eq!(q.advance(true), second);
+}
+
+// What:     In order stops at the end of the folder (D2): a natural end at the last slot gives nothing, the cursor stays,
+//           and `rewind_scope` puts it back on the first track.
+// Why:      PB4: the scope looped forever, so In order never stopped.
+#[test]
+fn in_order_natural_end_at_the_last_track_stops_and_rewind_returns_to_the_first() {
+    let mut q = Queue::with_rng_seed(1);
+    q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "B/1.flac"]));
+    q.set_playback_mode(PlaybackMode::InOrder);
+    assert_eq!(q.advance(true), Some(1));
+    assert_eq!(q.advance(true), None, "the last track of folder A has nothing after it; folder B is not entered");
+    assert_eq!(q.current_index(), Some(1));
+    assert_eq!(q.rewind_scope(), Some(0));
+    assert_eq!(q.current_index(), Some(0));
+    assert_eq!(q.advance(true), Some(1), "the folder plays again after the rewind");
+}
+
+// What:     A single-track folder plays once and stops.
+// Why:      The edge of the same rule: the first slot is the last slot.
+#[test]
+fn in_order_stops_after_a_single_track_folder() {
+    let mut q = Queue::with_rng_seed(1);
+    q.set_tracks(track_paths(&["A/1.flac", "B/1.flac"]));
+    assert_eq!(q.advance(true), None);
+    assert_eq!(q.peek_next_natural(), None);
+}
+
+// What:     Repeat, shuffle the folder and shuffle all never stop at a natural end.
+// Why:      Only In order stops; the other modes have their own end rules.
+#[test]
+fn only_in_order_stops_at_a_natural_end() {
+    for mode in [PlaybackMode::Repeat, PlaybackMode::ShufflePage, PlaybackMode::ShuffleAll] {
+        let mut q = Queue::with_rng_seed(1);
+        q.set_tracks(track_paths(&["A/1.flac", "A/2.flac"]));
+        q.set_playback_mode(mode);
+        for _ in 0..6 {
+            assert!(q.advance(true).is_some(), "{mode:?} must keep going");
+        }
+        assert!(q.peek_next_natural().is_some(), "{mode:?} always names a next track");
+    }
+}
+
+// What:     `rewind_scope` on an empty queue gives nothing.
+// Why:      After a stop with nothing queued there is nothing to load.
+#[test]
+fn rewind_scope_of_an_empty_queue_is_none() {
+    let mut q = Queue::with_rng_seed(1);
+    assert_eq!(q.rewind_scope(), None);
+}
+
+// What:     `first_in_scope` is the first track of the displayed page, else the first track, else nothing.
+// Why:      Play with nothing selected starts here (EM2).
+#[test]
+fn first_in_scope_prefers_the_displayed_page() {
+    let mut q = Queue::with_rng_seed(1);
+    assert_eq!(q.first_in_scope(), None);
+    q.set_tracks(track_paths(&["A/1.flac", "B/1.flac", "B/2.flac"]));
+    assert_eq!(q.first_in_scope(), Some(0));
+    q.set_page_scope(vec![1, 2]);
+    assert_eq!(q.first_in_scope(), Some(1));
+}
+
+// What:     With the opened folder known, a single top-level folder is a folder page and loose files are their own page.
+// Why:      LS1 at the engine's side: the scope must be the page the window shows.
+#[test]
+fn display_root_keeps_the_single_folder_and_separates_loose_files() {
+    let mut q = Queue::with_rng_seed(1);
+    q.set_display_root(Some(PathBuf::from("/lib/Music")));
+    q.set_tracks(track_paths(&["/lib/Music/Artist/1.flac", "/lib/Music/Artist/2.flac", "/lib/Music/loose.flac"]));
+    assert_eq!(q.display_paths(), vec!["Artist/1.flac", "Artist/2.flac", "loose.flac"]);
+    q.play_index(0);
+    q.set_playback_mode(PlaybackMode::InOrder);
+    assert_eq!(q.advance(true), Some(1));
+    assert_eq!(q.advance(true), None, "the loose file is another page, so the folder ends");
 }

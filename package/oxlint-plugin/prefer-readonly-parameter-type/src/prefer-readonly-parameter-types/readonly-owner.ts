@@ -1,4 +1,4 @@
-import type { Type, } from 'typescript/unstable/sync';
+import type { Type, } from 'typescript/sync';
 
 /**
  Returns owner symbol name for resolved type.

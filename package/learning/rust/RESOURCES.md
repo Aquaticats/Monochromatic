@@ -65,7 +65,7 @@
    and fuzz targets maintained in this repository.
   Use for:
    concrete examples once the book has introduced each required concept.
-- [Monorepo Rust linter](../../linter/rust/)
+- [Monorepo Rust linter](../../linter/monochromatic-lint/)
   Rust-based linting infrastructure and its tests.
   Use for:
    examples involving traits,

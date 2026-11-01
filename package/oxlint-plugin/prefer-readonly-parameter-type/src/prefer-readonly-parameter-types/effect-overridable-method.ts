@@ -12,12 +12,12 @@
 import {
   type Node,
   SyntaxKind,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isClassDeclaration,
   isClassExpression,
   isMethodDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Modifiers that stop a method from being reached through a subclass instance.

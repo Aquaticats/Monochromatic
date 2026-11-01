@@ -100,11 +100,11 @@ function revalidateSettlementReview(
     readonly request: GoalSettlementReviewRequest;
     readonly context: ForeignBorrowed<ExtensionContext>;
   },):
-  | {
-    readonly current: true;
-    readonly controller: GoalControllerState;
-  }
-  | { readonly current: false; } {
+    | {
+      readonly current: true;
+      readonly controller: GoalControllerState;
+    }
+      | { readonly current: false; } {
   /**
    Current controller read before captured session-handle use.
    */
@@ -183,11 +183,11 @@ async function acquireGoalSettlementReview(
     readonly available: true;
     readonly review: Awaited<ReturnType<GoalSettlementReviewer>>;
   }
-  | {
-    readonly available: false;
-    readonly disposition: GoalSettlementDisposition;
-  }
-> {
+    | {
+      readonly available: false;
+      readonly disposition: GoalSettlementDisposition;
+    }
+  > {
   try {
     return {
       available: true,

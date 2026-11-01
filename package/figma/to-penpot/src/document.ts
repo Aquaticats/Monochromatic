@@ -154,12 +154,12 @@ function indexNodes(nodeChanges: readonly FigmaRecord[],): ConvertContext {
       .set(
       key,
       guidToUuid(guid,),
-    );
+      );
     ctx.nodeByGuid
       .set(
       key,
       nc,
-    );
+      );
     /**
      Parent reference; `SKIP` means the node is unparented.
      */
@@ -180,7 +180,7 @@ function indexNodes(nodeChanges: readonly FigmaRecord[],): ConvertContext {
         .set(
         parentKey,
         children,
-      );
+        );
     }
   }
   return ctx;
@@ -209,8 +209,8 @@ function isInternalCanvas(nc: FigmaRecord,): boolean {
   const internalOnly = (nc.internalOnly === true) || hasEditInfo;
   return internalOnly
     && asString(nc.name,)
-    .toLowerCase()
-    .includes('internal',);
+      .toLowerCase()
+      .includes('internal',);
 }
 
 /**
@@ -320,7 +320,7 @@ function buildPage(
     .set(
     ZERO_UUID,
     rootShape,
-  );
+    );
   /**
    Penpot UUIDs of converted top-level children for this page.
    */
@@ -453,7 +453,7 @@ export function convertFigmaToPenpot(
       .set(
       ZERO_UUID,
       makeRootFrame(pageId,),
-    );
+      );
   }
 
   return {

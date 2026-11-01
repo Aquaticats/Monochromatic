@@ -4,7 +4,7 @@
  @module
  */
 import { SessionManager, } from '@earendil-works/pi-coding-agent';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { FAST_PROVIDER, registerOpenAIFast, } from '../dist/final/node/index.mjs';
 import { fixtureHome, fixtureHost, requireCompanion, } from './host-fixture-session.ts';
 

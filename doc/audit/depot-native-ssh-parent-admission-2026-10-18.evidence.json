@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T18:33:13.708Z",
+  "scope": "Root independent source/hash/fixture review before bounded native SSH transport experiment",
+  "proposal": {
+    "path": "doc/audit/depot-native-ssh-acceptance-2026-10-18.evidence.json",
+    "bytes": 39511,
+    "sha256": "9503c32883a615130a0dd4ee0d8fd2d4239bc0dc652c743aa0cfaaf7d966ed77"
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+    "gzipBytes": 2342905,
+    "gzipSha256": "8c503d374116bb787f8eb2dd395db70654a822e887631cda94f859e471968923",
+    "uncompressedBytes": 10152113,
+    "uncompressedSha256": "cd7ec34aea5547fc764686901bb694bf6f514d2e6f904a42b5666e666e670a58",
+    "sourceCount": 26,
+    "previousSourceBodiesRetained": true
+  },
+  "admission": {
+    "approvedSource": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+    "approvedControllerSha256": "59b7d8fe0c3249c002ff18491c08f8379cf915c0f8237a185b7d90bbed5c82e3",
+    "approvedHelperSha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626",
+    "approvedAskpassSha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2",
+    "approvedRemoteConsumerSha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a",
+    "approvedManifestProjectionSha256": "af74218a9bd47caa760642a62f3671f55a337e82407ea3978022643030f942d5",
+    "rootReviewed": true,
+    "maximumRuns": 2,
+    "maximumNominalUsd": 0.036,
+    "admittedAt": "2026-10-18T18:33:13.708Z",
+    "globalConcurrentCloudJobsMaximum": 2,
+    "sourceOnlyUntilExplicitDispatchMessage": true
+  },
+  "verification": {
+    "sourceBodies": 98,
+    "fixtureBlobAndWorktreeJoins": 2,
+    "directRemoteBranchMatches": true,
+    "localBridgeAndManifestHashesMatch": true,
+    "localControlsReviewed": true,
+    "cloudAllocations": 0
+  },
+  "limits": {
+    "serverJobMinutes": 3,
+    "pausedStepMinutes": 2,
+    "sshLegMilliseconds": 15000,
+    "cancelMilliseconds": 150000,
+    "localCleanupStartsMilliseconds": 210000,
+    "independentWholeControllerHardBackstop": false,
+    "maximumConcurrentOwnJobs": 1,
+    "maximumJobsIncludingConditionalCorrection": 2,
+    "maximumNominalUsd": 0.036,
+    "invoiceCapAsserted": false,
+    "correction": "Only after exact owned prior terminal evidence and harness classification; revised source identities require review",
+    "privacy": "Raw connections, bearer targets and credentials stay private; no new credentials or secrets",
+    "resourceRelease": "Terminal CI state does not establish physical VM release or invoice charges"
+  }
+}

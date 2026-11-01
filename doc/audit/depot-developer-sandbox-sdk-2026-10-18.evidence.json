@@ -1,0 +1,638 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T05:19:04.411Z",
+  "purpose": "Bounded generic SDK consumer checks, distinct from Depot CI and GitHub Actions runners",
+  "sdkVersion": "0.1.0-beta.7",
+  "sdkSource": {
+    "repository": "https://github.com/depot/sandbox-sdk",
+    "revision": "0e740b788d2613128b2ba6ed9b4129333244ee56"
+  },
+  "scope": {
+    "existingAuthenticationCapturedInProcess": true,
+    "tokenPrinted": false,
+    "tokenInArgv": false,
+    "repositoryInjected": false,
+    "modelCalls": false,
+    "secretsInjected": false,
+    "tailnetEnabled": false,
+    "depotCacheEnabled": false,
+    "accountSettingsChanged": false
+  },
+  "summary": {
+    "createdAllocations": 4,
+    "allKnownAllocationsIndependentlyFinished": true,
+    "commandAndArtifactConsumersPassed": 4,
+    "publicRegistryRequestRejected": true,
+    "rejectedRequestReturnedId": false,
+    "listingPassedPositiveControl": false,
+    "rejectedAllocationAbsenceProven": false,
+    "initialHarnessAuxiliaryAssertionFailed": true
+  },
+  "taskOutcomes": [
+    {
+      "name": "probe-sandbox-sdk-lifecycle",
+      "exitCode": 1,
+      "reason": "Auxiliary cgroup-v2 file assumption failed after core consumers passed; cleanup confirmed finished"
+    },
+    {
+      "name": "probe-sandbox-sdk-default-and-arm-oci",
+      "exitCode": 1,
+      "reason": "Public image create rejected; subsequent harness assertion incorrectly required an ID for a validation rejection; created amd64 control finished"
+    },
+    {
+      "name": "probe-sandbox-arm-depot-runtime-and-rejected-create",
+      "exitCode": 1,
+      "reason": "Both Arm64 controls passed and finished; list inventory positive control failed"
+    },
+    {
+      "name": "recheck-sdk-list-with-positive-controls",
+      "exitCode": 0,
+      "reason": "Retained direct terminal proofs and recorded null-list limitation without asserting allocation absence"
+    }
+  ],
+  "attempts": {
+    "initialAmd64": {
+      "schemaVersion": 1,
+      "startedAt": "2026-10-18T05:02:33.566Z",
+      "sdkVersion": "0.1.0-beta.7",
+      "request": {
+        "name": "developer-capabilities-20261018050233565-9961a1",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 100
+        },
+        "architecture": "amd64",
+        "timeoutMinutes": 2,
+        "disableTailnet": true,
+        "disableDepotCache": true,
+        "configuration": {
+          "secrets": {}
+        }
+      },
+      "scope": "Disposable SDK sandbox with no repository, secrets, tailnet, cache or model API",
+      "checks": [
+        {
+          "name": "command-streams-and-nonzero-exit",
+          "passed": true,
+          "stdout": "depot-capability-stdout\n",
+          "stderr": "depot-capability-stderr\n",
+          "exitCode": 7,
+          "commandId": "cmd_2rc47zg26f"
+        },
+        {
+          "name": "filesystem-artifact-round-trip",
+          "passed": true,
+          "bytes": 154,
+          "sha256": "97cb134366de1b081f6c890444dd4f8b79c4bb94d7f132fa3792319ac398b740",
+          "copyAndStatPassed": true,
+          "unlinkPositiveControlPassed": true
+        }
+      ],
+      "cleanup": {
+        "stopReturned": {
+          "sandboxId": "xccq3c21z0q54s2",
+          "name": "developer-capabilities-20261018050233565-9961a1",
+          "status": "finished",
+          "resources": {
+            "vcpus": 2,
+            "memoryMb": 4096,
+            "diskGb": 150
+          },
+          "architecture": "amd64",
+          "runtime": {
+            "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+          },
+          "createdAt": "2026-10-18T05:02:34.146Z",
+          "startedAt": "2026-10-18T05:02:35.658Z",
+          "stoppedAt": "2026-10-18T05:02:39.827Z",
+          "expiresAt": "2026-10-18T05:04:34.144Z"
+        },
+        "confirmed": {
+          "sandboxId": "xccq3c21z0q54s2",
+          "name": "developer-capabilities-20261018050233565-9961a1",
+          "status": "finished",
+          "resources": {
+            "vcpus": 2,
+            "memoryMb": 4096,
+            "diskGb": 150
+          },
+          "architecture": "amd64",
+          "runtime": {
+            "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+          },
+          "createdAt": "2026-10-18T05:02:34.146Z",
+          "startedAt": "2026-10-18T05:02:35.658Z",
+          "stoppedAt": "2026-10-18T05:02:39.827Z",
+          "expiresAt": "2026-10-18T05:04:34.144Z"
+        },
+        "passed": true
+      },
+      "created": {
+        "sandboxId": "xccq3c21z0q54s2",
+        "name": "developer-capabilities-20261018050233565-9961a1",
+        "status": "running",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 150
+        },
+        "architecture": "amd64",
+        "runtime": {
+          "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+        },
+        "createdAt": "2026-10-18T05:02:34.146Z",
+        "startedAt": "2026-10-18T05:02:35.658Z",
+        "expiresAt": "2026-10-18T05:04:34.144Z"
+      },
+      "running": {
+        "sandboxId": "xccq3c21z0q54s2",
+        "name": "developer-capabilities-20261018050233565-9961a1",
+        "status": "running",
+        "resources": {
+          "vcpus": 2,
+          "memoryMb": 4096,
+          "diskGb": 150
+        },
+        "architecture": "amd64",
+        "runtime": {
+          "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+        },
+        "createdAt": "2026-10-18T05:02:34.146Z",
+        "startedAt": "2026-10-18T05:02:35.658Z",
+        "expiresAt": "2026-10-18T05:04:34.144Z"
+      },
+      "resourceProbe": {
+        "stdout": "architecture=x86_64\ncpu.max=memory.max=",
+        "stderr": "cat: /sys/fs/cgroup/cpu.max: No such file or directory\ncat: /sys/fs/cgroup/memory.max: No such file or directory\n",
+        "exitCode": 1
+      },
+      "error": {
+        "name": "AssertionError",
+        "message": "Expected values to be strictly equal:\n\n1 !== 0\n",
+        "code": "ERR_ASSERTION"
+      },
+      "finishedAt": "2026-10-18T05:02:40.349Z"
+    },
+    "correctedAmd64AndRejectedPublicImage": {
+      "schemaVersion": 1,
+      "startedAt": "2026-10-18T05:04:41.975Z",
+      "sdkVersion": "0.1.0-beta.7",
+      "rows": [
+        {
+          "startedAt": "2026-10-18T05:04:41.976Z",
+          "request": {
+            "name": "developer-capabilities-amd64-20261018050441975-b0e40d",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 100
+            },
+            "architecture": "amd64",
+            "timeoutMinutes": 2,
+            "disableTailnet": true,
+            "disableDepotCache": true,
+            "configuration": {
+              "secrets": {}
+            }
+          },
+          "checks": [
+            {
+              "name": "command-streams-and-nonzero-exit",
+              "passed": true,
+              "stdout": "depot-capability-stdout\n",
+              "stderr": "depot-capability-stderr\n",
+              "exitCode": 7,
+              "commandId": "cmd_jltn5232q3"
+            },
+            {
+              "name": "filesystem-artifact-round-trip",
+              "passed": true,
+              "bytes": 160,
+              "sha256": "d1c6cfa6b5fa832b2a36bcea2295b08ae5872b7f9036b9908190fe22974cd1d1",
+              "copyAndStatPassed": true,
+              "unlinkPositiveControlPassed": true
+            },
+            {
+              "name": "runtime-architecture-and-resource-availability",
+              "passed": true
+            }
+          ],
+          "cleanup": {
+            "stopReturned": {
+              "sandboxId": "lpb47lg4683fbg1",
+              "name": "developer-capabilities-amd64-20261018050441975-b0e40d",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "amd64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:04:42.752Z",
+              "startedAt": "2026-10-18T05:04:43.624Z",
+              "stoppedAt": "2026-10-18T05:04:47.647Z",
+              "expiresAt": "2026-10-18T05:06:42.749Z"
+            },
+            "confirmed": {
+              "sandboxId": "lpb47lg4683fbg1",
+              "name": "developer-capabilities-amd64-20261018050441975-b0e40d",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "amd64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:04:42.752Z",
+              "startedAt": "2026-10-18T05:04:43.624Z",
+              "stoppedAt": "2026-10-18T05:04:47.647Z",
+              "expiresAt": "2026-10-18T05:06:42.749Z"
+            },
+            "passed": true
+          },
+          "created": {
+            "sandboxId": "lpb47lg4683fbg1",
+            "name": "developer-capabilities-amd64-20261018050441975-b0e40d",
+            "status": "running",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 150
+            },
+            "architecture": "amd64",
+            "runtime": {
+              "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+            },
+            "createdAt": "2026-10-18T05:04:42.752Z",
+            "startedAt": "2026-10-18T05:04:43.624Z",
+            "expiresAt": "2026-10-18T05:06:42.749Z"
+          },
+          "running": {
+            "sandboxId": "lpb47lg4683fbg1",
+            "name": "developer-capabilities-amd64-20261018050441975-b0e40d",
+            "status": "running",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 150
+            },
+            "architecture": "amd64",
+            "runtime": {
+              "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-amd64-20261014212854"
+            },
+            "createdAt": "2026-10-18T05:04:42.752Z",
+            "startedAt": "2026-10-18T05:04:43.624Z",
+            "expiresAt": "2026-10-18T05:06:42.749Z"
+          },
+          "resourceProbe": {
+            "stdout": "architecture=x86_64\nonline_cpus=2\nmemtotal_kib=4018836\ncgroup_cpu=not-exposed\ncgroup_memory=not-exposed\nkvm_character_device=no\n",
+            "stderr": "",
+            "exitCode": 0
+          },
+          "passed": true,
+          "finishedAt": "2026-10-18T05:04:48.055Z"
+        },
+        {
+          "startedAt": "2026-10-18T05:04:48.056Z",
+          "request": {
+            "name": "developer-capabilities-arm64-20261018050448056-d435a2",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 100
+            },
+            "architecture": "arm64",
+            "runtime": {
+              "imageRef": "docker.io/library/alpine:3.22"
+            },
+            "timeoutMinutes": 2,
+            "disableTailnet": true,
+            "disableDepotCache": true,
+            "configuration": {
+              "secrets": {}
+            }
+          },
+          "checks": [],
+          "cleanup": {
+            "noIdReturned": true
+          },
+          "error": {
+            "name": "ConnectError",
+            "message": "[invalid_argument] runtime.image_ref must be a Depot registry image (registry.depot.dev); public registries are not supported: docker.io/library/alpine:3.22",
+            "code": 3
+          },
+          "passed": false,
+          "finishedAt": "2026-10-18T05:04:48.239Z"
+        }
+      ]
+    },
+    "defaultAndExplicitDepotArm64": {
+      "schemaVersion": 1,
+      "startedAt": "2026-10-18T05:06:43.542Z",
+      "sdkVersion": "0.1.0-beta.7",
+      "rows": [
+        {
+          "mode": "default-arm64",
+          "request": {
+            "name": "developer-capabilities-default-arm64-99cc9786c84f",
+            "architecture": "arm64",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 100
+            },
+            "timeoutMinutes": 2,
+            "disableTailnet": true,
+            "disableDepotCache": true,
+            "configuration": {
+              "secrets": {}
+            }
+          },
+          "checks": [
+            {
+              "name": "command-streams-and-nonzero-exit",
+              "passed": true,
+              "stdout": "arm-sdk-stdout\n",
+              "stderr": "arm-sdk-stderr\n",
+              "exitCode": 7,
+              "commandId": "cmd_3mgmc0n0bs"
+            },
+            {
+              "name": "filesystem-artifact-round-trip",
+              "passed": true,
+              "bytes": 107,
+              "sha256": "febe5ff7c4724c4d9057742a5f69a0e72216603ec95b995c626befe9439fc5de"
+            }
+          ],
+          "cleanup": {
+            "stopReturned": {
+              "sandboxId": "gh6g5ltbkdl0t55",
+              "name": "developer-capabilities-default-arm64-99cc9786c84f",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "arm64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:06:44.015Z",
+              "startedAt": "2026-10-18T05:06:44.617Z",
+              "stoppedAt": "2026-10-18T05:06:48.860Z",
+              "expiresAt": "2026-10-18T05:08:44.012Z"
+            },
+            "confirmed": {
+              "sandboxId": "gh6g5ltbkdl0t55",
+              "name": "developer-capabilities-default-arm64-99cc9786c84f",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "arm64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:06:44.015Z",
+              "startedAt": "2026-10-18T05:06:44.617Z",
+              "stoppedAt": "2026-10-18T05:06:48.860Z",
+              "expiresAt": "2026-10-18T05:08:44.012Z"
+            },
+            "passed": true
+          },
+          "created": {
+            "sandboxId": "gh6g5ltbkdl0t55",
+            "name": "developer-capabilities-default-arm64-99cc9786c84f",
+            "status": "running",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 150
+            },
+            "architecture": "arm64",
+            "runtime": {
+              "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+            },
+            "createdAt": "2026-10-18T05:06:44.015Z",
+            "startedAt": "2026-10-18T05:06:44.617Z",
+            "expiresAt": "2026-10-18T05:08:44.012Z"
+          },
+          "resourceProbe": {
+            "stdout": "architecture=aarch64\nonline_cpus=2\nmemtotal_kib=4018344\nkvm_character_device=no\n",
+            "stderr": "",
+            "exitCode": 0
+          },
+          "passed": true
+        },
+        {
+          "mode": "explicit-depot-image-arm64",
+          "request": {
+            "name": "developer-capabilities-explicit-depot-image-arm64-49ae947a5ad5",
+            "architecture": "arm64",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 100
+            },
+            "timeoutMinutes": 2,
+            "disableTailnet": true,
+            "disableDepotCache": true,
+            "configuration": {
+              "secrets": {}
+            },
+            "runtime": {
+              "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+            }
+          },
+          "checks": [
+            {
+              "name": "command-streams-and-nonzero-exit",
+              "passed": true,
+              "stdout": "arm-sdk-stdout\n",
+              "stderr": "arm-sdk-stderr\n",
+              "exitCode": 7,
+              "commandId": "cmd_msgpnsg57s"
+            },
+            {
+              "name": "filesystem-artifact-round-trip",
+              "passed": true,
+              "bytes": 133,
+              "sha256": "e98ae2b9a89c703be84ae58ff51ce962812db28ac96a70f9196283913bdf07fb"
+            }
+          ],
+          "cleanup": {
+            "stopReturned": {
+              "sandboxId": "2kvkk3cl38z8g0s",
+              "name": "developer-capabilities-explicit-depot-image-arm64-49ae947a5ad5",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "arm64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:06:49.427Z",
+              "startedAt": "2026-10-18T05:06:50.567Z",
+              "stoppedAt": "2026-10-18T05:06:54.552Z",
+              "expiresAt": "2026-10-18T05:08:49.425Z"
+            },
+            "confirmed": {
+              "sandboxId": "2kvkk3cl38z8g0s",
+              "name": "developer-capabilities-explicit-depot-image-arm64-49ae947a5ad5",
+              "status": "finished",
+              "resources": {
+                "vcpus": 2,
+                "memoryMb": 4096,
+                "diskGb": 150
+              },
+              "architecture": "arm64",
+              "runtime": {
+                "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+              },
+              "createdAt": "2026-10-18T05:06:49.427Z",
+              "startedAt": "2026-10-18T05:06:50.567Z",
+              "stoppedAt": "2026-10-18T05:06:54.552Z",
+              "expiresAt": "2026-10-18T05:08:49.425Z"
+            },
+            "passed": true
+          },
+          "created": {
+            "sandboxId": "2kvkk3cl38z8g0s",
+            "name": "developer-capabilities-explicit-depot-image-arm64-49ae947a5ad5",
+            "status": "running",
+            "resources": {
+              "vcpus": 2,
+              "memoryMb": 4096,
+              "diskGb": 150
+            },
+            "architecture": "arm64",
+            "runtime": {
+              "imageRef": "library.registry.depot.dev/base:ubuntu-24.04-arm64-20261014212854"
+            },
+            "createdAt": "2026-10-18T05:06:49.427Z",
+            "startedAt": "2026-10-18T05:06:50.567Z",
+            "expiresAt": "2026-10-18T05:08:49.425Z"
+          },
+          "resourceProbe": {
+            "stdout": "architecture=aarch64\nonline_cpus=2\nmemtotal_kib=4018344\nkvm_character_device=no\n",
+            "stderr": "",
+            "exitCode": 0
+          },
+          "passed": true
+        }
+      ]
+    },
+    "listPositiveControls": {
+      "checkedAt": "2026-10-18T05:10:32.886Z",
+      "directGetPositiveControls": [
+        {
+          "sandboxId": "xccq3c21z0q54s2",
+          "status": "finished",
+          "createdAt": "2026-10-18T05:02:34.146Z"
+        },
+        {
+          "sandboxId": "lpb47lg4683fbg1",
+          "status": "finished",
+          "createdAt": "2026-10-18T05:04:42.752Z"
+        },
+        {
+          "sandboxId": "gh6g5ltbkdl0t55",
+          "status": "finished",
+          "createdAt": "2026-10-18T05:06:44.015Z"
+        },
+        {
+          "sandboxId": "2kvkk3cl38z8g0s",
+          "status": "finished",
+          "createdAt": "2026-10-18T05:06:49.427Z"
+        }
+      ],
+      "queries": [
+        {
+          "name": "time-window",
+          "filter": {
+            "createdAfter": "2026-10-18T05:01:33.566Z",
+            "createdBefore": "2026-10-18T05:10:32.296Z"
+          },
+          "pages": 1,
+          "returnedCount": 0,
+          "matchedOwnControls": [],
+          "rejectedNameMatches": []
+        },
+        {
+          "name": "time-window-all-states",
+          "filter": {
+            "createdAfter": "2026-10-18T05:01:33.566Z",
+            "createdBefore": "2026-10-18T05:10:32.296Z",
+            "states": [
+              "created",
+              "assigned",
+              "starting",
+              "running",
+              "finished",
+              "cancelled",
+              "failed"
+            ]
+          },
+          "pages": 1,
+          "returnedCount": 0,
+          "matchedOwnControls": [],
+          "rejectedNameMatches": []
+        },
+        {
+          "name": "after-only",
+          "filter": {
+            "createdAfter": "2026-10-18T05:01:33.566Z"
+          },
+          "pages": 1,
+          "returnedCount": 0,
+          "matchedOwnControls": [],
+          "rejectedNameMatches": []
+        }
+      ],
+      "listingShowsAllOwnControls": false,
+      "absenceClaimAllowed": false
+    }
+  },
+  "reproductionInputs": {
+    "packageJson": {
+      "private": true,
+      "type": "module",
+      "dependencies": {
+        "@depot/sandbox": "0.1.0-beta.7"
+      }
+    },
+    "versionRationale": "Freeze the beta API exercised by these historical probes, not a production tool pin",
+    "pnpmLockYaml": "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\nimporters:\n\n  .:\n    dependencies:\n      '@depot/sandbox':\n        specifier: 0.1.0-beta.7\n        version: 0.1.0-beta.7\n\npackages:\n\n  '@bufbuild/protobuf@2.11.0':\n    resolution: {integrity: sha512-sBXGT13cpmPR5BMgHE6UEEfEaShh5Ror6rfN3yEK5si7QVrtZg8LEPQb0VVhiLRUslD2yLnXtnRzG035J/mZXQ==}\n\n  '@connectrpc/connect-node@2.2.0':\n    resolution: {integrity: sha512-E6uUO6e11WdynAuBjuN+0WpHjqxEM9BNDdfDIJHcn49Esg/WxSIbn2y1KFt9XL96IJi01qdBbvubcdpBz1X3Zw==}\n    engines: {node: '>=22'}\n    peerDependencies:\n      '@bufbuild/protobuf': ^2.7.0\n      '@connectrpc/connect': 2.2.0\n\n  '@connectrpc/connect@2.2.0':\n    resolution: {integrity: sha512-M63OQ1ZFcPUm85CuewJ9G9CMV8LjzGR9935xOnXNQGSazAbwMb3x2W7vXBYM1zqrP7XFD8uxp/dUAhirclgwnQ==}\n    peerDependencies:\n      '@bufbuild/protobuf': ^2.7.0\n\n  '@depot/sandbox@0.1.0-beta.7':\n    resolution: {integrity: sha512-e8thCCFMWRkbQEEOPlkOXiIMZTdSkOaTm/vSDH+m0dAWIGF1kebApIC2oGiIApuBvtF7tCzTseQHjw84G63x+w==}\n    engines: {node: '>=20'}\n\nsnapshots:\n\n  '@bufbuild/protobuf@2.11.0': {}\n\n  '@connectrpc/connect-node@2.2.0(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.11.0))':\n    dependencies:\n      '@bufbuild/protobuf': 2.11.0\n      '@connectrpc/connect': 2.2.0(@bufbuild/protobuf@2.11.0)\n\n  '@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.11.0)':\n    dependencies:\n      '@bufbuild/protobuf': 2.11.0\n\n  '@depot/sandbox@0.1.0-beta.7':\n    dependencies:\n      '@bufbuild/protobuf': 2.11.0\n      '@connectrpc/connect': 2.2.0(@bufbuild/protobuf@2.11.0)\n      '@connectrpc/connect-node': 2.2.0(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.11.0))\n"
+  },
+  "harnesses": [
+    {
+      "name": "probe-sandbox-sdk-lifecycle",
+      "miseToml": "[tasks.probe-sandbox-sdk-lifecycle]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {createClient,Sandbox}=await import('@depot/sandbox');const {execFileSync}=await import('node:child_process');const {readFileSync,writeFileSync,existsSync}=await import('node:fs');const {createHash,randomBytes}=await import('node:crypto');const {setTimeout:wait}=await import('node:timers/promises');const {strict:assert}=await import('node:assert');assert(!existsSync('sandbox-sdk-lifecycle-result.json'),'One-shot probe already has a receipt');const token=(process.env.DEPOT_TOKEN??execFileSync('depot',['login','token'],{encoding:'utf8',stdio:['ignore','pipe','pipe']})).trim();const orgID=execFileSync('depot',['org','show'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();const client=createClient({token,orgID});const name='developer-capabilities-'+new Date().toISOString().replaceAll(/[^0-9]/gu,'')+'-'+randomBytes(3).toString('hex');const request={name,resources:{vcpus:2,memoryMb:4096,diskGb:100},architecture:'amd64',timeoutMinutes:2,disableTailnet:true,disableDepotCache:true,configuration:{secrets:{}}};const result={schemaVersion:1,startedAt:new Date().toISOString(),sdkVersion:JSON.parse(readFileSync('node_modules/@depot/sandbox/package.json','utf8')).version,request,scope:'Disposable SDK sandbox with no repository, secrets, tailnet, cache or model API',checks:[],cleanup:{}};function retain(){writeFileSync('sandbox-sdk-lifecycle-result.json',JSON.stringify(result,null,2)+'\\n')}function view(s){return {sandboxId:s.sandboxId,name:s.name,status:s.status,resources:s.resources,architecture:s.architecture,runtime:s.runtime,createdAt:s.createdAt,startedAt:s.startedAt,stoppedAt:s.stoppedAt,expiresAt:s.expiresAt,activeCpuUsageMs:s.activeCpuUsageMs,networkUsage:s.networkUsage}}let sandbox;retain();try{sandbox=await Sandbox.create(client,request);result.created=view(sandbox);retain();console.log(JSON.stringify({event:'sandbox-created',sandboxId:sandbox.sandboxId,status:sandbox.status,requestedResources:request.resources,expiry:sandbox.expiresAt}));const deadline=Date.now()+90000;while(sandbox.status!=='running'){assert(!['finished','cancelled','failed'].includes(sandbox.status),'Sandbox stopped during provisioning');assert(Date.now()<deadline,'Provisioning exceeded probe bound');await wait(1500);sandbox=await Sandbox.get(client,sandbox.sandboxId);}result.running=view(sandbox);retain();assert.equal(sandbox.architecture,'amd64');assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);const control=await sandbox.runCommand({cmd:'/bin/sh',args:['-c','printf \"depot-capability-stdout\\\\n\"; printf \"depot-capability-stderr\\\\n\" >&2; exit 7']});const [stdout,stderr,finished]=await Promise.all([control.stdout(),control.stderr(),control.wait()]);assert.equal(stdout,'depot-capability-stdout\\n');assert.equal(stderr,'depot-capability-stderr\\n');assert.equal(finished.exitCode,7);result.checks.push({name:'command-streams-and-nonzero-exit',passed:true,stdout,stderr,exitCode:finished.exitCode,commandId:control.cmdId});retain();const remote=sandbox.fs();const directory='/home/runner/temp/agent/depot-capability-probe';await remote.mkdir(directory,{recursive:true,mode:0o700});const path=directory+'/fixture.json';const payload=JSON.stringify({probe:name,unicode:'café 🎵',delimiters:'quotes \" and brackets [] {}',lines:['first','second']})+'\\n';await remote.writeFile(path,payload,{mode:0o600});const bytes=await remote.readFile(path);assert(Buffer.isBuffer(bytes));assert.equal(bytes.toString(),payload);const copied=directory+'/copied.json';await remote.copyFile(path,copied);assert.deepEqual(await remote.readFile(copied),bytes);const stat=await remote.stat(copied);assert(stat.isFile());assert.equal(stat.size,Buffer.byteLength(payload));await remote.unlink(path);assert.equal(await remote.exists(path),false);result.checks.push({name:'filesystem-artifact-round-trip',passed:true,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),copyAndStatPassed:true,unlinkPositiveControlPassed:true});retain();const resources=await sandbox.runCommand({cmd:'/bin/sh',args:['-c','printf \"architecture=\"; uname -m; printf \"cpu.max=\"; cat /sys/fs/cgroup/cpu.max; printf \"memory.max=\"; cat /sys/fs/cgroup/memory.max']});const [resourceOut,resourceErr,resourceFinished]=await Promise.all([resources.stdout(),resources.stderr(),resources.wait()]);result.resourceProbe={stdout:resourceOut,stderr:resourceErr,exitCode:resourceFinished.exitCode};assert.equal(resourceFinished.exitCode,0);retain();}catch(error){result.error={name:error?.name,message:error?.message,code:error?.code};retain();throw error}finally{if(sandbox){try{await sandbox.stop({blocking:true});result.cleanup.stopReturned=view(sandbox);const terminal=await Sandbox.get(client,sandbox.sandboxId);result.cleanup.confirmed=view(terminal);assert(['finished','cancelled','failed'].includes(terminal.status),'Sandbox cleanup not terminal');result.cleanup.passed=true;}catch(error){result.cleanup.error={name:error?.name,message:error?.message,code:error?.code};try{const state=await Sandbox.get(client,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(state.status))await state.kill();const final=await Sandbox.get(client,sandbox.sandboxId);result.cleanup.recovery=view(final);result.cleanup.passed=['finished','cancelled','failed'].includes(final.status);}catch(recoveryError){result.cleanup.recoveryError={name:recoveryError?.name,message:recoveryError?.message,code:recoveryError?.code}}}result.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({event:'sandbox-probe-terminal',receipt:'sandbox-sdk-lifecycle-result.json',checks:result.checks,resourceProbe:result.resourceProbe,cleanup:result.cleanup,error:result.error}));}else{result.cleanup.noIdReturned=true;result.cleanup.expiryRequestedMinutes=2;result.finishedAt=new Date().toISOString();retain();}}assert(result.cleanup.passed,'Cleanup not independently confirmed terminal');\n'''\n"
+    },
+    {
+      "name": "probe-sandbox-sdk-default-and-arm-oci",
+      "miseToml": "[tasks.probe-sandbox-sdk-default-and-arm-oci]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {createClient,Sandbox}=await import('@depot/sandbox');const {execFileSync}=await import('node:child_process');const {readFileSync,writeFileSync,existsSync}=await import('node:fs');const {createHash,randomBytes}=await import('node:crypto');const {setTimeout:wait}=await import('node:timers/promises');const {strict:assert}=await import('node:assert');assert(!existsSync('sandbox-sdk-default-and-arm-oci.json'),'One-shot probe already has a receipt');const token=(process.env.DEPOT_TOKEN??execFileSync('depot',['login','token'],{encoding:'utf8',stdio:['ignore','pipe','pipe']})).trim();const orgID=execFileSync('depot',['org','show'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();const client=createClient({token,orgID});const result={schemaVersion:1,startedAt:new Date().toISOString(),sdkVersion:JSON.parse(readFileSync('node_modules/@depot/sandbox/package.json','utf8')).version,rows:[]};function retain(){writeFileSync('sandbox-sdk-default-and-arm-oci.json',JSON.stringify(result,null,2)+'\\n')}function view(s){return {sandboxId:s.sandboxId,name:s.name,status:s.status,resources:s.resources,architecture:s.architecture,runtime:s.runtime,createdAt:s.createdAt,startedAt:s.startedAt,stoppedAt:s.stoppedAt,expiresAt:s.expiresAt,activeCpuUsageMs:s.activeCpuUsageMs,networkUsage:s.networkUsage}}for(const configuration of [{architecture:'amd64'},{architecture:'arm64',runtime:{imageRef:'docker.io/library/alpine:3.22'}}]){const name='developer-capabilities-'+configuration.architecture+'-'+new Date().toISOString().replaceAll(/[^0-9]/gu,'')+'-'+randomBytes(3).toString('hex');const request={name,resources:{vcpus:2,memoryMb:4096,diskGb:100},...configuration,timeoutMinutes:2,disableTailnet:true,disableDepotCache:true,configuration:{secrets:{}}};const row={startedAt:new Date().toISOString(),request,checks:[],cleanup:{}};result.rows.push(row);retain();let sandbox;try{sandbox=await Sandbox.create(client,request);row.created=view(sandbox);retain();console.log(JSON.stringify({event:'sandbox-created',architecture:configuration.architecture,sandboxId:sandbox.sandboxId,status:sandbox.status}));const deadline=Date.now()+90000;while(sandbox.status!=='running'){assert(!['finished','cancelled','failed'].includes(sandbox.status),'Stopped while provisioning');assert(Date.now()<deadline,'Provisioning exceeded probe bound');await wait(1500);sandbox=await Sandbox.get(client,sandbox.sandboxId);}row.running=view(sandbox);assert.equal(sandbox.architecture,configuration.architecture);assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);const command=await sandbox.runCommand({cmd:'/bin/sh',args:['-c','printf \"depot-capability-stdout\\\\n\"; printf \"depot-capability-stderr\\\\n\" >&2; exit 7']});const [stdout,stderr,finished]=await Promise.all([command.stdout(),command.stderr(),command.wait()]);assert.equal(stdout,'depot-capability-stdout\\n');assert.equal(stderr,'depot-capability-stderr\\n');assert.equal(finished.exitCode,7);row.checks.push({name:'command-streams-and-nonzero-exit',passed:true,stdout,stderr,exitCode:finished.exitCode,commandId:command.cmdId});retain();const remote=sandbox.fs();const directory='/home/runner/temp/agent/depot-capability-probe';await remote.mkdir(directory,{recursive:true,mode:0o700});const path=directory+'/fixture.json';const payload=JSON.stringify({probe:name,unicode:'café 🎵',delimiters:'quotes \" and brackets [] {}',lines:['first','second']})+'\\n';await remote.writeFile(path,payload,{mode:0o600});const bytes=await remote.readFile(path);assert(Buffer.isBuffer(bytes));assert.equal(bytes.toString(),payload);const copied=directory+'/copied.json';await remote.copyFile(path,copied);assert.deepEqual(await remote.readFile(copied),bytes);const stat=await remote.stat(copied);assert(stat.isFile());assert.equal(stat.size,Buffer.byteLength(payload));await remote.unlink(path);assert.equal(await remote.exists(path),false);row.checks.push({name:'filesystem-artifact-round-trip',passed:true,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),copyAndStatPassed:true,unlinkPositiveControlPassed:true});const script=['printf \"architecture=\"','uname -m','printf \"online_cpus=\"',\"awk '/^processor[[:space:]]*:/{n++} END{print n}' /proc/cpuinfo\",'printf \"memtotal_kib=\"',\"awk '/^MemTotal:/{print $2}' /proc/meminfo\",'printf \"cgroup_cpu=\"','if test -f /sys/fs/cgroup/cpu.max; then cat /sys/fs/cgroup/cpu.max; else printf \"not-exposed\\\\n\"; fi','printf \"cgroup_memory=\"','if test -f /sys/fs/cgroup/memory.max; then cat /sys/fs/cgroup/memory.max; else printf \"not-exposed\\\\n\"; fi','printf \"kvm_character_device=\"','if test -c /dev/kvm; then printf \"yes\\\\n\"; else printf \"no\\\\n\"; fi'].join('\\n');const probe=await sandbox.runCommand({cmd:'/bin/sh',args:['-c',script]});const [probeOut,probeErr,probeFinished]=await Promise.all([probe.stdout(),probe.stderr(),probe.wait()]);assert.equal(probeFinished.exitCode,0);assert.equal(probeErr,'');assert(probeOut.includes(configuration.architecture==='amd64'?'architecture=x86_64':'architecture=aarch64'));row.resourceProbe={stdout:probeOut,stderr:probeErr,exitCode:probeFinished.exitCode};row.checks.push({name:'runtime-architecture-and-resource-availability',passed:true});row.passed=true;}catch(error){row.error={name:error?.name,message:error?.message,code:error?.code};row.passed=false;retain();}finally{if(sandbox){try{await sandbox.stop({blocking:true});row.cleanup.stopReturned=view(sandbox);const terminal=await Sandbox.get(client,sandbox.sandboxId);row.cleanup.confirmed=view(terminal);assert(['finished','cancelled','failed'].includes(terminal.status),'Cleanup not terminal');row.cleanup.passed=true;}catch(error){row.cleanup.error={name:error?.name,message:error?.message,code:error?.code};try{const state=await Sandbox.get(client,sandbox.sandboxId);if(!['finished','cancelled','failed'].includes(state.status))await state.kill();const final=await Sandbox.get(client,sandbox.sandboxId);row.cleanup.recovery=view(final);row.cleanup.passed=['finished','cancelled','failed'].includes(final.status);}catch(recoveryError){row.cleanup.recoveryError={name:recoveryError?.name,message:recoveryError?.message,code:recoveryError?.code}}}}else row.cleanup.noIdReturned=true;row.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({event:'sandbox-probe-terminal',architecture:configuration.architecture,...row}));}assert(row.cleanup.passed,'Own sandbox is not confirmed terminal');}result.finishedAt=new Date().toISOString();retain();assert(result.rows.every(row=>row.passed),'A sandbox capability probe failed');\n'''\n"
+    },
+    {
+      "name": "probe-sandbox-arm-depot-runtime-and-rejected-create",
+      "miseToml": "[tasks.probe-sandbox-arm-depot-runtime-and-rejected-create]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {createClient,Sandbox}=await import('@depot/sandbox');const {execFileSync}=await import('node:child_process');const {readFileSync,writeFileSync,existsSync}=await import('node:fs');const {createHash,randomBytes}=await import('node:crypto');const {strict:assert}=await import('node:assert');assert(!existsSync('sandbox-sdk-arm-depot-runtime.json'),'One-shot receipt exists');const token=(process.env.DEPOT_TOKEN??execFileSync('depot',['login','token'],{encoding:'utf8',stdio:['ignore','pipe','pipe']})).trim();const orgID=execFileSync('depot',['org','show'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();const client=createClient({token,orgID});const first=JSON.parse(readFileSync('sandbox-sdk-lifecycle-result.json','utf8'));const second=JSON.parse(readFileSync('sandbox-sdk-default-and-arm-oci.json','utf8'));const rejected=second.rows.find(row=>row.request.runtime?.imageRef?.startsWith('docker.io/'));const rows=[];const result={schemaVersion:1,startedAt:new Date().toISOString(),sdkVersion:'0.1.0-beta.7',rows};function retain(){writeFileSync('sandbox-sdk-arm-depot-runtime.json',JSON.stringify(result,null,2)+'\\n')}function view(s){return {sandboxId:s.sandboxId,name:s.name,status:s.status,resources:s.resources,architecture:s.architecture,runtime:s.runtime,createdAt:s.createdAt,startedAt:s.startedAt,stoppedAt:s.stoppedAt,expiresAt:s.expiresAt}}let selectedRuntime;for(const mode of ['default-arm64','explicit-depot-image-arm64']){const request={name:'developer-capabilities-'+mode+'-'+randomBytes(6).toString('hex'),architecture:'arm64',resources:{vcpus:2,memoryMb:4096,diskGb:100},timeoutMinutes:2,disableTailnet:true,disableDepotCache:true,configuration:{secrets:{}},...(mode==='explicit-depot-image-arm64'?{runtime:selectedRuntime}:{})};const row={mode,request,checks:[],cleanup:{}};rows.push(row);retain();let sandbox;try{sandbox=await Sandbox.create(client,request);row.created=view(sandbox);retain();assert.equal(sandbox.status,'running');assert.equal(sandbox.architecture,'arm64');assert.equal(sandbox.resources.vcpus,2);assert.equal(sandbox.resources.memoryMb,4096);if(mode==='default-arm64')selectedRuntime=sandbox.runtime;const cmd=await sandbox.runCommand({cmd:'/bin/sh',args:['-c','printf \"arm-sdk-stdout\\\\n\"; printf \"arm-sdk-stderr\\\\n\" >&2; exit 7']});const [stdout,stderr,finished]=await Promise.all([cmd.stdout(),cmd.stderr(),cmd.wait()]);assert.equal(stdout,'arm-sdk-stdout\\n');assert.equal(stderr,'arm-sdk-stderr\\n');assert.equal(finished.exitCode,7);row.checks.push({name:'command-streams-and-nonzero-exit',passed:true,stdout,stderr,exitCode:finished.exitCode,commandId:cmd.cmdId});const remote=sandbox.fs();const path='/home/runner/temp/agent/depot-arm-probe/fixture.json';const content=JSON.stringify({mode,unicode:'café 🎵',name:request.name})+'\\n';await remote.writeFile(path,content,{recursive:true,mode:0o600});const bytes=await remote.readFile(path);assert.equal(bytes.toString(),content);const copy=path+'.copy';await remote.copyFile(path,copy);assert.deepEqual(await remote.readFile(copy),bytes);assert.equal((await remote.stat(copy)).size,Buffer.byteLength(content));await remote.unlink(path);assert.equal(await remote.exists(path),false);row.checks.push({name:'filesystem-artifact-round-trip',passed:true,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});const probe=await sandbox.runCommand({cmd:'/bin/sh',args:['-c',['printf \"architecture=\"','uname -m','printf \"online_cpus=\"',\"awk '/^processor[[:space:]]*:/{n++} END{print n}' /proc/cpuinfo\",'printf \"memtotal_kib=\"',\"awk '/^MemTotal:/{print $2}' /proc/meminfo\",'printf \"kvm_character_device=\"','if test -c /dev/kvm; then printf \"yes\\\\n\"; else printf \"no\\\\n\"; fi'].join('\\n')]});const [output,error,terminal]=await Promise.all([probe.stdout(),probe.stderr(),probe.wait()]);assert.equal(terminal.exitCode,0);assert.equal(error,'');assert(output.includes('architecture=aarch64'));row.resourceProbe={stdout:output,stderr:error,exitCode:terminal.exitCode};row.passed=true;}catch(error){row.error={name:error?.name,message:error?.message,code:error?.code};row.passed=false;}finally{if(sandbox){try{await sandbox.stop({blocking:true});row.cleanup.stopReturned=view(sandbox);const final=await Sandbox.get(client,sandbox.sandboxId);row.cleanup.confirmed=view(final);row.cleanup.passed=['finished','failed','cancelled'].includes(final.status);}catch(error){row.cleanup.error={name:error?.name,message:error?.message,code:error?.code};const final=await Sandbox.get(client,sandbox.sandboxId);if(!['finished','failed','cancelled'].includes(final.status))await final.kill();const confirmed=await Sandbox.get(client,sandbox.sandboxId);row.cleanup.recovered=view(confirmed);row.cleanup.passed=['finished','failed','cancelled'].includes(confirmed.status);}}retain();console.log(JSON.stringify({event:'arm-sdk-probe-terminal',...row}));}assert(row.cleanup.passed,'Own SDK sandbox not confirmed terminal');assert(row.passed,'ARM runtime probe failed');}const expectedIds=[first.created.sandboxId,second.rows.find(row=>row.created).created.sandboxId,...rows.map(row=>row.created.sandboxId)];const matched=[];let cursor;let pages=0;do{const page=await Sandbox.list(client,{filter:{createdAfter:new Date(first.startedAt),createdBefore:new Date()},pagination:{pageSize:100,pageToken:cursor}});pages++;for(const entry of page.sandboxes){if(expectedIds.includes(entry.sandboxId)||entry.name===rejected.request.name)matched.push(view(entry));}cursor=page.pagination.nextPageToken;assert(pages<=10,'Unexpected probe-window pagination');}while(cursor);for(const id of expectedIds)assert(matched.some(row=>row.sandboxId===id),'Positive control omitted from scoped list');const rejectedMatches=matched.filter(row=>row.name===rejected.request.name);assert.equal(rejectedMatches.length,0);result.rejectedCreateVerification={rejectedRequestName:rejected.request.name,error:rejected.error,scope:{createdAfter:first.startedAt,pages},positiveControlIds:expectedIds,matchedPositiveControls:matched.length,rejectedNameMatchCount:0};result.finishedAt=new Date().toISOString();retain();console.log(JSON.stringify({event:'rejected-create-absence-verified',...result.rejectedCreateVerification}));\n'''\n"
+    },
+    {
+      "name": "recheck-sdk-list-with-positive-controls",
+      "miseToml": "[tasks.recheck-sdk-list-with-positive-controls]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {createClient,Sandbox}=await import('@depot/sandbox');const {execFileSync}=await import('node:child_process');const {readFileSync,writeFileSync}=await import('node:fs');const {strict:assert}=await import('node:assert');const token=(process.env.DEPOT_TOKEN??execFileSync('depot',['login','token'],{encoding:'utf8',stdio:['ignore','pipe','pipe']})).trim();const orgID=execFileSync('depot',['org','show'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();const client=createClient({token,orgID});const first=JSON.parse(readFileSync('sandbox-sdk-lifecycle-result.json','utf8')),second=JSON.parse(readFileSync('sandbox-sdk-default-and-arm-oci.json','utf8')),third=JSON.parse(readFileSync('sandbox-sdk-arm-depot-runtime.json','utf8'));const controls=[first.created,...second.rows.filter(row=>row.created).map(row=>row.created),...third.rows.map(row=>row.created)];const expectedIds=controls.map(row=>row.sandboxId);const rejected=second.rows.find(row=>row.error?.code===3);const direct=[];for(const id of expectedIds){const s=await Sandbox.get(client,id);assert.equal(s.status,'finished');direct.push({sandboxId:s.sandboxId,status:s.status,createdAt:s.createdAt});}const before=new Date(),after=new Date(new Date(first.startedAt).getTime()-60000);const queries=[{name:'time-window',filter:{createdAfter:after,createdBefore:before}},{name:'time-window-all-states',filter:{createdAfter:after,createdBefore:before,states:['created','assigned','starting','running','finished','cancelled','failed']}},{name:'after-only',filter:{createdAfter:after}}];const rows=[];for(const query of queries){let cursor;let pages=0;const matches=[];let count=0;do{const response=await Sandbox.list(client,{filter:query.filter,pagination:{pageSize:100,pageToken:cursor}});pages++;count+=response.sandboxes.length;for(const s of response.sandboxes)if(expectedIds.includes(s.sandboxId)||s.name===rejected.request.name)matches.push({sandboxId:s.sandboxId,name:s.name,status:s.status,createdAt:s.createdAt});cursor=response.pagination.nextPageToken;assert(pages<=10,'Unexpected scoped pagination');}while(cursor);rows.push({...query,pages,returnedCount:count,matchedOwnControls:matches.filter(row=>expectedIds.includes(row.sandboxId)),rejectedNameMatches:matches.filter(row=>row.name===rejected.request.name)});}const result={checkedAt:new Date().toISOString(),directGetPositiveControls:direct,queries:rows,listingShowsAllOwnControls:rows.some(row=>row.matchedOwnControls.length===expectedIds.length),absenceClaimAllowed:rows.some(row=>row.matchedOwnControls.length===expectedIds.length)&&rows.every(row=>row.rejectedNameMatches.length===0)};writeFileSync('sandbox-sdk-list-positive-controls.json',JSON.stringify(result,null,2)+'\\n');console.log(JSON.stringify(result));\n'''\n"
+    }
+  ]
+}

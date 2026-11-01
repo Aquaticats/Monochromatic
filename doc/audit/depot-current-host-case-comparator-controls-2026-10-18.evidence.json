@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "sourceArchiveSha256": "c11ce61387c8675f99c303cad6093d444a13bc7c42adf24eb77f2bdd1f1677b7",
+  "algorithm": "function compare(leftCases,rightCases){const left=new Map(leftCases.map(row=>[row.identity,row.state])),right=new Map(rightCases.map(row=>[row.identity,row.state]));assert.equal(left.size,leftCases.length);assert.equal(right.size,rightCases.length);return{onlyPublic:[...left.keys()].filter(key=>!right.has(key)).sort(),onlyDepot:[...right.keys()].filter(key=>!left.has(key)).sort(),statusChanges:[...left].filter(([key,state])=>right.has(key)&&right.get(key)!==state).map(([identity,publicStatus])=>({identity,publicStatus,depotStatus:right.get(identity)}))}}",
+  "algorithmSha256": "50b3eeca2a5cf46b52c7fb6ef75818768316bb0431e74d25a93ffa5c687602be",
+  "sameFunctionUsedForActualAndCounterfactual": true,
+  "results": [
+    {
+      "pair": "macos-arm",
+      "actualRecordedCaseCounts": {
+        "public": 1495,
+        "depot": 1495
+      },
+      "actual": {
+        "onlyPublic": [],
+        "onlyDepot": [],
+        "statusChanges": []
+      },
+      "controls": {
+        "changedIdentity": {
+          "onlyPublic": [
+            "music-player::accent_override::tests::multibyte_text_of_six_bytes_is_rejected_without_a_panic"
+          ],
+          "onlyDepot": [
+            "music-player::accent_override::tests::multibyte_text_of_six_bytes_is_rejected_without_a_panic::COUNTERFACTUAL_CHANGED_IDENTITY"
+          ],
+          "statusChanges": []
+        },
+        "changedStatus": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": [
+            {
+              "identity": "music-player::accent_override::tests::multibyte_text_of_six_bytes_is_rejected_without_a_panic",
+              "publicStatus": "PASS",
+              "depotStatus": "FAIL"
+            }
+          ]
+        },
+        "missingIdentity": {
+          "onlyPublic": [
+            "music-player::accent_override::tests::multibyte_text_of_six_bytes_is_rejected_without_a_panic"
+          ],
+          "onlyDepot": [],
+          "statusChanges": []
+        },
+        "reorderedSameIdentityAndStatus": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": []
+        }
+      },
+      "actualPublicEnvironment": {
+        "runtime": {
+          "node": "v26.12.0",
+          "arch": "arm64",
+          "platform": "darwin",
+          "availableCpu": 3,
+          "memoryBytes": 7516192768
+        },
+        "runnerName": "GitHub Actions 1000002823",
+        "requestedLabel": "macos-15",
+        "operatingSystem": [
+          "macOS",
+          "15.7.9",
+          "24G830"
+        ],
+        "operatingSystemBuildObserved": true,
+        "cpuModelObserved": false,
+        "cpuModel": null,
+        "catalogChipForDepotMac": null,
+        "providerSetup": [
+          {
+            "label": "Operating System",
+            "lines": [
+              "macOS",
+              "15.7.9",
+              "24G830"
+            ]
+          },
+          {
+            "label": "Runner Image",
+            "lines": [
+              "Image: macos-15-arm64",
+              "Version: 20260907.0337.1",
+              "Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260907.0337/images/macos/macos-15-arm64-Readme.md",
+              "Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260907.0337"
+            ]
+          }
+        ]
+      },
+      "actualDepotEnvironment": {
+        "runtime": {
+          "node": "v26.12.0",
+          "arch": "arm64",
+          "platform": "darwin",
+          "availableCpu": 7,
+          "memoryBytes": 18253611008
+        },
+        "runnerName": "depot-2dsj7bp6rj",
+        "requestedLabel": "depot-macos-15",
+        "operatingSystem": null,
+        "operatingSystemBuildObserved": false,
+        "cpuModelObserved": false,
+        "cpuModel": null,
+        "catalogChipForDepotMac": "Apple M2 per captured runner catalog, not a measured CPU model",
+        "providerSetup": []
+      }
+    },
+    {
+      "pair": "windows-msvc-x64",
+      "actualRecordedCaseCounts": {
+        "public": 1494,
+        "depot": 1494
+      },
+      "actual": {
+        "onlyPublic": [],
+        "onlyDepot": [],
+        "statusChanges": []
+      },
+      "controls": {
+        "changedIdentity": {
+          "onlyPublic": [
+            "music-player::accent_override::tests::six_digits_with_or_without_a_hash_give_the_color"
+          ],
+          "onlyDepot": [
+            "music-player::accent_override::tests::six_digits_with_or_without_a_hash_give_the_color::COUNTERFACTUAL_CHANGED_IDENTITY"
+          ],
+          "statusChanges": []
+        },
+        "changedStatus": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": [
+            {
+              "identity": "music-player::accent_override::tests::six_digits_with_or_without_a_hash_give_the_color",
+              "publicStatus": "PASS",
+              "depotStatus": "FAIL"
+            }
+          ]
+        },
+        "missingIdentity": {
+          "onlyPublic": [
+            "music-player::accent_override::tests::six_digits_with_or_without_a_hash_give_the_color"
+          ],
+          "onlyDepot": [],
+          "statusChanges": []
+        },
+        "reorderedSameIdentityAndStatus": {
+          "onlyPublic": [],
+          "onlyDepot": [],
+          "statusChanges": []
+        }
+      },
+      "actualPublicEnvironment": {
+        "runtime": {
+          "node": "v26.12.0",
+          "arch": "x64",
+          "platform": "win32",
+          "availableCpu": 4,
+          "memoryBytes": 17174360064
+        },
+        "runnerName": "GitHub Actions 1000002844",
+        "requestedLabel": "windows-2025",
+        "operatingSystem": [
+          "Microsoft Windows Server 2025",
+          "10.0.26100",
+          "Datacenter"
+        ],
+        "operatingSystemBuildObserved": true,
+        "cpuModelObserved": false,
+        "cpuModel": null,
+        "catalogChipForDepotMac": null,
+        "providerSetup": [
+          {
+            "label": "Operating System",
+            "lines": [
+              "Microsoft Windows Server 2025",
+              "10.0.26100",
+              "Datacenter"
+            ]
+          },
+          {
+            "label": "Runner Image",
+            "lines": [
+              "Image: windows-2025-vs2026",
+              "Version: 20261007.264.1",
+              "Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261007.264/images/windows/Windows2025-VS2026-Readme.md",
+              "Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261007.264"
+            ]
+          }
+        ]
+      },
+      "actualDepotEnvironment": {
+        "runtime": {
+          "node": "v26.12.0",
+          "arch": "x64",
+          "platform": "win32",
+          "availableCpu": 4,
+          "memoryBytes": 16827592704
+        },
+        "runnerName": "depot-n40gsg4tcb",
+        "requestedLabel": "depot-windows-2025-4",
+        "operatingSystem": null,
+        "operatingSystemBuildObserved": false,
+        "cpuModelObserved": false,
+        "cpuModel": null,
+        "catalogChipForDepotMac": null,
+        "providerSetup": []
+      }
+    }
+  ],
+  "provenance": {
+    "originalZipPngToolImageAndBinaryPayloadsPublished": false,
+    "allSelectedMembersUtf8RoundTripVerified": true,
+    "mediaAndCredentialMarkerControlsPassed": true,
+    "absoluteKnownRunnerWorkspacePrefixesNormalized": true,
+    "privateOriginalMemberHashesRetained": true,
+    "members": 312,
+    "actualOriginalTextBytes": 64943052,
+    "originalProviderArchivesRemainPrivate": true,
+    "scope": "Exactly the selected receipt members, not a universal secret or media inspection claim.",
+    "derivedNormalizedViewCount": 312,
+    "originalTextBytesFieldMeaning": "Sum of privately hashed original member sizes; publishedText fields are derived normalized views, not a claim to embed original text bytes."
+  },
+  "exactDepotOperatingSystemAndCpuModelRemainUnmeasured": true,
+  "sourceArchivePath": "doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz",
+  "qualificationContainer": {
+    "cpu": 2,
+    "memoryGiB": 2,
+    "pids": 128,
+    "secondsCap": 120,
+    "network": "none",
+    "containerAbsent": true
+  }
+}

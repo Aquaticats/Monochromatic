@@ -48,7 +48,7 @@ export type PackageManifestDependencies = {
  
  @example
  ```ts
- matchesBundlePattern({ name: '\@monochromatic-dev/module-logger', pattern: '\@monochromatic-dev/**' });
+ matchesBundlePattern({ name: '\@monochromatic-dev/logger-core', pattern: '\@monochromatic-dev/**' });
  ```
  */
 export function matchesBundlePattern({
@@ -221,13 +221,13 @@ export async function packageExternals({
     ...manifest.peerDependencies,
   })
     .filter(function isExternalName(name: string): boolean {
-    return !alwaysBundle.some(function matchesName(pattern: BundlePattern): boolean {
-      return matchesBundlePattern({
-        name,
-        pattern
+      return !alwaysBundle.some(function matchesName(pattern: BundlePattern): boolean {
+        return matchesBundlePattern({
+          name,
+          pattern
+        });
       });
     });
-  });
 
   return [
     // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored protocol prefix test for node builtins; input is one bare import specifier; no repetition, no backtracking.

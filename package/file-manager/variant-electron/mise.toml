@@ -1,0 +1,83 @@
+[tasks.build]
+description = "Build the no-Vite ESM Electron app stage"
+run = [
+  "mise run build:clean",
+  "mise run build:js:main",
+  "mise run build:js:preload",
+  "mise run build:ts:app",
+  "mise run build:ts:tools",
+  "mise run build:stage",
+]
+
+[tasks."build:clean"]
+description = "Remove generated app and tool outputs"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { rmSync } = await import('node:fs')
+for (const path of ['dist/app', 'dist/preload', 'dist/tools']) {
+  rmSync(path, { recursive: true, force: true })
+}
+"""
+
+[tasks."build:ts:app"]
+description = "Compile renderer-side TypeScript to browser ESM"
+run = "tsc --project tsconfig.build.json"
+
+[tasks."build:js:main"]
+description = "Bundle Electron main process to self-contained ESM"
+run = "rolldown --configLoader native --config rolldown.main.config.ts"
+
+[tasks."build:js:preload"]
+description = "Bundle the sandboxed preload script to CommonJS"
+run = "rolldown --configLoader native --config rolldown.preload.config.ts"
+
+[tasks."build:ts:tools"]
+description = "Bundle build and Wayland test tools"
+run = "rolldown --configLoader native --config rolldown.tools.config.ts"
+
+[tasks."build:stage"]
+description = "Copy static assets and write the staged app package manifest"
+run = "node dist/tools/build-stage.mjs"
+
+[tasks.lint]
+description = "Run package linters"
+run = [
+  "mise run build",
+  "mise run lint:types",
+  "mise run lint:oxlint",
+]
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks."test:wayland"]
+description = "Drive the app inside this repo's nested Wayland compositor and assert sticky-layout state"
+run = [
+  "mise run build",
+  "mise run //package/nested-wayland-session/cli:build",
+  "node dist/tools/wayland-boundary-test.mjs",
+]
+
+[tasks.test]
+description = "Run unit tests plus the pure-Wayland boundary test"
+run = [
+  "mise run build",
+  "mise run test:unit",
+  "mise run test:wayland",
+]
+
+[tasks.buildAndTest]
+description = "Build and test the package"
+run = [
+  "mise run build",
+  "mise run test",
+]

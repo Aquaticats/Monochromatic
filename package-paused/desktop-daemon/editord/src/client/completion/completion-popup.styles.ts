@@ -6,7 +6,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { POPUP_HOST_DECLS, } from '../styles/tokens.ts';
 

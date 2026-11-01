@@ -1,0 +1,30 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/page-weight-cli",
+  "description": "Analyze per-page transfer size of a built static site: min, max, mean, median across HTML pages including all referenced assets.",
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/hast": "catalog:"
+  },
+  "dependencies": {
+    "@csstools/css-tokenizer": "catalog:",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "rehype-parse": "catalog:",
+    "tiny-readdir-glob": "catalog:",
+    "unified": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/page-weight/cli"
+  },
+  "private": true,
+  "sideEffects": true
+}

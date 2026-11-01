@@ -7,7 +7,9 @@
 **Sources to re-mine periodically:**
 
 - `w3c/csswg-drafts` issues; active spec debates reveal where training data is thin
-- `https://www.w3.org/TR/`: look for First Public Working Drafts; the gap between "discussed" and "implemented" is where models fail
+- `https://www.w3.org/TR/`:
+  look for First Public Working Drafts;
+  the gap between "discussed" and "implemented" is where models fail
 - `drafts.csswg.org`: editor's drafts move faster than published WDs
 
 **Candidates:**

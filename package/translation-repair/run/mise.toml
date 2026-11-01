@@ -1,0 +1,86 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/lane-contest:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-check:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-lane:build:js:node", "//package/translation-repair/translate-stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."repeat-census"]
+description = "Measure the repeated source wording of the pinned corpus: maximal runs and refrain frames under the main, loose and tight settings, with the body-only groups counted apart; READ-ONLY, SPENDS NO QUOTA"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "repeat-census"
+run = "node dist/final/node/repeat-census.mjs"
+
+[tasks."run-timing-report"]
+description = "Read back where a run's wall-clock went, splitting every round into the time it worked and the time it waited on a straggler, and counting how many calls were in flight at once; SPENDS NO QUOTA (name one or more log paths after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "run-timing-report"
+run = "node dist/final/node/run-timing-report.mjs"
+
+[tasks."spend-report"]
+description = "Read what a run cost from the SPEND lines its own log carries, priced against a DATED Charm Hyper rate table; subscription seats are counted but never priced; SPENDS NO QUOTA (name one or more log paths after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "spend-report"
+run = "node dist/final/node/spend-report.mjs"
+
+[tasks."cap-census"]
+description = "Ledger P10: re-read the completion cap rule over pass-run logs before a launch, per seat and provider, with how many capped calls ran to the cap and whether they carried content; flags a pooled placeholder with a distribution, a rule reading off the card, and cuts over one percent; SPENDS NO QUOTA (name log files or directories after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "cap-census"
+run = "node dist/final/node/cap-census.mjs"
+
+[tasks."ledger-report"]
+description = "Read the candidate ledger a run wrote, saying who produced what, how often it was chosen, and what judges said about it; pass --model <id> after -- to read one seat's candidates and its judges' verbatim reasons; SPENDS NO QUOTA (prints corpus wording when a model is named)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "ledger-report"
+run = "node dist/final/node/ledger-report.mjs"
+
+[tasks."budget-sample"]
+description = "Take one reading of every provider's meter and leave it in the log, so an outage's END is observed during the quiet stretches when no pass is running; SPENDS NO GENERATION (capture both streams: `> log 2>&1`)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "budget-sample"
+run = "node dist/final/node/budget-sample.mjs"
+
+[tasks."meter-report"]
+description = "Read provider availability back out of run logs and report each provider's duty cycle and longest outage as bounded ranges; SPENDS NO QUOTA (pass one or more log paths after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "meter-report"
+run = "node dist/final/node/meter-report.mjs"
+
+[tasks."verify-published"]
+description = "Read a published tree back and check it against the artifacts that produced it: every settled entry has a page, and every page carries the wording its artifact says would ship; spends no quota, reads TRANSLATION_REPAIR_RUNS_DIR"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "verify-published"
+run = "node dist/final/node/verify-published.mjs"

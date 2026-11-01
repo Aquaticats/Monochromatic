@@ -5,10 +5,11 @@ the latest `taplo` release on crates.io (published 2025-05-22),
 reports a syntax error for `clap = { version = "3", features = [ "derive", ], }`,
 a TOML 1.1 inline table that Cargo 1.98.1 accepts
 and that `module-toml-edit` emits when it creates an inline table
-(`package/module/toml-edit/src/toml-set.unit.test.ts:484` expects `x = { y = 1, }`).
+(`package/toml-edit/core/src/toml-set.unit.test.ts:484` expects `x = { y = 1, }`).
 It surfaced as research case `t20` in
 [the Rust structured-edit research](../planning/monorepo-manager-route-research/rust-structured-edits.md)
-("Probe results by candidate", "TOML").
+("Probe results by candidate",
+ "TOML").
 
 This is a spec-version gap,
 not a parser bug:
@@ -18,7 +19,8 @@ and it was released before TOML 1.1.0 existed.
 Support for trailing commas and newlines in inline tables landed on `tamasfe/taplo` master
 in [tamasfe/taplo#849][pr-849] (merged 2026-03-11)
 but is not in any crates.io release as of 2026-09-17.
-Other TOML 1.1 syntax (`\e` and `\xHH` escapes, times without seconds) is still rejected on master.
+Other TOML 1.1 syntax (`\e` and `\xHH` escapes,
+ times without seconds) is still rejected on master.
 
 ## Symptom
 
@@ -159,9 +161,11 @@ TIME,
 
 TOML 1.0.0 forbids both forms (`toml-lang/toml` `toml.md:802-807` at tag `1.0.0`):
 
-> Inline tables are intended to appear on a single line. A terminating comma (also
+> Inline tables are intended to appear on a single line.
+ A terminating comma (also
 > called trailing comma) is not permitted after the last key/value pair in an
-> inline table. No newlines are allowed between the curly braces unless they are
+> inline table.
+ No newlines are allowed between the curly braces unless they are
 > valid within a value.
 
 TOML 1.1.0 permits them (`toml.md:831-832` at tag `1.1.0`,
@@ -223,7 +227,8 @@ No commit after the release tag touches `crates/taplo/src/util/escape.rs`,
 and the only one touching `crates/taplo/src/syntax.rs` is `4c8ecf4` ("Allow leading zeros in dates").
 
 crates.io still lists 0.14.0 as `max_stable_version`
-(`https://crates.io/api/v1/crates/taplo`, fetched 2026-09-17),
+(`https://crates.io/api/v1/crates/taplo`,
+ fetched 2026-09-17),
 and master still declares `version = "0.14.0"` in `crates/taplo/Cargo.toml`.
 The project is in minimal maintenance:
 the owner announced stepping down in [tamasfe/taplo#715][issue-715] (opened 2024-12-20)
@@ -242,7 +247,7 @@ though the repository is not archived and a collaborator still merges changes.
   Across tracked `*.toml` files,
    every `,\s*\}` match is inside a string value
    (TypeScript in `mise.toml` task scripts,
-   regex quantifiers such as `{250,}` in `package/cli/forbidden-strings/data/betterleaks-default-config.toml`)
+   regex quantifiers such as `{250,}` in `package/forbidden-strings/cli/data/betterleaks-default-config.toml`)
    or in a TOML 1.1 test fixture under `package/test-fixture/toml-edit/src/valid/`.
   The form enters Cargo manifests only if `module-toml-edit` creates an inline table
    (`toml-set.unit.test.ts:484`)
@@ -257,14 +262,84 @@ though the repository is not archived and a collaborator still merges changes.
 `dprint/dprint-plugin-toml` at tag `0.7.0` depends on `taplo = { version = "0.12.1", default-features = false }`
 (`Cargo.toml:39`),
 and `taplo` at `release-taplo-0.12.1` carries the same two diagnostics
-(`crates/taplo/src/parser/mod.rs:807`, `:818`).
-Commit `3c1ec63e9` ("fix(config-dprint): exclude unsupported TOML fixtures",
+(`crates/taplo/src/parser/mod.rs:807`,
+ `:818`).
+Commit `3c1ec63e9` ("fix(config-dprint):
+ exclude unsupported TOML fixtures",
 2026-05-15) excludes the TOML 1.1 fixtures from dprint
 (`package/config/dprint/index.json:16-30`),
 including `toml10-invalid-toml11-valid-invalid28-inline-table-trailing-comma-input.toml`.
-`dprint-plugin-toml` 0.8.0 (2026-08-18) lists "feat: use a custom TOML parser and support TOML 1.1 (#34)"
+`dprint-plugin-toml` 0.8.0 (2026-08-18) lists "feat:
+ use a custom TOML parser and support TOML 1.1 (#34)"
 in its release notes and no longer depends on `taplo`;
 whether 0.8.0 formats those fixtures was not probed here (Unverified).
+
+### Frozen Cargo formatter failure in the October 17 Depot replay
+
+The coherent desktop replay reproduced this compatibility gap with the actual authored manifest,
+rather than a synthetic fixture.
+At source `3434eaa455d569c18b52cf15100f77f9db251d21`,
+`package/music-player/desktop-app/Cargo.toml` has 17,145 bytes
+and SHA256 `263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d`.
+The original build,
+Clippy,
+and nextest tasks passed against that source.
+The source-locked dprint `0.61.1` check failed with TOML plugin `0.7.0`:
+
+```text
+Line 96, column 105: expected value, trailing comma is not allowed
+
+derer-software", ], }
+```
+
+Both recorded `mise --no-config` installation/version commands succeeded.
+The actual exact-file format command exited one.
+Source identities and selected Cargo bytes match before and after execution.
+The native case is a successful control:
+its actual changed Cargo manifest passed the same adapter and formatter version.
+The [coherent native/Desktop evidence](../audit/depot-coherent-native-desktop-2026-10-17.evidence.json)
+retains the complete formatter command records,
+source identities,
+provider joins,
+and successful build/test outcomes.
+The repaired missing-consumer issue `#1166` is separate from this executed format failure.
+
+The freshly cloned plugin tag `0.7.0`,
+commit `07383747e788015f7dbc224b7371b2bbe2f2cec5`,
+confirms the parser dependency in `Cargo.toml:39`:
+
+```toml
+# Cargo.toml:39, dprint/dprint-plugin-toml tag 0.7.0
+taplo = { version = "0.12.1", default-features = false }
+```
+
+Parsing occurs before Cargo conventions in `src/format_text.rs:42`.
+`parse_taplo` calls the dependency parser and turns its first error into the format diagnostic
+at `src/format_text.rs:52`:
+
+```rust
+// src/format_text.rs:42, dprint/dprint-plugin-toml tag 0.7.0
+fn parse_and_process_node(file_path: &Path, text: &str, config: &Configuration) -> Result<SyntaxNode> {
+  let node = parse_taplo(text)?;
+```
+
+```rust
+// src/format_text.rs:52, dprint/dprint-plugin-toml tag 0.7.0
+fn parse_taplo(text: &str) -> Result<SyntaxNode> {
+  let parse_result = taplo::parser::parse(text);
+
+  if let Some(err) = parse_result.errors.first() {
+    bail!(
+      "{}",
+      dprint_core::formatting::utils::string_utils::format_diagnostic(Some((err.range.start().into(), err.range.end().into())), &err.message, text,)
+```
+
+This observation extends the September 17 fixture evidence to a frozen authored Cargo manifest.
+It does not revise the dated September 17 repository scan.
+No source edit or formatter upgrade was applied to the immutable workload.
+The known grammar mismatch adds no new upstream defect or additive upstream report;
+the existing upstream filing decision remains applicable.
+Repository issue `#562` already records this formatter family and requests scoped follow-ups.
 
 ## Verification
 
@@ -334,12 +409,18 @@ clap = { version = "4", features = [ "derive", ], }
 ```rust
 // ~/temp/agent/taplo-toml11/taplo-release/src/main.rs
 #![forbid(unsafe_code)]
-//! taplo TOML 1.1 acceptance probe: parse errors, lossless round trip, DOM validation, and value reads,
+//! taplo TOML 1.1 acceptance probe:
+ parse errors,
+ lossless round trip,
+ DOM validation,
+ and value reads,
 //! plus the consumer-side filter that ignores only the inline-table trailing-comma diagnostic.
 
 const TRAILING_COMMA: &str = "expected value, trailing comma is not allowed";
 
-/// (case name, TOML version that makes the source valid, source)
+/// (case name,
+ TOML version that makes the source valid,
+ source)
 const CASES: &[(&str, &str, &str)] = &[
     ("cargo-inline-table-trailing-comma", "1.1", "clap = { version = \"3\", features = [ \"derive\", ], }  # c\n"),
     ("incumbent-created-inline-table", "1.1", "[foo]\nx = { y = 1, }\n"),
@@ -396,7 +477,8 @@ failing `inline-table-sample01-1.1`,
 `string-sample01-1.1-basic-strings`,
 the five `toml10-invalid-toml11-valid-*` fixtures,
 and several date and exponent fixtures
-(`rust-structured-edits.md`, "Probe results by candidate";
+(`rust-structured-edits.md`,
+ "Probe results by candidate";
 the date and exponent failures were not re-examined here).
 
 ### Accepted cleanly by 0.14.0 and master (TOML 1.0 forms)
@@ -456,7 +538,8 @@ the date and exponent failures were not re-examined here).
    `clap = { version = "4", features = [ "derive", ], }` succeeded
    (`cargo metadata accepted cargo-toml11/Cargo.toml`).
   The research run also accepted `cfg-if = { version = "1", features = [ ], }`
-   on nightly 1.100 and 1.98.1 (`rust-structured-edits.md`, "Probe results by candidate").
+   on nightly 1.100 and 1.98.1 (`rust-structured-edits.md`,
+ "Probe results by candidate").
 
 ## Verified workarounds
 
@@ -477,7 +560,8 @@ Tradeoffs:
    documented with workarounds in [toml-edit-comment-loss.md](toml-edit-comment-loss.md).
 - The research corpus run found two TOML 1.0 invalid fixtures that `toml_edit` accepts
    (`invalid22-key-newline-value-in-inline-table` and `invalid23-...`,
-   `rust-structured-edits.md`, "Probe results by candidate").
+   `rust-structured-edits.md`,
+ "Probe results by candidate").
 
 The same research run found `tombi-parser` at commit `12c3b5b` round-trips all 91 valid fixtures including `t20`,
 but it rejected only 78 of 108 invalid fixtures because semantic checks live in other `tombi` crates;
@@ -527,7 +611,8 @@ including multi-line inline tables.
 Tradeoffs:
 
 - A crate with a git dependency cannot be published to crates.io
-   ("[crates.io] does not allow packages to be published with dependencies on code published outside of [crates.io]",
+   ("[crates.io][] does not allow packages to be published
+with dependencies on code published outside of [crates.io][]",
    `rust-lang/cargo` `doc/book/src/reference/specifying-dependencies.md:205-207`).
 - `\e`,
    `\xHH`,
@@ -547,7 +632,8 @@ Tradeoffs:
 
 - Diverges from the `module-toml-edit` creation style `{ y = 1, }`
    (research open question D13,
-   `rust-structured-edits.md`, "Definition").
+   `rust-structured-edits.md`,
+ "Definition").
 - Only controls files we write;
    third-party or hand-written TOML 1.1 input is still rejected.
 - Rules out multi-line inline tables,
@@ -583,10 +669,12 @@ Candidate-fix applicability gate:
  the known fix `d6e4a8f` is absent from the installed 0.14.0 source
  (the rejecting branch is still at `crates/taplo/src/parser/mod.rs:802-808`),
  and its issue and test inputs match the observed failure
- ([tamasfe/taplo#333][issue-333]: "Line breaks and trailing comma in inline tables";
+ ([tamasfe/taplo#333][issue-333]:
+ "Line breaks and trailing comma in inline tables";
  added test `inline_table_with_linebreaks_and_trailing_comma`).
 The harness shows master accepting the exact failing inputs,
-so the incident is "fixed upstream, unreleased",
+so the incident is "fixed upstream,
+ unreleased",
 not a new defect.
 
 Walking the six constraints:
@@ -606,7 +694,8 @@ Walking the six constraints:
     owner-authored tracking issue "TOML 1.1.0") lists #333 as done,
     and master CI runs `toml-test -toml 1.1`.
     But a collaborator answered [tamasfe/taplo#839][issue-839] ("TOML 1.1 is released",
-    2026-01-15) with "No, please see #715",
+    2026-01-15) with "No,
+ please see #715",
     and on #332 (2026-04-29) wrote that the VS Code extension will not get TOML 1.1 support
     "as I do not have any way to publish updates for it".
 4.  **Would the repo welcome our contribution?**
@@ -624,14 +713,17 @@ Walking the six constraints:
     and the signals lean no:
     no crates.io release since 2025-05-22 although master gained commits dated 2026-01 through 2026-07,
     the owner announced deprecation and archiving (#715),
-    and the collaborator lacks extension publishing access (#332, #849).
+    and the collaborator lacks extension publishing access (#332,
+ #849).
     No statement about crates.io publishing access was found.
 6.  **Have we prototyped a minimal fix compatible with their architecture?**
     Not applicable.
     The minimal fix exists upstream as `d6e4a8f`,
     and the harness verified it against the failing inputs;
     there is no patch of ours to prototype.
-    The remaining TOML 1.1 gaps (`\e`, `\xHH`, optional seconds) are outside this doc's cluster,
+    The remaining TOML 1.1 gaps (`\e`,
+ `\xHH`,
+ optional seconds) are outside this doc's cluster,
     already tracked by #332 and skipped deliberately in master CI.
 
 Decision:
@@ -645,7 +737,8 @@ and `gh search prs --repo tamasfe/taplo -- <term>`
 (no state filter,
 so open and closed both returned),
 plus every issue and pull request created since 2026-01-01
-(`gh search issues --repo tamasfe/taplo --created '>=2026-01-01'`, same for `prs`).
+(`gh search issues --repo tamasfe/taplo --created '>=2026-01-01'`,
+ same for `prs`).
 Issue terms:
  `toml 1.1`,
  `1.1.0`,
@@ -677,7 +770,8 @@ Threads read in full:
    TOML 1.1.0 tracking issue with release-status comments.
 - [tamasfe/taplo#839][issue-839] (closed 2026-01-15):
    TOML 1.1 support request,
-   answered "No, please see #715".
+   answered "No,
+ please see #715".
 - [tamasfe/taplo#715][issue-715] (closed 2025-11-10):
    project future and owner stepping down.
 - [tamasfe/taplo#870][issue-870] (open):

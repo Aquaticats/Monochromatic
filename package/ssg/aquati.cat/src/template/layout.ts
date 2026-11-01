@@ -5,7 +5,7 @@
  into a complete HTML document. All markup generated via h-html and
  colocated component render functions; no raw HTML strings or template files.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { html as pageContentHtml, } from '../component/page-content.ts';
 import { html as siteFooterHtml, } from '../component/site-footer.ts';

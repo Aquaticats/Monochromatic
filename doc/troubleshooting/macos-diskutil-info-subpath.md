@@ -44,7 +44,7 @@ The primary inspectable contract is the `diskutil(8)` manual's `info` grammar an
 ([archived manual][diskutil-man]).
 
 The package now performs an explicit path-to-device step in
-`package/module/fs-id/src/platform-resolvers.ts:274-301`:
+`package/fs-id/core/src/platform-resolvers.ts:274-301`:
 
 ```ts
 const mountOutput = await adapters.run({
@@ -67,10 +67,10 @@ const output = await adapters.run({
 
 `df(1)` explicitly accepts a file and reports the filesystem of which that file is a part
 ([archived manual][df-man]).
-`package/module/fs-id/src/parsers.ts:270-309` reads only the first field of a portable `df -P` data row,
+`package/fs-id/core/src/parsers.ts:270-309` reads only the first field of a portable `df -P` data row,
 requires a safe `/dev/` path,
 and ignores localized header text.
-`package/module/fs-id/src/parsers.ts:311-365` then reads invariant `VolumeUUID` plist structure instead of human
+`package/fs-id/core/src/parsers.ts:311-365` then reads invariant `VolumeUUID` plist structure instead of human
 presentation labels.
 
 ## Verification

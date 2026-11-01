@@ -359,7 +359,7 @@ repeat them:
    `text: "3.1.1 "`).
    The real cause is Bug B:
    the affected file
-  (`package/webapp-productivity/rss/TODO.index.md`) contains emoji,
+  (`package/rss/app/TODO.index.md`) contains emoji,
    and the
   node's `value` is correct (`"3.1.1 "`) while its `position` offset is 3 short
   (three emoji precede it).
@@ -651,7 +651,8 @@ Materialized, code-point offsets (off by one astral char):
 import { markdownToMdast } from 'satteri';
 const md = '🎯 x\n\n- item, with a break. done.\n';
 const t = markdownToMdast(md);
-let n; (function w(x){ if (x.type==='text' && x.value.includes('item')) n=x; for (const c of x.children ?? []) w(c); })(t);
+let n; (function w(x){ if (x.type==='text' && x.value.includes('item')) n=x; for (const c of x.children ?? []) w(c);
+})(t);
 // n.value === "item, with a break. done." but
 // md.slice(n.position.start.offset, n.position.end.offset) === " item, with a break. done"
 ```

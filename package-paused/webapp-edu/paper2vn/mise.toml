@@ -43,7 +43,7 @@ extends = "build:js:client"
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
 [tasks."lint:oxlint"]

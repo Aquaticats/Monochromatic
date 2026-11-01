@@ -4,6 +4,39 @@
  2026-05-09.
 **Reassessment**:
  2026-09-07.
+**CAA renewal remedy**:
+ 2026-10-09.
+ The mirror leaf became an ANAME carrying its own CAA,
+ a second hostname
+`mirror.amazon.aquati.cat` was added under a label that terminates the climb,
+and issue 6 is retracted.
+ See
+[`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
+**Hostname move**:
+ 2026-10-09,
+ later the same day.
+ The public mirror hostname moved from
+`aws.aquati.cat` to `amazon.aquati.cat`,
+ the label that already carried the four
+Amazon CAA records and already terminated the climb for
+`mirror.amazon.aquati.cat`.
+`aws.aquati.cat` is retired:
+ all six of its DNS records are deleted and the
+name now answers `NOERROR` with no address,
+ exactly as a label that never
+existed does.
+ Every `aws.aquati.cat` mention after this paragraph is a
+historical record and keeps its original text;
+ the current serving names are
+`amazon.aquati.cat` and `mirror.amazon.aquati.cat`.
+The same change removed `0 issue "certainly.com"` from the apex,
+ so
+`dig +short CAA aquati.cat` returns only `0 issue "letsencrypt.org"` again,
+which is the property this document was written to protect.
+ The Fastly mirror
+moved to the same leaf-CAA shape at `fastly.aquati.cat`.
+ Tracked as
+[issue 674](https://github.com/Aquaticat/Monochromatic/issues/674).
 **Subject**:
  Setting up `aws.aquati.cat` as a public CloudFront mirror of
 self-hosted `aquati.cat` while keeping the apex CAA limited to
@@ -449,6 +482,28 @@ Remove the CAA record at `aws.aquati.cat` before adding the CNAME:
 1. Delete `aws.aquati.cat. IN CAA 0 issue "amazon.com"`.
 2. Add `aws.aquati.cat. IN CNAME <distribution>.cloudfront.net.`.
 
+**Better solution,
+ measured 2026-10-09**:
+ the conflict only exists for a
+real CNAME.
+Njalla's `ANAME` type is a flattening alias that answers A and AAAA with
+no CNAME on the wire,
+and it does coexist with CAA at the same name.
+Keeping the alias and the authorization at the leaf means the RFC 8659
+climb terminates there and the apex is never read,
+so nothing has to be removed and later restored.
+Njalla states the CNAME restriction verbatim when the conflict is real:
+
+```text
+add-record rejected: code 400 You can not have both CNAME and CAA records.
+```
+
+The trade is that a flattened alias publishes the addresses the provider
+resolved rather than the querier's nearest edge,
+and Njalla documents no re-resolution interval.
+See option 7 in
+[`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
+
 ### Verification commands
 
 ```bash
@@ -460,6 +515,18 @@ dig +short CNAME aws.aquati.cat
 ```
 
 ## Issue 6: removing the subdomain CAA stays safe because ACM follows CNAMEs
+
+**Retracted on 2026-10-09.**
+The mechanism below is wrong,
+and relying on it is what let a renewal run into expiry.
+RFC 8659 section 3 climbs the parents of the queried FQDN;
+only the single-node CAA query chases the alias.
+Section 7 states this replaced the RFC 6844 algorithm that climbed
+CNAME and DNAME chains.
+ACM's renewal refusal for `aws.aquati.cat` on 2026-10-09 is the measured
+confirmation.
+See [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
+The text below is kept as the record of what was believed.
 
 ### Concern
 
@@ -545,7 +612,7 @@ dig +short CAA cloudfront.net
 ### Symptom
 
 After completing issues 1 to 6,
- the CloudFront distribution `EYK5GXXEGWEYZ`
+ the CloudFront distribution `<distribution-id>`
 deploys cleanly.
  The first end-to-end test against `https://aws.aquati.cat/`
 returns HTTP 502 from CloudFront:
@@ -622,7 +689,7 @@ The following read-only calls succeeded:
 
 ```bash
 # Distribution details were queried with secret-bearing header values omitted.
-aws cloudfront get-distribution --id EYK5GXXEGWEYZ \
+aws cloudfront get-distribution --id <distribution-id> \
   --query '{ETag:ETag,Status:Distribution.Status,LastModifiedTime:Distribution.LastModifiedTime}' \
   --output json --no-cli-pager
 aws cloudfront get-origin-request-policy --id 216adef6-5c7f-47e4-b989-5492eafa07d3 \
@@ -637,7 +704,7 @@ The distribution read returned:
 
 - `Status: Deployed`,
   `Enabled: true`,
-  ETag `E13V1IB3VIYZZH`,
+  ETag `<original-etag>`,
   last modified `2026-05-09T05:36:01.600000+00:00`.
 - Origin `aquati.cat`,
   HTTPS port 443,
@@ -837,7 +904,7 @@ list calls confirmed their absence.
 #### Verified production resolution
 
 The live function association was accepted at `2026-09-07T21:38:48Z`.
-The deployed distribution ETag is `E1VC38T7YXB528`.
+The deployed distribution ETag is `<etag>`.
 A full configuration comparison proved that only
 `DefaultCacheBehavior.FunctionAssociations` changed from the pre-task snapshot.
 The comparison includes origin settings,
@@ -1279,7 +1346,7 @@ openssl s_client -4 -connect aquati.cat:443 -servername aquati.cat -tls1_2 -brie
 
 # Keeping IPv4 and TLS 1.3 unchanged, changing only SNI fails.
 openssl s_client -4 -connect aquati.cat:443 -servername aws.aquati.cat -tls1_3 -brief </dev/null
-openssl s_client -4 -connect aquati.cat:443 -servername dyfbcoafqtni3.cloudfront.net -tls1_3 -brief </dev/null
+openssl s_client -4 -connect aquati.cat:443 -servername <distribution-domain> -tls1_3 -brief </dev/null
 # tlsv1 alert internal error; SSL alert number 80; exit 1
 
 curl --silent --show-error --head --connect-timeout 15 --max-time 30 https://aws.aquati.cat/
@@ -1296,7 +1363,7 @@ A separate GET also returned the generic CloudFront 502 page.
 Initial evidence acquisition limits,
 with authentication subsequently restored:
 
-- `aws cloudfront get-distribution-config --id EYK5GXXEGWEYZ` with a field-filtered query failed:
+- `aws cloudfront get-distribution-config --id <distribution-id>` with a field-filtered query failed:
   `aws: [ERROR]: Your session has expired. Please reauthenticate using 'aws login'.`
   Exit status 255;
   `aws configure list-profiles` listed only `default`.
@@ -1328,49 +1395,167 @@ The disposable distribution and unused custom cache policy are deleted.
 The remaining certificate and DNS inventory records the original investigation
 unless explicitly corroborated in the authenticated follow-up.
 
-Concrete identifiers recorded on 2026-05-09:
+Concrete identifiers recorded on 2026-05-09,
+redacted on 2026-10-09 because this repository is public.
+Each placeholder is recoverable from the account with one read-only call:
 
 - AWS account:
-   `016042452668`.
+   `<account-id>`
+  (`aws sts get-caller-identity --query Account`).
 - ACM certificate ARN:
-  `arn:aws:acm:us-east-1:016042452668:certificate/c5d23357-7ed7-4393-87b4-e62f4c5d4751`.
+   `<certificate-arn>`
+  (`aws acm list-certificates --region us-east-1`).
 - CloudFront distribution ID:
-   `EYK5GXXEGWEYZ`.
+   `<distribution-id>`
+  (`aws cloudfront list-distributions`).
 - CloudFront distribution domain:
-   `dyfbcoafqtni3.cloudfront.net`.
+   `<distribution-domain>`
+  (`aws cloudfront get-distribution --id <distribution-id> --query 'Distribution.DomainName'`,
+   also public as the `amazon.aquati.cat` ANAME target;
+   before the
+  2026-10-09 hostname move it was the `aws.aquati.cat` CNAME,
+   then ANAME,
+   target).
 
-DNS records:
+DNS records,
+ measured on 2026-10-09 after the hostname move:
 
-- `aquati.cat. IN CAA 0 issue "letsencrypt.org"` (apex,
-   unchanged from
-  the starting state).
-- `aws.aquati.cat. IN CNAME dyfbcoafqtni3.cloudfront.net.`
-- `_9593853f9aa43436c944ab2fe8d548d3.aws.aquati.cat. IN CNAME _7a600be3b5a98f691b651f493a643f06.jkddzztszm.acm-validations.aws.`
+- `aquati.cat. IN CAA 0 issue "letsencrypt.org"` (apex).
+   This is the only
+  CAA record at the apex.
+   The `0 issue "certainly.com"` record that sat
+  beside it was drift from the starting state this document describes as
+  letsencrypt-only,
+   and was deleted on 2026-10-09 once the Fastly mirror
+  carried its own CAA at `fastly.aquati.cat`.
+- `amazon.aquati.cat. IN ANAME <distribution-domain>.`
+   Added on 2026-10-09
+  when this name became the serving hostname.
+   It is a flattened alias
+  rather than a CNAME so the node can carry CAA beside it.
+- `amazon.aquati.cat. IN CAA 0 issue "amazon.com"`,
+   plus the same record for
+  `amazontrust.com`,
+   `awstrust.com`,
+   and `amazonaws.com`.
+   These four
+  already existed as the climb-terminating label for
+  `mirror.amazon.aquati.cat`,
+   and they are what now let ACM renew this name
+  without touching the apex.
+- `_<validation-token>.amazon.aquati.cat. IN CNAME _<validation-value>.<validation-zone>.acm-validations.aws.`
   (kept permanently for renewal;
    deleting this record breaks the next
-  ACM renewal cycle).
+  ACM renewal cycle.
+   Recover both halves with
+  `aws acm describe-certificate --certificate-arn <certificate-arn> --region us-east-1 --query 'Certificate.DomainValidationOptions[?DomainName==`amazon.aquati.cat`].ResourceRecord'`).
+- `mirror.amazon.aquati.cat. IN CNAME <distribution-domain>.`
+   A second mirror hostname added on 2026-10-09.
+   It is a real CNAME,
+   so CloudFront keeps per-querier edge selection for it.
+   Its climb
+  terminates at `amazon.aquati.cat`.
+- `_<validation-token>.mirror.amazon.aquati.cat. IN CNAME _<validation-value>.<validation-zone>.acm-validations.aws.`
+  (also kept permanently for renewal;
+   deleting either validation record
+  breaks renewal of the two-name certificate).
+- `aws.aquati.cat`:
+   no records.
+   The ANAME,
+   the four CAA records,
+   and the
+  validation CNAME were deleted on 2026-10-09 after the distribution stopped
+  listing the name as an alias.
 
-ACM cert:
+ACM cert,
+ current as of 2026-10-09 after the hostname move:
 
 - Region:
    `us-east-1` (mandatory for CloudFront viewer certs).
-- Domain:
-   `aws.aquati.cat` (single name,
-   no SANs).
+- Names:
+   `amazon.aquati.cat` and `mirror.amazon.aquati.cat`.
+   One certificate covers both because a distribution holds exactly one
+  viewer certificate.
 - Key algorithm:
    `EC_prime256v1`.
 - Validation method:
-   DNS.
+   DNS,
+   one record per name,
+   both of which must stay published.
+- Validity:
+   `notBefore` 2026-10-09,
+   `notAfter` 2027-04-24.
+- The single-name predecessor was renewed by ACM on 2026-10-09 once the
+  leaf CAA records unblocked it,
+   then deleted after the two-name
+  certificate was attached and verified.
+- That two-name certificate covered `aws.aquati.cat` and
+  `mirror.amazon.aquati.cat`.
+   The hostname move needed a third
+  certificate,
+   because ACM cannot add a name to an issued certificate and
+  CloudFront rejects an alias its viewer certificate does not cover.
+   The
+  replacement was requested for both current names,
+   reached `ISSUED` with
+  both DNS validations `SUCCESS`,
+   and was attached by one
+  `UpdateDistribution` that also dropped the retired alias.
+   The predecessor
+  was then deleted under three assertions:
+   the distribution's attached ARN
+  was the replacement,
+   the target reported `InUseBy: []`,
+   and the target's
+  subject alternative names contained `aws.aquati.cat` where the
+  replacement's contained `amazon.aquati.cat`.
+   `describe-certificate` on the
+  deleted ARN now returns `ResourceNotFoundException`.
+  Deleting the predecessor is coupled to deleting the four CAA records at
+`aws.`:
+ an unattached certificate whose authorization has been removed would
+fail its next renewal and reproduce the incident this document records.
 
-Properties this configuration preserves:
+Properties this configuration was believed to preserve,
+with a 2026-10-09 correction:
 
 - The apex CAA is unchanged.
    Only Let's Encrypt may issue certs for
   `aquati.cat`.
+   **Correction,
+   2026-10-09**:
+   the apex now also publishes
+  `0 issue "certainly.com"`,
+   so two CAs are authorized for apex-inheriting names.
+   **Restored,
+   2026-10-09**:
+   that record is deleted.
+   The Fastly mirror
+  publishes `0 issue "certainly.com"` at `fastly.aquati.cat` instead,
+   so the
+  climb for it and for `mirror.fastly.aquati.cat` terminates there and never
+  reads the apex.
+   `dig +short CAA aquati.cat` again returns only
+  `0 issue "letsencrypt.org"`,
+   which is the property this document exists
+  to protect.
 - Amazon may issue certs only for `aws.aquati.cat`,
    and only because the
   CAA chain at renewal time runs through `cloudfront.net`'s empty CAA,
   not through the apex.
+   **Correction,
+   2026-10-09**:
+   this is false and is the root cause of the
+  renewal failure recorded in
+  [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
+   `cloudfront.net` is not empty;
+   it publishes `0 issuewild "amazonaws.com"` and
+  `0 issuewild "digicert.com"`.
+   More decisively,
+   RFC 8659 section 3 climbs the parents of the queried FQDN,
+   not the parents of its CNAME target,
+   so ACM read the apex and refused.
+   Issue 6 is retracted.
 
 ## What does not work
 
@@ -1384,6 +1569,19 @@ The following alternatives were considered and rejected:
   attack surface narrow.
    Permitting Amazon to issue for the apex
   defeats the purpose of running a restrictive CAA at all.
+   Reopened by the 2026-10-09 renewal failure:
+   the apex now also publishes
+  `0 issue "certainly.com"`,
+   so the property this rejection protects no longer holds as measured.
+   **Resolved,
+   2026-10-09**:
+   that record is deleted,
+   the rejection stands
+  again,
+   and the need it was reopened for is met by leaf and intermediate
+  label CAA records instead.
+   Ranking and alternatives are in
+  [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
 - **ALIAS records at the apex** pointing to CloudFront.
    Njalla supports
   only standard DNS record types;
@@ -1393,6 +1591,23 @@ The following alternatives were considered and rejected:
    the apex
   would still need CAA permitting Amazon at issuance time (same dead
   end as widening the apex CAA).
+   **Correction,
+   2026-10-09**:
+   the first half is false.
+   Njalla does have a flattening alias,
+   its `ANAME` type,
+   already live on 43 names in this zone.
+   A probe at a throwaway label confirmed an ANAME coexists with a CAA
+   record at the same name and answers A and AAAA with no CNAME on the
+   wire,
+   and a second probe confirmed an ANAME to the CloudFront distribution
+   domain serves the mirror.
+   The second half still holds:
+   at the apex the Relevant RRset is the apex's own,
+   so an ANAME there would not avoid authorizing Amazon at the apex.
+   At the mirror leaf it does avoid that,
+   which is option 7 in
+   [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
 - **Alternate label** like `cdn.aquati.cat`.
    The CAA tree-walk and
   CAA-vs-CNAME constraints apply equally to any subdomain of
@@ -1400,6 +1615,21 @@ The following alternatives were considered and rejected:
    The label name is irrelevant;
    the structural issues
   are identical.
+   **Correction,
+   2026-10-09**:
+   this holds only for a single label below
+  the apex.
+   A two-label path breaks the walk:
+   `mirror.aquati.cat` is an ordinary node,
+   so it can publish `0 issue "amazon.com"`,
+   and the climb for `aws.mirror.aquati.cat` terminates there without
+   reading the apex.
+   The leaf may still be a CNAME,
+   because the CAA lives one level up.
+   The cost is a hostname change,
+   not a security widening.
+   See
+  [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
 - **`EC_secp384r1` cert** (P-384).
    CloudFront rejects it with the opaque
   `InvalidViewerCertificate` error documented in issue 3.
@@ -1690,19 +1920,26 @@ Sources for the reassessment were accessed on 2026-09-07.
 
 [origin-tls-announcement]: https://aws.amazon.com/about-aws/whats-new/2025/11/amazon-cloudfront-tls13-origin/
 [origin-protocol-api]: https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_OriginSslProtocols.html
-[origin-ciphers]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-ciphers-cloudfront-to-origin.html
+[origin-ciphers]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-ciphers-cloudfront-to-origin.html
 [cloudfront-502]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-502-bad-gateway.html
 [caddy-cloudfront-issue]: https://github.com/caddyserver/caddy/issues/7445
-[origin-request-policies]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.md
+[origin-request-policies]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.md
 [s3-oac]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.md
-[origin-https]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-https-cloudfront-to-custom-origin.html
+[origin-https]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-https-cloudfront-to-custom-origin.html
 [origin-feature-request]: https://repost.aws/questions/QUzNusy9axTz2iWIyfK1q-nw/feature-cloudfront-origin-tls-v1-3
-[policy-interaction]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/understanding-how-origin-request-policies-and-cache-policies-work-together.html
-[custom-origin-requests]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/RequestAndResponseBehaviorCustomOrigin.md
+[policy-interaction]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/understanding-how-origin-request-policies-and-cache-policies-work-together.html
+[custom-origin-requests]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/RequestAndResponseBehaviorCustomOrigin.md
 [origin-sni-note]: https://repost.aws/knowledge-center/cloudfront-https-connection-fails
-[origin-helper]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/helper-functions-origin-modification.md
+[origin-helper]:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/helper-functions-origin-modification.md
 [flat-rate-plans]: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.md
-[host-policy-report]: https://repost.aws/questions/QUyKQbjgzkRYG-DI0bsKE6Mg/configure-the-cloud-front-to-set-the-origin-request-header
+[host-policy-report]:
+https://repost.aws/questions/QUyKQbjgzkRYG-DI0bsKE6Mg/configure-the-cloud-front-to-set-the-origin-request-header
 [fly-host-report]: https://community.fly.io/t/fly-io-apps-behind-cloudfront/20028
 [alb-sni-report]: https://repost.aws/questions/QU6ztFUrqgSlOTgVFu2CM9KA/cloud-front-to-alb-sni
 [certmagic-source]: https://github.com/caddyserver/certmagic

@@ -1,0 +1,367 @@
+{
+  "measuredAt": "2026-10-15T22:37:38.794Z",
+  "applicationRevision": "46effff65ab4193b4311d7675e301c97007176d1",
+  "trialBranch": "trial/depot-20261015",
+  "containerBuilds": [
+    {
+      "id": "14trfrrxg6",
+      "durationSeconds": 473,
+      "status": "finished"
+    },
+    {
+      "id": "41xd3lwh8d",
+      "durationSeconds": 382,
+      "status": "finished"
+    },
+    {
+      "id": "jbld9m545r",
+      "durationSeconds": 226,
+      "status": "finished"
+    },
+    {
+      "id": "wk649mjc2s",
+      "durationSeconds": 7,
+      "status": "failed"
+    },
+    {
+      "id": "5cfbvsmxz9",
+      "durationSeconds": 22,
+      "status": "finished"
+    },
+    {
+      "id": "t66qp9xk3l",
+      "durationSeconds": 21,
+      "status": "finished"
+    },
+    {
+      "id": "ws40v1c9xt",
+      "durationSeconds": 468,
+      "status": "finished"
+    },
+    {
+      "id": "gxg5n0bdqj",
+      "durationSeconds": 13,
+      "status": "finished"
+    }
+  ],
+  "githubReference": {
+    "run": 38813764705,
+    "attempt": 1,
+    "runner": "ubuntu-24.04",
+    "coldSeconds": 869.508057318,
+    "warmSeconds": [
+      1.9747581309999804,
+      1.7163246280000313
+    ],
+    "version": "music-player 0.1.4"
+  },
+  "depotGithubRunner": {
+    "run": 38813764705,
+    "attempt": 2,
+    "job": 116700352199,
+    "runner": "depot-ubuntu-24.04-4",
+    "runnerVersion": "2.337.0",
+    "coldSeconds": 757.3936661490001,
+    "warmSeconds": [
+      1.1733453809999628,
+      1.0926900100000203
+    ],
+    "version": "music-player 0.1.4",
+    "originalAttempt": {
+      "job": 116693196264,
+      "conclusion": "failure",
+      "diagnostic": "The self-hosted runner lost communication with the server.",
+      "recordedSteps": 0,
+      "rootCause": "unresolved"
+    }
+  },
+  "dependencyChange": {
+    "build": "41xd3lwh8d",
+    "package": "log",
+    "originalVersion": "0.4.34",
+    "testedVersion": "0.4.33",
+    "cargoSeconds": 323,
+    "runtimeVersion": "music-player 0.1.4"
+  },
+  "toolchainChange": {
+    "build": "14trfrrxg6",
+    "linker": "mold 2.39.1",
+    "elfCommentVerified": true,
+    "cargoSeconds": 432,
+    "runtimeVersion": "music-player 0.1.4",
+    "restoredLogVersion": "0.4.34",
+    "targetCacheKiB": 5719616,
+    "cargoCacheKiB": 700660
+  },
+  "realTestNegativeControl": {
+    "run": "2clfb5npj3",
+    "conclusion": "failure",
+    "passed": 79,
+    "failed": 1,
+    "test": "window::tests::window_frames_floors_and_clamps",
+    "actual": 192000,
+    "deliberatelyIncorrectExpected": 192001
+  },
+  "standaloneSandboxes": {
+    "singleSuccessfulLifecycleSeconds": 4.396,
+    "concurrentCommands": 2,
+    "overlapMilliseconds": 9882,
+    "allStopped": true,
+    "benchmarkPerformed": false
+  },
+  "unresolvedAcceptanceGaps": [
+    "desktop graphical E2E and Android instrumented execution",
+    "aggregate account usage, storage, trial expiry, and spending cap",
+    "full cross-platform elapsed-time replay",
+    "replacement rolling-budget admission mechanism"
+  ],
+  "coverageJobs": [
+    {
+      "key": "_inline_0.yaml:audio-core",
+      "startedAt": "2026-10-15T21:49:51.986Z",
+      "finishedAt": "2026-10-15T21:52:08.438Z",
+      "conclusion": "success"
+    },
+    {
+      "key": "_inline_0.yaml:typescript",
+      "startedAt": "2026-10-15T21:49:51.633Z",
+      "finishedAt": "2026-10-15T21:50:37.551Z",
+      "conclusion": "success"
+    }
+  ],
+  "validationJobs": [
+    {
+      "key": "_inline_0.yaml:android-host",
+      "startedAt": "2026-10-15T22:11:54.024Z",
+      "finishedAt": "2026-10-15T22:13:34.173Z",
+      "conclusion": "success"
+    },
+    {
+      "key": "_inline_0.yaml:device-prerequisites",
+      "startedAt": "2026-10-15T22:11:54.601Z",
+      "finishedAt": "2026-10-15T22:12:27.454Z",
+      "conclusion": "success"
+    },
+    {
+      "key": "_inline_0.yaml:typescript-snapshot",
+      "finishedAt": "2026-10-15T22:11:52.569Z",
+      "conclusion": "success"
+    },
+    {
+      "key": "_inline_0.yaml:typescript-snapshot-use",
+      "startedAt": "2026-10-15T22:11:55.962Z",
+      "finishedAt": "2026-10-15T22:13:36.076Z",
+      "conclusion": "success"
+    }
+  ],
+  "androidReports": {
+    "suites": 127,
+    "tests": 1289,
+    "firstRun": "3tvq2wvskh",
+    "countedCachedRepeat": "jp9w8gw62r"
+  },
+  "gateReplay": [
+    {
+      "name": "empty history permits analysis",
+      "allowed": "true",
+      "jobHistoryCalls": 0,
+      "historicalRuns": 0
+    },
+    {
+      "name": "minute budget rejects",
+      "allowed": "false",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "hour budget rejects",
+      "allowed": "false",
+      "jobHistoryCalls": 4,
+      "historicalRuns": 4
+    },
+    {
+      "name": "day budget rejects",
+      "allowed": "false",
+      "jobHistoryCalls": 8,
+      "historicalRuns": 8
+    },
+    {
+      "name": "minute boundary expires exactly at 60 seconds",
+      "allowed": "true",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "cancelled and skipped runs do not consume budget",
+      "allowed": "true",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "failed analysis consumes budget",
+      "allowed": "false",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "queued or running analysis with null conclusion consumes budget",
+      "allowed": "false",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "absent analysis jobs leave no reservation",
+      "allowed": "true",
+      "jobHistoryCalls": 2,
+      "historicalRuns": 2
+    },
+    {
+      "name": "skipped history still requires one job query per run",
+      "allowed": "true",
+      "jobHistoryCalls": 926,
+      "historicalRuns": 926
+    },
+    {
+      "name": "overlapping request A sees no reservation",
+      "allowed": "true",
+      "jobHistoryCalls": 1,
+      "historicalRuns": 1
+    },
+    {
+      "name": "overlapping request B sees no reservation",
+      "allowed": "true",
+      "jobHistoryCalls": 1,
+      "historicalRuns": 1
+    }
+  ],
+  "costScenarios": [
+    {
+      "fxDate": "2026-10-15",
+      "cadPerUsd": 1.4196,
+      "timeValueUsdPerHour": 6.322203437588053,
+      "extra180BreakEvenHours": 28.471086350974932,
+      "measuredCiMinutesPerBundle": 8.652,
+      "sourceBuildSeconds": 226,
+      "coldBuildSeconds": 468
+    },
+    {
+      "bundlesPerDay": 5,
+      "days": 30,
+      "buildSeconds": 226,
+      "containerMinutes": 565,
+      "ciMinutes": 1297.8,
+      "storageGb": 25,
+      "developerUsd": 22.6,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 5,
+      "days": 30,
+      "buildSeconds": 468,
+      "containerMinutes": 1170,
+      "ciMinutes": 1297.8,
+      "storageGb": 25,
+      "developerUsd": 46.8,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 10,
+      "days": 30,
+      "buildSeconds": 226,
+      "containerMinutes": 1130,
+      "ciMinutes": 2595.6,
+      "storageGb": 25,
+      "developerUsd": 48.7736,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 10,
+      "days": 30,
+      "buildSeconds": 468,
+      "containerMinutes": 2340,
+      "ciMinutes": 2595.6,
+      "storageGb": 25,
+      "developerUsd": 97.17360000000001,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 21,
+      "days": 30,
+      "buildSeconds": 226,
+      "containerMinutes": 2373,
+      "ciMinutes": 5450.759999999999,
+      "storageGb": 25,
+      "developerUsd": 115.62456,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 21,
+      "days": 30,
+      "buildSeconds": 468,
+      "containerMinutes": 4914,
+      "ciMinutes": 5450.759999999999,
+      "storageGb": 25,
+      "developerUsd": 217.26456,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 33,
+      "days": 30,
+      "buildSeconds": 226,
+      "containerMinutes": 3729,
+      "ciMinutes": 8565.48,
+      "storageGb": 25,
+      "developerUsd": 188.55288,
+      "startupUsd": 200
+    },
+    {
+      "bundlesPerDay": 33,
+      "days": 30,
+      "buildSeconds": 468,
+      "containerMinutes": 7722,
+      "ciMinutes": 8565.48,
+      "storageGb": 25,
+      "developerUsd": 348.27288,
+      "startupUsd": 308.88
+    },
+    {
+      "bundlesPerDay": 50,
+      "days": 30,
+      "buildSeconds": 226,
+      "containerMinutes": 5650,
+      "ciMinutes": 12977.999999999998,
+      "storageGb": 25,
+      "developerUsd": 291.868,
+      "startupUsd": 226
+    },
+    {
+      "bundlesPerDay": 50,
+      "days": 30,
+      "buildSeconds": 468,
+      "containerMinutes": 11700,
+      "ciMinutes": 12977.999999999998,
+      "storageGb": 25,
+      "developerUsd": 533.8679999999999,
+      "startupUsd": 468
+    },
+    {
+      "sourceBuildsWithin500Minutes": 132,
+      "ciBundlesWithin2000Minutes": 231,
+      "sameJobWarmGithubSpreadSeconds": 0.25843350299994916,
+      "localExportWarmDepotSpreadSeconds": 1
+    }
+  ],
+  "exchangeRate": [
+    {
+      "d": "2026-10-15",
+      "FXUSDCAD": {
+        "v": "1.4196"
+      }
+    }
+  ],
+  "sourceUrls": [
+    "https://depot.dev/pricing",
+    "https://depot.dev/docs/ci/overview",
+    "https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?start_date=2026-10-15&end_date=2026-10-15"
+  ]
+}

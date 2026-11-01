@@ -1,9 +1,15 @@
-//! The frontier-zoom probe: measure a sparse even pass, then climb every heard hill.
+//! The frontier-zoom probe:
+//!  measure a sparse even pass,
+//!  then climb every heard hill.
 //!
 //! A probe's under-read is set by how many short windows anywhere in the track come
-//! near its crest; most misses land on the shoulder of a loud passage. The climb turns
-//! every measured loud window into a path: repeatedly measure the windows on either
-//! side of the loudest window measured so far, until the track's bin budget is spent.
+//! near its crest;
+//!  most misses land on the shoulder of a loud passage.
+//!  The climb turns
+//! every measured loud window into a path:
+//!  repeatedly measure the windows on either
+//! side of the loudest window measured so far,
+//!  until the track's bin budget is spent.
 //! Optional bones seeds (byte-rate hot slots from a lossless file's framing) start the
 //! climb on the right hills at a fraction of the coverage.
 
@@ -16,24 +22,31 @@ use crate::source::TruePeakSource;
 /// Imports the max-heap driving the frontier expansion.
 use std::collections::BinaryHeap;
 
-/// One track's zoom plan: the bin grid and the coverage the probe may spend.
+/// One track's zoom plan:
+///  the bin grid and the coverage the probe may spend.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ZoomPlan<'hot> {
     /// Frames per probe bin (the policy's probe window).
     pub bin_frames: u64,
-    /// The track's total frames; bins tile it, the last bin may be short.
+    /// The track's total frames;
+    ///  bins tile it,
+    ///  the last bin may be short.
     pub total_frames: u64,
     /// Fraction of bins the probe may measure in total.
     pub coverage_fraction: f64,
     /// Fraction of bins the even pass measures before the climb.
     pub even_coverage_fraction: f64,
-    /// Byte-rate hot slots to seed (lossless bones), each measured with its neighbors.
+    /// Byte-rate hot slots to seed (lossless bones),
+    ///  each measured with its neighbors.
     pub bones_hot_bins: Option<&'hot [usize]>,
 }
 
 /// Measure one window from the source's current position with a window-local meter.
 ///
-/// What: reads up to `window_frames` frames and returns their true peak. Why: each
+/// What:
+///  reads up to `window_frames` frames and returns their true peak.
+///  Why:
+///  each
 /// window gets its own meter so a seek seam cannot fabricate an inter-sample spike.
 pub(crate) fn measure_window(
     source: &mut dyn TruePeakSource,
@@ -58,7 +71,8 @@ pub(crate) fn measure_window(
 struct Frontier {
     /// Whether each bin was measured already.
     measured: Vec<bool>,
-    /// Measured bins by loudness; non-negative f32 bits order exactly like the values.
+    /// Measured bins by loudness;
+    ///  non-negative f32 bits order exactly like the values.
     heap: BinaryHeap<(u32, usize)>,
     /// Bins measured so far.
     used: usize,
@@ -68,8 +82,15 @@ struct Frontier {
 
 /// Measure bin `index` and fold it into the frontier.
 ///
-/// What: seeks to the bin's start frame, measures one window, records it. Why: the one
-/// fallible step every phase (bones, even, climb) shares.
+/// What:
+///  seeks to the bin's start frame,
+///  measures one window,
+///  records it.
+///  Why:
+///  the one
+/// fallible step every phase (bones,
+///  even,
+///  climb) shares.
 fn measure_bin(
     source: &mut dyn TruePeakSource,
     channels: usize,
@@ -95,8 +116,14 @@ fn measure_bin(
 
 /// Run the zoom probe and return the loudest measured window peak.
 ///
-/// What: bones seeds (each with neighbors), then the even pass, then the climb, all
-/// capped by the bin budget. Why: this is the probe the resolver uses for long tracks.
+/// What:
+///  bones seeds (each with neighbors),
+///  then the even pass,
+///  then the climb,
+///  all
+/// capped by the bin budget.
+///  Why:
+///  this is the probe the resolver uses for long tracks.
 pub(crate) fn zoom_probe(
     source: &mut dyn TruePeakSource,
     channels: usize,
@@ -132,15 +159,17 @@ pub(crate) fn zoom_probe(
     }
     // Phase two: the even pass, endpoints included, over whatever budget remains.
     let even_count = ((plan.even_coverage_fraction * bin_count as f64).round() as usize).max(1);
-    let span = bin_count - 1;
+    // The index range the even pass spreads over; named apart from the tracing
+    // `span` above so neither binding shadows.
+    let even_span = bin_count - 1;
     for step in 0..even_count {
         if frontier.used >= budget {
             break;
         }
         let index = if even_count <= 1 {
-            span / 2
+            even_span / 2
         } else {
-            ((step as f64 / (even_count - 1) as f64) * span as f64).round() as usize
+            ((step as f64 / (even_count - 1) as f64) * even_span as f64).round() as usize
         };
         if !frontier.measured[index] {
             measure_bin(source, channels, plan, &mut frontier, index)?;
@@ -163,9 +192,14 @@ pub(crate) fn zoom_probe(
     return Ok(frontier.peak)
 }
 
-/// What:     `#[cfg(test)] #[path = "probe_tests.rs"] mod tests;`. Test-only submodule in
-///           the sibling file, gated to test builds.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "probe_tests.rs"] mod tests;`.
+///  Test-only submodule in
+///           the sibling file,
+///  gated to test builds.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 #[cfg(test)]
 #[path = "probe_tests.rs"]
 mod tests;

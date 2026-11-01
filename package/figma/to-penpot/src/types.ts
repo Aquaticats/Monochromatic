@@ -14,14 +14,14 @@ export type Uuid = string;
  */
 export type PenpotShapeType =
   | 'frame'
-  | 'group'
-  | 'bool'
-  | 'rect'
-  | 'circle'
-  | 'path'
-  | 'text'
-  | 'image'
-  | 'svg-raw';
+    | 'group'
+    | 'bool'
+    | 'rect'
+    | 'circle'
+    | 'path'
+    | 'text'
+    | 'image'
+    | 'svg-raw';
 
 /**
  Penpot fill object.

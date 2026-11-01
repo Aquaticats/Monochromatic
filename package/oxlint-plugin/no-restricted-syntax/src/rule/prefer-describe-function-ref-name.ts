@@ -14,12 +14,11 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-/* oxlint-disable no-restricted-syntax/no-regex -- binding names are parser-produced identifiers, source files are normal TypeScript modules, and the anchored constant-name grammar has no nested quantifiers. */
-/**
- All-caps snake-case binding name pattern; assumed to be a constant import.
- */
-const ALL_CAPS_SNAKE = /^[A-Z][A-Z0-9_]*$/u;
-/* oxlint-enable no-restricted-syntax/no-regex */
+import {
+  classifyNameInSourceText,
+  type ExportedNameKind,
+  isAllCapsSnakeName,
+} from './prefer-describe-function-ref-name.export-scan.ts';
 
 /**
  Imported source text cache keyed by resolved absolute path.
@@ -84,7 +83,7 @@ function readSourceTextOrEmpty(sourcePath: string,): string {
  Resolves only relative paths; bails on workspace and external imports
  because the resolver would need to walk the package graph. Bails on
  read errors too. The caller falls back to the
- {@link ALL_CAPS_SNAKE} heuristic in either case.
+ {@link isAllCapsSnakeName} heuristic in either case.
  
  Match patterns:
  
@@ -122,50 +121,17 @@ function classifyExportedName(
     readonly sourcePath: string;
     readonly name: string;
   },
-): 'callable' | 'const' | 'reexport' | 'unknown' {
+): ExportedNameKind {
   /**
    Source text of the imported file; empty when the read fails so callers can short-circuit.
    */
   const content = readSourceTextOrEmpty(sourcePath,);
   if (content === '')
     return 'unknown';
-  /* oxlint-disable no-restricted-syntax/no-regex, eslint/require-unicode-regexp -- sourceName is a parser-produced identifier and the scan is limited to one imported source file; this heuristic is simpler than parsing a second AST here. The 'u' flag is omitted deliberately: the pattern interpolates the dynamic name identifier, and u-mode's code-point semantics plus stricter escape parsing could alter how that interpolated value matches the scanned source. This package defines the workspace-wide no-restricted-syntax rules, so the un-flagged form preserves the exact matching the rule's classification (and the diagnostics the sweep depends on) currently relies on. */
-  /**
-   Pattern matching `export function`, `export async function`, and `export function*` declarations of `name`.
-   */
-  const fnRe = new RegExp(
-    String.raw`(?:^|\n)export\s+(?:async\s+)?function\s*\*?\s+${name}\b`,
-  );
-  /* oxlint-enable no-restricted-syntax/no-regex, eslint/require-unicode-regexp */
-  if (fnRe.test(content,))
-    return 'callable';
-  /* oxlint-disable no-restricted-syntax/no-regex, eslint/require-unicode-regexp -- sourceName is a parser-produced identifier and the scan is limited to one imported source file; this heuristic is simpler than parsing a second AST here. The 'u' flag is omitted deliberately: the pattern interpolates the dynamic name identifier, and u-mode's code-point semantics plus stricter escape parsing could alter how that interpolated value matches the scanned source. This package defines the workspace-wide no-restricted-syntax rules, so the un-flagged form preserves the exact matching the rule's classification (and the diagnostics the sweep depends on) currently relies on. */
-  /**
-   Pattern matching `export class` declarations of `name`.
-   */
-  const classRe = new RegExp(String.raw`(?:^|\n)export\s+class\s+${name}\b`,);
-  /* oxlint-enable no-restricted-syntax/no-regex, eslint/require-unicode-regexp */
-  if (classRe.test(content,))
-    return 'callable';
-  /* oxlint-disable no-restricted-syntax/no-regex, eslint/require-unicode-regexp -- sourceName is a parser-produced identifier and the scan is limited to one imported source file; this heuristic is simpler than parsing a second AST here. The 'u' flag is omitted deliberately: the pattern interpolates the dynamic name identifier, and u-mode's code-point semantics plus stricter escape parsing could alter how that interpolated value matches the scanned source. This package defines the workspace-wide no-restricted-syntax rules, so the un-flagged form preserves the exact matching the rule's classification (and the diagnostics the sweep depends on) currently relies on. */
-  /**
-   Pattern matching `export const` declarations of `name`, regardless of initializer shape.
-   */
-  const constRe = new RegExp(String.raw`(?:^|\n)export\s+const\s+${name}\b`,);
-  /* oxlint-enable no-restricted-syntax/no-regex, eslint/require-unicode-regexp */
-  if (constRe.test(content,))
-    return 'const';
-  /* oxlint-disable no-restricted-syntax/no-regex, eslint/require-unicode-regexp -- sourceName is a parser-produced identifier and the scan is limited to one imported source file; this heuristic is simpler than parsing a second AST here. The 'u' flag is omitted deliberately: the pattern interpolates the dynamic name identifier, and u-mode's code-point semantics plus stricter escape parsing could alter how that interpolated value matches the scanned source. This package defines the workspace-wide no-restricted-syntax rules, so the un-flagged form preserves the exact matching the rule's classification (and the diagnostics the sweep depends on) currently relies on. */
-  /**
-   Pattern matching `export { ... name ... } from '...'` re-export specifiers.
-   */
-  const reexportRe = new RegExp(
-    String.raw`export\s*\{[^}]*\b${name}\b[^}]*\}\s*from\s*['"]`,
-  );
-  /* oxlint-enable no-restricted-syntax/no-regex, eslint/require-unicode-regexp */
-  if (reexportRe.test(content,))
-    return 'reexport';
-  return 'unknown';
+  return classifyNameInSourceText({
+    content,
+    name,
+  },);
 }
 
 /**
@@ -182,8 +148,8 @@ function classifyExportedName(
    `export class`/`export const` for `name`. Treat `export const` (any
    init) as not callable. Re-exports from another file
    (`export { name } from '...'`) and read failures fall through to the
-   {@link ALL_CAPS_SNAKE} name-shape heuristic.
- - Imports from a workspace or external package: {@link ALL_CAPS_SNAKE}
+   {@link isAllCapsSnakeName} name-shape heuristic.
+ - Imports from a workspace or external package: {@link isAllCapsSnakeName}
    -\> not callable; otherwise assumed callable.
  - Other definition kinds (parameter, catch clause, implicit global):
    not the rule's target.
@@ -240,16 +206,16 @@ function isCallableBinding(
     if ((decl === null) || (decl === undefined)
       || (decl.type
         !== 'ImportDeclaration'))
-      return !ALL_CAPS_SNAKE.test(variable.name,);
+      return !isAllCapsSnakeName(variable.name,);
     /**
      Literal source string of the import, typed as `string | null` by ESTree to cover non-conforming nodes.
      */
     const sourceValue = decl.source
       .value;
     if ((typeof sourceValue) !== 'string')
-      return !ALL_CAPS_SNAKE.test(variable.name,);
+      return !isAllCapsSnakeName(variable.name,);
     if (!sourceValue.startsWith('.',))
-      return !ALL_CAPS_SNAKE.test(variable.name,);
+      return !isAllCapsSnakeName(variable.name,);
     /**
      Resolve relative to the file under lint.
      */
@@ -284,7 +250,7 @@ function isCallableBinding(
       return true;
     if (kind === 'const')
       return false;
-    return !ALL_CAPS_SNAKE.test(variable.name,);
+    return !isAllCapsSnakeName(variable.name,);
   }
   if (def.type
     === 'Variable') {
@@ -304,8 +270,8 @@ function isCallableBinding(
     return (
       (init.type
         === 'FunctionExpression')
-      || (init.type
-        === 'ArrowFunctionExpression')
+        || (init.type
+          === 'ArrowFunctionExpression')
         || (init.type
           === 'ClassExpression')
     );
@@ -324,14 +290,14 @@ function isCallableBinding(
  
  Fires only when the matched binding is callable, tested via
  {@link isCallableBinding} (function declaration, class declaration,
- import not in {@link ALL_CAPS_SNAKE} shape, or `const` initialized with a
+ import not in {@link isAllCapsSnakeName} shape, or `const` initialized with a
  function/class expression). Bindings that have no meaningful `.name` are
  left alone:
  
  - `const X = new Map()` -- instance `.name` is `undefined`.
  - `const X = { ... }` -- instance `.name` is `undefined`.
  - `const X = 5` -- numbers have no `.name`.
- - `import { THIRTY } from '...'` -- when `THIRTY` is {@link ALL_CAPS_SNAKE}
+ - `import { THIRTY } from '...'` -- when `THIRTY` is {@link isAllCapsSnakeName}
    the import is assumed to be a constant value, not a function.
    (Camel-case imports of non-callable values remain a residual false
    positive -- the rule cannot resolve imports at lint time without I/O.)
@@ -345,7 +311,7 @@ function isCallableBinding(
  scope-chain walk. The rule only inspects the module scope and any
  intermediate function/block scopes.
  
- Harness self-tests in `package/module/test/src/{describe,it}.unit.test.ts`
+ Harness self-tests in `package/test-harness/core/src/{describe,it}.unit.test.ts`
  are circular by design (the function under test IS the local binding);
  they opt out via inline
  `oxlint-disable-next-line no-restricted-syntax/prefer-describe-function-ref-name`.

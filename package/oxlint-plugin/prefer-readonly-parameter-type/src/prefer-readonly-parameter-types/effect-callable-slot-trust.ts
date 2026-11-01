@@ -31,16 +31,16 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isFunctionLikeDeclaration,
   isIdentifier,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import {
   type Project,
   type Type,
   TypeFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   expressionCanCarryMutableState,

@@ -1,0 +1,29 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/logger-core.fuzz",
+  "description": "Fast-check property campaign, scripted fake sinks, reference model, run-budget tooling, and the deterministic V8 coverage-reachability gate for @monochromatic-dev/logger-core. Sidecar tooling kept out of the runtime package so its source stays pure production code and nothing here ships in the tarball.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "src",
+    "coverage-baseline.json",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/logger/core.fuzz"
+  }
+}

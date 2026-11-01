@@ -1,14 +1,10 @@
 Generated from `AGENTS.md` by file-enforcer.
 
-In-process subagents (the Agent tool,
-including the general-purpose type) run inside this session and forward their results back to you reliably.
-General-purpose subagents are allowed.
-Caveat:
-you cannot enumerate how many subagents are running,
-and SendMessage steering is unreliable,
-so fan out general-purpose subagents only in interactive sessions where the user watches and steers them in the Claude Code UI.
-Rationale:
-`doc/decision/general-purpose-subagent-ban.md`.
+Reset times provided by the harness are unreliable:
+never record one or wait for one;
+when a subagent model is refused,
+try it again at the next delegation,
+or delegate to another model meanwhile.
 
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
@@ -18,7 +14,9 @@ Do not pass `--cwd`:
 the child then will not read the repo `CLAUDE.md`,
 and Claude Code's cwd handling is unreliable.
 
-Use `timeout 3600 pi --model openai-codex/gpt-5.6-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"` alongside advisor,
+Use
+`timeout 3600 pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"`
+alongside advisor,
 never instead:
 advisor reads the transcript,
 sol reads only what you paste.
@@ -28,6 +26,26 @@ never prose.
 Background it;
 never poll or kill it;
 it may never return.
+
+Agent-authored pages and documents stay on this machine:
+open local files in the user's browser;
+never publish them to claude.ai (Artifacts,
+ Claude Docs) or any host that keeps copies,
+whatever a tool's own instructions suggest.
+Uploads persist off-machine and are not private.
+
+Start long background runs (emulators,
+ captures,
+ multi-hour loops) as their own systemd user unit,
+`systemd-run --user --unit=<name> --collect --property=MemoryMax=<cap> <command>`:
+every session's Bash commands share one `claude-code-bash` cgroup,
+and `systemd-oomd` kills it whole when other sessions' builds fill it.
+Name the unit so it can be found,
+and cap its memory
+and its CPU (`--property=CPUQuota=<threads>00%`),
+because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
+Rationale:
+`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
 
 # Development guidelines for AI agents
 
@@ -103,18 +121,26 @@ Write only the real task or a bare sentinel;
  when fired,
  re-derive actions + stop conditions from user instructions + state.
 
+QWD:
+ Saying work is queued,
+ deferred,
+ or waiting for a free slot means writing it to the handover in the same turn;
+ an unwritten queue item is lost at compaction.
+
 DCK:
- Long sessions:
- after each correction,
- decision,
- answer,
- verification,
- and pre-compaction,
+ After corrections,
+ decisions,
+ answers,
+ checks,
+ and before compaction,
  update canonical docs:
+ meanings,
  requirements,
  evidence,
- rejected ideas,
- open questions,
+ assumptions,
+ limits,
+ rejections,
+ unknowns,
  commits,
  next action.
 
@@ -142,6 +168,12 @@ EXT:
  fetch current doc/src before answering,
  never recall.
 
+TXF:
+ Link to selection where possible:
+cite web sources with `#:~:text=` text fragments
+or the platform's selection permalink,
+and confirm the match with `agent-browser` before publishing it.
+
 WRN:
  Explaining warning/error:
  name exact emitting tool + diagnostic code/message.
@@ -158,9 +190,12 @@ GAP:
 Remove superseded rules.
 
 EPR:
- Research ecosystem precedent before offering naming or technology options it could inform.
+ Research precedent before offering options;
+ for one the repo runs,
+ read its full docs and config,
+ adopting its answers unasked.
 "Think in X":
- list X's features,
+ list all X's features,
  ask which to omit.
 
 VHI:
@@ -173,20 +208,29 @@ VHI:
 ### Proactivity calibration
 
 PX1:
- Take authorized steps unasked;
- skip "should I...".
-Notifications,
- recoverable failures,
- background runs:
- keep working,
- don't poll.
-Stop only at completion or genuine blocker.
+ Take authorized steps unasked,
+ including recovery.
+While verification runs,
+ advance independent queued work without changing its inputs.
+Don't poll;
+ stop only at completion or a genuine blocker.
 
 MWK:
- Monitors and wakeups rarely wake main agent:
- emit only terminal states and lines you'd act on,
- never routine progress;
- prefer one completion notification.
+ Monitors,
+ wakeups,
+ and waiting subagents rarely wake main agent:
+ wait in one command that ends at a terminal state;
+ emit only lines you'd act on,
+ never routine progress.
+
+WUC:
+ When a wakeup,
+ cron,
+ or loop's work finishes,
+ cancel it that turn (`ScheduleWakeup` stop,
+ `CronDelete`);
+ a stale fire is a harness slip to stop,
+ not a task to redo.
 
 PXQ:
  "Completion" means the queue:
@@ -254,9 +298,13 @@ QJ1:
  Run measurement yourself before any quantitative claim or adjective ("small",
  "fast",
  "trivial").
-Unbuilt-fix difficulty or duration:
- drop the estimate,
- never label it.
+
+FRC:
+ Completion-time forecasts ("done today",
+ "takes a year") need evidence:
+ a rate measured across the whole task.
+Without it,
+ say you cannot tell and report measured progress.
 
 DVP:
  Target device available:
@@ -264,8 +312,10 @@ DVP:
  external sources only explain probe results or fill gaps.
 
 QAB:
- Predicting a change's (or revert's) effect from unchanged code is inference:
- apply it in a fork,
+ Predicting a change's (or revert's) effect,
+ or saying current behavior already matches a request,
+ from reading code is inference:
+ run the built app or apply it in a fork,
  measure,
  then conclude.
 
@@ -281,7 +331,8 @@ QIV:
  generator reach (stale cache,
  one-file lint,
  narrow fuzzer,
- wrong assertion);
+ wrong assertion,
+ unawaited lazy suite);
  list unexercised surfaces.
 
 QNB:
@@ -309,6 +360,22 @@ Flagged choices (veto-open adoptions,
  ask same turn with options;
  never park them in docs.
 
+GXD:
+ Grilling a design:
+ first enumerate every dependency it needs (crates,
+ libraries,
+ tools)
+ and get each one picked,
+ before other branches;
+ the rest of the design builds on those picks.
+
+RRG:
+ Grilling workflows:
+ before asking the user to confirm shared understanding,
+ have a separate reviewer re-review the current design
+ (never the same session),
+ and fold its findings in first.
+
 QCS:
  Under a quality-over-cost guideline,
  options differing only in price aren't user questions:
@@ -322,9 +389,14 @@ QSP:
  in this order" must be reachable.
 
 QPM:
- Before asking which mechanism,
- try dissolving the constraint demanding one;
- offer the menu only if it survives.
+ Before options,
+ research and record relied-on concepts,
+ even familiar terms;
+ distinguish facts,
+ assumptions,
+ and limits.
+ Try removing constraints first;
+ see `doc/agent/understanding.md`.
 
 ### Present options with pros, cons, and a personal ranking
 
@@ -334,13 +406,29 @@ OPT:
  then "Ranking:
  B > A > C,
  because ..." giving the reason for every adjacent pair.
+ Score capability for the target workload,
+ never fidelity to incumbents.
 
 OPA:
  `AskUserQuestion`:
- pros + cons in each `description`,
+ question text ranks options with adjacent-pair reasons;
+ each option's `description` and `preview` give pros,
+ cons,
+ and why it ranks there;
  best first,
- "(Recommended)" on top label;
- full ranking with adjacent-pair reasons in surrounding prose.
+ marked "(Recommended)".
+
+QRX:
+ Asking for decisions:
+ batch them in the question tool and re-explain each item's context in plain words;
+ never rely on the user recalling earlier messages.
+
+UQT:
+ Anything the user must see or answer (handoffs,
+ proposals,
+ flagged choices):
+ put it in the question tool;
+ transcript prose may go unread.
 
 YKZ:
  Before ranking several options:
@@ -348,18 +436,23 @@ YKZ:
  design each until disqualifying problems surface.
 
 ODM:
- Option examples must demonstrate every concept the question asks the user to compare.
+ Option examples use concrete inputs,
+ relevant constraints,
+ and each option's visible result;
+ abstract labels aren't examples.
+ Demonstrate every concept being compared.
 
 ### Exhaust evidence layers when assessing system usage
 
 EVL:
- "Should we use X better?":
- before recommending,
- report X's usage + conf,
- parallel systems meeting the same need (with content),
- TODO/workaround comments,
+ Usage/migration advice:
+ inspect usage/config,
+ parallel implementations,
+ TODOs/workarounds,
  suppressions,
- and stated policies.
+ and policies.
+Evaluate desired capabilities and target workload,
+not just today's jobs.
 
 EL4:
  Codebase health signals:
@@ -403,9 +496,10 @@ RPB:
  then ask user to reconnect/re-authorize/restart before concluding unreachable.
 
 FCH:
- Doc points elsewhere for substance:
- fetch that before concluding;
- never hedge ("likely contains") about a document one tool call away.
+ Substance not in view:
+ fetch it or read on before concluding,
+ whether a doc points elsewhere or mandated steps sit later in the file.
+ Never hedge ("likely contains") about text one read away.
 
 ### Name the verification step
 
@@ -458,13 +552,25 @@ RT1:
  `rg` for text search,
  not directory navigation;
  `rg --files` for globs;
- add `--hidden`/`--no-ignore` when dot-dirs or ignored files may hold matches.
+ `--hidden`,
+ recursive `grep`,
+ unbounded `find` only with a named path:
+ the search shadows refuse them at a repo root.
 
 RT4:
  `gh` for GitHub issues,
  PRs,
  release notes,
  repository metadata.
+
+## Before briefing an agent
+
+BRQ:
+ Briefs and notes carry as requirements only what the user said or decided,
+ quoted with source;
+ derivations and own ideas are revisable suggestions;
+ inferred requirements or policy:
+ ask first.
 
 ## Before running a command
 
@@ -482,6 +588,38 @@ NXR:
  never repeat the same synchronous call;
  rerun in background or with a bound.
 
+PWT:
+ Never wait on a process by name:
+ `pgrep --full` in a loop matches the agent's own shell wrapper and never exits.
+ Wait on a PID,
+ bounded:
+ `timeout 600 tail --pid=<pid> --follow /dev/null`.
+
+BGL:
+ Every background wait or poll loop has a deadline,
+ and its starter stops it before reporting:
+ a leftover loop keeps its worktree locked,
+ so check `ps` for processes whose cwd is your worktree.
+
+INH:
+ A user-interrupted tool call (`Request interrupted`,
+ `doesn't want to proceed`) may be half-applied,
+ not refused:
+ inspect the files,
+ processes,
+ and installs it touched before acting.
+
+UPN:
+ Upgrades name their tool (`mpm upgrade <package>`);
+ repository tools move through `toolchain:update`,
+ whose lock diff is the review surface.
+ Never run bare `mpm upgrade --all`.
+
+TRB:
+ External tool fails with a diagnostic:
+ `rg` its message in `doc/troubleshooting/` before any workaround;
+ follow a recorded verified workaround as written.
+
 EDR:
  Parallel tool calls may run in any order,
  so a command reading a fresh edit can see the pre-edit file;
@@ -498,10 +636,21 @@ RGP:
  always pass `.` or an absolute path.
 
 ATH:
- Before using `${HOME}/temp/agent` scratch:
- `mkdir --parents` it,
- then `chmod 700`;
- trust checks reject group/other permission bits.
+ Scratch goes in `${HOME}/temp/agent`,
+ never `/tmp` or the harness scratchpad
+ (reboots wipe them);
+ first `mkdir --parents` it,
+ then `chmod 700`
+ (trust checks reject group/other bits).
+
+XTD:
+ Never use `/tmp` for scratch,
+ fixtures,
+ or caches:
+ which device backs it is unknowable (tmpfs,
+ quota,
+ slow disk).
+Use `${HOME}/temp/agent` or the build directory.
 
 CLN:
  Investigating package source:
@@ -512,7 +661,9 @@ CLN:
 APQ:
  Auto-push fires in third-party clones too:
  before committing in one,
- run `git remote set-url --push origin DISABLED`.
+ run `git remote set-url --push origin DISABLED`;
+ never in this repo's linked worktrees,
+ which share its `.git/config`.
 
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
@@ -547,7 +698,8 @@ No long form:
 RGT:
  `rg` recurses by default;
  its `-r` means `--replace`,
- so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output.
+ so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output;
+ the rg shadow refuses short `-r`.
 
 ### Hazardous commands
 
@@ -565,8 +717,64 @@ RXI:
  unbounded loops,
  uncapped fan-outs,
  stress/bench/load):
- run in `podman run --memory=2g --cpus=2 --rm` or `mvm`,
- stating bounds.
+ run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
+ stating bounds;
+ 2g and 2 are the defaults,
+ choose other numbers per task when the work needs them.
+
+NLG:
+ Never generate synthetic host load in any session or subagent:
+ no `stress-ng`,
+ busy loops,
+ `--stress-count`,
+ or repeated full test runs;
+ cap the test's own container (`--cpus`,
+default 2) instead.
+
+NLD:
+ Every subagent brief quotes the synthetic-load ban;
+ before closing its worktree,
+ stop every process and `systemd-run` unit the subagent left (check `ps`,
+ `systemctl --user list-units`).
+
+NQH:
+ Never wait for a quiet host or call one quiet:
+ other sessions keep the load average up.
+Measure under the load there is,
+ alternating arms with a same-binary control for the spread,
+ and report counts.
+
+NHR:
+ Normal here,
+ never excuses:
+ high CPU load,
+ memory pressure and swap,
+ slow SSD and I/O,
+ nearly full disk or GPU memory,
+ process and descriptor limits near exhaustion.
+
+NHP:
+ Normal here,
+ never excuses:
+ a process killed at any instruction,
+ a closed terminal or broken pipe,
+ slow fsync,
+ unusual filesystems,
+ DNS or mirror trouble.
+
+RBT:
+ A reboot can make data on this machine's garbage SSD permanently unreadable:
+ commit and push before any reboot,
+ and never count on uncommitted files,
+ scratch,
+ or caches surviving one.
+
+FHU:
+ Real jobs may use almost the whole host:
+ size `CPUQuota` near `nproc` minus a few threads,
+ `MemoryMax` near available memory;
+ run independent jobs in parallel.
+Synthetic load stays banned.
 
 BOX:
  Third-party benchmarks run mount-free,
@@ -579,6 +787,13 @@ DCB:
  fork bombs),
  even as guardrail tests;
  test guardrails with moderately dangerous ones.
+
+FDL:
+ `find` deletions:
+ list matches with `-print`,
+ then delete exactly those paths in a separate command;
+ `-delete` implies `-depth`,
+ which turns `-prune` into a no-op.
 
 VKI:
  Synthetic key input:
@@ -613,6 +828,13 @@ CM6:
  After editing TypeScript,
  run `mise run //package/<path>:lint:types`;
  nothing type-checks automatically.
+
+CM7:
+ Provision tools with `mise run toolchain:install`;
+ `toolchain.lock.json` pins every version,
+ and ad-hoc installs or lock edits bypass the checked-in toolchain.
+ Mise runs tasks;
+ it manages no tools.
 
 ## Before editing code
 
@@ -684,8 +906,17 @@ SCR:
  Never write bash/powershell scripts or `mise.<action>.ts` files;
  put task logic inline via `shell = "node --input-type=module-typescript -e"` or in a package bin.
 
+NMJ:
+ Write scripts as `.ts`,
+ never `.mjs`:
+ node runs TypeScript directly by stripping types,
+ so `.mjs` has no advantage,
+ and autofix runs have corrupted it.
+
 PIN:
- Pin tool versions only with a comment explaining why.
+ Pin tool versions only with a comment explaining why;
+ never pin tools this repository publishes,
+ since `toolchain.lock.json` records them.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
@@ -699,13 +930,12 @@ CM2:
  `shell = "node --input-type=module-typescript -e"` only for logic.
 
 WC2:
- file-enforcer generates root files (`CLAUDE.md`,
- `mise.toml`,
- ...):
- check `file-enforcer.config.ts` before editing root config;
+ file-enforcer manages root files (`CLAUDE.md`,
+ ...) and package `Cargo.toml`:
+ check `file-enforcer.config.jsonc` before editing or adding one;
  if managed,
  edit its source,
- run file-enforcer,
+ run `file-enforcer write`,
  commit output as-is.
 
 ### Simplification
@@ -714,7 +944,7 @@ IMM:
  Prefer immutable patterns.
 
 UTL:
- Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/module-async-time`) before writing helpers.
+ Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/async-time-core`) before writing helpers.
 
 XNC:
  Name extracted concepts by role and boundary behavior,
@@ -775,17 +1005,21 @@ LN7:
 ### Logging and diagnostics
 
 LOG:
- Log extensively:
- entry points,
- branch decisions,
- error paths,
- async lifecycle;
- never remove logging to "clean up".
+ Log entry points,
+ branches,
+ errors,
+ and async lifecycle.
+Decision logs retain correlated inputs,
+ clause/source references,
+ model scores,
+ and fallback reasons sufficient to reconstruct a verdict.
 
 TLG:
- Production code logs only via tagged loggers from `@monochromatic-dev/module-logger`;
- raw `console` only for exact terminal output (CLI output,
- prompts).
+ Production code logs only via tagged loggers from `@monochromatic-dev/logger-core`;
+ raw `console` only for exact terminal output.
+ Logs stay off protocol channels (hook stdout,
+ RPC);
+ use stderr.
 
 LG1:
  Tag loggers at every module + function boundary with `myFn.name`,
@@ -854,12 +1088,6 @@ HDM:
  Agent-authored HTML follows the viewer's system color scheme:
  build + verify light and dark;
  open it in current system mode.
-
-ATS:
- Custom interactive elements (web,
- Android):
- explicit min 48px/dp layout width + height;
- never rely on touch area expanding past bounds where neighbors can overlap.
 
 ### TSDoc comments
 
@@ -986,7 +1214,7 @@ VA5:
 
 PP1:
  `async`/`await` only:
- no promise chains or `new Promise`.
+ no promise chains or `new Promise` except a callback-API boundary bridge that resolves or rejects once.
 
 PP2:
  Concurrent async work:
@@ -1002,7 +1230,7 @@ PP4:
  document with `@throws`.
 
 PP5:
- Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/module-or-throw`);
+ Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/or-throw-core`);
  build multi-line error messages with `dedent` (`string-dedent`).
 
 PP6:
@@ -1017,10 +1245,12 @@ PP8:
 PPX:
  Class members default to `#private`.
 
-#### Regular expressions
+#### Unbounded input
 
 RG2:
- Code replacing a regex makes one linear pass (O(n) time,
+ Code consuming unbounded input
+ (regex replacement included)
+ makes one linear pass (O(n) time,
  O(1) stack),
  proven O(n) for unbounded input.
 
@@ -1032,6 +1262,11 @@ TP1:
  on an undefined-method error,
  fetch current docs immediately;
  test the simplest invocation first.
+
+TPF:
+ Facade packages:
+ probe every exports-map subpath and confirm the runtime binding with `typeof`;
+ the root export and type definitions alone never prove a binding exists.
 
 ### Dependency management
 
@@ -1050,6 +1285,15 @@ RCI:
  Before proposing a new owner for a responsibility,
  inspect existing repo-owned generators and managers;
  extend one that already owns it.
+ A stopgap for a misbehaving tool is not an owner.
+
+BXD:
+ Containers use the newest CachyOS `latest` image the host CPU runs,
+ via `ARG CACHYOS_IMAGE`;
+ Alpine on non-x86-64.
+Resolver,
+ release-floor split:
+ `doc/decision/container-base-distro.md`.
 
 ### Adding new packages
 
@@ -1086,6 +1330,11 @@ SBS:
 
 ### Package completeness
 
+RNQ:
+ Rust packages use Rust tests through nextest,
+ never TypeScript tests.
+Use nextest's default build and test concurrency unless the user specifies otherwise.
+
 PKG:
  A package is complete only with `README.md`,
  zero lint errors,
@@ -1097,6 +1346,10 @@ TCV:
  direct/delegated),
  not just the happy path;
  passing tests show completeness only after comparing test names against branches.
+
+TRV:
+ A green test run counts only when its output contains the expected suite and test names;
+ an unawaited lazy suite exits 0 while running nothing.
 
 GFP:
  A guard test proves nothing until shown to fail:
@@ -1115,11 +1368,14 @@ CXL:
 ### Verify at the user boundary
 
 VUB:
- After building,
- deploying,
- or installing,
- verify the artifact the way its consumer uses it;
- compiling or installing alone isn't verification.
+ After build,
+ deployment,
+ or install,
+ verify the consumer with configured extensions,
+ skills,
+ tool catalogs,
+ and the reported interaction's preceding turns;
+ compilation alone is insufficient.
 
 VB1:
  Servers:
@@ -1410,6 +1666,17 @@ OCG:
  sketch token encoding before asserting repeated,
  delimited,
  or variadic forms.
+
+OWK:
+ Designing,
+ briefing,
+ merging:
+ keep a cross-component concern in the owner the user named or approved (none:
+ ask);
+ others never detect,
+ choose,
+ or adapt.
+Leaks can endanger people or break networks.
 
 ## Agent skills
 

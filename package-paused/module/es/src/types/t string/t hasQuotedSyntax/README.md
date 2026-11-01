@@ -4,7 +4,10 @@ TypeScript branded types for identifying strings with specific quoted syntax pat
 
 ## Overview
 
-The `hasQuotedSyntax` type utility provides a type-safe way to distinguish between strings that contain different types of quotes in TypeScript code. This is particularly useful for:
+The `hasQuotedSyntax` type utility provides a type-safe way
+to distinguish between strings that contain different types of quotes
+in TypeScript code.
+This is particularly useful for:
 
 - Code analysis and parsing
 - Template processing

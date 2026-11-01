@@ -15,8 +15,8 @@
  * activates in Phase 2 once the dispatcher debounce lands.
  */
 
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 
 import {
   createCommentWithEvent,

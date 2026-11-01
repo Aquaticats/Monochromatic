@@ -6,7 +6,7 @@ Oxlint's former native `typescript/prefer-readonly-parameter-types` rule reporte
 branded primitive:
 
 ```typescript
-import { cssRem, type CssValue, } from '@monochromatic-dev/module-hyperscript/ts';
+import { cssRem, type CssValue, } from '@monochromatic-dev/hyperscript-core/ts';
 
 export function focusOutline(
   { offset = cssRem(OUTLINE_WIDTH,), }: { readonly offset?: CssValue; } = {},
@@ -89,7 +89,7 @@ On 2026-07-13,
 the current package command was rerun:
 
 ```sh
-mise run //package/webapp-productivity/done:lint:oxlint
+mise run //package/done/app:lint:oxlint
 ```
 
 The command returned status `1` with 35 replacement-rule findings elsewhere in the package.

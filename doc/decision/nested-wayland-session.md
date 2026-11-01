@@ -1,7 +1,8 @@
 # Nested Wayland session fixture: build a minimal Smithay compositor, distribute via cargo
 
 Tracks issue #272 ("Build minimal nested Wayland session for GUI testing").
-Deferred follow-up work is issue #273 (headless-surfaceless mode).
+The follow-up, issue #273 (headless-surfaceless mode), was delivered in 0.5.0 as the opt-in `--headless` flag
+and the issue is closed; see "Headless-surfaceless mode in the first version".
 
 ## Decision
 
@@ -20,7 +21,8 @@ Distribute it through crates.io so `mise` installs it with the `cargo:` backend,
 Document `cargo-binstall` in the package README so a prebuilt binary can be fetched without a source build.
 
 Headless-surfaceless rendering (no parent display,
- for bare CI) is deferred to issue #273.
+ for bare CI) was deferred at first and then added as an opt-in mode (0.5.0, `--headless`);
+the nested window stays the default.
 This decision refines issue #272's suggested shape in specifics,
  not intent.
 
@@ -186,14 +188,64 @@ Viable,
 modules,
  with no offsetting benefit for this scope.
 
-### Headless-surfaceless mode now
+### Headless-surfaceless mode in the first version
 
-Deferred to issue #273.
+Rejected for the first version, accepted as a later opt-in mode.
 The nested-winit path inherits the parent's EGL device and is anvil's known-good pattern.
 Headless-surfaceless must select the DRM render node and match the client's dmabuf modifiers with no parent
 device to inherit from,
  which is the fiddliest and highest-risk part.
-Shipping nested-winit first de-risks the core tool.
+Shipping nested-winit first de-risked the core tool.
+
+Delivered in 0.5.0 (issue #273, closed) as `--headless`, with these decisions:
+
+- **Opt-in only.**
+  The nested window is the default in every case,
+  because a person often wants to inspect the running window,
+  which a headless session cannot show.
+  Headless is never selected automatically,
+  and a missing parent display never falls back to it;
+  the start fails with a message that names `--headless`.
+- **Same control surface.**
+  The control protocol,
+  screenshots,
+  recordings,
+  seat input,
+  the private bus,
+  and the accessibility tree are unchanged;
+  only the display and render backend differ.
+- **Render node.**
+  Smithay's `EGLSurfacelessDisplay` opens on a render node chosen by Mesa
+  (on the development host the integrated AMD GPU, `/dev/dri/renderD129`),
+  renders into an offscreen target,
+  and builds the dmabuf version 4 default feedback from the formats and modifiers that render node advertises
+  (325 format and modifier pairs on that host),
+  which removes the risk named below for this host.
+  A Slint client using femtovg and one using skia both had their dmabuf buffers imported.
+- **GPU choice.**
+  A later addition (0.6.0) gives headless a `--gpu auto|software|NODE` option and
+  `--list-gpus`.
+  Smithay's `EGLDevice::enumerate` lists the EGL devices,
+  `EGLDisplay::new` on a device (`EGL_EXT_platform_device`) opens a chosen render node,
+  and the `EGL_MESA_device_software` device is Mesa's `llvmpipe`.
+  Measured on the development host:
+  both render nodes (`renderD128`, PCI `1002:7480`, and `renderD129`, PCI `1002:164e`) rendered offscreen and
+  imported a Slint client's dmabufs,
+  and `llvmpipe` rendered the same client through `wl_shm` buffers,
+  because a software device has no render node to put in the dmabuf version 4 feedback.
+  Mesa's surfaceless platform answers with `llvmpipe` when it can use no render node,
+  so `auto` treats that answer as "no default GPU" and tries the other nodes before accepting software.
+  An explicit choice never falls back,
+  and only `auto` does,
+  so a script that names a GPU never silently renders on another device or on the CPU.
+  Details and the environment the hosted child gets are in the package README
+  (`Choosing the GPU`) and in `doc/troubleshooting/nested-wayland-headless-gpu-choice.md`.
+- **Frame pacing.**
+  With no parent that presents,
+  the compositor's own timer sends frame callbacks at the output refresh rate from the first tick
+  (59.7 to 60.0 ticks per second measured on the client side).
+- **No window reaches a parent.**
+  A decoy parent socket accepted no connection during a headless session.
 
 ### ubi distribution
 
@@ -207,7 +259,7 @@ covers prebuilt-binary installs on the `cargo` path,
 - Suggested home:
    a Rust crate under `package/`,
    per issue #272 the suggested path is
-  `package/cli/nested-wayland-session`,
+  `package/nested-wayland-session/cli`,
    subject to a better category during implementation.
 - Smithay pinned to crates.io 0.7.0.
   Smithay is pre-1.0 and its git HEAD is far ahead of the release with breaking changes;
@@ -247,9 +299,11 @@ covers prebuilt-binary installs on the `cargo` path,
 
 ## Risks
 
-- Headless-surfaceless dmabuf (render-node selection and modifier matching) is the concentrated risk,
+- Headless-surfaceless dmabuf (render-node selection and modifier matching) was the concentrated risk,
    and it
-  is deferred to issue #273 precisely because of that.
+  was deferred to issue #273 precisely because of that.
+  Issue #273 closed with the mode working on the development host (two AMD GPUs, Mesa radeonsi).
+  Other GPU vendors and drivers were not tried.
 - Smithay pre-1.0 churn,
    mitigated by pinning crates.io 0.7.0 rather than git HEAD.
 - dmabuf v4 feedback negotiation against the real Slint/femtovg client;

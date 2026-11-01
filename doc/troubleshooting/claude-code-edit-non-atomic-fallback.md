@@ -539,3 +539,61 @@ Either:
 - ext4 / btrfs target filesystem
 - File size 10 KB
 ```
+
+## Separate disposable guard-fixture relocation, 2026-10-18
+
+An auto-mode verification helper spawns its generated Node wrapper with the repository as cwd.
+The wrapper derives its fixture root from cwd,
+so it creates `bounded-native-test-hRbmV3` at the repository root.
+It also writes a guard driver outside the directory mounted as the container home.
+Node reports `MODULE_NOT_FOUND` for `/fixture-home/guard-driver.ts`.
+The mutant never builds and the consumer never runs;
+that attempt supplies no regression evidence.
+
+The helper is corrected to use its actual scratch cwd
+and write the driver under the mounted private home.
+Moving the owned repository-root fixture to scratch with `fs.rename` emits `EXDEV`.
+The recovery copies the directory,
+verifies every file hash,
+mode and symlink target,
+then removes only the verified owned originals.
+Ignored-cleanup dry-run and root Git-directory-entry checks run before recovery.
+No root `HEAD`,
+`config`,
+`hooks`,
+`objects` or `refs` entry exists.
+
+The original fixture path moves on 2026-10-18 to
+`${HOME}/temp/agent/pi-mimo-preparation-failure-20261018/recovered-guard-fixture-hRbmV3`.
+Its `location-move.json` retains the original path and recovery reason.
+The corrected guard run rebuilds each event-role,
+input-phase,
+string-member and complete-property variant from committed source `6fac7c5648`.
+Each actual SDK consumer detects its removed guard.
+The root publication and protected source hashes remain unchanged.
+This is an owned helper path assumption exposed by ordinary filesystem mount behavior,
+not a Node or Linux defect.
+
+## Separate Node handover staging failure, 2026-10-18
+
+A handover refresh stages its replacement body under `${HOME}/temp/agent`,
+then calls Node `fs.rename` into `doc/handover/pi-auto-mode-current-frontier.md`.
+That operation emits `EXDEV: cross-device link not permitted, rename`.
+The historical archive has already been written,
+but the current checkpoint remains its original content.
+This observed Node failure is separate from the Claude Code fallback incident.
+
+The completion stages an exclusively created temporary sibling beside the destination,
+preserves the original mode,
+then renames that sibling over the current checkpoint.
+That rename succeeds.
+The result is a 268-line current checkpoint and a 14,624-line historical archive;
+the archived original body is verified byte for byte.
+The developer utility itself remains in the normal agent scratch directory.
+Its destination sibling exists only for the final replacement.
+
+Commit `e85023fb09` preserves the archive before the current replacement completes.
+Commit `2faf1b2298` completes the replacement,
+and a corrective comment on the initial commit records that partial state.
+`frontier-archive-receipt.json` in
+`${HOME}/temp/agent/pi-mimo-preparation-failure-20261018` retains the original hash and preservation result.

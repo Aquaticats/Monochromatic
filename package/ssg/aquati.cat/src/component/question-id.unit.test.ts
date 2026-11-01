@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { fingerprint32, } from 'farmhashjs';
 
 import type { SafeHtml, } from '../lib/jsx-to-html.ts';
@@ -245,8 +245,8 @@ function expectedQuestionId(question: HashableQuestion,): string {
   return fingerprint32(parts.join(HASH_FIELD_SEPARATOR,),)
     .toString(HEX_RADIX,)
     .padStart(
-      HEX_DIGITS_32,
-      '0',
+    HEX_DIGITS_32,
+    '0',
     );
 }
 

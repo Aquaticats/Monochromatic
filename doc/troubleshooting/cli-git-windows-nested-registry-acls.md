@@ -19,7 +19,8 @@ Record preparation then called recursive `mkdir` for a deep identity path and im
 On Windows,
 new child directories inherit allowed access rules from the protected root,
 but inherited children do not report `AreAccessRulesProtected` themselves.
-Cli-git's verifier intentionally requires every registry-owned component to disable inheritance and contain only the current account and built-in administrators.
+Cli-git's verifier intentionally requires every registry-owned component
+to disable inheritance and contain only the current account and built-in administrators.
 
 Recursive creation therefore produced intermediate directories such as `records`,
 filesystem identity,
@@ -45,7 +46,8 @@ Existing components are not repaired automatically.
 They proceed to the existing strict metadata and ACL verification,
 so a pre-created unsafe path still fails closed.
 
-Both MJS-specific and generic TypeScript record preparation use this component-wise primitive before creating writer locks or candidate snapshots.
+Both MJS-specific and generic TypeScript record preparation
+use this component-wise primitive before creating writer locks or candidate snapshots.
 
 ## Verification
 

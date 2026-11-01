@@ -4,9 +4,9 @@
  @module
  */
 
-import { MS_PER_SECOND, } from '@monochromatic-dev/module-const/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { formatTrackedDuration, } from '@monochromatic-dev/module-numeric-format/ts';
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { formatTrackedDuration, } from '@monochromatic-dev/numeric-format-core/ts';
 
 import {
   JOB_LINE_PREFIX,
@@ -210,8 +210,8 @@ function createProgressView(
       return;
     state.ticker = setInterval(
       function onTick(): void {
-      draw();
-    },
+        draw();
+      },
       tickMs,
     );
     // A ticking clock must never be the reason a process stays alive.
@@ -264,9 +264,9 @@ function createProgressView(
       return;
     state.timer = setTimeout(
       function onCoalescedDraw(): void {
-      delete state.timer;
-      draw();
-    },
+        delete state.timer;
+        draw();
+      },
       delayMs,
     );
     // A pending redraw must never be the reason a process stays alive.

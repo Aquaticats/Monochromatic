@@ -219,7 +219,8 @@ Long-term goal:
 - Vector networks:
    implement from scratch based on the 2020 blog post describing the data structure,
    or start with traditional Bezier paths and add vector networks later?
-- Should the document format be a single JSON blob or a normalized structure (closer to the file-per-property idea from earlier discussion)?
+- Should the document format be a single JSON blob or a normalized structure (closer
+  to the file-per-property idea from earlier discussion)?
   Likely JSON for persistence,
    CRDT shared types in memory for live editing.
 - What is the minimum viable product?

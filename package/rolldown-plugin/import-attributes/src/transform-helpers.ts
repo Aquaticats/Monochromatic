@@ -108,10 +108,10 @@ function findWithClauseStart({
       'with',
       keywordStart,
     ))
-    && (!code.startsWith(
-      'assert',
-      keywordStart,
-    ))
+      && (!code.startsWith(
+        'assert',
+        keywordStart,
+      ))
   ) {
     return -1;
   }

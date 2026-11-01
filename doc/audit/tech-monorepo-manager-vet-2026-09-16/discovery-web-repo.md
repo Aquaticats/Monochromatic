@@ -1,5 +1,26 @@
 # Monorepo manager discovery: web and repository
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/webapp-productivity/wc` is now `package/wc/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/dev-script-file-enforcer` is now `@monochromatic-dev/file-enforcer-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Run date: 2026-09-16.
 Scope: monorepo managers that run arbitrary command tasks across workspace packages,
 plus components with a persistent watch or daemon process and an inspection RPC, IPC, or HTTP API.
@@ -32,8 +53,10 @@ Provider behavior common to every query:
 - Filters: none
 - Pages: 1 (re-request at maxResults 60 returned the same 20)
 - Result count: 20
-- New candidates: Turborepo, Nx, moon, mise, Lerna, pnpm workspaces, npm workspaces, Yarn workspaces, Task (go-task), Melos,
-  devenv, Hermit, Develocity, an unnamed remote execution platform and an unnamed Nix environment manager (tool.news listing),
+- New candidates: Turborepo, Nx, moon, mise, Lerna, pnpm workspaces, npm workspaces, Yarn workspaces, Task (go-task),
+- Melos,
+  devenv, Hermit, Develocity, an unnamed remote execution platform and an unnamed Nix environment manager (tool.news
+  listing),
   `monorepo-watch`, RepoOps, `concurrently`, Bazel (plus Nx MCP server and Bazel MCP server mentions)
 - New screening survivors: Turborepo, Nx, moon, Bazel, pnpm workspaces and pipeline, Lerna (weak), Task, Melos (weak)
 - Stop reason: provider has no pagination; single capped page
@@ -59,7 +82,8 @@ Provider behavior common to every query:
 - Result count: 20
 - New candidates: Buck2, Buck (v1), Pants, Mill, Rush, Earthly, Aspect (Aspect Build), BuildBuddy, EngFlow, Gazelle,
   Sapling, Sourcegraph, Aviator, Endor Labs, Railway
-- New screening survivors: Buck2, Pants, Mill, Rush, Earthly (pending maintenance check), Aspect CLI (component, unverified)
+- New screening survivors: Buck2, Pants, Mill, Rush, Earthly (pending maintenance check), Aspect CLI (component,
+- unverified)
 - Stop reason: provider has no pagination; single capped page
 
 ### W4
@@ -92,7 +116,8 @@ Provider behavior common to every query:
 - Filters: none
 - Pages: 1
 - Result count: 20
-- New candidates: Apache Druid Tasks API, `doowb/composer`, Watchtower HTTP API, Taskcluster, Kiro, Control Plane Task Runner,
+- New candidates: Apache Druid Tasks API, `doowb/composer`, Watchtower HTTP API, Taskcluster, Kiro, Control Plane Task
+- Runner,
   `bvaughn/task-runner`, Anchor Browser, Browser Use, RunningHub, Nowledge Mem watcher, Apify HTTP Request Runner,
   EntryScape Taskrunner, Node.js test runner `--watch`
 - New screening survivors: none
@@ -159,7 +184,8 @@ Provider behavior common to every query:
 - Screening note: survivor.
   Task runner with caching, affected selection, plugins, and generators;
   results mention an Nx MCP server for agents, `nx graph`, task sandboxing, inferred tasks,
-  and `nx sync`, which keeps TypeScript project references synchronized and checks them before `build`, `serve`, or `dev`.
+  and `nx sync`, which keeps TypeScript project references synchronized and checks them before `build`, `serve`, or
+  `dev`.
   Nx Cloud is a separate hosted layer and is excluded.
 - Taxonomy terms: sync generators (`nx sync`), generators, inferred tasks, project graph, affected, task sandboxing,
   MCP server, agent skills, distributed task execution, self-healing CI
@@ -213,7 +239,8 @@ Provider behavior common to every query:
   file system watching keeps a virtual file system current between builds,
   and continuous build reruns tasks when declared inputs change.
   `gradle --status` shows daemon state, not per-task activity.
-- Taxonomy terms: daemon, local socket, daemon status, continuous build, file system watching, virtual file system (VFS),
+- Taxonomy terms: daemon, local socket, daemon status, continuous build, file system watching, virtual file system
+- (VFS),
   incremental build, up-to-date check, multi-project builds
 
 #### Mill
@@ -285,7 +312,8 @@ Provider behavior common to every query:
 - Discovered by: W2
 - Category guess: component (daemon supervisor)
 - Screening note: survivor; `pitchfork status [--json] <ID>` reports PID and running, stopped, or failed state.
-  Same author as mise, which matters given the documentation-quality motivation in `doc/planning/mise-removal-coverage.md`.
+  Same author as mise, which matters given the documentation-quality motivation in
+  `doc/planning/mise-removal-coverage.md`.
   No file-watch rebuild behavior observed.
 - Taxonomy terms: daemon supervisor, JSON status
 
@@ -310,13 +338,17 @@ Provider behavior common to every query:
 
 ### Screened out
 
-- mise (https://mise.jdx.dev), W1: incumbent that the migration is leaving; monorepo tasks, task templates, task stubs, `mise watch`.
-- npm workspaces and Yarn workspaces, W1: same package-manager workspace runner category as pnpm, which this repository uses.
-- devenv (https://devenv.sh), W1: Nix development environment with services; environment manager, no inspection API observed.
+- mise (https://mise.jdx.dev), W1: incumbent that the migration is leaving; monorepo tasks, task templates, task stubs,
+- `mise watch`.
+- npm workspaces and Yarn workspaces, W1: same package-manager workspace runner category as pnpm, which this repository
+- uses.
+- devenv (https://devenv.sh), W1: Nix development environment with services; environment manager, no inspection API
+- observed.
 - Hermit (https://cashapp.github.io/hermit), W1: tool installer, not a task runner.
 - Develocity, W1: hosted build acceleration and analytics service.
 - Unnamed remote execution platform and unnamed Nix environment manager, W1: tool.news snippets omitted names.
-- `monorepo-watch` (https://github.com/utkarshk384/monorepo-watch), W1: beta watcher package, no inspection API observed.
+- `monorepo-watch` (https://github.com/utkarshk384/monorepo-watch), W1: beta watcher package, no inspection API
+- observed.
 - RepoOps, W1: hosted capture daemon.
 - `concurrently`, W1: process launcher, no inspection API.
 - Nx MCP server and Bazel MCP server, W1: features of Nx and Bazel, recorded under those entries.
@@ -341,7 +373,8 @@ Provider behavior common to every query:
 - Bun, W5: runtime and package manager.
 - Vercel, W5: hosting platform.
 - Pika Pack, esbuild, Webpacker, Broccoli, Layer-pack, W5 and W7: bundlers, packagers, and build plugins.
-- Apache Druid, Watchtower, Nowledge Mem, EntryScape, Apify, RunningHub, Anchor Browser, Browser Use, Control Plane, W6: unrelated service APIs.
+- Apache Druid, Watchtower, Nowledge Mem, EntryScape, Apify, RunningHub, Anchor Browser, Browser Use, Control Plane,
+- W6: unrelated service APIs.
 - Taskcluster, Semaphore CI, W6 and W7: CI services.
 - Kiro, JetBrains Rider, W6 and W8: IDEs.
 - `doowb/composer`, `bvaughn/task-runner`, watchdog, W6 and W7: libraries.
@@ -349,7 +382,8 @@ Provider behavior common to every query:
 - `@hey-api/openapi-ts`, Buf, GraphQL Code Generator, OpenAPI Generator, openapi-typescript, W7: code generators.
 - pre-commit, W7: Git hook framework.
 - `sync-monorepo-packages`, W7: `package.json` field synchronizer; a file-enforcer peer, not a task runner.
-- Spago, Symplify MonorepoBuilder, Tainted, Versio, tomono, `shopsys/monorepo-tools`, CODEOWNERS generator, Write Guard, W7:
+- Spago, Symplify MonorepoBuilder, Tainted, Versio, tomono, `shopsys/monorepo-tools`, CODEOWNERS generator, Write
+- Guard, W7:
   language-specific package, split, affected-detection, versioning, migration, or ownership tools.
 - Builder (FormidableLabs), W7: shares scripts across Node projects; not an orchestrator.
 - MSBuild, W8: .NET project build engine with Inputs and Outputs incremental checks; no watch daemon observed.
@@ -393,7 +427,8 @@ Source: `doc/audit/tech-mpm-and-pnpm-as-a-mise-replacement-vet-2026-09-12.md`, "
   hard-gate exit; repository archived 2025-08-05, points to metapac.
 - Topgrade:
   category mismatch; upgrades existing installations, not a declarative provisioner or task runner.
-- Named in "Query outcomes" but without a ledger entry: `repo-run` and "unrelated task runners" (not individually named).
+- Named in "Query outcomes" but without a ledger entry: `repo-run` and "unrelated task runners" (not individually
+- named).
   The report states its search was not a saturated selection of every task runner.
 
 ### R2: candidates and fallbacks in the keep-mise audit and the removal coverage plan
@@ -407,16 +442,20 @@ Source: `doc/audit/tech-mpm-and-pnpm-as-a-mise-replacement-vet-2026-09-12.md`, "
 
 `doc/planning/mise-removal-coverage.md`:
 
-- Hard requirement fallback order: existing tool on the market, then plug file-enforcer and watch plus RPC into an existing tool,
+- Hard requirement fallback order: existing tool on the market, then plug file-enforcer and watch plus RPC into an
+- existing tool,
   then build a Bazel replacement.
 - Bazel: assessed as a broader alternative (`doc/research/bazel-migration-dx.md`).
-- `@monochromatic-dev/dev-script-file-enforcer`: canonical TypeScript configuration compiler and toolchain-convergence orchestrator.
-- pnpm 12.4+ (`pnpm pipeline`, runtimes, Cargo and Python installs, shims): primary surface candidate for tools and tasks.
+- `@monochromatic-dev/dev-script-file-enforcer`: canonical TypeScript configuration compiler and toolchain-convergence
+- orchestrator.
+- pnpm 12.4+ (`pnpm pipeline`, runtimes, Cargo and Python installs, shims): primary surface candidate for tools and
+- tasks.
 - Meta Package Manager 7.6.1: serious orchestration candidate for machine packages, not selected.
 - Nadle: named fallback, together with "a focused repository task runner", if pnpm cannot preserve task semantics.
 - Thin Mise adapters: allowed during migration.
 - Watching: "direct watcher processes or a focused task runner", unselected.
-- Focused native providers: rustup, Android `sdkmanager`, a verified standalone-binary installer, file-enforcer OS package dispatch.
+- Focused native providers: rustup, Android `sdkmanager`, a verified standalone-binary installer, file-enforcer OS
+- package dispatch.
 - Secrets: SOPS and age retained as primitives; child-environment launcher unselected.
 - CI: `jdx/mise-action` current owner; replacement blocked on selections.
 
@@ -424,35 +463,45 @@ Source: `doc/audit/tech-mpm-and-pnpm-as-a-mise-replacement-vet-2026-09-12.md`, "
 
 Command run as specified; it matched 99 files.
 Zero matches for `moonrepo`, `rushjs`, `pantsbuild`, `please.build`, and `process-compose`.
-No `turbo.json`, `nx.json`, `moon.yml`, `rush.json`, Bazel, Pants, Taskfile, `process-compose`, Tiltfile, Buck, or Mill configuration exists;
-only `package/linter/kotlin/settings.gradle.kts` and `package/music-player/android-app/settings.gradle.kts` matched a config-file search.
+No `turbo.json`, `nx.json`, `moon.yml`, `rush.json`, Bazel, Pants, Taskfile, `process-compose`, Tiltfile, Buck, or Mill
+configuration exists;
+only `package/linter/kotlin/settings.gradle.kts` and `package/music-player/android-app/settings.gradle.kts` matched a
+config-file search.
 
 - Gradle (67 files): actually used, as a per-package build tool invoked from Mise tasks, not as a monorepo manager.
   Used in `package/linter/kotlin/` (`build.gradle.kts`, `gradlew`, wrapper properties, `mise.toml` publication tasks)
-  and `package/music-player/android-app/` (`build.gradle.kts`, `gradlew`, `gradle.properties`, `mise.toml` that shells to the committed wrapper).
+  and `package/music-player/android-app/` (`build.gradle.kts`, `gradlew`, `gradle.properties`, `mise.toml` that shells
+  to the committed wrapper).
   Root `mise.toml` and `mise.no-env.toml` only mention Gradle in JDK and Android SDK comments.
   The remaining matches are documentation: Kotlin and Android decision and vet reports under `doc/decision/`,
-  troubleshooting docs such as `doc/troubleshooting/intellij-gradle-kotlin-dsl-symlink.md` and `doc/troubleshooting/kotlin-2-2-10-parallel-gradle-cache.md`,
+  troubleshooting docs such as `doc/troubleshooting/intellij-gradle-kotlin-dsl-symlink.md` and
+  `doc/troubleshooting/kotlin-2-2-10-parallel-gradle-cache.md`,
   `doc/research/bazel-migration-dx.md` (no Gradle interop documented for Bazel), and `README.md`.
   One false positive: `package/cli/forbidden-strings/data/betterleaks-default-config.toml`.
 - Turborepo or `turbo` (13 files): mentioned only.
   Real mentions: `doc/audit/file-enforcer.md` (build-graph reconciler tier; registry-present but never surfaced),
-  `doc/audit/tech-monorepo-manager-vet-2026-09-16.md` (query schedule), `doc/decision/workspace-ts-source-imports.md` and
+  `doc/audit/tech-monorepo-manager-vet-2026-09-16.md` (query schedule), `doc/decision/workspace-ts-source-imports.md`
+  and
   `doc/planning/issue-486-workspace-ts-source-imports.md` (just-in-time internal packages precedent),
-  `doc/research/typescript-monorepo-cross-package-imports.md` (docs pinned at a commit), `doc/troubleshooting/oxlint.md`.
-  False positives: `gpt-3.5-turbo` and a `turbo` model-speed signal in `package/pi-shared/model-selection/` and `package/pi-plugin/auto-mode/README.md`,
+  `doc/research/typescript-monorepo-cross-package-imports.md` (docs pinned at a commit),
+  `doc/troubleshooting/oxlint.md`.
+  False positives: `gpt-3.5-turbo` and a `turbo` model-speed signal in `package/pi-shared/model-selection/` and
+  `package/pi-plugin/auto-mode/README.md`,
   `libjpeg-turbo` in `package/dev-script/file-enforcer/src/data/packages.generated.ts`, and the betterleaks config.
 - Nx (22 files): mentioned only.
   Real mentions: `doc/audit/file-enforcer.md`, `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`,
   `doc/decision/workspace-ts-source-imports.md`, `doc/planning/issue-486-workspace-ts-source-imports.md`,
   `doc/research/typescript-monorepo-cross-package-imports.md` (27 matches), `doc/troubleshooting/oxlint.md`.
-  False positives: `\nx` escapes in unit tests, `nx` normal-vector variables (`deps-cube`, `typeface/aquaticat`, `doodle-widget`),
+  False positives: `\nx` escapes in unit tests, `nx` normal-vector variables (`deps-cube`, `typeface/aquaticat`,
+  `doodle-widget`),
   the `nx-libs` OS package entry, and base64 blobs in HTML files.
-- wireit (2 files): mentioned only, in `doc/audit/file-enforcer.md` (build-graph reconciler tier) and the monorepo manager vet report.
+- wireit (2 files): mentioned only, in `doc/audit/file-enforcer.md` (build-graph reconciler tier) and the monorepo
+- manager vet report.
 - Nadle (2 files): mentioned only, as the fallback in `doc/planning/mise-removal-coverage.md` and in the vet report.
 - lage (1 file) and Buck2 (1 file): mentioned only, in `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`.
 - Tilt (6 files): one real mention in the vet report;
-  the rest are false positives (camera tilt in `deps-cube`, "platform-tilt" in `doc/decision/ios-iphone-x-vet-report/vet-onsen.md`,
+  the rest are false positives (camera tilt in `deps-cube`, "platform-tilt" in
+  `doc/decision/ios-iphone-x-vet-report/vet-onsen.md`,
   glyph tilt in `package/webapp-productivity/wc/src/favicon.ts`).
 - Outside the regex: `doc/audit/file-enforcer.md` also names `moon`, `make`, `ninja`, `redo`, and `tup`
   as registry-absent or build-graph peers of file-enforcer.
@@ -462,15 +511,18 @@ only `package/linter/kotlin/settings.gradle.kts` and `package/music-player/andro
 178 `mise.toml` files exist under `package/`.
 
 - Active packages invoking `mise watch` (6 files):
-  `package/kwin/key-helper/mise.toml`, `package/desktop-daemon/hall-monitor/mise.toml`, `package/ssg/aquati.cat/mise.toml`,
-  `package/webapp-productivity/done/mise.toml`, `package/webapp-productivity/done-postcss/mise.toml`, `package/webapp-productivity/rss/mise.toml`.
+  `package/kwin/key-helper/mise.toml`, `package/desktop-daemon/hall-monitor/mise.toml`,
+  `package/ssg/aquati.cat/mise.toml`,
+  `package/webapp-productivity/done/mise.toml`, `package/webapp-productivity/done-postcss/mise.toml`,
+  `package/webapp-productivity/rss/mise.toml`.
 - Paused packages invoking `mise watch` (5 files):
   `package-paused/webapp-content/messages-demo/mise.toml`, `package-paused/webapp-search/exa-search/mise.toml`,
   `package-paused/dev-script/inference-canary-viewer/mise.toml`, `package-paused/desktop-daemon/editord/mise.toml`,
   `package-paused/webapp-forge/server/mise.toml`.
 - Root `mise.toml` and `mise.no-env.toml`: only the comment `# Required by mise watch` above `watchexec = "latest"`.
 - Other watch paths in root `mise.toml`: `watch:*` task templates fan out unbounded to package tasks,
-  `rolldown --watch`, `tsc --watch`, `node --watch` per test file, and `watch:sync:files` running file-enforcer `--watch`.
+  `rolldown --watch`, `tsc --watch`, `node --watch` per test file, and `watch:sync:files` running file-enforcer
+  `--watch`.
 - Parallel system: `package/dev-script/watch-restart/` replaces `watchexec` in editord's dev loop
   after documented SIGINT-hang and signal-propagation failures through `watchexec`, `mise`, `sh`, `node`.
 - None of these paths exposes an inspection RPC or IPC channel in the lines read.

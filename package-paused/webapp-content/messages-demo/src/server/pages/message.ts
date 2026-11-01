@@ -12,7 +12,7 @@
  * would otherwise risk a chunk-from-newer-revision result.
  */
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import db from '../../lib/db.ts';
 import {
@@ -39,7 +39,7 @@ import {
   renderSimplePage,
 } from './_layout.ts';
 
-import { BYTES_PER_KIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core/ts';
 
 /**
  * Tier-2 boundary in kibibytes.

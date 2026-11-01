@@ -2,15 +2,25 @@
 //!
 //! Platform adapters wrap their own decoder errors (the desktop and Android crates
 //! each have a `PlayerError`) into this crate-owned type at the `TruePeakSource`
-//! boundary, so the shared core never names a platform error. The repo throws typed
-//! errors rather than returning codes or `null`, so this is a small custom enum that
+//! boundary,
+//!  so the shared core never names a platform error.
+//!  The repo throws typed
+//! errors rather than returning codes or `null`,
+//!  so this is a small custom enum that
 //! implements `Display` and `std::error::Error`.
 
-/// What:     `use std::fmt;`. The formatting module, for `fmt::Formatter`/`fmt::Result`
-///           used by the `Display` impl. Sibling: importing `std::fmt::Display`
-///           directly; we import the module so both the trait path and the helper
+/// What:
+///      `use std::fmt;`.
+///  The formatting module,
+///  for `fmt::Formatter`/`fmt::Result`
+///           used by the `Display` impl.
+///  Sibling:
+///  importing `std::fmt::Display`
+///           directly;
+///  we import the module so both the trait path and the helper
 ///           types read consistently.
-/// Why:      `Display` renders a human-readable message for logs and `Error`.
+/// Why:
+///       `Display` renders a human-readable message for logs and `Error`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -18,13 +28,23 @@
 /// ```
 use std::fmt;
 
-/// What:     `pub enum TruePeakError { ... }`. A sum type (tagged union) naming each
-///           way a decoded-audio source can fail. `#[derive(Debug, Clone,
-///           PartialEq, Eq)]` auto-generates debug printing, value cloning, and
-///           equality (handy for asserting an exact error in tests). Sibling shape:
-///           a struct with an error-kind field; an enum keeps each cause distinct.
-/// Why:      Callers get one typed error to match on, and the source methods never
-///           panic on a decode or seek failure; they return one of these instead.
+/// What:
+///      `pub enum TruePeakError { ... }`.
+///  A sum type (tagged union) naming each
+///           way a decoded-audio source can fail.
+///  `#[derive(Debug, Clone,
+///           PartialEq, Eq)]` auto-generates debug printing,
+///  value cloning,
+///  and
+///           equality (handy for asserting an exact error in tests).
+///  Sibling shape:
+///           a struct with an error-kind field;
+///  an enum keeps each cause distinct.
+/// Why:
+///       Callers get one typed error to match on,
+///  and the source methods never
+///           panic on a decode or seek failure;
+///  they return one of these instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,18 +54,25 @@ use std::fmt;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TruePeakError {
-    /// What:     `Decode { message: String }`. A variant carrying an owned `String`
-    ///           describing a decode failure. `String` (sibling `&str`) because the
+    /// What:
+    ///      `Decode { message: String }`.
+    ///  A variant carrying an owned `String`
+    ///           describing a decode failure.
+    ///  `String` (sibling `&str`) because the
     ///           message is built from a platform error and must outlive that error.
-    /// Why:      `next_chunk` failed to produce the next block of samples.
+    /// Why:
+    ///       `next_chunk` failed to produce the next block of samples.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "decode"; message: string }
     /// ```
     Decode {
-        /// What:     `message: String`. Owned human-readable text from the adapter.
-        /// Why:      Name the underlying decoder failure for logs and tests.
+        /// What:
+        ///      `message: String`.
+        ///  Owned human-readable text from the adapter.
+        /// Why:
+        ///       Name the underlying decoder failure for logs and tests.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts
@@ -53,18 +80,25 @@ pub enum TruePeakError {
         /// ```
         message: String,
     },
-    /// What:     `Seek { message: String }`. A variant carrying an owned `String`
-    ///           describing a seek failure. `String` (sibling `&str`) for the same
+    /// What:
+    ///      `Seek { message: String }`.
+    ///  A variant carrying an owned `String`
+    ///           describing a seek failure.
+    ///  `String` (sibling `&str`) for the same
     ///           outlive reason as `Decode`.
-    /// Why:      `seek_to_frame` could not land at the requested frame.
+    /// Why:
+    ///       `seek_to_frame` could not land at the requested frame.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "seek"; message: string }
     /// ```
     Seek {
-        /// What:     `message: String`. Owned human-readable text from the adapter.
-        /// Why:      Name the underlying seek failure for logs and tests.
+        /// What:
+        ///      `message: String`.
+        ///  Owned human-readable text from the adapter.
+        /// Why:
+        ///       Name the underlying seek failure for logs and tests.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts
@@ -74,19 +108,26 @@ pub enum TruePeakError {
     },
 }
 
-/// What:     `impl fmt::Display for TruePeakError { ... }`. Renders the error as a
+/// What:
+///      `impl fmt::Display for TruePeakError { ... }`.
+///  Renders the error as a
 ///           one-line human message.
-/// Why:      `Display` is what logs surface and what the `Error` impl below builds on.
+/// Why:
+///       `Display` is what logs surface and what the `Error` impl below builds on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // toString() on the error object
 /// ```
 impl fmt::Display for TruePeakError {
-    /// What:     `fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result`.
-    ///           Write a sentence for each variant into the formatter. `&self` borrows
-    ///           the error read-only; `fmt::Result` is `Result<(), fmt::Error>`.
-    /// Why:      Each variant interpolates its own message.
+    /// What:
+    ///      `fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result`.
+    ///           Write a sentence for each variant into the formatter.
+    ///  `&self` borrows
+    ///           the error read-only;
+    ///  `fmt::Result` is `Result<(), fmt::Error>`.
+    /// Why:
+    ///       Each variant interpolates its own message.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -123,9 +164,12 @@ impl fmt::Display for TruePeakError {
     }
 }
 
-/// What:     `impl std::error::Error for TruePeakError {}`. An empty impl opting the
+/// What:
+///      `impl std::error::Error for TruePeakError {}`.
+///  An empty impl opting the
 ///           type into the standard error trait (default methods suffice).
-/// Why:      Lets `TruePeakError` participate in `?` propagation and generic std
+/// Why:
+///       Lets `TruePeakError` participate in `?` propagation and generic std
 ///           error reporting the way any standard error does.
 ///
 /// In TS you'd write (pseudocode):
@@ -134,9 +178,14 @@ impl fmt::Display for TruePeakError {
 /// ```
 impl std::error::Error for TruePeakError {}
 
-/// What:     `#[cfg(test)] #[path = "error_tests.rs"] mod tests;`. Test-only submodule
-///           in the sibling file `error_tests.rs`, gated to test builds.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "error_tests.rs"] mod tests;`.
+///  Test-only submodule
+///           in the sibling file `error_tests.rs`,
+///  gated to test builds.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,0 +1,38 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/reference:build:js:node", "//package/translation-repair/rendering-audit:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]

@@ -1,14 +1,14 @@
 ---
 name: testing-practices
-description: Use when writing or reviewing tests in this monorepo using the module-test harness.
+description: Use when writing or reviewing TypeScript tests in this monorepo using the module-test harness.
 ---
 
 # Testing practices
 
-Fires when writing or modifying tests,
+Fires when writing or modifying TypeScript tests,
  picking a test pattern,
  or reviewing
-test code in this monorepo.
+TypeScript test code in this monorepo.
 
 The skill covers the module-test harness,
  the describe/it API,
@@ -22,7 +22,7 @@ integration.
 
 ## Test framework
 
-- Unit tests use `@monochromatic-dev/module-test/ts`,
+- TypeScript unit tests use `@monochromatic-dev/test-harness-core/ts`,
    a custom harness built on chai,
    sinon,
    and expect-type
@@ -42,7 +42,7 @@ integration.
 mise run buildAndTest  # alias: bt
 
 # Build, then run a specific unit test file
-mise run buildAndTest -- package/module/async-time/src/wait.unit.test.ts
+mise run buildAndTest -- package/async-time/core/src/wait.unit.test.ts
 
 # Run tests only when dist is already fresh
 mise run test          # alias: t
@@ -99,7 +99,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { wait, } from '../dist/final/neutral/index.mjs';
 
@@ -122,7 +122,7 @@ test / Jest:
 
 - Import `describe`,
    `it`,
-   `expect` from `@monochromatic-dev/module-test/ts` (not `bun:test`)
+   `expect` from `@monochromatic-dev/test-harness-core/ts` (not `bun:test`)
 - Import package code under test from built `dist`,
    not from sibling `src` files
 - Use `it` (not `test`)
@@ -208,7 +208,9 @@ if (untestableCondition) {
 
 - Use descriptive test names that explain expected behavior
 - Group related tests using nested `describe` blocks as children
-- Keep `describe` names unique at the same scope within a file -- duplicate names cause misattributed results (see [testing troubleshooting](../../../doc/troubleshooting/testing.md))
+- Keep `describe` names unique at the same scope within a file;
+  duplicate names cause misattributed results
+  (see [testing troubleshooting](../../../doc/troubleshooting/testing.md))
 - Use `.map()` to generate parameterized `it` entries in the `children` array
 - Test both happy path and error scenarios
 
@@ -430,7 +432,7 @@ descriptor mutation,
 captured references,
 call-sequence controllers,
 or callback ownership,
-read the [harness ownership contract](../../../package/module/test/README.md#stubs-and-spies)
+read the [harness ownership contract](../../../package/test-harness/core/README.md#stubs-and-spies)
 before choosing a fixture.
 
 ## Async error assertions
@@ -475,14 +477,14 @@ it({
 ## Type-level testing
 
 Use `expectTypeOf` from `expect-type`,
- re-exported by `@monochromatic-dev/module-test/ts`:
+ re-exported by `@monochromatic-dev/test-harness-core/ts`:
 
 ```ts
 import {
   describe,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { ChatRole, } from '../dist/final/neutral/index.mjs';
 
@@ -581,19 +583,19 @@ Default verbosity is compact:
  each `describe` emits one info-level line listing
 its fulfilled children's names.
  Per-test `PASS` lines are at `debug` (hidden
-unless `DEBUG=true`).
+unless `MONOCHROMATIC_VERBOSE=true`).
  Failures remain at `error` and are always visible.
 
 ```text
-[info]  [iso] [outer] [inner] PASS childA, childB, ... (Nms)   -- happy-path enumeration
-[info]  [iso] [outer] [inner] PASS childA                       -- mixed-result: passing siblings only
-[error] [iso] [outer] [inner] [bad] FAIL (Nms)                  -- per-test failure with full hierarchy
-[error] [iso] [outer] [inner] FAIL (Nms)                        -- suite rollup with failure
-[debug] [iso] [outer] [inner] [test-name] PASS (Nms)            -- per-test detail with DEBUG=true
+[info]  [iso] [outer] [inner] [PASS] childA, childB, ... (Nms) -- happy-path enumeration
+[info]  [iso] [outer] [inner] [PASS] childA                   -- mixed-result: passing siblings only
+[error] [iso] [outer] [inner] [bad] [FAIL] ...                 -- per-test failure with full hierarchy
+[error] [iso] [outer] [inner] [FAIL] ...                       -- suite rollup with failure
+[debug] [iso] [outer] [inner] [test-name] [PASS] (Nms)         -- detail with MONOCHROMATIC_VERBOSE=true
 ```
 
 Parent-children relationships are visible per line by default;
- no `DEBUG` flag
+ no verbosity flag
 needed.
  Levels:
 
@@ -608,7 +610,17 @@ needed.
    and the rollup line for empty-name (invisible) suites.
    Hidden by
   default;
-   set `DEBUG=true` or pass `--verbose` to surface.
+   set `MONOCHROMATIC_VERBOSE=true` or pass `--verbose` to surface.
+
+The logger's environment switch is verified against
+`package/logger/core/src/sink/console.ts:55` at source
+`e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
+The isolated verbosity-only control retains ten debug lifecycle lines from a failing child.
+The subsequent both-stream capture passes an actual stdout/stderr positive control
+and joins all 179 product source-case labels and nine separate harness-control labels
+to named debug `PASS` records in successful-child stderr;
+see `doc/audit/depot-local-node-capture-correction-2026-10-18.evidence.json`.
+The earlier wrapper's empty successful-stderr fields remain unobserved placeholders.
 
 When a failure surfaces,
  read the rightmost (deepest) tag plus the `FAIL` line

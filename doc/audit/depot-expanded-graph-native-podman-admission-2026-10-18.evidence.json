@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 3,
+  "recordedAt": "2026-10-18T16:22:40.196Z",
+  "source": "72af18d5b130dabef7ff5b656ffdc1b58df4fcde",
+  "application": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "remoteMatches": true,
+  "cleanWorktree": true,
+  "driverSha256": "28eda050606b50a28d5590db1d4dd2af1f2951ed22d0ae8abd476c1882c82521",
+  "planSha256": "d13d924dd3f16595856dd2c8711b2b080e2e01053407f53a9dd7f7dce11c4dd9",
+  "workflows": [
+    {
+      "path": ".depot/workflows/expanded-graph.yml",
+      "bytes": 3735,
+      "sha256": "81ccd0fa319edc2844887581232fc3fb1f89744e11b4a6fcded59f26b8bc667f",
+      "samples": 2,
+      "maximumMinutes": 30,
+      "maximumParallelJobs": 1
+    }
+  ],
+  "expectedScheduledOwnerCommands": 222,
+  "independentLocalPreflight": {
+    "reviewer": "/root/rust_research_completion",
+    "driverSource": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+    "controlsPassed": 12,
+    "actualApplicationCommandsExecuted": 0,
+    "strictUnmodifiedJsonConsumer": true,
+    "stagedAndUnstagedSourceMutationRejected": true,
+    "bothExternalSignalsCleanOwnedGroups": true,
+    "freshSelectedToolInstallPassed": true,
+    "officialMise2026109ExecutableSha256": "6ab6646b52b83f6bbd51c9d0d3ae54264ffa90efd1ac6d7c0ec5a86bbc6a0030",
+    "freshInstallResourceLimits": {
+      "cpus": 2,
+      "memoryBytes": 2147483648
+    }
+  },
+  "ratesUsdPerMinute": {
+    "nativeFourCpu": 0.012,
+    "depotGithubLinuxFourCpu": 0.012,
+    "standardPublicGithubNominal": 0,
+    "uniformAdmissionProxy": 0.012
+  },
+  "rateSource": "https://depot.dev/docs/github-actions/runner-types.md",
+  "priorSetupFailureRun": "39135886118",
+  "priorNominalDepotComputeUsd": 0.0142,
+  "priorUniformAdmissionProxyUsd": 0.0296,
+  "correctedFullWindowDepotNominalReservationUsd": 1.44,
+  "correctedSixSampleUniformProxyUsd": 2.16,
+  "twoNativeCorrectionWindowsProxyReserveUsd": 0.72,
+  "campaignConservativeProxyIncludingPriorFailureUsd": 2.9096,
+  "campaignProxyGuardUsd": 3,
+  "maximumConcurrentParentResearchJobs": 2,
+  "nativeDispatchMustWaitForRegistryAndCacheProbeSlotRelease": true,
+  "originalAdmissionRetainedAndSuperseded": true,
+  "actualInvoiceOrBillableVmLifetimeObserved": false,
+  "cacheBoundary": "No explicit repository package/compiler cache restoration or prepared snapshot; provider image/tool/registry caches are observed rather than assumed absent",
+  "executionBoundary": "One four-CPU Linux job containing shared prerequisite and parallel consumer branches; not a distributed cross-job artifact DAG or whole-repository pipeline",
+  "previousSource": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+  "nativeCorrectionOnly": true,
+  "previousNativeRun": "gb01kjx2qk",
+  "previousNativeStatus": "failed",
+  "bootstrapSha256": "d6adb8579ea9888147d0b3f5eba90f730630a243b03db07d4753feb1b8f0f85a",
+  "independentWrapperControls": {
+    "passed": true,
+    "source": "72af18d5b130dabef7ff5b656ffdc1b58df4fcde",
+    "controls": 24,
+    "receipt": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.evidence.json",
+    "sha256": "aed707e7a9516dd9b0cc7213e0e88e1d156d3c40884b5f2db0978a6c160e12cd",
+    "sourceArchiveSha256": "122ef60af29ddb193445fead9080bac530ab5cb18879690c1b471154d05ce97c",
+    "actualRootfulCloudConsumerRequired": true
+  },
+  "thisCohortMaximumNominalUsd": 0.72,
+  "correctionReserveAlreadyIncluded": true,
+  "cloudAllocationsFromThisAdmission": 0
+}

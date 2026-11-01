@@ -1,0 +1,1016 @@
+{
+  "schema": 1,
+  "scope": "Inspected native authored track-menu poses, not real operation success or a new policy ballot.",
+  "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+  "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+  "witnesses": [
+    {
+      "file": "track-menu-inner-ordinary-light-s100.png",
+      "panel": "inner",
+      "scene": "ordinary",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "d99a1c9f224fb5e3cfe0140dc401dc9770a8f4e4eb82cd1e53b3859d1f9bf806",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-lower-light-s100.png",
+      "panel": "inner",
+      "scene": "lower",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "751d1de41c3f3a3f10d625ff2873738aa3747978288d7e83a0e9b573cde8b9a2",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-long-name-light-s100.png",
+      "panel": "inner",
+      "scene": "long-name",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "f04019155492a07dc9ac74c2baaf919fe122721c032221e2bb17ea7aa6112868",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-ordinary-dark-s100.png",
+      "panel": "inner",
+      "scene": "ordinary",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "1140c61fc79c05361ac822bcc4be07da9fdc8ed8794831670961edc20d9a41df",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-lower-dark-s100.png",
+      "panel": "inner",
+      "scene": "lower",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "95faedd2383d5e3b85c9a33427631cccd5571be4338794f5aecc8b14e3bd99be",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-long-name-dark-s100.png",
+      "panel": "inner",
+      "scene": "long-name",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "1215ae2871e4d0372dfe52c866db9ff25b4d9b48ddbdb042cb6d8af5157e60d4",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-ordinary-light-s200.png",
+      "panel": "inner",
+      "scene": "ordinary",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "ed3f81e3ba6615785d59cae31f349199914883e69ec9042e13427da9d0a249ee",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-lower-light-s200.png",
+      "panel": "inner",
+      "scene": "lower",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "fd3ff5468d2d5eb508a03490e3e3f30152a6626e6d83ad4af74a334e1ff691b2",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-long-name-light-s200.png",
+      "panel": "inner",
+      "scene": "long-name",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "a88f1b6e74488b843c4c612ce00212e522d6d109dd2a8a396ae8488d0650da96",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-ordinary-dark-s200.png",
+      "panel": "inner",
+      "scene": "ordinary",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "6ad4bb399a628bf4118be021bb5868eb696b7fa7814ab9ff18942e6db971e938",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-lower-dark-s200.png",
+      "panel": "inner",
+      "scene": "lower",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "83c101166b29633deba18366ab42a899d01dc7e80b509d246f7dae13a3b1c7ac",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-inner-long-name-dark-s200.png",
+      "panel": "inner",
+      "scene": "long-name",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "b030616376070be935940a26c737c3bc73eacdeeb61dce31c9a43d4bfd0d14fe",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-ordinary-light-s100.png",
+      "panel": "cover",
+      "scene": "ordinary",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "fd0e596111828af3ca92821226289379a4eccba570b508c707b6c0da20df4799",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-lower-light-s100.png",
+      "panel": "cover",
+      "scene": "lower",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "6dcd220aae4f77ed7633c999c294b5eec9959ccbd0882ad86742765d1890580b",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-long-name-light-s100.png",
+      "panel": "cover",
+      "scene": "long-name",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "c6abd15ef43428a96461c09bf5dffab42407b8a09de31f8aa61c84fc125b46ff",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-ordinary-dark-s100.png",
+      "panel": "cover",
+      "scene": "ordinary",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "27fb1cb2ecdc6c615fd91345cbe1dea9e46b3421f0e2aedfe7a9926d1a7975bf",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-lower-dark-s100.png",
+      "panel": "cover",
+      "scene": "lower",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "86a33ab844f0dc70a63896325ca9224336505f279c3843ef72f20df6951e23dd",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-long-name-dark-s100.png",
+      "panel": "cover",
+      "scene": "long-name",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "94e94a4da35e81d8ef2d6fad7e5b1f2d9f822f1bf7853f71d9ca5b99dda79d46",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-ordinary-light-s200.png",
+      "panel": "cover",
+      "scene": "ordinary",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "4ab7502754a7594b35dfe3f0d14b7938f59aad591cc975093a7e0fb387c5d648",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-lower-light-s200.png",
+      "panel": "cover",
+      "scene": "lower",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "10a70cc6f5a14fb7f01d8a79c0010d226b56dc164831a1a4f37baa034681cae9",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-long-name-light-s200.png",
+      "panel": "cover",
+      "scene": "long-name",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "982a5a356126cc46266d12bf7bd587b1146b78cd948f30e67a5628ae0e769617",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-ordinary-dark-s200.png",
+      "panel": "cover",
+      "scene": "ordinary",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "2081f3d2c71cbe7b9ab2403d80beae0dbc9c4e26cd7289d213c73e1f8d2ea4d1",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-lower-dark-s200.png",
+      "panel": "cover",
+      "scene": "lower",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "50d5357e2d53f1511bd27fe43e4733e9b5281635269991d8bef588a52ad4a3b8",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": false
+      },
+      "targetIndex": 8,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "track-menu-cover-long-name-dark-s200.png",
+      "panel": "cover",
+      "scene": "long-name",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "e06656e9e0e36bfdd1a0be5680ad8f2af2c2c6aea293ca9cb05f77924a720d66",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "heading": {
+        "lines": 1,
+        "overflow": true
+      },
+      "targetIndex": 1,
+      "nativeLongPress": true,
+      "allActionsInitiallyVisible": true,
+      "actionLayoutFloorVerified": true,
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    }
+  ]
+}

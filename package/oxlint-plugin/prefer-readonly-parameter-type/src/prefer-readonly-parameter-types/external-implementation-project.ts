@@ -6,15 +6,16 @@
 
 import { dirname, } from 'node:path';
 
-import type { SourceFile, } from 'typescript/unstable/ast';
+import type { SourceFile, } from 'typescript/ast';
 import {
   API,
   type Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { effectProjectFingerprint, } from './effect-project-fingerprint.ts';
 import { externalProjectConfigPath, } from './external-project-config.ts';
 import { externalRuntimeShadowFiles, } from './external-runtime-shadow-files.ts';
+import { memoizeApiSnapshotRequests, } from './semantic-request-memo.ts';
 import {
   configureNativeApiChildShutdown,
   nativeApiChild,
@@ -82,6 +83,7 @@ export function initializeExternalImplementationApi(): void {
    */
   const api = new API({ cwd: process.cwd(), },);
   configureNativeApiChildShutdown(nativeApiChild(api,),);
+  memoizeApiSnapshotRequests({ api, },);
   externalApiState.current = api;
 }
 
@@ -134,14 +136,19 @@ function openExternalProject({
   const api = externalApiState.current ?? new API({ cwd: dirname(configPath,), },);
   /**
    Configured project snapshot for shipped implementation.
+   
+   TypeScript 7.1 creates independent snapshots (`api.createSnapshot`) where 7.0 added the project to one shared
+   session with `api.updateSnapshot`; each external implementation holds and releases its own view. `ensurePrograms`
+   forces the eager program rebuild 7.0 did by default, so the implementation source below reads fresh text.
    */
-  const snapshot = api.updateSnapshot({
+  const snapshot = api.createSnapshot({
     openProjects: [configPath,],
+    ensurePrograms: true,
   },);
   /**
    Loaded generated project.
    */
-  const project = snapshot.getProject(configPath,);
+  const project = snapshot.getConfiguredProject(configPath,);
   /**
    Shipped implementation source in generated project.
    */
@@ -242,7 +249,7 @@ export function openExternalImplementation({
     ],),].toSorted();
     if (nextFiles.length
       === implementationFiles.current
-      .length) {
+        .length) {
       sessionByConfig.set(
         configPath,
         session,

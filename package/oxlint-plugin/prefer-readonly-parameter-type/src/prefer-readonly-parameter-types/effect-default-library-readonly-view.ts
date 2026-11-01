@@ -4,13 +4,13 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isIdentifier,
   isInterfaceDeclaration,
   isMethodSignatureDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import {
   UNPAIRED_VIEW_UNKNOWN,
@@ -54,8 +54,8 @@ export const COLLECTION_UNRECOGNIZED: unique symbol = Symbol(
  */
 export type CollectionStructureClaim =
   | typeof COLLECTION_STRUCTURE_PRESERVED
-  | typeof COLLECTION_STRUCTURE_MUTATED
-  | typeof COLLECTION_UNRECOGNIZED;
+    | typeof COLLECTION_STRUCTURE_MUTATED
+    | typeof COLLECTION_UNRECOGNIZED;
 
 /**
  Classify a resolved declaration's effect on its receiver's structure.

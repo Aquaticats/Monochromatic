@@ -21,7 +21,7 @@ The wrapper therefore overrode Git based only on a filesystem name that Git did 
 
 ## Root cause
 
-`package/module/fs-path/src/find-monorepo-root.ts` previously treated existence of any `.git` entry as sufficient.
+`package/fs-path/core/src/find-monorepo-root.ts` previously treated existence of any `.git` entry as sufficient.
 `package/git-policy/cli/src/rules/require-root.ts` independently used `find-up` with `type: 'both'` and made the same
 assumption.
 Neither path inspected directory signatures or gitfile content.
@@ -42,7 +42,7 @@ The previous existence checks implemented none of these conditions.
 
 The diagnosis began with deterministic failing tests at both affected seams:
 
-- `package/module/fs-path/src/find-monorepo-root.unit.test.ts` expected empty directories,
+- `package/fs-path/core/src/find-monorepo-root.unit.test.ts` expected empty directories,
   malformed gitfiles,
   and missing gitfile targets to be rejected;
 - `package/git-policy/cli/src/rules/require-root.unit.test.ts` expected invalid ancestors to pass through to real Git.
@@ -77,7 +77,7 @@ and invalid ancestor were removed after verification.
 
 ## Verified fix
 
-`package/module/fs-path/src/git-marker.ts` now mirrors Git's default administrative signatures without starting a
+`package/fs-path/core/src/git-marker.ts` now mirrors Git's default administrative signatures without starting a
 subprocess.
 Its runtime filesystem seam distinguishes files from directories,
 reads symbolic-link targets without following them,

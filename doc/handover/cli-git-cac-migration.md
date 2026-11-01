@@ -64,9 +64,14 @@ A later explicit adoption request is required before implementation or a decisio
   `valibot`,
   `yuku-ast`,
   and `yuku-parser`.
-- `package/git-policy/cli/src/management-parser.ts` describes a repository-owned management-command grammar that replaced
+- `package/git-policy/cli/src/management-parser.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/management_arguments.rs`)
+  describes a repository-owned management-command grammar
+  that replaced
   the `@optique/core` facade.
-- `package/git-policy/cli/src/parser/argv.ts` describes a repository-owned Git argv region parser that replaced
+- `package/git-policy/cli/src/parser/argv.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command_options.rs`)
+  describes a repository-owned Git argv region parser that replaced
   `@optique/core` option parsing.
 - Several source comments still use Optique terminology.
   These comments are historical signals,
@@ -75,7 +80,8 @@ A later explicit adoption request is required before implementation or a decisio
 - The existing implementation-state handover is `doc/handover/cli-git-policies-platform.md`.
 - Unrelated modified files existed before this assessment:
   `.serena/project.yml`,
-  `package/music-player/desktop-app/src/ui_binding_tests.rs`,
+  `package/music-player/desktop-app/src/ui_binding_tests.rs`
+  (deleted 2026-10-11, no same-name replacement; the UI tests are the `ui_*_tests.rs` files in that directory),
   and `package/music-player/desktop-app/ui/app.slint`.
   Do not stage,
   restore,
@@ -114,13 +120,19 @@ CAC cannot receive a practicality conclusion from README or registry metadata al
 The target does not have one replaceable parser boundary.
 The measured source map at baseline is:
 
-- `package/git-policy/cli/src/parse-global-options.ts` locates the real Git subcommand,
+- `package/git-policy/cli/src/parse-global-options.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/global_arguments.rs`)
+  locates the real Git subcommand,
   applies ordered `-C` semantics,
   and preserves global help and version short-circuits.
-- `package/git-policy/cli/src/management-parser.ts` implements the closed `git cli-git` grammar.
+- `package/git-policy/cli/src/management-parser.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/management_arguments.rs`)
+  implements the closed `git cli-git` grammar.
   It is 265 physical lines,
   including declarations and TSDoc.
-- `package/git-policy/cli/src/parser/argv.ts` is the shared subset parser used by management and Git-region parsers.
+- `package/git-policy/cli/src/parser/argv.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command_options.rs`)
+  is the shared subset parser used by management and Git-region parsers.
   It is 415 physical lines and has eighteen direct unit cases.
 - `package/git-policy/cli/src/parser/` contains twenty production TypeScript files and 3,953 physical lines.
   Most of this surface is Git-specific classification rather than generic command routing.
@@ -150,7 +162,8 @@ A technology result therefore needs an integration shape:
 - use CAC for management plus shared Git-region tokenization while retaining Git-specific scanners;
 - or replace every parser path with CAC plus adapters.
 
-The last shape cannot be credited with deleting the complete parser directory unless a prototype demonstrates the Git-specific
+The last shape cannot be credited
+with deleting the complete parser directory unless a prototype demonstrates the Git-specific
 facts without recreating those scans around CAC.
 
 ## Frozen hard constraints
@@ -246,7 +259,8 @@ No soft score can offset a hard-gate failure.
   license,
   release,
   and package-artifact changes would migration introduce?
-- Does CAC's TypeScript surface preserve cli-git's static command and option guarantees under this repository's compiler and
+- Does CAC's TypeScript surface preserve cli-git's static command
+  and option guarantees under this repository's compiler and
   declaration settings?
 - Does a migration delete more repository-owned parser complexity than the adapter and compatibility code it adds?
 - Which current tests establish replacement parity,
@@ -284,7 +298,8 @@ No soft score can offset a hard-gate failure.
 
 ### 2026-08-14 initial checkpoint
 
-The first repository read changes the framing from "replace Optique with CAC" to "compare CAC with the current owned parser
+The first repository read changes the framing from "replace Optique with CAC" to "compare CAC
+with the current owned parser
 set."
 The package manifest shows Optique has already been removed.
 The key practicality threshold is therefore net simplification with strict behavioral parity,
@@ -325,7 +340,8 @@ ninety-six wrapper tests in `src/bin.unit.test.ts`,
 trust management subprocess tests,
 packed JSONL boundary fixtures,
 and a packed lifecycle benchmark.
-Migration completeness requires mapping every affected parser branch to these tests rather than treating management examples alone
+Migration completeness requires mapping every affected parser branch
+to these tests rather than treating management examples alone
 as parity.
 
 ### 2026-08-14 CAC-only scope checkpoint

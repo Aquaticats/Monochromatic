@@ -1,5 +1,33 @@
 # Consistency audit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/backup-path` is now `package/backup-path/cli`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `package/module/dom` is now `package/dom/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/rgffplay` is now `package/rgffplay/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Generated 2026-04-05 from automated analysis of all 69 packages (across 19 categories)
 plus root-level documentation files.
 
@@ -81,7 +109,8 @@ README `# heading` lines use at least four different conventions for the same ki
  `# clauce-code-plugins-terminal-title` (typo:
  "clauce")
 
-The typo `clauce` in `claude-code-plugin/terminal-title/README.md` heading is worth fixing regardless of which convention is chosen.
+The typo `clauce` in `claude-code-plugin/terminal-title/README.md` heading is worth fixing regardless of
+which convention is chosen.
 
 Packages with **blank/empty** README first lines:
  `config/stylelint`,

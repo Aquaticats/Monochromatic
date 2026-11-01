@@ -65,8 +65,8 @@ function isHelperShape(body: ForeignBorrowed<ESTree.FunctionBody>,): boolean {
     else if (
       (stmt.type
         === 'FunctionDeclaration')
-      && (stmt.id
-        !== null)
+        && (stmt.id
+          !== null)
         && (stmt.id
           .name
           === returnedName)
@@ -188,8 +188,8 @@ export const noFunctionRootLet: CreateOnceRule = {
       if (
         (parent.type
           === 'CallExpression')
-        && (parent.callee
-          === node)
+          && (parent.callee
+            === node)
       ) {
         return;
       }

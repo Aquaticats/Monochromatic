@@ -1,0 +1,581 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-18T06:35:02.879Z",
+  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+  "githubRunId": "39104064329",
+  "depotJobId": "117606073359",
+  "sourceReceipt": "15ee06968996212b97111accc2013c2780ed1944",
+  "metadata": {
+    "conclusion": "success",
+    "databaseId": 39104064329,
+    "headSha": "15ee06968996212b97111accc2013c2780ed1944",
+    "jobs": [
+      {
+        "completedAt": "2026-10-18T06:27:25Z",
+        "conclusion": "success",
+        "databaseId": 117606073238,
+        "name": "platform (ubuntu-24.04)",
+        "startedAt": "2026-10-18T06:26:57Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T06:27:00Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T06:26:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:16Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 2,
+            "startedAt": "2026-10-18T06:27:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:18Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 3,
+            "startedAt": "2026-10-18T06:27:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:20Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 4,
+            "startedAt": "2026-10-18T06:27:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/runtime:platform",
+            "number": 5,
+            "startedAt": "2026-10-18T06:27:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 6,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 12,
+            "startedAt": "2026-10-18T06:27:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-10-18T06:27:23Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39104064329/job/117606073238"
+      },
+      {
+        "completedAt": "2026-10-18T06:27:23Z",
+        "conclusion": "success",
+        "databaseId": 117606073359,
+        "name": "platform (depot-ubuntu-24.04)",
+        "startedAt": "2026-10-18T06:26:58Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T06:27:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T06:27:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:18Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 2,
+            "startedAt": "2026-10-18T06:27:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:19Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 3,
+            "startedAt": "2026-10-18T06:27:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:20Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 4,
+            "startedAt": "2026-10-18T06:27:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/runtime:platform",
+            "number": 5,
+            "startedAt": "2026-10-18T06:27:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 6,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 12,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39104064329/job/117606073359"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39104064329"
+  },
+  "artifacts": [
+    {
+      "id": 12127692965,
+      "name": "runtime-prerequisites-ubuntu-24.04",
+      "apiDigest": "sha256:f751c023664149d432cffe2c3a64903c70f3ea66b1ac466679c33efd95900733",
+      "archiveDigest": "sha256:f751c023664149d432cffe2c3a64903c70f3ea66b1ac466679c33efd95900733",
+      "member": "platform-gha-ubuntu-24.04-x64.json",
+      "memberSha256": "5da4d7f36a58ca5416b226d2387f65cc4bc418d3640239ae6ce6968957643646",
+      "observation": {
+        "schemaVersion": 1,
+        "observedAt": "2026-10-18T06:27:21.736Z",
+        "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+        "provider": "gha-ubuntu-24.04",
+        "platform": "linux",
+        "architecture": "x64",
+        "kernel": "6.17.0-1022-azure",
+        "cpuCount": 4,
+        "cpuModels": [
+          "AMD EPYC 7763 64-Core Processor"
+        ],
+        "systemMemoryBytes": 16766414848,
+        "freeMemoryBytes": 15369904128,
+        "node": "v26.12.0",
+        "sourceContext": {
+          "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+          "GITHUB_REF": "refs/heads/research/depot-runtime-orchestration-20261018",
+          "GITHUB_EVENT_NAME": "workflow_dispatch",
+          "GITHUB_RUN_ID": "39104064329",
+          "GITHUB_JOB": "platform",
+          "RUNNER_OS": "Linux",
+          "RUNNER_ARCH": "X64",
+          "ImageVersion": "20261012.334.1"
+        },
+        "display": {
+          "DISPLAY": null,
+          "WAYLAND_DISPLAY": null,
+          "XDG_RUNTIME_DIR": "/run/user/1001",
+          "DBUS_SESSION_BUS_ADDRESS": null
+        },
+        "controls": {
+          "positiveControl": {
+            "path": "/dev/null",
+            "exists": true,
+            "characterDevice": true,
+            "readableWritable": true,
+            "accessError": null
+          },
+          "negativeControl": {
+            "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+            "exists": false,
+            "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+            "errorCode": "ENOENT"
+          }
+        },
+        "devices": [
+          {
+            "path": "/dev/kvm",
+            "exists": true,
+            "characterDevice": true,
+            "readableWritable": false,
+            "accessError": "Error: EACCES: permission denied, access '/dev/kvm'"
+          },
+          {
+            "path": "/dev/dri/card1",
+            "exists": true,
+            "characterDevice": true,
+            "readableWritable": false,
+            "accessError": "Error: EACCES: permission denied, access '/dev/dri/card1'"
+          }
+        ],
+        "graphicsDevices": [
+          {
+            "name": "card1",
+            "vendor": {
+              "value": "0x1414"
+            },
+            "device": {
+              "value": "0x6"
+            },
+            "driver": "../../../../../../bus/vmbus/drivers/hyperv_drm"
+          }
+        ],
+        "cgroupObservations": [
+          {
+            "path": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+            "values": {
+              "memory.max": {
+                "value": "max"
+              },
+              "memory.current": {
+                "value": "1638375424"
+              },
+              "cpu.max": {
+                "value": "max 100000"
+              },
+              "pids.max": {
+                "value": "19151"
+              }
+            }
+          },
+          {
+            "path": "/sys/fs/cgroup",
+            "values": {
+              "memory.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+              },
+              "memory.current": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+              },
+              "cpu.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+              },
+              "pids.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+              }
+            }
+          }
+        ],
+        "sdk": {
+          "path": "/usr/local/lib/android/sdk",
+          "emulatorPresent": false,
+          "adbPresent": true
+        },
+        "commands": [
+          {
+            "command": [
+              "systemctl",
+              "--user",
+              "is-system-running"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "running\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "systemctl",
+              "--user",
+              "show",
+              "--property=Version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "Version=255.4-1ubuntu8.17\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "docker",
+              "version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:16 2025\n OS/Arch:           linux/amd64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:16 2025\n  OS/Arch:          linux/amd64\n  Experimental:     false\n containerd:\n  Version:          v2.4.1\n  GitCommit:        f2551031d7276a770f65f98c9b52e57e7dad07e8\n runc:\n  Version:          1.5.2\n  GitCommit:        v1.5.2-0-g29dd3dc2\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "podman",
+              "--version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "podman version 4.9.3\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "qemu-system-x86_64",
+              "--version"
+            ],
+            "status": null,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": "spawnSync qemu-system-x86_64 ENOENT"
+          },
+          {
+            "command": [
+              "qemu-system-aarch64",
+              "--version"
+            ],
+            "status": null,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": "spawnSync qemu-system-aarch64 ENOENT"
+          }
+        ],
+        "unexercised": [
+          "KVM guest execution",
+          "GPU rendering context",
+          "emulator launch",
+          "application runtime consumer",
+          "billable allocation lifetime"
+        ]
+      }
+    },
+    {
+      "id": 12127347945,
+      "name": "runtime-prerequisites-depot-ubuntu-24.04",
+      "apiDigest": "sha256:072835bb30e6acfa35086b4cab6d24d43edd7766d545a4784493840e91b2980c",
+      "archiveDigest": "sha256:072835bb30e6acfa35086b4cab6d24d43edd7766d545a4784493840e91b2980c",
+      "member": "platform-gha-depot-ubuntu-24.04-x64.json",
+      "memberSha256": "757512686d242910ce074c0699ae35ec335a705f19bfde4400fc29e58da8883d",
+      "observation": {
+        "schemaVersion": 1,
+        "observedAt": "2026-10-18T06:27:21.073Z",
+        "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+        "provider": "gha-depot-ubuntu-24.04",
+        "platform": "linux",
+        "architecture": "x64",
+        "kernel": "6.12.109+",
+        "cpuCount": 2,
+        "cpuModels": [
+          "AMD EPYC 9R45 96-Core Processor"
+        ],
+        "systemMemoryBytes": 8336855040,
+        "freeMemoryBytes": 7474737152,
+        "node": "v26.12.0",
+        "sourceContext": {
+          "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+          "GITHUB_REF": "refs/heads/research/depot-runtime-orchestration-20261018",
+          "GITHUB_EVENT_NAME": "workflow_dispatch",
+          "GITHUB_RUN_ID": "39104064329",
+          "GITHUB_JOB": "platform",
+          "RUNNER_OS": "Linux",
+          "RUNNER_ARCH": "X64",
+          "ImageVersion": "dev"
+        },
+        "display": {
+          "DISPLAY": null,
+          "WAYLAND_DISPLAY": null,
+          "XDG_RUNTIME_DIR": "/run/user/1001",
+          "DBUS_SESSION_BUS_ADDRESS": null
+        },
+        "controls": {
+          "positiveControl": {
+            "path": "/dev/null",
+            "exists": true,
+            "characterDevice": true,
+            "readableWritable": true,
+            "accessError": null
+          },
+          "negativeControl": {
+            "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+            "exists": false,
+            "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+            "errorCode": "ENOENT"
+          }
+        },
+        "devices": [
+          {
+            "path": "/dev/kvm",
+            "exists": true,
+            "characterDevice": true,
+            "readableWritable": true,
+            "accessError": null
+          }
+        ],
+        "graphicsDevices": [],
+        "cgroupObservations": [
+          {
+            "path": "/sys/fs/cgroup/system.slice/actions-runner.service",
+            "values": {
+              "memory.max": {
+                "value": "max"
+              },
+              "memory.current": {
+                "value": "1610092544"
+              },
+              "cpu.max": {
+                "value": "max 100000"
+              },
+              "pids.max": {
+                "value": "39321"
+              }
+            }
+          },
+          {
+            "path": "/sys/fs/cgroup",
+            "values": {
+              "memory.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+              },
+              "memory.current": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+              },
+              "cpu.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+              },
+              "pids.max": {
+                "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+              }
+            }
+          }
+        ],
+        "sdk": {
+          "path": "/usr/local/lib/android/sdk",
+          "emulatorPresent": false,
+          "adbPresent": true
+        },
+        "commands": [
+          {
+            "command": [
+              "systemctl",
+              "--user",
+              "is-system-running"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "running\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "systemctl",
+              "--user",
+              "show",
+              "--property=Version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "Version=255.4-1ubuntu8.17\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "docker",
+              "version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:16 2025\n OS/Arch:           linux/amd64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:16 2025\n  OS/Arch:          linux/amd64\n  Experimental:     false\n containerd:\n  Version:          v2.3.3\n  GitCommit:        aad11006b869517fcd3009450b6f82da282e1a9b\n runc:\n  Version:          1.4.3\n  GitCommit:        v1.4.3-0-gbb14dab\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "podman",
+              "--version"
+            ],
+            "status": 0,
+            "signal": null,
+            "stdout": "podman version 5.8.4\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "command": [
+              "qemu-system-x86_64",
+              "--version"
+            ],
+            "status": null,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": "spawnSync qemu-system-x86_64 ENOENT"
+          },
+          {
+            "command": [
+              "qemu-system-aarch64",
+              "--version"
+            ],
+            "status": null,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": "spawnSync qemu-system-aarch64 ENOENT"
+          }
+        ],
+        "unexercised": [
+          "KVM guest execution",
+          "GPU rendering context",
+          "emulator launch",
+          "application runtime consumer",
+          "billable allocation lifetime"
+        ]
+      }
+    }
+  ],
+  "document": {
+    "url": "https://depot.dev/docs/github-actions/troubleshooting.md",
+    "status": 200,
+    "contentType": "text/markdown; charset=utf-8",
+    "sha256": "f41fd5a82ee977f2bcc8ba9184d6734ffbd52b18f65c7a441b9c8802749d7f61",
+    "decidingQuote": "Depot GitHub Actions runners don't currently provide `/dev/kvm`.",
+    "body": "# Troubleshooting GitHub Actions runners (https://depot.dev/docs/github-actions/troubleshooting)\n\n\nThis guide provides troubleshooting steps for common issues when using Depot-hosted GitHub Actions runners.\n\n## Runner startup time [#runner-startup-time]\n\nWhen you start a new GitHub job using Depot GitHub Actions runners, you'll notice a brief delay before the runner is ready. Expect typical startup times to range from 10 to 45 seconds.\n\nThe startup process involves two main steps:\n\n* **Provision AWS hardware (approximately 15 seconds):** Depot provisions fresh compute instances for each job with significant optimizations to the AWS startup process and pre-caching.\n* **Register the GitHub Actions runner (variable time):** GitHub's control plane needs to register, authorize, and connect the runner. This timing varies based on GitHub's current load and rate limiting.\n\nDepot typically expects GitHub's control plane to take less than 1 second to send a job request to Depot API. Depot then allocates AWS hardware in approximately 15 seconds. After that, GitHub usually connects to the runner in under 7 seconds, and sends the job to the runner in under a second.\n\nYou can check the detailed timing breakdown for the last jobs in your Depot dashboard in the graph at the top of the [GitHub Actions](/orgs/_/github-actions) page.\n\nDepot bills only for the time after the job has started running (tracked by the second), not provisioning time.\n\n### When to contact support [#when-to-contact-support]\n\nIf you consistently see allocation times longer than 1 minute during normal operation, reach out to support for investigation.\n\n<DocsFeedbackWidget docSection=\"github-actions-runner-startup-time\" />\n\n## Workflows not starting on initial configuration [#workflows-not-starting-on-initial-configuration]\n\nIf your GitHub Actions workflow remains in a queued state when first setting up Depot runners, the runner likely can't be allocated to your job.\n\n### How to resolve [#how-to-resolve]\n\n#### Check your runner labels [#check-your-runner-labels]\n\nUse a single runner label in your workflow configuration. While GitHub Actions supports specifying multiple labels in an array, this can cause stability issues.\n\nCorrect usage:\n\n```yaml\nruns-on: depot-ubuntu-24.04-4\n```\n\nAvoid using multiple labels:\n\n```yaml\n# Do *not* do this:\nruns-on: [self-hosted, depot-ubuntu-24.04]\n```\n\n#### Verify repository access [#verify-repository-access]\n\nDepot runners register in the \"default runner group\" in GitHub. Check the repository access settings for the runner group to ensure your repo can use these runners:\n\n1. Go to your GitHub organization settings\n2. Navigate to Actions > Runner groups\n3. Select the \"Default\" runner group\n4. Verify the allowed repositories list includes your repository. For public repositories, enable **Allow public repositories**.\n\n**Note:** If you've configured the [Selected workflows](https://docs.github.com/en/enterprise-cloud@latest/actions/how-tos/manage-runners/self-hosted-runners/manage-access#changing-which-workflows-can-access-a-runner-group) filter for your runner group, an incorrect workflow reference pattern can prevent jobs from starting even when runners are available.\n\n#### Confirm app permissions [#confirm-app-permissions]\n\nThe \"Depot Managed Runners\" GitHub app must have permission to see your repo. You can confirm your app is active in the [organization settings](https://depot.dev/orgs/_/settings) under **GitHub Actions Runners**\n\nIf your workflow still gets stuck after checking these settings, reach out to support with your workflow run URL and repository name for investigation of the runner allocation issue.\n\n<DocsFeedbackWidget docSection=\"github-actions-workflows-not-starting\" />\n\n## Jobs appear as long-running in the dashboard [#jobs-appear-as-long-running-in-the-dashboard]\n\nSometimes jobs may appear as long-running in the Depot dashboard even though they've completed on GitHub. This happens when GitHub doesn't correctly inform Depot that a job has finished.\n\n**Important:** Billing isn't affected by stale jobs. Depot only bills for the time the job actually runs on a runner instance.\n\nStale jobs eventually time out on their own. However, if you need immediate resolution, Depot can manually run a resync with GitHub to clear the job and update the UI to reflect the correct status.\n\n### How to resolve [#how-to-resolve-1]\n\nCheck the job status directly in your GitHub Actions tab to confirm its cancellation or completion.\n\nIf the job remains stale in the Depot dashboard and you need it cleared immediately, [reach out to support](/help) with:\n\n* Your organization name\n* The repository and workflow run URL\n* The job name or ID that appears stale\n\nThe support team will trigger a manual resync with GitHub to update the job status.\n\n<DocsFeedbackWidget docSection=\"github-actions-long-running-jobs\" />\n\n## Error: `Failed to write to Depot job log - No space left on device` [#error-failed-to-write-to-depot-job-log---no-space-left-on-device]\n\nThis error occurs when your build process needs more disk space than your runner has available.\n\nEach Depot runner type has a set amount of disk space. The OS and pre-installed software consumes approximately 70 GB, and the remaining space is available for your builds. For runner specifications, see [Depot Runner Types](/docs/github-actions/runner-types).\n\n### How to resolve [#how-to-resolve-2]\n\n#### Upgrade to a larger runner size [#upgrade-to-a-larger-runner-size]\n\nTo use a runner with more disk capacity, specify a larger runner type in your workflow configuration:\n\n```yaml\nruns-on: depot-ubuntu-24.04-8 # 8 vCPU, more disk space\n```\n\nIf you continue to hit disk space limits even on larger runner sizes, [reach out to support](/help) with your workflow details for help optimizing your build process or discussing custom runner configurations.\n\n#### Disk space cleanup [#disk-space-cleanup]\n\nClean up unnecessary files before and during your build process. For example, you can remove temporary files and clean package caches on Linux workflows:\n\n```yaml\n- name: Clean up disk space\n  run: |\n    rm -rf /tmp/*\n    sudo apt-get clean\n```\n\n#### Use disk cleanup actions [#use-disk-cleanup-actions]\n\nSeveral GitHub Actions can help manage disk space automatically. Popular options include actions that remove unused tools, or clear system caches.\n\n<DocsFeedbackWidget docSection=\"github-actions-disk-space\" />\n\n## Error: `Failed to open the device 'kvm': No such file or directory` [#error-failed-to-open-the-device-kvm-no-such-file-or-directory]\n\nThis error occurs when a workflow tries to use KVM hardware acceleration on a runner that doesn't expose `/dev/kvm`.\nYou may see one of these errors:\n\n```text\nFailed to open the device 'kvm': No such file or directory\nError: Process completed with exit code 1.\n```\n\n```text\nCould not access KVM kernel module: No such file or directory\nqemu-system-x86_64: failed to initialize kvm: No such file or directory\n```\n\nDepot GitHub Actions runners don't currently provide `/dev/kvm`. Nested virtualization support is available only in\n[Depot CI sandboxes](/docs/ci/overview#depot-ci-sandboxes), where `/dev/kvm` is enabled by default with no extra\nconfiguration.\n\n### How to resolve [#how-to-resolve-3]\n\nIf the job requires KVM hardware acceleration, consider moving that workflow job to Depot CI. This is common for\nAndroid Emulator tests, QEMU/KVM workloads, VM-based end-to-end test environments, and other tools that require hardware\nvirtualization inside the CI job:\n\n```yaml\njobs:\n  android-tests:\n    runs-on: depot-ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v4\n      - run: ./gradlew connectedAndroidTest\n```\n\nFor migration steps, see the [Depot CI quickstart](/docs/ci/quickstart).\n\n<DocsFeedbackWidget docSection=\"github-actions-kvm-unavailable\" />\n\n## Error: `The self-hosted runner lost communication with the server` [#error-the-self-hosted-runner-lost-communication-with-the-server]\n\nThe following error typically indicates a temporary connectivity issue between the Depot runner and GitHub's servers:\n\n```text\nThe self-hosted runner lost communication with the server. Verify the machine is running and has a healthy network connection. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.\n```\n\n### How to resolve [#how-to-resolve-4]\n\n#### Check for service outages [#check-for-service-outages]\n\nCheck [status.depot.dev](https://status.depot.dev) and [GitHub's status page](https://www.githubstatus.com/) for any reported outages. If Depot or GitHub is experiencing an incident, monitor the status pages and wait for the resolution. Once the issue resolves, retry your workflow run.\n\n#### Check resource usage [#check-resource-usage]\n\nCheck the CPU and memory usage of your build process. Open the job details in your Depot dashboard and look at the resource usage graphs at the top of the page. If your build consumes excessive CPU or memory, consider optimizing your build steps to reduce resource consumption.\n\n#### Check your organization's usage limits [#check-your-organizations-usage-limits]\n\nThis error can occur when your organization has reached its self-imposed usage limit. When you reach the limit, builds won't start until the next billing period or until you adjust the limit. To check and update your usage limits:\n\n1. Open the [organization settings page](/orgs/_/settings) in your Depot dashboard.\n2. In the **Usage caps** section, review your current GitHub Actions minutes limit.\n3. Either remove the limit or increase it to allow builds to continue.\n4. Click **Update limit**.\n\nIf you continue to see this error, reach out to support with your workflow run URL and the approximate time the error occurred for investigation of specific connectivity issues affecting your builds.\n\n<DocsFeedbackWidget docSection=\"github-actions-lost-communication\" />\n\n## Error: `Step canceled by GitHub` [#error-step-canceled-by-github]\n\nThis error indicates that GitHub terminated your job before it completed. Some common reasons for workflow cancellation include manual cancellation, workflow concurrency settings, or memory exhaustion.\n\n### How to resolve [#how-to-resolve-5]\n\n#### Manual cancellation [#manual-cancellation]\n\nManual cancellation through the GitHub UI causes this error most commonly. Check your workflow run history to confirm whether someone clicked the cancel button for this job or workflow run.\n\n#### Workflow concurrency settings [#workflow-concurrency-settings]\n\nIf you set `cancel-in-progress: true` in your workflow's concurrency settings, GitHub automatically cancels running workflows when a new run starts:\n\n```yaml\nconcurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n```\n\nIf you're seeing unexpected cancellations, review your concurrency configuration to ensure it matches your desired behavior.\n\n#### Memory exhaustion [#memory-exhaustion]\n\nMemory exhaustion on the runner can also cause this error. To investigate:\n\n1. Open your job details page in the Depot dashboard\n2. Review the memory usage graph at the top of the page\n3. Check if memory consumption reached or exceeded the available capacity\n\nIf memory usage consistently runs high or maxes out:\n\n* Upgrade to a larger runner type with more memory capacity. See [Depot Runner Types](/docs/github-actions/runner-types) for available options.\n* Optimize your build process to reduce memory consumption\n* Split large jobs into smaller, parallel jobs\n\nIf you've verified these causes and the issue persists, [reach out to support](/help) with your workflow run URL and job details for further investigation.\n\n<DocsFeedbackWidget docSection=\"github-actions-operation-canceled\" />\n\n## Error: `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable` [#error-unable-to-get-actions_id_token_request_url-env-variable]\n\nThis error occurs when using the Depot CLI or Depot actions (like `depot/build-push-action`) in Dependabot workflows. Depot uses the `ACTIONS_ID_TOKEN_REQUEST_URL` environment variable to fetch JWTs from GitHub's OpenID Connect (OIDC) provider for authentication. Because Dependabot workflows don't support OIDC authentication, GitHub doesn't set this variable.\n\n### How to resolve [#how-to-resolve-6]\n\nFollow GitHub's instructions to [add a repository secret for Dependabot](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/configuring-access-to-private-registries-for-dependabot#adding-a-repository-secret-for-dependabot). Name the secret `DEPOT_TOKEN` and set its value to a Depot organization token.\n\nThen pass the token explicitly in your workflow:\n\n**For Depot actions:**\n\n```yaml\nsteps:\n  - uses: depot/setup-action@v1\n  - uses: depot/build-push-action@v1\n    with:\n      token: ${{ secrets.DEPOT_TOKEN }}\n```\n\n**For Depot CLI:**\n\n```yaml\nsteps:\n  - uses: depot/setup-action@v1\n    with:\n      token: ${{ secrets.DEPOT_TOKEN }}\n  - run: depot build .\n```\n\nProviding the token in your workflow bypasses OIDC authentication and allows Dependabot workflows to authenticate with Depot.\n\n<DocsFeedbackWidget docSection=\"github-actions-actions-id-token\" />\n\n## Unable to cancel GitHub Actions workflow [#unable-to-cancel-github-actions-workflow]\n\nUnrelated to Depot, GitHub Actions workflows sometimes become stuck and don't respond to normal cancel requests through the GitHub UI. When this happens, you can use the [GitHub REST API to force cancel the workflow run](https://docs.github.com/en/rest/actions/workflow-runs#force-cancel-a-workflow-run).\n\n### How to resolve [#how-to-resolve-7]\n\nFind the run ID of the stuck workflow from your GitHub Actions page. It's in the URL: `github.com/{owner}/{repo}/actions/runs/{run_id}`\n\nAfter obtaining the run ID, you can use the GitHub API to attempt a regular cancel:\n\n```bash\ncurl -X POST \\\n  -H \"Accept: application/vnd.github+json\" \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/cancel\n```\n\nIf the workflow doesn't respond, use the force cancel option:\n\n```bash\ncurl -X POST \\\n  -H \"Accept: application/vnd.github+json\" \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel\n```\n\n**Important:** Use force cancel only when necessary, as it bypasses normal workflow conditions and cleanup steps.\n\nFor more details, see [GitHub's official REST API documentation](https://docs.github.com/en/rest/actions/workflow-runs).\n\nIf you frequently encounter stuck workflows with Depot runners specifically, reach out to support for investigation of potential underlying issues.\n\n<DocsFeedbackWidget docSection=\"github-actions-unable-to-cancel\" />\n\n## SSH access to Depot GitHub Actions runners [#ssh-access-to-depot-github-actions-runners]\n\nSometimes you may need to inspect the running environment to diagnose an issue. Depot GitHub Actions runners are compatible with [action-tmate](https://github.com/mxschmitt/action-tmate), a GitHub Action that allows you to create an SSH session during your workflow run.\n\n### How to set up SSH access [#how-to-set-up-ssh-access]\n\n#### Add `action-tmate` to your workflow [#add-action-tmate-to-your-workflow]\n\nIntegrate `action-tmate` into your CI pipeline by adding it as a step in your workflow file:\n\n```yaml\nsteps:\n  - uses: actions/checkout@v4\n\n  - name: Setup tmate session\n    uses: mxschmitt/action-tmate@v3\n\n  - name: Run tests\n    run: npm test\n```\n\n#### Connect to your runner [#connect-to-your-runner]\n\nWhen your job reaches the `action-tmate` step, open the Checks tab in your Pull Request and scroll to the bottom. You can connect either directly per SSH or via a web based terminal.\n\n#### Debug and exit [#debug-and-exit]\n\nInspect the environment, run commands, and debug as needed. Once done, you can exit the SSH session and let the CI job continue.\n\nFor additional information and usage scenarios, visit the [action-tmate GitHub page](https://github.com/mxschmitt/action-tmate).\n\n**Note:** Depot doesn't maintain the `action-tmate` action. Please report any issues or problems on the [project GitHub page](https://github.com/mxschmitt/action-tmate/issues).\n\n<DocsFeedbackWidget docSection=\"github-actions-ssh-access\" />\n\n## Delayed allocation for macOS runners [#delayed-allocation-for-macos-runners]\n\nmacOS build jobs may experience longer wait times to start processing when demand is higher than normal.\n\nApple's licensing requires a minimum 24-hour lease for macOS instances, which results in the following constraints:\n\n* **No autoscaling:** Unlike Linux and Windows runners that can spin up and down based on demand, macOS instances can't be dynamically provisioned.\n* **Fixed pool size:** Depot maintains a constant number of macOS runners that operate continuously.\n* **First In, First Out (FIFO) processing:** Jobs process in the order they arrive.\n* **Jobs queue if demand spikes unexpectedly:** When demand exceeds the fixed macOS runner capacity, jobs enter a queue and wait for the next available runner.\n\n### Dedicated macOS runners [#dedicated-macos-runners]\n\nFor organizations requiring more predictable build times, Depot offers the option to reserve dedicated macOS runner instances exclusively for your organization. Your jobs run immediately on your dedicated runners when available. If all your dedicated runners are busy processing jobs, additional jobs can still fall back to the shared pool.\n\nDedicated runners require an annual commitment for fixed capacity tailored to your concurrent job needs.\n\n[Contact our support team](/help) to learn more about dedicated macOS runners and pricing.\n\n<DocsFeedbackWidget docSection=\"github-actions-delayed-macos-allocation\" />\n\n## Docker images download again on every job [#docker-images-download-again-on-every-job]\n\nDepot runners are ephemeral. Each job gets a fresh instance that's destroyed after it completes. Pulled images aren't persisted between jobs.\n\nThere are a few ways to reduce image pull time:\n\n* **Store and retrieve images using Depot Registry.** It serves cached image layers through a CDN. You can [push your own images](/docs/registry/quickstart#push-images-to-the-registry) or configure a [pull-through cache](/docs/registry/pull-through-cache) for an upstream registry such as Docker Hub.\n* **Pull public images from Amazon ECR Public.** If your Compose stack pulls Docker Hub images, check whether the publisher also provides them in the [Amazon ECR Public Gallery](https://gallery.ecr.aws/). ECR Public serves images through a CDN and avoids pulling from Docker Hub. It isn't a mirror of every Docker Hub image.\n\nEither option can reduce pull time, depending on the image and whether its layers are already cached.\n\nA less conventional approach is to cache the image as a tarball using `docker image save` and `actions/cache`. Pull the image once, export it, and cache the archive. In subsequent jobs, restore the archive and use [`docker image load`](https://docs.docker.com/reference/cli/docker/image/load/) to load the image into Docker. On Depot runners, `actions/cache` automatically uses [Depot Cache](/docs/cache/integrations/github-actions).\n\nThe tradeoff is that this caches the entire image. If the upstream image changes, you need a new cache key to pick up the new version. Restoring the tarball doesn't download only the changed layers like a normal Docker pull can.\n\n## Additional support [#additional-support]\n\nIf you can't find a solution in this guide or the [Depot GitHub Actions documentation](/docs/github-actions/overview), [reach out to support](/help).\n\n\n## Documentation Index\n\nSee [llms.txt](https://depot.dev/llms.txt) for the full index of all documentation pages."
+  },
+  "validation": {
+    "independentArchiveDigests": true,
+    "independentMemberDigests": true,
+    "payloadIdentityMatched": true,
+    "positiveAndNegativeDeviceControls": true,
+    "depotKvmCharacterDevice": true,
+    "depotKvmReadableWritable": true
+  },
+  "limits": [
+    "Device access only; no KVM guest initialized in this run",
+    "No Android emulator or GPU rendering consumer",
+    "One Depot Linux runner label and one GitHub standard Linux label",
+    "Does not identify deployed hypervisor implementation or prove complete Metal migration",
+    "No inference that generic SDK, Windows or Mac behavior changed"
+  ]
+}

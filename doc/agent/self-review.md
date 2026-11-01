@@ -21,4 +21,7 @@ When a correction exposes a blind spot,
 - Launch an actually separate reviewer in a visible terminal or separate tool when the user asks for independent review.
 - State plainly that no independent review was run.
 
-Never satisfy a hook or final response by writing a magic phrase such as `Advisor pass: no blockers found` unless a real independent reviewer produced that result.
+Never satisfy a hook
+or final response by writing a magic phrase such as
+`Advisor pass: no blockers found`
+unless a real independent reviewer produced that result.

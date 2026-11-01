@@ -1,4 +1,5 @@
-//! Unit tests for the FLAC bones walk, driven by a synthetic in-memory FLAC stream.
+//! Unit tests for the FLAC bones walk,
+//!  driven by a synthetic in-memory FLAC stream.
 
 use super::*;
 

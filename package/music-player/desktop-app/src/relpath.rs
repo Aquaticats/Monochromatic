@@ -1,17 +1,36 @@
-//! Pure relative-path display: strip the longest common directory prefix from
+//! Pure relative-path display:
+//!  strip the longest common directory prefix from
 //! the queue's track paths so the UI can show each track's path relative to the
 //! loaded root (e.g. `Artist/Album/01.flac` rather than the full absolute path,
-//! or just `01.flac` when the whole queue lives in one folder). No Slint, audio,
-//! or I/O, so it is fully unit-tested; `queue::Queue::display_paths` calls this
-//! to build the list handed to the UI, and `pagination` then groups the result
-//! (by folder for subfolder tracks, by first letter for root-level ones).
+//! or just `01.flac` when the whole queue lives in one folder).
+//!  No Slint,
+//!  audio,
+//! or I/O,
+//!  so it is fully unit-tested;
+//!  `queue::Queue::display_paths` calls this
+//! to build the list handed to the UI,
+//!  and `pagination` then groups the result
+//! (by folder for subfolder tracks,
+//!  by first letter for root-level ones).
 
-/// What:     `use std::path::{Component, Path, PathBuf};`. `PathBuf` is the OWNED,
-///           growable path (sibling: the borrowed `&Path`); `Path` is the borrowed
-///           view; `Component` is one piece of a split path (a root `/`, a `..`, a
-///           normal name segment, etc.).
-/// Why:      We borrow each track path (`&Path`), split it into `Component`s, and
-///           keep only the named segments; the input list is owned `PathBuf`s.
+/// What:
+///      `use std::path::{Component, Path, PathBuf};`.
+///  `PathBuf` is the OWNED,
+///           growable path (sibling:
+///  the borrowed `&Path`);
+///  `Path` is the borrowed
+///           view;
+///  `Component` is one piece of a split path (a root `/`,
+///  a `..`,
+///  a
+///           normal name segment,
+///  etc.).
+/// Why:
+///       We borrow each track path (`&Path`),
+///  split it into `Component`s,
+///  and
+///           keep only the named segments;
+///  the input list is owned `PathBuf`s.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,10 +38,16 @@
 /// ```
 use std::path::{Component, Path, PathBuf};
 
-/// What:     `const SEPARATOR: &str = "/";`. `&str` is a BORROWED string slice
-///           (sibling: the owned `String`); the separator we re-join segments with.
-/// Why:      The queue is Linux-only and the UI/pagination expect a single `/`
-///           separator; naming it avoids a bare `"/"` literal scattered around.
+/// What:
+///      `const SEPARATOR: &str = "/";`.
+///  `&str` is a BORROWED string slice
+///           (sibling:
+///  the owned `String`);
+///  the separator we re-join segments with.
+/// Why:
+///       The queue is Linux-only and the UI/pagination expect a single `/`
+///           separator;
+///  naming it avoids a bare `"/"` literal scattered around.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,170 +55,21 @@ use std::path::{Component, Path, PathBuf};
 /// ```
 const SEPARATOR: &str = "/";
 
-/// What:     `fn normal_components(path: &Path) -> Vec<String>`. Split a path into its
-///           NAMED segments only, each as an owned `String`. `&Path` is a read-only
-///           borrow; `Vec<String>` is the owned, growable array of owned strings
-///           (sibling: the borrowed slice `&[String]`). Private helper.
-/// Why:      Dropping the root (`/`) and any `.`/`..` leaves just the folder and file
-///           names, so prefix comparison and re-joining are clean and behave the same
-///           for absolute and relative inputs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function normalComponents(path: string): string[] {
-///   return path.split("/").filter(seg => seg !== "" && seg !== "." && seg !== "..");
-/// }
-/// ```
-fn normal_components(path: &Path) -> Vec<String> {
-    // What:     `let mut out: Vec<String> = Vec::new();`. `Vec::new()` builds a fresh
-    //           empty owned array. `mut` marks it mutable (bindings are read-only by
-    //           default); the explicit type is needed because it starts empty.
-    // Why:      Accumulate the named segments.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const out: string[] = [];
-    // ```
-    let mut out: Vec<String> = Vec::new();
-    // What:     `for component in path.components() { ... }`. `path.components()` is an
-    //           iterator over the path's pieces as `Component` values; `for ... in`
-    //           consumes it one piece at a time.
-    // Why:      Inspect each piece and keep only the named ones.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const component of path.split("/")) { ... }
-    // ```
-    for component in path.components() {
-        // What:     `if let Component::Normal(part) = component { ... }`. A one-arm
-        //           pattern match: run the block only when the piece is the `Normal`
-        //           variant (a real name segment, not `/`, `.`, or `..`), binding its
-        //           inner `&OsStr` (an OS string slice) to `part`.
-        // Why:      Skip the root and relative markers; keep only folder/file names.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (segment !== "" && segment !== "." && segment !== "..") { ... }
-        // ```
-        if let Component::Normal(part) = component {
-            // What:     `out.push(part.to_string_lossy().into_owned());`.
-            //           `part.to_string_lossy()` makes a `Cow<str>` (borrowed-or-owned,
-            //           replacing invalid UTF-8 bytes); `.into_owned()` forces an owned
-            //           `String`; `.push(...)` appends it (MOVING it into the vector).
-            // Why:      Store an owned copy that outlives the borrowed path.
-            // Gotcha:   `to_string_lossy` may REPLACE invalid bytes with U+FFFD rather
-            //           than fail; an OS path is not guaranteed valid UTF-8.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // out.push(segment);
-            // ```
-            out.push(part.to_string_lossy().into_owned());
-        }
-    }
-    // What:     `out`. Tail expression (no trailing `;`) -> the function's return.
-    // Why:      Hand back the named segments.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return out;
-    // ```
-    return out
-}
-
-/// What:     `fn common_prefix_len(lists: &[Vec<String>]) -> usize`. How many LEADING
-///           segments every track shares, capped so at least one segment (the
-///           filename) always remains. `&[Vec<String>]` is a borrowed slice of
-///           segment lists; `usize` is the pointer-sized unsigned integer used for
-///           lengths/indices (siblings: `u32`, `u64`, `i32`). Private helper.
-/// Why:      That shared prefix is the "loaded root"; stripping it turns absolute
-///           paths into the relative paths the UI shows.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function commonPrefixLen(lists: string[][]): number { ... }
-/// ```
-fn common_prefix_len(lists: &[Vec<String>]) -> usize {
-    // What:     `let shortest = lists.iter().map(|list| list.len()).min().unwrap_or(0);`.
-    //           `.iter()` borrows each list; `.map(|list| list.len())` turns each into
-    //           its length; `.min()` returns `Option<usize>` (the smallest, or `None`
-    //           for no lists); `.unwrap_or(0)` extracts it or substitutes 0. `|list|
-    //           ...` is a closure taking a borrowed list.
-    // Why:      The common prefix cannot be longer than the shortest path.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const shortest = lists.length ? Math.min(...lists.map((l) => l.length)) : 0;
-    // ```
-    let shortest = lists.iter().map(|list| return list.len()).min().unwrap_or(0);
-    // What:     `if shortest == 0 { return 0; }`. Early return when some path has no
-    //           named segments (nothing to strip).
-    // Why:      Avoid the `shortest - 1` underflow below (`usize` is unsigned, so
-    //           `0 - 1` would panic in debug builds).
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (shortest === 0) return 0;
-    // ```
-    if shortest == 0 {
-        return 0;
-    }
-    // What:     `let cap = shortest - 1;`. The most segments we may strip, leaving at
-    //           least the final one (the filename) on every track.
-    // Why:      A row must never collapse to an empty label.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const cap = shortest - 1;
-    // ```
-    let cap = shortest - 1;
-    // What:     `let mut run: usize = 0;`. A counter for how many leading segments
-    //           match so far. `mut` because the loop increments it.
-    // Why:      Count the shared run.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let run = 0;
-    // ```
-    let mut run: usize = 0;
-    // What:     `while run < cap && lists.iter().all(|list| list[run] == lists[0][run]) { ... }`.
-    //           Keep going while we are under the cap AND every list agrees on the
-    //           segment at position `run`. `.all(|list| ...)` is true only when the
-    //           closure holds for every element; `list[run]` indexes a list (safe:
-    //           `run < cap < shortest <= every length`). `lists[0]` is the reference
-    //           list. `&&` short-circuits, so `.all` runs only while under the cap.
-    // Why:      One linear scan finds the longest shared leading run, no recursion.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // while (run < cap && lists.every((l) => l[run] === lists[0][run])) run++;
-    // ```
-    while run < cap && lists.iter().all(|list| return list[run] == lists[0][run]) {
-        // What:     `run += 1;`. Advance past a matching segment.
-        // Why:      Move to the next position.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // run++;
-        // ```
-        run += 1;
-    }
-    // What:     `run`. Tail expression -> the shared-prefix length.
-    // Why:      Hand back how many leading segments to strip.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return run;
-    // ```
-    return run
-}
-
-/// What:     `pub fn relative_display_paths(tracks: &[PathBuf]) -> Vec<String>`. Turn
+/// What:
+///      `pub fn relative_display_paths(tracks: &[PathBuf]) -> Vec<String>`.
+///  Turn
 ///           each track's full path into its path relative to the queue's common
-///           root. `&[PathBuf]` is a borrowed slice of owned paths (read-only); the
-///           result is one owned relative string per track, in order.
-/// Why:      The UI shows folders, not just filenames, but the absolute prefix (e.g.
-///           `/home/user/Music`) is noise; this strips it once per queue.
+///           root.
+///  `&[PathBuf]` is a borrowed slice of owned paths (read-only);
+///  the
+///           result is one owned relative string per track,
+///  in order.
+/// Why:
+///       The UI shows folders,
+///  not just filenames,
+///  but the absolute prefix (e.g.
+///           `/home/user/Music`) is noise;
+///  this strips it once per queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,100 +84,203 @@ fn common_prefix_len(lists: &[Vec<String>]) -> usize {
 /// }
 /// ```
 pub fn relative_display_paths(tracks: &[PathBuf]) -> Vec<String> {
-    // What:     `if tracks.is_empty() { return Vec::new(); }`. Early return for an
-    //           empty queue. `Vec::new()` builds an empty owned array.
-    // Why:      Nothing to relativize; `common_prefix_len` of nothing is undefined.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (tracks.length === 0) return [];
-    // ```
-    if tracks.is_empty() {
-        return Vec::new();
-    }
-    // What:     `let component_lists: Vec<Vec<String>> = tracks.iter().map(|p| normal_components(p)).collect();`.
-    //           Borrow each track (`p: &PathBuf`, which derefs to the `&Path`
-    //           `normal_components` takes), split it into named segments, and
-    //           `.collect()` the per-track lists into one vector of lists.
-    // Why:      Compute every path's segments once, reused for the prefix and the
-    //           per-track remainder.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const componentLists = tracks.map(normalComponents);
-    // ```
-    let component_lists: Vec<Vec<String>> = tracks.iter().map(|p| return normal_components(p)).collect();
-    // What:     `let prefix_len = common_prefix_len(&component_lists);`. `&...` lends
-    //           the lists read-only to the helper.
-    // Why:      Decide how many leading segments are the shared root.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const prefixLen = commonPrefixLen(componentLists);
-    // ```
-    let prefix_len = common_prefix_len(&component_lists);
-    // What:     `component_lists.iter().zip(tracks.iter()).map(|(list, path)| { ... }).collect()`.
-    //           `.zip(tracks.iter())` pairs each segment list with its original path
-    //           so the fallback can reach the full path; `.map(|(list, path)| ...)`
-    //           takes a DESTRUCTURED tuple of the two and builds each relative string;
-    //           `.collect()` gathers them into the returned `Vec<String>`. Tail
-    //           expression -> return.
-    // Why:      Produce one relative path per track, preserving load order.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return componentLists.map((list, i) => { ... });
-    // ```
-    return component_lists
-        .iter()
-        .zip(tracks.iter())
-        .map(|(list, path)| {
-            // What:     `let relative = list[prefix_len..].join(SEPARATOR);`.
-            //           `list[prefix_len..]` is a slice of the segments AFTER the
-            //           shared prefix (a RANGE index; `..` means "to the end");
-            //           `.join(SEPARATOR)` glues them with `/` into an owned `String`.
-            // Why:      The segments past the common root ARE the relative path.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const relative = list.slice(prefixLen).join("/");
-            // ```
-            let relative = list[prefix_len..].join(SEPARATOR);
-            // What:     `if relative.is_empty() { path.to_string_lossy().into_owned() } else { relative }`.
-            //           An `if/else` EXPRESSION (no `;`) evaluating to one branch's
-            //           `String`. `path.to_string_lossy().into_owned()` is the
-            //           full-path fallback (lossy UTF-8, then owned).
-            // Why:      Defensive: a pathological path with no named segments would
-            //           join to "", so show its full text instead of nothing.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return relative === "" ? path : relative;
-            // ```
-            if relative.is_empty() {
-                return path.to_string_lossy().into_owned()
-            } else {
-                return relative
-            }
-        })
-        .collect()
+    return relative_display_paths_in(tracks, None);
 }
 
-/// What:     `#[cfg(test)] #[path = "relpath_tests.rs"] mod tests;` declares a
-///           test-only submodule whose code lives in the sibling file
-///           `relpath_tests.rs`. `#[cfg(test)]` gates it to test builds only;
-///           `#[path = "..."]` aims the module at a flat sibling file instead of the
-///           default `relpath/tests.rs` subdirectory lookup. The file stays the
-///           `tests` CHILD of relpath, so its `use super::*` reaches the module items
-///           (including private ones) unchanged.
-/// Why:      Keep `relpath.rs` to production code; the tests live beside it without
-///           inflating this file or its max-lines budget (sibling `*_tests.rs` files
-///           are exempt from the linter).
+/// What:
+///      `pub fn relative_display_paths_in(tracks: &[PathBuf], root: Option<&Path>) -> Vec<String>`.
+///  Like `relative_display_paths`, but relative to the opened folder `root` when every track lies under it, so a
+///  library with one top-level folder keeps that folder in its names.
+/// Why:
+///       Stripping the longest shared directory made `Music/Artist/*.flac` look like loose files and hid the folder
+///  (the polish review finding LS1). The folder walk's own batch names are already relative to the root, so Search and
+///  the queue now agree for every library, not only for those with several top-level entries. Without a root, or when
+///  a track lies outside it, the shared directory is stripped as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // relpath.unit.test.ts, run only by the test runner
+/// const relativeDisplayPathsIn = (tracks: string[], root?: string) => tracks.map((t) => relativeTo(root ?? commonDir(tracks), t));
 /// ```
+pub fn relative_display_paths_in(tracks: &[PathBuf], root: Option<&Path>) -> Vec<String> {
+    if tracks.is_empty() {
+        return Vec::new();
+    }
+    let prefix_len: usize = display_prefix_len(tracks, root);
+    // Join the components after the stripped prefix.
+    return tracks
+        .iter()
+        .map(|path| {
+            let mut relative: String = String::new();
+            for (position, part) in normal_parts(path).skip(prefix_len).enumerate() {
+                if position > 0 {
+                    relative.push_str(SEPARATOR);
+                }
+                relative.push_str(&part);
+            }
+            if relative.is_empty() {
+                return path.to_string_lossy().into_owned();
+            }
+            return relative;
+        })
+        .collect();
+}
+
+/// What:
+///      `fn display_prefix_len(tracks: &[PathBuf], root: Option<&Path>) -> usize`.
+///  How many leading components every display name drops: the components of `root` when every track lies strictly
+///  under it, otherwise the shared directory of the tracks.
+/// Why:
+///       One rule picks the prefix for the names and for the page keys, so a track's page never disagrees with its name.
+fn display_prefix_len(tracks: &[PathBuf], root: Option<&Path>) -> usize {
+    let Some(root_path) = root else {
+        return shared_prefix_len(tracks);
+    };
+    let root_parts: Vec<std::borrow::Cow<'_, str>> = normal_parts(root_path).collect();
+    if root_parts.is_empty() {
+        tracing::debug!(root = %root_path.display(), "the opened folder has no named component; the shared directory is stripped");
+        return shared_prefix_len(tracks);
+    }
+    let all_under_root: bool = tracks.iter().all(|path| {
+        let mut parts = normal_parts(path);
+        for root_part in &root_parts {
+            if parts.next().is_none_or(|part| return part != *root_part) {
+                return false;
+            }
+        }
+        return parts.next().is_some();
+    });
+    if all_under_root {
+        return root_parts.len();
+    }
+    tracing::debug!(root = %root_path.display(), "a track lies outside the opened folder; the shared directory is stripped");
+    return shared_prefix_len(tracks);
+}
+
+/// What:
+///      `pub fn shared_prefix_len(tracks: &[PathBuf]) -> usize`.
+///  How many leading components every path shares,
+///  never counting a path's last component.
+/// Why:
+///       The display name of a track is its path without this prefix;
+///  counting it takes one pass that allocates nothing,
+///  where building a component list per path took hundreds of megabytes at one million tracks.
+fn shared_prefix_len(tracks: &[PathBuf]) -> usize {
+    let Some(first_path) = tracks.first() else {
+        return 0;
+    };
+    let first_parts: Vec<std::borrow::Cow<'_, str>> = normal_parts(first_path).collect();
+    let mut shortest: usize = first_parts.len();
+    let mut shared: usize = first_parts.len();
+    for path in tracks {
+        let mut length: usize = 0;
+        let mut matching: usize = 0;
+        let mut still_matching: bool = true;
+        for part in normal_parts(path) {
+            if still_matching && matching < shared && first_parts.get(length).is_some_and(|first| return *first == part) {
+                matching += 1;
+            } else {
+                still_matching = false;
+            }
+            length += 1;
+        }
+        shortest = shortest.min(length);
+        shared = shared.min(matching);
+    }
+    return if shortest == 0 { 0 } else { shared.min(shortest - 1) };
+}
+
+/// What:
+///      `enum PageKey<'a> { Folder(Cow<'a, str>), Letter(char), CatchAll }`.
+///  Which page of the queue a display name belongs to.
+/// Why:
+///       `pagination` puts a name with a folder in that folder's page,
+///  a root-level name starting with an ASCII letter in that letter's page (a virtual folder named by the letter),
+///  and any other root-level name in the `#` page.
+#[derive(PartialEq, Eq)]
+enum PageKey<'a> {
+    /// The page of the folder with this name.
+    Folder(std::borrow::Cow<'a, str>),
+    /// The page of this upper-case ASCII letter.
+    Letter(char),
+    /// The `#` page.
+    CatchAll,
+}
+
+/// What:
+///      `fn page_key_of(path: &Path, prefix_len: usize) -> PageKey<'_>`.
+///  The page of one track,
+///  from its first two components after the dropped prefix.
+/// Why:
+///       It gives the same page as `paginate` gives the display name,
+///  without building the name.
+fn page_key_of(path: &Path, prefix_len: usize) -> PageKey<'_> {
+    let mut parts = normal_parts(path).skip(prefix_len);
+    let Some(first) = parts.next() else {
+        return PageKey::CatchAll;
+    };
+    if parts.next().is_some() {
+        return PageKey::Folder(first);
+    }
+    return match first.chars().next() {
+        Some(letter) if letter.is_ascii_alphabetic() => PageKey::Letter(letter.to_ascii_uppercase()),
+        _ => PageKey::CatchAll,
+    };
+}
+
+/// What:
+///      `pub fn page_scope_for_anchor(tracks: &[PathBuf], anchor: usize) -> Option<Vec<usize>>`.
+///  The positions of every track on the same page as `anchor`,
+///  or `None` when `anchor` is past the end.
+/// Why:
+///       Playback scope follows the page of the playing track.
+///  Grouping every name into pages to find one page cost over a second at one million tracks;
+///  comparing page keys does not allocate per track.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pageScopeForAnchor = (tracks: string[], anchor: number) => tracks.flatMap((_, i) => pageKey(i) === pageKey(anchor) ? [i] : []);
+/// ```
+pub fn page_scope_for_anchor(tracks: &[PathBuf], anchor: usize) -> Option<Vec<usize>> {
+    return page_scope_for_anchor_in(tracks, anchor, None);
+}
+
+/// What:
+///      `pub fn page_scope_for_anchor_in(tracks, anchor, root) -> Option<Vec<usize>>`.
+///  `page_scope_for_anchor` for names that are relative to the opened folder `root` (see `relative_display_paths_in`).
+/// Why:
+///       The engine's playback scope must be the page the window shows, and the window groups the names
+///  `relative_display_paths_in` makes, so both must drop the same prefix.
+pub fn page_scope_for_anchor_in(tracks: &[PathBuf], anchor: usize, root: Option<&Path>) -> Option<Vec<usize>> {
+    let anchor_path: &PathBuf = tracks.get(anchor)?;
+    let prefix_len: usize = display_prefix_len(tracks, root);
+    let wanted: PageKey<'_> = page_key_of(anchor_path, prefix_len);
+    return Some(
+        tracks
+            .iter()
+            .enumerate()
+            .filter(|(_, path)| return page_key_of(path, prefix_len) == wanted)
+            .map(|(position, _)| return position)
+            .collect(),
+    );
+}
+
+/// What:
+///      `fn normal_parts(path: &Path) -> impl Iterator<Item = Cow<'_, str>>`.
+///  The normal components of a path as text,
+///  borrowed when the name is valid UTF-8.
+/// Why:
+///       `relative_display_paths` walks every track twice;
+///  borrowing keeps that to the cost of reading the components,
+///  with no allocation per component.
+fn normal_parts(path: &Path) -> impl Iterator<Item = std::borrow::Cow<'_, str>> {
+    return path.components().filter_map(|component| {
+        return match component {
+            Component::Normal(part) => Some(part.to_string_lossy()),
+            _ => None,
+        };
+    });
+}
+
 #[cfg(test)]
 #[path = "relpath_tests.rs"]
 mod tests;

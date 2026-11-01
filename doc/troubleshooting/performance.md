@@ -1,6 +1,7 @@
 # Performance Troubleshooting & Optimizations
 
-Performance troubleshooting documentation has been organized into focused areas for better maintainability and navigation.
+Performance troubleshooting documentation has been organized into focused areas for better maintainability
+and navigation.
 
 ## Performance Troubleshooting Categories
 

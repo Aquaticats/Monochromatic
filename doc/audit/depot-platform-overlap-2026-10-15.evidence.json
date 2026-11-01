@@ -1,0 +1,276 @@
+{
+  "capturedAt": "2026-10-15T22:53:39.467Z",
+  "day": "2026-10-15",
+  "totals": {
+    "alpine": 13,
+    "windows": 33
+  },
+  "completedPushCounts": {
+    "alpine": 13,
+    "windows": 21
+  },
+  "pairs": [
+    {
+      "revision": "9e4b09e2d180020194cfbabc9d5d8d38c9c8e449",
+      "alpine": 38765172148,
+      "windows": 38765171887,
+      "alpineConclusion": "success",
+      "windowsConclusion": "success",
+      "platforms": {
+        "alpine": {
+          "jobs": [
+            {
+              "id": 116529435147,
+              "name": "alpine-aarch64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T16:05:48Z",
+              "completedAt": "2026-10-15T16:17:08Z"
+            },
+            {
+              "id": 116529435381,
+              "name": "alpine-x86_64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T16:05:45Z",
+              "completedAt": "2026-10-15T16:12:15Z"
+            }
+          ],
+          "firstJobStart": 1792080345000,
+          "lastJobFinish": 1792081028000
+        },
+        "windows": {
+          "jobs": [
+            {
+              "id": 116531074075,
+              "name": "msvc-arm64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T16:09:04Z",
+              "completedAt": "2026-10-15T16:17:42Z"
+            },
+            {
+              "id": 116531074265,
+              "name": "msvc-x64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T16:09:04Z",
+              "completedAt": "2026-10-15T16:18:22Z"
+            },
+            {
+              "id": 116531074403,
+              "name": "gnu-x64-ucrt64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T16:09:04Z",
+              "completedAt": "2026-10-15T16:18:52Z"
+            }
+          ],
+          "firstJobStart": 1792080544000,
+          "lastJobFinish": 1792081132000
+        }
+      },
+      "comparableSuccess": true,
+      "linuxFinishesAfterWindowsSeconds": -104,
+      "maximumEarlierCompletionFromLinuxAloneSeconds": 0
+    },
+    {
+      "revision": "185840d7583eb6ccafab071c97ca0bf069be5050",
+      "alpine": 38765128314,
+      "windows": 38765128213,
+      "alpineConclusion": "success",
+      "windowsConclusion": "success",
+      "platforms": {
+        "alpine": {
+          "jobs": [
+            {
+              "id": 116526234604,
+              "name": "alpine-x86_64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T15:59:21Z",
+              "completedAt": "2026-10-15T16:05:42Z"
+            },
+            {
+              "id": 116526235015,
+              "name": "alpine-aarch64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T15:59:23Z",
+              "completedAt": "2026-10-15T16:04:34Z"
+            }
+          ],
+          "firstJobStart": 1792079961000,
+          "lastJobFinish": 1792080342000
+        },
+        "windows": {
+          "jobs": [
+            {
+              "id": 116526235602,
+              "name": "msvc-arm64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T15:59:21Z",
+              "completedAt": "2026-10-15T16:09:01Z"
+            },
+            {
+              "id": 116526235758,
+              "name": "gnu-x64-ucrt64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T15:59:21Z",
+              "completedAt": "2026-10-15T16:09:00Z"
+            },
+            {
+              "id": 116526235814,
+              "name": "msvc-x64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T15:59:21Z",
+              "completedAt": "2026-10-15T16:07:01Z"
+            }
+          ],
+          "firstJobStart": 1792079961000,
+          "lastJobFinish": 1792080541000
+        }
+      },
+      "comparableSuccess": true,
+      "linuxFinishesAfterWindowsSeconds": -199,
+      "maximumEarlierCompletionFromLinuxAloneSeconds": 0
+    },
+    {
+      "revision": "4144c6c93323755afe4d47217bdcb7744e1f10f2",
+      "alpine": 38698502481,
+      "windows": 38698502408,
+      "alpineConclusion": "success",
+      "windowsConclusion": "success",
+      "platforms": {
+        "alpine": {
+          "jobs": [
+            {
+              "id": 116300692316,
+              "name": "alpine-aarch64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T07:24:14Z",
+              "completedAt": "2026-10-15T07:29:34Z"
+            },
+            {
+              "id": 116300692633,
+              "name": "alpine-x86_64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T07:24:12Z",
+              "completedAt": "2026-10-15T07:29:33Z"
+            }
+          ],
+          "firstJobStart": 1792049052000,
+          "lastJobFinish": 1792049374000
+        },
+        "windows": {
+          "jobs": [
+            {
+              "id": 116300690450,
+              "name": "gnu-x64-ucrt64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T07:24:12Z",
+              "completedAt": "2026-10-15T07:31:37Z"
+            },
+            {
+              "id": 116300690753,
+              "name": "msvc-arm64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T07:24:12Z",
+              "completedAt": "2026-10-15T07:31:10Z"
+            },
+            {
+              "id": 116300690882,
+              "name": "msvc-x64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T07:24:12Z",
+              "completedAt": "2026-10-15T07:30:07Z"
+            }
+          ],
+          "firstJobStart": 1792049052000,
+          "lastJobFinish": 1792049497000
+        }
+      },
+      "comparableSuccess": true,
+      "linuxFinishesAfterWindowsSeconds": -123,
+      "maximumEarlierCompletionFromLinuxAloneSeconds": 0
+    },
+    {
+      "revision": "aa9f48eaf6801901b9bcb14993069e74397bd0fc",
+      "alpine": 38691773551,
+      "windows": 38691773599,
+      "alpineConclusion": "failure",
+      "windowsConclusion": "success",
+      "platforms": {
+        "alpine": {
+          "jobs": [
+            {
+              "id": 116279081464,
+              "name": "alpine-aarch64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T06:20:03Z",
+              "completedAt": "2026-10-15T06:25:02Z"
+            },
+            {
+              "id": 116279081766,
+              "name": "alpine-x86_64",
+              "status": "completed",
+              "conclusion": "failure",
+              "startedAt": "2026-10-15T06:20:00Z",
+              "completedAt": "2026-10-15T06:26:26Z"
+            }
+          ],
+          "firstJobStart": 1792045200000,
+          "lastJobFinish": 1792045586000
+        },
+        "windows": {
+          "jobs": [
+            {
+              "id": 116279081433,
+              "name": "msvc-x64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T06:20:01Z",
+              "completedAt": "2026-10-15T06:28:57Z"
+            },
+            {
+              "id": 116279081645,
+              "name": "msvc-arm64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T06:20:01Z",
+              "completedAt": "2026-10-15T06:30:27Z"
+            },
+            {
+              "id": 116279081749,
+              "name": "gnu-x64-ucrt64",
+              "status": "completed",
+              "conclusion": "success",
+              "startedAt": "2026-10-15T06:20:01Z",
+              "completedAt": "2026-10-15T06:31:04Z"
+            }
+          ],
+          "firstJobStart": 1792045201000,
+          "lastJobFinish": 1792045864000
+        }
+      },
+      "comparableSuccess": false,
+      "linuxFinishesAfterWindowsSeconds": null,
+      "maximumEarlierCompletionFromLinuxAloneSeconds": null
+    }
+  ],
+  "limitations": [
+    "Matching successful push runs by exact commit identifies only observed paired-platform executions.",
+    "Maximum earlier completion assumes Linux could finish instantly and Windows remains unchanged; it is an upper bound, not a forecast.",
+    "Other required workflows may reduce the benefit further.",
+    "Failed Linux runs are retained but excluded from successful-completion comparisons."
+  ]
+}

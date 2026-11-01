@@ -214,10 +214,10 @@ export type EmbeddedResource = {
  */
 export type ToolContent =
   | TextContent
-  | ImageContent
-  | AudioContent
-  | ResourceLink
-  | EmbeddedResource;
+    | ImageContent
+    | AudioContent
+    | ResourceLink
+    | EmbeddedResource;
 
 /**
  Result returned from a tool call handler.

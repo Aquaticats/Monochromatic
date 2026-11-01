@@ -23,7 +23,8 @@ run,
    Framework7 ships zero native code and no JS engine of its own:
    it is a JS/HTML/CSS library ("Full Featured Mobile HTML Framework For Building iOS & Android Apps",
    /tmp/agent/framework7-audit-20260612/`README.md` line 11).
-   On an iOS device its app code (the F7 core + Vue/React/Svelte bindings + your UI JS) runs as JavaScript inside the host shell's WKWebView,
+   On an iOS device its app code (the F7 core + Vue/React/Svelte bindings + your UI JS) runs as JavaScript inside the
+   host shell's WKWebView,
    executed by WebKit's out-of-process JavaScriptCore.
    F7's only platform contact is feature-detection of the shell:
    window.
@@ -112,7 +113,8 @@ podspec (CocoaPods) or Package.
 swift (SPM).
  A Capacitor plugin (Swift class extending CAPPlugin/CAPBridgedPlugin,
  methods marked @objc,
- registered via pluginMethods/CAPPluginMethod and registerPlugin()) calls the static lib's C/FFI symbols and returns results to the WebView through CAPPluginCall.
+ registered via pluginMethods/CAPPluginMethod and registerPlugin()) calls the static lib's C/FFI symbols
+ and returns results to the WebView through CAPPluginCall.
 resolve().
  Framework7's JS UI invokes that plugin like any JS module.
  F7 contributes nothing to the FFI path beyond rendering the UI that triggers it.
@@ -135,7 +137,8 @@ js
 Inherited from the Capacitor substrate;
  Framework7 has no background story of its own (it is paused JS in a backgrounded WebView).
  A multi-hour kopia snapshot cannot be a long-running foreground process on iOS;
- it must be restructured around background URLSession (chunked uploads to pCloud that the system continues while suspended) and BGProcessingTask (short,
+ it must be restructured around background URLSession
+ (chunked uploads to pCloud that the system continues while suspended) and BGProcessingTask (short,
  idle/charging windows),
  both written as native Swift in the Capacitor Xcode project and surfaced to the F7 UI via a custom plugin.
  This is identical to every other WKWebView candidate:
@@ -158,9 +161,11 @@ Feasible:
 Mechanism:
  Substrate capability,
  not Framework7's.
- An in-app local HTTP/S3 endpoint that kopia targets is implemented as native Swift (e.g. an embedded NSURLSession/Network.
+ An in-app local HTTP/S3 endpoint that kopia targets is implemented as native Swift
+ (e.g. an embedded NSURLSession/Network.
 framework listener,
- or by linking kopia's own server as part of the static lib) inside the Capacitor Xcode project and controlled through a CAPPlugin.
+ or by linking kopia's own server as part of the static lib) inside the Capacitor Xcode project
+ and controlled through a CAPPlugin.
  F7's WebView JS cannot itself bind a listening socket,
  but it does not need to:
  the loopback server runs at the native layer and the F7 UI starts/stops it via the plugin bridge.
@@ -185,7 +190,8 @@ Mechanism:
  (1) From F7's JS in the WKWebView,
  standard web fetch/streams reach pCloud over HTTPS (WKWebView is a modern WebKit engine).
  (2) For true streaming/background upload that survives app suspension,
- a native Swift URLSession (background configuration) is written in the Capacitor Xcode project and driven from the F7 UI through a CAPPlugin.
+ a native Swift URLSession (background configuration) is written in the Capacitor Xcode project and driven
+ from the F7 UI through a CAPPlugin.
  Framework7 supplies only the JS calling surface;
  the streaming transport is the shell's.
 
@@ -210,7 +216,8 @@ Output:
 
 Rust core reuse:
  REUSE via FFI -- not a rewrite on AVAudioEngine.
- The Rust core (symphonia decode + true-peak normalization + on-disk peak cache + cpal CoreAudio output) compiles to a staticlib/xcframework and links into the Capacitor Xcode project exactly like the kopia lib (wall 1).
+ The Rust core (symphonia decode + true-peak normalization + on-disk peak cache + cpal CoreAudio output) compiles to a
+ staticlib/xcframework and links into the Capacitor Xcode project exactly like the kopia lib (wall 1).
  cpal already has an iOS/CoreAudio backend,
  so the audio engine stays in Rust.
  A thin Capacitor CAPPlugin bridges transport/queue/session control between the Rust core and Framework7's JS UI;
@@ -233,9 +240,11 @@ js
 ## Gate probe and toolchain
 
 Build a Capacitor iOS app whose WebView loads a trivial Framework7 UI (one F7 page with one F7 button),
- plus one custom Capacitor plugin (Swift CAPPlugin) that calls a linked Rust/Go staticlib (the FFI round-trip standing in for kopia/symphonia).
+ plus one custom Capacitor plugin (Swift CAPPlugin)
+ that calls a linked Rust/Go staticlib (the FFI round-trip standing in for kopia/symphonia).
  On-device signal:
- tap the Framework7 button on the iPhone X and see the value returned across dart-free Swift-to-JS bridge (CAPPluginCall.
+ tap the Framework7 button on the iPhone X
+ and see the value returned across dart-free Swift-to-JS bridge (CAPPluginCall.
 resolve) render back inside the WebView.
  Passing proves (a) F7 JS executes in the JIT-blessed WKWebView,
  and (b) the substrate links and calls a native static lib from app code.
@@ -251,7 +260,8 @@ js + npm for Capacitor CLI (@capacitor/core,
  @capacitor/ios),
  Framework7 npm package,
  and the cross-compilers for the static lib:
- Go with gomobile (for kopia c-archive) and/or the Rust aarch64-apple-ios toolchain (rustup target add aarch64-apple-ios) for the music-player core.
+ Go with gomobile (for kopia c-archive) and/or the Rust aarch64-apple-ios toolchain
+ (rustup target add aarch64-apple-ios) for the music-player core.
  A code-signing identity / provisioning profile for on-device install (already established by the canary).
 
 ## Supporting-stack vets this framework drags in
@@ -284,7 +294,8 @@ js + npm for Capacitor CLI (@capacitor/core,
 
 - Framework7 is a JS/HTML/CSS UI library for building iOS/Android apps;
    ships no native code:
-   /tmp/agent/framework7-audit-20260612/`README.md` line 11 ('Full Featured Mobile HTML Framework For Building iOS & Android Apps');
+   /tmp/agent/framework7-audit-20260612/`README.md` line 11
+   ('Full Featured Mobile HTML Framework For Building iOS & Android Apps');
    `package.json` dependencies are pure-JS (dom7,
    swiper,
    ssr-window,
@@ -322,7 +333,8 @@ js + npm for Capacitor CLI (@capacitor/core,
    capacitorjs.
   com/docs/ios ('Capacitor uses WKWebView,
    not the deprecated UIWebView')
-- Custom native Swift/ObjC code is added via CAPPlugin + @objc methods + registerPlugin bridge in the generated Xcode project:
+- Custom native Swift/ObjC code is added via CAPPlugin + @objc methods + registerPlugin bridge in the generated Xcode
+   project:
    capacitorjs.
   com/docs/ios/custom-code
 - Static libraries / xcframeworks (Go c-archive,
@@ -340,7 +352,8 @@ js + npm for Capacitor CLI (@capacitor/core,
    capacitorjs.
   com/docs/ios/custom-code;
    capacitorjs.
-  com/docs/basics/workflow ('Opening the native project can give you full control over the native runtime... create plugins,
+  com/docs/basics/workflow
+  ('Opening the native project can give you full control over the native runtime... create plugins,
    add custom native code')
 
 ## Adversarial cite-check
@@ -354,7 +367,8 @@ js + npm for Capacitor CLI (@capacitor/core,
    one precision nuance worth flagging (does NOT flip either verdict).
 
 VERIFIED REPO CLAIMS (all exact):
-- `README.md` line 11 contains verbatim "Full Featured Mobile HTML Framework For Building iOS & Android Apps" (cited correctly for iosRuntimeModel).
+- `README.md` line 11 contains verbatim "Full Featured Mobile HTML Framework For Building iOS & Android Apps"
+   (cited correctly for iosRuntimeModel).
 - src/core/shared/get-device.
   js lines 25-27 are exactly:
    line 25 `cordova: !!window.cordova,`,
@@ -396,7 +410,8 @@ VERIFIED DOC CLAIMS (all exact quotes confirmed on live pages):
    not the deprecated UIWebView.
   "
 - capacitorjs.
-  com/docs/plugins/ios confirms "Capacitor iOS plugins are both CocoaPods and Swift Package Manager libraries... edit the .
+  com/docs/plugins/ios confirms "Capacitor iOS plugins are both CocoaPods and Swift Package Manager libraries...
+  edit the .
   podspec for CocoaPods and the Package.
   swift for SPM",
    plus CAPPluginCall / call.
@@ -412,14 +427,17 @@ VERIFIED DOC CLAIMS (all exact quotes confirmed on live pages):
 
 PRECISION NUANCE (not a flip,
  not blocking):
- The wall-2 verdict attributes the "out-of-process JavaScriptCore" and "WebView process holds the dynamic-codesigning (JIT) entitlement" characterization in a context that cites capacitorjs.
+ The wall-2 verdict attributes the "out-of-process JavaScriptCore"
+ and "WebView process holds the dynamic-codesigning (JIT) entitlement" characterization in a context
+ that cites capacitorjs.
 com/docs/ios.
  That page only supports "Capacitor uses WKWebView,
  not the deprecated UIWebView" -- it does NOT state the multi-process or JIT-entitlement detail.
  However,
  the architectural fact itself is correct,
  not fabricated:
- WKWebView runs web content in a separate WebKit WebContent process which holds the dynamic-codesigning entitlement enabling JavaScriptCore's JIT,
+ WKWebView runs web content in a separate WebKit WebContent process
+ which holds the dynamic-codesigning entitlement enabling JavaScriptCore's JIT,
  which is precisely why an in-process engine (V8/NativeScript) trips W^X/DENY_EXECMEM while the WebView does not.
  The audit's "exact inverse" framing is accurate.
  Critically,

@@ -17,7 +17,7 @@
  @module
  */
 
-import type { PropertyName, } from 'typescript/unstable/ast';
+import type { PropertyName, } from 'typescript/ast';
 import {
   isComputedPropertyName,
   isIdentifier,
@@ -25,7 +25,7 @@ import {
   isNumericLiteral,
   isPrivateIdentifier,
   isStringLiteral,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Declared position of one formal parameter.

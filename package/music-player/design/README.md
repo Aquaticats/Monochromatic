@@ -24,6 +24,122 @@ Read these files in order:
 7. [`device-metrics.md`](device-metrics.md)
 8. [`candidates.md`](candidates.md)
 
+## Active design continuation
+
+The D46 folded-cover picker revisit is in
+[`questions/cover-picker-revisit.html`](questions/cover-picker-revisit.html):
+P4 beside the agent's P5, eight inspected native views,
+not a ballot.
+
+The first-run/no-library study is in
+[`evidence/first-run-access-boundaries.md`](evidence/first-run-access-boundaries.md).
+Its [verified offline review](questions/first-run-access.html) presents
+24 first views and 4 end views,
+not a policy ballot.
+The study was rebuilt on 2026-10-05 after D84 made true-peak analysis
+automatic,
+and again on 2026-10-06 for D100:
+a library is always open,
+so the declined state shows the device music library as open but unreadable,
+with `Allow access` and `Open a folder`,
+and the state with no source opened is gone.
+That state's wording and layout were approved as built (D101).
+The source states are authored inputs,
+not production permission/discovery evaluation or recovery acceptance.
+The owned native runtime was stopped after restoring its recorded fields.
+
+D82 accepts Android's standard media-notification presentation;
+no special notification design remains.
+The [whole-map keyboard design](questions/keyboard-map.prototype.html)
+was browser-verified and accepted as built (D102),
+with editing and focused-control ownership preserved.
+[Its boundary record](evidence/keyboard-map-boundaries.md) distinguishes
+proposal,
+protocol and actual OS/native delivery.
+The completed light error/Undo study follows D83:
+auto-dismissing,
+manually dismissible overlays that never resize the player,
+with two-line messages and Android-log direction for longer detail.
+The former layout-reserving bar studies are superseded;
+D8/D9 outcome requirements and D29's non-reserving placement context remain.
+[The overlay evidence boundary](evidence/feedback-overlay-boundaries.md)
+separates held poses,
+native lifecycle controls and actual storage/log-export implementation.
+The [verified offline viewer](questions/feedback-overlay.html) presents
+48 inspected native held poses across both panels,
+themes and text scales.
+Native expiry,
+error dismissal,
+Undo intent and Undo Close are separately verified;
+held images are not timing evidence.
+The guest's recorded settings were restored and its owner exited cleanly.
+The consumer passed scoped tests and four-context Chromium checks,
+not Firefox ESR140 or native accessibility acceptance.
+D7's light track-menu continuation is also complete.
+The [menu viewer](questions/track-menu.html) presents 24 freshly inspected
+native poses with the accepted actions and one-line ellipsized heading.
+[Its evidence boundary](evidence/track-menu-boundaries.md) records all seven
+debug intents across both panels,
+themes and text scales,
+input ownership,
+dismissal and unchanged-player checks.
+The viewer's tests,
+guard-removal proofs and four-context offline Chromium checks passed.
+Recorded native settings were restored and owned runtimes are absent.
+Real operations,
+native accessibility and Firefox acceptance are not claimed;
+full Android lint still has inherited failures.
+D26's light scan-indicator continuation is also complete.
+The [scan viewer](questions/scan-indicator.html) presents 32 freshly
+inspected native views of the accepted scan-F bar across both panels,
+themes and text scales.
+[Its evidence boundary](evidence/scan-indicator-boundaries.md) records the
+rejected 12dp padding draft,
+native Pause/Resume,
+authored progress and completion,
+and an offline replay of that action matrix.
+Inspection found the cover status ellipsized to `412…` at 200% text and
+the Resume label within 1 to 2 physical pixels of its outline at 200%;
+the viewer states both rather than deciding them.
+The viewer's tests,
+guard-removal proofs and four-context offline Chromium checks passed.
+Recorded native settings were restored and owned runtimes are absent.
+Real analysis,
+native accessibility and Firefox acceptance are not claimed;
+full Android lint still has inherited failures.
+The [Settings viewer](questions/settings-pane.html) is a withdrawn record,
+not a current design.
+It presents 24 inspected native views of a two-row Settings pane across both panels,
+themes and text scales,
+with the closed player.
+D84 removed D11's true-peak analysis row,
+because analysis is automatic and not optional,
+and D85 removed the closing sentence.
+D86 then made the two remaining rows always-on behaviour and not settings,
+and D87 keeps the Settings page and leaves it empty until D81's template
+configuration is designed;
+no study of the empty page is built.
+[Its evidence boundary](evidence/settings-pane-boundaries.md) records the
+adopted Fold placement,
+the withdrawn three-row publication,
+native row toggles,
+both Back paths and an offline replay of those inputs.
+Nothing scrolls at either text size,
+most of the page below the two rows is empty,
+and on the unfolded panel at 200% text `Resume where I left off` leaves
+`off` alone on its second line;
+the viewer states these rather than deciding them.
+Real preferences,
+native accessibility and Firefox acceptance are not claimed;
+full Android lint still has inherited failures.
+D81's template editor is a separate design problem with its own built study:
+[`evidence/template-editor-boundaries.md`](evidence/template-editor-boundaries.md) describes it,
+and its [verified offline review](questions/template-editor.html) shows the editor as decided (D89 to D96, D98)
+and the two lines that get a template (D99).
+The design round for templates is closed (D96 keeps the field list where it is).
+No light surface from the original queue is left undrawn.
+No production implementation is authorized by this continuation.
+
 ## Current review and historical rounds
 
 The Search accessibility design review is complete through D75 to D80.
@@ -264,7 +380,8 @@ The [activation evidence](evidence/search-result-activation-frontier.md)
 and [archived Stay/Return logic comparison](questions/archive/search-result-activation-before-return.html)
 explain the choice;
 `questions/current.html` shows only the selected action goals.
-No Search result tap handler has been tested or implemented.
+No Search result tap handler had been tested or implemented when D72 to D74 were written;
+D127 (2026-10-14) later changed the other-track result from "start" to "select, paused", as for a track row.
 D75 to D80 adopt query-first accessibility entry,
 contiguous Search reading order,
 single-action rows,
@@ -279,8 +396,7 @@ the Fold visual choices even if its own proportions would suggest a different la
 The rejected command review remains at `questions/archive/command-igr-rejected.html`.
 D21's configurable global hotkey and extra Settings row belonged to the command bar;
 they do not silently move to Search.
- D25's Ctrl+F reservation remains pending the
-whole keyboard-map pass.
+ D25's Ctrl+F reservation is part of the keyboard map D102 accepted.
  Result actions and status truth conditions are settled design goals under
 D69 to D74.
 Exact cause-specific recovery needs a future source-status owner;

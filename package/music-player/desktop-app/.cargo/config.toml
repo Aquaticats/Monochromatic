@@ -1,43 +1,36 @@
-# Per-target build overrides for this crate. Two concerns live here:
-#   1. The Windows MSVC linker (lld-link).
-#   2. The `aes` CPU target-feature that the `gxhash` dependency REQUIRES.
+# Per-target build overrides for this crate: the Windows linkers (MSVC link.exe by default, GNU ld for the GNU target)
+# and the static C runtime of the MSVC builds.
 #
-# gxhash (src/peakcache.rs, the cache fingerprint hash) compiles its hardware
-# AES path unconditionally and emits a `compile_error!` unless the target enables
-# `aes` (plus `sse2` on x86, which is already in the x86_64 baseline, or `neon` on
-# aarch64, already baseline). It ships NO software fallback, so we enable `aes`
-# per target triple below. Consequence: the produced binary REQUIRES a CPU with
-# AES acceleration; one without it crashes with SIGILL at runtime. AES-NI is
-# universal on x86_64 since ~2010 and every Apple-Silicon Mac has the ARM crypto
-# extensions, so this is safe for a desktop player. We deliberately do NOT use
-# `-C target-cpu=native` (gxhash's own example does): that would bake the build
-# host's full feature set into the distributed, signed binary and SIGILL on any
-# other machine. `+aes` is the minimal, portable flag. The aarch64-apple-darwin
-# entry is technically redundant (Apple Silicon enables `aes` by default) but is
-# spelled out so the requirement is explicit and survives a toolchain default
-# change. See docs/troubleshooting/gxhash-aes-target-feature.md.
+# The `gxhash` dependency that needed the `aes` CPU target-feature on every target is gone (the fingerprint is XXH3-64
+# from `twox-hash`, which picks its SIMD kernel at run time), so no target here sets `aes` any more.
+# See doc/decision/music-player-fingerprint-hash.md and doc/troubleshooting/gxhash-aes-target-feature.md.
 
-# Linux desktop (host build and the Fedora podman container both resolve to this
-# host triple, with no explicit --target, so cargo applies this table to both).
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-feature=+aes"]
-
-# Intel macOS.
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "target-feature=+aes"]
-
-# Apple-Silicon macOS (aes is on by default here; kept explicit, see header).
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "target-feature=+aes"]
-
-# Windows MSVC. `lld-link.exe` is LLVM's MSVC-compatible linker (a drop-in for
-# Visual Studio's `link.exe`). It must be on PATH: LLVM ships it in its `bin`
-# directory (`C:\Program Files\LLVM\bin`), which is not on PATH by default, so that
-# directory has to be added (see README "Windows" and
-# HANDOVER.windows-toolchain-and-check.md). rustc still discovers the Visual Studio
-# CRT and Windows SDK import libraries and passes them as `/LIBPATH:` arguments,
-# which lld-link consumes unchanged. The `rustflags` line adds the same `+aes`
-# gxhash needs (sse2 is already in the x86_64 baseline).
+# Windows MSVC, x86_64 and arm64. No `linker` key on purpose: rustc then runs Visual
+# Studio's own `link.exe` (it finds the Visual Studio install through vswhere and passes
+# the CRT and Windows SDK import library paths as `/LIBPATH:` arguments), so no LLVM
+# install and no PATH edit are needed. The repository used `lld-link.exe` here until
+# 2026-10-14; the maintainer found it unreliable on Windows, and a release probe showed
+# it leaves the dynamic C runtime in an x86_64 `+crt-static` exe while `link.exe` links
+# it statically. Decision and consequences: doc/decision/music-player-windows-linkers.md.
+# The `rustflags` add `+crt-static`: the C runtime is linked into the .exe, so the
+# released executable does not need the Microsoft Visual C++ Redistributable
+# (VCRUNTIME140.dll) on the user's machine. The release workflow fails if the .exe still
+# imports a Visual C++ runtime DLL, which holds with `link.exe` and did not hold with
+# `lld-link.exe` on x86_64.
 [target.x86_64-pc-windows-msvc]
-linker = "lld-link.exe"
-rustflags = ["-C", "target-feature=+aes"]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# Windows arm64 (the release workflow builds it natively on a windows-11-arm runner).
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# Windows GNU: the build for developers and users who do not want Microsoft's toolchain.
+# It is linked by mingw-w64 GNU ld through the `gcc` driver, never by lld, and needs no
+# Visual Studio. `-fuse-ld=bfd` pins GNU ld in case a distribution's gcc defaults to
+# another linker. The linker program itself is left to rustc (`gcc` on PATH), because the
+# right name differs by host: MSYS2 on Windows has `gcc`, a Linux cross build has
+# `x86_64-w64-mingw32-gcc`, which the `build:windows-gnu` mise task passes through
+# CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER. No `+crt-static`: the GNU build already
+# imports only Windows system DLLs (checked in CI with a PE import inspection).
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=bfd"]

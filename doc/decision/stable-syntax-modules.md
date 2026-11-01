@@ -7,7 +7,7 @@ Accepted,
 
 ## Context
 
-Architecture review of `package/module/hyperscript` considered deeper shared Modules above
+Architecture review of `package/hyperscript/core` considered deeper shared Modules above
 `hHtml`,
 `hDom`,
 `hCss`,

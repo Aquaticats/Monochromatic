@@ -1,5 +1,22 @@
 # Audit: `let` usage across the monorepo
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger` is now `package/logger/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Generated 2026-05-10 from a static survey of TypeScript sources under `package/`,
 excluding `dist`,
  `node_modules`,
@@ -609,7 +626,8 @@ deciding on the permanent rule is easier with the refactored codebase as the sta
 ## Implementation status
 
 2026-05-10:
- Option B (function-body-root) and Option C (module-level) shipped as two separate oxlint rules in `package/oxlint-plugin/no-restricted-syntax/`:
+ Option B (function-body-root) and Option C (module-level) shipped as two separate oxlint rules in
+ `package/oxlint-plugin/no-restricted-syntax/`:
 
 - `no-function-root-let` (`src/rules/no-function-root-let.ts`):
    visits `FunctionDeclaration` and `FunctionExpression`;
@@ -617,10 +635,12 @@ deciding on the permanent rule is easier with the refactored codebase as the sta
    Two AST-level allowlists:
   1. **IIFE callee**:
       the function's `parent.type === 'CallExpression' && parent.callee === fn`.
-      Covers both named-function IIFEs `(function () { let x; })()` and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
+      Covers both named-function IIFEs `(function () { let x; })()`
+      and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
       prefer the named form).
   2. **Helper-function shape**:
-      the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding (`let`,
+      the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
+      (`let`,
       `const`,
       or `function`).
       `concat()` in `package/webapp-forge/stress/src/scenarios/force-push.ts` is the paradigm.
@@ -667,7 +687,8 @@ Spot-check 10 reports per rule.
    or helper-shape function (those would be heuristic bugs and block further migration until fixed).
 - None is inside generated code,
    test fixtures,
-   or third-party vendored files that should be added to a per-package override in `package/config/oxlint/src/overrides.ts`.
+   or third-party vendored files that should be added to a per-package override in
+   `package/config/oxlint/src/overrides.ts`.
 
 Record the counts in the "Status table" below.
 
@@ -676,7 +697,8 @@ Record the counts in the "Status table" below.
 Sites where the remediation is a one-line `const` rewrite:
 
 - `let x = 0; if (cond) x = a; else x = b;` -> `const x = cond ? a : b;`
-- `let total = 0; for (const item of items) total += item.value;` -> `const total = items.reduce(function add (sum, item,) { return sum + item.value; }, 0,);`
+- `let total = 0; for (const item of items) total += item.value;` ->
+`const total = items.reduce(function add (sum, item,) { return sum + item.value; }, 0,);`
 - `let result = expr; result = transform(result);` -> `const result = transform(expr);` (or chain).
 
 Each site is a small,
@@ -705,8 +727,10 @@ Sites where neither refactor nor allowlist-shape applies:
 
 - Genuine multi-let state machines (Mulberry32 PRNG step in `package/webapp-content/messages-demo/src/lib/seed.ts:143`;
    the kiwi binary parser in `package/figma/kiwi/src/index.ts`).
-- Parsers with conditional-init fields and side-effecting branches (the TOML rule parser in `package/cli/forbidden-strings/src/mise.port-betterleaks.ts:225-231`).
-- Module-level memoization caches that have no clean Map/memoize replacement (`package/module/logger/src/sinks/console.ts:8,11,100,160`).
+- Parsers with conditional-init fields and side-effecting branches (the TOML rule parser in
+`package/cli/forbidden-strings/src/mise.port-betterleaks.ts:225-231`).
+- Module-level memoization caches that have no clean Map/memoize replacement
+(`package/module/logger/src/sinks/console.ts:8,11,100,160`).
 
 Each disable comment must name the specific constraint:
 
@@ -752,13 +776,17 @@ Once the warning count is zero (every report is refactored,
 <td>1: baseline capture</td>
 <td>DONE</td>
 <td>2026-06-01</td>
-<td>Whole-repo `mise '//package/...:lint:oxlint'` reports zero instances of either rule. Plugin firing confirmed against a throwaway violator probe (both rules reported as expected) and against the live disable inventory. No open reports remained to spot-check; the existing justified-disable directives stand in as the audited residue.</td>
+<td>Whole-repo `mise '//package/...:lint:oxlint'` reports zero instances of either rule.
+Plugin firing confirmed against a throwaway violator probe (both rules reported as expected)
+and against the live disable inventory. No open reports remained to spot-check;
+the existing justified-disable directives stand in as the audited residue.</td>
 </tr>
 <tr>
 <td>2: mechanical refactors</td>
 <td>DONE</td>
 <td>2026-06-01</td>
-<td>Landed incrementally before the flip (e.g. `module/logger/src/sinks/console.ts` module-state moved into a `const` container).</td>
+<td>Landed incrementally before the flip (e.g. `module/logger/src/sinks/console.ts` module-state moved into a `const`
+container).</td>
 </tr>
 <tr>
 <td>3: helper / IIFE</td>
@@ -770,13 +798,16 @@ Once the warning count is zero (every report is refactored,
 <td>4: disable-with-justification</td>
 <td>DONE</td>
 <td>2026-06-01</td>
-<td>Residue carries block and next-line disables across `messages-demo`, `pi/auto-mode`, `dev-script/task-util`, `cli/vmsync`, `pi/morph-compact`, `typeface/aquaticat`, and others; each names a concrete constraint (parser cursor, state machine, singleton timer, PRNG state). No bare justifications.</td>
+<td>Residue carries block and next-line disables across `messages-demo`, `pi/auto-mode`, `dev-script/task-util`,
+`cli/vmsync`, `pi/morph-compact`, `typeface/aquaticat`, and others; each names a concrete constraint (parser cursor,
+state machine, singleton timer, PRNG state). No bare justifications.</td>
 </tr>
 <tr>
 <td>5: flip to `'error'`</td>
 <td>DONE</td>
 <td>2026-06-01</td>
-<td>Both entries in `restriction.ts` set to `'error'`. Post-flip fanout: zero reports of either rule; the only failing package is `module/es` on unrelated rules (out of scope for this migration).</td>
+<td>Both entries in `restriction.ts` set to `'error'`. Post-flip fanout: zero reports of either rule;
+the only failing package is `module/es` on unrelated rules (out of scope for this migration).</td>
 </tr>
 </tbody>
 </table>
@@ -790,7 +821,8 @@ These targets were defined against the 2026-05-10 tree.
    NO REPORT (helper shape,
    returns root const `out`).
 - `package/webapp-content/messages-demo/src/lib/seed.ts` (`rng()`):
-   the Mulberry32 PRNG is now a justified block disable (`seed.ts:204-226`) naming the two-variable state-machine constraint.
+   the Mulberry32 PRNG is now a justified block disable (`seed.ts:204-226`) naming the two-variable state-machine
+   constraint.
 - `package/module/logger/src/sinks/console.ts`:
    refactored;
    module state moved into a `const` container with a `Symbol` sentinel,

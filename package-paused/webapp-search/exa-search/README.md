@@ -1,6 +1,7 @@
 # Exa Search Interface
 
-A self-contained, single-file HTML search interface for the Exa AI search API, styled after DuckDuckGo's minimalist design philosophy.
+A self-contained, single-file HTML search interface for the Exa AI search API,
+styled after DuckDuckGo's minimalist design philosophy.
 
 ## Features
 
@@ -29,7 +30,8 @@ the HTML in memory from that bundle.
 3. Enter your search query and click "Search"
 4. All results (up to 100) will be displayed below the search box
 
-The API key is stored in your browser's localStorage for convenience. You can change it anytime by clicking the "Change API Key" button.
+The API key is stored in your browser's localStorage for convenience.
+You can change it anytime by clicking the "Change API Key" button.
 
 ## Technical Details
 

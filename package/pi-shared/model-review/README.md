@@ -44,7 +44,9 @@ A valid denial is a successful verdict and can win the race.
 Fallback is availability recovery,
 not consensus voting.
 
-`ReviewUnavailableError` reports every attempted candidate and normalized failure diagnostic when no candidate returns a valid verdict.
+`ReviewUnavailableError` reports every attempted candidate
+and normalized failure diagnostic
+when no candidate returns a valid verdict.
 
 ## Consumer boundary
 

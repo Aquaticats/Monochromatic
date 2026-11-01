@@ -22,7 +22,8 @@ run,
    Managed Mono runtime,
    JITLESS on a real device.
    The native bootstrap mono_ios_runtime_init() sets the AOT mode at startup:
-   on a physical device (Release) it calls register_aot_modules() + mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) = full ahead-of-time,
+   on a physical device (Release) it calls register_aot_modules() + mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) = full
+   ahead-of-time,
    no JIT;
    when the interpreter is forced (MAUI's Debug default,
    UseInterpreter=true) it calls mono_jit_set_aot_mode(MONO_AOT_MODE_INTERP_ONLY) = pure Mono interpreter,
@@ -53,9 +54,11 @@ run,
    high
 - Key finding:
    MAUI ships JITLESS on iOS:
-   the native Mono bootstrap calls mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) on a real device (interpreter-only in Debug),
+   the native Mono bootstrap calls mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) on a real device (interpreter-only in
+   Debug),
    JIT exists only in the simulator,
-   so wall 2 is cleanly passed -- and the same runtime turns on a pinvoke_override that lets [DllImport(\"__Internal\")] call into a statically-linked Rust/Go .
+   so wall 2 is cleanly passed -- and the same runtime turns on a pinvoke_override that lets
+   [DllImport(\"__Internal\")] call into a statically-linked Rust/Go .
   a (NativeReference/LinkerArgument),
    so wall 1 is satisfied by ordinary P/Invoke.
    The Rust symphonia+cpal core is therefore reusable behind MAUI via FFI with cpal's CoreAudio backend,
@@ -68,7 +71,8 @@ Verdict:
 
 On an iOS device MAUI never JITs.
  runtime.
-m sets mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) for device Release (lines 348-356) and MONO_AOT_MODE_INTERP_ONLY for the interpreter path (line 347,
+m sets mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) for device Release (lines 348-356)
+and MONO_AOT_MODE_INTERP_ONLY for the interpreter path (line 347,
  MAUI Debug default).
  The mtouch error doc states plainly:
  'the JIT remains the only option available on the simulator,
@@ -101,10 +105,12 @@ Mechanism:
  P/Invoke to a statically-linked Rust staticlib (.
 a) or Go gomobile c-archive (.
 a).
- The archive is linked into the native iOS executable via @(NativeReference) or <LinkerArgument Include=".../libCustom.a"/> (`build-items.md`:
+ The archive is linked into the native iOS executable via @(NativeReference)
+ or <LinkerArgument Include=".../libCustom.a"/> (`build-items.md`:
 215-220,
  252-255).
- The extern "C" symbols are then called from C# with [DllImport("__Internal")] -- '__Internal' is the documented library name for symbols statically linked into the app (`binding_types_reference_guide.md`:
+ The extern "C" symbols are then called from C# with [DllImport("__Internal")] -- '__Internal' is the documented
+ library name for symbols statically linked into the app (`binding_types_reference_guide.md`:
 1392).
  Under device full-AOT this resolves through the runtime's pinvoke_override:
  pinvoke_override_enabled is set true on the device path (runtime.
@@ -112,14 +118,16 @@ m:
 349) and handle_pinvoke_override maps the P/Invoke to the linked symbol (runtime.
 m:
 237-239).
- The macios runtime itself uses [DllImport("__Internal")] pervasively for its own static C glue (e.g. src/Foundation/NSObject2.
+ The macios runtime itself uses [DllImport("__Internal")] pervasively for its own static C glue (e.g.
+ src/Foundation/NSObject2.
 cs:
 442,
  src/ObjCRuntime/Class.
 cs:
 955),
  proving the path is the standard one.
- For Apple-SDK wrappers there is also the higher-level @(XcodeProject)->XCFramework binding flow (`native-library-interop.md`),
+ For Apple-SDK wrappers there is also the higher-level @(XcodeProject)->XCFramework binding flow
+ (`native-library-interop.md`),
  but a plain Rust/Go .
 a needs only NativeReference + DllImport.
 
@@ -143,12 +151,14 @@ Use background URLSession + BGTaskScheduler,
  NSUrlSessionConfiguration.
 CreateBackgroundSessionConfiguration (src/Foundation/NSUrlSessionConfiguration.
 cs:
-55) gives OS-managed background uploads/downloads that survive app suspension -- the only durable transfer channel on iOS.
+55) gives OS-managed background uploads/downloads that survive app suspension -- the only durable transfer channel on
+iOS.
  BGTaskScheduler / BGProcessingTaskRequest are bound (src/backgroundtasks.
 cs:
 27,84,117) for short idle/charging maintenance windows.
  There is NO long-running foreground-service equivalent:
- a multi-hour kopia snapshot cannot run as a single in-process job and must be restructured into discrete chunks driven by background URLSession transfers plus BGProcessingTask wake-ups,
+ a multi-hour kopia snapshot cannot run as a single in-process job
+ and must be restructured into discrete chunks driven by background URLSession transfers plus BGProcessingTask wake-ups,
  exactly as on every other iOS candidate.
  This is a platform constraint MAUI inherits,
  not a MAUI limitation;
@@ -223,7 +233,8 @@ Decode:
  No managed AudioToolbox decode path is needed (though AudioToolbox/AudioConverter bindings exist if wanted).
 
 Output:
- cpal 0.18 has an iOS/CoreAudio backend that talks to AudioUnit/AudioToolbox via the C ABI directly from inside the Rust lib.
+ cpal 0.18 has an iOS/CoreAudio backend that talks to AudioUnit/AudioToolbox via the C ABI directly from inside the
+ Rust lib.
  It does NOT route through the .
 NET layer,
  so low-latency output works natively.
@@ -296,12 +307,14 @@ NET SDK 9+ with the iOS workload:
 ## Supporting-stack vets this framework drags in
 
 - P/Invoke + DllImport(__Internal) FFI binding vet:
-   marshalling Rust extern C structs/callbacks/byte buffers across the managed<->native boundary under full-AOT (blittable types,
+   marshalling Rust extern C structs/callbacks/byte buffers across the managed<->native boundary under full-AOT
+   (blittable types,
    GCHandle pinning,
    UnmanagedCallersOnly for callbacks)
 - Trimming/AOT-safety vet:
    MAUI is not trimmer-safe;
-   confirm the chosen feature set + any reflection-using deps survive MtouchLink=Full / linker without runtime crashes (and whether NativeAOT is ever reachable)
+   confirm the chosen feature set + any reflection-using deps survive MtouchLink=Full / linker without runtime crashes
+   (and whether NativeAOT is ever reachable)
 - In-app HTTP server vet:
    System.
   Net.
@@ -383,7 +396,8 @@ NET SDK 9+ with the iOS workload:
    /tmp/agent/dotnet-macios-audit-20260612/src/Foundation/NSUrlSessionHandler.
   cs:
   58,112
-- Background URLSession (CreateBackgroundSessionConfiguration) and BGTaskScheduler/BGProcessingTaskRequest are bound for background transfer/maintenance:
+- Background URLSession (CreateBackgroundSessionConfiguration)
+and BGTaskScheduler/BGProcessingTaskRequest are bound for background transfer/maintenance:
    /tmp/agent/dotnet-macios-audit-20260612/src/Foundation/NSUrlSessionConfiguration.
   cs:
   46-57;
@@ -454,5 +468,6 @@ NET SDK 9+ with the iOS workload:
    neither supports nor contradicts the entitlement claim);
    <https://learn.microsoft.com/en-us/dotnet/maui/macios/interpreter> (authoritative:
    Apple 'disallows the execution of dynamically generated code on a device';
-   'The Mono interpreter overcomes these restrictions while abiding by platform restrictions' -- confirms the interpreter needs no JIT/execmem entitlement on device,
+   'The Mono interpreter overcomes these restrictions while abiding by platform restrictions' -- confirms the
+   interpreter needs no JIT/execmem entitlement on device,
    supporting the wall-2 no-jit-needed verdict for both Release full-AOT and Debug interpreter)

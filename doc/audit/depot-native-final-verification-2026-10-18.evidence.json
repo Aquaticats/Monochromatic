@@ -1,0 +1,302 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-18T04:38:25.972Z",
+  "scope": "Final native follow-up report and published evidence, retaining original workload acceptance limits.",
+  "report": {
+    "path": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-18.md",
+    "sha256": "bbfbad5aa5cd10b684d96357c77e5b3d1c6253031af14b26836de833058d7996",
+    "compatibilityFingerprint": "8024f142c314b7384a015376ce121c553e1ad83f32072b4f6b5eb3898a1f754a"
+  },
+  "publicCorpora": [
+    {
+      "path": "doc/audit/depot-native-runner-first-wave-2026-10-18.evidence.json",
+      "sha256": "839c75e0c403f167740b5f81b5e9e08b2531ff66d4e68acaee078e5c95457cfb",
+      "compressedBytes": 521673,
+      "uncompressedBytes": 2992126,
+      "uncompressedSha256": "43a1d28e5216036b2ad7328722f905865e561090ca21944bf7c85a348d82384e",
+      "workflowRuns": 3,
+      "allocatedJobs": 6,
+      "allRunsTerminal": true,
+      "retainedTextNodes": 115,
+      "textSchemas": [
+        [
+          "member",
+          "bytes",
+          "sha256",
+          "text"
+        ],
+        [
+          "member",
+          "bytes",
+          "sha256",
+          "text"
+        ]
+      ],
+      "allocationSchemas": [
+        [
+          "provider",
+          "githubJob",
+          "hardware",
+          "artifactId",
+          "assertions",
+          "cacheSteps",
+          "pricing"
+        ]
+      ]
+    },
+    {
+      "path": "doc/audit/depot-native-recovery-wave-2026-10-18.evidence.json",
+      "sha256": "9763b2dd90ac4d6bddbec48e40ff3b901bcc253ea2b767cb728b95e22261359b",
+      "compressedBytes": 769586,
+      "uncompressedBytes": 4630156,
+      "uncompressedSha256": "65ec3ace3b009720c813c298c3c8406e76772571d6b9363b9d70b87f0d5775a3",
+      "workflowRuns": 3,
+      "allocatedJobs": 6,
+      "allRunsTerminal": true,
+      "retainedTextNodes": 165,
+      "textSchemas": [
+        [
+          "member",
+          "bytes",
+          "sha256",
+          "text"
+        ],
+        [
+          "member",
+          "bytes",
+          "sha256",
+          "text"
+        ]
+      ],
+      "allocationSchemas": [
+        [
+          "provider",
+          "githubJob",
+          "hardware",
+          "artifactId",
+          "assertions",
+          "cacheSteps",
+          "pricing"
+        ]
+      ]
+    }
+  ],
+  "retainedStepLogDigestsAndBytesVerified": 280,
+  "allSixWorkflowRunsTerminal": true,
+  "allocations": [
+    {
+      "runId": 39094759518,
+      "jobId": 117578770519,
+      "runnerName": "depot-vgpqjdcpgm",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39094759518,
+      "jobId": 117578770694,
+      "runnerName": "depot-ccj8tdz94h",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39094764609,
+      "jobId": 117578785599,
+      "runnerName": "depot-3q2wn6p4hj",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39094767696,
+      "jobId": 117578793896,
+      "runnerName": "depot-zvjv808wsn",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39094767696,
+      "jobId": 117578794032,
+      "runnerName": "depot-8lk9jtp866",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39094767696,
+      "jobId": 117578794097,
+      "runnerName": "GitHub Actions 1000001435",
+      "provider": "GitHub"
+    },
+    {
+      "runId": 39095637308,
+      "jobId": 117581375857,
+      "runnerName": "depot-x94mb2q3nd",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39095637308,
+      "jobId": 117581376058,
+      "runnerName": "depot-mk7h8j022l",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39095642563,
+      "jobId": 117581391515,
+      "runnerName": "depot-rpsw893l3p",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39095647113,
+      "jobId": 117581406598,
+      "runnerName": "depot-7vm03ngxw5",
+      "provider": "Depot"
+    },
+    {
+      "runId": 39095647113,
+      "jobId": 117581406754,
+      "runnerName": "GitHub Actions 1000001472",
+      "provider": "GitHub"
+    },
+    {
+      "runId": 39095647113,
+      "jobId": 117581406755,
+      "runnerName": "depot-85n9wp92tt",
+      "provider": "Depot"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "doc/audit/depot-native-runner-followup-2026-10-17.evidence.json",
+      "sha256": "08054c66415a97340b91a1d73535041fd55b6ed36f32c65407bbcf976ab097f7"
+    },
+    {
+      "path": "doc/audit/depot-native-hybrid-routing-model-2026-10-18.evidence.json",
+      "sha256": "7554500ad61827c3c482b7fcfe0fe1d84ed06a8d34ad6fa0bd08455e929d91ae"
+    },
+    {
+      "path": "doc/audit/depot-native-consumers-and-variation-2026-10-18.evidence.json",
+      "sha256": "12d27f41eec5221b4a6580ef8bf196bdd122d5b8923420ab5e83ba08fbd19967"
+    },
+    {
+      "path": "doc/audit/depot-native-checkout-paths-2026-10-18.evidence.json",
+      "sha256": "c38bf56d09c69dc034284e206dc19824f9aa386b09e8a79481c58e3b73530e73"
+    },
+    {
+      "path": "doc/audit/depot-native-report-compatibility-2026-10-18.evidence.json",
+      "sha256": "48161849c5dfa540bd39daf8bcbf0159804039bd0bdcc3c44f6e7f1401355659"
+    },
+    {
+      "path": "doc/audit/depot-native-worktree-cleanup-2026-10-18.evidence.json",
+      "sha256": "1f6eecc5981ef593a2fb420693e58e10f721e40ebe9fed23f573d30eae071a75"
+    }
+  ],
+  "approvedSectionListMatched": true,
+  "localReportEvidenceLinksVerified": 13,
+  "scopedMarkdownLintPassed": true,
+  "scopedJsonFormattingPassed": true,
+  "renderedMarkdown": [
+    {
+      "path": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-18.md",
+      "sourceSha256": "bbfbad5aa5cd10b684d96357c77e5b3d1c6253031af14b26836de833058d7996",
+      "renderedBytes": 17360,
+      "renderedSha256": "db6beba5f4a4bf52403756cca59b7f92d9c9dc051091871fc0ce07004cb4a37d",
+      "renderedHtmlInspected": true
+    },
+    {
+      "path": "doc/audit/tech-depot-complete-ci-trial-vet-2026-10-17.md",
+      "sourceSha256": "bd364b935a1231131d13ca2abf41f5106e193656cd9c8215d1f7e26b7b298bab",
+      "renderedBytes": 26992,
+      "renderedSha256": "53c9c6486c3a1e9f98a073ea614a7313a84ddeff833feaa67c0d4837105a369a",
+      "renderedHtmlInspected": true
+    },
+    {
+      "path": "doc/troubleshooting/depot-windows-long-path-checkout.md",
+      "sourceSha256": "165ec88486c81ad7819450449928ddc51efaeb6b5b12fe90135f13b5afeb8070",
+      "renderedBytes": 9455,
+      "renderedSha256": "e578ff2c2e107d80858b585dda071ca35a35a0775c0c795c146476061f7f7fec",
+      "renderedHtmlInspected": true
+    },
+    {
+      "path": "doc/troubleshooting/depot-ci-versus-github-runner-platforms.md",
+      "sourceSha256": "56dfb55e57c1965f13854906ce86949aa1a2d20eaeb9da67ffc985a253480745",
+      "renderedBytes": 3967,
+      "renderedSha256": "0c18547476b9931aa8219c1295095331a4e4842328dd78458d7d3f734a5c70ca",
+      "renderedHtmlInspected": true
+    },
+    {
+      "path": "doc/troubleshooting/github-cli-run-watch-tls-timeout.md",
+      "sourceSha256": "0b07482786bdea06c06e3c1afeb760f5eda2f8962cf29129dab081b9c05babac",
+      "renderedBytes": 8187,
+      "renderedSha256": "fd0fb87433a29aeb937b9df2688d13944eab1a28591d5a1521d47acc4d724d8a",
+      "renderedHtmlInspected": true
+    }
+  ],
+  "operationalHandoverVerifiedSeparately": true,
+  "sourceClones": [
+    {
+      "directoryName": "gh-native-monitor-20261018",
+      "head": "fc4b137cdef0a6bd28fd461b7cf9c84a5812a8cd",
+      "sourceUnmodified": true
+    },
+    {
+      "directoryName": "git-windows-native-paths-20261018",
+      "head": "32c4f7689275d233577576630e1ac5b7eb354eb0",
+      "sourceUnmodified": true
+    }
+  ],
+  "cleanup": {
+    "schemaVersion": 1,
+    "completedAt": "2026-10-18T04:37:00.942Z",
+    "removed": [
+      {
+        "directoryName": "depot-native-runners-native-20261018T034256508Z",
+        "branch": "trial/depot-native-runners-native-20261018T034256508Z",
+        "head": "3e51a06848ba363a90d4ce30816760042153f349",
+        "trackedAndUntrackedClean": true,
+        "ignoredDryRunEmpty": true,
+        "strayRootGitEntriesAbsent": true,
+        "worktreeRemoved": true,
+        "branchPreserved": true
+      },
+      {
+        "directoryName": "depot-native-runners-windows-20261018T034256508Z",
+        "branch": "trial/depot-native-runners-windows-20261018T034256508Z",
+        "head": "46dbdaf5dcb44961e738496da40f44ed17f4d6a6",
+        "trackedAndUntrackedClean": true,
+        "ignoredDryRunEmpty": true,
+        "strayRootGitEntriesAbsent": true,
+        "worktreeRemoved": true,
+        "branchPreserved": true
+      },
+      {
+        "directoryName": "depot-native-long-path-20261018T035939491Z",
+        "branch": "trial/depot-native-long-path-20261018T035939491Z",
+        "head": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+        "trackedAndUntrackedClean": true,
+        "ignoredDryRunEmpty": true,
+        "strayRootGitEntriesAbsent": true,
+        "worktreeRemoved": true,
+        "branchPreserved": true
+      }
+    ],
+    "otherRegisteredWorktreesPreserved": 71,
+    "noForceUsed": true,
+    "noIgnoredArtifactsDeleted": true,
+    "sourceHarnessBranchesPreserved": true
+  },
+  "subscriptionChanges": false,
+  "productionRoutingChanges": false,
+  "accountWideAccessUsed": false,
+  "unresolvedAcceptanceLimits": [
+    "Original source and prerequisite failures",
+    "Unexecuted original consumer surfaces and incomplete physical logger shards",
+    "Unreconciled historical resources and invoice",
+    "Unmeasured monthly arrival mix and complete-graph waiting benefit",
+    "Variable Mac guest hardware and unmeasured physical CPU model"
+  ],
+  "originalVerificationReceiptUnmodified": true,
+  "closingChecks": {
+    "checkedAt": "2026-10-18T04:39:08.705Z",
+    "allFinalReceiptFileHashesMatched": true,
+    "originalVerificationReceiptUnmodifiedSince": "99f541b09f",
+    "scopedHandoverLintPassed": true,
+    "finalReceiptJsonFormattingPassed": true,
+    "updatedHandoverLinksVerified": 8,
+    "handoverRenderedHtml": "expanded-native-final-handover.html",
+    "handoverSourceSha256": "1b1e3b2c6e760612b284d819e926c4c03bdd195fe2f3b6a79788b9396ac1eda7",
+    "handoverRenderedHtmlInspected": true
+  }
+}

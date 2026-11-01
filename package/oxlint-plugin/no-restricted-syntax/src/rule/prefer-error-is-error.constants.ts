@@ -165,6 +165,6 @@ export type ErrorDetectionReplacement = {
  */
 export type ErrorDetectionReplacementResult =
   | ErrorDetectionReplacement
-  | typeof NOT_ERROR_DETECTION;
+    | typeof NOT_ERROR_DETECTION;
 
 //endregion Detection sentinel

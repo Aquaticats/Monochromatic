@@ -113,7 +113,7 @@ export const noMixedOperators: CreateOnceRule = {
           continue;
         if ((child.operator
           === parent
-          .operator)
+            .operator)
           && (child.operator !== EXPONENTIATION_OPERATOR))
           continue;
         if (hasParens({
@@ -130,7 +130,7 @@ export const noMixedOperators: CreateOnceRule = {
           node,
           messageId: (child.operator
             === parent
-            .operator)
+              .operator)
             ? 'chainedExponentiation'
             : 'nested',
           fix(fixer: ForeignBorrowed<Fixer>,): Fix[] {

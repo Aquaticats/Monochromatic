@@ -8,16 +8,16 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from '@earendil-works/pi-coding-agent';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { containsToolName, } from './active-tool.ts';
-import { sendAdvisorMessage, } from './command-message.ts';
 import {
   ADVISOR_OPERATION_TYPE,
   ADVISOR_TOOL_NAME,
-} from './constants.ts';
-import { AdvisorOperationError, } from './operation-error.ts';
-import { serializeAdvisorProjectContext, } from './project-context.ts';
+  AdvisorOperationError,
+  containsToolName,
+  serializeAdvisorProjectContext,
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+import { sendAdvisorMessage, } from './command-message.ts';
 import { buildAdvisorStatus, } from './status.ts';
 import { runAdvisor, } from './tool.ts';
 import type { AdvisorConfig, } from './types.ts';
@@ -136,7 +136,7 @@ export function registerAdvisorCommands(
         },);
       },
     },
-  );
+    );
 }
 
 /**
@@ -243,11 +243,11 @@ async function handleAdvisorCommand(
       .ctx
       .ui
       .notify(await buildAdvisorStatus({
-      ctx: options.ctx,
-      config: options.getConfig(),
-      enabled: options.state
-        .getEnabled(),
-    },),);
+        ctx: options.ctx,
+        config: options.getConfig(),
+        enabled: options.state
+          .getEnabled(),
+      },),);
     return;
   }
 
@@ -287,7 +287,7 @@ async function handleAdvisorCommand(
       .notify(
       'Advisor is disabled for this session. Run /advisor on to re-enable.',
       'error',
-    );
+      );
     return;
   }
 
@@ -360,14 +360,14 @@ async function runImmediateAdvisor(
         .notify(
         'Advisor review cancelled.',
         'warning',
-      );
+        );
       return;
     }
     ctx.ui
       .notify(
       `Advisor review failed: ${caughtValueText(error,)}`,
       'error',
-    );
+      );
   }
 }
 

@@ -1,5 +1,10 @@
 # Handover: forbidden-strings engine migration orchestration
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Updated:
  2026-07-17,
  post-compact session resumed;
@@ -1078,3 +1083,61 @@ so #380 launches only after #376 completes.
 - The differential validation (#387) and the cutover (#389) are the
   fail-open safety nets;
   do not let schedule pressure skip them.
+
+## The gate was running a 0.1.9 binary against a 0.3.0 parser
+
+Found 2026-08-14 while merging main into `translation-repair-rebased`. Every
+ push from that worktree was refused with `plugin-threw` and
+ `Malformed forbidden-strings scanner output`, the same symptom this document
+ records against `#388`, on a tree where `#388` had long since closed.
+
+### `#388` was correct; the deployment was not
+
+```text
+built binary   forbidden-strings 0.1.9   2026-07-24
+crate source   version = "0.3.0"         2026-08-05
+```
+
+Two minor versions and three weeks apart. The formats differ exactly where the
+ parser broke:
+
+```text
+0.1.9   candidate-0:2:5..24 rule=415
+0.3.0   candidate-0:2 rule=aws-access-token
+```
+
+So `#388`'s parser, which drops columns and reads a named rule, matches the
+ SOURCE and always did. The real-binary integration test it shipped was red for
+ the same reason: it spawns `target/release/forbidden-strings`, and that path
+ held the pre-migration build.
+
+`mise run //package/cli/forbidden-strings:build` resolves it. After the rebuild
+ the strict parser accepts real output untouched, the integration test passes,
+ and a full `--all --builtin-rules` sweep of the tree reports nothing.
+
+### The wrong fix, recorded because it was tempting
+
+The first response was to teach the parser to accept both shapes. That is worse
+ than the bug. A stale binary scans with a stale rule BASELINE, so a tolerant
+ parser makes the gate report success while missing whatever the current rules
+ catch, and it does so silently. Fail-closed is correct here; the tolerance was
+ reverted.
+
+What survives is the diagnostic. All five throw sites now name the expected
+ shape, identify a column span or a numeric rule id as the pre-0.3.0 format, say
+ the executed binary predates the crate source, and give the rebuild command.
+
+### Why nothing caught it
+
+The integration test exists precisely to catch this drift, and it did: it was
+ red. Nobody read it. That is the same shape as every other defect found in this
+ session's sweep, a signal produced and not consumed, and it is worth noting that
+ the signal here was a FAILING TEST rather than a log line.
+
+Two smaller consequences worth keeping. The gate's numeric `rule=` ids in old
+ reports (`rule=28`, `rule=152`, `rule=183`, `rule=415`) are 0.1.9 indices and do
+ not correspond to anything in the current named-rule file, so any earlier
+ triage that resolved them by line number in `.cache/forbidden-strings.rules.txt`
+ was reading an unrelated table. And the appendix self-match that
+ `doc/troubleshooting/forbidden-strings-appendix-self-match.md` documents no
+ longer trips under 0.3.0.

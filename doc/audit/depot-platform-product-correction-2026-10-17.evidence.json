@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T03:42:06.900Z",
+  "correction": "The other-compute-provider requirement was an overgeneralization from standalone Depot CI to Depot GitHub Actions runners.",
+  "sourceChecks": [
+    {
+      "url": "https://depot.dev/docs/ci/overview",
+      "section": "Depot CI sandboxes",
+      "finding": "No macOS or Windows sandboxes in standalone Depot CI."
+    },
+    {
+      "url": "https://depot.dev/docs/ci/compatibility",
+      "section": "Runner labels",
+      "finding": "Nonstandard labels become Depot Ubuntu; native GitHub runner labels are not CI sandbox parity."
+    },
+    {
+      "url": "https://depot.dev/docs/github-actions/runner-types",
+      "section": "Windows runners and macOS runners",
+      "finding": "Windows Server 2022/2025 on Intel and macOS on Apple Silicon are documented GitHub runner offerings."
+    },
+    {
+      "url": "https://depot.dev/docs/github-actions/overview",
+      "section": "How Depot GitHub Actions runners work",
+      "finding": "GitHub Actions orchestrates workflows while Depot registers and supplies the job runners."
+    }
+  ],
+  "originalTrialPlacement": "Native macOS and Windows jobs used GitHub-hosted runners.",
+  "actualDepotNativeRunnerExecutionNotYetVerified": true,
+  "authorizedFollowUp": "Execute the missing provider-specific native runner evaluation; preserve source cases and historical harnesses.",
+  "accountWideAccessUsed": false,
+  "subscriptionChangeAuthorized": false,
+  "reportBeforeSha256": "98825877b9a6d9ed0eb43f520c52ff5295d2793a22c50daf19e3edeb26e56f21",
+  "reportAfterSha256": "9cd350730fe8ec88851137681d0c2a7a31b98c7326a51ac98d311cd8731eaa3c",
+  "priorVerificationBoundary": "The earlier final-evaluation verification receipt applies to its recorded report hash; this correction creates new report bytes."
+}

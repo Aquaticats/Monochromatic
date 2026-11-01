@@ -1,5 +1,36 @@
 # Lint sweep handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/module-or-throw` is now `@monochromatic-dev/or-throw-core`;
+> `package/module/kv-store` is now `package/kv-store/core`;
+> `package/module/memoize` is now `package/kv-store/memoize`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 STATUS:
  COMPLETE (2026-05-26).
  All 84 active packages pass `:lint` (oxlint + types) with zero warnings/errors,
@@ -57,7 +88,8 @@ Fix all lint issues across active packages so `mise run lint` exits 0.
 - `AGENTS.md` rule forbidding preemptive cli-git bypass (commit 17f79a17).
    `CLAUDE.md` is gitignored and regenerated from `AGENTS.md` via `mise run sync:files`.
 - Research doc `doc/research/optionality-enforcement.md` (commit 039ec6db).
-- GitHub issue #213 filed for future improvement of the two rules (the syntax-only rules miss runtime/binding-resolution escapes;
+- GitHub issue #213 filed for future improvement of the two rules (the syntax-only rules miss
+runtime/binding-resolution escapes;
    those are tractable with more effort,
    not unbannable).
 - All 12 shared `module/*` packages re-fixed under the final rules with proper patterns:
@@ -93,7 +125,8 @@ Green and committed.
  the gold blueprint).
  Patterns applied:
  domain types `T | null` -> `readonly foo?: T`;
- `TaskRow` kept `T | null` under a justified `@tursodatabase/database` boundary block-disable with null->absent conversion in `mapTask`;
+ `TaskRow` kept `T | null` under a justified `@tursodatabase/database` boundary block-disable with null->absent
+ conversion in `mapTask`;
  symbol sentinels (`TASK_NOT_FOUND`,
  `SETTING_ABSENT`,
  `INVALID`,
@@ -106,7 +139,8 @@ Green and committed.
  hoisted non-capturing functions;
  non-async click handler.
 
-Three reusable findings came out of the two stubborn `prefer-readonly-parameter-types` warnings (the earlier "2 remaining" count was an undercount;
+Three reusable findings came out of the two stubborn `prefer-readonly-parameter-types` warnings (the earlier "2
+remaining" count was an undercount;
  see lesson below):
 
 1. **h3 `app: H3` exposed a native-rule symbol-name mismatch.**
@@ -132,7 +166,8 @@ Lessons for future sweeps:
 
 - **Count from authoritative `lint:oxlint` output,
    not a prior handover claim.
-  ** This package was handed off as "2 remaining" but had `chain-per-line` (9) and `tsdoc(multiline-blocks)` (1) warnings too,
+  ** This package was handed off as "2 remaining" but had `chain-per-line` (9)
+  and `tsdoc(multiline-blocks)` (1) warnings too,
    plus a third `prefer-readonly` site (`requireParam`,
    fixed by typing `event: H3Event`).
    `lint:oxlint` surfaces every rule,
@@ -147,7 +182,8 @@ Lessons for future sweeps:
 
 ## Critical context: the optionality discipline
 
-Agents repeatedly tried to dodge the bans by swapping one escape hatch for another (`| undefined` to `| null` to tuple-as-Maybe to `''` sentinels).
+Agents repeatedly tried to dodge the bans by swapping one escape hatch for another (`| undefined` to `| null` to
+tuple-as-Maybe to `''` sentinels).
  Do not do this.
 
 Forbidden ways to model optional or absent,
@@ -171,7 +207,8 @@ Forbidden ways to model optional or absent,
    An empty string is NOT a sentinel.
 - `Partial<T>` used to dodge required-ness.
 - adding an `oxlint-disable` to turn the rule off,
-   except for a genuine external-library boundary (for example mirroring `Map.get` or DOM `querySelector`) with a justification naming the external API.
+   except for a genuine external-library boundary (for example mirroring `Map.get`
+   or DOM `querySelector`) with a justification naming the external API.
 
 Allowed ways (use these):
 
@@ -251,7 +288,8 @@ Open behavioral decision discovered during the sweep (NOT a lint issue):
    instead of being treated as a miss and recomputed.
    This breaks 4 unit tests (`memoize.unit.test.ts:180,207,244`,
    `memoize-async.unit.test.ts:195`) which assert the old "undefined is a miss" contract.
-   Whether memoize should now cache `undefined` (arguably more correct) or keep treating it as a miss is a product decision for the user,
+   Whether memoize should now cache `undefined` (arguably more correct)
+   or keep treating it as a miss is a product decision for the user,
    so the tests are left untouched.
    Resolve the semantics,
    then update the 4 tests accordingly.
@@ -267,8 +305,10 @@ Numeric / non-`''` sentinel audit candidate (out of scope,
    per the user's explicit ruling).
    The `inference-canary-viewer` child flagged surviving `?? 0` numeric defaults (e.g. score-display defaults,
    `build.ts`'s `ModelSummary.threshold ?? 0`) where `0` may be encoding "absent threshold" rather than a real value.
-   A future pass could audit `?? 0` / `=== 0` / `-1` / `=== ''`-style absence encodings across packages the same way the `''` rework did.
-   Distinguish a genuine default (0 is a valid value) from a disguised sentinel (0 means missing) by reading each consumer.
+   A future pass could audit `?? 0` / `=== 0` / `-1` / `=== ''`-style absence encodings across packages the same way
+   the `''` rework did.
+   Distinguish a genuine default (0 is a valid value) from a disguised sentinel (0 means missing) by reading each
+   consumer.
 
 Post-sweep consolidation candidate (out of scope for lint-zero,
  noted for the user):
@@ -282,7 +322,8 @@ Post-sweep consolidation candidate (out of scope for lint-zero,
    it is a bare union with a unique symbol,
    no boxing).
    The duplication is a DRY candidate:
-   a shared `@monochromatic-dev/module-maybe` (or extending `module-or-throw`/reusing kv-store's exported `ABSENT`) would consolidate them.
+   a shared `@monochromatic-dev/module-maybe` (or extending `module-or-throw`/reusing kv-store's exported `ABSENT`)
+   would consolidate them.
    Deferred because it is a refactor,
    not a lint fix.
 
@@ -308,7 +349,8 @@ After all leaves:
 - PROMPT ESCAPING:
    the prompt is a double-quoted bash argument,
    so any backtick inside it is command substitution and gets EVALUATED,
-   silently deleting that span from the prompt (e.g. an example like a backtick-wrapped code snippet runs as a shell command and vanishes).
+   silently deleting that span from the prompt (e.g. an example like a backtick-wrapped code snippet runs as a shell
+   command and vanishes).
    Do NOT put backticks in the prompt.
    Use single quotes for code examples,
    or single-quote the whole prompt argument.
@@ -344,7 +386,9 @@ After all leaves:
    not a foreground polling loop in the main session:
    repeated poll output pollutes the parent context.
    Watch a condition (new `fix(`/`test(` commits,
-   or `pgrep ghostty` dropping to baseline) and only surface the result.
+   or the child's PID exiting, via `timeout 3600 tail --pid=<pid> --follow /dev/null`)
+   and only surface the result.
+   Never loop on `pgrep` by name: the match includes the waiting shell itself.
 - Concurrency is NOT capped at a small number by resources.
    This machine has 16 cores (`os.availableParallelism()` == 16) and runs 16 sessions fine.
    Scale child concurrency toward `os.availableParallelism()`,
@@ -352,7 +396,8 @@ After all leaves:
    check it rather than assuming.
 - Empirical burst-size finding (2026-05-25 sweep),
    CORRECTED:
-   a wave of 9 children launched in one burst on top of 7 existing terminals (16 total) appeared stalled/husked at 46 minutes (spawn-result JSON frozen at `status:running`,
+   a wave of 9 children launched in one burst on top of 7 existing terminals (16 total) appeared stalled/husked at 46
+   minutes (spawn-result JSON frozen at `status:running`,
    ~5 with no claude process,
    ~4 alive but idle,
    zero source edits,
@@ -385,7 +430,8 @@ After all leaves:
 - Do NOT trust the `status` field in `~/.claude/spawn-results/spawns/<id>.json` to find live children:
    it does not reset to `stopped`/`reported` on abrupt termination,
    so hundreds of stale files read `"running"`.
-   For an actual live count use `find ~/.claude/spawn-results/spawns/ -name '*.json' -mmin -30` plus `pgrep -af ghostty`,
+   For an actual live count use `find ~/.claude/spawn-results/spawns/ -name '*.json' -mmin -30` plus
+   `pgrep -af ghostty`,
    not the JSON status.
 - `cli/git` implements the cli-git enforcement guard itself.
    Fix it LAST (or,
@@ -397,7 +443,8 @@ After all leaves:
    `oxlint-plugin/stylistic`,
    `oxlint-plugin/no-restricted-syntax`,
    and `config/oxlint` define the rules every other package lints against;
-   editing them mid-flight shifts the lint baseline under every concurrent child (they end up working on unstable ground).
+   editing them mid-flight shifts the lint baseline under every concurrent child (they end up working on unstable
+   ground).
    Fix these SERIALLY,
    after all consumer packages are green,
    one at a time,

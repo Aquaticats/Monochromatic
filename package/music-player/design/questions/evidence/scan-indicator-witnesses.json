@@ -1,0 +1,2337 @@
+{
+  "schema": 1,
+  "scope": "Inspected native authored scan-indicator states, not real analysis progress, worker control or a new policy ballot.",
+  "prototypeCommit": "25a95411750c5c5356631fc508513c42a81ad1c4",
+  "apkSha256": "c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1",
+  "coordinateSpace": "Rectangles are physical screenshot pixels before the status-strip crop; subtract cropPixels.y for image rows.",
+  "witnesses": [
+    {
+      "file": "scan-indicator-inner-idle-light-s100.png",
+      "panel": "inner",
+      "scene": "idle",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "38fd503865c2109fa94922de6fc321828146af2c4503a5a4acd1528d19fdd2a2",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        2074
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-running-light-s100.png",
+      "panel": "inner",
+      "scene": "running",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "40bfcf1e518021bb9cf8a4d541ec033873a31c9837574ccac1796dba94a74f6c",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-paused-light-s100.png",
+      "panel": "inner",
+      "scene": "paused",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "f039ebb3dadd8525c8d81e0c0a49d7cfad509108e8b2129776357a744fc27833",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 57,
+        "right": 57
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-wide-count-light-s100.png",
+      "panel": "inner",
+      "scene": "wide-count",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "d70e3de1a453d65d0cc783438e7f5fa952ae5c79d6411c93d9b316f6b5242188",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-idle-dark-s100.png",
+      "panel": "inner",
+      "scene": "idle",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "cd424a1c505af76829e6a2263a4564c1713e81216b71b92f8e7cee6aa0492a2b",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        2074
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-running-dark-s100.png",
+      "panel": "inner",
+      "scene": "running",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "88395ca7a31e64d88e4fa6b5796915fe93bcd021fafcf4bb9adc1bca813913c9",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-paused-dark-s100.png",
+      "panel": "inner",
+      "scene": "paused",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "391e2a9eb53f4fcc88823d02551217f58240c397e96ae2211c7f221c82e75517",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 57,
+        "right": 57
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-wide-count-dark-s100.png",
+      "panel": "inner",
+      "scene": "wide-count",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "5ea071518853c37e9519c8c4a120e2f25cfe528b009c24947d89f26d11fdf885",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1948,
+        2056,
+        2065
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-idle-light-s200.png",
+      "panel": "inner",
+      "scene": "idle",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "904592c03c934fcf50e5420a79d3d942568bc022177e481edd351900ee9a59c7",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        2074
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-running-light-s200.png",
+      "panel": "inner",
+      "scene": "running",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "19f86aa6189bd20995b6109dd651002383395e132baf66b4c02d4422849f719b",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 29,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-paused-light-s200.png",
+      "panel": "inner",
+      "scene": "paused",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "776bf36c4c27a7ef346af19306f1e6a7c7bea9f41cc65a88dac6152bae8d555d",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 1,
+        "right": 5
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-wide-count-light-s200.png",
+      "panel": "inner",
+      "scene": "wide-count",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "8dd495be1e4e75769220ef120fe3d60b50109294bf4865b93f938056018959d4",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 29,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-idle-dark-s200.png",
+      "panel": "inner",
+      "scene": "idle",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "561b4fafd00adf87b2eefd15f102e1832ba573387d02c3db8f4f5c3b630ca22f",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        2074
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-running-dark-s200.png",
+      "panel": "inner",
+      "scene": "running",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "7a9875632c8f2a5061c8064473ddf359846414d789f4cbecc032a9c76be27f6a",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 30,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-paused-dark-s200.png",
+      "panel": "inner",
+      "scene": "paused",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "f4112af6aa9720aa5abbefe3bf2e02105c5fd187ff41236ed4e211dcc40d2d88",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 2,
+        "right": 5
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-inner-wide-count-dark-s200.png",
+      "panel": "inner",
+      "scene": "wide-count",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "3949cfd1c94fdfa47d03fc91c1b27ee65398c29a1ad7f401efcbd2d8844fe074",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        1937
+      ],
+      "viewport": [
+        1038,
+        292,
+        2003,
+        1937
+      ],
+      "bar": [
+        0,
+        1937,
+        2076,
+        2074
+      ],
+      "control": [
+        1812,
+        1941,
+        2056,
+        2072
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 30,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-idle-light-s100.png",
+      "panel": "cover",
+      "scene": "idle",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "bc6c9539362d13c52a26626ad2fd0120965f26c1a7d86c09ff9fa14f2c80ef5d",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1776
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-running-light-s100.png",
+      "panel": "cover",
+      "scene": "running",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "8c71256d295b61f14fca8b0afedd73410d9387506f9f1ec845fe27c073c166ce",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-paused-light-s100.png",
+      "panel": "cover",
+      "scene": "paused",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "56849e511f96cdacf9bc3848f18940c8ac44301b8eaf0565449553f2ac47aeee",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 57,
+        "right": 57
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-wide-count-light-s100.png",
+      "panel": "cover",
+      "scene": "wide-count",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "2caffe444e4226af5d662b2bb87e5c802dde64219fdb0497e6ab36269c9d94e7",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-idle-dark-s100.png",
+      "panel": "cover",
+      "scene": "idle",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "b55d631d1ad6f24dae7f4c7849ab9b8a55ce7d7aafc170204e0e4fcd2033efc9",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1776
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-running-dark-s100.png",
+      "panel": "cover",
+      "scene": "running",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "582ea7c48d292ce63778c8a315fe2a4c2324647b9c8f434908dc99bbce8ddf30",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-paused-dark-s100.png",
+      "panel": "cover",
+      "scene": "paused",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "b3e8dd813199e6504cc9175acbf6e004847542015bf406b10a40c33e665d5d76",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412 of 1,218",
+      "controlLabelClearPixels": {
+        "left": 57,
+        "right": 57
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-wide-count-dark-s100.png",
+      "panel": "cover",
+      "scene": "wide-count",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "d1f925ad0693e66f5438ee948a62df28f62734569b79ec0a423dc4444183eac1",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1639
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2239,
+        1060,
+        2356
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": false,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,999,998 of 9,999,999",
+      "controlLabelClearPixels": {
+        "left": 72,
+        "right": 71
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-idle-light-s200.png",
+      "panel": "cover",
+      "scene": "idle",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "98d39a4ab850e7641ddfd76ec11f154fc282ac808d14d640179de85411eb8353",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1292
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-running-light-s200.png",
+      "panel": "cover",
+      "scene": "running",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "237698b58b4a1a05aef2e71a5b6dff03736966f11b6563685faeab40cb52fa01",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412…",
+      "controlLabelClearPixels": {
+        "left": 29,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-paused-light-s200.png",
+      "panel": "cover",
+      "scene": "paused",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "44402400bebff0f78e3687d64c054d67800a62cbac5fc08e4370f1c9af7acbfa",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412…",
+      "controlLabelClearPixels": {
+        "left": 1,
+        "right": 5
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-wide-count-light-s200.png",
+      "panel": "cover",
+      "scene": "wide-count",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "f40016917ff9795dc69cddf20ec7f6fc7b156f08483f3c2237d0a6893b5f2a12",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        291,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,9…",
+      "controlLabelClearPixels": {
+        "left": 29,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-idle-dark-s200.png",
+      "panel": "cover",
+      "scene": "idle",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "743ce3a4f3cb6632020da9caaaccb14aa8a0e3f4e9f66a03262e310c08405bde",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "idle",
+        "done": 0,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1292
+      ],
+      "bar": null,
+      "control": null,
+      "controlPaddingDp": 0,
+      "barAbsent": true,
+      "statusLines": 0,
+      "statusEllipsized": false,
+      "controlLabel": null,
+      "controlTextLines": null,
+      "controlTextLayoutOverflow": null,
+      "inspectedVisibleStatus": null,
+      "controlLabelClearPixels": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-running-dark-s200.png",
+      "panel": "cover",
+      "scene": "running",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "d676b0b155bafecefebeae64154b22e2c647ab02e191b5349a1c431c15b93d9a",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412…",
+      "controlLabelClearPixels": {
+        "left": 30,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-paused-dark-s200.png",
+      "panel": "cover",
+      "scene": "paused",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "7c1fccfef7da0ec617fa6bc09fef79976bd70e89b7cd6c3451905657904b45e2",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "paused",
+        "done": 412,
+        "total": 1218
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Resume",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 412…",
+      "controlLabelClearPixels": {
+        "left": 2,
+        "right": 5
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "scan-indicator-cover-wide-count-dark-s200.png",
+      "panel": "cover",
+      "scene": "wide-count",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "024057d6384f622b65e3a5be58c245cc7a839a21244fcbcb08673304695de77a",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "phase": "running",
+        "done": 9999998,
+        "total": 9999999
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2228
+      ],
+      "viewport": [
+        0,
+        289,
+        1080,
+        1155
+      ],
+      "bar": [
+        0,
+        2228,
+        1080,
+        2365
+      ],
+      "control": [
+        816,
+        2232,
+        1060,
+        2363
+      ],
+      "controlPaddingDp": 0,
+      "barAbsent": false,
+      "statusLines": 1,
+      "statusEllipsized": true,
+      "controlLabel": "Pause",
+      "controlTextLines": 1,
+      "controlTextLayoutOverflow": false,
+      "inspectedVisibleStatus": "Analysing true peak · 9,9…",
+      "controlLabelClearPixels": {
+        "left": 30,
+        "right": 32
+      },
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    }
+  ]
+}

@@ -1,0 +1,2347 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-18T11:15:19.702Z",
+  "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+  "native": {
+    "run": "kjf78stmkb",
+    "status": {
+      "org_id": "l4zncjjbj5",
+      "run_id": "kjf78stmkb",
+      "status": "failed",
+      "workflows": [
+        {
+          "workflow_id": "vjp60bx306",
+          "status": "failed",
+          "name": "research ordinary job continuation and history identity",
+          "jobs": [
+            {
+              "job_display_name": "allowed_failure",
+              "job_id": "jtt0vlw21g",
+              "job_key": "_inline_0.yaml:allowed_failure",
+              "status": "failed",
+              "attempts": [
+                {
+                  "attempt_id": "81rdn0pxgd",
+                  "attempt": 1,
+                  "status": "failed",
+                  "sandbox_id": "5p97fzkdq1gb4qg17cz5",
+                  "session_id": "8b111ead-3ddf-4971-9993-30e2664c2723",
+                  "logs_command": "depot ci logs 81rdn0pxgd --org l4zncjjbj5",
+                  "download_available": false,
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=jtt0vlw21g&attempt=81rdn0pxgd",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "consumer",
+              "job_id": "fvsg2gkzd9",
+              "job_key": "_inline_0.yaml:consumer",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "00mg4bpfv2",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "81f19b0p1vmt5pnd1rdd",
+                  "session_id": "d3963544-c568-479f-9945-697772df0a90",
+                  "logs_command": "depot ci logs 00mg4bpfv2 --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs 00mg4bpfv2 --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=fvsg2gkzd9&attempt=00mg4bpfv2",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "history",
+              "job_id": "8nnmd6wzmv",
+              "job_key": "_inline_0.yaml:history",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "mlb95f7spq",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "hzvp63ghrn24p8j12nr3",
+                  "session_id": "6be8d41c-4a68-4d87-8d37-5cf4a5e768e6",
+                  "logs_command": "depot ci logs mlb95f7spq --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs mlb95f7spq --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=8nnmd6wzmv&attempt=mlb95f7spq",
+                  "ssh_available": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "workflow": {
+      "org_id": "l4zncjjbj5",
+      "run": {
+        "run_id": "kjf78stmkb",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "trigger": "api",
+        "status": "failed",
+        "created_at": "2026-10-18T11:09:57Z",
+        "started_at": "2026-10-18T11:09:58Z",
+        "finished_at": "2026-10-18T11:11:19Z"
+      },
+      "workflow": {
+        "workflow_id": "vjp60bx306",
+        "name": "research ordinary job continuation and history identity",
+        "workflow_path": "",
+        "status": "failed",
+        "error_message": "",
+        "created_at": "2026-10-18T11:10:06Z",
+        "started_at": "2026-10-18T11:10:06Z",
+        "finished_at": "2026-10-18T11:11:19Z"
+      },
+      "executions": [
+        {
+          "execution_id": "1c7p87kn40",
+          "execution": 1,
+          "status": "failed",
+          "created_at": "2026-10-18T11:10:06Z",
+          "started_at": "2026-10-18T11:10:06Z",
+          "finished_at": "2026-10-18T11:11:19Z"
+        }
+      ],
+      "jobs": [
+        {
+          "job_display_name": "history",
+          "job_id": "8nnmd6wzmv",
+          "job_key": "_inline_0.yaml:history",
+          "status": "finished",
+          "started_at": "2026-10-18T11:10:55Z",
+          "finished_at": "2026-10-18T11:11:18Z",
+          "attempts": [
+            {
+              "attempt_id": "mlb95f7spq",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "hzvp63ghrn24p8j12nr3",
+              "session_id": "6be8d41c-4a68-4d87-8d37-5cf4a5e768e6",
+              "started_at": "2026-10-18T11:10:55Z",
+              "finished_at": "2026-10-18T11:11:18Z"
+            }
+          ]
+        },
+        {
+          "job_display_name": "consumer",
+          "job_id": "fvsg2gkzd9",
+          "job_key": "_inline_0.yaml:consumer",
+          "status": "finished",
+          "started_at": "2026-10-18T11:10:32Z",
+          "finished_at": "2026-10-18T11:10:53Z",
+          "attempts": [
+            {
+              "attempt_id": "00mg4bpfv2",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "81f19b0p1vmt5pnd1rdd",
+              "session_id": "d3963544-c568-479f-9945-697772df0a90",
+              "started_at": "2026-10-18T11:10:32Z",
+              "finished_at": "2026-10-18T11:10:53Z"
+            }
+          ]
+        },
+        {
+          "job_display_name": "allowed_failure",
+          "job_id": "jtt0vlw21g",
+          "job_key": "_inline_0.yaml:allowed_failure",
+          "status": "failed",
+          "started_at": "2026-10-18T11:10:09Z",
+          "finished_at": "2026-10-18T11:10:30Z",
+          "attempts": [
+            {
+              "attempt_id": "81rdn0pxgd",
+              "attempt": 1,
+              "status": "failed",
+              "sandbox_id": "5p97fzkdq1gb4qg17cz5",
+              "session_id": "8b111ead-3ddf-4971-9993-30e2664c2723",
+              "started_at": "2026-10-18T11:10:09Z",
+              "finished_at": "2026-10-18T11:10:30Z"
+            }
+          ]
+        }
+      ]
+    },
+    "archives": [
+      {
+        "artifact": {
+          "artifact_id": "01a14eb5-1799-794a-b28e-b9cfb3f095cb",
+          "run_id": "kjf78stmkb",
+          "workflow_id": "vjp60bx306",
+          "workflow_path": "",
+          "job_id": "fvsg2gkzd9",
+          "job_key": "_inline_0.yaml:consumer",
+          "attempt_id": "00mg4bpfv2",
+          "attempt": 1,
+          "name": "research-job-policy-consumer-native-depot",
+          "size_bytes": 365,
+          "created_at": "2026-10-18T11:10:53Z"
+        },
+        "bytes": 365,
+        "sha256": "e8c5b9f52bb6ae7c283566a21ef75953b08e54afa78656c83701137aa65a2702",
+        "members": [
+          "consumer.json"
+        ],
+        "observations": [
+          {
+            "member": "consumer.json",
+            "value": {
+              "probe": "ordinary-job-continue-on-error-consumer",
+              "passed": true,
+              "needs": {
+                "allowed_failure": {
+                  "outputs": {},
+                  "result": "success"
+                }
+              },
+              "timeoutJobPresent": false,
+              "platform": "native-depot",
+              "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+              "at": "2026-10-18T11:10:52.559Z"
+            }
+          }
+        ]
+      },
+      {
+        "artifact": {
+          "artifact_id": "01a14eb4-bd91-720f-904e-9b43c9930804",
+          "run_id": "kjf78stmkb",
+          "workflow_id": "vjp60bx306",
+          "workflow_path": "",
+          "job_id": "jtt0vlw21g",
+          "job_key": "_inline_0.yaml:allowed_failure",
+          "attempt_id": "81rdn0pxgd",
+          "attempt": 1,
+          "name": "research-job-policy-failure-native-depot",
+          "size_bytes": 316,
+          "created_at": "2026-10-18T11:10:30Z"
+        },
+        "bytes": 316,
+        "sha256": "84fb1d91988f9b7e6c2d3aa59783a53d7bc13b38f20faab47885cdb43541068f",
+        "members": [
+          "failure.json"
+        ],
+        "observations": [
+          {
+            "member": "failure.json",
+            "value": {
+              "probe": "ordinary-job-continue-on-error",
+              "intentionalFailure": true,
+              "timeoutUsed": false,
+              "platform": "native-depot",
+              "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+              "uid": 1001,
+              "at": "2026-10-18T11:10:29.618Z"
+            }
+          }
+        ]
+      },
+      {
+        "artifact": {
+          "artifact_id": "01a14eb5-7a26-7492-b06d-88f3c86495af",
+          "run_id": "kjf78stmkb",
+          "workflow_id": "vjp60bx306",
+          "workflow_path": "",
+          "job_id": "8nnmd6wzmv",
+          "job_key": "_inline_0.yaml:history",
+          "attempt_id": "mlb95f7spq",
+          "attempt": 1,
+          "name": "research-physical-history-identity",
+          "size_bytes": 2271,
+          "created_at": "2026-10-18T11:11:18Z"
+        },
+        "bytes": 2271,
+        "sha256": "833b514a1e7e6d2061f8079d79a1c97567827f21e00ae22b2385523f8668596f",
+        "members": [
+          "identity.json"
+        ],
+        "observations": [
+          {
+            "member": "identity.json",
+            "value": {
+              "probe": "physical-history-identity",
+              "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+              "cli": "depot version 2.102.23 (2026-10-15)\nhttps://github.com/depot/cli/releases/tag/v2.102.23",
+              "repository": "Aquaticats/Monochromatic",
+              "ref": "",
+              "sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+              "records": [
+                {
+                  "label": "original-per-test-index0",
+                  "names": [
+                    "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                    "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+                    "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                    "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+                    "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                    "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+                    "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                    "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+                    "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                    "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+                    "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                    "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+                    "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                    "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+                    "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                    "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+                    "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                    "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+                    "real_index_lock::tests::a_free_index_is_locked_and_released",
+                    "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+                    "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                    "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+                    "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                    "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+                    "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                    "real_index_lock::tests::a_replaced_lock_is_never_released",
+                    "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                    "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+                    "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                    "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                      "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                      "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                      "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                      "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                      "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                      "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                      "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                      "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                      "real_index_lock::tests::a_free_index_is_locked_and_released",
+                      "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                      "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                      "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                      "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                      "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                      "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                      "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+                    ],
+                    "candidates_requested": 34,
+                    "candidates_selected": 17,
+                    "candidates_with_timings": 0,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "original-per-test-index1",
+                  "names": [
+                    "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                    "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+                    "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                    "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+                    "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                    "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+                    "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                    "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+                    "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                    "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+                    "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                    "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+                    "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                    "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+                    "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                    "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+                    "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                    "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+                    "real_index_lock::tests::a_free_index_is_locked_and_released",
+                    "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+                    "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                    "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+                    "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                    "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+                    "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                    "real_index_lock::tests::a_replaced_lock_is_never_released",
+                    "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                    "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+                    "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                    "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018",
+                  "index": 1,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "1",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::an_absent_lock_is_not_an_error\",\n    \"index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner\",\n    \"index_lock_evidence::tests::lock_metadata_does_not_follow_links\",\n    \"index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time\",\n    \"index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer\",\n    \"index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources\",\n    \"index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable\",\n    \"index_lock_evidence::tests::the_proven_holder_line_names_its_proof\",\n    \"real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file\",\n    \"real_index_lock::tests::a_free_index_is_locked_without_waiting\",\n    \"real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process\",\n    \"real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused\",\n    \"real_index_lock::tests::a_replaced_lock_is_never_released\",\n    \"real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything\",\n    \"real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock\",\n    \"real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 1,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+                      "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+                      "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+                      "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+                      "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+                      "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+                      "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+                      "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+                      "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+                      "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+                      "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+                      "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+                      "real_index_lock::tests::a_replaced_lock_is_never_released",
+                      "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+                      "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+                      "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+                      "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+                    ],
+                    "candidates_requested": 34,
+                    "candidates_selected": 17,
+                    "candidates_with_timings": 0,
+                    "shard_index": 1,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "per-test-class-timing",
+                  "names": [
+                    "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                    "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+                    "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                    "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+                    "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                    "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+                    "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                    "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+                    "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                    "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+                    "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                    "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+                    "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                    "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+                    "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                    "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+                    "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                    "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+                    "real_index_lock::tests::a_free_index_is_locked_and_released",
+                    "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+                    "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                    "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+                    "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                    "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+                    "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                    "real_index_lock::tests::a_replaced_lock_is_never_released",
+                    "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                    "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+                    "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                    "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+                  ],
+                  "timing": "classname",
+                  "key": "research-physical-locks-e02be6c8-20261018",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "classname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                      "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                      "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                      "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                      "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                      "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                      "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                      "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                      "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                      "real_index_lock::tests::a_free_index_is_locked_and_released",
+                      "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                      "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                      "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                      "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                      "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                      "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                      "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+                    ],
+                    "candidates_requested": 34,
+                    "candidates_selected": 17,
+                    "candidates_with_timings": 0,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "actual-class-test-timing",
+                  "names": [
+                    "monochromatic-git-policy-cli"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018:actual-class",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018:actual-class",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "monochromatic-git-policy-cli"
+                    ],
+                    "candidates_requested": 1,
+                    "candidates_selected": 1,
+                    "candidates_with_timings": 1,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "actual-class-class-timing",
+                  "names": [
+                    "monochromatic-git-policy-cli"
+                  ],
+                  "timing": "classname",
+                  "key": "research-physical-locks-e02be6c8-20261018:actual-class",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "classname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018:actual-class",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "monochromatic-git-policy-cli"
+                    ],
+                    "candidates_requested": 1,
+                    "candidates_selected": 1,
+                    "candidates_with_timings": 1,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "per-test-report-key",
+                  "names": [
+                    "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                    "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+                    "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                    "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+                    "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                    "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+                    "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                    "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+                    "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                    "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+                    "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                    "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+                    "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                    "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+                    "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                    "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+                    "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                    "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+                    "real_index_lock::tests::a_free_index_is_locked_and_released",
+                    "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+                    "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                    "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+                    "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                    "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+                    "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                    "real_index_lock::tests::a_replaced_lock_is_never_released",
+                    "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                    "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+                    "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                    "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+                    "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018:seed-1",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018:seed-1",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+                      "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+                      "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+                      "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+                      "index_lock_evidence::tests::pid_file_prose_names_each_state",
+                      "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+                      "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+                      "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+                      "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+                      "real_index_lock::tests::a_free_index_is_locked_and_released",
+                      "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+                      "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+                      "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+                      "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+                      "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+                      "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+                      "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+                    ],
+                    "candidates_requested": 34,
+                    "candidates_selected": 17,
+                    "candidates_with_timings": 0,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "actual-class-report-key",
+                  "names": [
+                    "monochromatic-git-policy-cli"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018:seed-2",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018:seed-2",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "monochromatic-git-policy-cli"
+                    ],
+                    "candidates_requested": 1,
+                    "candidates_selected": 1,
+                    "candidates_with_timings": 1,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                },
+                {
+                  "label": "absent-class-negative",
+                  "names": [
+                    "mono_research_definitely_absent_class_20261018"
+                  ],
+                  "timing": "testname",
+                  "key": "research-physical-locks-e02be6c8-20261018:absent-control",
+                  "index": 0,
+                  "args": [
+                    "tests",
+                    "split",
+                    "--candidate-type",
+                    "classname",
+                    "--timings-type",
+                    "testname",
+                    "--index",
+                    "0",
+                    "--total",
+                    "2",
+                    "--key",
+                    "research-physical-locks-e02be6c8-20261018:absent-control",
+                    "--output",
+                    "json"
+                  ],
+                  "status": 0,
+                  "signal": null,
+                  "error": null,
+                  "stdout": "{\n  \"candidates\": [\n    \"mono_research_definitely_absent_class_20261018\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+                  "stderr": "",
+                  "output": {
+                    "candidates": [
+                      "mono_research_definitely_absent_class_20261018"
+                    ],
+                    "candidates_requested": 1,
+                    "candidates_selected": 1,
+                    "candidates_with_timings": 0,
+                    "shard_index": 0,
+                    "shard_total": 2,
+                    "split_by": "timings"
+                  }
+                }
+              ],
+              "uploadsPerformed": false,
+              "applicationTestsExecuted": false,
+              "at": "2026-10-18T11:11:17.829Z"
+            }
+          }
+        ]
+      }
+    ],
+    "githubAppChecks": [
+      {
+        "id": 117659880202,
+        "name": "research ordinary job continuation and history identity / history",
+        "status": "completed",
+        "conclusion": "success",
+        "headSha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "appId": 219785,
+        "suiteId": 106017283159,
+        "url": "https://github.com/Aquaticats/Monochromatic/runs/117659880202",
+        "detailsUrl": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=8nnmd6wzmv&repo=Aquaticats%2FMonochromatic"
+      },
+      {
+        "id": 117659800570,
+        "name": "research ordinary job continuation and history identity / consumer",
+        "status": "completed",
+        "conclusion": "success",
+        "headSha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "appId": 219785,
+        "suiteId": 106017283159,
+        "url": "https://github.com/Aquaticats/Monochromatic/runs/117659800570",
+        "detailsUrl": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=fvsg2gkzd9&repo=Aquaticats%2FMonochromatic"
+      },
+      {
+        "id": 117659720971,
+        "name": "research ordinary job continuation and history identity / allowed_failure",
+        "status": "completed",
+        "conclusion": "failure",
+        "headSha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "appId": 219785,
+        "suiteId": 106017283159,
+        "url": "https://github.com/Aquaticats/Monochromatic/runs/117659720971",
+        "detailsUrl": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=jtt0vlw21g&repo=Aquaticats%2FMonochromatic"
+      }
+    ],
+    "githubAppSuites": [
+      {
+        "id": 106017283159,
+        "status": "completed",
+        "conclusion": "failure",
+        "headSha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "appId": 219785
+      }
+    ]
+  },
+  "github": {
+    "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+    "metadata": {
+      "conclusion": "success",
+      "databaseId": 39122132487,
+      "headSha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+      "jobs": [
+        {
+          "completedAt": "2026-10-18T11:10:29Z",
+          "conclusion": "failure",
+          "databaseId": 117659697747,
+          "name": "allowed_failure",
+          "startedAt": "2026-10-18T11:10:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-18T11:10:05Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-18T11:10:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:22Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "number": 2,
+              "startedAt": "2026-10-18T11:10:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:24Z",
+              "conclusion": "success",
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "number": 3,
+              "startedAt": "2026-10-18T11:10:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:26Z",
+              "conclusion": "success",
+              "name": "Run mise install node",
+              "number": 4,
+              "startedAt": "2026-10-18T11:10:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:26Z",
+              "conclusion": "failure",
+              "name": "Run mise run //.depot/research/native-semantics:policy-fail",
+              "number": 5,
+              "startedAt": "2026-10-18T11:10:26Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:27Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 6,
+              "startedAt": "2026-10-18T11:10:26Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:27Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "number": 12,
+              "startedAt": "2026-10-18T11:10:27Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:27Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-18T11:10:27Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39122132487/job/117659697747"
+        },
+        {
+          "completedAt": "2026-10-18T11:10:58Z",
+          "conclusion": "success",
+          "databaseId": 117659793850,
+          "name": "consumer",
+          "startedAt": "2026-10-18T11:10:31Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-18T11:10:33Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-18T11:10:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:51Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "number": 2,
+              "startedAt": "2026-10-18T11:10:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:53Z",
+              "conclusion": "success",
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "number": 3,
+              "startedAt": "2026-10-18T11:10:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:55Z",
+              "conclusion": "success",
+              "name": "Run mise install node",
+              "number": 4,
+              "startedAt": "2026-10-18T11:10:53Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:55Z",
+              "conclusion": "success",
+              "name": "Run mise run //.depot/research/native-semantics:policy-consumer",
+              "number": 5,
+              "startedAt": "2026-10-18T11:10:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:56Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 6,
+              "startedAt": "2026-10-18T11:10:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:57Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "number": 12,
+              "startedAt": "2026-10-18T11:10:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T11:10:57Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-18T11:10:57Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39122132487/job/117659793850"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39122132487"
+    },
+    "artifacts": [
+      {
+        "artifact": {
+          "id": 12134666371,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzNDY2NjM3MQ==",
+          "name": "research-job-policy-consumer-github-hosted",
+          "size_in_bytes": 366,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12134666371",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12134666371/zip",
+          "expired": false,
+          "digest": "sha256:1ec8d824c9610921b4114399d641ca978072ef45bd95756656c3aaefee30bc91",
+          "created_at": "2026-10-18T11:10:56Z",
+          "updated_at": "2026-10-18T11:10:56Z",
+          "expires_at": "2026-10-25T11:10:56Z",
+          "workflow_run": {
+            "id": 39122132487,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0"
+          }
+        },
+        "bytes": 366,
+        "sha256": "1ec8d824c9610921b4114399d641ca978072ef45bd95756656c3aaefee30bc91",
+        "members": [
+          "consumer.json"
+        ],
+        "observation": {
+          "probe": "ordinary-job-continue-on-error-consumer",
+          "passed": true,
+          "needs": {
+            "allowed_failure": {
+              "result": "success",
+              "outputs": {}
+            }
+          },
+          "timeoutJobPresent": false,
+          "platform": "github-hosted",
+          "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+          "at": "2026-10-18T11:10:55.958Z"
+        }
+      },
+      {
+        "artifact": {
+          "id": 12134388212,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzNDM4ODIxMg==",
+          "name": "research-job-policy-failure-github-hosted",
+          "size_in_bytes": 318,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12134388212",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12134388212/zip",
+          "expired": false,
+          "digest": "sha256:fbcf782425e273b9a8101020cbb1a8acf9b85c4a89dc4f8b07f299fbc65ff15d",
+          "created_at": "2026-10-18T11:10:27Z",
+          "updated_at": "2026-10-18T11:10:27Z",
+          "expires_at": "2026-10-25T11:10:26Z",
+          "workflow_run": {
+            "id": 39122132487,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0"
+          }
+        },
+        "bytes": 318,
+        "sha256": "fbcf782425e273b9a8101020cbb1a8acf9b85c4a89dc4f8b07f299fbc65ff15d",
+        "members": [
+          "failure.json"
+        ],
+        "observation": {
+          "probe": "ordinary-job-continue-on-error",
+          "intentionalFailure": true,
+          "timeoutUsed": false,
+          "platform": "github-hosted",
+          "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+          "uid": 1001,
+          "at": "2026-10-18T11:10:26.502Z"
+        }
+      }
+    ],
+    "nativeAppCheckRunsAtObservedSource": [
+      {
+        "id": 117659880202,
+        "name": "research ordinary job continuation and history identity / history",
+        "node_id": "CR_kwDOKlVnec8AAAAbZRNLCg",
+        "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "external_id": "ci:sr:85abe5b71797ac919cec2a4e961b4b5e9b719f1c39efd4cf7b392d25c19bfd0b",
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659880202",
+        "html_url": "https://github.com/Aquaticats/Monochromatic/runs/117659880202",
+        "details_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=8nnmd6wzmv&repo=Aquaticats%2FMonochromatic",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-18T11:10:55Z",
+        "completed_at": "2026-10-18T11:11:18Z",
+        "output": {
+          "title": null,
+          "summary": null,
+          "text": null,
+          "annotations_count": 0,
+          "annotations_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659880202/annotations"
+        },
+        "check_suite": {
+          "id": 106017283159
+        },
+        "app": {
+          "id": 219785,
+          "client_id": "Iv1.b242cafad31e395c",
+          "slug": "depot-code-access",
+          "node_id": "A_kwHOBBAjyc4AA1qJ",
+          "owner": {
+            "login": "depot",
+            "id": 68166601,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjY4MTY2NjAx",
+            "avatar_url": "https://avatars.githubusercontent.com/u/68166601?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/depot",
+            "html_url": "https://github.com/depot",
+            "followers_url": "https://api.github.com/users/depot/followers",
+            "following_url": "https://api.github.com/users/depot/following{/other_user}",
+            "gists_url": "https://api.github.com/users/depot/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/depot/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/depot/subscriptions",
+            "organizations_url": "https://api.github.com/users/depot/orgs",
+            "repos_url": "https://api.github.com/users/depot/repos",
+            "events_url": "https://api.github.com/users/depot/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/depot/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "name": "Depot Code Access",
+          "description": "This application grants Depot access to read / write the repositories you have selected.",
+          "external_url": "https://depot.dev",
+          "html_url": "https://github.com/apps/depot-code-access",
+          "created_at": "2022-07-14T00:11:40Z",
+          "updated_at": "2026-09-16T12:00:11Z",
+          "permissions": {
+            "actions": "write",
+            "actions_variables": "read",
+            "checks": "write",
+            "code_quality": "write",
+            "contents": "write",
+            "deployments": "write",
+            "issues": "write",
+            "merge_queues": "read",
+            "metadata": "read",
+            "organization_actions_variables": "read",
+            "organization_secrets": "read",
+            "organization_self_hosted_runners": "write",
+            "packages": "write",
+            "pull_requests": "write",
+            "secrets": "read",
+            "security_events": "write",
+            "statuses": "write",
+            "workflows": "write"
+          },
+          "events": [
+            "create",
+            "delete",
+            "deployment_status",
+            "issue_comment",
+            "merge_group",
+            "pull_request",
+            "pull_request_review",
+            "pull_request_review_comment",
+            "pull_request_review_thread",
+            "push",
+            "repository",
+            "repository_dispatch",
+            "status"
+          ]
+        },
+        "pull_requests": []
+      },
+      {
+        "id": 117659800570,
+        "name": "research ordinary job continuation and history identity / consumer",
+        "node_id": "CR_kwDOKlVnec8AAAAbZRIT-g",
+        "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "external_id": "ci:sr:5ee16cc06ecb15fe3b4436164398430e37c112b9531f9159c71ff6ae396f5dd5",
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659800570",
+        "html_url": "https://github.com/Aquaticats/Monochromatic/runs/117659800570",
+        "details_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=fvsg2gkzd9&repo=Aquaticats%2FMonochromatic",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-18T11:10:32Z",
+        "completed_at": "2026-10-18T11:10:53Z",
+        "output": {
+          "title": null,
+          "summary": null,
+          "text": null,
+          "annotations_count": 0,
+          "annotations_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659800570/annotations"
+        },
+        "check_suite": {
+          "id": 106017283159
+        },
+        "app": {
+          "id": 219785,
+          "client_id": "Iv1.b242cafad31e395c",
+          "slug": "depot-code-access",
+          "node_id": "A_kwHOBBAjyc4AA1qJ",
+          "owner": {
+            "login": "depot",
+            "id": 68166601,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjY4MTY2NjAx",
+            "avatar_url": "https://avatars.githubusercontent.com/u/68166601?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/depot",
+            "html_url": "https://github.com/depot",
+            "followers_url": "https://api.github.com/users/depot/followers",
+            "following_url": "https://api.github.com/users/depot/following{/other_user}",
+            "gists_url": "https://api.github.com/users/depot/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/depot/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/depot/subscriptions",
+            "organizations_url": "https://api.github.com/users/depot/orgs",
+            "repos_url": "https://api.github.com/users/depot/repos",
+            "events_url": "https://api.github.com/users/depot/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/depot/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "name": "Depot Code Access",
+          "description": "This application grants Depot access to read / write the repositories you have selected.",
+          "external_url": "https://depot.dev",
+          "html_url": "https://github.com/apps/depot-code-access",
+          "created_at": "2022-07-14T00:11:40Z",
+          "updated_at": "2026-09-16T12:00:11Z",
+          "permissions": {
+            "actions": "write",
+            "actions_variables": "read",
+            "checks": "write",
+            "code_quality": "write",
+            "contents": "write",
+            "deployments": "write",
+            "issues": "write",
+            "merge_queues": "read",
+            "metadata": "read",
+            "organization_actions_variables": "read",
+            "organization_secrets": "read",
+            "organization_self_hosted_runners": "write",
+            "packages": "write",
+            "pull_requests": "write",
+            "secrets": "read",
+            "security_events": "write",
+            "statuses": "write",
+            "workflows": "write"
+          },
+          "events": [
+            "create",
+            "delete",
+            "deployment_status",
+            "issue_comment",
+            "merge_group",
+            "pull_request",
+            "pull_request_review",
+            "pull_request_review_comment",
+            "pull_request_review_thread",
+            "push",
+            "repository",
+            "repository_dispatch",
+            "status"
+          ]
+        },
+        "pull_requests": []
+      },
+      {
+        "id": 117659720971,
+        "name": "research ordinary job continuation and history identity / allowed_failure",
+        "node_id": "CR_kwDOKlVnec8AAAAbZRDdCw",
+        "head_sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+        "external_id": "ci:sr:ce54059c85b9af770b97fa9c5db71649f65f57df0b79974dac32fd99c5a70790",
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659720971",
+        "html_url": "https://github.com/Aquaticats/Monochromatic/runs/117659720971",
+        "details_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/vjp60bx306?job=jtt0vlw21g&repo=Aquaticats%2FMonochromatic",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-10-18T11:10:09Z",
+        "completed_at": "2026-10-18T11:10:30Z",
+        "output": {
+          "title": null,
+          "summary": null,
+          "text": null,
+          "annotations_count": 0,
+          "annotations_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117659720971/annotations"
+        },
+        "check_suite": {
+          "id": 106017283159
+        },
+        "app": {
+          "id": 219785,
+          "client_id": "Iv1.b242cafad31e395c",
+          "slug": "depot-code-access",
+          "node_id": "A_kwHOBBAjyc4AA1qJ",
+          "owner": {
+            "login": "depot",
+            "id": 68166601,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjY4MTY2NjAx",
+            "avatar_url": "https://avatars.githubusercontent.com/u/68166601?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/depot",
+            "html_url": "https://github.com/depot",
+            "followers_url": "https://api.github.com/users/depot/followers",
+            "following_url": "https://api.github.com/users/depot/following{/other_user}",
+            "gists_url": "https://api.github.com/users/depot/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/depot/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/depot/subscriptions",
+            "organizations_url": "https://api.github.com/users/depot/orgs",
+            "repos_url": "https://api.github.com/users/depot/repos",
+            "events_url": "https://api.github.com/users/depot/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/depot/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "name": "Depot Code Access",
+          "description": "This application grants Depot access to read / write the repositories you have selected.",
+          "external_url": "https://depot.dev",
+          "html_url": "https://github.com/apps/depot-code-access",
+          "created_at": "2022-07-14T00:11:40Z",
+          "updated_at": "2026-09-16T12:00:11Z",
+          "permissions": {
+            "actions": "write",
+            "actions_variables": "read",
+            "checks": "write",
+            "code_quality": "write",
+            "contents": "write",
+            "deployments": "write",
+            "issues": "write",
+            "merge_queues": "read",
+            "metadata": "read",
+            "organization_actions_variables": "read",
+            "organization_secrets": "read",
+            "organization_self_hosted_runners": "write",
+            "packages": "write",
+            "pull_requests": "write",
+            "secrets": "read",
+            "security_events": "write",
+            "statuses": "write",
+            "workflows": "write"
+          },
+          "events": [
+            "create",
+            "delete",
+            "deployment_status",
+            "issue_comment",
+            "merge_group",
+            "pull_request",
+            "pull_request_review",
+            "pull_request_review_comment",
+            "pull_request_review_thread",
+            "push",
+            "repository",
+            "repository_dispatch",
+            "status"
+          ]
+        },
+        "pull_requests": []
+      }
+    ],
+    "checkInventoryTotal": 5,
+    "checkedAt": "2026-10-18T11:13:11.963Z",
+    "logSha256": "16489b7ed4f3f93e7934b31d1856cf5b774355ed14054dfe08486066d0ca1bb5"
+  },
+  "history": {
+    "probe": "physical-history-identity",
+    "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+    "cli": "depot version 2.102.23 (2026-10-15)\nhttps://github.com/depot/cli/releases/tag/v2.102.23",
+    "repository": "Aquaticats/Monochromatic",
+    "ref": "",
+    "sha": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+    "records": [
+      {
+        "label": "original-per-test-index0",
+        "names": [
+          "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+          "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+          "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+          "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+          "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+          "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+          "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+          "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+          "index_lock_evidence::tests::pid_file_prose_names_each_state",
+          "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+          "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+          "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+          "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+          "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+          "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+          "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+          "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+          "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+          "real_index_lock::tests::a_free_index_is_locked_and_released",
+          "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+          "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+          "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+          "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+          "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+          "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+          "real_index_lock::tests::a_replaced_lock_is_never_released",
+          "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+          "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+          "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+          "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+          "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+            "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+            "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+            "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+            "index_lock_evidence::tests::pid_file_prose_names_each_state",
+            "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+            "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+            "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+            "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+            "real_index_lock::tests::a_free_index_is_locked_and_released",
+            "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+            "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+            "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+            "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+            "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+            "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+            "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+          ],
+          "candidates_requested": 34,
+          "candidates_selected": 17,
+          "candidates_with_timings": 0,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "original-per-test-index1",
+        "names": [
+          "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+          "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+          "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+          "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+          "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+          "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+          "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+          "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+          "index_lock_evidence::tests::pid_file_prose_names_each_state",
+          "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+          "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+          "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+          "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+          "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+          "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+          "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+          "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+          "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+          "real_index_lock::tests::a_free_index_is_locked_and_released",
+          "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+          "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+          "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+          "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+          "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+          "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+          "real_index_lock::tests::a_replaced_lock_is_never_released",
+          "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+          "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+          "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+          "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+          "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018",
+        "index": 1,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "1",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::an_absent_lock_is_not_an_error\",\n    \"index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner\",\n    \"index_lock_evidence::tests::lock_metadata_does_not_follow_links\",\n    \"index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time\",\n    \"index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer\",\n    \"index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources\",\n    \"index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable\",\n    \"index_lock_evidence::tests::the_proven_holder_line_names_its_proof\",\n    \"real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file\",\n    \"real_index_lock::tests::a_free_index_is_locked_without_waiting\",\n    \"real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process\",\n    \"real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused\",\n    \"real_index_lock::tests::a_replaced_lock_is_never_released\",\n    \"real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything\",\n    \"real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock\",\n    \"real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 1,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+            "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+            "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+            "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+            "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+            "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+            "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+            "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+            "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+            "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+            "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+            "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+            "real_index_lock::tests::a_replaced_lock_is_never_released",
+            "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+            "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+            "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+            "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+          ],
+          "candidates_requested": 34,
+          "candidates_selected": 17,
+          "candidates_with_timings": 0,
+          "shard_index": 1,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "per-test-class-timing",
+        "names": [
+          "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+          "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+          "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+          "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+          "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+          "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+          "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+          "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+          "index_lock_evidence::tests::pid_file_prose_names_each_state",
+          "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+          "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+          "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+          "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+          "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+          "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+          "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+          "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+          "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+          "real_index_lock::tests::a_free_index_is_locked_and_released",
+          "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+          "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+          "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+          "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+          "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+          "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+          "real_index_lock::tests::a_replaced_lock_is_never_released",
+          "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+          "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+          "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+          "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+          "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+        ],
+        "timing": "classname",
+        "key": "research-physical-locks-e02be6c8-20261018",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "classname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+            "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+            "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+            "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+            "index_lock_evidence::tests::pid_file_prose_names_each_state",
+            "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+            "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+            "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+            "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+            "real_index_lock::tests::a_free_index_is_locked_and_released",
+            "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+            "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+            "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+            "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+            "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+            "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+            "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+          ],
+          "candidates_requested": 34,
+          "candidates_selected": 17,
+          "candidates_with_timings": 0,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "actual-class-test-timing",
+        "names": [
+          "monochromatic-git-policy-cli"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018:actual-class",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018:actual-class",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "monochromatic-git-policy-cli"
+          ],
+          "candidates_requested": 1,
+          "candidates_selected": 1,
+          "candidates_with_timings": 1,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "actual-class-class-timing",
+        "names": [
+          "monochromatic-git-policy-cli"
+        ],
+        "timing": "classname",
+        "key": "research-physical-locks-e02be6c8-20261018:actual-class",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "classname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018:actual-class",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "monochromatic-git-policy-cli"
+          ],
+          "candidates_requested": 1,
+          "candidates_selected": 1,
+          "candidates_with_timings": 1,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "per-test-report-key",
+        "names": [
+          "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+          "index_lock_evidence::tests::an_absent_lock_is_not_an_error",
+          "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+          "index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner",
+          "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+          "index_lock_evidence::tests::lock_metadata_does_not_follow_links",
+          "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+          "index_lock_evidence::tests::owner_evidence_compares_start_with_the_change_time",
+          "index_lock_evidence::tests::pid_file_prose_names_each_state",
+          "index_lock_evidence::tests::pid_file_text_names_a_positive_safe_integer",
+          "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+          "index_lock_evidence::tests::the_evidence_line_names_the_lock_and_its_sources",
+          "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+          "index_lock_evidence::tests::the_pid_file_is_absent_or_unreadable",
+          "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+          "index_lock_evidence::tests::the_proven_holder_line_names_its_proof",
+          "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+          "real_index_lock::tests::a_failed_journal_write_leaves_no_lock_and_no_pid_file",
+          "real_index_lock::tests::a_free_index_is_locked_and_released",
+          "real_index_lock::tests::a_free_index_is_locked_without_waiting",
+          "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+          "real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process",
+          "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+          "real_index_lock::tests::a_lock_with_one_mismatched_identity_field_is_refused",
+          "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+          "real_index_lock::tests::a_replaced_lock_is_never_released",
+          "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+          "real_index_lock::tests::an_install_replaces_the_index_with_the_lock_file_and_releases_everything",
+          "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+          "real_index_lock::tests::releasing_after_a_landing_leaves_a_replaced_lock",
+          "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_reports_an_unreadable_pid_file",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock",
+          "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_pid_file"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018:seed-1",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018:seed-1",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file\",\n    \"index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file\",\n    \"index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes\",\n    \"index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units\",\n    \"index_lock_evidence::tests::pid_file_prose_names_each_state\",\n    \"index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds\",\n    \"index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists\",\n    \"index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start\",\n    \"real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget\",\n    \"real_index_lock::tests::a_free_index_is_locked_and_released\",\n    \"real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record\",\n    \"real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait\",\n    \"real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition\",\n    \"real_index_lock::tests::an_existing_pid_file_is_left_alone\",\n    \"real_index_lock::tests::an_install_through_a_replaced_lock_is_refused\",\n    \"real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file\",\n    \"real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock\"\n  ],\n  \"candidates_requested\": 34,\n  \"candidates_selected\": 17,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "index_lock_evidence::tests::a_skipped_scan_leaves_only_the_pid_file",
+            "index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file",
+            "index_lock_evidence::tests::holder_prose_names_holders_and_limits_partial_notes",
+            "index_lock_evidence::tests::malformed_pid_files_quote_at_most_sixty_four_units",
+            "index_lock_evidence::tests::pid_file_prose_names_each_state",
+            "index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds",
+            "index_lock_evidence::tests::the_host_gather_reports_no_lock_when_none_exists",
+            "index_lock_evidence::tests::the_pid_file_names_an_owner_classified_by_its_start",
+            "real_index_lock::tests::a_dead_foreign_owner_exhausts_the_budget",
+            "real_index_lock::tests::a_free_index_is_locked_and_released",
+            "real_index_lock::tests::a_landing_lock_behind_a_dead_owner_writes_no_record",
+            "real_index_lock::tests::a_lock_that_cannot_be_created_is_a_stop_and_not_a_wait",
+            "real_index_lock::tests::a_pid_file_that_cannot_be_created_fails_the_acquisition",
+            "real_index_lock::tests::an_existing_pid_file_is_left_alone",
+            "real_index_lock::tests::an_install_through_a_replaced_lock_is_refused",
+            "real_index_lock::tests::releasing_after_a_landing_removes_the_lock_and_the_pid_file",
+            "real_index_lock::tests::releasing_after_a_landing_tolerates_a_vanished_lock"
+          ],
+          "candidates_requested": 34,
+          "candidates_selected": 17,
+          "candidates_with_timings": 0,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "actual-class-report-key",
+        "names": [
+          "monochromatic-git-policy-cli"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018:seed-2",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018:seed-2",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"monochromatic-git-policy-cli\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 1,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "monochromatic-git-policy-cli"
+          ],
+          "candidates_requested": 1,
+          "candidates_selected": 1,
+          "candidates_with_timings": 1,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      },
+      {
+        "label": "absent-class-negative",
+        "names": [
+          "mono_research_definitely_absent_class_20261018"
+        ],
+        "timing": "testname",
+        "key": "research-physical-locks-e02be6c8-20261018:absent-control",
+        "index": 0,
+        "args": [
+          "tests",
+          "split",
+          "--candidate-type",
+          "classname",
+          "--timings-type",
+          "testname",
+          "--index",
+          "0",
+          "--total",
+          "2",
+          "--key",
+          "research-physical-locks-e02be6c8-20261018:absent-control",
+          "--output",
+          "json"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "{\n  \"candidates\": [\n    \"mono_research_definitely_absent_class_20261018\"\n  ],\n  \"candidates_requested\": 1,\n  \"candidates_selected\": 1,\n  \"candidates_with_timings\": 0,\n  \"shard_index\": 0,\n  \"shard_total\": 2,\n  \"split_by\": \"timings\"\n}\n",
+        "stderr": "",
+        "output": {
+          "candidates": [
+            "mono_research_definitely_absent_class_20261018"
+          ],
+          "candidates_requested": 1,
+          "candidates_selected": 1,
+          "candidates_with_timings": 0,
+          "shard_index": 0,
+          "shard_total": 2,
+          "split_by": "timings"
+        }
+      }
+    ],
+    "uploadsPerformed": false,
+    "applicationTestsExecuted": false,
+    "at": "2026-10-18T11:11:17.829Z"
+  },
+  "documentation": {
+    "source": "https://depot.dev/docs/ci/how-to-guides/split-tests.md",
+    "candidateIdentity": "Candidates must match the JUnit file or classname fields. testname timing granularity weights those candidates using their individual cases; it does not introduce a testName candidate type.",
+    "splitAndReportKeys": "split-key scopes independent logical suites; report-key distinguishes uploads within a job. These are separate client fields; private history mapping is not inferred from that alone."
+  },
+  "limits": [
+    "The initial paired observers use always(); the later native default-condition observer independently passed without always().",
+    "The failed producer is an intentional ordinary failure without a cancelled timeout job.",
+    "Native needs.result is success, yet native API aggregate is failed; paired GitHub workflow conclusion is success. Native GitHub check and suite conclusions are recorded separately.",
+    "History controls are read-only requests with no additional test runs or report uploads.",
+    "The original full testName candidates were supplied as classname despite their stored className being the binary name; this violates the documented identity mapping for timing lookup.",
+    "The earlier physical34case campaign still qualifies real shard execution and ingestion, not per-test historical timing balance."
+  ],
+  "archive": {
+    "path": "depot-job-policy-history-2026-10-18.archives.json.gz",
+    "bytes": 5899,
+    "sha256": "c96e692b6dacebaffac76c045c46286fbd49b92262b91b7395dd0bec1597ac6c",
+    "originalZipCount": 8
+  },
+  "admission": {
+    "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",
+    "recordedAt": "2026-10-18T11:09:57.161Z",
+    "maximumConcurrentParentJobs": 2,
+    "nativeSerialJobTimeoutsMinutes": [
+      2,
+      2,
+      5
+    ],
+    "nativeCpuPerJob": 2,
+    "githubSerialJobTimeoutsMinutes": [
+      2,
+      2
+    ],
+    "githubConservativeCpuPerJob": 4,
+    "additionalFullWindowReservationUsd": 0.102,
+    "cumulativeConservativeReservationUsd": 0.924,
+    "campaignGuardUsd": 1,
+    "historyReadOnly": true,
+    "applicationTestsExecuted": false,
+    "timeoutProbeInContinuationComparison": false
+  },
+  "additionalContinuationControls": [
+    {
+      "run": "pfzfjrqdpq",
+      "label": "ordinary-default-needs",
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "pfzfjrqdpq",
+        "status": "failed",
+        "workflows": [
+          {
+            "workflow_id": "gdddxmsxff",
+            "status": "failed",
+            "name": "research ordinary continuation with default downstream condition",
+            "jobs": [
+              {
+                "job_display_name": "allowed_failure",
+                "job_id": "t37tgs8627",
+                "job_key": "_inline_0.yaml:allowed_failure",
+                "status": "failed",
+                "attempts": [
+                  {
+                    "attempt_id": "dj9zz1j0fj",
+                    "attempt": 1,
+                    "status": "failed",
+                    "sandbox_id": "xg7xg08lr364tqwbln0q",
+                    "session_id": "51c37863-03f5-4f62-acd1-def8020417e7",
+                    "logs_command": "depot ci logs dj9zz1j0fj --org l4zncjjbj5",
+                    "download_available": false,
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gdddxmsxff?job=t37tgs8627&attempt=dj9zz1j0fj",
+                    "ssh_available": false
+                  }
+                ]
+              },
+              {
+                "job_display_name": "consumer",
+                "job_id": "s8x35w912d",
+                "job_key": "_inline_0.yaml:consumer",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "l2gs9jvjnf",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "kh2plrp5s8dvk03qm7d5",
+                    "session_id": "9831a26e-4de0-4e68-a4a9-cd335fc1de9e",
+                    "logs_command": "depot ci logs l2gs9jvjnf --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs l2gs9jvjnf --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gdddxmsxff?job=s8x35w912d&attempt=l2gs9jvjnf",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "workflow": {
+        "org_id": "l4zncjjbj5",
+        "run": {
+          "run_id": "pfzfjrqdpq",
+          "repo": "Aquaticats/Monochromatic",
+          "ref": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "sha": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "head_sha": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "trigger": "api",
+          "status": "failed",
+          "created_at": "2026-10-18T11:20:05Z",
+          "started_at": "2026-10-18T11:20:06Z",
+          "finished_at": "2026-10-18T11:21:09Z"
+        },
+        "workflow": {
+          "workflow_id": "gdddxmsxff",
+          "name": "research ordinary continuation with default downstream condition",
+          "workflow_path": "",
+          "status": "failed",
+          "error_message": "",
+          "created_at": "2026-10-18T11:20:14Z",
+          "started_at": "2026-10-18T11:20:14Z",
+          "finished_at": "2026-10-18T11:21:09Z"
+        },
+        "executions": [
+          {
+            "execution_id": "3ssvqccd5h",
+            "execution": 1,
+            "status": "failed",
+            "created_at": "2026-10-18T11:20:14Z",
+            "started_at": "2026-10-18T11:20:14Z",
+            "finished_at": "2026-10-18T11:21:09Z"
+          }
+        ],
+        "jobs": [
+          {
+            "job_display_name": "consumer",
+            "job_id": "s8x35w912d",
+            "job_key": "_inline_0.yaml:consumer",
+            "status": "finished",
+            "started_at": "2026-10-18T11:20:48Z",
+            "finished_at": "2026-10-18T11:21:08Z",
+            "attempts": [
+              {
+                "attempt_id": "l2gs9jvjnf",
+                "attempt": 1,
+                "status": "finished",
+                "sandbox_id": "kh2plrp5s8dvk03qm7d5",
+                "session_id": "9831a26e-4de0-4e68-a4a9-cd335fc1de9e",
+                "started_at": "2026-10-18T11:20:48Z",
+                "finished_at": "2026-10-18T11:21:08Z"
+              }
+            ]
+          },
+          {
+            "job_display_name": "allowed_failure",
+            "job_id": "t37tgs8627",
+            "job_key": "_inline_0.yaml:allowed_failure",
+            "status": "failed",
+            "started_at": "2026-10-18T11:20:16Z",
+            "finished_at": "2026-10-18T11:20:37Z",
+            "attempts": [
+              {
+                "attempt_id": "dj9zz1j0fj",
+                "attempt": 1,
+                "status": "failed",
+                "sandbox_id": "xg7xg08lr364tqwbln0q",
+                "session_id": "51c37863-03f5-4f62-acd1-def8020417e7",
+                "started_at": "2026-10-18T11:20:16Z",
+                "finished_at": "2026-10-18T11:20:37Z"
+              }
+            ]
+          }
+        ]
+      },
+      "archives": [
+        {
+          "artifact": {
+            "artifact_id": "01a14ebd-ffe1-7800-9012-e963defdba04",
+            "run_id": "pfzfjrqdpq",
+            "workflow_id": "gdddxmsxff",
+            "workflow_path": "",
+            "job_id": "t37tgs8627",
+            "job_key": "_inline_0.yaml:allowed_failure",
+            "attempt_id": "dj9zz1j0fj",
+            "attempt": 1,
+            "name": "research-job-policy-failure-native-depot",
+            "size_bytes": 316,
+            "created_at": "2026-10-18T11:20:37Z"
+          },
+          "bytes": 316,
+          "sha256": "6c805e74ccfdb2cdfcfe651941c0f872475772c60a1fa54d3920c5097a4fd2f6",
+          "members": [
+            "failure.json"
+          ],
+          "observations": [
+            {
+              "member": "failure.json",
+              "value": {
+                "probe": "ordinary-job-continue-on-error",
+                "intentionalFailure": true,
+                "timeoutUsed": false,
+                "platform": "native-depot",
+                "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+                "uid": 1001,
+                "at": "2026-10-18T11:20:36.386Z"
+              }
+            }
+          ]
+        },
+        {
+          "artifact": {
+            "artifact_id": "01a14ebe-7b40-75e6-8440-f1f1c87586dd",
+            "run_id": "pfzfjrqdpq",
+            "workflow_id": "gdddxmsxff",
+            "workflow_path": "",
+            "job_id": "s8x35w912d",
+            "job_key": "_inline_0.yaml:consumer",
+            "attempt_id": "l2gs9jvjnf",
+            "attempt": 1,
+            "name": "research-job-policy-consumer-native-depot",
+            "size_bytes": 366,
+            "created_at": "2026-10-18T11:21:08Z"
+          },
+          "bytes": 366,
+          "sha256": "3f1b4ab767f547fb43062c33f9bb333934fde418d65cdb99b11ac828fa36b7c7",
+          "members": [
+            "consumer.json"
+          ],
+          "observations": [
+            {
+              "member": "consumer.json",
+              "value": {
+                "probe": "ordinary-job-continue-on-error-consumer",
+                "passed": true,
+                "needs": {
+                  "allowed_failure": {
+                    "outputs": {},
+                    "result": "success"
+                  }
+                },
+                "timeoutJobPresent": false,
+                "platform": "native-depot",
+                "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+                "at": "2026-10-18T11:21:07.960Z"
+              }
+            }
+          ]
+        }
+      ],
+      "observation": {
+        "probe": "ordinary-job-continue-on-error-consumer",
+        "passed": true,
+        "needs": {
+          "allowed_failure": {
+            "outputs": {},
+            "result": "success"
+          }
+        },
+        "timeoutJobPresent": false,
+        "platform": "native-depot",
+        "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+        "at": "2026-10-18T11:21:07.960Z"
+      }
+    },
+    {
+      "run": "lrhfzwrwl2",
+      "label": "isolated-step-workaround",
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "lrhfzwrwl2",
+        "status": "finished",
+        "workflows": [
+          {
+            "workflow_id": "j1qhhxk7dg",
+            "status": "finished",
+            "name": "research advisory step failure with passing workflow",
+            "jobs": [
+              {
+                "job_display_name": "advisory",
+                "job_id": "cx04nqd5c3",
+                "job_key": "_inline_0.yaml:advisory",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "k99btsdvfp",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "g1f65gzvjfn8mhzr02m3",
+                    "session_id": "c610d9ad-ef8b-4ece-9c84-3b0a4411a2d8",
+                    "logs_command": "depot ci logs k99btsdvfp --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs k99btsdvfp --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/j1qhhxk7dg?job=cx04nqd5c3&attempt=k99btsdvfp",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "workflow": {
+        "org_id": "l4zncjjbj5",
+        "run": {
+          "run_id": "lrhfzwrwl2",
+          "repo": "Aquaticats/Monochromatic",
+          "ref": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "sha": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "head_sha": "714a3cad36c20da75969454fe33f28dab7770e9b",
+          "trigger": "api",
+          "status": "finished",
+          "created_at": "2026-10-18T11:20:06Z",
+          "started_at": "2026-10-18T11:20:06Z",
+          "finished_at": "2026-10-18T11:20:48Z"
+        },
+        "workflow": {
+          "workflow_id": "j1qhhxk7dg",
+          "name": "research advisory step failure with passing workflow",
+          "workflow_path": "",
+          "status": "finished",
+          "error_message": "",
+          "created_at": "2026-10-18T11:20:14Z",
+          "started_at": "2026-10-18T11:20:14Z",
+          "finished_at": "2026-10-18T11:20:48Z"
+        },
+        "executions": [
+          {
+            "execution_id": "6h8gh6hwdb",
+            "execution": 1,
+            "status": "finished",
+            "created_at": "2026-10-18T11:20:14Z",
+            "started_at": "2026-10-18T11:20:14Z",
+            "finished_at": "2026-10-18T11:20:48Z"
+          }
+        ],
+        "jobs": [
+          {
+            "job_display_name": "advisory",
+            "job_id": "cx04nqd5c3",
+            "job_key": "_inline_0.yaml:advisory",
+            "status": "finished",
+            "started_at": "2026-10-18T11:20:16Z",
+            "finished_at": "2026-10-18T11:20:37Z",
+            "attempts": [
+              {
+                "attempt_id": "k99btsdvfp",
+                "attempt": 1,
+                "status": "finished",
+                "sandbox_id": "g1f65gzvjfn8mhzr02m3",
+                "session_id": "c610d9ad-ef8b-4ece-9c84-3b0a4411a2d8",
+                "started_at": "2026-10-18T11:20:16Z",
+                "finished_at": "2026-10-18T11:20:37Z"
+              }
+            ]
+          }
+        ]
+      },
+      "archives": [
+        {
+          "artifact": {
+            "artifact_id": "01a14ebe-00af-7a85-b86a-c08379b89a40",
+            "run_id": "lrhfzwrwl2",
+            "workflow_id": "j1qhhxk7dg",
+            "workflow_path": "",
+            "job_id": "cx04nqd5c3",
+            "job_key": "_inline_0.yaml:advisory",
+            "attempt_id": "k99btsdvfp",
+            "attempt": 1,
+            "name": "research-step-policy-workaround",
+            "size_bytes": 631,
+            "created_at": "2026-10-18T11:20:37Z"
+          },
+          "bytes": 631,
+          "sha256": "ee08c6112278d5283ab1f7154bb85a8878d4e62f02cac4c781494a8423336252",
+          "members": [
+            "failure.json",
+            "step-consumer.json"
+          ],
+          "observations": [
+            {
+              "member": "failure.json",
+              "value": {
+                "probe": "ordinary-job-continue-on-error",
+                "intentionalFailure": true,
+                "timeoutUsed": false,
+                "platform": "native-depot-step-control",
+                "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+                "uid": 1001,
+                "at": "2026-10-18T11:20:36.300Z"
+              }
+            },
+            {
+              "member": "step-consumer.json",
+              "value": {
+                "probe": "step-policy-workaround",
+                "passed": true,
+                "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+                "outcome": "failure",
+                "conclusion": "success",
+                "platform": "native-depot-step-control",
+                "at": "2026-10-18T11:20:36.596Z"
+              }
+            }
+          ]
+        }
+      ],
+      "observation": {
+        "probe": "step-policy-workaround",
+        "passed": true,
+        "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+        "outcome": "failure",
+        "conclusion": "success",
+        "platform": "native-depot-step-control",
+        "at": "2026-10-18T11:20:36.596Z"
+      }
+    }
+  ],
+  "additionalContinuationAdmission": {
+    "source": "714a3cad36c20da75969454fe33f28dab7770e9b",
+    "observedAt": "2026-10-18T11:20:04.870Z",
+    "workflows": [
+      "ordinary-job-default-consumer.yml",
+      "advisory-step-result.yml"
+    ],
+    "maximumConcurrentParentJobs": 2,
+    "addedFullWindowReservationUsd": 0.036,
+    "cumulativeConservativeReservationUsd": 0.96,
+    "campaignGuardUsd": 1
+  },
+  "laterReconciledAt": "2026-10-18T11:35:37.080Z"
+}

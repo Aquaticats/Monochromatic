@@ -187,17 +187,17 @@ The command returned this lint-scoped catalog:
 
 - `package/config/tofu/src/fetch_ips.ts`:
    one occurrence.
-- `package/module/css-edit/src/parse-contents.ts`:
+- `package/css/core-edit/src/parse-contents.ts`:
    three occurrences.
-- `package/module/css-edit/src/parse-classify.ts`:
+- `package/css/core-edit/src/parse-classify.ts`:
    two occurrences.
-- `package/cli/mvm/src/exec.ts`:
+- `package/mvm/cli/src/exec.ts`:
    one occurrence.
-- `package/cli/mvm/src/virsh-wait.ts`:
+- `package/mvm/cli/src/virsh-wait.ts`:
    two occurrences.
-- `package/cli/mvm/src/template-windows.ts`:
+- `package/mvm/cli/src/template-windows.ts`:
    one occurrence.
-- `package/cli/mvm/src/backend/hetzner/api.ts`:
+- `package/mvm/cli/src/backend/hetzner/api.ts`:
    one occurrence.
 - `package/runtime-error/bun/src/oom.ts`:
    one occurrence.
@@ -220,13 +220,13 @@ Within
    one occurrence.
 - `direct-effect-summary.ts`:
    one occurrence.
-- `package/dev-script/file-enforcer/src/io/staleness-manifest-lock.ts`:
+- `package/file-enforcer/core/src/io/staleness-manifest-lock.ts`:
    one occurrence.
 - `package/oxlint-plugin/tsdoc/src/ast-access.ts`:
    one occurrence.
-- `package/module/logger/src/sink/local-storage-store.ts`:
+- `package/logger/core/src/sink/local-storage-store.ts`:
    one occurrence.
-- `package/module/logger/src/sink/session-storage-store.ts`:
+- `package/logger/core/src/sink/session-storage-store.ts`:
    one occurrence.
 
 Every catalog entry is executable syntax,

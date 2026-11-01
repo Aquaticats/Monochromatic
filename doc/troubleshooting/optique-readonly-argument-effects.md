@@ -15,11 +15,11 @@ The audit used `@optique/core` `1.1.1` at commit
 
 Audited source and shipped files:
 
-- `package/core/src/internal/parser.ts`,
+- `packages/core/src/internal/parser.ts`,
   digest `b8ad8e789978a25980f9f46b442e7117f36feaede399fe74e0f1a59411787376`;
 - shipped `dist/internal/parser.js`,
   digest `138e40f7f4c2bb88c3e44bdf5ed23caf61c553540b60a3aae23d201888ca8671`;
-- `package/core/src/facade.ts`,
+- `packages/core/src/facade.ts`,
   digest `cf01245fd9322d8a4eca0a718f4e126acf0671d2c79eeadb3c29d3ef2dda5d65`;
 - shipped `dist/facade.js`,
   digest `b964c1f6b330b37e855f965a89a9b64e2a4dd5e41b4d93e674cfe540cbba20cc`.
@@ -40,7 +40,7 @@ The same commit's `@optique/run` `runSync` implementation delegates to `runImpl`
 It reads `RunOptions` fields and can invoke configured `onExit`,
 `stdout`,
 and `stderr` callbacks.
-The authored `package/run/src/run.ts` digest is
+The authored `packages/run/src/run.ts` digest is
 `64cc52ec2b2b34bc849d55fd1aba66573c485a156e19b2216dd69b3b87b32663`.
 The shipped `dist/run.js` digest is
 `0ff2e1dd543f6b45d507ae52d33effdf830bf15323c1b22b0bab82d52f304978`.

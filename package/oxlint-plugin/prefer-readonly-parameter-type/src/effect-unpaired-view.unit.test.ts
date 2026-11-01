@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   UNPAIRED_VIEW_INTERFACES,
@@ -290,12 +290,12 @@ function exerciseMember({
       return true;
     (held as (this: object, ...args: readonly unknown[]) => unknown)
       .apply(
-        receiver,
-        [...memberArguments({
-          ownerName,
-          memberName,
-          witness,
-        },),],
+      receiver,
+      [...memberArguments({
+        ownerName,
+        memberName,
+        witness,
+      },),],
       );
     return true;
   }

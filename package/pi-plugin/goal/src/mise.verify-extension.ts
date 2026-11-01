@@ -215,9 +215,9 @@ async function verifyBuiltGoalExtension(): Promise<string> {
       .join(', ')}`,);
   if (JSON.stringify(harness.entryRenderers
     .toSorted(),) !== JSON.stringify([
-    'goal:completion',
-    'goal:review-unavailable',
-  ],)) {
+      'goal:completion',
+      'goal:review-unavailable',
+    ],)) {
     throw new Error(`unexpected entry renderers: ${harness.entryRenderers
       .join(', ')}`,);
   }

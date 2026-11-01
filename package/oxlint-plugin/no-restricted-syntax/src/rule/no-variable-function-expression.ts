@@ -61,7 +61,7 @@ export const noVariableFunctionExpression: CreateOnceRule = {
             && (declarator.init
               .type
               === 'FunctionExpression'))
-          {
+            {
             context.report({
               node,
               messageId: 'forbidden',

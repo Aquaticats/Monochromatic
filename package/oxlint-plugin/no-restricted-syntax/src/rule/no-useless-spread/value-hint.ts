@@ -40,14 +40,14 @@ export type SpreadValueHint =
     readonly kind: 'array';
     readonly needsFill: boolean
   }
-  | { readonly kind: 'object'; }
-  | { readonly kind: 'typed-array'; }
-  | { readonly kind: 'promise-array'; }
-  | {
-    readonly kind: 'ambiguous';
-    readonly method: string
-  }
-  | { readonly kind: 'unknown'; };
+    | { readonly kind: 'object'; }
+    | { readonly kind: 'typed-array'; }
+    | { readonly kind: 'promise-array'; }
+    | {
+      readonly kind: 'ambiguous';
+      readonly method: string
+    }
+    | { readonly kind: 'unknown'; };
 
 /**
  Decides whether an identifier reads an unshadowed global.

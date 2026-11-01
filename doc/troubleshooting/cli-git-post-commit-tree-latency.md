@@ -88,11 +88,13 @@ Other retained tree entries receive `unchanged`.
 The core `final-newline` policy and the forbidden-strings plugin now skip unchanged post-commit candidates
 before requesting bytes or materializing scanner inputs.
 Root commits remain covered because `git diff-tree --root` reports every initial path.
-Merge commits remain covered because `-m` reports differences against each parent and the implementation deduplicates paths.
+Merge commits remain covered because `-m` reports differences against each parent
+and the implementation deduplicates paths.
 
 File-enforcer must copy the canonical forbidden-strings source into cli-git's statically shipped optional-policy source.
 After rebuilding cli-git,
-`git cli-git trust --yes` must replace an existing trusted TypeScript bundle that contains the old policy implementation.
+`git cli-git trust --yes` must replace an existing trusted TypeScript bundle
+that contains the old policy implementation.
 
 The TypeScript trust builder now calls Rolldown directly instead of using tsdown's programmatic middle layer.
 Rolldown is imported only when a trust build is required,

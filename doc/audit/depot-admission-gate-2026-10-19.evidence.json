@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T14:20:00Z",
+  "purpose": "Exercise the admission gate scenarios against the repository ledger before any paid weekly profile is dispatched.",
+  "workflow": ".github/workflows/admission-gate.yml",
+  "ledger": "doc/planning/depot-admission-ledger.json",
+  "scenarios": [
+    {
+      "id": "admit-small",
+      "runId": 39267811638,
+      "conclusion": "success",
+      "decision": "admitted"
+    },
+    {
+      "id": "fallback-meter",
+      "runId": 39267816590,
+      "conclusion": "success",
+      "decision": "fallback",
+      "fallback": "github-hosted",
+      "reason": "nativeMinutes would exceed the startup-trial allowance"
+    },
+    {
+      "id": "incomplete",
+      "runId": 39267822418,
+      "conclusion": "failure",
+      "decision": "fallback",
+      "fallback": "incomplete",
+      "reason": "nativeMinutes would exceed the startup-trial allowance"
+    },
+    {
+      "id": "ceiling",
+      "runId": 39267853939,
+      "conclusion": "success",
+      "decision": "fallback",
+      "fallback": "github-hosted",
+      "reason": "reservation would exceed the USD 200 ceiling"
+    },
+    {
+      "id": "invalid-negative",
+      "runId": 39267860138,
+      "conclusion": "failure",
+      "decision": "invalid",
+      "reason": "reservation meter nativeMinutes is negative"
+    }
+  ],
+  "result": "The gate admits a reservation inside the Startup trial allowance, returns a public-GitHub fallback for an exhausted meter or the USD ceiling, marks an exhausted native-only profile incomplete, and rejects a negative meter with a nonzero exit.",
+  "limits": [
+    "These are gate scenarios, not paid allocations; the ledger attempts array remains empty.",
+    "The weekly native matrix gate and first admitted reservation are still work item 4.",
+    "The gate reads the committed ledger; it does not inspect account-wide usage or mutate account settings."
+  ]
+}

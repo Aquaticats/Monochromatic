@@ -1,11 +1,14 @@
 # inference-canary
 
-Detects LLM inference degradation by running code-generation probes against multiple models and scoring the output on correctness, lint quality, and type safety.
+Detects LLM inference degradation by running code-generation probes against multiple models and scoring the output
+ on correctness, lint quality, and type safety.
 
 ## Motivation
 
-Inference degradation (increased latency, truncated outputs, reduced code quality) is hard to detect from inside an agent session.
-This package provides objective, reproducible probes that establish a baseline for each model and flag statistical outliers.
+Inference degradation (increased latency, truncated outputs, reduced code quality) is hard to detect
+ from inside an agent session.
+This package provides objective, reproducible probes that establish a baseline for each model
+ and flag statistical outliers.
 
 ## How it works
 
@@ -81,13 +84,16 @@ Comparators that consume scores directly should use tolerance, not equality.
 
 - **csv-rfc4180**: RFC 4180 CSV parser with escaped quotes and multiline fields
 - **expr-eval**: expression evaluator with operator precedence and recursive descent parsing
-- **css-mixin-transpiler**: CSS native `@mixin`/`@apply` transpiler with recursive expansion, nested rules, and top-level apply; no-regex constraint
-- **stak-interpreter**: stack-based language interpreter with floor division, floored modulo, variables, labels, and jumps
+- **css-mixin-transpiler**: CSS native `@mixin`/`@apply` transpiler with recursive expansion, nested rules,
+ and top-level apply; no-regex constraint
+- **stak-interpreter**: stack-based language interpreter with floor division, floored modulo, variables, labels,
+ and jumps
 - **task-scheduler** (slow, off by default): concurrent task scheduler with dependency resolution and timing constraints
 
 ### Simulation probes
 
-- **stak-simulation**: gives the model the Stak interpreter source and asks it to trace five programs mentally; tests careful code reading over pattern matching
+- **stak-simulation**: gives the model the Stak interpreter source and asks it to trace five programs mentally;
+ tests careful code reading over pattern matching
 
 Probes are intentionally hard: a healthy model scores around 0.7-0.8, not 1.0.
 This makes subtle degradation detectable: a drop from 0.7 to 0.4 is clear signal.

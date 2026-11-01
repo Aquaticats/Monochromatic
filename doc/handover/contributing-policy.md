@@ -99,7 +99,7 @@ A PR implements an approved issue.
 Merge needs both gates:
  `mise run validate` green,
  and maintainer review.
-Label vocabulary lives in [`doc/agent/triage-labels.md`](../agents/triage-labels.md).
+Label vocabulary lives in [`doc/agent/triage-labels.md`](../agent/triage-labels.md).
 
 The issue-first rule has exactly two exceptions:
 the tiny-fix carve-out below,
@@ -107,7 +107,7 @@ the tiny-fix carve-out below,
 which routes through the private advisory flow and never a public issue (see below).
 A PR references its approved issue by number with a `Closes #N` line,
 which auto-closes the issue when the PR merges to the default branch,
-per [`doc/agent/issue-tracker.md`](../agents/issue-tracker.md).
+per [`doc/agent/issue-tracker.md`](../agent/issue-tracker.md).
 
 ### Contribution size
 
@@ -160,7 +160,7 @@ Because it is a hard requirement,
 it points contributors at the setup they need
 (README build steps,
  the per-package `test:mutation` and fuzz mise tasks,
-and [`doc/decision/mutation-testing.md`](../decisions/mutation-testing.md) for the container model).
+and [`doc/decision/mutation-testing.md`](../decision/mutation-testing.md) for the container model).
 CI then re-runs them,
 so a contributor who claims green falsely is caught by the machine,
  not taken on trust.

@@ -152,7 +152,7 @@ export function parseSvg(svgContent: string,): Cell[] {
 
   for (let match = elementRegex.exec(svgContent,); match !== null;
     match = elementRegex.exec(svgContent,))
-  {
+    {
     /**
      Named capture groups from the current match: `tag` is the element name and `attrs` the raw attribute string.
      */
@@ -253,10 +253,10 @@ export function parseSvg(svgContent: string,): Cell[] {
     if (currentCell !== undefined) {
       currentCell.paths
         .push({
-        d,
-        isStroked,
-        strokeWidth,
-      },);
+          d,
+          isStroked,
+          strokeWidth,
+        },);
     }
   }
 
@@ -274,20 +274,20 @@ export type SVGPathCommand =
     readonly x: number;
     readonly y: number;
   }
-  | {
-    readonly type: 'L';
-    readonly x: number;
-    readonly y: number;
-  }
-  | {
-    readonly type: 'H';
-    readonly x: number;
-  }
-  | {
-    readonly type: 'V';
-    readonly y: number;
-  }
-  | { readonly type: 'Z'; };
+    | {
+      readonly type: 'L';
+      readonly x: number;
+      readonly y: number;
+    }
+    | {
+      readonly type: 'H';
+      readonly x: number;
+    }
+    | {
+      readonly type: 'V';
+      readonly y: number;
+    }
+    | { readonly type: 'Z'; };
 
 /**
  Tokenize an SVG path `d` attribute into absolute commands.

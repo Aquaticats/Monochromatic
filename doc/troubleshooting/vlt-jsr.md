@@ -244,7 +244,9 @@ fixable.
    - Option B:
       skip the `isSingle` optimisation for JSR scope-registries (mirrors the existing tarball-guess carve-out).
    - Option C:
-      merge `defaultScopeRegistries` into `getOptions()` so `@jsr` routing works on first install (this addresses Bug C but does not solve Bug B by itself).
+      merge `defaultScopeRegistries` into `getOptions()`
+       so `@jsr` routing works on first install
+       (this addresses Bug C but does not solve Bug B by itself).
 3. **Are they supporting this use case?
    ** vlt has a built-in `@jsr` default in `spec/src/browser.ts:57-58`;
     JSR support is an explicit goal.

@@ -100,9 +100,9 @@ async function editShared({
     path: 'shared.txt',
     bytes: joinLines(
       edit(splitLines((await readWorktree({
-      repository: context.repository,
-      path: 'shared.txt',
-    },)).bytes ?? Buffer.from('\n',),),),
+        repository: context.repository,
+        path: 'shared.txt',
+      },)).bytes ?? Buffer.from('\n',),),),
     ),
   },);
 }
@@ -208,11 +208,11 @@ const sharedAdjacent: ScenarioDefinition = {
           _unused,
           index,
         ) {
-        return `shared base line ${String(index,)} ${String(random.integer({
+          return `shared base line ${String(index,)} ${String(random.integer({
           min: 0,
           max: LINE_SUFFIX_MAX,
         },),)}`;
-      },
+        },
       ),),
     },], },);
   },

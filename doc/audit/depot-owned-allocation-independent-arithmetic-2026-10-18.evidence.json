@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-18T15:41:16.033Z",
+  "reviewer": "/root",
+  "result": "pass",
+  "scope": "Independent original-body integrity and BigInt rational timestamp/resource/rate arithmetic for the frozen223row baseline; follow-on runs are excluded",
+  "input": {
+    "path": "doc/audit/depot-owned-allocation-ledger-2026-10-18.evidence.json",
+    "bytes": 803424,
+    "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
+    "sourceArchive": {
+      "path": "doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
+      "bytes": 8006342,
+      "sha256": "17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa",
+      "uncompressedBytes": 53857223,
+      "uncompressedSha256": "cc53e01cd9599571654b2f3efb8370f17ce1f6c82712b048ffeec0dde0138ad8",
+      "records": 411
+    }
+  },
+  "checks": {
+    "uniqueAllocationRows": 223,
+    "pricedObservedIntervals": 195,
+    "unpricedRecords": 28,
+    "exactTimestampJoins": 195,
+    "originalBodies": 411,
+    "perCpuRateUsdPerSecond": "0.00005",
+    "publicGitHubRate": "0",
+    "unknownBuildKitActualPreserved": true,
+    "reservationsExcluded": true,
+    "invoicesUnobserved": true
+  },
+  "knownPartialNominalUsd": "6.1999959",
+  "knownPartialExactFraction": {
+    "numerator": "61999959",
+    "denominator": "10000000"
+  },
+  "separateBuildKitProxy": {
+    "requestMilliseconds": 403938,
+    "usd": "0.538584",
+    "exactFraction": {
+      "numerator": "67323",
+      "denominator": "125000"
+    },
+    "actualAllocatedComputeUsd": null
+  },
+  "products": {
+    "native-ci": {
+      "records": 115,
+      "priced": 114,
+      "unpriced": 1,
+      "nominalExactFraction": {
+        "numerator": "24273",
+        "denominator": "5000"
+      }
+    },
+    "standard-public-github-actions": {
+      "records": 25,
+      "priced": 25,
+      "unpriced": 0,
+      "nominalExactFraction": {
+        "numerator": "0",
+        "denominator": "1"
+      }
+    },
+    "github-actions-runners": {
+      "records": 52,
+      "priced": 49,
+      "unpriced": 3,
+      "nominalExactFraction": {
+        "numerator": "3343",
+        "denominator": "2500"
+      }
+    },
+    "actions-unassigned": {
+      "records": 2,
+      "priced": 0,
+      "unpriced": 2,
+      "nominalExactFraction": null
+    },
+    "sandbox-sdk": {
+      "records": 7,
+      "priced": 7,
+      "unpriced": 0,
+      "nominalExactFraction": {
+        "numerator": "81959",
+        "denominator": "10000000"
+      }
+    },
+    "buildkit": {
+      "records": 22,
+      "priced": 0,
+      "unpriced": 22,
+      "nominalExactFraction": null
+    }
+  }
+}

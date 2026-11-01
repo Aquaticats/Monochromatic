@@ -1,4 +1,13 @@
-# `mise upgrade` in the home directory moves the global tool version but leaves this repo on its `mise.lock` pin, so `pnpm` is 12.3.4 at `~` and 11.21.0 in the workspace
+# `mise upgrade` in the home directory moves the global tool version
+but leaves this repo on its `mise.lock` pin,
+so `pnpm` is 12.3.4 at `~` and 11.21.0 in the workspace
+
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 mise 2026.7.0,
  `pnpm = "latest"` in both `~/.config/mise/config.toml` and this repo's `mise.toml`,
@@ -291,6 +300,175 @@ Decision:
  file nothing.
 The durable value is this document plus the `mise current` check it names,
  not a tracker entry.
+
+## Explicit requests can miss a configured lock binding
+
+On 2026-10-18,
+the fresh-job cache harness ran Mise `2026.10.9` with `MISE_LOCKED=1`.
+The frozen `mise.lock` contains Node `26.12.0` and pnpm `12.14.0`,
+including Linux x64 URLs and checksums.
+Both entries bind `specifiers = ["latest"]`,
+matching their declarations in the repository configuration.
+
+The initial command `mise install node@26.12.0 pnpm@12.14.0` failed in every job of
+[run `39099461826`](https://github.com/Aquaticats/Monochromatic/actions/runs/39099461826):
+
+```text
+# Mise 2026.10.9, exact diagnostic for the Node request
+No lockfile URL found for node@26.12.0 on platform linux-x64 (--locked mode)
+```
+
+pnpm emitted the same diagnostic for `pnpm@12.14.0`.
+This happened before dependency installation,
+so these jobs are not cold-cache timing samples.
+
+The source at Mise tag `v2026.10.9`,
+`src/lockfile.rs:4753`,
+implements `matching_request_bindings`.
+Its `specifiers.contains(specifier)` check at line 4762 rejects a different request binding,
+even when its resolved version text is identical.
+The presence of a platform URL alone therefore does not establish that an arbitrary explicit request can use it.
+
+The verified harness repair is `mise install node pnpm` with locked mode retained.
+That uses the configured requests and their committed resolutions.
+The harness asserts `process.version === 'v26.12.0'` and pnpm's reported version `12.14.0`
+before cache or installation measurements.
+[Run `39099920300`](https://github.com/Aquaticats/Monochromatic/actions/runs/39099920300)
+passed in separate GitHub and Depot allocations,
+including workspace installation and all existing semantic-bridge artifact consumers.
+No lockfile or application source was changed for this repair.
+
+This is a request-binding boundary,
+not evidence of a missing download or a provider-specific installer failure.
+Removing locked mode or editing the lockfile by hand is unnecessary for the demonstrated case.
+No upstream defect is established or filed.
+
+## A stale `monochromatic-lint` 0.2.0 on `PATH` rejects `rust/avoidable-closure` from the root configuration
+
+On 2026-10-20,
+every `monochromatic-lint` invocation that loads the root `monochromatic-lint.config.jsonc`
+exited 2 at startup and linted nothing:
+
+```text
+monochromatic-lint: Configuration /var/home/user/Monochromatic/monochromatic-lint.config.jsonc: Unknown built-in rule rust/avoidable-closure.
+```
+
+The rule is registered in the shipped registry
+(the `RULE_IDS` constant in `package/linter/monochromatic-lint/src/configuration_rules.rs:28`)
+and documented in `package/linter/monochromatic-lint/README.md:274`
+and `doc/decision/rust-closure-lint-dylint.md:111`,
+so the report read like registry drift in the source tree.
+
+### Root cause
+
+The invocation resolved the published `monochromatic-lint` 0.2.0
+through a stale `PATH` entry,
+while `mise.lock:519` pins 0.3.0.
+Rule-id history spans the two releases:
+the syntax rule `rust/no-anonymous-functions` was removed for 0.2.0
+(commit `fbd1d376ee`,
+2026-10-18)
+and the Dylint rule `rust/avoidable-closure` was registered for 0.3.0
+(commit `4b786ab4ad`,
+2026-10-19),
+so 0.2.0's compiled-in registry holds neither name.
+Configuration validation consults the registry of the running binary
+(`package/linter/monochromatic-lint/src/configuration_rules.rs:124`),
+which is why 0.2.0 rejects the repository configuration before linting any file.
+
+The repository state itself is consistent.
+`package/linter/monochromatic-lint/src/configuration_rules.rs:33` registers the rule,
+the settings layer carries its `library` option
+(`package/linter/monochromatic-lint/src/rust_rule_settings.rs:126`),
+and the enable was sequenced behind the release on 2026-10-19:
+`357dcb9bab` enables the rule in the configuration,
+`89c7868a80` holds it dormant,
+`80847b13c0` bumps the crate to 0.3.0,
+`bca9a2856e` locks 0.3.0,
+and `269e6ba288` re-enables the rule.
+A checkout of the dormant-hold window still fails under `mise run`,
+because its `mise.lock` pins 0.2.0.
+
+### Evidence
+
+Measured 2026-10-20 in the repository worktree:
+
+- Bare lookup resolves the stale binary:
+  `command -v monochromatic-lint` prints
+  `/home/user/.local/share/mise/installs/cargo-monochromatic-lint/0.2.0/bin/monochromatic-lint`,
+  and that binary prints `monochromatic-lint 0.2.0`.
+- The same command context's `PATH` names that install directory explicitly,
+  ahead of the mise shims directory,
+  and also names `cargo-monochromatic-git-policy-cli/0.1.4`
+  while `mise.lock` pins 0.2.1.
+  Which component constructed that `PATH` is not established;
+  `doc/troubleshooting/node-lookup-in-agent-command-context.md`
+  records the same lookup boundary for Node.
+- Lock-aware invocation resolves the pinned binary:
+  `mise run lint:monochromatic-lint -- --version` prints `monochromatic-lint 0.3.0`.
+- The quoted startup error reproduces on any input under 0.2.0
+  (`README.md` and a `.rs` file alike),
+  while 0.3.0 and a workspace build from `HEAD` lint the same files to exit 0.
+- Only this one configured rule is unknown to 0.2.0:
+  a probe configuration carrying every other rule name the root configuration selects
+  validates and reports findings under 0.2.0,
+  so this is not a broader registry gap.
+- The commit-time `markdown/autofix` policy writes its own `--config`
+  (`package/git-policy/cli/src/native/markdown_linter_config.rs`)
+  and never loads the root configuration;
+  the repository lint invocations do.
+
+This is not the dependency-drift class of `doc/troubleshooting/deps-update-api-drift.md`:
+no `package/deps-update/cli` bump is involved,
+and the consumer (the configuration) is ahead of the resolved binary,
+not behind a bumped dependency API.
+
+### Fix
+
+- Run the repository lint as `mise run lint:monochromatic-lint`
+  (or `mise run //:lint:monochromatic-lint -- <paths>`),
+  which resolves the locked version;
+  compare `monochromatic-lint --version`
+  with `mise run lint:monochromatic-lint -- --version`
+  before trusting a bare invocation.
+- In a command context where the bare lookup reports 0.2.0,
+  rebuild the environment:
+  `mise install` from the repository root,
+  then a session restart so `PATH` is regenerated,
+  or run the locked install directory directly.
+  The tradeoff of the direct path is explicit version selection,
+  which does not repair the surrounding context.
+- The regression guard `the_repository_configuration_only_names_registered_rules`
+  (`package/linter/monochromatic-lint/src/configuration_tests.rs`)
+  fails whenever the repository configuration names a rule the registry lacks;
+  removing the registry entry reproduced the incident's error text in that test.
+  The guard covers the source tree;
+  the deployed-binary skew is covered by `mise.lock` plus the `mise run` invocation.
+
+### What does not work
+
+- Dropping or renaming `rust/avoidable-closure` in `monochromatic-lint.config.jsonc`:
+  the rule is the deliberate replacement recorded in
+  `doc/decision/rust-closure-lint-dylint.md`,
+  and 0.3.0 registers it.
+- `mise install` alone in the affected command context:
+  it installs the locked version
+  but does not rewrite a `PATH` already built from older install entries.
+- Reading `installs/cargo-monochromatic-lint/latest` as the version in use:
+  that symlink tracks the newest installed version,
+  the same trap as the pnpm `latest` symlink in the Symptom section of this file.
+
+### Durable lesson
+
+A tool name on `PATH` is not the version the repository pins,
+and a command context carries `PATH` snapshots of concrete install directories
+that go stale across tool upgrades.
+When a tool rejects a configuration its own registry documents,
+compare the bare lookup's `--version` with the `mise run` invocation's `--version`
+and the `mise.lock` entry before diagnosing the registry;
+the stale binary is usually the difference.
+
+No upstream defect is established or filed.
 
 ## Related
 

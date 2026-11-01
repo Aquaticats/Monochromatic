@@ -2,7 +2,7 @@
 
 ## Symptom
 
-The comment-preserving JSONC parser in `package/module/jsonc-edit` terminates a
+The comment-preserving JSONC parser in `package/jsonc-edit/core-ts` terminates a
 block comment at the **first** `*/` it encounters,
  regardless of whether that
 `*/` sits inside a `//` line comment or a quoted string written within the
@@ -36,7 +36,7 @@ A comment is the shape `/* … */` where `…` is "any characters up to,
 including,
  the first `*/`".
 
-`package/module/jsonc-edit/src/scan.ts` implements exactly that,
+`package/jsonc-edit/core-ts/src/scan.ts` implements exactly that,
  with no
 heuristic to second-guess it:
 
@@ -56,7 +56,7 @@ inspect:
 ## Verification
 
 ```ts
-import { parseJsonc, } from '@monochromatic-dev/module-jsonc-edit';
+import { parseJsonc, } from '@monochromatic-dev/jsonc-edit-core-ts';
 
 // Throws: the block closes at the inner `*/`, leaving `in it ... ` as content.
 parseJsonc({
@@ -106,7 +106,7 @@ JSONC configuration in this workspace favors `//` already,
 
 ## Why we do not file this upstream
 
-The parser is in-tree (`package/module/jsonc-edit`);
+The parser is in-tree (`package/jsonc-edit/core-ts`);
  there is no external
 upstream.
 The behavior matches every C-family language and is intentional:
@@ -117,7 +117,7 @@ The limitation is accepted and documented here rather than worked around.
 
 ## Related
 
-- `package/module/jsonc-edit/src/scan.ts`:
+- `package/jsonc-edit/core-ts/src/scan.ts`:
   `scanBlockComment` (the `indexOf('*/')` close) and `scanLineComment`
   (line comments terminate at end of line,
    so they have no nesting hazard).

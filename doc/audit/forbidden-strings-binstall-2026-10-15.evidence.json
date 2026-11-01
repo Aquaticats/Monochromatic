@@ -1,0 +1,30 @@
+{
+  "tool": "cargo-binstall 1.25.3",
+  "crate": "forbidden-strings 0.5.0",
+  "registryChecksum": "6ddb894f80c0b4c0d40b6582c92ae69852fda3c6a3a88c401845f138cccd1759",
+  "cases": [
+    {
+      "name": "registry",
+      "status": 94,
+      "signal": null
+    },
+    {
+      "name": "explicit-layout",
+      "status": 0,
+      "signal": null
+    }
+  ],
+  "registryManifestHasNoPackageMetadata": true,
+  "registryTagDirectories": [
+    "0.5.0",
+    "v0.5.0"
+  ],
+  "registryProbesCorrectTag": false,
+  "registryExample": "https://github.com/Aquaticats/Monochromatic/releases/download/0.5.0/forbidden-strings-0.5.0-x86_64-unknown-linux-gnu.tar.gz",
+  "explicitLayoutMessages": [
+    "cargo-binstall:  WARN The package forbidden-strings v0.5.0 (x86_64-unknown-linux-gnu) has been downloaded from github.com",
+    "cargo-binstall:  INFO Dry-run: Not proceeding to install fetched binaries"
+  ],
+  "authentication": "GH_TOKEN and GITHUB_TOKEN removed from child environment; token discovery disabled",
+  "installedBinaries": false
+}

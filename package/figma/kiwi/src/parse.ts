@@ -78,6 +78,7 @@ export async function parseFigmaFile(filePathOrBuffer: string | Uint8Array,): Pr
     fileType,
     schemaBytes,
     documentBytes,
+    version,
   } = await parseCanvasFig(canvasFig,);
   /**
    Parsed Kiwi schema.
@@ -85,6 +86,7 @@ export async function parseFigmaFile(filePathOrBuffer: string | Uint8Array,): Pr
   const schema = parseKiwiSchema(schemaBytes,);
 
   return {
+    canvasVersion: version,
     document: decodeDocument({
       documentData: documentBytes,
       schema,

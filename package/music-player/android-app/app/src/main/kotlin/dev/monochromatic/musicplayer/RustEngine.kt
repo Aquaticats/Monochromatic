@@ -145,6 +145,26 @@ import android.util.Log
 // ```
 import androidx.core.content.ContextCompat
 
+// What:     `import dev.monochromatic.musicplayer.core.QueuedLoadLedger` brings in the counter of queued native loads.
+// Why:      `poll` asks it whether the worker's failure number names the latest load, so a decode failure is
+//           reported once and an older load's failure is not.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { QueuedLoadLedger } from "./core/QueuedLoadLedger";
+// ```
+import dev.monochromatic.musicplayer.core.QueuedLoadLedger
+
+// What:     `import dev.monochromatic.musicplayer.core.volumeWhileDucked` brings in the pure duck volume rule.
+// Why:      A can-duck focus loss lowers the playing volume instead of pausing (D134), and this rule combines the
+//           user volume with the duck flag.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { volumeWhileDucked } from "./core/FocusDuck";
+// ```
+import dev.monochromatic.musicplayer.core.volumeWhileDucked
+
 // What:     `import java.io.File` brings in the JDK `File` type (a path on the local filesystem).
 // Why:      `openDescriptor` wraps a bare absolute path in a `File` to open it directly.
 //
@@ -341,6 +361,26 @@ class RustEngine(context: Context) : AudioEngine {
      */
     private var loadGeneration: Int = 0
 
+    /** Whether no track is loaded, so position and duration read zero; set by `unload`, cleared by `load`. */
+    private var unloaded: Boolean = false
+
+    /** Load whose descriptor is still opening, with the calls made meanwhile; main thread only. */
+    private var pendingLoad: PendingLoad? = null
+
+    /** Receives a load that could not start, so the controller can tell the user. */
+    private var onLoadFailed: ((String, LoadFailure) -> Unit)? = null
+
+    /** Counts the loads queued with the native engine, to tell a decode failure of the latest one from an old one. */
+    private val queuedLoads: QueuedLoadLedger = QueuedLoadLedger()
+
+    /** Opens track descriptors on the I/O dispatcher with a time limit, never on the main thread. */
+    private val descriptorOpener: TimedDescriptorOpen<ParcelFileDescriptor> = TimedDescriptorOpen(
+        dispatcher = Dispatchers.IO,
+        timeoutMs = OPEN_TIMEOUT_MS,
+        opener = { uri -> openDescriptor(uri) },
+        report = { uri, failure -> Log.w(LOG_TAG, "descriptor open threw for $uri", failure) },
+    )
+
     // What:     `private var lastPlaying: Boolean = false` declares a private reassignable boolean,
     //           initial `false`.
     // Why:      Last play state the poller reported, to EDGE-TRIGGER `onPlayingChanged` (fire only on
@@ -513,9 +553,10 @@ class RustEngine(context: Context) : AudioEngine {
             // .setOnAudioFocusChangeListener((change) => this.onFocusChange(change), this.poller)
             // ```
             .setOnAudioFocusChangeListener({ change -> onFocusChange(change) }, poller)
-            // What:     `.setWillPauseWhenDucked(true)` tells the framework this app would rather be
-            //           PAUSED than ducked (volume-lowered) on a transient-duck focus loss.
-            // Why:      A music player prefers a clean pause over playing quietly under, say, a nav prompt.
+            // What:     `.setWillPauseWhenDucked(true)` tells the framework not to duck this app by itself but to
+            //           report a transient-duck focus loss to the listener.
+            // Why:      Android never ducks AAudio output (`PlaybackActivityMonitor.UNDUCKABLE_PLAYER_TYPES`), which
+            //           is what this engine plays through, so the listener lowers the volume itself (D134).
             //
             // In TS you'd write (pseudocode):
             // ```ts
@@ -545,6 +586,28 @@ class RustEngine(context: Context) : AudioEngine {
      * explain its source and use.
      */
     private var resumeOnFocusGain: Boolean = false
+
+    // What:     `private var userVolume: Float = 1.0f` declares the volume the user chose, initial full volume.
+    // Why:      A duck lowers the volume the engine plays at but must not forget the user's choice, so `setVolume`
+    //           keeps the chosen value here and `applyVolume` combines it with `ducked`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private userVolume = 1.0;
+    // ```
+    /** Volume the user chose through [setVolume], before any duck. */
+    private var userVolume: Float = 1.0f
+
+    // What:     `private var ducked: Boolean = false` declares whether a can-duck focus loss is lowering the volume.
+    // Why:      A notification sound or a navigation prompt asks other apps to play quieter, not to stop; the flag is
+    //           set while that interruption lasts and cleared when focus returns or is lost for good (D134).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private ducked = false;
+    // ```
+    /** Whether a short interruption that allows ducking currently lowers the volume. */
+    private var ducked: Boolean = false
 
     // What:     `private val noisyReceiver: BroadcastReceiver = object : BroadcastReceiver() { ... }`
     //           declares a private read-only `BroadcastReceiver` as an OBJECT EXPRESSION: an anonymous
@@ -674,218 +737,97 @@ class RustEngine(context: Context) : AudioEngine {
     }
 
     // What:     `override fun load(uri: String, play: Boolean) { ... }` implements `AudioEngine.load`.
-    // Why:      Load a track by URI into the native engine and optionally start playing, then resolve
-    //           the normalization gain off-thread. NOTE: it deliberately does NOT reset `endedHandled`
-    //           here: the worker clears the native `ended` flag asynchronously, so an eager reset would
-    //           let a poll between this load and that clear see the OLD `ended=true` with
-    //           `endedHandled=false` and fire `onTrackEnded` a second time (a skipped track). The
-    //           falling-edge rearm in `poll()` (where `endedHandled` clears only when native `ended`
-    //           actually clears) is the correct place.
+    // Why:      Start loading a track by URI into the native engine. The descriptor open asks the media provider,
+    //           which can stall for seconds, so it runs on a background thread with a time limit and the rest
+    //           (focus, the native load, the optional seek) continues on the main thread when it answers. Calls
+    //           that arrive meanwhile (`play`, `pause`, `seekTo`) are kept on the pending load and applied
+    //           when it completes. NOTE: it deliberately does NOT reset `endedHandled` here: the worker clears
+    //           the native `ended` flag asynchronously, so an eager reset would let a poll between this load and
+    //           that clear see the OLD `ended=true` with `endedHandled=false` and fire `onTrackEnded` a second
+    //           time (a skipped track). The falling-edge rearm in `poll()` is the correct place.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // load(uri: string, play: boolean): void { ... }
+    // load(uri: string, play: boolean): void {
+    //   const generation = ++this.loadGeneration;
+    //   this.pending = { generation, uri, play, seekSec: null };
+    //   this.opener.open(uri, (outcome) => mainThread.post(() => this.finishLoad(generation, outcome)));
+    // }
     // ```
     /**
-     * Defines load behavior for this music-player component; the TypeScript-oriented notes above explain its
-     * call shape and effects.
+     * Starts loading [uri]; the descriptor opens off the main thread and playback begins when it answers.
+     *
+     * @param uri track to load
+     * @param play whether playback should start once the track is loaded and audio focus is granted
      */
     override fun load(uri: String, play: Boolean) {
-        // What:     `Log.i(LOG_TAG, "RustEngine.load ${uri.substringAfterLast('/')} play=$play")` logs
-        //           the load. `uri.substringAfterLast('/')` is the filename (text after the last `'/'`
-        //           CHAR literal); `$play` interpolates the boolean.
-        // Why:      Record which track is loading and whether it auto-plays.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // console.info(LOG_TAG, `RustEngine.load ${uri.split("/").at(-1)} play=${play}`);
-        // ```
         Log.i(LOG_TAG, "RustEngine.load ${uri.substringAfterLast('/')} play=$play")
-        // What:     `NativeBridge.nativeEngineSetNormalizationGain(handle, UNITY_GAIN)` calls the native
-        //           setter with the companion constant `UNITY_GAIN` (1.0) via JNI.
-        // Why:      Reset to unity so the new track never plays at the previous track's normalization gain.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // NativeBridge.nativeEngineSetNormalizationGain(this.handle, UNITY_GAIN);
-        // ```
         NativeBridge.nativeEngineSetNormalizationGain(handle, UNITY_GAIN)
-        // What:     `val generation: Int = ++loadGeneration` declares a read-only `Int` local.
-        //           `++loadGeneration` is PRE-INCREMENT: it adds 1 to the field and evaluates to the NEW
-        //           value, captured in `generation`.
-        // Why:      Tag this load so the background resolver can tell whether its result is still current.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const generation = ++this.loadGeneration;
-        // ```
-        /**
-         * Defines generation value for this music-player component; the TypeScript-oriented notes above explain
-         * its source and use.
-         */
+        unloaded = false
+        /** Number of this load; a later load makes every answer to this one stale. */
         val generation: Int = ++loadGeneration
-        // What:     `val descriptor: ParcelFileDescriptor? = openDescriptor(uri)` declares a read-only
-        //           NULLABLE `ParcelFileDescriptor?` from the private `openDescriptor` helper (which
-        //           returns `null` when the URI cannot be opened).
-        // Why:      Get a borrowed descriptor to hand the native loader; `null` means we cannot load.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const descriptor = this.openDescriptor(uri); // ParcelFileDescriptor | null
-        // ```
-        /**
-         * Defines descriptor value for this music-player component; the TypeScript-oriented notes above explain
-         * its source and use.
-         */
-        val descriptor: ParcelFileDescriptor? = openDescriptor(uri)
-        // What:     `if (descriptor == null) { Log.w(...); return }` is an early-return guard on the
-        //           nullable descriptor (`== null` is the null check).
-        // Why:      Cannot load without a descriptor; log and bail.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (descriptor === null) { console.warn(LOG_TAG, `could not open a descriptor for ${uri}`); return; }
-        // ```
-        if (descriptor == null) {
-            // What:     `Log.w(LOG_TAG, "could not open a descriptor for $uri")` logs the failure at WARN.
-            // Why:      Make the open failure visible.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // console.warn(LOG_TAG, `could not open a descriptor for ${uri}`);
-            // ```
-            Log.w(LOG_TAG, "could not open a descriptor for $uri")
-            // What:     `return` exits `load` early (returns `Unit`/void).
-            // Why:      Nothing more to do without a descriptor.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return;
-            // ```
+        pendingLoad = PendingLoad(generation = generation, uri = uri, play = play)
+        // A failure of an older queued load belongs to a replaced request from here on, queued or not.
+        queuedLoads.requested()
+        descriptorOpener.open(uri) { outcome ->
+            poller.post { finishLoad(generation = generation, outcome = outcome) }
+        }
+    }
+
+    // What:     `private fun finishLoad(generation: Int, outcome: DescriptorOutcome<ParcelFileDescriptor>)`
+    //           completes a load on the main thread once the descriptor open answered.
+    // Why:      A stale answer (the user already chose another track) only closes its descriptor. A failed or
+    //           stalled open stops the old track, so the deck does not keep playing something other than the chosen
+    //           track, and tells the controller so it can show a message.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private finishLoad(generation: number, outcome: DescriptorOutcome): void {
+    //   if (generation !== this.loadGeneration) { outcome.descriptor?.close(); return; }
+    //   const load = this.pending; this.pending = null;
+    //   if (outcome.kind !== "opened") { nativePause(); this.onLoadFailed?.(load.uri, reason); return; }
+    //   /* focus, native load, apply the kept seek, resolve the gain */
+    // }
+    // ```
+    /** Finishes the pending load on the main thread with the outcome of its descriptor open. */
+    private fun finishLoad(generation: Int, outcome: DescriptorOutcome<ParcelFileDescriptor>) {
+        if (generation != loadGeneration || handle == 0L) {
+            Log.i(LOG_TAG, "dropping the answer of a stale load generation=$generation")
+            if (outcome is DescriptorOutcome.Opened) {
+                outcome.descriptor.close()
+            }
             return
         }
-        // What:     `val startPlaying: Boolean = play && requestFocus()` declares a read-only boolean.
-        //           `&&` is SHORT-CIRCUIT logical AND: `requestFocus()` (which actually requests audio
-        //           focus, a side effect) runs ONLY when `play` is `true`. So `startPlaying` is true only
-        //           when the caller wants playback AND focus was granted.
-        // Why:      Only start playing if audio focus is granted (a phone call or another player can deny it).
-        // Gotcha:   `requestFocus()` has a side effect (it requests focus); `&&` short-circuits, so it is
-        //           NOT called when `play` is false.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const startPlaying = play && this.requestFocus();
-        // ```
-        /**
-         * Defines start playing value for this music-player component; the TypeScript-oriented notes above
-         * explain its source and use.
-         */
-        val startPlaying: Boolean = play && requestFocus()
-        // What:     `val result: Int = descriptor.use { NativeBridge.nativeEngineLoad(handle, it.fd, startPlaying) }`
-        //           declares a read-only `Int`. `descriptor.use { ... }` runs the block and then
-        //           GUARANTEES `descriptor.close()` afterward (try-with-resources). `it` is the descriptor;
-        //           `it.fd` is its raw fd, handed to the native loader; the native return code becomes `result`.
-        // Why:      Pass the BORROWED fd; native dups it synchronously, so `use {}` closes the original after
-        //           (the dup-ownership protocol avoiding an fdsan double-close).
-        // Gotcha:   `use {}` closes the descriptor at block end; the native dup must complete before then
-        //           (it does, synchronously).
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // let result: number;
-        // { using d = descriptor; result = NativeBridge.nativeEngineLoad(this.handle, d.fd, startPlaying); }
-        // ```
-        /**
-         * Defines result value for this music-player component; the TypeScript-oriented notes above explain its
-         * source and use.
-         */
-        val result: Int = descriptor.use { NativeBridge.nativeEngineLoad(handle, it.fd, startPlaying) }
-        // What:     `if (result != 0) { Log.w(...); return }` checks the native return code (`0` = success;
-        //           `!= 0` = failure) and bails on failure.
-        // Why:      A non-zero native load result means the track failed to load.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (result !== 0) { console.warn(LOG_TAG, `native load failed (code ${result}) for ${uri}`); return; }
-        // ```
+        /** The load this answer belongs to, with the calls that arrived while it was opening. */
+        val load: PendingLoad = pendingLoad ?: return
+        pendingLoad = null
+        if (outcome !is DescriptorOutcome.Opened) {
+            Log.w(LOG_TAG, "could not open a descriptor for ${load.uri}: $outcome")
+            NativeBridge.nativeEnginePause(handle)
+            onLoadFailed?.invoke(
+                load.uri,
+                if (outcome == DescriptorOutcome.TimedOut) LoadFailure.TIMED_OUT else LoadFailure.UNREADABLE,
+            )
+            return
+        }
+        /** Whether to start playing: wanted by the caller (as last changed while loading) and granted focus. */
+        val startPlaying: Boolean = load.play && requestFocus()
+        // The borrowed fd is dup'd synchronously by the native loader; `use {}` closes the original afterward.
+        /** Native return code, 0 for success. */
+        val result: Int = outcome.descriptor.use { NativeBridge.nativeEngineLoad(handle, it.fd, startPlaying) }
         if (result != 0) {
-            // What:     `Log.w(LOG_TAG, "native load failed (code $result) for $uri")` logs the failure code.
-            // Why:      Make the native failure visible.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // console.warn(LOG_TAG, `native load failed (code ${result}) for ${uri}`);
-            // ```
-            Log.w(LOG_TAG, "native load failed (code $result) for $uri")
-            // What:     `return` exits `load` early.
-            // Why:      Nothing more to do after a failed native load.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return;
-            // ```
+            Log.w(LOG_TAG, "native load failed (code $result) for ${load.uri}")
+            onLoadFailed?.invoke(load.uri, LoadFailure.UNREADABLE)
             return
         }
-        // What:     `resolveScope.launch { ... }` starts a fire-and-forget coroutine on `resolveScope` to
-        //           resolve the gain off-thread (trailing-lambda block).
-        // Why:      Resolve the normalization gain off-thread (cache hit, else native measure) and apply it
-        //           back on the main thread, only when this load is still current, so a slow measure that
-        //           finishes after the user skipped ahead cannot retag the newer track. The track plays at
-        //           unity until the gain lands (a cache hit lands almost immediately; a miss after a brief
-        //           level correction).
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // void (async () => {
-        //   const gain = await this.resolveNormalizationGain(uri);
-        //   this.poller.post(() => {
-        //     if (generation === this.loadGeneration && this.handle !== 0n) {
-        //       NativeBridge.nativeEngineSetNormalizationGain(this.handle, gain);
-        //     }
-        //   });
-        // })();
-        // ```
+        // The worker opens and decodes the file after this call returns; a failure there is read in `poll`.
+        queuedLoads.queued(load.uri)
+        load.seekSec?.let { seconds -> NativeBridge.nativeEngineSeek(handle, seconds) }
         resolveScope.launch {
-            // What:     `val gain: Float = resolveNormalizationGain(uri)` calls the SUSPEND resolver and
-            //           awaits its `Float` result (a suspend call suspends like `await`).
-            // Why:      Get this track's gain (cache hit or fresh native measure).
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const gain = await this.resolveNormalizationGain(uri);
-            // ```
-            /**
-             * Defines gain value for this music-player component; the TypeScript-oriented notes above explain
-             * its source and use.
-             */
-            val gain: Float = resolveNormalizationGain(uri)
-            // What:     `poller.post { ... }` posts the trailing-lambda block onto the MAIN looper to run
-            //           there (marshalling back to the main thread from the background coroutine).
-            // Why:      The native handle is touched only from the main thread; apply the gain there.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // this.poller.post(() => { ... });
-            // ```
+            /** Normalization gain from the cache or a native measurement, resolved off the main thread. */
+            val gain: Float = resolveNormalizationGain(load.uri)
             poller.post {
-                // What:     `if (generation == loadGeneration && handle != 0L) { ... }` guards the apply:
-                //           only when this load is still the current one (`generation == loadGeneration`)
-                //           AND the engine is still alive (`handle != 0L`, not released).
-                // Why:      Avoid retagging a newer track or calling into a released engine.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // if (generation === this.loadGeneration && this.handle !== 0n) { ... }
-                // ```
                 if (generation == loadGeneration && handle != 0L) {
-                    // What:     `NativeBridge.nativeEngineSetNormalizationGain(handle, gain)` applies the
-                    //           resolved gain to the native engine via JNI.
-                    // Why:      Apply this track's normalization.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // NativeBridge.nativeEngineSetNormalizationGain(this.handle, gain);
-                    // ```
                     NativeBridge.nativeEngineSetNormalizationGain(handle, gain)
                 }
             }
@@ -1048,6 +990,12 @@ class RustEngine(context: Context) : AudioEngine {
      * call shape and effects.
      */
     override fun play() {
+        /** The load still opening its file, whose start state this call changes. */
+        val load: PendingLoad? = pendingLoad
+        if (load != null) {
+            load.play = true
+            return
+        }
         // What:     `if (requestFocus()) { NativeBridge.nativeEnginePlay(handle) }` requests focus (a side
         //           effect) and plays only if it was granted.
         // Why:      Do not play over another app that holds focus.
@@ -1080,6 +1028,7 @@ class RustEngine(context: Context) : AudioEngine {
      * call shape and effects.
      */
     override fun pause() {
+        pendingLoad?.play = false
         // What:     `NativeBridge.nativeEnginePause(handle)` calls the native pause via JNI.
         // Why:      Pause native playback.
         //
@@ -1103,6 +1052,12 @@ class RustEngine(context: Context) : AudioEngine {
      * call shape and effects.
      */
     override fun seekTo(positionSec: Double) {
+        /** The load still opening its file, which takes the seek once the track is loaded. */
+        val load: PendingLoad? = pendingLoad
+        if (load != null) {
+            load.seekSec = positionSec
+            return
+        }
         // What:     `NativeBridge.nativeEngineSeek(handle, positionSec)` calls the native seek via JNI,
         //           passing seconds directly (the native side handles the unit).
         // Why:      Move playback to `positionSec`.
@@ -1127,14 +1082,29 @@ class RustEngine(context: Context) : AudioEngine {
      * its call shape and effects.
      */
     override fun setVolume(volume: Float) {
-        // What:     `NativeBridge.nativeEngineSetVolume(handle, volume)` calls the native volume setter via JNI.
-        // Why:      Apply the user volume natively.
+        // What:     `userVolume = volume` remembers the volume the user chose.
+        // Why:      A duck in progress must not lose it, and the regained focus restores it.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // NativeBridge.nativeEngineSetVolume(this.handle, volume);
+        // this.userVolume = volume;
         // ```
-        NativeBridge.nativeEngineSetVolume(handle, volume)
+        userVolume = volume
+        applyVolume()
+    }
+
+    // What:     `private fun applyVolume()` sends the user volume, lowered while ducked, to the native engine.
+    // Why:      The one place the engine's volume is set, so a volume change and a duck change cannot disagree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private applyVolume(): void {
+    //   NativeBridge.nativeEngineSetVolume(this.handle, volumeWhileDucked(this.userVolume, this.ducked));
+    // }
+    // ```
+    /** Applies [userVolume], lowered while [ducked], to the native engine. */
+    private fun applyVolume() {
+        NativeBridge.nativeEngineSetVolume(handle, volumeWhileDucked(userVolume = userVolume, ducked = ducked))
     }
 
     // What:     `override fun positionSec(): Double = NativeBridge.nativeEnginePositionSec(handle)` implements
@@ -1149,7 +1119,11 @@ class RustEngine(context: Context) : AudioEngine {
      * Defines position sec behavior for this music-player component; the TypeScript-oriented notes above explain
      * its call shape and effects.
      */
-    override fun positionSec(): Double = NativeBridge.nativeEnginePositionSec(handle)
+    override fun positionSec(): Double = if (unloaded) {
+        0.0
+    } else {
+        pendingLoad?.let { load -> load.seekSec ?: 0.0 } ?: NativeBridge.nativeEnginePositionSec(handle)
+    }
 
     // What:     `override fun durationSec(): Double = NativeBridge.nativeEngineDurationSec(handle)`
     //           implements `AudioEngine.durationSec` as an expression body delegating to the native getter.
@@ -1163,7 +1137,8 @@ class RustEngine(context: Context) : AudioEngine {
      * Defines duration sec behavior for this music-player component; the TypeScript-oriented notes above explain
      * its call shape and effects.
      */
-    override fun durationSec(): Double = NativeBridge.nativeEngineDurationSec(handle)
+    override fun durationSec(): Double =
+        if (unloaded || pendingLoad != null) 0.0 else NativeBridge.nativeEngineDurationSec(handle)
 
     // What:     `override fun playWhenReady(): Boolean = NativeBridge.nativeEnginePlayWhenReady(handle)`
     //           implements `AudioEngine.playWhenReady` as an expression body delegating to the native getter.
@@ -1177,7 +1152,7 @@ class RustEngine(context: Context) : AudioEngine {
      * Defines play when ready behavior for this music-player component; the TypeScript-oriented notes above
      * explain its call shape and effects.
      */
-    override fun playWhenReady(): Boolean = NativeBridge.nativeEnginePlayWhenReady(handle)
+    override fun playWhenReady(): Boolean = pendingLoad?.play ?: NativeBridge.nativeEnginePlayWhenReady(handle)
 
     // What:     `override fun setOnPlayingChanged(callback: (Boolean) -> Unit) { ... }` implements the setter
     //           for the play-state callback (`callback: (Boolean) -> Unit` is a non-nullable function-type param).
@@ -1223,6 +1198,20 @@ class RustEngine(context: Context) : AudioEngine {
         // this.onTrackEnded = callback;
         // ```
         onTrackEnded = callback
+    }
+
+    /** Pauses the native engine, zeroes position and duration until the next load, and cancels a pending load. */
+    override fun unload() {
+        Log.i(LOG_TAG, "RustEngine.unload")
+        loadGeneration += 1
+        pendingLoad = null
+        unloaded = true
+        NativeBridge.nativeEnginePause(handle)
+    }
+
+    /** Stores the single load-failure handler; a second call replaces it. */
+    override fun setOnLoadFailed(callback: (uri: String, reason: LoadFailure) -> Unit) {
+        onLoadFailed = callback
     }
 
     // What:     `override fun release() { ... }` implements `AudioEngine.release`: tear the engine down.
@@ -1340,10 +1329,11 @@ class RustEngine(context: Context) : AudioEngine {
 
     // What:     `private fun onFocusChange(change: Int) { ... }` declares a private function taking the
     //           focus-change code (`Int`) and returning `Unit` (void).
-    // Why:      React to a system audio-focus change so a phone call, navigation prompt, or another media app
-    //           pauses (and a transient interruption resumes) this engine. A permanent loss pauses and abandons
-    //           focus; a transient loss pauses and arms resume-on-gain; a gain resumes only if a transient loss
-    //           had paused us.
+    // Why:      React to a system audio-focus change so a phone call or another media app pauses (and a transient
+    //           interruption resumes) this engine, and a notification sound or navigation prompt ducks it (D134).
+    //           A permanent loss pauses and abandons focus; a transient loss pauses and arms resume-on-gain; a
+    //           can-duck loss lowers the volume and keeps playing; a gain restores the volume and resumes only if a
+    //           transient loss had paused us.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -1398,6 +1388,15 @@ class RustEngine(context: Context) : AudioEngine {
                 // NativeBridge.nativeEnginePause(this.handle);
                 // ```
                 NativeBridge.nativeEnginePause(handle)
+                // What:     `ducked = false` and `applyVolume()` put the user volume back.
+                // Why:      Focus is given up for good, so no gain event will end a duck that was in progress.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // this.ducked = false; this.applyVolume();
+                // ```
+                ducked = false
+                applyVolume()
                 // What:     `audioManager.abandonAudioFocusRequest(focusRequest)` gives up focus.
                 // Why:      We are not resuming, so release focus to the system.
                 //
@@ -1407,20 +1406,41 @@ class RustEngine(context: Context) : AudioEngine {
                 // ```
                 audioManager.abandonAudioFocusRequest(focusRequest)
             }
-            // What:     `AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-            //           ... }`
-            //           is a MULTI-LABEL arm: it runs for EITHER a transient loss or a transient-can-duck loss
-            //           (the comma means "or").
-            // Why:      A brief interruption (a notification ping, a nav prompt): pause now and remember to
-            //           resume if we were playing.
+            // What:     `AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> { ... }` is the arm for a brief
+            //           interruption that allows the music to go on quietly: a notification ping or a navigation
+            //           prompt.
+            // Why:      Lower the volume for the interruption instead of stopping the music (D134).
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-            // case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK: { this.resumeOnFocusGain =
+            // case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK: { this.ducked = true; this.applyVolume(); break; }
+            // ```
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // What:     `ducked = true` and `applyVolume()` lower the volume and keep playing.
+                // Why:      A notification sound or a navigation prompt asks to be heard over the music, not instead
+                //           of it. Android ducks other apps' output itself, but it never ducks this engine's AAudio
+                //           output, and `setWillPauseWhenDucked(true)` makes it tell this listener, so the engine
+                //           lowers its own volume (D134). A paused player stays paused and is lowered too, so a
+                //           Play pressed during the interruption does not blare over it.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // this.ducked = true; this.applyVolume();
+                // ```
+                ducked = true
+                applyVolume()
+            }
+            // What:     `AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { ... }` is the arm for a transient loss that does
+            //           not allow ducking.
+            // Why:      A phone call or a voice recording needs the speaker: pause now and remember to resume if we
+            //           were playing.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT: { this.resumeOnFocusGain =
             // NativeBridge.nativeEngineIsPlaying(this.handle); NativeBridge.nativeEnginePause(this.handle); break; }
             // ```
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 // What:     `resumeOnFocusGain = NativeBridge.nativeEngineIsPlaying(handle)` records whether we
                 //           are currently playing (so we know whether to resume on a later gain).
                 // Why:      Only resume after a transient loss if we were actually playing when it hit.
@@ -1448,6 +1468,15 @@ class RustEngine(context: Context) : AudioEngine {
             // NativeBridge.nativeEnginePlay(this.handle); } break; }
             // ```
             AudioManager.AUDIOFOCUS_GAIN -> {
+                // What:     `ducked = false` and `applyVolume()` put the user volume back.
+                // Why:      The interruption that lowered the volume has ended.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // this.ducked = false; this.applyVolume();
+                // ```
+                ducked = false
+                applyVolume()
                 // What:     `if (resumeOnFocusGain) { ... }` resumes only when the resume flag is set.
                 // Why:      Do not auto-start playback the user never had going.
                 //
@@ -1593,6 +1622,26 @@ class RustEngine(context: Context) : AudioEngine {
             // ```
             endedHandled = false
         }
+        // What:     `if (!unloaded && pendingLoad == null) { ... }` reads the worker's load failure number.
+        // Why:      The native `load` call returned once the load was queued, so a file that opens but does not
+        //           decode (a truncated or renamed file) fails later on the worker; its number is the only sign.
+        //           A newer load still opening its descriptor, or an unloaded engine, makes an older failure stale.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!this.unloaded && this.pendingLoad === null) {
+        //   const failedUri = this.queuedLoads.failureToReport(nativeEngineFailedLoad(this.handle));
+        //   if (failedUri !== null) this.onLoadFailed?.(failedUri, "UNREADABLE");
+        // }
+        // ```
+        if (!unloaded && pendingLoad == null) {
+            /** File of the latest queued load when the worker has newly failed to decode it, else null. */
+            val failedUri: String? = queuedLoads.failureToReport(NativeBridge.nativeEngineFailedLoad(handle))
+            if (failedUri != null) {
+                Log.w(LOG_TAG, "the engine worker could not decode ${failedUri.substringAfterLast('/')}")
+                onLoadFailed?.invoke(failedUri, LoadFailure.UNREADABLE)
+            }
+        }
     }
 
     /**
@@ -1635,6 +1684,9 @@ class RustEngine(context: Context) : AudioEngine {
          * source and use.
          */
         private const val POLL_MS: Long = 200L
+
+        /** How long a track may wait for its descriptor before the load is reported as stalled. */
+        private const val OPEN_TIMEOUT_MS: Long = 8_000L
 
         // What:     `private const val UNITY_GAIN: Float = 1.0f` declares a private compile-time `Float`
         //           (32-bit; the `f` suffix) constant `1.0`.

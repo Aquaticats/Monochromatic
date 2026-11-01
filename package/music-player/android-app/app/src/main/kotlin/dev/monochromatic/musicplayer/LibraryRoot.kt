@@ -410,6 +410,11 @@ object LibraryRoot {
     // ```ts
     // function clear(context: Context): void { ... }
     // ```
+    /** Reads the saved root's file in full, off the main thread, so a later main-thread read finds it in memory. */
+    fun warmUp(context: Context) {
+        Log.i(ROOT_TAG, "warm-up read ${prefs(context).all.size} saved values")
+    }
+
     /**
      * Defines clear behavior for this music-player component; the TypeScript-oriented notes above explain its
      * call shape and effects.
@@ -457,5 +462,6 @@ object LibraryRoot {
      * Defines prefs behavior for this music-player component; the TypeScript-oriented notes above explain its
      * call shape and effects.
      */
-    private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }

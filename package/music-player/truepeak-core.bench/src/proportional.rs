@@ -1,11 +1,19 @@
-//! The decided policy: a proportional-coverage probe with a fixed margin, plus the
+//! The decided policy:
+//!  a proportional-coverage probe with a fixed margin,
+//!  plus the
 //! margin-versus-clamp tradeoff.
 //!
 //! A fixed-length probe under-covers long tracks (a 45s probe is ~1% of an hour-long mix),
-//! so the worst under-read is a long track. Proportional coverage instead probes a fixed
-//! fraction of every long track, giving uniform coverage. The under-read distribution is
-//! extremely skewed (median near 0.14 dB), so guaranteeing the last percent costs about a
-//! decibel of margin on every track. The margin is therefore a decision: a smaller margin
+//! so the worst under-read is a long track.
+//!  Proportional coverage instead probes a fixed
+//! fraction of every long track,
+//!  giving uniform coverage.
+//!  The under-read distribution is
+//! extremely skewed (median near 0.14 dB),
+//!  so guaranteeing the last percent costs about a
+//! decibel of margin on every track.
+//!  The margin is therefore a decision:
+//!  a smaller margin
 //! keeps most tracks louder and lets the realtime clamp catch the rare too-loud transient,
 //! which background warming later corrects to an exact cached gain.
 
@@ -16,7 +24,8 @@ use std::collections::HashSet;
 /// Imports the shared dB and policy math.
 use truepeak_core::peak_dbtp;
 
-/// Convert a linear peak to dBTP, treating silence as a very negative level.
+/// Convert a linear peak to dBTP,
+///  treating silence as a very negative level.
 fn db(peak: f64) -> f64 {
     if peak <= 0.0 {
         return f64::NEG_INFINITY
@@ -35,7 +44,8 @@ pub struct UnderRead {
 }
 
 /// The loudest sampled window (linear) when a track is probed at `coverage` of its length
-/// with windows of `window_secs`, placed evenly across its bins.
+/// with windows of `window_secs`,
+///  placed evenly across its bins.
 fn sampled_max(track: &Track, coverage: f64, window_secs: f64) -> f64 {
     let bins = &track.bin_peaks;
     let n = bins.len();
@@ -61,8 +71,12 @@ fn sampled_max(track: &Track, coverage: f64, window_secs: f64) -> f64 {
 
 /// Evaluate the proportional probe over the corpus.
 ///
-/// What: full-scans short tracks and probes a fraction of long tracks, returning the total
-/// decoded seconds and the under-read of every loud long track. Why: decoded seconds fix
+/// What:
+///  full-scans short tracks and probes a fraction of long tracks,
+///  returning the total
+/// decoded seconds and the under-read of every loud long track.
+///  Why:
+///  decoded seconds fix
 /// the budget and the under-reads drive the margin/clamp decision.
 pub fn evaluate_proportional(
     tracks: &[Track],
@@ -94,7 +108,8 @@ pub fn evaluate_proportional(
     return (decoded, under_reads)
 }
 
-/// The quantile value of a set of under-reads, sorted ascending.
+/// The quantile value of a set of under-reads,
+///  sorted ascending.
 pub fn under_read_quantile(under_reads: &[UnderRead], fraction: f64) -> f64 {
     let mut values: Vec<f64> = under_reads.iter().map(|u| return u.under_read_db).collect();
     values.sort_by(f64::total_cmp);
@@ -111,16 +126,23 @@ pub struct MarginRow {
     pub worst_quiet_db: f64,
     /// Loud long tracks whose under-read exceeds the margin (a clamped cold-start transient).
     pub clamped: usize,
-    /// Of the clamped tracks, how many are safe-provenance.
+    /// Of the clamped tracks,
+    ///  how many are safe-provenance.
     pub clamped_safe: usize,
     /// Total loud long tracks.
     pub total: usize,
 }
 
-/// Build the margin/clamp tradeoff: for each margin, how many tracks the clamp must catch.
+/// Build the margin/clamp tradeoff:
+///  for each margin,
+///  how many tracks the clamp must catch.
 ///
-/// What: a track is clamped when its under-read exceeds `margin + too_loud`. Why: this is
-/// the decision surface, worst-case too-quiet against the count of cold-start clamps.
+/// What:
+///  a track is clamped when its under-read exceeds `margin + too_loud`.
+///  Why:
+///  this is
+/// the decision surface,
+///  worst-case too-quiet against the count of cold-start clamps.
 pub fn margin_clamp_table(under_reads: &[UnderRead], margins: &[f64], too_loud_db: f64) -> Vec<MarginRow> {
     // For each margin, count the tracks whose under-read the fixed margin cannot cover.
     return margins

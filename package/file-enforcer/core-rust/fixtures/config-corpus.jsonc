@@ -1,0 +1,198 @@
+// Sample configs for the schema corpus test (src/schema_tests.rs).
+// accept:           the decoder accepts and the schema accepts.
+// reject:           the decoder rejects and the schema rejects.
+// decoderStricter:  the decoder rejects and the schema accepts, each with the reason JSON Schema cannot say it.
+// Adding a rule kind or field means adding a sample here for every branch of the decoder.
+{
+  "accept": {
+    "empty rules": { "rules": [] },
+    "schema pointer present": { "$schema": "./file-enforcer.schema.json", "rules": [] },
+    "schema pointer null": { "$schema": null, "rules": [] },
+    "concat minimal": { "rules": [{ "kind": "concat", "id": "a", "output": "OUT.md", "parts": [] }] },
+    "concat full": {
+      "rules": [
+        {
+          "kind": "concat",
+          "id": "a",
+          "output": "OUT.md",
+          "mode": "0600",
+          "parts": [
+            "literal",
+            { "file": "AGENTS.md" },
+            { "concat": [{ "var": "dir" }, "/x"] },
+            { "file": { "concat": ["a/", { "var": "manifest" }] } },
+          ],
+        },
+      ],
+    },
+    "concat mode null": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [], "mode": null }] },
+    "concat four digit mode": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [], "mode": "0755" }] },
+    "mode-only": { "rules": [{ "kind": "mode-only", "id": "m", "path": "x.txt", "mode": "600" }] },
+    "package-licenses": {
+      "rules": [
+        {
+          "kind": "package-licenses",
+          "id": "p",
+          "manifests": ["package/*/*/package.json"],
+          "directory": "LICENSES",
+          "texts": { "MIT": "LICENSES/MIT.txt" },
+          "requires": [{ "contains": "MIT", "texts": ["MIT"] }],
+        },
+      ],
+    },
+    "mirror": { "rules": [{ "kind": "mirror", "id": "m", "from": "a", "to": "b" }] },
+    "toml-keys minimal": { "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [], "blocks": [] }] },
+    "toml-keys full": {
+      "rules": [
+        {
+          "kind": "toml-keys",
+          "id": "t",
+          "manifests": ["package/*/*/Cargo.toml"],
+          "onlyDirs": ["package/a/b"],
+          "edits": [
+            { "guard": ["package"], "path": ["package", "edition"], "value": "2024" },
+            { "guard": [], "path": ["package", "publish"], "value": false },
+            { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+            { "guard": ["lints"], "path": ["lints", "x"], "value": ["a", { "var": "dir" }] },
+          ],
+          "blocks": [{ "absentPath": ["workspace"], "text": { "file": "block.toml" } }],
+        },
+      ],
+    },
+    "toml-keys onlyDirs null": {
+      "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "onlyDirs": null, "edits": [], "blocks": [] }],
+    },
+    "mise-path-list minimal": {
+      "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o.toml", "directories": ["a/*/.bin"] }],
+    },
+    "mise-path-list with header": {
+      "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o.toml", "directories": [], "header": "# x\n" }],
+    },
+    "rust-catalog": {
+      "rules": [{ "kind": "rust-catalog", "id": "c", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"] }],
+    },
+    "browserslist minimal": {
+      "rules": [{ "kind": "browserslist", "id": "b", "source": ".browserslistrc", "output": "o.json", "lock": "lock.json" }],
+    },
+    "browserslist with environment": {
+      "rules": [{ "kind": "browserslist", "id": "b", "source": "q", "output": "o.json", "lock": "lock.json", "environment": "production" }],
+    },
+    "several kinds in order": {
+      "rules": [
+        { "kind": "mirror", "id": "m1", "from": "a", "to": "b" },
+        { "kind": "mirror", "id": "m2", "from": "a", "to": "c" },
+      ],
+    },
+  },
+  "reject": {
+    "root is an array": [],
+    "root is a string": "x",
+    "rules missing": {},
+    "rules is an object": { "rules": {} },
+    "unknown top-level key": { "rules": [], "extra": 1 },
+    "rule is not an object": { "rules": ["x"] },
+    "kind missing": { "rules": [{ "id": "a" }] },
+    "kind unknown": { "rules": [{ "kind": "nope", "id": "a" }] },
+    "kind not a string": { "rules": [{ "kind": 1, "id": "a" }] },
+    "id missing": { "rules": [{ "kind": "mirror", "from": "a", "to": "b" }] },
+    "id not a string": { "rules": [{ "kind": "mirror", "id": 1, "from": "a", "to": "b" }] },
+    "unknown rule key": { "rules": [{ "kind": "mirror", "id": "m", "from": "a", "to": "b", "extra": true }] },
+    "concat output missing": { "rules": [{ "kind": "concat", "id": "a", "parts": [] }] },
+    "concat parts missing": { "rules": [{ "kind": "concat", "id": "a", "output": "o" }] },
+    "concat parts not an array": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": "x" }] },
+    "concat mode too short": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [], "mode": "06" }] },
+    "concat mode not octal": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [], "mode": "0690" }] },
+    "concat mode not a string": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [], "mode": 600 }] },
+    "part is null": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [null] }] },
+    "part is a float": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [1.5] }] },
+    "part tagged object with two keys": {
+      "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [{ "file": "a", "var": "b" }] }],
+    },
+    "part tagged object with no keys": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [{}] }] },
+    "part tagged object with unknown key": {
+      "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [{ "dir": "a" }] }],
+    },
+    "var is not a string": { "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [{ "var": 1 }] }] },
+    "concat expression is not an array": {
+      "rules": [{ "kind": "concat", "id": "a", "output": "o", "parts": [{ "concat": "x" }] }],
+    },
+    "mode-only mode missing": { "rules": [{ "kind": "mode-only", "id": "m", "path": "x" }] },
+    "mode-only mode invalid": { "rules": [{ "kind": "mode-only", "id": "m", "path": "x", "mode": "rw" }] },
+    "package-licenses texts missing": {
+      "rules": [{ "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "requires": [] }],
+    },
+    "package-licenses texts value not a string": {
+      "rules": [{ "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": { "A": 1 }, "requires": [] }],
+    },
+    "package-licenses requirement missing contains": {
+      "rules": [
+        { "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": {}, "requires": [{ "texts": [] }] },
+      ],
+    },
+    "mirror to missing": { "rules": [{ "kind": "mirror", "id": "m", "from": "a" }] },
+    "toml-keys edit value missing": {
+      "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [{ "guard": [], "path": ["a"] }], "blocks": [] }],
+    },
+    "toml-keys edit path not strings": {
+      "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [{ "guard": [], "path": [1], "value": "x" }], "blocks": [] }],
+    },
+    "toml-keys block text missing": {
+      "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [], "blocks": [{ "absentPath": ["a"] }] }],
+    },
+    "toml-keys blocks missing": { "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [] }] },
+    "mise-path-list directories missing": { "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o" }] },
+    "rust-catalog catalog missing": { "rules": [{ "kind": "rust-catalog", "id": "c", "manifests": [] }] },
+    "browserslist source missing": { "rules": [{ "kind": "browserslist", "id": "b", "output": "o.json", "lock": "lock.json" }] },
+    "browserslist lock missing": { "rules": [{ "kind": "browserslist", "id": "b", "source": "q", "output": "o.json" }] },
+    "jetbrains-harper fields missing": { "rules": [{ "kind": "jetbrains-harper", "id": "h" }] },
+  },
+  "decoderStricter": {
+    "absolute output path": {
+      "reason": "JSON Schema cannot say a string is a relative path inside the worktree",
+      "config": { "rules": [{ "kind": "concat", "id": "a", "output": "/etc/passwd", "parts": [] }] },
+    },
+    "parent segment in output path": {
+      "reason": "JSON Schema cannot say a string has no .. segment",
+      "config": { "rules": [{ "kind": "mirror", "id": "m", "from": "a/../b", "to": "c" }] },
+    },
+    "duplicate rule ids": {
+      "reason": "uniqueItems cannot compare one property of the array items",
+      "config": {
+        "rules": [
+          { "kind": "mirror", "id": "m", "from": "a", "to": "b" },
+          { "kind": "mirror", "id": "m", "from": "a", "to": "c" },
+        ],
+      },
+    },
+    "per-user kind in the repository config": {
+      "reason": "one schema serves both configs; the scope is a decoder argument",
+      "config": {
+        "rules": [
+          {
+            "kind": "jetbrains-harper",
+            "id": "h",
+            "productPrefixes": [],
+            "disabledLinters": [],
+            "excludePatterns": [],
+            "scopedServers": [],
+          },
+        ],
+      },
+    },
+    "requirement names an unknown text": {
+      "reason": "JSON Schema cannot require array items to be keys of a sibling object",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": { "MIT": "LICENSES/MIT.txt" },
+            "requires": [{ "contains": "GPL", "texts": ["GPL"] }],
+          },
+        ],
+      },
+    },
+  },
+}

@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:27:16.201Z",
+  "purpose": "Close the authored Kotlin JVM semantic join without a duplicate allocation",
+  "applicationSha": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "packageRoot": "package/linter/kotlin",
+  "packageTree": "fa0167ad3af17896374a22b40ede76e9e9f51250",
+  "source": {
+    "testPath": "package/linter/kotlin/src/test/kotlin/dev/monochromatic/detekt/RequireKDocTest.kt",
+    "testSha256": "85aabcd1a45a34c82ed6725b3a6eb72d4e60c0c3f383998056246191f3d6806a",
+    "authoredTestMethods": [
+      "acceptsFullyDocumentedCode()",
+      "allowOverrideExemptsOverridingMembers()",
+      "reportsMembersLocalsAndNested()",
+      "reportsSecondaryConstructorAndEnumEntries()",
+      "reportsUndocumentedTopLevelDeclarations()",
+      "skipsExcludedKinds()"
+    ],
+    "owningMiseTask": "//package/linter/kotlin:test",
+    "owningCommand": "./gradlew test --no-daemon --console=plain",
+    "projectTask": "test",
+    "dependencyBuildFileSha256": "948e6342ea422f48ae9545ec60fa6a9d2c389c7d9129c8ad10640761f257ecde"
+  },
+  "evidence": {
+    "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
+    "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85"
+  },
+  "rows": [
+    {
+      "prefix": "gradle-warm-a",
+      "runId": "s9w4jkv0hc",
+      "identities": [
+        {
+          "workflowId": "z55q5pzjnh",
+          "jobId": "mcq279w0n4",
+          "attemptId": "qjs8zmfggk",
+          "sandboxId": "m6br9dh67kxnxtdhlt5w"
+        }
+      ],
+      "harnessSha": "9f5923543640df2ee41a00ef7d098e1262a470e7",
+      "applicationSha": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "packageTree": "fa0167ad3af17896374a22b40ede76e9e9f51250",
+      "timedCommand": {
+        "name": "gradle-warm-actual-tests",
+        "command": [
+          "mise",
+          "exec",
+          "java",
+          "--",
+          "./gradlew",
+          "test",
+          "--rerun",
+          "jar",
+          "--build-cache",
+          "--info",
+          "--console=plain",
+          "--no-daemon",
+          "--max-workers=8",
+          "--init-script",
+          "/home/runner/work/Monochromatic/Monochromatic/.depot/reuse/cache.init.gradle"
+        ],
+        "cwd": "/home/runner/work/Monochromatic/Monochromatic/package/linter/kotlin",
+        "startedAt": "2026-10-18T07:22:57.129Z",
+        "finishedAt": "2026-10-18T07:23:14.679Z",
+        "elapsedSeconds": 17.550128155,
+        "exitStatus": 0,
+        "signal": null,
+        "expected": "success"
+      },
+      "junit": {
+        "name": "TEST-dev.monochromatic.detekt.RequireKDocTest.xml",
+        "sha256": "e81d7a0e7841fb837b09ea7fb0bac1a20498d06416daf2b4dc182078040df813",
+        "caseIdentities": [
+          {
+            "name": "allowOverrideExemptsOverridingMembers()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "skipsExcludedKinds()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsMembersLocalsAndNested()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsUndocumentedTopLevelDeclarations()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "acceptsFullyDocumentedCode()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsSecondaryConstructorAndEnumEntries()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          }
+        ],
+        "originalArtifactSha256": "fcf9453daaf9502bd607bc86679862fa007cd78f66c3e18a6d4192d7844b010b",
+        "originalMember": "gradle-warm-actual-tests-test-results.json",
+        "originalMemberSha256": "114cde88d86c07b596224d4dca4e8b1c5c042f02763884f5c8be752ad63aaaa8"
+      },
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/gradleReuse/repeatedOffVersusWarm/summaries/0"
+    },
+    {
+      "prefix": "gradle-warm-b",
+      "runId": "rrlzfmp2qv",
+      "identities": [
+        {
+          "workflowId": "p2lm6jjfhf",
+          "jobId": "pclxl8qb1d",
+          "attemptId": "d7x08tllbj",
+          "sandboxId": "0g53zn9qrn1swh9wx08x"
+        }
+      ],
+      "harnessSha": "9f5923543640df2ee41a00ef7d098e1262a470e7",
+      "applicationSha": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "packageTree": "fa0167ad3af17896374a22b40ede76e9e9f51250",
+      "timedCommand": {
+        "name": "gradle-warm-actual-tests",
+        "command": [
+          "mise",
+          "exec",
+          "java",
+          "--",
+          "./gradlew",
+          "test",
+          "--rerun",
+          "jar",
+          "--build-cache",
+          "--info",
+          "--console=plain",
+          "--no-daemon",
+          "--max-workers=8",
+          "--init-script",
+          "/home/runner/work/Monochromatic/Monochromatic/.depot/reuse/cache.init.gradle"
+        ],
+        "cwd": "/home/runner/work/Monochromatic/Monochromatic/package/linter/kotlin",
+        "startedAt": "2026-10-18T07:23:39.674Z",
+        "finishedAt": "2026-10-18T07:23:55.510Z",
+        "elapsedSeconds": 15.83624124,
+        "exitStatus": 0,
+        "signal": null,
+        "expected": "success"
+      },
+      "junit": {
+        "name": "TEST-dev.monochromatic.detekt.RequireKDocTest.xml",
+        "sha256": "d3de4cd4a760708b98735fba6882f0b9b6670d2f7685cf9e0eae062a3223e504",
+        "caseIdentities": [
+          {
+            "name": "allowOverrideExemptsOverridingMembers()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "skipsExcludedKinds()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsMembersLocalsAndNested()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsUndocumentedTopLevelDeclarations()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "acceptsFullyDocumentedCode()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsSecondaryConstructorAndEnumEntries()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          }
+        ],
+        "originalArtifactSha256": "e6cd47538a6f91bb715643bf6cbd7697a6b10d6531eefe9a13c1befa1077314c",
+        "originalMember": "gradle-warm-actual-tests-test-results.json",
+        "originalMemberSha256": "49b0fb555ab35437a1e399ec922a48e6c0b3f62bdca12b2f0ca5704e381fe415"
+      },
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/gradleReuse/repeatedOffVersusWarm/summaries/1"
+    },
+    {
+      "prefix": "gradle-off-a",
+      "runId": "d3ks91rnnb",
+      "identities": [
+        {
+          "workflowId": "25s1gn4hn1",
+          "jobId": "bsn4f5dw9x",
+          "attemptId": "tqdk63drq8",
+          "sandboxId": "wk60d0fn80kh0m027lsl"
+        }
+      ],
+      "harnessSha": "363bd501a0366dc4f74e35ad1b77f1a8ffad95b4",
+      "applicationSha": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "packageTree": "fa0167ad3af17896374a22b40ede76e9e9f51250",
+      "timedCommand": {
+        "name": "gradle-off-actual-tests",
+        "command": [
+          "mise",
+          "exec",
+          "java",
+          "--",
+          "./gradlew",
+          "test",
+          "--rerun",
+          "jar",
+          "--build-cache",
+          "--info",
+          "--console=plain",
+          "--no-daemon",
+          "--max-workers=8",
+          "--init-script",
+          "/home/runner/work/Monochromatic/Monochromatic/.depot/reuse/cache.init.gradle"
+        ],
+        "cwd": "/home/runner/work/Monochromatic/Monochromatic/package/linter/kotlin",
+        "startedAt": "2026-10-18T07:56:58.497Z",
+        "finishedAt": "2026-10-18T07:57:19.932Z",
+        "elapsedSeconds": 21.43464331,
+        "exitStatus": 0,
+        "signal": null,
+        "expected": "observe"
+      },
+      "junit": {
+        "name": "TEST-dev.monochromatic.detekt.RequireKDocTest.xml",
+        "sha256": "e81b5baa48421079f8bdd5a7219b183e7cdaad3d650f892a250960df6306a052",
+        "caseIdentities": [
+          {
+            "name": "allowOverrideExemptsOverridingMembers()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "skipsExcludedKinds()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsMembersLocalsAndNested()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsUndocumentedTopLevelDeclarations()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "acceptsFullyDocumentedCode()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsSecondaryConstructorAndEnumEntries()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          }
+        ],
+        "originalArtifactSha256": "d53631c69f9954189d71e49c0d1688037931ffe3fe2ed40e79d3b1e8c12a78c7",
+        "originalMember": "gradle-off-actual-tests-test-results.json",
+        "originalMemberSha256": "02d4a56c33a1ec7e9e9cc4b69d50032e236e3df57fa68761dc1721a58ed45de7"
+      },
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/gradleReuse/repeatedOffVersusWarm/summaries/2"
+    },
+    {
+      "prefix": "gradle-off-b",
+      "runId": "pq5pzj9mcg",
+      "identities": [
+        {
+          "workflowId": "4h07bnq71l",
+          "jobId": "bzdsp5r7mj",
+          "attemptId": "d2nr7fn5ft",
+          "sandboxId": "sqdb8n16fd7j4ggpj8td"
+        }
+      ],
+      "harnessSha": "363bd501a0366dc4f74e35ad1b77f1a8ffad95b4",
+      "applicationSha": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "packageTree": "fa0167ad3af17896374a22b40ede76e9e9f51250",
+      "timedCommand": {
+        "name": "gradle-off-actual-tests",
+        "command": [
+          "mise",
+          "exec",
+          "java",
+          "--",
+          "./gradlew",
+          "test",
+          "--rerun",
+          "jar",
+          "--build-cache",
+          "--info",
+          "--console=plain",
+          "--no-daemon",
+          "--max-workers=8",
+          "--init-script",
+          "/home/runner/work/Monochromatic/Monochromatic/.depot/reuse/cache.init.gradle"
+        ],
+        "cwd": "/home/runner/work/Monochromatic/Monochromatic/package/linter/kotlin",
+        "startedAt": "2026-10-18T07:57:28.132Z",
+        "finishedAt": "2026-10-18T07:57:48.394Z",
+        "elapsedSeconds": 20.26238305,
+        "exitStatus": 0,
+        "signal": null,
+        "expected": "observe"
+      },
+      "junit": {
+        "name": "TEST-dev.monochromatic.detekt.RequireKDocTest.xml",
+        "sha256": "80cfafce53f23196b2dc2d604643b1db9a112cd782283a685f86f331351e77e9",
+        "caseIdentities": [
+          {
+            "name": "allowOverrideExemptsOverridingMembers()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "skipsExcludedKinds()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsMembersLocalsAndNested()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsUndocumentedTopLevelDeclarations()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "acceptsFullyDocumentedCode()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          },
+          {
+            "name": "reportsSecondaryConstructorAndEnumEntries()",
+            "className": "dev.monochromatic.detekt.RequireKDocTest",
+            "status": "passed"
+          }
+        ],
+        "originalArtifactSha256": "58f5f7e4df7ae299f7757583735de380fd5118f87f9b6b47321addf723f9e2e9",
+        "originalMember": "gradle-off-actual-tests-test-results.json",
+        "originalMemberSha256": "b281b1bf402f6e7e6efb82c8681c9cb0f0cc2d6f324697e8ccce90c0cf21fad6"
+      },
+      "sourcePointer": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json#/gradleReuse/repeatedOffVersusWarm/summaries/3"
+    }
+  ],
+  "verification": {
+    "originalZipCrcPasses": 4,
+    "originalMemberSha256Joins": 102,
+    "entirePackageTreesMatchFrozenSource": true,
+    "sourceAnnotationMethodsEqualActualJUnitNames": true,
+    "actualPassingCasesPerRepetition": 6,
+    "actualDistinctAuthoredPassingCases": 6
+  },
+  "boundaries": {
+    "actualGradleTaskInvoked": true,
+    "literalMiseOwnerWrapperInvoked": false,
+    "commandAddsForcedTestRerunAndJarAndCacheInstrumentation": true,
+    "r328mp420mModifiedControlsNotTheAuthoredCaseBasis": true,
+    "detektPluginHostConsumerIsSeparate": true,
+    "caseCountNotMultipliedByRepetitions": true,
+    "newCloudAllocations": 0
+  }
+}

@@ -42,7 +42,7 @@ export function returnsReceiverElements(rows: readonly Labelled[],): readonly La
  * Hands back the receiver's elements through two composed container members.
  *
  * The shape the corpus actually writes, and the one a single-hop element walk answered
- * nothing for. `orderedRoots` in `package/desktop-app/file-manager-electron/src/strip.ts`
+ * nothing for. `orderedRoots` in `package/file-manager/variant-electron/src/strip.ts`
  * returns `panes.filter(rootLike,).toSorted(bySpawnOrder,)`; this is that reduced to its
  * parts. The outer member's receiver is the inner call, whose own value origins are empty
  * because the array it returns is fresh, so a chain of relations each of which holds

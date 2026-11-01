@@ -1,0 +1,763 @@
+// Native source-view gate. The model owns positions; this UI never edits source.
+import { Surface } from "surface.slint";
+import { Palette } from "std-widgets.slint";
+import { ProjectTree, TreeEntry } from "tree.slint";
+import { SidebarDivider, SidebarDividerGrip } from "divider.slint";
+import { ProjectSearch, SearchEntry } from "search.slint";
+import { FindBar } from "find.slint";
+import { LanguagePopup } from "hover.slint";
+import { ReferenceList, ReferenceEntry } from "references.slint";
+import { AnnotationInk } from "annotation.slint";
+import { Minimap, MinimapSlice } from "minimap.slint";
+import "../asset/font/InterVariable.ttf";
+import "../asset/font/InterVariable-Italic.ttf";
+import "../asset/font/JetBrainsMono-Variable.ttf";
+import "../asset/font/JetBrainsMono-VariableItalic.ttf";
+
+// One texture of the source tile: the image, the row of the tile its first row is, and its height, in physical pixels.
+// A tile taller than one texture may be is several of these, each below the one before it.
+export struct SourceSlice {
+    image: image,
+    top: float,
+    height: float,
+}
+
+export struct SourceSelection {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+}
+
+export component AppWindow inherits Window {
+    title: "Monochromatic IDE";
+    preferred-width: 1100px;
+    preferred-height: 660px;
+    min-width: 480px;
+    min-height: 320px;
+    // The surface the window is drawn on is a texture of the GPU, and the toolkit's surface configuration panics when
+    // a side passes the device's limit, so the window is never larger than that in physical pixels, at any scale.
+    // Until the device's own side is told, the most common one holds.
+    in property <int> texture-limit: 16384;
+    max-width: root.texture-limit * 1phx;
+    max-height: root.texture-limit * 1phx;
+    background: Surface.background;
+    default-font-family: "Inter Variable";
+    forward-focus: code-focus;
+
+    in property <bool> project-visible;
+    in property <[TreeEntry]> tree-entries;
+    in property <string> project-label;
+    in property <string> project-path;
+    in property <string> tree-error;
+    in-out property <int> tree-focused-row: -1;
+    out property <bool> tree-has-focus: project-tree.tree-has-focus;
+    out property <length> tree-scroll-y: project-tree.scroll-y;
+    out property <length> tree-viewport-height: project-tree.viewport-height;
+    callback tree-activate(int);
+    callback tree-user-focus(int);
+    callback tree-navigate(string, int);
+    callback tree-shortcut(string, bool, bool, bool);
+    public function reveal-tree(index: int) { project-tree.reveal(index); }
+    public function focus-source() { code-focus.focus(); }
+    public function focus-tree() { project-tree.focus(); }
+    out property <bool> source-has-focus: code-focus.has-focus;
+    public function reset-source-scroll() {
+        scroll.content-x = 0px;
+        scroll.content-y = 0px;
+    }
+
+    // Session-local sidebar width. The request is only ever assigned; the layout derives the shown width from it,
+    // so a narrow window shrinks what is shown without losing the request.
+    out property <length> sidebar-requested-width: 256px;
+    out property <length> sidebar-width: project-tree.width;
+    // Read by the divider only, never by a size binding: the window width itself depends on layout sizes.
+    out property <length> sidebar-maximum-width: max(root.sidebar-minimum-width,
+        root.width - root.divider-width - root.source-minimum-width);
+    out property <bool> sidebar-divider-has-focus: sidebar-divider.has-focus;
+    private property <length> sidebar-minimum-width: 160px;
+    // 240 px of gutter and text, as before the minimap, plus the 48 px the minimap takes at this width
+    // (`ide_app::minimap::width_for`), so the minimap never narrows the text below its old minimum.
+    private property <length> source-minimum-width: 288px;
+    // The divider's layout cell is only its 1px line. Its pointer zone is the grip placed over the layout,
+    // which also covers the tree's last columns and the source column's first ones (`SidebarDividerGrip.reach`).
+    private property <length> divider-width: 1px;
+    // Drag, keys, and accessibility actions cannot store a width outside the range that can be shown now.
+    function resize-sidebar(width: length) {
+        root.sidebar-requested-width = clamp(width, root.sidebar-minimum-width, root.sidebar-maximum-width);
+    }
+
+    in-out property <bool> search-open;
+    in-out property <string> search-query;
+    in-out property <int> search-selected: -1;
+    in property <[SearchEntry]> search-entries;
+    in property <string> search-scope;
+    in property <string> search-error;
+    in property <bool> search-busy;
+    callback shortcut-observed(string, bool) -> bool;
+    callback search-edited(string);
+    callback search-choose(int);
+    callback search-dismiss;
+    public function focus-search() { search-panel.focus-query(); }
+    public function reset-search-scroll() { search-panel.reset-scroll(); }
+
+    in-out property <bool> find-open;
+    in-out property <string> find-query;
+    in property <string> find-status;
+    in property <string> find-status-detail;
+    in property <bool> find-no-match;
+    in property <string> find-error;
+    out property <bool> find-has-focus: find-bar.query-has-focus;
+    // The 48px clear cells of the find text and the search query, in window coordinates, for geometry checks.
+    out property <bool> find-clear-shown: find-bar.clear-shown;
+    out property <length> find-clear-x: find-bar.clear-x;
+    out property <length> find-clear-y: find-bar.clear-y;
+    out property <length> find-clear-width: find-bar.clear-width;
+    out property <length> find-clear-height: find-bar.clear-height;
+    out property <bool> search-clear-shown: search-panel.clear-shown;
+    out property <length> search-clear-x: search-panel.clear-x;
+    out property <length> search-clear-y: search-panel.clear-y;
+    out property <length> search-clear-width: search-panel.clear-width;
+    out property <length> search-clear-height: search-panel.clear-height;
+    callback find-request;
+    callback find-edited(string);
+    callback find-navigate(int);
+    callback find-dismiss;
+    public function focus-find() { find-bar.focus-query(); }
+
+    // Language navigation. Native code owns requests, results, and every dismissal.
+    // One popup beside one source line shows hover content or a note about a request that could not be done.
+    in property <string> language-popup-text;
+    in property <bool> language-popup-note;
+    // The anchoring character: logical x from the start of the text, and its zero-based source line.
+    in property <float> language-anchor-x;
+    in property <int> language-anchor-line;
+    // Where everything that line owns lies, from the top of the text: its virtual rows and its code row.
+    // Native code computes both from its vertical mapping; this markup has no row arithmetic.
+    in property <float> language-anchor-y;
+    in property <float> language-anchor-height: 24;
+    out property <bool> language-popup-has-pointer: language-popup.pointer-inside;
+    out property <bool> language-popup-below: language-popup.placed-below;
+    out property <length> language-popup-y: language-popup.y;
+    out property <length> language-popup-height: language-popup.height;
+    // Top of the anchoring line, with its virtual rows, in window coordinates; the popup and the list never cover
+    // that line or the rows that belong to it.
+    out property <length> language-anchor-top: code-focus.absolute-position.y + root.language-anchor-y * 1px + scroll.content-y;
+    private property <length> language-anchor-bottom: root.language-anchor-top + root.language-anchor-height * 1px;
+    private property <length> language-anchor-left: code-focus.absolute-position.x + root.gutter-width + root.language-anchor-x * 1px + scroll.content-x;
+    in-out property <bool> references-open;
+    in property <string> references-title;
+    in property <[ReferenceEntry]> references-entries;
+    in-out property <int> references-selected: 0;
+    out property <bool> references-has-focus: reference-list.list-has-focus;
+    out property <length> references-y: reference-list.y;
+    out property <length> references-height: reference-list.height;
+    out property <bool> language-surface-open: root.language-popup-text != "" || root.references-open;
+    // A file outside the project, opened from a definition, is marked beside its path.
+    in property <bool> file-outside-project;
+    callback definition-request;
+    callback hover-request;
+    // Pointer positions are logical pixels from the top of the text and from the start of a line's text;
+    // native code maps the vertical one to a source line.
+    callback definition-at-pointer(float, float);
+    callback pointer-moved(float, float);
+    // The source view's own scroll took a wheel turn or a pan; native code reads the wheel's distance it noted.
+    callback source-flicked;
+    callback pointer-exited;
+    callback language-dismiss;
+    callback references-choose(int);
+    callback references-dismiss;
+    public function focus-references() { reference-list.focus-list(); }
+    public function reset-references-scroll() { reference-list.reset-scroll(); }
+
+    in property <bool> source-available: true;
+    // The textures of the source tile, from the top; they abut, so they read as one image.
+    in property <[SourceSlice]> source-slices;
+    in property <[SourceSelection]> source-selections;
+    // Visible in-file find matches except the active one, which is the selection itself.
+    in property <[SourceSelection]> source-matches;
+    in property <bool> selection-is-match;
+    in property <float> image-y;
+    in property <float> image-width;
+    in property <float> image-height;
+    in property <float> caret-x;
+    in property <float> caret-y;
+    out property <brush> source-foreground: Palette.foreground;
+    out property <brush> selected-foreground: Palette.selection-foreground;
+    // Native code picks the selected-text ink from this fill, because the palette's ink follows the scheme instead.
+    out property <brush> selection-fill: Palette.selection-background;
+    out property <bool> dark-scheme: Palette.color-scheme == ColorScheme.dark;
+    // Ink for selected rows of the tree, the search results, and the location list, and for selected text in the
+    // find and search boxes. Native code sets it to the ink it chooses from the selection fill, the same one
+    // selected source text is drawn in.
+    in property <brush> selected-row-ink: Palette.selection-foreground;
+    // Tint of a hovered or focused selected tree row. Native code sets it to the opposite of that ink,
+    // so the tint never moves the fill toward the text.
+    in property <brush> selected-row-tint: Palette.foreground;
+    // Inlay hints and diagnostics are drawn in the source image: hints and diagnostic messages on virtual rows
+    // above the code row of their line, underlines under the marked characters. Native code reads these inks
+    // for the raster, so all of it follows the scheme.
+    out property <brush> hint-ink: AnnotationInk.hint;
+    out property <color> error-ink: AnnotationInk.error;
+    out property <color> warning-ink: AnnotationInk.warning;
+    out property <color> information-ink: AnnotationInk.information;
+    out property <color> suggestion-ink: AnnotationInk.suggestion;
+    // The problems at the caret as one text, worst first and in full; empty when the caret touches no diagnostic.
+    // It is not drawn: every message stands above its line. It starts the accessible description.
+    in property <string> caret-problems;
+    in property <string> source-text;
+    in property <string> selected-text;
+    in property <string> file-label: "Source-view verification";
+    in property <string> error-message;
+    // Height of the whole text with its virtual rows, and one gutter entry for each visual row of the materialized
+    // lines: its top, its line number (0 on a row that continues a wrapped line, where the wrap indicator stands
+    // instead), and its diagnostic mark. All of it comes from native code's vertical mapping.
+    in property <float> content-extent: 24;
+    in property <[float]> row-tops;
+    in property <[int]> row-numbers;
+    // Per gutter entry, one more than the rank of the worst diagnostic starting on the line, or 0 for none.
+    in property <[int]> row-marks;
+    // IntelliJ's mark for a row that starts after a soft wrap, painted by native code in the source text's own
+    // fonts in c0c0c0, and the width of its cell. The same ink in the light and the dark scheme.
+    in property <image> wrap-sign;
+    in property <float> wrap-sign-width: 12;
+    in property <int> selection-anchor;
+    in property <int> selection-head;
+    in-out property <length> scroll-y: 0px;
+    // The reach of the displayed tile, in logical pixels from the top of the text: the offsets at which the view's top
+    // edge lies on the tile's first row and its bottom edge on the tile's last. A side of the tile that is the text's
+    // own first or last row has no limit, so it is a huge number there. Native code sets both with the tile.
+    in property <float> hold-top: -10000000;
+    in property <float> hold-bottom: 10000000;
+    // The offset the toolkit's scroll has reached, and the offset the text is drawn at: the same while the displayed tile
+    // holds the view, and the nearest offset the tile does hold while it does not (a wheel ease that has outrun the tile
+    // worker), so the code area shows real rows of the tile and never a blank. Everything that rides with the tile
+    // is moved by the difference.
+    private property <float> real-offset: -scroll.content-y / 1px;
+    private property <float> reach-least: root.hold-top;
+    private property <float> reach-most: root.hold-bottom - scroll.height / 1px;
+    out property <float> drawn-offset: root.reach-most < root.reach-least ? root.real-offset
+        : max(root.reach-least, min(root.reach-most, root.real-offset));
+    private property <length> hold-shift: (root.real-offset - root.drawn-offset) * 1px;
+    // The pointer's vertical place in the text as it is drawn: the pointer's own place is in the toolkit's scroll,
+    // and the text stands `hold-shift` further down while the view is held.
+    pure function drawn-y(pointer-y: length) -> float {
+        return (pointer-y - root.hold-shift) / 1px;
+    }
+    out property <bool> held: root.real-offset != root.drawn-offset;
+    out property <float> viewport-height: scroll.height / 1px;
+    // The text area is what the view leaves beside the gutter and the minimap; every report of the view's size and the
+    // wrap width native code derives from it use this one width.
+    private property <length> text-area-width: scroll.width - root.gutter-width - root.minimap-width;
+    out property <float> viewport-width: root.text-area-width / 1px;
+    // The minimap beside the text: CodeGlance Pro's 110 px, narrower in a narrow view (`ide_app::minimap::width_for`).
+    out property <length> minimap-width: clamp(round(scroll.width / 6px) * 1px, 15px, 110px);
+    // The GPU draws the picture of the bands near the visible part of the file into textures, one below the other when
+    // the picture is taller than the device's texture limit; the box, the track and the slide of the picture follow the
+    // scroll live, from the text's height, the view's height, and the scroll offset alone
+    // (`ide_app::minimap::Geometry` holds the same formulas).
+    in property <[MinimapSlice]> minimap-slices;
+    // The picture's size in physical pixels, which the markup draws it at (the height is the textures' together), and
+    // the row of the whole picture its first row is.
+    in property <float> minimap-picture-width: 0;
+    in property <float> minimap-picture-height: 0;
+    in property <float> minimap-picture-top: 0;
+    // Whether the pointer is over the minimap, and whether its left button is down on it.
+    out property <bool> minimap-hovered: minimap.hovered;
+    out property <bool> minimap-over-box: minimap.over-box;
+    out property <bool> minimap-pressed: minimap.pressed;
+    private property <length> minimap-content: max(root.content-extent * 1px, 1px);
+    private property <float> minimap-scale: 4.0 / 24.0;
+    out property <length> minimap-track: min(root.minimap-content * root.minimap-scale, scroll.height);
+    out property <length> minimap-box-height: min(root.minimap-track, max(20px, scroll.height * root.minimap-scale));
+    private property <length> minimap-range: max(0px, root.minimap-content - scroll.height);
+    out property <length> minimap-box-top: root.minimap-range > 0px
+        ? max(0px, root.minimap-track - root.minimap-box-height) * clamp(-scroll.content-y / root.minimap-range, 0, 1) : 0px;
+    // How far the picture of a text taller than the track has slid up past it: its overhang by the scroll's share.
+    out property <length> minimap-slide: root.minimap-range > 0px
+        ? max(0px, root.minimap-content * root.minimap-scale - root.minimap-track) * clamp(-scroll.content-y / root.minimap-range, 0, 1) : 0px;
+    // A press on the minimap (distance from its top and left edge, Shift, on the box), a drag, a release, a page step
+    // from an assistive tool, and the minimap's size.
+    callback minimap-press(float, float, bool, bool);
+    callback minimap-drag(float);
+    callback minimap-release;
+    callback minimap-step(int);
+    callback minimap-resized(float, float);
+    // Height of one code row; where rows are is decided by native code alone.
+    private property <length> code-row: 24px;
+    // The gutter, from its left edge: 6 px, a cell one letter wide, a 4 px gap, the line-number column, and 12 px
+    // before the text. The number column is as wide as the file's widest line number, at least three digits as in
+    // Helix. Each line's severity letter stands 4 px before that line's own number, whatever its digit count; the
+    // letter's room exists on every line, so text keeps its x when diagnostics arrive or go and moves only when the
+    // line count gains a digit past 999. Widths are whole logical pixels, so the source image stays on the grid.
+    in property <int> line-count: 1;
+    private property <length> mark-gap: 4px;
+    private property <length> number-gap: 12px;
+    private property <length> mark-advance: round(letter-probe.preferred-width / 1px) * 1px;
+    private property <length> number-width: round(number-probe.preferred-width / 1px) * 1px;
+    out property <length> gutter-width: 6px + root.mark-advance + root.mark-gap + root.number-width + root.number-gap;
+    private property <length> font-size: 15px;
+    // Converting a physical pixel tracks display scale even when logical window size is unchanged.
+    private property <length> physical-pixel: 1phx;
+    changed physical-pixel => { root.scale-changed(); }
+
+    // A press places the caret or, repeated quickly, selects a word or a line; a drag reports further hits.
+    callback pointer-press(float, float, bool);
+    callback pointer-hit(float, float, bool);
+    // The left button went up at this point (the same two numbers as a drag's); native code only writes it to the log.
+    callback pointer-release(float, float);
+    callback key-input(string, bool, bool, bool);
+    callback viewport-changed(float, float, float);
+    callback theme-changed;
+    callback scale-changed;
+    changed dark-scheme => { root.theme-changed(); }
+    callback reload-request;
+    callback select-all-request;
+
+    // Copy uses the toolkit's clipboard interface, not a second input layout.
+    public function copy-selection() {
+        clipboard-proxy.select-all();
+        clipboard-proxy.copy();
+    }
+
+    clipboard-proxy := TextInput {
+        visible: false;
+        accessible-role: none;
+        read-only: true;
+        text: root.selected-text;
+    }
+
+    // Capture observes source, tree, and search input without swallowing their ordinary key behavior.
+    FocusScope {
+        width: parent.width;
+        height: parent.height;
+        // This scope only observes keys of its children; as a focus owner it would be a stop where no key acts.
+        focus-on-tab-navigation: false;
+        focus-on-click: false;
+        capture-key-pressed(event) => {
+            root.shortcut-observed(event.text, true);
+            // The location list is modal like the search overlay: Ctrl+F waits until it is closed.
+            if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && (event.text == "f" || event.text == "F") && !root.references-open {
+                root.find-request();
+                return accept;
+            }
+            // Language surfaces sit above the find bar, so Escape closes them first.
+            if event.text == Key.Escape && root.language-surface-open && !root.search-open {
+                root.language-dismiss();
+                return accept;
+            }
+            // The modal search overlay is the topmost surface while open and handles its own Escape.
+            if event.text == Key.Escape && root.find-open && !root.search-open {
+                root.find-dismiss();
+                return accept;
+            }
+            reject
+        }
+        capture-key-released(event) => {
+            if root.shortcut-observed(event.text, false) { return accept; }
+            reject
+        }
+    HorizontalLayout {
+        spacing: 0px;
+        project-tree := ProjectTree {
+            visible: root.project-visible;
+            // Only this cell can shrink below its preferred width, so a narrow window takes space from the
+            // sidebar down to its minimum while the source keeps its own minimum.
+            min-width: root.project-visible ? root.sidebar-minimum-width : 0px;
+            preferred-width: root.project-visible ? root.sidebar-requested-width : 0px;
+            max-width: root.project-visible ? root.sidebar-requested-width : 0px;
+            entries: root.tree-entries;
+            project-label: root.project-label;
+            project-path: root.project-path;
+            error-message: root.tree-error;
+            focused-row <=> root.tree-focused-row;
+            selected-ink: root.selected-row-ink;
+            selected-tint: root.selected-row-tint;
+            activate(index) => { root.tree-activate(index); }
+            user-focus(index) => { root.tree-user-focus(index); }
+            navigate(key, index) => { root.tree-navigate(key, index); }
+            shortcut(key, control, shift, alt) => { root.tree-shortcut(key, control, shift, alt); }
+        }
+        // The keyboard half of the divider: this cell keeps the Tab order tree, divider, source.
+        sidebar-divider := SidebarDivider {
+            // An invisible divider is not a Tab stop.
+            visible: root.project-visible;
+            min-width: root.project-visible ? root.divider-width : 0px;
+            max-width: root.project-visible ? root.divider-width : 0px;
+            value: root.sidebar-width;
+            minimum: root.sidebar-minimum-width;
+            maximum: root.sidebar-maximum-width;
+            resize(width) => { root.resize-sidebar(width); }
+            shortcut(key, control, shift, alt) => { root.tree-shortcut(key, control, shift, alt); }
+        }
+        VerticalLayout {
+            // Preferred equals minimum: this cell takes all remaining width and is never the one that shrinks,
+            // whatever its content, such as a long file label, would prefer.
+            min-width: root.source-minimum-width;
+            preferred-width: root.source-minimum-width;
+            spacing: 0px;
+            Rectangle {
+                height: 32px;
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 8px;
+                    // Shown only for a file outside the project: a bounded label, never a permanent badge.
+                    if root.file-outside-project: VerticalLayout {
+                        horizontal-stretch: 0;
+                        alignment: center;
+                        Rectangle {
+                            height: 22px;
+                            border-width: 1px;
+                            border-color: Palette.foreground;
+                            border-radius: 4px;
+                            HorizontalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+                                Text {
+                                    text: "Outside project";
+                                    color: Palette.foreground;
+                                    font-weight: 600;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.file-label;
+                        color: Palette.foreground;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            code-focus := FocusScope {
+                visible: root.source-available;
+                vertical-stretch: 1;
+                focus-on-click: true;
+                accessible-role: text-input;
+                accessible-read-only: true;
+                accessible-label: "Source code";
+                accessible-value: root.source-text;
+                // The problems at the caret come first, so they are read with the source position they belong to.
+                accessible-description: root.caret-problems == "" ? "Select text and press Ctrl+C to copy."
+                    : root.caret-problems + "\nSelect text and press Ctrl+C to copy.";
+
+                key-pressed(event) => {
+                    // Let the toolkit traverse between the tree and read-only source instead of swallowing Tab.
+                    // Shift+Tab arrives as Tab with a modifier or as the dedicated back-tab key, depending on the platform.
+                    if event.text == Key.Tab || event.text == Key.Backtab { return reject; }
+                    if event.modifiers.control && (event.text == "c" || event.text == "C") {
+                        root.copy-selection();
+                    } else if event.modifiers.control && (event.text == "a" || event.text == "A") {
+                        root.select-all-request();
+                    } else if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && (event.text == "b" || event.text == "B") {
+                        // editord's go to definition, which lists references when the caret is at the definition.
+                        root.definition-request();
+                    } else if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && (event.text == "q" || event.text == "Q") {
+                        // JetBrains' Quick Documentation key: hover information for the caret.
+                        root.hover-request();
+                    } else {
+                        root.tree-shortcut(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt);
+                        root.key-input(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt);
+                    }
+                    accept
+                }
+
+                scroll := Flickable {
+                    width: parent.width;
+                    height: parent.height;
+                    // Lines wrap to the view, so the content is never wider than the view and the Flickable cannot
+                    // move horizontally: its bounds clamp content-x to zero, and a Shift+wheel turn scrolls nothing.
+                    content-width: self.width;
+                    content-height: max(self.height, root.content-extent * 1px);
+                    content-y <=> root.scroll-y;
+                    // A mouse drag selects text. Panning by mouse drag would take a quick drag away from selection;
+                    // wheel and touch scrolling are unaffected.
+                    mouse-drag-pan-enabled: false;
+                    accessible-role: region;
+                    accessible-label: "Source viewport";
+                    accessible-value: self.content-y / 1px;
+
+                    // Retain native Flickable physics, including easing for notched wheels.
+                    flicked => { root.source-flicked(); }
+                    changed content-y => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
+                    changed height => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
+                    changed width => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
+
+                    // Everything that rides with the tile (the selection and find rectangles, the picture, the gutter,
+                    // the caret) stands in one group, moved down by what the view is held back by, so a view held at
+                    // the tile's edge shows real rows of the tile whatever the toolkit's scroll has reached.
+                    Rectangle {
+                        y: root.hold-shift;
+                        width: scroll.content-width;
+                        height: scroll.content-height;
+
+                        for selection in root.source-selections: Rectangle {
+                            x: root.gutter-width + selection.x * 1px;
+                            y: selection.y * 1px;
+                            width: selection.width * 1px;
+                            height: selection.height * 1px;
+                            background: Palette.selection-background;
+                            // The active match is the selection plus a heavier boundary than other matches.
+                            // The boundary sits just outside the character cells so it never covers glyph stems.
+                            Rectangle {
+                                visible: root.selection-is-match;
+                                x: -2px;
+                                width: parent.width + 4px;
+                                height: parent.height;
+                                border-width: 2px;
+                                border-color: Palette.foreground;
+                            }
+                        }
+
+                        // Other matches: a translucent fill and a thin boundary, drawn over any selection beneath.
+                        for found in root.source-matches: Rectangle {
+                            x: root.gutter-width + found.x * 1px - 1px;
+                            y: found.y * 1px + 1px;
+                            width: found.width * 1px + 2px;
+                            height: found.height * 1px - 2px;
+                            background: Palette.foreground.with-alpha(0.14);
+                            border-width: 1px;
+                            border-color: Palette.foreground.with-alpha(0.7);
+                        }
+
+                        // Each texture sits at whole physical rows below the tile's top, at exactly its size, so the textures
+                        // meet without a gap or an overlap and nothing is resampled.
+                        for slice in root.source-slices: Image {
+                            x: root.gutter-width;
+                            y: root.image-y * 1px + slice.top * 1phx;
+                            width: root.image-width * 1px;
+                            height: slice.height * 1phx;
+                            source: slice.image;
+                            image-fit: fill;
+                        }
+
+                        // Width probes for the gutter: one bold letter, and the widest line number of at least three digits.
+                        letter-probe := Text {
+                            visible: false;
+                            text: "W";
+                            font-family: "JetBrains Mono";
+                            font-size: root.font-size;
+                            font-weight: 700;
+                        }
+                        number-probe := Text {
+                            visible: false;
+                            text: max(root.line-count, 100);
+                            font-family: "JetBrains Mono";
+                            font-size: root.font-size;
+                        }
+
+                        // One entry per visual row of the materialized lines. The first row of a line carries its number,
+                        // right-aligned 12 px before the text, and, where diagnostics start on the line, the worst
+                        // severity's letter 4 px before the number in that severity's ink. A row that continues a wrapped
+                        // line carries the wrap indicator in the number's place and no letter. A mark of 0 is no
+                        // diagnostic; a missing entry reads as 0.
+                        for top[index] in root.row-tops: Rectangle {
+                            x: 0px;
+                            y: top * 1px;
+                            width: root.gutter-width - root.number-gap;
+                            height: root.code-row;
+                            number := Text {
+                                x: parent.width - self.width;
+                                width: self.preferred-width;
+                                height: parent.height;
+                                text: root.row-numbers[index] > 0 ? "\{root.row-numbers[index]}" : "";
+                                vertical-alignment: center;
+                                color: Palette.foreground;
+                                opacity: 0.6;
+                                font-family: "JetBrains Mono";
+                                font-size: root.font-size;
+                            }
+                            Image {
+                                visible: root.row-numbers[index] == 0;
+                                x: parent.width - self.width;
+                                width: root.wrap-sign-width * 1px;
+                                height: parent.height;
+                                source: root.wrap-sign;
+                                // The mark is decoration; the text of the row is what assistive tools read.
+                                accessible-role: none;
+                            }
+                            Text {
+                                visible: root.row-marks[index] > 0;
+                                x: number.x - root.mark-gap - self.width;
+                                width: root.mark-advance;
+                                height: parent.height;
+                                text: AnnotationInk.letter(root.row-marks[index] - 1);
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                color: AnnotationInk.severity(root.row-marks[index] - 1);
+                                font-family: "JetBrains Mono";
+                                font-size: root.font-size;
+                                font-weight: 700;
+                                // The accessible description already starts with the problems at the caret.
+                                accessible-role: none;
+                            }
+                        }
+
+                        Rectangle {
+                            visible: code-focus.has-focus && root.selection-anchor == root.selection-head;
+                            x: root.gutter-width + root.caret-x * 1px;
+                            y: root.caret-y * 1px;
+                            width: 2px;
+                            height: root.code-row - 4px;
+                            background: Palette.foreground;
+                        }
+                    }
+
+                    pointer := TouchArea {
+                        width: scroll.content-width;
+                        height: scroll.content-height;
+                        mouse-cursor: text;
+                        pointer-event(event) => {
+                            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                                code-focus.focus();
+                                root.pointer-press(root.drawn-y(self.mouse-y),
+                                    max(0, (self.mouse-x - root.gutter-width) / 1px),
+                                    event.modifiers.shift);
+                                // Ctrl+click asks for the definition of the character under the pointer.
+                                if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt {
+                                    root.definition-at-pointer(root.drawn-y(self.mouse-y),
+                                        (self.mouse-x - root.gutter-width) / 1px);
+                                }
+                            } else if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                                root.pointer-release(root.drawn-y(self.mouse-y),
+                                    max(0, (self.mouse-x - root.gutter-width) / 1px));
+                            } else if event.kind == PointerEventKind.move && !self.pressed {
+                                // A resting pointer asks for hover information; x is negative over the line numbers.
+                                root.pointer-moved(root.drawn-y(self.mouse-y),
+                                    (self.mouse-x - root.gutter-width) / 1px);
+                            }
+                        }
+                        changed has-hover => {
+                            if !self.has-hover { root.pointer-exited(); }
+                        }
+                        moved => {
+                            // Only a drag with the left button extends; other buttons never started a selection.
+                            if !self.pressed { return; }
+                            root.pointer-hit(root.drawn-y(self.mouse-y),
+                                max(0, (self.mouse-x - root.gutter-width) / 1px), true);
+                        }
+                    }
+
+                    // The minimap stands over the right edge of the text area and stays still on screen while the
+                    // content scrolls under it: it is a child of the Flickable on purpose, so a wheel turn over it
+                    // reaches the Flickable (the touch area has no scroll handler) and scrolls exactly as over the text.
+                    minimap := Minimap {
+                        x: scroll.width - self.width;
+                        y: -scroll.content-y;
+                        width: root.minimap-width;
+                        height: scroll.height;
+                        slices: root.minimap-slices;
+                        picture-width: root.minimap-picture-width;
+                        slide: root.minimap-slide;
+                        track: root.minimap-track;
+                        box-height: root.minimap-box-height;
+                        box-top: root.minimap-box-top;
+                        offset: -scroll.content-y / 1px;
+                        range: root.minimap-range / 1px;
+                        press(y, x, shift, inside) => {
+                            // Keyboard scrolling keeps working after a press, so the source view keeps the focus.
+                            code-focus.focus();
+                            root.minimap-press(y / 1px, x / 1px, shift, inside);
+                        }
+                        drag(y) => { root.minimap-drag(y / 1px); }
+                        release => { root.minimap-release(); }
+                        step(direction) => { root.minimap-step(direction); }
+                        resized(width, height) => { root.minimap-resized(width / 1px, height / 1px); }
+                    }
+                }
+            }
+
+            find-bar := FindBar {
+                visible: root.find-open;
+                height: root.find-open ? self.bar-height : 0px;
+                open: root.find-open;
+                query <=> root.find-query;
+                status: root.find-status;
+                status-detail: root.find-status-detail;
+                no-match: root.find-no-match;
+                error-message: root.find-error;
+                selected-ink: root.selected-row-ink;
+                edited(text) => { root.find-edited(text); }
+                navigate(delta) => { root.find-navigate(delta); }
+                shortcut(key, control, shift, alt) => { root.tree-shortcut(key, control, shift, alt); }
+            }
+
+            if root.error-message != "": Text {
+                text: root.error-message;
+                color: Palette.foreground;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+        }
+    }
+    // The pointer half of the divider. It is declared after the layout, so inside its zone it is above the
+    // tree and the source and takes the pointer first; the language and search surfaces are above it.
+    SidebarDividerGrip {
+        // An invisible grip takes no pointer input.
+        visible: root.project-visible;
+        x: project-tree.width - self.reach;
+        y: 0px;
+        height: parent.height;
+        value: root.sidebar-width;
+        keyboard-focus: sidebar-divider.has-focus;
+        resize(width) => { root.resize-sidebar(width); }
+    }
+    language-popup := LanguagePopup {
+        text: root.language-popup-text;
+        note: root.language-popup-note;
+        anchor-x: root.language-anchor-left;
+        anchor-top: root.language-anchor-top;
+        anchor-bottom: root.language-anchor-bottom;
+        area-width: root.width;
+        area-height: root.height;
+    }
+    // The location list closes on an outside click, like the search overlay, but without dimming.
+    Rectangle {
+        visible: root.references-open;
+        width: parent.width;
+        height: parent.height;
+        TouchArea { width: parent.width; height: parent.height; clicked => { root.references-dismiss(); } }
+        reference-list := ReferenceList {
+            entries: root.references-entries;
+            title: root.references-title;
+            selected-row <=> root.references-selected;
+            selected-ink: root.selected-row-ink;
+            anchor-x: root.language-anchor-left;
+            anchor-top: root.language-anchor-top;
+            anchor-bottom: root.language-anchor-bottom;
+            area-width: root.width;
+            area-height: root.height;
+            choose(index) => { root.references-choose(index); }
+            dismiss => { root.references-dismiss(); }
+        }
+    }
+    Rectangle {
+        visible: root.search-open;
+        width: parent.width;
+        height: parent.height;
+        Rectangle { width: parent.width; height: parent.height; background: Palette.foreground; opacity: 0.18; }
+        TouchArea { width: parent.width; height: parent.height; clicked => { root.search-dismiss(); } }
+        search-panel := ProjectSearch {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: min(800px, parent.width - 32px);
+            height: min(560px, parent.height - 32px);
+            entries: root.search-entries;
+            query <=> root.search-query;
+            selected-row <=> root.search-selected;
+            selected-ink: root.selected-row-ink;
+            scope-label: root.search-scope;
+            error-message: root.search-error;
+            busy: root.search-busy;
+            edited(text) => { root.search-edited(text); }
+            choose(index) => { root.search-choose(index); }
+            dismiss => { root.search-dismiss(); }
+        }
+    }
+    }
+}

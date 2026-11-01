@@ -270,7 +270,7 @@ major versions newer than the device),
  This is uniform
 across every framework.
  Full detail and evidence:
-`../decisions/ios-iphone-x-vet-report/vet-ui-automation.md`.
+`../decision/ios-iphone-x-vet-report/vet-ui-automation.md`.
  The simulator leg (next subsection) is unblocked
 and complete.
 

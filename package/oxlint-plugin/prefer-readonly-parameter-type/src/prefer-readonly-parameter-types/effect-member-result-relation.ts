@@ -7,19 +7,19 @@
 import type {
   CallExpression,
   Expression,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isCallExpression,
   isIdentifier,
   isInterfaceDeclaration,
   isMethodSignatureDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import {
   type Checker,
   type Project,
   type Type,
   TypeFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   memberCallReceiver,
@@ -131,8 +131,8 @@ function resultIsHeldState({
   /* An empty result set would satisfy a subset test vacuously, so require that the
    * result contributes at least one held constituent rather than only absence. */
   return results.some(function isHeldState(candidate,): boolean {
-      return held.has(candidate,);
-    },)
+    return held.has(candidate,);
+  },)
     && results.every(function isHeldStateOrAbsent(candidate,): boolean {
       return held.has(candidate,)
         || ((candidate.flags & TypeFlags.Undefined) !== 0);
@@ -283,9 +283,9 @@ export function callResultReceiver({
   if ((heldType === undefined) || (resultType === undefined))
     return RESULT_NOT_RECEIVER_STATE;
   return resultIsHeldState({
-      resultType,
-      heldType,
-    },)
+    resultType,
+    heldType,
+  },)
     ? receiver
     : RESULT_NOT_RECEIVER_STATE;
 }
@@ -366,10 +366,10 @@ export function callResultComesFromObserver({
   if ((foldReceiver !== NO_MEMBER_RECEIVER)
     && isCallExpression(foldReceiver,)
     && (callResultElementReceiver({
-        project,
-        checker,
-        call: foldReceiver,
-      },)
+      project,
+      checker,
+      call: foldReceiver,
+    },)
       === RESULT_NOT_RECEIVER_STATE))
     return false;
   /* A fold's result is observer-derived only when the call seeds it. Unseeded, the receiver's
@@ -389,7 +389,8 @@ export function callResultComesFromObserver({
  `filter` whose predicate is a type guard selects the narrowing overload, so its result holds
  `S` where `S extends T`, and `S` is a different type object from the receiver's `T` while the
  values are the very same objects at runtime. Measured on
- `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`, whose predicate returns
+ a push-candidate `filter` in the retired TypeScript Git policy wrapper (last at commit
+ f4fc1fa213ece65672e4314983a75266837892f9), whose predicate returns
  `update is PushUpdate & { readonly localOid: string }`.
  
  Assignability in this direction only. A narrowing of the receiver's element type can only have

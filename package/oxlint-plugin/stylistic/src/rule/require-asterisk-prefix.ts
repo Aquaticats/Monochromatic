@@ -70,7 +70,7 @@ class AsteriskPrefixConfigurationError extends Error {
    */
   constructor(mode: unknown,) {
     super(`stylistic/require-asterisk-prefix requires exactly one mode, "always" or "never"; received ${String(mode,)}.`,);
-    this.name = AsteriskPrefixConfigurationError.name;
+    this.name = 'AsteriskPrefixConfigurationError';
   }
 }
 
@@ -89,7 +89,7 @@ class AsteriskPrefixConfigurationError extends Error {
 function isTsdocBlock(comment: ForeignBorrowed<Comment>,): boolean {
   return (comment.type === 'Block')
     && comment.value
-    .startsWith('*',);
+      .startsWith('*',);
 }
 
 /**
@@ -127,26 +127,28 @@ function lineContent(line: string,): string {
  */
 function commentBodyLines(comment: ForeignBorrowed<Comment>,): readonly CommentBodyLine[] {
   /**
-   Absolute start of first comment-value character after opening `/*`.
+   Source-backed lines in comment order, built here so the cursor never escapes this helper.
+   */
+  const lines: CommentBodyLine[] = [];
+  /**
+   Absolute start of current comment-value line; starts after opening `/*` and advances past each line feed.
    */
   let sourceStart = comment.range[0] + 2;
-  return comment.value
+  /**
+   Comment value split at line feeds, each line paired with its offset from the opener's line.
+   */
+  const numberedLines = comment.value
     .split('\n',)
-    .map(function mapCommentBodyLine(
-      text,
+    .entries();
+  for (const [lineOffset, text,] of numberedLines) {
+    lines.push({
       lineOffset,
-    ): CommentBodyLine {
-      /**
-       Source-backed line emitted before cursor advances past line feed.
-       */
-      const line = {
-        lineOffset,
-        sourceStart,
-        text,
-      };
-      sourceStart += text.length + 1;
-      return line;
+      sourceStart,
+      text,
     },);
+    sourceStart += text.length + 1;
+  }
+  return lines;
 }
 
 /**
@@ -204,7 +206,7 @@ function configuredMode(context: ForeignBorrowed<Context>,): AsteriskPrefixMode 
   /**
    First and only public rule option.
    */
-  const mode = context.options[0];
+  const [mode,] = context.options;
   if ((mode === 'always') || (mode === 'never'))
     return mode;
   throw new AsteriskPrefixConfigurationError(mode,);
@@ -402,7 +404,7 @@ function checkComment({
      */
     const prefixIndex = content.length
       - content.trimStart()
-      .length;
+        .length;
     /**
      Whether line carries canonical marker rather than literal leading asterisk content.
      */

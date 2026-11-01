@@ -14,7 +14,8 @@
     "./handler/claude-spawn": "./src/handler/claude-spawn/index.ts",
     "./handler/prompt-time": "./src/handler/prompt-time.ts",
     "./handler/correction-reminder": "./src/handler/correction-reminder.ts",
-    "./cli/spawn-claude": "./src/cli/spawn-claude.ts"
+    "./cli/spawn-claude": "./src/cli/spawn-claude.ts",
+    "./handler/cost-dismissal": "./src/handler/cost-dismissal/index.ts"
   },
   "bin": {
     "spawn-claude": "./src/cli/spawn-claude.ts"
@@ -32,7 +33,7 @@
     "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/claude-code-plugin-hook-type": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-current-time-context": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-terminal-title": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-shell-command-analyzer": "workspace:*",
     "@optique/core": "catalog:",
@@ -41,7 +42,7 @@
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   }
 }

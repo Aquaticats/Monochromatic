@@ -1,9 +1,16 @@
-//! One error type for the whole player. Decoding, I/O, Opus, and audio-output
+//! One error type for the whole player.
+//!  Decoding,
+//!  I/O,
+//!  Opus,
+//!  and audio-output
 //! failures all funnel into `PlayerError` so functions can use `?` freely.
 
-/// What:     `use std::fmt;` imports the formatting module (it defines `Display`,
-///           `Formatter`, and the `write!` macro target).
-/// Why:      We implement human-readable error messages via `fmt::Display`.
+/// What:
+///      `use std::fmt;` imports the formatting module (it defines `Display`,
+///           `Formatter`,
+///  and the `write!` macro target).
+/// Why:
+///       We implement human-readable error messages via `fmt::Display`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,10 +28,14 @@ use std::fmt;
 // // no annotation: every JS value already has a default string form
 // ```
 #[derive(Debug)]
-/// What:     `pub enum PlayerError { ... }` a SUM TYPE: a value is exactly one of
-///           these failure cases. Several variants WRAP an inner error value (a
+/// What:
+///      `pub enum PlayerError { ... }` a SUM TYPE:
+///  a value is exactly one of
+///           these failure cases.
+///  Several variants WRAP an inner error value (a
 ///           tuple-style variant `Name(InnerType)`).
-/// Why:      A single error type lets `?` convert any sub-error into this and
+/// Why:
+///       A single error type lets `?` convert any sub-error into this and
 ///           propagate it up without bespoke conversions at every call site.
 ///
 /// In TS you'd write (pseudocode):
@@ -37,21 +48,31 @@ use std::fmt;
 ///   | { kind: "audio"; message: string };
 /// ```
 pub enum PlayerError {
-    /// What:     `Io(std::io::Error)` a tuple variant wrapping a filesystem/stream
-    ///           error value (`std::io::Error`; sibling here: the `symphonia`/`opus`
+    /// What:
+    ///      `Io(std::io::Error)` a tuple variant wrapping a filesystem/stream
+    ///           error value (`std::io::Error`;
+    ///  sibling here:
+    ///  the `symphonia`/`opus`
     ///           error types the other variants wrap).
-    /// Why:      Opening or reading a file can fail.
+    /// Why:
+    ///       Opening or reading a file can fail.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "io"; cause: Error }
     /// ```
     Io(
-        /// What:     Unnamed field `.0` of the `Io` variant: a wrapped
-        ///           `std::io::Error` (siblings the other variants wrap: a
-        ///           `symphonia::core::errors::Error`, an `opus::Error`, an owned
+        /// What:
+        ///      Unnamed field `.0` of the `Io` variant:
+        ///  a wrapped
+        ///           `std::io::Error` (siblings the other variants wrap:
+        ///  a
+        ///           `symphonia::core::errors::Error`,
+        ///  an `opus::Error`,
+        ///  an owned
         ///           `String`).
-        /// Why:      Carries the real OS/stream failure for `Display` and `?`
+        /// Why:
+        ///       Carries the real OS/stream failure for `Display` and `?`
         ///           propagation.
         ///
         /// In TS you'd write (pseudocode):
@@ -60,18 +81,26 @@ pub enum PlayerError {
         /// ```
         std::io::Error,
     ),
-    /// What:     `Decode(symphonia::core::errors::Error)` wraps a symphonia error.
-    /// Why:      Probing/demuxing/decoding a container can fail.
+    /// What:
+    ///      `Decode(symphonia::core::errors::Error)` wraps a symphonia error.
+    /// Why:
+    ///       Probing/demuxing/decoding a container can fail.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "decode"; cause: Error }
     /// ```
     Decode(
-        /// What:     Unnamed field `.0` of the `Decode` variant: a wrapped
+        /// What:
+        ///      Unnamed field `.0` of the `Decode` variant:
+        ///  a wrapped
         ///           `symphonia::core::errors::Error` (siblings the other variants
-        ///           wrap: a `std::io::Error`, an `opus::Error`, an owned `String`).
-        /// Why:      Carries the real symphonia probe/demux/decode failure for
+        ///           wrap:
+        ///  a `std::io::Error`,
+        ///  an `opus::Error`,
+        ///  an owned `String`).
+        /// Why:
+        ///       Carries the real symphonia probe/demux/decode failure for
         ///           `Display` and `?` propagation.
         ///
         /// In TS you'd write (pseudocode):
@@ -80,19 +109,27 @@ pub enum PlayerError {
         /// ```
         symphonia::core::errors::Error,
     ),
-    /// What:     `Opus(opus::Error)` wraps a libopus error.
-    /// Why:      Opus packet decoding can fail.
+    /// What:
+    ///      `Opus(opus::Error)` wraps a libopus error.
+    /// Why:
+    ///       Opus packet decoding can fail.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "opus"; cause: Error }
     /// ```
     Opus(
-        /// What:     Unnamed field `.0` of the `Opus` variant: a wrapped
-        ///           `opus::Error` (siblings the other variants wrap: a
-        ///           `std::io::Error`, a `symphonia::core::errors::Error`, an owned
+        /// What:
+        ///      Unnamed field `.0` of the `Opus` variant:
+        ///  a wrapped
+        ///           `opus::Error` (siblings the other variants wrap:
+        ///  a
+        ///           `std::io::Error`,
+        ///  a `symphonia::core::errors::Error`,
+        ///  an owned
         ///           `String`).
-        /// Why:      Carries the real libopus packet-decode failure for `Display` and
+        /// Why:
+        ///       Carries the real libopus packet-decode failure for `Display` and
         ///           `?` propagation.
         ///
         /// In TS you'd write (pseudocode):
@@ -101,25 +138,37 @@ pub enum PlayerError {
         /// ```
         opus::Error,
     ),
-    /// What:     `Unsupported(String)` carries an OWNED message describing an
-    ///           unsupported file/codec situation. `String` (owned, heap-allocated)
+    /// What:
+    ///      `Unsupported(String)` carries an OWNED message describing an
+    ///           unsupported file/codec situation.
+    ///  `String` (owned,
+    ///  heap-allocated)
     ///           not `&str` (a borrowed view) because the error outlives the call
     ///           that made it.
-    /// Why:      Report "no audio track" / ">2 Opus channels" cleanly.
+    /// Why:
+    ///       Report "no audio track" / ">2 Opus channels" cleanly.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "unsupported"; message: string }
     /// ```
     Unsupported(
-        /// What:     Unnamed field `.0` of the `Unsupported` variant: an OWNED,
+        /// What:
+        ///      Unnamed field `.0` of the `Unsupported` variant:
+        ///  an OWNED,
         ///           heap-allocated `String` message (siblings the other variants
-        ///           wrap: a `std::io::Error`, a `symphonia` error, an `opus::Error`).
+        ///           wrap:
+        ///  a `std::io::Error`,
+        ///  a `symphonia` error,
+        ///  an `opus::Error`).
         ///           `String` (owned) not `&str` (a borrowed view that does not own
         ///           its bytes).
-        /// Why:      Carries the "no audio track" / ">2 Opus channels" explanation
-        ///           for `Display`; `String` (not `&str`) because the error outlives
-        ///           the call that built it, so a borrowed slice would dangle.
+        /// Why:
+        ///       Carries the "no audio track" / ">2 Opus channels" explanation
+        ///           for `Display`;
+        ///  `String` (not `&str`) because the error outlives
+        ///           the call that built it,
+        ///  so a borrowed slice would dangle.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts
@@ -127,25 +176,37 @@ pub enum PlayerError {
         /// ```
         String,
     ),
-    /// What:     `Audio(String)` an OWNED message for audio-output (PipeWire) failures
-    ///           whose native error types we flatten to text. `String` over `&str`
+    /// What:
+    ///      `Audio(String)` an OWNED message for audio-output (PipeWire) failures
+    ///           whose native error types we flatten to text.
+    ///  `String` over `&str`
     ///           for the same outlive reason as `Unsupported`.
-    /// Why:      PipeWire errors come in several types; one string is enough here.
+    /// Why:
+    ///       PipeWire errors come in several types;
+    ///  one string is enough here.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "audio"; message: string }
     /// ```
     Audio(
-        /// What:     Unnamed field `.0` of the `Audio` variant: an OWNED,
+        /// What:
+        ///      Unnamed field `.0` of the `Audio` variant:
+        ///  an OWNED,
         ///           heap-allocated `String` message for audio-output (PipeWire)
         ///           failures whose native error types we flatten to text (siblings
-        ///           the other variants wrap: a `std::io::Error`, a `symphonia`
-        ///           error, an `opus::Error`). `String` (owned) not `&str` (a
+        ///           the other variants wrap:
+        ///  a `std::io::Error`,
+        ///  a `symphonia`
+        ///           error,
+        ///  an `opus::Error`).
+        ///  `String` (owned) not `&str` (a
         ///           borrowed view).
-        /// Why:      Carries the flattened PipeWire explanation for `Display`;
+        /// Why:
+        ///       Carries the flattened PipeWire explanation for `Display`;
         ///           `String` (not `&str`) for the same outlive reason as
-        ///           `Unsupported` (the error outlives the call, so a borrowed slice
+        ///           `Unsupported` (the error outlives the call,
+        ///  so a borrowed slice
         ///           would dangle).
         ///
         /// In TS you'd write (pseudocode):
@@ -156,25 +217,38 @@ pub enum PlayerError {
     ),
 }
 
-/// What:     `impl fmt::Display for PlayerError { ... }` provides the user-facing
-///           message. `Display` is the "pretty print" trait (vs `Debug`'s
-///           developer view). Implementing a trait `for` a type adds that trait's
+/// What:
+///      `impl fmt::Display for PlayerError { ... }` provides the user-facing
+///           message.
+///  `Display` is the "pretty print" trait (vs `Debug`'s
+///           developer view).
+///  Implementing a trait `for` a type adds that trait's
 ///           methods to it.
-/// Why:      We print these errors to stderr and into other messages.
+/// Why:
+///       We print these errors to stderr and into other messages.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // class PlayerError { toString(): string { switch (this.kind) { ... } } }
 /// ```
 impl fmt::Display for PlayerError {
-    /// What:     `fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result`. `&self`
-    ///           is a read-only borrow of the error; `f: &mut fmt::Formatter<'_>` is
-    ///           the output sink borrowed MUTABLY (we write into it); `'_` is an
-    ///           inferred lifetime placeholder; the return `fmt::Result` is an alias
+    /// What:
+    ///      `fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result`.
+    ///  `&self`
+    ///           is a read-only borrow of the error;
+    ///  `f: &mut fmt::Formatter<'_>` is
+    ///           the output sink borrowed MUTABLY (we write into it);
+    ///  `'_` is an
+    ///           inferred lifetime placeholder;
+    ///  the return `fmt::Result` is an alias
     ///           for `Result<(), fmt::Error>`.
-    /// Why:      The single method `Display` requires.
-    /// Gotcha:   `&mut f` means we are LENT the buffer to write into; the function
-    ///           does not own or free it, and no other code may touch it meanwhile.
+    /// Why:
+    ///       The single method `Display` requires.
+    /// Gotcha:
+    ///    `&mut f` means we are LENT the buffer to write into;
+    ///  the function
+    ///           does not own or free it,
+    ///  and no other code may touch it meanwhile.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -245,34 +319,78 @@ impl fmt::Display for PlayerError {
     }
 }
 
-/// What:     `impl std::error::Error for PlayerError {}` marks the type as a STANDARD
-///           error. The empty `{}` body accepts every default method (no custom
-///           `source()` / cause chain).
-/// Why:      Lets `PlayerError` interoperate with `anyhow::Error` and `?` in callers
-///           that want a generic error.
+/// What:
+///      `impl std::error::Error for PlayerError { fn source(..) }` marks the type as a STANDARD
+///           error and overrides `source()`, the cause-chain hook, to hand back the wrapped error of
+///           the `Io`, `Decode` and `Opus` variants. `Unsupported` and `Audio` hold only a message,
+///           so their `source()` is `None`.
+/// Why:
+///       Lets `PlayerError` interoperate with `anyhow::Error` and `?` in callers
+///           that want a generic error, and lets a chain walker (the `anyhow` startup report, a log
+///           of `Error::source` links) reach the wrapped `std::io::Error`, symphonia error or opus
+///           error instead of only the flattened `Display` line.
+/// Gotcha:
+///    `Display` for the three wrapper variants also prints the wrapped error, so a chain printed
+///           in full shows that text twice: once inside the `PlayerError` line, once as its cause.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class PlayerError extends Error {}
+/// class PlayerError extends Error { cause?: Error }
 /// ```
-impl std::error::Error for PlayerError {}
+impl std::error::Error for PlayerError {
+    /// What:
+    ///      `fn source(&self) -> Option<&(dyn std::error::Error + 'static)>` borrows the wrapped
+    ///           error as a trait object; `'static` because the wrapped types own all their data.
+    /// Why:
+    ///       The default returns `None`, which cuts the chain at `PlayerError`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// get cause(): Error | undefined { return this.kind === "io" ? this.inner : undefined; }
+    /// ```
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // What:     `match self { ... }` over the five variants. The three wrapper variants bind the
+        //           inner error `e` and return `Some(e)`; the two message variants return `None`.
+        //           Every variant is listed, with no `_` arm, so a new variant fails to compile here
+        //           until its cause is decided.
+        // Why:      Forward exactly the causes the variants hold.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // switch (this.kind) { case "io": case "decode": case "opus": return this.cause; default: return undefined; }
+        // ```
+        return match self {
+            PlayerError::Io(e) => Some(e),
+            PlayerError::Decode(e) => Some(e),
+            PlayerError::Opus(e) => Some(e),
+            PlayerError::Unsupported(_) | PlayerError::Audio(_) => None,
+        };
+    }
+}
 
-/// What:     `impl From<std::io::Error> for PlayerError { ... }` defines how to CONVERT
-///           an io error into our error. The `From` trait powers the `?` operator's
+/// What:
+///      `impl From<std::io::Error> for PlayerError { ... }` defines how to CONVERT
+///           an io error into our error.
+///  The `From` trait powers the `?` operator's
 ///           automatic error conversion.
-/// Why:      So `let f = File::open(p)?;` turns an io error into a `PlayerError`
+/// Why:
+///       So `let f = File::open(p)?;` turns an io error into a `PlayerError`
 ///           automatically at the `?`.
-/// Gotcha:   implementing `From<X>` is what makes `?` silently convert an `X` error
-///           into a `PlayerError`; there is no TS equivalent (a `throw` just rethrows).
+/// Gotcha:
+///    implementing `From<X>` is what makes `?` silently convert an `X` error
+///           into a `PlayerError`;
+///  there is no TS equivalent (a `throw` just rethrows).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // implicit: a thrown fs Error is just rethrown unchanged
 /// ```
 impl From<std::io::Error> for PlayerError {
-    /// What:     `fn from(e: std::io::Error) -> PlayerError` takes OWNERSHIP of the io
+    /// What:
+    ///      `fn from(e: std::io::Error) -> PlayerError` takes OWNERSHIP of the io
     ///           error (by value) and returns it wrapped.
-    /// Why:      Build the `Io` variant from the raw error.
+    /// Why:
+    ///       Build the `Io` variant from the raw error.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -291,18 +409,22 @@ impl From<std::io::Error> for PlayerError {
     }
 }
 
-/// What:     `impl From<symphonia::core::errors::Error> for PlayerError { ... }` the
+/// What:
+///      `impl From<symphonia::core::errors::Error> for PlayerError { ... }` the
 ///           `From` conversion for symphonia errors.
-/// Why:      Enables `?` on symphonia calls to produce a `PlayerError`.
+/// Why:
+///       Enables `?` on symphonia calls to produce a `PlayerError`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // implicit rethrow of a decoder error
 /// ```
 impl From<symphonia::core::errors::Error> for PlayerError {
-    /// What:     `fn from(e: symphonia::core::errors::Error) -> PlayerError` takes the
+    /// What:
+    ///      `fn from(e: symphonia::core::errors::Error) -> PlayerError` takes the
     ///           symphonia error by value.
-    /// Why:      Build the `Decode` variant.
+    /// Why:
+    ///       Build the `Decode` variant.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -321,17 +443,21 @@ impl From<symphonia::core::errors::Error> for PlayerError {
     }
 }
 
-/// What:     `impl From<opus::Error> for PlayerError { ... }` the `From` conversion
+/// What:
+///      `impl From<opus::Error> for PlayerError { ... }` the `From` conversion
 ///           for opus errors.
-/// Why:      Enables `?` on opus calls to produce a `PlayerError`.
+/// Why:
+///       Enables `?` on opus calls to produce a `PlayerError`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // implicit rethrow of an opus error
 /// ```
 impl From<opus::Error> for PlayerError {
-    /// What:     `fn from(e: opus::Error) -> PlayerError` takes the opus error by value.
-    /// Why:      Build the `Opus` variant.
+    /// What:
+    ///      `fn from(e: opus::Error) -> PlayerError` takes the opus error by value.
+    /// Why:
+    ///       Build the `Opus` variant.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -349,3 +475,8 @@ impl From<opus::Error> for PlayerError {
         return PlayerError::Opus(e)
     }
 }
+
+/// Cause-chain tests for `PlayerError`.
+#[cfg(test)]
+#[path = "error_tests.rs"]
+mod tests;

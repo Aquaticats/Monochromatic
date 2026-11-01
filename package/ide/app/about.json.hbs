@@ -1,0 +1,6 @@
+{{!-- cargo-about template for the Rust crate license list (the `notices` task). It writes one JSON object:
+one entry per distinct license text, with the crates it covers and the file it came from (null for the standard
+SPDX text). `json` is cargo-about's helper that writes a value as JSON, so every string is escaped. --}}
+{"licenses": [{{#each licenses}}{{#unless @first}},{{/unless}}
+{"id": {{{json id}}}, "name": {{{json name}}}, "source": {{{json source_path}}}, "crates": [{{#each used_by}}{{#unless @first}}, {{/unless}}{"name": {{{json crate.name}}}, "version": {{{json crate.version}}}}{{/each}}], "text": {{{json text}}}}{{/each}}
+]}

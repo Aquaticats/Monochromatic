@@ -87,7 +87,8 @@ The first command should print `/usr/local/cargo/bin/rustup`;
 - Use non-login `bash -c` when chaining `rustup target add` with Cargo inside this image.
    Both target cross-checks succeeded in the bounded container after this change.
    Tradeoff:
-   commands that actually require login-shell profile initialization must supply that environment by another reviewed route;
+   commands that actually require login-shell profile initialization must supply
+that environment by another reviewed route;
    `bash -c` intentionally does not read login profiles.
 - Invoke `rustup` directly without a shell when only one command is needed.
    The direct `rustup --version` probe succeeded.

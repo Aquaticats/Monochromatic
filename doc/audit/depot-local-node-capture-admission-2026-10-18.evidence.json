@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T22:26:45.127Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "One finite local recapture of the same twelve authored files; both-stream positive control; existing derived fixture topology retained",
+  "priorEvidence": {
+    "path": "doc/audit/depot-local-node-counterfactual-2026-10-18.evidence.json",
+    "bytes": 17947,
+    "sha256": "2cf0ffa80e8eb7bfe761837cc017bae65dd82dc88e909429a8e407d4237c9461"
+  },
+  "sourceFiles": [
+    {
+      "path": "package/figma/to-penpot/src/index.unit.test.ts",
+      "bytes": 14676,
+      "sha256": "3406b280f85a02e71cd669eec2fb30a7dc45963da4c37418d1c1f8432de1feed"
+    },
+    {
+      "path": "package/figma/kiwi/src/index.unit.test.ts",
+      "bytes": 3646,
+      "sha256": "cb693b2a0abf72d772545712c5222c5469e589b1e01d7d5a7a5a6fc43b364f23"
+    },
+    {
+      "path": "package/desktop-daemon/hall-monitor/src/analyze.unit.test.ts",
+      "bytes": 6757,
+      "sha256": "b4c93bd5018539a07d316aacf4dc571284e858449d03e726e7a51153b95a9d16",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/desktop-daemon/hall-monitor/src/infra/lock.unit.test.ts",
+      "bytes": 5063,
+      "sha256": "522c293c16192d199eccc3a18722d2ec6d0483c22ec06b77d8cd98995dfba40b",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/dev-script/page-weight/src/html.unit.test.ts",
+      "bytes": 4187,
+      "sha256": "d1afe703235abb1242d65897f4ae29479fbb3e76e28dbd74eaee1c27ed164e1a",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/dev-script/page-weight/src/url-detect.unit.test.ts",
+      "bytes": 4202,
+      "sha256": "b0e14b80d7d0055957d0f3ee206c2a3fb44476a5b74774ad3a967ed8e4b6c129",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/css/index.unit.test.ts",
+      "bytes": 16348,
+      "sha256": "aa6d4f2fa0f00a4f91581f15c6661171a3cf389964b17f175744373054d96e29",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/html/index.unit.test.ts",
+      "bytes": 2517,
+      "sha256": "b9357ab7f59a3c33b84c6b3f2e56f82a7e2fbbc9deab65d53f01139cfb3591c2",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/xml/index.unit.test.ts",
+      "bytes": 5753,
+      "sha256": "615ea548015473c58860894d25e3456c0afc3e2de9807d52255bdfcfec060a4d",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts",
+      "bytes": 2736,
+      "sha256": "1a803e8c2897b6012ae43deb08d07fc15f6511eee679bfbf581e90587fe143cc",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/transform-helpers.unit.test.ts",
+      "bytes": 4642,
+      "sha256": "362c0bb8313ff3f988ee4ee4a5d33c2f2b4a0e49194e2d88761f79d0f2f5cb0d",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/test/src/it.unit.test.ts",
+      "bytes": 4249,
+      "sha256": "6db6986f28ddc4fe22bf9cdaf40274ef257cf583c7e6eb6f05e31dbcdca7ab4f",
+      "role": "existing harness failure/timeout/repeat self-test against rebuilt node artifact"
+    }
+  ],
+  "consumerProgram": "const fs=await import('node:fs');const {createHash}=await import('node:crypto');const {spawnSync}=await import('node:child_process');const {homedir}=await import('node:os');const cfg=JSON.parse(process.argv[1]);const sha=value=>createHash('sha256').update(value).digest('hex');const memoryMax=fs.readFileSync('/sys/fs/cgroup/memory.max','utf8').trim(),cpuMax=fs.readFileSync('/sys/fs/cgroup/cpu.max','utf8').trim();if(memoryMax!=='2147483648'||cpuMax!=='200000 100000')throw new Error('Kernel bounds differ');const positive=spawnSync(process.execPath,['--eval',\"process.stdout.write('capture-positive-stdout');process.stderr.write('capture-positive-stderr');\"],{encoding:'utf8',timeout:5000,maxBuffer:65536});if(positive.status!==0||positive.stdout!=='capture-positive-stdout'||positive.stderr!=='capture-positive-stderr')throw new Error('Both-stream positive control failed');const fixtureChecks=[];for(const[index,row]of cfg.fixtures.entries()){const body=fs.readFileSync(homedir()+'/Seafile/Plain/Text/Reference/Figma export/'+row.name);if(body.length!==row.bytes||sha(body)!==row.sha256)throw new Error('Private fixture differs');fixtureChecks.push({index,bytes:body.length,identityMatched:true});}const calls=[];for(const row of cfg.files){const bytes=fs.readFileSync('/workspace/'+row.path);if(bytes.length!==row.bytes||sha(bytes)!==row.sha256)throw new Error('Source differs');const startedAt=new Date().toISOString();const result=spawnSync(process.execPath,[row.path],{cwd:'/workspace',encoding:'utf8',timeout:60000,maxBuffer:16*1024*1024});calls.push({file:row.path,startedAt,finishedAt:new Date().toISOString(),exitCode:result.status,signal:result.signal,error:result.error?.message??null,stdout:result.stdout,stderr:result.stderr});}console.log(JSON.stringify({source:cfg.source,node:process.version,memoryMax,cpuMax,positiveControl:{stdout:positive.stdout,stderr:positive.stderr,status:positive.status},fixtureChecks,calls}));if(calls.some(row=>row.exitCode!==0))process.exitCode=1;",
+  "consumerProgramSha256": "ee62f0b88795b1c4c9c1997737672cee23c20bdf6bfc39d8ca1428c0420e58c3",
+  "runtime": {
+    "imageId": "7a0d2c0c30811c393f278a255613b2a78cac778438bc06464e4a8b6979c3d4a9",
+    "nodeExpected": "v26.12.0",
+    "network": "none",
+    "env": {
+      "DEBUG": "true",
+      "MONOCHROMATIC_VERBOSE": "true"
+    },
+    "memoryBytes": 2147483648,
+    "cpu": 2,
+    "containerMaximumSeconds": 150,
+    "perFileMaximumSeconds": 60,
+    "concurrentContainers": 1,
+    "readOnlyWorkspace": true,
+    "privateFixturesMountedReadOnly": true,
+    "onlyLoggerDirectoryWritable": true
+  },
+  "fixturePrivacy": {
+    "count": 3,
+    "privateOriginalCopyAndConsumerIdentityRequired": true,
+    "payloadsNamesAndHashesNotPublished": true
+  },
+  "limits": [
+    "Original baseline and three-leg controls remain unchanged",
+    "Derived fixture alias is retained; a pass does not qualify the original missing-path topology",
+    "The no-with authored case still lacks its negative assertion",
+    "Repeated leaf identities are not added as new cases",
+    "No provider dispatch, model call, device launch or main application-source edit"
+  ]
+}

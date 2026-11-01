@@ -4,7 +4,7 @@
  @module
  */
 import type { Provider, SimpleStreamOptions, OpenAICodexResponsesOptions, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import {
   createPriorityProvider,
   FAST_PROVIDER,

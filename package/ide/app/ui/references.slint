@@ -1,0 +1,151 @@
+// Transient list of definition or reference locations beside the caret line.
+// Native code owns the locations and opens the chosen one; this markup only lists and selects.
+import { Surface } from "surface.slint";
+import { ScrollView, Palette } from "std-widgets.slint";
+
+export struct ReferenceEntry {
+    // Project-relative path and one-based line, or the server's address when it cannot be opened.
+    label: string,
+    // Empty for an ordinary project location; otherwise why it is special, such as "Outside project".
+    detail: string,
+}
+
+export component ReferenceList inherits Rectangle {
+    in property <[ReferenceEntry]> entries;
+    // "References" or "Definitions", with the count, for sighted and assistive readers alike.
+    in property <string> title;
+    in-out property <int> selected-row: 0;
+    // Ink for text and marks on a selected row. The owner passes the ink native code chooses from the
+    // selection fill; the palette's own selection ink, the fallback here, is black in the dark scheme.
+    in property <brush> selected-ink: Palette.selection-foreground;
+    // Left edge of the caret and the top and bottom of its line, in the parent's coordinates.
+    in property <length> anchor-x;
+    in property <length> anchor-top;
+    in property <length> anchor-bottom;
+    // The area the list must stay inside, in the parent's coordinates.
+    in property <length> area-width;
+    in property <length> area-height;
+    out property <bool> list-has-focus: keys.has-focus;
+    callback choose(int);
+    callback dismiss;
+    public function focus-list() { keys.focus(); }
+    public function reset-scroll() { rows.content-y = 0px; }
+
+    private property <length> row-height: 48px;
+    private property <length> title-height: 32px;
+    private property <length> margin: 8px;
+    private property <length> natural-height: root.title-height + min(6, root.entries.length) * root.row-height + 8px;
+    private property <length> space-below: root.area-height - root.anchor-bottom - root.margin;
+    private property <length> space-above: root.anchor-top - root.margin;
+    private property <bool> below: root.natural-height <= root.space-below || root.space-below >= root.space-above;
+
+    width: min(480px, root.area-width - 2 * root.margin);
+    height: max(root.title-height + root.row-height, min(root.natural-height, root.below ? root.space-below : root.space-above));
+    x: max(root.margin, min(root.anchor-x, root.area-width - self.width - root.margin));
+    y: root.below ? root.anchor-bottom : root.anchor-top - self.height;
+    background: Surface.background;
+    border-width: 1px;
+    border-color: Palette.foreground;
+    border-radius: 4px;
+    clip: true;
+
+    function move-selection(delta: int) {
+        if root.entries.length == 0 { return; }
+        root.selected-row = mod(root.selected-row + delta + root.entries.length, root.entries.length);
+        if rows.content-y + root.selected-row * root.row-height < 0px {
+            rows.content-y = -root.selected-row * root.row-height;
+        } else if rows.content-y + (root.selected-row + 1) * root.row-height > rows.visible-height {
+            rows.content-y = rows.visible-height - (root.selected-row + 1) * root.row-height;
+        }
+    }
+
+    // Consume clicks on the frame instead of letting them reach the dismissing layer beneath.
+    TouchArea { width: parent.width; height: parent.height; }
+
+    keys := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        accessible-role: list;
+        accessible-label: root.title;
+        accessible-item-count: root.entries.length;
+        key-pressed(event) => {
+            if event.text == Key.Escape { root.dismiss(); return accept; }
+            if event.text == Key.DownArrow { root.move-selection(1); return accept; }
+            if event.text == Key.UpArrow { root.move-selection(-1); return accept; }
+            if event.text == Key.Return { root.choose(root.selected-row); return accept; }
+            // The list keeps focus until it is closed, like the search overlay.
+            if event.text == Key.Tab || event.text == Key.Backtab { return accept; }
+            reject
+        }
+        Text {
+            x: 12px;
+            y: 0px;
+            width: parent.width - 24px;
+            height: root.title-height;
+            text: root.title;
+            color: Palette.foreground;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+            // The list carries the title as its name; the text is not read a second time.
+            accessible-role: none;
+        }
+        rows := ScrollView {
+            x: 4px;
+            y: root.title-height;
+            width: parent.width - 8px;
+            height: parent.height - root.title-height - 4px;
+            content-width: self.visible-width;
+            content-height: root.entries.length * root.row-height;
+            // A definition or reference list is bounded by the server's answer; every row is a real item.
+            for entry[index] in root.entries: item := Rectangle {
+                y: index * root.row-height;
+                width: max(48px, rows.visible-width);
+                height: root.row-height;
+                private property <bool> selected: index == root.selected-row;
+                // Selection has three channels: fill, weight, and a boundary.
+                background: selected ? Palette.selection-background : transparent;
+                border-width: selected ? 1px : 0px;
+                border-color: Palette.foreground;
+                border-radius: 2px;
+                accessible-role: list-item;
+                accessible-label: entry.label;
+                accessible-description: entry.detail;
+                accessible-item-selected: selected;
+                accessible-item-selectable: true;
+                accessible-item-index: index;
+                accessible-action-default => { root.choose(index); }
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 12px;
+                    Text {
+                        horizontal-stretch: 1;
+                        text: entry.label;
+                        color: item.selected ? root.selected-ink : Palette.foreground;
+                        font-family: "JetBrains Mono";
+                        font-weight: item.selected ? 600 : 400;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        // The row carries its label and detail as name and description; its texts are not read again.
+                        accessible-role: none;
+                    }
+                    if entry.detail != "": Text {
+                        horizontal-stretch: 0;
+                        text: entry.detail;
+                        color: item.selected ? root.selected-ink : Palette.foreground;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        accessible-role: none;
+                    }
+                }
+                TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+                    // A new location model recreates these rows and cancels their pending clicks.
+                    clicked => { root.choose(index); }
+                }
+            }
+        }
+    }
+}

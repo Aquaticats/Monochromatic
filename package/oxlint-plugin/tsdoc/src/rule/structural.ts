@@ -245,33 +245,33 @@ export const checkAlignment: CreateOnceRule = {
           /**
            Continuation line with leading whitespace removed; used to test for the `*` marker.
            */
-          const trimmed = line.trimStart();
-          if (trimmed.length
-            === 0)
-            return;
-          if (!trimmed.startsWith('*',))
-            return;
+            const trimmed = line.trimStart();
+            if (trimmed.length
+              === 0)
+              return;
+            if (!trimmed.startsWith('*',))
+              return;
           /**
            Number of leading whitespace columns on the actual line; compared with `expectedIndent`.
            */
-          const actualIndent = line.length
-            - trimmed
-            .length;
-          if (actualIndent !== expectedIndent) {
-            context.report({
-              loc: commentLineReportLoc({
-                comment,
-                lineOffset: index + 1,
-                column: actualIndent,
-              },),
-              messageId: 'misaligned',
-              data: {
-                expected: String(expectedIndent,),
-                actual: String(actualIndent,),
-              },
-            },);
-          }
-        },);
+            const actualIndent = line.length
+              - trimmed
+                .length;
+            if (actualIndent !== expectedIndent) {
+              context.report({
+                loc: commentLineReportLoc({
+                  comment,
+                  lineOffset: index + 1,
+                  column: actualIndent,
+                },),
+                messageId: 'misaligned',
+                data: {
+                  expected: String(expectedIndent,),
+                  actual: String(actualIndent,),
+                },
+              },);
+            }
+          },);
       },
     },);
   },

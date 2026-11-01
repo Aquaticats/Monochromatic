@@ -49,10 +49,10 @@ type ClaudeSpawnOutput =
     kind: 'raw';
     text: string;
   }
-  | {
-    kind: 'json';
-    payload: unknown;
-  };
+    | {
+      kind: 'json';
+      payload: unknown;
+    };
 
 /**
  Updates a child's spawn state file when the Stop event reports a final

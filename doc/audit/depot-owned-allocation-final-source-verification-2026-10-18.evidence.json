@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-18T21:12:50.020Z",
+  "input": {
+    "path": "doc/audit/depot-owned-allocation-final-2026-10-18.evidence.json",
+    "bytes": 123851,
+    "sha256": "feb386c9daef898718e44b9a9286e43a3547368bda096a3c27b2013bf9f88391"
+  },
+  "checks": {
+    "rows": 49,
+    "sourceBodies": 53,
+    "timestampPointerJoins": 49,
+    "exactBigIntArithmetic": true,
+    "baselineDuplicateRows": 0,
+    "invoiceClaim": false
+  },
+  "nominalProviderWindowProxy": {
+    "usd": 1.6853666666666667,
+    "numerator": "101122000000",
+    "denominator": "60000000000"
+  },
+  "separateBuildRequestProxy": {
+    "usd": 0.015897333333333333,
+    "numerator": "953840000",
+    "denominator": "60000000000"
+  },
+  "products": {
+    "standard-public-github-actions": {
+      "rows": 23,
+      "nominalUsd": 0,
+      "buildRequestProxyUsd": 0
+    },
+    "github-actions-runners": {
+      "rows": 13,
+      "nominalUsd": 1.2335666666666667,
+      "buildRequestProxyUsd": 0
+    },
+    "native-ci": {
+      "rows": 10,
+      "nominalUsd": 0.4518,
+      "buildRequestProxyUsd": 0
+    },
+    "buildkit": {
+      "rows": 3,
+      "nominalUsd": 0,
+      "buildRequestProxyUsd": 0.015897333333333333
+    }
+  },
+  "limits": [
+    "Concrete source/hash/pointer/arithmetic checks by Root; no new independent whole-report review after agent service limit",
+    "Historical twelve-place decimal displays can be truncated; exact integer numerators are authoritative"
+  ]
+}

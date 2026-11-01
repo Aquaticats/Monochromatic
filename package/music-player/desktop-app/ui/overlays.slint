@@ -1,0 +1,198 @@
+// The transient feedback overlay (D83). It takes its data from the caller and never reflows the content beneath it.
+// True-peak analysis progress has no component here: it is a system notification (D107).
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, FocusStop, FocusRing } from "focus.slint";
+
+// One feedback message. `kind` is 0 for an error (warning glyph, error container) and 1 for an Undo message.
+// `action-label` is empty when the message offers no action button.
+export struct FeedbackItem {
+    // Stable key the caller uses to dismiss the message and to report its action.
+    id: string,
+    // Message text; wraps to two lines and elides beyond that.
+    text: string,
+    // 0 for an error, 1 for an Undo message.
+    kind: int,
+    // Label of the action button, or an empty string when there is none.
+    action-label: string,
+}
+
+// Stacked feedback messages. Each message is content width and left aligned, and the caller bounds the width (D83).
+// Items are drawn top to bottom in the order given, so the caller puts Undo above Error (D29).
+export component FeedbackOverlay inherits Rectangle {
+    // Messages in display order, top to bottom.
+    in property <[FeedbackItem]> items: [];
+    // Widest a message may be; a message wraps to two lines within it. Zero leaves messages unbounded.
+    in property <length> available-width: 0px;
+
+    // Fired with the item id when the dismiss control is pressed.
+    callback dismiss(string);
+    // Fired with the item id when the action button is pressed; the caller decides whether that also dismisses.
+    callback action(string);
+
+    // The dark mix is a muted rose rather than the saturated red of the captures (accepted difference).
+
+    background: transparent;
+
+    VerticalLayout {
+        alignment: start;
+        spacing: 16px;
+
+        for item[index] in root.items : card := Rectangle {
+            // Error uses the error container and error content; Undo uses the surface-high token (capture-measured).
+            property <color> container: item.kind == 0 ? Theme.error-container : Theme.surface-high;
+            property <color> content: item.kind == 0 ? Theme.on-error-container : Theme.on-surface;
+
+            horizontal-stretch: 0;
+            // Content width, capped by the caller's width.
+            width: root.available-width > 0px ? min(row.preferred-width, root.available-width) : row.preferred-width;
+            height: max(48px, row.preferred-height);
+            background: card.container;
+            border-radius: 24px;
+            // Fade in when the message appears, so it does not pop onto the deck (D83). It starts at 0 and `init` raises it
+            // to 1, which plays the animation; the host removes the message when its time runs out or it is dismissed.
+            property <float> enter: 0;
+            opacity: card.enter;
+            animate enter { duration: Theme.motion-enter; easing: ease-out; }
+            init => {
+                card.enter = 1;
+            }
+
+            // Pointer shield over the whole card, under the Undo and dismiss controls. A Rectangle passes clicks through,
+            // so a click on the message text used to press the Previous, Play or Next button that the card covers. It is
+            // not a control, so it has no hover layer and keeps the default cursor.
+            body-shield := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: default;
+            }
+
+            row := HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 8px;
+                spacing: 12px;
+                alignment: center;
+
+                // Warning glyph, 24px with 12px gap after it, only on errors.
+                if item.kind == 0 : Rectangle {
+                    width: 24px;
+                    height: 24px;
+                    Path {
+                        width: parent.width;
+                        height: parent.height;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        commands: "M1 21 h22 L12 2 L1 21 Z M13 18 h-2 v-2 h2 v2 Z M13 14 h-2 v-4 h2 v4 Z";
+                        fill: card.content;
+                    }
+                }
+
+                // Message text: two lines maximum, elided beyond that.
+                Text {
+                    horizontal-stretch: 1;
+                    text: item.text;
+                    color: card.content;
+                    font-size: Theme.body-medium;
+                    wrap: word-wrap;
+                    // Slint 1.17 has no max-lines; a two-line height clips a third line.
+                    overflow: clip;
+                    height: Theme.body-medium * 2.5;
+                    vertical-alignment: center;
+                }
+
+                // Action button, 48px target, only when the item carries a label.
+                if item.action-label != "" : action-target := Rectangle {
+                    width: max(48px, action-text.preferred-width + 16px);
+                    height: 48px;
+                    // Pill-shaped hover and pressed layer, 40 px tall in the 48 px target, in the card's content color. The
+                    // pill leaves 4 px above and below, more than the 3 px the keyboard ring reaches, so the ring stays
+                    // inside the card.
+                    StateLayer {
+                        y: 4px;
+                        width: parent.width;
+                        height: 40px;
+                        radius: 20px;
+                        tint: card.content;
+                        hovered: action-touch.has-hover;
+                        pressed: action-touch.pressed;
+                    }
+                    action-text := Text {
+                        text: item.action-label;
+                        font-size: Theme.label-large;
+                        font-weight: 700;
+                        color: item.kind == 0 ? Theme.error : Theme.primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    action-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        accessible-role: button;
+                        accessible-label: item.action-label;
+                        clicked => {
+                            Focus.ring-visible = false;
+                            root.action(item.id);
+                        }
+                    }
+                    action-stop := FocusStop {
+                        label: "feedback-action";
+                        activated => { root.action(item.id); }
+                    }
+                    FocusRing {
+                        y: 4px;
+                        height: 40px;
+                        round: true;
+                        active: action-stop.ring;
+                    }
+                }
+
+                // Dismiss control, a 48px target with a 24px close glyph centred inside.
+                dismiss-target := Rectangle {
+                    width: 48px;
+                    height: 48px;
+                    // Circular hover and pressed layer, 40 px centered in the 48 px dismiss target.
+                    StateLayer {
+                        x: 4px;
+                        y: 4px;
+                        width: 40px;
+                        height: 40px;
+                        radius: 20px;
+                        tint: card.content;
+                        hovered: dismiss-touch.has-hover;
+                        pressed: dismiss-touch.pressed;
+                    }
+                    Path {
+                        width: 24px;
+                        height: 24px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        commands: "M19 6.41 L17.59 5 L12 10.59 L6.41 5 L5 6.41 L10.59 12 L5 17.59 L6.41 19 L12 13.41 L17.59 19 L19 17.59 L13.41 12 Z";
+                        fill: card.content;
+                    }
+                    dismiss-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        accessible-role: button;
+                        accessible-label: "Dismiss";
+                        clicked => {
+                            Focus.ring-visible = false;
+                            root.dismiss(item.id);
+                        }
+                    }
+                    dismiss-stop := FocusStop {
+                        label: "feedback-dismiss";
+                        activated => { root.dismiss(item.id); }
+                    }
+                    FocusRing {
+                        x: 4px;
+                        y: 4px;
+                        width: 40px;
+                        height: 40px;
+                        round: true;
+                        active: dismiss-stop.ring;
+                    }
+                }
+            }
+        }
+    }
+}

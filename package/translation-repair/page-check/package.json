@@ -1,0 +1,69 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/translation-repair-page-check",
+  "description": "The page-check part of the translation-repair pipeline; README.md says what it holds and what it leans on.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
+    "@monochromatic-dev/translation-repair-archive": "workspace:*",
+    "@monochromatic-dev/translation-repair-artifact": "workspace:*",
+    "@monochromatic-dev/translation-repair-artifact-pool": "workspace:*",
+    "@monochromatic-dev/translation-repair-assembly": "workspace:*",
+    "@monochromatic-dev/translation-repair-corpus-source": "workspace:*",
+    "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
+    "@monochromatic-dev/translation-repair-glossary": "workspace:*",
+    "@monochromatic-dev/translation-repair-lane-contest": "workspace:*",
+    "@monochromatic-dev/translation-repair-markup": "workspace:*",
+    "@monochromatic-dev/translation-repair-page-pass": "workspace:*",
+    "@monochromatic-dev/translation-repair-provider": "workspace:*",
+    "@monochromatic-dev/translation-repair-reference": "workspace:*",
+    "@monochromatic-dev/translation-repair-rendering-audit": "workspace:*",
+    "@monochromatic-dev/translation-repair-shared-contract": "workspace:*",
+    "@monochromatic-dev/translation-repair-slice-reading": "workspace:*",
+    "@monochromatic-dev/translation-repair-stage": "workspace:*",
+    "@monochromatic-dev/translation-repair-translate-floor": "workspace:*",
+    "@monochromatic-dev/translation-repair-translate-lane": "workspace:*",
+    "@monochromatic-dev/translation-repair-translate-stage": "workspace:*",
+    "@monochromatic-dev/translation-repair-typography": "workspace:*",
+    "pinyin-pro": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-consolidate": "workspace:*",
+    "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
+    "@types/mdast": "catalog:",
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/translation-repair/page-check"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

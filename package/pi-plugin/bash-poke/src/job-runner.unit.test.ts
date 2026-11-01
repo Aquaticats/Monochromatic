@@ -5,15 +5,15 @@
  */
 
 import { mkdtemp, readFile, rm, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   constants,
@@ -71,7 +71,7 @@ async function createDisposableWorkDir(): Promise<DisposableWorkDir> {
   /**
    Absolute directory unique to the current case.
    */
-  const path = await mkdtemp(join(tmpdir(), 'bash-poke-job-', ), );
+  const path = await mkdtemp(join(scratchRoot(), 'bash-poke-job-', ), );
   return {
     path,
     async [Symbol.asyncDispose](): Promise<void> {

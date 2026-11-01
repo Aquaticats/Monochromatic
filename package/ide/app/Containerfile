@@ -1,0 +1,29 @@
+# Extend the repository's existing native Slint environment without changing terminal's image.
+FROM localhost/monochromatic/terminal
+
+# Helix's grammar manager requests a C++ driver even for grammars whose generated parser is C.
+# Arch's gcc package already carries g++, which the terminal image installs, so only ripgrep is added here.
+# Search integration tests exercise the same ripgrep subprocess protocol as the native reader.
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed gcc ripgrep && rm --recursive --force /var/cache/pacman/pkg/*
+
+# The native tests render on the host's hardware GPU through wgpu's Vulkan backend (owner decision of 2026-10-19: no CPU
+# painting in the IDE, tests included). vulkan-icd-loader is the loader library wgpu opens, vulkan-radeon holds RADV for
+# AMD GPUs, vulkan-intel and vulkan-nouveau hold the drivers for Intel and NVIDIA GPUs, and vulkan-swrast holds lavapipe,
+# a CPU rasterizer, which the test harness refuses and the test task hides with VK_DRIVER_FILES. The container sees a
+# GPU only when the task passes --device /dev/dri.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed vulkan-icd-loader vulkan-radeon vulkan-intel vulkan-nouveau vulkan-swrast \
+    && rm --recursive --force /var/cache/pacman/pkg/*
+
+# The shared minimal toolchain supplies clippy but omits cargo-fmt.
+RUN CARGO_HOME=/usr/local rustup component add rustfmt
+
+# cargo-about writes the Rust crate license list the executable carries (the `notices` task; user decision of
+# 2026-10-06). Pinned to 0.9.2, the latest release on that day: its crates.io archive (sha256
+# 0cd19d99696eb83f0a2d6ab7a347b14968d2980416c8cca827ded220e6e9c4bb) names the tagged commit
+# f7394d5c8f618623573072caadf6594821c789b6. The command needs the `cli` feature; without it the install builds
+# and installs nothing. Installing is the only step that needs the network: the tasks run it with --frozen.
+RUN CARGO_HOME=/tmp/cargo-about-build \
+    cargo install --locked --features cli --version 0.9.2 --root /usr/local cargo-about \
+ && rm -rf /tmp/cargo-about-build

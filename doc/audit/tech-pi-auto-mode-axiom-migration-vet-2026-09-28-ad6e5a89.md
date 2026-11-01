@@ -292,7 +292,8 @@ group separation,
 and syntax-boundary rejection controls.
 A separately retained source-partition-guard omission accepted the deliberately misplaced row,
 while the original rejected it.
-The corpus had no exact text overlap with 58 unique selected-source texts in the named prior semantic/control input banks;
+The corpus had no exact text overlap
+with 58 unique selected-source texts in the named prior semantic/control input banks;
 a known-overlap positive control passed.
 This does not establish semantic novelty or knowledge of model pretraining.
 No represented command or original reserved scenario was executed or queried.

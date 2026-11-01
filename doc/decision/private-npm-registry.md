@@ -61,6 +61,13 @@ On 2026-09-14 the workspace held 154 packages under `package/`,
 @monochromatic-dev:registry=https://pnpr.c.aquati.cat/~monochromatic-dev/
 ```
 
+Moved 2026-10-21:
+ the route is `@monochromatic-dev:registry=https://pnpr.c.aquati.cat/npm/~monochromatic-dev/`
+ from the `0.1.0-alpha.16` base,
+ which mounts npm under `/npm`
+ (`doc/troubleshooting/pnpr-base-move.md`);
+ the block above records the `0.1.0-alpha.11` root surface.
+
 Through this route,
  npmjs-only versions and `@monochromatic-dev/mcp-nvim` are not installable.
 pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
@@ -70,7 +77,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 
 - Every workspace package except those under `package/test-fixture/`,
    private ones included.
-   Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`;
+   Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`
+   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`, which the root file now calls);
    the publish workflow reads the generated name list instead of re-deriving it.
 - A package publishes only if its manifest still declares `exports`,
    `main`,
@@ -165,7 +173,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
    Rejected:
     a read-only check plus a `version:bump` command (two steps when forgotten),
     and adding paths without updating the worktree (leaves reverted versions in `git status`).
-- The changesets `version` job in `npm-release.yml` runs the same ripple before committing the Version Packages pull request.
+- The changesets `version` job in `npm-release.yml` runs the same ripple
+  before committing the Version Packages pull request.
    Root task `changeset:version` runs `changeset version`,
     then `mise run //package/git-policy/repository:bump:dependents`,
     then `pnpm install --lockfile-only`.
@@ -176,7 +185,7 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
    It imports only Node built-ins and sibling source files,
     so the job needs no build step.
    Evidence (2026-09-15, disposable clone of `main`):
-    hand-bumping `@monochromatic-dev/module-or-throw` and running the runner planned 19 dependent bumps,
+    hand-bumping `@monochromatic-dev/or-throw-core` and running the runner planned 19 dependent bumps,
     and `git diff --shortstat` reported `20 files changed, 20 insertions(+), 20 deletions(-)`,
     version lines only.
 - No CI backstop catches commits that bypass cli-git.
@@ -203,7 +212,9 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 ### Configuration and deployment
 
 - file-enforcer generates the pnpr config,
-   including the package-name list and the exclusion list.
+   including the package-name list and the exclusion list
+   (since 2026-10-30 the generator and its check live in `package/config/pnpr`,
+   per `doc/decision/file-enforcer-rust-rewrite.md`, "Elsewhere").
 - The deployment lives in `package/config/pnpr/`
    and Coolify redeploys it on push through a GitHub App source,
    limited by Watch Paths to `config.yaml`,
@@ -259,9 +270,9 @@ Results on 2026-09-15 against `https://pnpr.c.aquati.cat`:
    `nonNullishOrThrow(42)` returned `42` and threw on `null`,
    `tsc` reported `TS2322` under the extended config,
    and oxlint reported the `tsdoc` rule.
-- `@monochromatic-dev/module-logger@0.4.0` installed from pnpr and logged through `tagged`.
+- `@monochromatic-dev/logger-core@0.4.0` installed from pnpr and logged through `tagged`.
 - An unauthenticated `PUT` returned
-   `Authentication required for package "@monochromatic-dev/module-or-throw" 401`,
+   `Authentication required for package "@monochromatic-dev/or-throw-core" 401`,
    and a forged GitHub-issuer token returned `401 Authentication required for OIDC credentials`.
 
 GitHub issue #521 tracks checking installability of the remaining published packages.

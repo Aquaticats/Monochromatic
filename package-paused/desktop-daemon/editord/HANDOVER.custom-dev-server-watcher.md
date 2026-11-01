@@ -1,5 +1,23 @@
 # Handover: extract editord's dev-server watcher into a standalone dev-script package
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `@monochromatic-dev/dev-script-watch-restart` is now `@monochromatic-dev/watch-restart-cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 ## What you are picking up
 
 editord's dev loop currently shells out to `watchexec` for file-watching and bun-process restart.
@@ -14,9 +32,11 @@ Two earlier rounds of work landed pieces that you should treat as the starting s
 
 1. `--no-meta` suppresses `Modify(Metadata(Any))` events.
     Documented in `TROUBLESHOOTING.mise-watch.md`.
-2. `saveFile` in `src/server/operations/save.ts` short-circuits when on-disk content already matches the requested write.
+2. `saveFile` in `src/server/operations/save.ts` short-circuits
+   when on-disk content already matches the requested write.
     Commit `27051b66`.
-    The earlier `-j @content-changed.jaq` filter on watchexec was dropped because watchexec hangs on SIGINT when `-j` is used (`TROUBLESHOOTING.mise-watch.md`,
+    The earlier `-j @content-changed.jaq` filter on watchexec was dropped because watchexec hangs on SIGINT
+    when `-j` is used (`TROUBLESHOOTING.mise-watch.md`,
     "watchexec `-j` filter program hangs on SIGINT").
 
 What is still on watchexec and what this handover is about:
@@ -33,7 +53,8 @@ What is still on watchexec and what this handover is about:
 
 ## The decision
 
-Create a new dev-script package at `packages/dev-script/watch-restart/` (npm name `@monochromatic-dev/dev-script-watch-restart`).
+Create a new dev-script package at `packages/dev-script/watch-restart/`
+(npm name `@monochromatic-dev/dev-script-watch-restart`).
  It exposes:
 
 - A library API (`startWatchRestart(...)`) for programmatic use.
@@ -51,7 +72,8 @@ For the watching layer use **chokidar 5** (the current major;
  the watcher stands on its own as a package.
 
 The save-side content-equality skip in `save.ts` stays.
- It is independently good and complements the watcher (cheaper than a watcher firing and re-hashing for an editord-internal save).
+ It is independently good and complements the watcher
+ (cheaper than a watcher firing and re-hashing for an editord-internal save).
 
 ## Alternatives and prior art
 
@@ -179,7 +201,8 @@ Every other watcher uses one of:
 An earlier draft of this handover said "the hash cache becomes ~20 lines of TypeScript.
 " That claim is unsafe:
  it replaces a general programmable filter with one hardcoded predicate,
- and the second consumer that wants a different filter shape (e.g. `watch:build:css` rebuilding only on style-token changes) would have to fork the package or extend it ad hoc.
+ and the second consumer that wants a different filter shape
+ (e.g. `watch:build:css` rebuilding only on style-token changes) would have to fork the package or extend it ad hoc.
  The planning agent should design the filter API deliberately,
  treating it as the package's main extension point.
 
@@ -202,7 +225,8 @@ Library accepts `filter: (event, ctx) => boolean | Promise<boolean>`.
 
 For in-process TypeScript callers,
  function predicates are strictly more expressive than a DSL (you have the full language).
- The original jaq DSL existed because watchexec is a Rust binary and users cannot extend it without a foreign-function boundary;
+ The original jaq DSL existed because watchexec is a Rust binary
+ and users cannot extend it without a foreign-function boundary;
  that boundary does not exist for us.
  The CLI form accepts `--filter-script <path>`:
  the path is loaded as a TS module and its default export is the predicate.
@@ -225,7 +249,8 @@ This is purpose-built for our event shape and avoids reinventing jq.
  The CLI flag is something like `--filter-config <path>`.
  The format is a `Record` lookup keyed on operator name;
  adding an operator is one entry in a switch-equivalent.
- Worth the cost only if the planning agent identifies a second consumer that genuinely wants a config-driven filter (today only `content-hash + globs` is on the table).
+ Worth the cost only if the planning agent identifies a second consumer
+ that genuinely wants a config-driven filter (today only `content-hash + globs` is on the table).
 
 #### Option F3: jaq subset or full port (last resort)
 
@@ -243,7 +268,8 @@ A subset of jaq in TypeScript.
  `kv_clear`,
  logging primitives) is a multi-week project,
  not a side concern.
- We would also inherit jaq's semantic edge cases (e.g. the "stops after outputting the first value" gotcha that watchexec's own help calls out).
+ We would also inherit jaq's semantic edge cases
+ (e.g. the "stops after outputting the first value" gotcha that watchexec's own help calls out).
 
 Reject unless and until the project has a documented need to consume *existing* jaq programs from another tool.
  We do not.
@@ -293,7 +319,8 @@ Reject unless and until the project has a documented need to consume *existing* 
    on this workload they are indistinguishable.
 - **Library API is the point.
   ** The "second consumer can import the library" item is in the acceptance criteria.
-   Workspace consumers expect `import { startWatchRestart, contentHashFilter } from '@monochromatic-dev/dev-script-watch-restart'`.
+   Workspace consumers expect
+   `import { startWatchRestart, contentHashFilter } from '@monochromatic-dev/dev-script-watch-restart'`.
    A Rust binary cannot serve that without a NAPI-N layer,
    and the workspace currently has no NAPI build infrastructure (forbidden-strings ships as a standalone CLI binary;
    nothing imports it).
@@ -314,7 +341,8 @@ Reject unless and until the project has a documented need to consume *existing* 
    the SIGINT hang we paid for is a Tokio reference cycle in `FilterProgs::new`.
    Rust does not automatically deliver correct signal+async semantics;
    a complex Rust async runtime hides exactly this class of bug.
-   A single-threaded TypeScript watcher with one child process and direct `child.kill('SIGTERM')` is easier to audit and harder to construct a reference-cycle bug in.
+   A single-threaded TypeScript watcher with one child process and direct `child.kill('SIGTERM')` is easier to audit
+   and harder to construct a reference-cycle bug in.
 - **`AGENTS.md` default.
   ** The workspace rule is TypeScript for dev scripts;
    forbidden-strings is the documented exception,
@@ -333,7 +361,8 @@ Reject unless and until the project has a documented need to consume *existing* 
 None of these is true today.
  The recommendation stays **TypeScript**,
  for the same shape of reason watchman is rejected:
- the language that would buy us speed on a hot path is the wrong choice for a package whose contract is "expose a TS function and a CLI to a TS-first workspace.
+ the language that would buy us speed on a hot path is the wrong choice for a package whose contract is "expose a TS
+ function and a CLI to a TS-first workspace.
 "
 
 ### Can we just use watchman?
@@ -342,7 +371,8 @@ This question came up while drafting the handover.
  The honest answer:
  yes,
  watchman would technically work,
- and the package shape (watcher + hash-cache + child-process + filter) is unchanged whether the watcher dep is chokidar or `fb-watchman`.
+ and the package shape (watcher + hash-cache + child-process + filter) is unchanged whether the watcher dep is chokidar
+ or `fb-watchman`.
  The reason chokidar wins for our case is concrete,
  not a hand-wave about "overkill for very large repos.
 " Spelling it out so the planning agent does not have to re-derive it.
@@ -367,7 +397,8 @@ This question came up while drafting the handover.
 - **Persistent daemon.
   ** `idle_reap_age_seconds` defaults to 5 days (`watchman/website/docs/config.md`).
    Watches are stored in a statefile and reinstated when the daemon restarts.
-   Starting `dev:server` once leaves a watch and the daemon running across reboots until a 5-day idle window or a `watchman shutdown-server` call.
+   Starting `dev:server` once leaves a watch and the daemon running across reboots until a 5-day idle window
+   or a `watchman shutdown-server` call.
    For a single developer running one project,
    this is process state to reason about and clean up;
    for a system with ten projects,
@@ -390,14 +421,16 @@ This question came up while drafting the handover.
 
 The watchman calculus flips if any of these become true:
 
-- This monorepo grows to a size where chokidar's startup cost (the per-directory recursive scan via `readdirp`) becomes noticeable.
+- This monorepo grows to a size where chokidar's startup cost (the per-directory recursive scan via `readdirp`) becomes
+   noticeable.
    Today the watched directory is `src/server/`,
    tens of files;
    the scan cost is microseconds.
 - A second long-lived dev server is added to the workspace,
    then a third.
    Sharing a watchman daemon across them genuinely reduces the moving parts.
-- The repo grows to need scm-aware querying (watchman's `scm-query` integrates with hg/git and gives "what changed since this commit" semantics for free).
+- The repo grows to need scm-aware querying
+   (watchman's `scm-query` integrates with hg/git and gives "what changed since this commit" semantics for free).
    We do not need this today.
 - The team adopts a Python toolchain that already brings `pywatchman` in.
    Then `watchman-make` becomes free.
@@ -418,7 +451,8 @@ None of these is true today.
    strong.
 - Notes:
    Direct control over signal propagation.
-   Disqualifies the watchexec-style "SIGTERM does not reach the grandchild" failure mode by construction (one level of process tree).
+   Disqualifies the watchexec-style "SIGTERM does not reach the grandchild" failure mode by construction
+   (one level of process tree).
    Tested pattern:
    `packages/desktop-daemon/editord/src/server/operations/spawn-detached.ts`.
 
@@ -545,7 +579,8 @@ The structural reason for the universal write-side / watch-side split:
     the consumer maintains state.
     A content-hash cache is consumer state.
     Watchexec's `-j` flag was exactly the experiment of pushing that state into the watcher,
-    and the reference cycle that hangs SIGINT (`TROUBLESHOOTING.mise-watch.md`) is the kind of failure a stateless watcher does not have.
+    and the reference cycle that hangs SIGINT (`TROUBLESHOOTING.mise-watch.md`) is the kind of failure a stateless
+    watcher does not have.
 
 Some watchers do narrow content checks at the margin (esbuild falls back to byte compare when modKey is unusable,
  `internal/fs/fs_real.go:530-536`;
@@ -560,7 +595,8 @@ editord cannot control vim or vscode.
  They write the same bytes;
  the OS reports `Modify(Data(Any))`;
  the kernel cannot tell "same bytes" from "different bytes".
- The only places where byte-equality is knowable on the event side are (a) inside a stateful watcher (re-read and hash) or (b) inside the writer (compare before write).
+ The only places where byte-equality is knowable on the event side are (a) inside a stateful watcher (re-read and hash)
+ or (b) inside the writer (compare before write).
 
 Since (b) does not apply to external editors,
  the watcher must do (a).
@@ -580,7 +616,8 @@ Do not remove the hash cache when adopting chokidar.
 
 ## Why standalone package
 
-The previous handover argued for keeping the watcher editord-local under "Three similar lines is better than a premature abstraction" (`AGENTS.md`).
+The previous handover argued for keeping the watcher editord-local under "Three similar lines is better than a
+premature abstraction" (`AGENTS.md`).
  That decision is overridden because:
 
 - The watcher needs its own README,
@@ -593,7 +630,9 @@ The previous handover argued for keeping the watcher editord-local under "Three 
    hard-coding a pattern into one consumer makes the second consumer reimplement it.
 - `AUDIT.md` already lists `chokidar` and `watcher` as "to evaluate".
    Adopting one here gives a concrete reason for the eval and a single integration point.
-- The package can later absorb `watch:build:css` (which currently runs `mise watch -w src/client -g '...' -r -- build:css`) when content-hash filtering becomes worth the move.
+- The package can later absorb `watch:build:css`
+   (which currently runs `mise watch -w src/client -g '...' -r -- build:css`)
+   when content-hash filtering becomes worth the move.
    The library API supports that without a second extraction.
 
 ## Package shape
@@ -601,13 +640,15 @@ The previous handover argued for keeping the watcher editord-local under "Three 
 Follow `packages/dev-script/file-enforcer` as the closest existing model (library + CLI;
  build to `dist`;
  published surface via `exports`).
- `packages/dev-script/task-util` is the next closest (CLI-only with multiple `bin` entries) but the watcher needs a library export,
+ `packages/dev-script/task-util` is the next closest (CLI-only with multiple `bin` entries)
+ but the watcher needs a library export,
  so file-enforcer is the better template.
 
 - `packages/dev-script/watch-restart/package.json`:
    name `@monochromatic-dev/dev-script-watch-restart`,
    `private: true`,
-   `main`/`exports` pointing at the built dist plus a `./ts` export for direct source consumption (file-enforcer pattern),
+   `main`/`exports` pointing at the built dist plus a `./ts` export for direct source consumption
+   (file-enforcer pattern),
    `bin.watch-restart` pointing at the CLI entry.
 - `packages/dev-script/watch-restart/mise.toml`:
    `extends`-only tasks for `build`,
@@ -684,7 +725,8 @@ This is the constraint that disqualifies several "easy" restart options and the 
    Anything that introduces a process layer between the watcher and the server is suspect.
 - Direct `proc.kill('SIGTERM')` against the spawned bun child,
    with a 5-second timer and SIGKILL fallback,
-   matches the documented `--stop-timeout 0` discussion in `TROUBLESHOOTING.mise-watch.md` and keeps the tree one level deep.
+   matches the documented `--stop-timeout 0` discussion in `TROUBLESHOOTING.mise-watch.md`
+   and keeps the tree one level deep.
 
 ## Scope
 
@@ -740,7 +782,8 @@ Out of scope:
 7. Editing any file under `src/server/` with new content triggers exactly one restart;
     previous bun process exits,
     new bun process starts on the same port (no `EADDRINUSE`).
-8. Saving a file under `src/server/` with byte-identical content from any source (editord's own save handler or an external editor) produces no restart.
+8. Saving a file under `src/server/` with byte-identical content
+   from any source (editord's own save handler or an external editor) produces no restart.
 9. `touch src/server/index.ts` produces no restart.
     The hash compare short-circuits a metadata-only event.
 10. Ctrl+C in the dev terminal exits the watcher within ~1 second.
@@ -750,7 +793,8 @@ Out of scope:
 11. `kill -TERM <pid>` against the watcher process produces the same clean shutdown.
 12. The bun child's stdout and stderr appear in the dev terminal unchanged (stdio inherit;
      do not buffer or transform).
-13. `rg 'watchexec' packages/desktop-daemon/editord/` returns no matches (the binary may still resolve via `mise install`;
+13. `rg 'watchexec' packages/desktop-daemon/editord/` returns no matches
+    (the binary may still resolve via `mise install`;
      the editord package no longer references it).
 14. A second consumer can import the library:
      `import { startWatchRestart } from '@monochromatic-dev/dev-script-watch-restart'` resolves through the workspace,
@@ -762,7 +806,8 @@ Out of scope:
 - `packages/dev-script/watch-restart/` (new package,
    structure above)
 - `pnpm-workspace.yaml`:
-   add `chokidar` and `readdirp` to the catalog (or confirm chokidar's transitive `readdirp` does not need its own catalog entry,
+   add `chokidar` and `readdirp` to the catalog
+   (or confirm chokidar's transitive `readdirp` does not need its own catalog entry,
    depending on workspace conventions;
    check sibling additions like `nano-spawn`).
 - `packages/desktop-daemon/editord/package.json`:
@@ -804,7 +849,8 @@ Out of scope:
    `packages/dev-script/file-enforcer/src/watch/watch-dir.ts:37-79`.
 - Prior-art watcher orchestration with debounce and abort:
    `packages/dev-script/file-enforcer/src/watch/watch.ts:34-168`.
-- Prior-art `DirWatcher` class with debounce and per-path suppression (heavier than needed but shows the per-path classify pattern):
+- Prior-art `DirWatcher` class with debounce
+   and per-path suppression (heavier than needed but shows the per-path classify pattern):
    `packages/desktop-daemon/editord/src/server/operations/watch-filesystem.ts:45-271`.
 - Save-side content-equality skip (already shipped,
    do not modify):

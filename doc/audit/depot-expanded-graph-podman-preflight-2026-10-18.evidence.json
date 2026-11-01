@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T16:19:08.681Z",
+  "harnessSha": "72af18d5b130dabef7ff5b656ffdc1b58df4fcde",
+  "bootstrapSha256": "d6adb8579ea9888147d0b3f5eba90f730630a243b03db07d4753feb1b8f0f85a",
+  "command": [
+    "podman",
+    "run",
+    "--name",
+    "depot-wrapper-local-20261018",
+    "--rm",
+    "--pull=never",
+    "--memory=2g",
+    "--cpus=2",
+    "--pids-limit=256",
+    "--network=none",
+    "--volume",
+    "/var/mnt/encrypted/temp/agent/depot-allocation-follow-on-20261018/wrapper-context:/work:Z",
+    "docker.io/library/node:26.12.0-trixie-slim",
+    "node",
+    "/work/fixture.cjs"
+  ],
+  "bounds": {
+    "cpus": 2,
+    "memoryBytes": 2147483648,
+    "pids": 256,
+    "network": "none",
+    "maximumSeconds": 60
+  },
+  "proof": {
+    "passed": true,
+    "source": "actual committed bootstrap, no source replacement",
+    "controls": 24,
+    "results": [
+      {
+        "provider": "native-depot",
+        "args": [
+          "info"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "info"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "info"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "native-depot",
+        "args": [
+          "build",
+          "--tag",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "build",
+              "--tag",
+              "owned-fixture"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "build",
+              "--tag",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "native-depot",
+        "args": [
+          "run",
+          "--rm",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "run",
+              "--memory=2g",
+              "--cpus=2",
+              "--pids-limit=256",
+              "--rm",
+              "fixture-image"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "run",
+              "--memory=2g",
+              "--cpus=2",
+              "--pids-limit=256",
+              "--rm",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "native-depot",
+        "args": [
+          "image",
+          "inspect",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "image",
+              "inspect",
+              "fixture-image"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "image",
+              "inspect",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "native-depot",
+        "args": [
+          "rm",
+          "--force",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "rm",
+              "--force",
+              "owned-fixture"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "rm",
+              "--force",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "native-depot",
+        "args": [
+          "fail"
+        ],
+        "status": 7,
+        "trace": [
+          {
+            "role": "sudo",
+            "args": [
+              "--non-interactive",
+              "/work/fixture/original-bin/podman",
+              "fail"
+            ]
+          },
+          {
+            "role": "original-podman",
+            "args": [
+              "fail"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "info"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "info"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "build",
+          "--tag",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "build",
+              "--tag",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "run",
+          "--rm",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "run",
+              "--memory=2g",
+              "--cpus=2",
+              "--pids-limit=256",
+              "--rm",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "image",
+          "inspect",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "image",
+              "inspect",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "rm",
+          "--force",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "rm",
+              "--force",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github-depot",
+        "args": [
+          "fail"
+        ],
+        "status": 7,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "fail"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "info"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "info"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "build",
+          "--tag",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "build",
+              "--tag",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "run",
+          "--rm",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "run",
+              "--memory=2g",
+              "--cpus=2",
+              "--pids-limit=256",
+              "--rm",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "image",
+          "inspect",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "image",
+              "inspect",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "rm",
+          "--force",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "rm",
+              "--force",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "github",
+        "args": [
+          "fail"
+        ],
+        "status": 7,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "fail"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "info"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "info"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "build",
+          "--tag",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "build",
+              "--tag",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "run",
+          "--rm",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "run",
+              "--memory=2g",
+              "--cpus=2",
+              "--pids-limit=256",
+              "--rm",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "image",
+          "inspect",
+          "fixture-image"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "image",
+              "inspect",
+              "fixture-image"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "rm",
+          "--force",
+          "owned-fixture"
+        ],
+        "status": 0,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "rm",
+              "--force",
+              "owned-fixture"
+            ]
+          }
+        ]
+      },
+      {
+        "provider": "unset",
+        "args": [
+          "fail"
+        ],
+        "status": 7,
+        "trace": [
+          {
+            "role": "original-podman",
+            "args": [
+              "fail"
+            ]
+          }
+        ]
+      }
+    ],
+    "missingSudoNegative": {
+      "status": 1,
+      "diagnosticMatched": true
+    },
+    "originalAbsolutePodmanRetained": true,
+    "pathShadowRejected": true,
+    "probeBuildRunSameBoundary": true,
+    "generatedWrapperSha256": "4c2b37c0c70539b54e347f8f5ebcd8e412317ac687f9b94e41df6052d85d7c2e",
+    "fixtureCleanup": true,
+    "applicationWorkloadExecutionCredit": false
+  },
+  "limitations": [
+    "Fake sudo and Podman programs validate dispatch, flags, absolute paths and failure propagation only; actual native rootful Podman execution remains a separate cloud consumer boundary.",
+    "No application test execution credit."
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
+    "bytes": 18551,
+    "sha256": "122ef60af29ddb193445fead9080bac530ab5cb18879690c1b471154d05ce97c",
+    "records": 6
+  },
+  "cloudAllocations": 0,
+  "sharedToolInstalls": 0,
+  "applicationSourceChanges": 0
+}

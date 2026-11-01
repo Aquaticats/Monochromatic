@@ -206,7 +206,8 @@ That produced both approximately 240-second failures in this session.
 
 ### Advisor turns a terminal `error` into a successful empty result
 
-`package/pi-plugin/advisor/src/tool.ts:322-358` replaces missing text and stores the provider stop reason only in details:
+`package/pi-plugin/advisor/src/tool.ts:322-358` replaces missing text and stores the provider stop reason only
+ in details:
 
 ```typescript
 const text = extractAdvisorText(response,)
@@ -389,7 +390,8 @@ for (const [label, branch] of [["getBranch", manager.getBranch(leaf)], ["buildCo
 ### Patterns that work cleanly
 
 - A provider response with `stopReason: "stop"` and a non-empty text block returns after one attempt.
-- Pi's `buildContextEntries()` keeps the latest compaction summary and retained entries while omitting older summarized entries.
+- Pi's `buildContextEntries()` keeps the latest compaction summary and retained entries
+ while omitting older summarized entries.
 - Explicit Advisor calls that complete before timeout return useful review text.
 
 ### Patterns that fail as an empty success
@@ -418,7 +420,8 @@ Successful calls in this session under-estimated provider-reported input by:
 - gpt-5.6-terra:
    `10.11%`.
 
-A context budget that fills the model metadata limit using the four-characters-per-token estimate has no measured safety margin for this workload.
+A context budget that fills the model metadata limit using the four-characters-per-token estimate has no measured safety
+ margin for this workload.
 
 ## Verified workarounds
 
@@ -478,7 +481,8 @@ Terminal provider errors and caller cancellation still fail immediately.
 
 - Before the shared-deadline correction,
    raising `timeoutMs` did not improve failure classification and increased the possible two-attempt wait.
-- Retrying the same question manually does not remove pre-compaction entries because `runAdvisor()` always calls `getBranch()`.
+- Retrying the same question manually does not remove pre-compaction entries
+ because `runAdvisor()` always calls `getBranch()`.
 - Switching from default Kimi-K3 to explicit gpt-5.6-sol does not avoid the duplicate no-text retry.
   The incident's explicit call lasted `240011` ms.
 - Treating `(advisor returned no text)` as a valid review hides `stopReason: "error"` and loses the provider diagnostic.
@@ -510,7 +514,8 @@ Terminal provider errors and caller cancellation still fail immediately.
   Do not silently fall back when the caller explicitly selected a model.
 - Remove request-size-dependent highest-cost ranking.
   At minimum,
-   score every candidate against the same bounded input size so larger context windows are not rewarded for receiving more history.
+   score every candidate against the same bounded input size so larger context windows are not rewarded
+    for receiving more history.
 - Replace character-only context budgeting with an exact tokenizer where available or a conservative reserve.
   Keep an independent hard input ceiling below provider metadata limits.
 - Preserve `errorMessage`,
@@ -600,7 +605,8 @@ The same session also disproves a stable character threshold:
  and Spark previously succeeded with `404629` but later returned no text with `444292`.
 One variable provider failure therefore does not establish a safe global context cap.
 A proposed `300000`-character default was rejected and removed.
-Model-aware budgeting remains in place while issue `#410` tracks measured reserve improvements without treating one failure as a stable capacity limit.
+Model-aware budgeting remains in place
+ while issue `#410` tracks measured reserve improvements without treating one failure as a stable capacity limit.
 
 Commits `7a13ad30c` and `f4d57a2be` raise the tested and documented default operation deadline to `600000` ms.
 The user-level `~/.pi/agent/extensions/pi-advisor.json` now carries the same value.
@@ -622,7 +628,8 @@ Open and closed issue and pull-request searches in `earendil-works/pi` for
 
 1. **Is it really upstream's fault?**
     No.
-   Pi explicitly returns terminal error messages from `AssistantMessageEventStream.result()` and exposes a separate compaction-aware API.
+   Pi explicitly returns terminal error messages from `AssistantMessageEventStream.result()`
+    and exposes a separate compaction-aware API.
    Advisor used both APIs incorrectly.
 2. **Can upstream fix it?**
     Upstream could change contracts,
@@ -633,7 +640,8 @@ Open and closed issue and pull-request searches in `earendil-works/pi` for
     Pi supports nested provider calls and custom tools.
    That does not make Pi responsible for Advisor's terminal-state and context-selection policy.
 4. **Would the repo welcome our contribution?**
-    `CONTRIBUTING.md` allows understood AI-assisted code but requires issue prose in the contributor's own voice or a clearly AI-labelled follow-up.
+    `CONTRIBUTING.md` allows understood AI-assisted code but requires issue prose in the contributor's own voice
+     or a clearly AI-labelled follow-up.
    New-contributor issues are auto-closed pending maintainer review,
     and PRs require prior `lgtm` approval.
    No upstream contribution is warranted here.

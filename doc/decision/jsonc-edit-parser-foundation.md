@@ -7,12 +7,12 @@ Accepted,
 
 ## Context
 
-`package/module/jsonc-edit` is the comment-preserving JSONC read,
+`package/jsonc-edit/core-ts` is the comment-preserving JSONC read,
  edit,
  and write
 package,
  split out of the paused `package-paused/module/es` taxonomy and shaped after
-its sibling `package/module/toml-edit`.
+its sibling `package/toml-edit/core`.
 The goal is full edit parity with `toml-edit`:
  a free-function edit API over an immutable
 state,
@@ -186,7 +186,7 @@ rather than special-casing it:
 parse it avoids.
 
 Measured cost,
- from `mise run //package/module/jsonc-edit.bench:bench` (300 entries,
+ from `mise run //package/jsonc-edit/core-ts.bench:bench` (300 entries,
  3000
 iterations,
  one run before and one after on the same machine):

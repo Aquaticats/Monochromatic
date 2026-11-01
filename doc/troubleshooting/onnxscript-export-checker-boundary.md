@@ -7,7 +7,7 @@ A separate bounded frontend canary has now imported the dependencies,
 exported a toy graph,
 and exercised the actual ONNX checker directly.
 A later English Laya producer also passed explicit structural checking,
-as recorded in the [producer result](../planning/pi-auto-mode-laya-qualification.md#laya-producer-preparation-and-result).
+as recorded in the [producer result][laya-producer-result].
 No compatibility-facade runtime failure is claimed.
 The risk is treating PyTorch's successful checker-status branch as proof that a graph passed structural validation.
 Do not confuse this with the separately measured Laya CPU latency or attention-memory results.
@@ -216,3 +216,5 @@ Do not infer agreement to restore it.
 
 None.
 The conditions requiring an upstream-fix prototype are not satisfied.
+
+[laya-producer-result]: ../planning/pi-auto-mode-laya-qualification.md#laya-producer-preparation-and-result

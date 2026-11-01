@@ -1,5 +1,10 @@
 # HANDOVER.resharp-panic-fix
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 State of the fix for two upstream `resharp` panics surfaced by
 `fuzz_extract_gate_soundness`.
  Originally written against resharp 0.5.

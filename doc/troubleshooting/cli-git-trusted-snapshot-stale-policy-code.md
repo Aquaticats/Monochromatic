@@ -10,7 +10,7 @@ yet the commit gate keeps the old behavior.
 
 Concrete incident (2026-07-17,
  #376 landing):
-`SCANNER_SELF_MATCH_PATHS` gained `package/cli/forbidden-strings/data/builtin-rules.ported.txt`,
+`SCANNER_SELF_MATCH_PATHS` gained `package/forbidden-strings/cli/data/builtin-rules.ported.txt`,
 the dist was rebuilt and the change committed and pushed,
 but `git commit` and `git cli-git check -- <path>` still flagged the file
 (`security/forbidden-strings` finding for pre-existing rule content).
@@ -59,6 +59,6 @@ and confirm a canary at a non-exempt path still produces a finding.
 
 For throwaway worktrees created with `--no-worktree-copy`,
 the gate additionally needs the ignored state it skipped:
-the scanner binary at `package/cli/forbidden-strings/target/release/forbidden-strings`
+the scanner binary at `package/forbidden-strings/cli/target/release/forbidden-strings`
 and a `node_modules` symlink to the main worktree,
 because the trust rebuild resolves tsconfig packages through it.

@@ -126,7 +126,7 @@ private const val LETTER_GROUP: Int = 1
  */
 private const val CATCH_ALL_GROUP: Int = 2
 
-// What:     `private const val CATCH_ALL_LABEL: String = "#"`. The single-char
+// What:     `const val CATCH_ALL_LABEL: String = "#"`. The single-char
 //           caption of the catch-all page, held as a `String` (sibling: `Char`,
 //           a single code unit `'#'`). `String` lets it interoperate directly
 //           with the other `String` labels without conversion.
@@ -141,7 +141,7 @@ private const val CATCH_ALL_GROUP: Int = 2
  * Defines catch all label value for this music-player component; the TypeScript-oriented notes above explain its
  * source and use.
  */
-private const val CATCH_ALL_LABEL: String = "#"
+const val CATCH_ALL_LABEL: String = "#"
 
 // What:     `private fun letterKey(name: String): Pair<Int, String>` declares
 //           a FILE-PRIVATE function. `fun` is Kotlin's function keyword.
@@ -189,7 +189,9 @@ private fun letterKey(name: String): Pair<Int, String> {
      * source and use.
      */
     val first: Char? = name.firstOrNull()
-    // What:     `return if (first != null && (first in 'a'..'z' || first in 'A'..'Z')) { ... } else { ... }`.
+    /** Plain base letter of the first character, so an accented initial shares its base letter's page (D28). */
+    val letter: Char? = first?.let { initial -> foldedLatinInitial(initial) }
+    // What:     `return if (letter != null) { ... } else { ... }` (formerly a test for the 26 English letters).
     //           In Kotlin `if/else` is an EXPRESSION whose value is returned.
     //           `first != null` is a null check. `'a'..'z'` builds a `CharRange`
     //           (an inclusive range of characters from `a` to `z`); the `in`
@@ -212,7 +214,7 @@ private fun letterKey(name: String): Pair<Int, String> {
     //   // ...catch-all arm...
     // }
     // ```
-    return if (first != null && (first in 'a'..'z' || first in 'A'..'Z')) {
+    return if (letter != null) {
         // What:     `Pair(LETTER_GROUP, first.uppercaseChar().toString())`.
         //           `Pair(a, b)` is the CONSTRUCTOR of the `Pair` class (Kotlin
         //           constructors are called like plain functions, no `new`).
@@ -232,7 +234,7 @@ private fun letterKey(name: String): Pair<Int, String> {
         // ```ts
         // return [LETTER_GROUP, first.toUpperCase()];
         // ```
-        Pair(LETTER_GROUP, first.uppercaseChar().toString())
+        Pair(LETTER_GROUP, letter.uppercaseChar().toString())
     } else {
         // What:     `Pair(CATCH_ALL_GROUP, CATCH_ALL_LABEL)`. Constructs the
         //           `Pair` for the catch-all bucket: the `CATCH_ALL_GROUP` tag
@@ -250,6 +252,17 @@ private fun letterKey(name: String): Pair<Int, String> {
         Pair(CATCH_ALL_GROUP, CATCH_ALL_LABEL)
     }
 }
+
+// What:     `fun looseFolderLabel(fileName: String): String` names the virtual folder a loose root-level track sits in.
+// Why:      D28: a loose track lives on the page of its initial letter (A to Z, accents folded; `#` for anything
+//           else), which is the same page the picker shows. Search names that same folder instead of its own group.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function looseFolderLabel(fileName: string): string { return letterKey(fileName)[1]; }
+// ```
+/** Returns the letter label of the page a loose track named [fileName] sits on: A to Z, or `#`. */
+fun looseFolderLabel(fileName: String): String = letterKey(fileName).second
 
 // What:     `private fun pageKey(name: String): Pair<Int, String>` declares a
 //           file-private function returning the `(group, label)` `Pair`

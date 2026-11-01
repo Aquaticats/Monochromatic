@@ -1,0 +1,18 @@
+<!-- Copied unchanged from KDE/plasma-workspace tag v6.7.5, libnotificationmanager/dbus/org.kde.JobViewServer.xml (the version installed on the host, plasma-workspace 6.7.5-1.fc44). Used by tests/plasma_contract.rs. -->
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.kde.JobViewServer">
+    <method name="requestView">
+      <arg name="appName" type="s" direction="in"/>
+      <arg name="appIconName" type="s" direction="in"/>
+
+      <!-- 'capabilities' is used as a bit field:
+           0x0001 means that the user should be able to cancel the job
+           0x0002 means that the user should be able to suspend/resume the job
+       -->
+      <arg name="capabilities" type="i" direction="in"/>
+      <arg name="trackerPath" type="o" direction="out"/>
+    </method>
+  </interface>
+</node>

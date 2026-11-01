@@ -1,22 +1,32 @@
-//! Decoding: turn an audio file (or an Android `content://` file descriptor) into
+//! Decoding:
+//!  turn an audio file (or an Android `content://` file descriptor) into
 //! interleaved `f32` PCM samples.
 //!
 //! One demux path (symphonia probes the container and demuxes packets) feeds two
-//! decode paths: symphonia's own decoders for FLAC/WAV/MP3/Vorbis/AAC/ALAC, and the
-//! `opus` crate (libopus) for Opus, because the symphonia 0.6 meta-crate exposes no
+//! decode paths:
+//!  symphonia's own decoders for FLAC/WAV/MP3/Vorbis/AAC/ALAC,
+//!  and the
+//! `opus` crate (libopus) for Opus,
+//!  because the symphonia 0.6 meta-crate exposes no
 //! Opus decoder (the `symphonia-codec-opus` crate exists but is not wired into the
 //! `all` feature set).
 //!
-//! Three entry points all funnel into `open_media_source`, which probes and routes:
+//! Three entry points all funnel into `open_media_source`,
+//!  which probes and routes:
 //! `open()` takes a filesystem `&Path` (used by desktop-style callers and tests);
 //! `open_borrowed_fd()` takes a raw OS file descriptor handed over by Android (a
 //! `content://` `ParcelFileDescriptor`) and is the path the on-device engine uses;
-//! `open_media_source()` is the shared tail that both build on. Every returned
+//! `open_media_source()` is the shared tail that both build on.
+//!  Every returned
 //! decoder implements `Source`.
 
-/// What:     `use std::fs::File;` brings the file-handle type into scope. `File` is an
-///           owning handle to an open OS file; dropping it closes the file.
-/// Why:      We open the audio file and hand the handle to symphonia's stream.
+/// What:
+///      `use std::fs::File;` brings the file-handle type into scope.
+///  `File` is an
+///           owning handle to an open OS file;
+///  dropping it closes the file.
+/// Why:
+///       We open the audio file and hand the handle to symphonia's stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,17 +34,30 @@
 /// ```
 use std::fs::File;
 
-/// What:     `use std::os::fd::{BorrowedFd, RawFd};` imports two Unix file-descriptor
-///           types. A file descriptor is just a small integer the OS uses to name an
-///           open file/socket. `RawFd` is a plain type alias for `i32` (the raw integer
-///           itself; siblings a reader might expect: `u32` would be wrong because the OS
-///           uses `-1` to mean "no fd"). `BorrowedFd<'fd>` is a SAFE wrapper that says "I
-///           am only LOOKING at this fd, and I will NOT close it when I'm done"; its
+/// What:
+///      `use std::os::fd::{BorrowedFd, RawFd};` imports two Unix file-descriptor
+///           types.
+///  A file descriptor is just a small integer the OS uses to name an
+///           open file/socket.
+///  `RawFd` is a plain type alias for `i32` (the raw integer
+///           itself;
+///  siblings a reader might expect:
+///  `u32` would be wrong because the OS
+///           uses `-1` to mean "no fd").
+///  `BorrowedFd<'fd>` is a SAFE wrapper that says "I
+///           am only LOOKING at this fd,
+///  and I will NOT close it when I'm done";
+///  its
 ///           sibling `OwnedFd` is the opposite ("I own this fd and WILL close it on
-///           drop"). The `'fd` is a lifetime: it ties the borrow to how long the real
+///           drop").
+///  The `'fd` is a lifetime:
+///  it ties the borrow to how long the real
 ///           owner stays alive.
-/// Why:      Android hands us a bare integer fd that the JVM still owns; we must borrow
-///           (not own) it, then duplicate it into our own `OwnedFd` so we never close
+/// Why:
+///       Android hands us a bare integer fd that the JVM still owns;
+///  we must borrow
+///           (not own) it,
+///  then duplicate it into our own `OwnedFd` so we never close
 ///           the JVM's copy.
 ///
 /// In TS you'd write (pseudocode):
@@ -44,10 +67,19 @@ use std::fs::File;
 /// ```
 use std::os::fd::{BorrowedFd, RawFd};
 
-/// What:     `use std::path::Path;` imports the borrowed filesystem-path type. `Path` is an
-///           unsized, borrowed view of a path (sibling: `PathBuf`, the owned, growable
-///           version, like `&str` vs `String`).
-/// Why:      `open` takes `&Path` because it only reads the path, it does not need to own it.
+/// What:
+///      `use std::path::Path;` imports the borrowed filesystem-path type.
+///  `Path` is an
+///           unsized,
+///  borrowed view of a path (sibling:
+///  `PathBuf`,
+///  the owned,
+///  growable
+///           version,
+///  like `&str` vs `String`).
+/// Why:
+///       `open` takes `&Path` because it only reads the path,
+///  it does not need to own it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,12 +87,18 @@ use std::os::fd::{BorrowedFd, RawFd};
 /// ```
 use std::path::Path;
 
-/// What:     `use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;` imports the
-///           Opus codec id constant (an `AudioCodecId`, a newtype around `u32`, value
-///           0x1001). In 0.5 this was the top-level `CODEC_TYPE_OPUS`; 0.6 moved well-known
+/// What:
+///      `use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;` imports the
+///           Opus codec id constant (an `AudioCodecId`,
+///  a newtype around `u32`,
+///  value
+///           0x1001).
+///  In 0.5 this was the top-level `CODEC_TYPE_OPUS`;
+///  0.6 moved well-known
 ///           codec ids into a `well_known` sub-module and made each codec family
 ///           (audio/video/subtitle) its own id type.
-/// Why:      We compare the track's codec id against it to route Opus to libopus.
+/// Why:
+///       We compare the track's codec id against it to route Opus to libopus.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,13 +106,21 @@ use std::path::Path;
 /// ```
 use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;
 
-/// What:     `use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};`
+/// What:
+///      `use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};`
 ///           imports decode machinery from the 0.6 `audio` codec sub-module:
-///           `AudioDecoder` (the trait every audio decoder implements; was the un-prefixed
-///           `Decoder` in 0.5, renamed because 0.6 also has video and subtitle decoder
-///           traits), `AudioDecoderOptions` (decoder knobs; we use defaults, which keep
-///           gapless playback on; was `DecoderOptions` in 0.5).
-/// Why:      `SymphoniaSource` holds a `Box<dyn AudioDecoder>` and builds it with default
+///           `AudioDecoder` (the trait every audio decoder implements;
+///  was the un-prefixed
+///           `Decoder` in 0.5,
+///  renamed because 0.6 also has video and subtitle decoder
+///           traits),
+///  `AudioDecoderOptions` (decoder knobs;
+///  we use defaults,
+///  which keep
+///           gapless playback on;
+///  was `DecoderOptions` in 0.5).
+/// Why:
+///       `SymphoniaSource` holds a `Box<dyn AudioDecoder>` and builds it with default
 ///           options.
 ///
 /// In TS you'd write (pseudocode):
@@ -83,9 +129,15 @@ use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;
 /// ```
 use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 
-/// What:     `use symphonia::core::errors::Error;` imports symphonia's own error enum
-///           (IoError, DecodeError, ResetRequired, ...). Same path and variants as 0.5.
-/// Why:      We match its variants to skip a bad packet apart from real failures.
+/// What:
+///      `use symphonia::core::errors::Error;` imports symphonia's own error enum
+///           (IoError,
+///  DecodeError,
+///  ResetRequired,
+///  ...).
+///  Same path and variants as 0.5.
+/// Why:
+///       We match its variants to skip a bad packet apart from real failures.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,12 +145,17 @@ use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 /// ```
 use symphonia::core::errors::Error;
 
-/// What:     `use symphonia::core::formats::probe::Hint;` imports a struct that gives the
-///           prober a hint (like the file extension) to speed format detection. In 0.5 this
-///           lived at `symphonia::core::probe::Hint`; 0.6 moved the whole `probe` module
+/// What:
+///      `use symphonia::core::formats::probe::Hint;` imports a struct that gives the
+///           prober a hint (like the file extension) to speed format detection.
+///  In 0.5 this
+///           lived at `symphonia::core::probe::Hint`;
+///  0.6 moved the whole `probe` module
 ///           under `formats`.
-/// Why:      We pass the file extension so probing is fast and reliable (and pass an EMPTY
-///           hint on the fd path, where no filename exists).
+/// Why:
+///       We pass the file extension so probing is fast and reliable (and pass an EMPTY
+///           hint on the fd path,
+///  where no filename exists).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -106,13 +163,28 @@ use symphonia::core::errors::Error;
 /// ```
 use symphonia::core::formats::probe::Hint;
 
-/// What:     `use symphonia::core::formats::{...};` imports demuxer types: `FormatOptions`
-///           (demux knobs, defaults), `FormatReader` (the trait a demuxed container
-///           implements: lists tracks, yields packets), `SeekMode` (Accurate vs Coarse),
-///           `SeekTo` (where to seek: by time or by frame), `Track` (one track's id + codec
-///           params + timing), `TrackType` (audio / video / subtitle, used to ask for the
+/// What:
+///      `use symphonia::core::formats::{...};` imports demuxer types:
+///  `FormatOptions`
+///           (demux knobs,
+///  defaults),
+///  `FormatReader` (the trait a demuxed container
+///           implements:
+///  lists tracks,
+///  yields packets),
+///  `SeekMode` (Accurate vs Coarse),
+///           `SeekTo` (where to seek:
+///  by time or by frame),
+///  `Track` (one track's id + codec
+///           params + timing),
+///  `TrackType` (audio / video / subtitle,
+///  used to ask for the
 ///           first audio track).
-/// Why:      We probe into a `FormatReader`, pick the first audio `Track`, pull packets, and
+/// Why:
+///       We probe into a `FormatReader`,
+///  pick the first audio `Track`,
+///  pull packets,
+///  and
 ///           seek by absolute frame.
 ///
 /// In TS you'd write (pseudocode):
@@ -121,11 +193,17 @@ use symphonia::core::formats::probe::Hint;
 /// ```
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Track, TrackType};
 
-/// What:     `use symphonia::core::io::{MediaSource, MediaSourceStream};` imports two io
-///           types. `MediaSource` is the TRAIT (interface) symphonia reads raw bytes
-///           through: anything that can be read AND seeked (a `File` qualifies). `MediaSourceStream`
+/// What:
+///      `use symphonia::core::io::{MediaSource, MediaSourceStream};` imports two io
+///           types.
+///  `MediaSource` is the TRAIT (interface) symphonia reads raw bytes
+///           through:
+///  anything that can be read AND seeked (a `File` qualifies).
+///  `MediaSourceStream`
 ///           is the buffered wrapper symphonia layers on top of a `MediaSource`.
-/// Why:      `open_media_source` accepts any `Box<dyn MediaSource>` (a file, or an fd
+/// Why:
+///       `open_media_source` accepts any `Box<dyn MediaSource>` (a file,
+///  or an fd
 ///           wrapped in a `File`) and feeds it to a `MediaSourceStream` for the probe.
 ///
 /// In TS you'd write (pseudocode):
@@ -134,9 +212,12 @@ use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Tr
 /// ```
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 
-/// What:     `use symphonia::core::meta::MetadataOptions;` imports the tag/meta reader knobs
-///           (we pass defaults; we ignore tags entirely).
-/// Why:      The probe call requires a `MetadataOptions` argument.
+/// What:
+///      `use symphonia::core::meta::MetadataOptions;` imports the tag/meta reader knobs
+///           (we pass defaults;
+///  we ignore tags entirely).
+/// Why:
+///       The probe call requires a `MetadataOptions` argument.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,17 +225,31 @@ use symphonia::core::io::{MediaSource, MediaSourceStream};
 /// ```
 use symphonia::core::meta::MetadataOptions;
 
-/// What:     `use symphonia::core::units::{Duration, Timestamp};` imports symphonia's 0.6
-///           timeline new-types. `Timestamp` wraps an `i64` count of timebase ticks (for
-///           these audio formats one tick = one frame at the sample rate); `Duration` wraps
-///           a `u64` span of the same ticks. In 0.5 `TimeStamp` was a bare `u64` alias; 0.6
-///           made both real types that force checked/saturating arithmetic. Sibling you
-///           might expect for seeking: `Time` (seconds), which we deliberately do NOT use,
-///           because `SeekTo::Time` maps second 0 to frame 0, and Ogg/Opus streams start at
-///           a non-zero frame (the encoder pre-skip), so "seek to 0 seconds" gets rejected
-///           as out-of-range; we seek by absolute frame instead (see `seek_format`).
-/// Why:      `SeekTo::Timestamp` needs a `Timestamp`; `Timestamp::saturating_add` adds a
-///           `Duration`, which lets us offset the stream's start frame so "the beginning"
+/// What:
+///      `use symphonia::core::units::{Duration, Timestamp};` imports symphonia's 0.6
+///           timeline new-types.
+///  `Timestamp` wraps an `i64` count of timebase ticks (for
+///           these audio formats one tick = one frame at the sample rate);
+///  `Duration` wraps
+///           a `u64` span of the same ticks.
+///  In 0.5 `TimeStamp` was a bare `u64` alias;
+///  0.6
+///           made both real types that force checked/saturating arithmetic.
+///  Sibling you
+///           might expect for seeking:
+///  `Time` (seconds),
+///  which we deliberately do NOT use,
+///           because `SeekTo::Time` maps second 0 to frame 0,
+///  and Ogg/Opus streams start at
+///           a non-zero frame (the encoder pre-skip),
+///  so "seek to 0 seconds" gets rejected
+///           as out-of-range;
+///  we seek by absolute frame instead (see `seek_format`).
+/// Why:
+///       `SeekTo::Timestamp` needs a `Timestamp`;
+///  `Timestamp::saturating_add` adds a
+///           `Duration`,
+///  which lets us offset the stream's start frame so "the beginning"
 ///           lands on the real first frame rather than the invalid frame 0.
 ///
 /// In TS you'd write (pseudocode):
@@ -163,10 +258,14 @@ use symphonia::core::meta::MetadataOptions;
 /// ```
 use symphonia::core::units::{Duration, Timestamp};
 
-/// What:     `use crate::error::PlayerError;` imports our one app-wide error type. `crate::`
-///           means "from the root of this crate" (sibling form: `super::` = parent module,
+/// What:
+///      `use crate::error::PlayerError;` imports our one app-wide error type.
+///  `crate::`
+///           means "from the root of this crate" (sibling form:
+///  `super::` = parent module,
 ///           `self::` = current module).
-/// Why:      Every fallible function here returns `PlayerError`.
+/// Why:
+///       Every fallible function here returns `PlayerError`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,9 +273,11 @@ use symphonia::core::units::{Duration, Timestamp};
 /// ```
 use crate::error::PlayerError;
 
-/// What:     `use crate::opus::OpusSource;` imports the Opus-specific decoder source defined
+/// What:
+///      `use crate::opus::OpusSource;` imports the Opus-specific decoder source defined
 ///           in our sibling `opus.rs` module.
-/// Why:      `open_media_source()` constructs an `OpusSource` when the track is Opus.
+/// Why:
+///       `open_media_source()` constructs an `OpusSource` when the track is Opus.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,18 +296,37 @@ use crate::opus::OpusSource;
 // // no decorator; just an interface below
 // ```
 #[derive(Clone, Copy, Debug)]
-/// What:     `pub struct AudioSpec { ... }` declares a public record describing a decoded
-///           stream's shape. Fields:
-///           - `rate: u32`. Unsigned 32-bit integer of samples-per-second (e.g. 44100,
-///             48000). Siblings a reader might expect: `u16` (too small for 96000/192000),
-///             `u64`/`usize` (overkill), `i32` (rate is never negative).
-///           - `channels: u16`. Channel count (1 = mono, 2 = stereo). Siblings: `u8` (would
-///             fit, but `u16` is the conventional audio-API width), `usize` (that's for
-///             memory indexing), `u32` (more range than any real layout needs).
-///           - `duration_secs: f64`. Track length in seconds as a 64-bit float. Sibling:
-///             `f32` (too coarse for long tracks), `u64` frames (the UI thinks in seconds),
+/// What:
+///      `pub struct AudioSpec { ... }` declares a public record describing a decoded
+///           stream's shape.
+///  Fields:
+///           - `rate: u32`.
+///  Unsigned 32-bit integer of samples-per-second (e.g. 44100,
+///             48000).
+///  Siblings a reader might expect:
+///  `u16` (too small for 96000/192000),
+///             `u64`/`usize` (overkill),
+///  `i32` (rate is never negative).
+///           - `channels: u16`.
+///  Channel count (1 = mono,
+///  2 = stereo).
+///  Siblings:
+///  `u8` (would
+///             fit,
+///  but `u16` is the conventional audio-API width),
+///  `usize` (that's for
+///             memory indexing),
+///  `u32` (more range than any real layout needs).
+///           - `duration_secs: f64`.
+///  Track length in seconds as a 64-bit float.
+///  Sibling:
+///             `f32` (too coarse for long tracks),
+///  `u64` frames (the UI thinks in seconds),
 ///             `Duration` (we standardised on bare f64 seconds across the engine).
-/// Why:      Callers (engine, UI, tests) need rate + channels to configure the audio output
+/// Why:
+///       Callers (engine,
+///  UI,
+///  tests) need rate + channels to configure the audio output
 ///           and the seek/position bar's total length.
 ///
 /// In TS you'd write (pseudocode):
@@ -214,27 +334,39 @@ use crate::opus::OpusSource;
 /// type AudioSpec = { rate: number; channels: number; durationSecs: number };
 /// ```
 pub struct AudioSpec {
-    /// What:     `pub rate: u32`. Samples per second; see the struct comment for the type
+    /// What:
+    ///      `pub rate: u32`.
+    ///  Samples per second;
+    ///  see the struct comment for the type
     ///           choice.
-    /// Why:      The audio output needs the native rate to set up the stream.
+    /// Why:
+    ///       The audio output needs the native rate to set up the stream.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// rate: number;
     /// ```
     pub rate: u32,
-    /// What:     `pub channels: u16`. Channel count; see the struct comment for the type
+    /// What:
+    ///      `pub channels: u16`.
+    ///  Channel count;
+    ///  see the struct comment for the type
     ///           choice.
-    /// Why:      Interleaving and the output layout both need the channel count.
+    /// Why:
+    ///       Interleaving and the output layout both need the channel count.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// channels: number;
     /// ```
     pub channels: u16,
-    /// What:     `pub duration_secs: f64`. Total seconds; see the struct comment for the type
+    /// What:
+    ///      `pub duration_secs: f64`.
+    ///  Total seconds;
+    ///  see the struct comment for the type
     ///           choice.
-    /// Why:      The seek bar's maximum and the "x:xx / y:yy" label use it.
+    /// Why:
+    ///       The seek bar's maximum and the "x:xx / y:yy" label use it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -243,13 +375,21 @@ pub struct AudioSpec {
     pub duration_secs: f64,
 }
 
-/// What:     `pub trait Source: Send { ... }` declares an interface (`trait`) that any
-///           decode source must implement. `: Send` is a SUPERTRAIT bound meaning "values of
-///           this type are safe to move to another thread". Sibling bound: `Sync` ("safe to
-///           share by reference across threads") which we do NOT require, because only one
+/// What:
+///      `pub trait Source: Send { ... }` declares an interface (`trait`) that any
+///           decode source must implement.
+///  `: Send` is a SUPERTRAIT bound meaning "values of
+///           this type are safe to move to another thread".
+///  Sibling bound:
+///  `Sync` ("safe to
+///           share by reference across threads") which we do NOT require,
+///  because only one
 ///           thread (the engine) ever touches a `Source`.
-/// Why:      The engine runs on its own thread and owns the active source, so the source
-///           must be `Send`. The trait lets symphonia and Opus sources be used
+/// Why:
+///       The engine runs on its own thread and owns the active source,
+///  so the source
+///           must be `Send`.
+///  The trait lets symphonia and Opus sources be used
 ///           interchangeably behind `Box<dyn Source>`.
 ///
 /// In TS you'd write (pseudocode):
@@ -261,9 +401,13 @@ pub struct AudioSpec {
 /// }
 /// ```
 pub trait Source: Send {
-    /// What:     `fn spec(&self) -> AudioSpec;` a method signature (no body, the implementor
-    ///           provides it). `&self` borrows the source read-only.
-    /// Why:      Callers query rate/channels/duration without consuming it.
+    /// What:
+    ///      `fn spec(&self) -> AudioSpec;` a method signature (no body,
+    ///  the implementor
+    ///           provides it).
+    ///  `&self` borrows the source read-only.
+    /// Why:
+    ///       Callers query rate/channels/duration without consuming it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -271,12 +415,21 @@ pub trait Source: Send {
     /// ```
     fn spec(&self) -> AudioSpec;
 
-    /// What:     `fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>;`. `&mut self` =
-    ///           exclusive borrow (decoding advances internal state). `Vec<f32>` is an owned,
-    ///           growable array of 32-bit floats (sibling: `&[f32]` borrowed slice, `[f32; N]`
-    ///           fixed array); we return owned so the caller can keep it past this call. An
+    /// What:
+    ///      `fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>;`.
+    ///  `&mut self` =
+    ///           exclusive borrow (decoding advances internal state).
+    ///  `Vec<f32>` is an owned,
+    ///           growable array of 32-bit floats (sibling:
+    ///  `&[f32]` borrowed slice,
+    ///  `[f32; N]`
+    ///           fixed array);
+    ///  we return owned so the caller can keep it past this call.
+    ///  An
     ///           EMPTY `Vec` is the agreed signal for end-of-stream.
-    /// Why:      Pull the next block of interleaved samples, or learn we are done.
+    /// Why:
+    ///       Pull the next block of interleaved samples,
+    ///  or learn we are done.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -284,10 +437,15 @@ pub trait Source: Send {
     /// ```
     fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>;
 
-    /// What:     `fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;`. `Result<(), E>`
-    ///           means "succeeds with no value, or fails with E"; `()` is the empty/unit type
+    /// What:
+    ///      `fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;`.
+    ///  `Result<(), E>`
+    ///           means "succeeds with no value,
+    ///  or fails with E";
+    ///  `()` is the empty/unit type
     ///           (like `void`).
-    /// Why:      Jump playback to a position in seconds.
+    /// Why:
+    ///       Jump playback to a position in seconds.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -296,13 +454,23 @@ pub trait Source: Send {
     fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;
 }
 
-/// What:     `pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError>`. `Box<dyn
+/// What:
+///      `pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError>`.
+///  `Box<dyn
 ///           Source>` is an owning pointer to a heap value whose concrete type is erased to
-///           "something implementing `Source`" (dynamic dispatch). Siblings: `Rc<dyn Source>`
-///           / `Arc<dyn Source>` are SHARED pointers; we use `Box` because exactly one owner
+///           "something implementing `Source`" (dynamic dispatch).
+///  Siblings:
+///  `Rc<dyn Source>`
+///           / `Arc<dyn Source>` are SHARED pointers;
+///  we use `Box` because exactly one owner
 ///           (the engine) holds the source.
-/// Why:      Open a file by path, build a hint from its extension, then hand it to the shared
-///           probe/route tail. Used by path-based callers and tests; the on-device engine
+/// Why:
+///       Open a file by path,
+///  build a hint from its extension,
+///  then hand it to the shared
+///           probe/route tail.
+///  Used by path-based callers and tests;
+///  the on-device engine
 ///           uses `open_borrowed_fd` instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -369,15 +537,28 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
     return open_media_source(Box::new(file), hint)
 }
 
-/// What:     `pub fn open_media_source(source: Box<dyn MediaSource>, hint: Hint) -> Result<Box<dyn Source>, PlayerError>`.
-///           The shared probe-and-route tail. `source` is an owning, heap, type-erased media
-///           source (a `File`, or an fd wrapped in a `File`); we take it BY VALUE (moved in)
-///           because the stream below consumes it. `hint` is also moved in. `Box<dyn Source>`
-///           is the single-owner boxed decoder (siblings `Rc`/`Arc` would be shared; one owner
+/// What:
+///      `pub fn open_media_source(source: Box<dyn MediaSource>, hint: Hint) -> Result<Box<dyn Source>, PlayerError>`.
+///           The shared probe-and-route tail.
+///  `source` is an owning,
+///  heap,
+///  type-erased media
+///           source (a `File`,
+///  or an fd wrapped in a `File`);
+///  we take it BY VALUE (moved in)
+///           because the stream below consumes it.
+///  `hint` is also moved in.
+///  `Box<dyn Source>`
+///           is the single-owner boxed decoder (siblings `Rc`/`Arc` would be shared;
+///  one owner
 ///           suffices).
-/// Why:      Both the path entry (`open`) and the fd entry (`open_borrowed_fd`) need identical
-///           probe + track-routing logic; keeping it here means the format detection lives in
-///           exactly one place. The fd path carries no filename, so its caller passes an empty
+/// Why:
+///       Both the path entry (`open`) and the fd entry (`open_borrowed_fd`) need identical
+///           probe + track-routing logic;
+///  keeping it here means the format detection lives in
+///           exactly one place.
+///  The fd path carries no filename,
+///  so its caller passes an empty
 ///           `Hint` and relies on symphonia's content sniffing.
 ///
 /// In TS you'd write (pseudocode):
@@ -512,20 +693,22 @@ pub fn open_media_source(
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const source = OpusSource.create(format, track, trackId);
+        // const opusSource = OpusSource.create(format, track, trackId);
         // ```
-        let source = OpusSource::new(format, track, track_id)?;
+        // The branch-local name differs from the moved-in `source` parameter so
+        // the constructed decoder never shadows it.
+        let opus_source = OpusSource::new(format, track, track_id)?;
 
-        // What:     `Ok(Box::new(source))`. `Box::new(source)` heap-allocates and erases the
-        //           concrete type to `dyn Source`; `Ok(...)` wraps it as the success value.
-        //           Tail expression -> returned.
+        // What:     `Ok(Box::new(opus_source))`. `Box::new(opus_source)` heap-allocates and
+        //           erases the concrete type to `dyn Source`; `Ok(...)` wraps it as the
+        //           success value. Tail expression -> returned.
         // Why:      Hand back the boxed trait object on success.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // return source;
+        // return opusSource;
         // ```
-        return Ok(Box::new(source))
+        return Ok(Box::new(opus_source))
     } else {
         // What:     `SymphoniaSource::new(format, track, track_id)?`. Builds the
         //           symphonia-decoder source, moving `format`/`track` in.
@@ -533,34 +716,49 @@ pub fn open_media_source(
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const source = SymphoniaSource.create(format, track, trackId);
+        // const symphoniaSource = SymphoniaSource.create(format, track, trackId);
         // ```
-        let source = SymphoniaSource::new(format, track, track_id)?;
+        // The branch-local name differs from the moved-in `source` parameter so
+        // the constructed decoder never shadows it.
+        let symphonia_source = SymphoniaSource::new(format, track, track_id)?;
 
-        // What:     `Ok(Box::new(source))`. Same boxing/wrapping as above.
+        // What:     `Ok(Box::new(symphonia_source))`. Same boxing/wrapping as above.
         // Why:      Return the boxed trait object.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // return source;
+        // return symphoniaSource;
         // ```
-        return Ok(Box::new(source))
+        return Ok(Box::new(symphonia_source))
     }
 }
 
-/// What:     `pub fn open_borrowed_fd(fd: RawFd) -> Result<Box<dyn Source>, PlayerError>`.
+/// What:
+///      `pub fn open_borrowed_fd(fd: RawFd) -> Result<Box<dyn Source>, PlayerError>`.
 ///           `fd: RawFd` is a bare OS file-descriptor integer (`RawFd` is an alias for `i32`;
-///           Android obtained it via `ParcelFileDescriptor.getFd()`). `Box<dyn Source>` is the
-///           single-owner boxed decoder (siblings `Rc`/`Arc` shared; one owner suffices).
-/// Why:      The on-device engine plays `content://` audio that has no real filesystem path:
-///           the JVM hands us an open fd it still owns. We DUPLICATE that fd into our own
+///           Android obtained it via `ParcelFileDescriptor.getFd()`).
+///  `Box<dyn Source>` is the
+///           single-owner boxed decoder (siblings `Rc`/`Arc` shared;
+///  one owner suffices).
+/// Why:
+///       The on-device engine plays `content://` audio that has no real filesystem path:
+///           the JVM hands us an open fd it still owns.
+///  We DUPLICATE that fd into our own
 ///           descriptor (an `OwnedFd`) so our side owns only the copy and never closes the
-///           JVM's original. Closing the JVM's original would be a deterministic fdsan
-///           `SIGABRT` on API 30+ (the PFD fdsan-tags its fd). The caller must pass `fd >= 0`
+///           JVM's original.
+///  Closing the JVM's original would be a deterministic fdsan
+///           `SIGABRT` on API 30+ (the PFD fdsan-tags its fd).
+///  The caller must pass `fd >= 0`
 ///           (`BorrowedFd::borrow_raw` panics on -1) and call this SYNCHRONOUSLY while the PFD
-///           is still alive, so the dup lands before Kotlin's `use {}` closes the original.
-/// Gotcha:   Passing `fd == -1` PANICS (a hard crash), not a recoverable error; the contract
-///           is "caller guarantees fd >= 0". And the dup is mandatory: borrowing the fd and
+///           is still alive,
+///  so the dup lands before Kotlin's `use {}` closes the original.
+/// Gotcha:
+///    Passing `fd == -1` PANICS (a hard crash),
+///  not a recoverable error;
+///  the contract
+///           is "caller guarantees fd >= 0".
+///  And the dup is mandatory:
+///  borrowing the fd and
 ///           skipping the dup would mean we read through a descriptor the JVM may close out
 ///           from under us.
 ///
@@ -642,17 +840,29 @@ pub fn open_borrowed_fd(fd: RawFd) -> Result<Box<dyn Source>, PlayerError> {
     return open_media_source(Box::new(file), Hint::new())
 }
 
-/// What:     `pub(crate) fn seek_format(format: &mut dyn FormatReader, track_id: u32, secs: f64) -> Result<(), PlayerError>`.
-///           Reposition a demuxer to a wall-clock offset, expressed as SECONDS FROM THE
-///           AUDIBLE START, by converting it to an ABSOLUTE frame timestamp the container
-///           accepts. `&mut dyn FormatReader` is a mutable borrow of any demuxer (we lend
-///           it, the caller keeps ownership; sibling `Box<dyn FormatReader>` would take
-///           ownership, which we do not want here).
-/// Why:      `SeekTo::Time { time: 0s }` maps to frame 0, but Ogg/Opus streams begin at a
-///           non-zero frame (the encoder pre-skip becomes the track's `start_ts`), so seeking
+/// What:
+///      `pub(crate) fn seek_format(format: &mut dyn FormatReader, track_id: u32, secs: f64) -> Result<(), PlayerError>`.
+///           Reposition a demuxer to a wall-clock offset,
+///  expressed as SECONDS FROM THE
+///           AUDIBLE START,
+///  by converting it to an ABSOLUTE frame timestamp the container
+///           accepts.
+///  `&mut dyn FormatReader` is a mutable borrow of any demuxer (we lend
+///           it,
+///  the caller keeps ownership;
+///  sibling `Box<dyn FormatReader>` would take
+///           ownership,
+///  which we do not want here).
+/// Why:
+///       `SeekTo::Time { time: 0s }` maps to frame 0,
+///  but Ogg/Opus streams begin at a
+///           non-zero frame (the encoder pre-skip becomes the track's `start_ts`),
+///  so seeking
 ///           to "0 seconds" was rejected with "requested seek timestamp is out-of-range for
-///           stream" whenever the user dragged the bar to the very beginning. Adding
-///           `start_ts` makes second 0 land on the real first audible frame. Shared by both
+///           stream" whenever the user dragged the bar to the very beginning.
+///  Adding
+///           `start_ts` makes second 0 land on the real first audible frame.
+///  Shared by both
 ///           decode paths (`SymphoniaSource` here and `OpusSource` in `opus.rs`) so the fix
 ///           and the timeline math live in exactly one place.
 ///
@@ -783,24 +993,24 @@ pub(crate) fn seek_format(
     let mut target_ts: Timestamp = start_ts.saturating_add(Duration::new(offset_frames));
 
     // What:     `if let Some(n_frames) = n_frames { ... }`. Run the block only when the total
-    //           length is known, binding the inner `u64` to `n_frames`.
+    //           length is known, binding the inner `u64` to `total_frames`.
     // Why:      Only clamp when we actually know where the end is.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // if (nFrames != null) { ... }
     // ```
-    if let Some(n_frames) = n_frames {
-        // What:     `let max_ts = start_ts.saturating_add(Duration::new(n_frames));`. The last
-        //           valid absolute frame is the start plus the audible length;
-        //           `Duration::new(n_frames)` wraps the `u64` count as a `Duration`.
+    if let Some(total_frames) = n_frames {
+        // What:     `let max_ts = start_ts.saturating_add(Duration::new(total_frames));`. The
+        //           last valid absolute frame is the start plus the audible length;
+        //           `Duration::new(total_frames)` wraps the `u64` count as a `Duration`.
         // Why:      Compute the upper bound the demuxer will accept.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const maxTs = startTs + nFrames;
         // ```
-        let max_ts = start_ts.saturating_add(Duration::new(n_frames));
+        let max_ts = start_ts.saturating_add(Duration::new(total_frames));
 
         // What:     `if target_ts > max_ts { target_ts = max_ts; }`. `Timestamp` derives
         //           `Ord`, so `>` compares the wrapped `i64`s directly. Pull the target back
@@ -847,9 +1057,12 @@ pub(crate) fn seek_format(
     return Ok(())
 }
 
-/// What:     `struct SymphoniaSource { ... }`. A record holding the live decode state for a
+/// What:
+///      `struct SymphoniaSource { ... }`.
+///  A record holding the live decode state for a
 ///           non-Opus track.
-/// Why:      Bundles the demuxer + decoder + reusable buffer so `next_chunk`/`seek` can
+/// Why:
+///       Bundles the demuxer + decoder + reusable buffer so `next_chunk`/`seek` can
 ///           advance them.
 ///
 /// In TS you'd write (pseudocode):
@@ -857,47 +1070,74 @@ pub(crate) fn seek_format(
 /// class SymphoniaSource implements Source { format; decoder; trackId; spec; pending; nFrames; }
 /// ```
 struct SymphoniaSource {
-    /// What:     `format: Box<dyn FormatReader>`. An owning, heap, type-erased demuxer.
-    ///           (Sibling pointers `Rc`/`Arc` would be shared; this is single-owner.)
-    /// Why:      We pull packets from it each `next_chunk`.
+    /// What:
+    ///      `format: Box<dyn FormatReader>`.
+    ///  An owning,
+    ///  heap,
+    ///  type-erased demuxer.
+    ///           (Sibling pointers `Rc`/`Arc` would be shared;
+    ///  this is single-owner.)
+    /// Why:
+    ///       We pull packets from it each `next_chunk`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// format: FormatReader;
     /// ```
     format: Box<dyn FormatReader>,
-    /// What:     `decoder: Box<dyn AudioDecoder>`. Owning, heap, type-erased audio decoder
+    /// What:
+    ///      `decoder: Box<dyn AudioDecoder>`.
+    ///  Owning,
+    ///  heap,
+    ///  type-erased audio decoder
     ///           (0.6 renamed the 0.5 `Decoder` trait to `AudioDecoder`).
-    /// Why:      Turns packets into PCM audio buffers.
+    /// Why:
+    ///       Turns packets into PCM audio buffers.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// decoder: AudioDecoder;
     /// ```
     decoder: Box<dyn AudioDecoder>,
-    /// What:     `track_id: u32`. The id of the track we decode (a packet stream may
-    ///           interleave several tracks). `u32` because symphonia ids are `u32` (sibling
+    /// What:
+    ///      `track_id: u32`.
+    ///  The id of the track we decode (a packet stream may
+    ///           interleave several tracks).
+    ///  `u32` because symphonia ids are `u32` (sibling
     ///           `usize` would force casts against the API).
-    /// Why:      Skip packets that belong to other tracks.
+    /// Why:
+    ///       Skip packets that belong to other tracks.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// trackId: number;
     /// ```
     track_id: u32,
-    /// What:     `spec: AudioSpec`. The cached rate/channels/duration. NOTE: for some codecs
+    /// What:
+    ///      `spec: AudioSpec`.
+    ///  The cached rate/channels/duration.
+    ///  NOTE:
+    ///  for some codecs
     ///           (AAC/ALAC in MP4) the channel count is unknown until the first packet is
-    ///           decoded, so `new` refreshes this after priming.
-    /// Why:      `spec()` returns it without recomputing.
+    ///           decoded,
+    ///  so `new` refreshes this after priming.
+    /// Why:
+    ///       `spec()` returns it without recomputing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// spec: AudioSpec;
     /// ```
     spec: AudioSpec,
-    /// What:     `pending: Option<Vec<f32>>`. The first decoded chunk, buffered by `new` while
-    ///           priming. `Some(chunk)` until the first `next_chunk` consumes it, then `None`.
-    /// Why:      Priming decodes one packet early (to learn the real spec) and must not lose
+    /// What:
+    ///      `pending: Option<Vec<f32>>`.
+    ///  The first decoded chunk,
+    ///  buffered by `new` while
+    ///           priming.
+    ///  `Some(chunk)` until the first `next_chunk` consumes it,
+    ///  then `None`.
+    /// Why:
+    ///       Priming decodes one packet early (to learn the real spec) and must not lose
     ///           that first audio block.
     ///
     /// In TS you'd write (pseudocode):
@@ -905,10 +1145,15 @@ struct SymphoniaSource {
     /// pending: number[] | null;
     /// ```
     pending: Option<Vec<f32>>,
-    /// What:     `n_frames: Option<u64>`. Total decoded frames the container reported, if
-    ///           known (`u64` because frame counts of long tracks exceed `u32`; sibling
+    /// What:
+    ///      `n_frames: Option<u64>`.
+    ///  Total decoded frames the container reported,
+    ///  if
+    ///           known (`u64` because frame counts of long tracks exceed `u32`;
+    ///  sibling
     ///           `usize` would vary by platform width).
-    /// Why:      Duration is recomputed (`n_frames / rate`) after priming reveals the true
+    /// Why:
+    ///       Duration is recomputed (`n_frames / rate`) after priming reveals the true
     ///           rate.
     ///
     /// In TS you'd write (pseudocode):
@@ -918,20 +1163,28 @@ struct SymphoniaSource {
     n_frames: Option<u64>,
 }
 
-/// What:     `impl SymphoniaSource { ... }`. An inherent-method block (methods tied to the
-///           type itself, not to a trait).
-/// Why:      Holds the `new` constructor and the `decode_next_raw` helper.
+/// What:
+///      `impl SymphoniaSource { ... }`.
+///  An inherent-method block (methods tied to the
+///           type itself,
+///  not to a trait).
+/// Why:
+///       Holds the `new` constructor and the `decode_next_raw` helper.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class SymphoniaSource { static create(...) {} private decodeNextRaw() {} }
 /// ```
 impl SymphoniaSource {
-    /// What:     `fn new(format: Box<dyn FormatReader>, track: Track, track_id: u32) -> Result<Self, PlayerError>`.
-    ///           `Self` is the type being impl'd (`SymphoniaSource`). Takes ownership of
-    ///           `format` and the owned `track` (0.6 moved timing onto `Track`, so we keep the
+    /// What:
+    ///      `fn new(format: Box<dyn FormatReader>, track: Track, track_id: u32) -> Result<Self, PlayerError>`.
+    ///           `Self` is the type being impl'd (`SymphoniaSource`).
+    ///  Takes ownership of
+    ///           `format` and the owned `track` (0.6 moved timing onto `Track`,
+    ///  so we keep the
     ///           whole track instead of just the codec params).
-    /// Why:      Build a decoder from the track's audio params and cache the spec.
+    /// Why:
+    ///       Build a decoder from the track's audio params and cache the spec.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1138,11 +1391,18 @@ impl SymphoniaSource {
         return Ok(source)
     }
 
-    /// What:     `fn decode_next_raw(&mut self) -> Result<Vec<f32>, PlayerError>`. A PRIVATE
-    ///           helper (no `pub`): pull packets until one decodes to a non-empty interleaved
-    ///           block, returning it; an empty `Vec` means true end-of-stream. Also refreshes
+    /// What:
+    ///      `fn decode_next_raw(&mut self) -> Result<Vec<f32>, PlayerError>`.
+    ///  A PRIVATE
+    ///           helper (no `pub`):
+    ///  pull packets until one decodes to a non-empty interleaved
+    ///           block,
+    ///  returning it;
+    ///  an empty `Vec` means true end-of-stream.
+    ///  Also refreshes
     ///           `self.spec.rate`/`channels` from each decoded frame's actual audio spec.
-    /// Why:      Shared by `new` (priming) and `next_chunk` so the decode loop is written once.
+    /// Why:
+    ///       Shared by `new` (priming) and `next_chunk` so the decode loop is written once.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1353,18 +1613,25 @@ impl SymphoniaSource {
     }
 }
 
-/// What:     `impl Source for SymphoniaSource { ... }`. Implements our `Source` interface for
+/// What:
+///      `impl Source for SymphoniaSource { ... }`.
+///  Implements our `Source` interface for
 ///           this type.
-/// Why:      So `open_media_source()` can return it as `Box<dyn Source>`.
+/// Why:
+///       So `open_media_source()` can return it as `Box<dyn Source>`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // SymphoniaSource implements Source: spec(), next_chunk(), seek()
 /// ```
 impl Source for SymphoniaSource {
-    /// What:     `fn spec(&self) -> AudioSpec { self.spec }`. Read-only borrow; returns a COPY
+    /// What:
+    ///      `fn spec(&self) -> AudioSpec { self.spec }`.
+    ///  Read-only borrow;
+    ///  returns a COPY
     ///           of the cached spec (`AudioSpec` is `Copy`).
-    /// Why:      Hand callers the stream shape.
+    /// Why:
+    ///       Hand callers the stream shape.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1381,9 +1648,12 @@ impl Source for SymphoniaSource {
         return self.spec
     }
 
-    /// What:     `fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>`. Exclusive borrow;
+    /// What:
+    ///      `fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>`.
+    ///  Exclusive borrow;
     ///           advances the demuxer/decoder by one packet.
-    /// Why:      Produce the next block of interleaved samples (or EOF).
+    /// Why:
+    ///       Produce the next block of interleaved samples (or EOF).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1424,9 +1694,13 @@ impl Source for SymphoniaSource {
         return self.decode_next_raw()
     }
 
-    /// What:     `fn seek(&mut self, secs: f64) -> Result<(), PlayerError>`. Jump the demuxer
-    ///           to a time, then reset the decoder.
-    /// Why:      Implement the seek control.
+    /// What:
+    ///      `fn seek(&mut self, secs: f64) -> Result<(), PlayerError>`.
+    ///  Jump the demuxer
+    ///           to a time,
+    ///  then reset the decoder.
+    /// Why:
+    ///       Implement the seek control.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

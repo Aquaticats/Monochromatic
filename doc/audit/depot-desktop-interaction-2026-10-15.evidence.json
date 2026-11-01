@@ -1,0 +1,1492 @@
+{
+  "run": "38830049770",
+  "job": "116746502593",
+  "revision": "0995d00e8d",
+  "startedAt": "2026-10-16T00:32:27Z",
+  "completedAt": "2026-10-16T00:39:10Z",
+  "jobSeconds": 403,
+  "interactionStepSeconds": 182,
+  "runner": "depot-ubuntu-24.04-16",
+  "sourceLogSha256": "41015b6365516884aa75b993f647891ab07865dd6bae30f3a98adf7c800bee98",
+  "sessions": [
+    {
+      "session": "wide",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "start/page",
+          "detail": "launch shows the player page, nothing playing, no ring :: folder \"Aaa Tones\", app pid 25303 in unit music-player-e2e-25238-wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/tab-order",
+          "detail": "Tab walks folder picker, track list, deck controls, search, settings, then wraps :: open-pill > folder-list > track-list > seek > previous > play > next > mode-group > search > settings > open-pill > folder-list > track-list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/shift-tab",
+          "detail": "Shift+Tab walks the same order backwards, no trap :: folder-list > open-pill > settings > search > mode-group"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/ring-visible",
+          "detail": "a key press turns the ring on"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/ring-moves",
+          "detail": "the focus ring (2 px primary and 1 px on-primary) moves with Tab: pixels differ between two focus positions :: 2016 pixels differ, in {\"x\":57,\"y\":5,\"width\":438,\"height\":140}"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/alt-1-2",
+          "detail": "Alt+1 and Alt+2 focus the folder list and the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "focus/pointer-hides-ring",
+          "detail": "a pointer press turns the ring off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/enter-plays-row",
+          "detail": "Alt+2 then Enter selects the row under the ring, and Enter again plays it (D124) :: ring on \"01 Alpha tone\", now playing index 30, duration 200 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "audio/private-sink",
+          "detail": "playback goes to the private null sink (node id) and nowhere else :: 1 output streams, 1 links, all to node 45; sink node 45"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-list",
+          "detail": "Space toggles play and pause in the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-folder-list",
+          "detail": "Space toggles play and pause in the folder list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "play/space-button",
+          "detail": "Space on the focused Play button presses it once"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/ctrl-shift-digits",
+          "detail": "Ctrl+Shift+1 to 4 pick Repeat, In order, Shuffle folder, Shuffle all :: 1->0 2->1 3->2 4->3"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/ctrl-m",
+          "detail": "Ctrl+M cycles the mode through all four and wraps :: 1 > 2 > 3 > 0 > 1"
+        },
+        {
+          "outcome": "PASS",
+          "id": "track/ctrl-right-left",
+          "detail": "Ctrl+Right is the next track and Ctrl+Left the previous :: 30 > 31 > 30"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/ctrl-home",
+          "detail": "Ctrl+Home restarts the track :: position 0.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-right",
+          "detail": "Alt+Right seeks +10 s :: position 10.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-shift-right",
+          "detail": "Alt+Shift+Right seeks +60 s :: position 70.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-left",
+          "detail": "Alt+Left seeks -10 s :: position 60.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-shift-left",
+          "detail": "Alt+Shift+Left seeks -60 s :: position 0.00 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/alt-right-held",
+          "detail": "a held Alt+Right keeps seeking (key repeat) :: 190.0 s gained in 0.9 s (each press is 10 s)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/hold-repeat-count",
+          "detail": "a held Alt+Right repeats at the rate and delay the compositor announces, and not at all when repeat is off :: 60.0 s with repeat 5 a second after 400 ms, 10.0 s with repeat off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "seek/bar-arrows",
+          "detail": "a focused seek bar moves with Left and Right :: 0.0 > 5.0 > 0.0 s"
+        },
+        {
+          "outcome": "PASS",
+          "id": "mode/group-arrows",
+          "detail": "a focused mode group moves with Left and Right :: 1 > 2 > 1"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/alt-down-up",
+          "detail": "Alt+Down and Alt+Up show the next and previous folder :: Aaa Tones > Mmm Tones > Zzz Tones > Mmm Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-shift-g",
+          "detail": "Ctrl+Shift+G shows the folder of the playing track :: folder \"Aaa Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-g",
+          "detail": "Ctrl+G shows the playing track"
+        },
+        {
+          "outcome": "PASS",
+          "id": "browse/ctrl-o",
+          "detail": "Ctrl+O puts the keyboard in the folder list (two-pane layout)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/ring-start",
+          "detail": "the ring starts on the current folder :: ring on \"Aaa Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/down-up-home-end",
+          "detail": "Down, Up, Home and End move the folder ring :: Home Aaa Tones, Down F, Up Aaa Tones, End Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/page-keys",
+          "detail": "PageUp and PageDown move the folder ring to the ends of a short list :: PageUp Aaa Tones, PageDown Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/letter",
+          "detail": "a letter jumps to the first folder starting with it :: ring on \"Zzz Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/left-right",
+          "detail": "Left and Right also move the folder ring :: Zzz Tones > Mmm Tones > Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folder-list/enter",
+          "detail": "Enter shows the folder under the ring :: folder \"Zzz Tones\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "track-list/keys",
+          "detail": "Down, Up, Home, End, PageUp and PageDown move the track ring :: Home \"01 Omega tone\", Down \"99 Trash me\", Up \"01 Omega tone\", End \"99 Trash me\", PageUp \"01 Omega tone\", PageDown \"99 Trash me\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "track-list/enter-selects-then-toggles",
+          "detail": "Enter on a row selects it paused, Enter on the selected row plays it, and the next Enter pauses it (D124) :: index 64 selected paused, then playing, then paused"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/ctrl-shift-c",
+          "detail": "Ctrl+Shift+C copies the file name of the row under the ring to the clipboard :: clipboard of wayland-1: \"99 Trash me.wav\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/ctrl-shift-e",
+          "detail": "Ctrl+Shift+E opens the file manager on the folder of the row :: xdg-open /home/runner/temp/agent/music-player-e2e/run-AiWixO/library/Zzz Tones"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/shift-f10-unbound",
+          "detail": "Shift+F10 opens nothing: it is Run in JetBrains and is not used (D114) :: no menu, no page change, no shortcut use"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/alt-enter",
+          "detail": "Alt+Enter opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-key",
+          "detail": "the Menu key opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-access-key",
+          "detail": "the access letter D of File details runs that row and closes the menu :: the menu closed after one use of an access letter; package/music-player/desktop-app/target/e2e/wide/shots/wide-access-key-notice.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/menu-keys",
+          "detail": "in the open track menu Down, Up, Enter and Escape work (menu opened by right click) :: menu_ring null > 0 > 1 > 0; Enter ran row 0; closed (index 64)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "row/delete",
+          "detail": "Delete moves the file of the row to the trash (scratch XDG trash), with an Undo message :: moved to /home/runner/temp/agent/music-player-e2e/run-AiWixO/wide-xdg/data/Trash/files/99 Trash me.wav"
+        },
+        {
+          "outcome": "PASS",
+          "id": "menu/opens-at-pointer",
+          "detail": "a right click opens the track menu at the pointer (pulled back only to stay inside the window), in the two-pane layout :: click 520,80 gave a card at 520,80 (312 wide); click 700,80 gave a card at 688,80 (312 wide); click 990,80 gave a card at 688,80 (312 wide)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "menu/shortcut-hints-fit",
+          "detail": "the track menu is wider than 280 px, so the longest shortcut hint is not cut at the card edge :: 312 px wide"
+        },
+        {
+          "outcome": "PASS",
+          "id": "tooltip/search-shows-shortcut",
+          "detail": "hovering the Search button shows a tooltip that names Ctrl+F :: 5734 pixels changed, in {\"x\":46,\"y\":8,\"width\":954,\"height\":662}; the text is in package/music-player/desktop-app/target/e2e/wide/shots/wide-tooltip-search.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/ctrl-f",
+          "detail": "Ctrl+F opens Search with the query field focused :: focus search-field"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/bare-keys-are-text",
+          "detail": "bare keys do nothing as shortcuts in the Search field, and typing works :: query \"tone \""
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/down-up-enter",
+          "detail": "Down and Up move through results, Enter opens one and leaves Search :: ring 0 > 1 > 0; opened index 64"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/escape",
+          "detail": "Escape leaves Search"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/unicode-text",
+          "detail": "typing Björk, かめりあ and Hangul with an emoji puts exactly that text in the Search field :: the field held Björk, かめりあ, 한국어😀 exactly"
+        },
+        {
+          "outcome": "PASS",
+          "id": "search/result-selects-then-toggles",
+          "detail": "a Search result for another track selects it paused and stops the playing track; the same result again plays it (D127) :: track 64 played; the result selected 32 paused (playing false); the same result played it (playing true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/unreadable-row-stays-selected",
+          "detail": "a row whose file cannot be opened stays the selected row, and the next click on it loads it once it decodes (D128) :: row 30 stayed selected and paused through two tries; after repair it played (true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/opens-search",
+          "detail": "two quick Shift taps open Search on the player page"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/slow",
+          "detail": "two slow Shift taps (600 ms apart) do nothing"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/interrupted",
+          "detail": "a key between the Shift taps cancels the double tap"
+        },
+        {
+          "outcome": "PASS",
+          "id": "double-shift/with-key",
+          "detail": "Shift held with another key is not a tap"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/ctrl-alt-s",
+          "detail": "Ctrl+Alt+S opens Settings with the list focused :: focus "
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/ctrl-f-nothing",
+          "detail": "Ctrl+F does nothing in Settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/double-shift-nothing",
+          "detail": "double Shift does nothing in Settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/escape-ladder",
+          "detail": "template field: the first Escape returns to the list row, the second closes Settings; bare keys do nothing in the field :: field \"template-field\" > \"settings-list\" (settings-list) > page Player"
+        },
+        {
+          "outcome": "PASS",
+          "id": "settings/screens-after",
+          "detail": "the player page is back with focus restored for keys"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/after-300ms",
+          "detail": "Ctrl held: no badge before 300 ms, badges after, gone on release :: shown at about 311 ms with [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G]; 1993 pixels differ with badges, 0 after release; badges 0"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/narrow-with-shift",
+          "detail": "adding Shift narrows the badges to the Ctrl+Shift chords; releasing Shift brings the Ctrl badges back :: Ctrl [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G] > Ctrl+Shift [open-folder=O, mode-repeat=1, mode-in-order=2, mode-shuffle-folder=3, mode-shuffle-all=4, deck-folder=G, editor-reset=Backspace]"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/alt",
+          "detail": "Alt held shows the seek and focus badges :: [folder-list=1, track-list=2, seek-back=Left, seek-forward=Right]"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/quick-chord",
+          "detail": "a quick chord (under 300 ms) never flashes the badges"
+        },
+        {
+          "outcome": "PASS",
+          "id": "badges/no-pointer-input",
+          "detail": "badges never take pointer input: a click through a shown badge reaches the control beneath"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/row-select-then-toggle",
+          "detail": "a click on an unselected row selects it paused, and clicks on the selected row play it, then pause it (D124) :: A (0) selected, played true; B (2) selected paused true, played true, paused true"
+        }
+      ],
+      "aborted": true,
+      "abortReason": "Timed out selecting the thirty-track fixture",
+      "exitCode": 1,
+      "passed": 69,
+      "failed": 0
+    },
+    {
+      "session": "narrow",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "folded/tab-order",
+          "detail": "folded layout: Tab walks the folder trigger and Open, the track list, the deck, search, settings :: folder-trigger > open-pill > track-list > seek > previous > play > next > mode-group > search > settings"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/alt-1-opens-picker",
+          "detail": "Alt+1 opens the folder picker overlay and focuses its list :: picker_open true, focus folder-list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/escape-closes-picker",
+          "detail": "Escape closes the picker overlay and focuses the track list, without leaving the page"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/ctrl-o-toggles",
+          "detail": "Ctrl+O opens the picker and Ctrl+O closes it"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/alt-2-closes-picker",
+          "detail": "Alt+2 closes the picker and focuses the track list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/escape-on-player",
+          "detail": "Escape on the player page with nothing open does nothing"
+        },
+        {
+          "outcome": "PASS",
+          "id": "folded/picker-enter-focuses-tracks",
+          "detail": "Enter on a folder in the picker shows it and moves the keyboard to the track list :: Aaa Tones > F"
+        },
+        {
+          "outcome": "PASS",
+          "id": "editor-page/enter-and-escape",
+          "detail": "Settings list Enter opens the editor page; Escape returns to the Settings list; Escape leaves Settings :: TemplateEditor (focus ) > Settings (focus ) > Player"
+        },
+        {
+          "outcome": "PASS",
+          "id": "editor-page/ctrl-enter",
+          "detail": "Ctrl+Enter applies the template and returns to the Settings list"
+        },
+        {
+          "outcome": "PASS",
+          "id": "click-through/search-narrow",
+          "detail": "clicks on the empty Search page do not reach the hidden pause button, mode group or track list :: no click reached the player under Search; the mode segment answers the same click on the player page"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "session": "dialog",
+      "checks": [
+        {
+          "outcome": "FAIL",
+          "id": "browse/ctrl-shift-o",
+          "detail": "Ctrl+Shift+O opens the system folder dialog :: no dialog window covered the player (0 pixels differ)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "dialog/focus-returns",
+          "detail": "after the system folder dialog closes, the player window has the keyboard again and a key reaches it :: ok 1 index=0 app-id=monochromatic.music-player title=Music%20Player focused=true; Ctrl+F opened Search with focus search-field"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 1,
+      "passed": 1,
+      "failed": 1
+    },
+    {
+      "session": "auto-play",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "auto-play/off-by-default-click-selects-paused",
+          "detail": "with no saved setting Auto-play on select is off, and a click on another row selects it paused (D124, D129) :: row A 30 played; the click on row B 31 left it paused with the setting off"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/switch-turns-it-on",
+          "detail": "End and Space on the Auto-play on select row of Settings turn the setting on and leave Settings open (D129) :: the switch row turned the setting on in place"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/on-click-selects-and-plays",
+          "detail": "with the setting on, a click on another row selects it and starts it at once; the selected row still toggles (D129) :: row A 30 played at once (true), row B 31 played at once (true) and the next click paused it (true)"
+        },
+        {
+          "outcome": "PASS",
+          "id": "auto-play/setting-survives-restart",
+          "detail": "the setting is still on after Ctrl+Q and a restart, and a click on a row plays it at once (D129) :: the setting stayed on; the click on row 31 played at once"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 0,
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "session": "quit",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "quit/ctrl-q",
+          "detail": "Ctrl+Q quits the app :: process 27129 ended"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "session": "states",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "states/reading",
+          "detail": "while the folder is read the window says \"Reading your library\" and the deck is off, not \"No folder is open\" :: pane \"Reading your library\", deck_disabled true, shot package/music-player/desktop-app/target/e2e/states/shots/states-main-states-reading.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/reading-ends",
+          "detail": "when the scan ends the pane goes, the first folder shows and the deck works :: folder \"Aaa Folder\", deck_disabled false"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/loose-letter-folder",
+          "detail": "loose files sit in the virtual folder of their letter, shown after the real folders :: ring on \"L\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/play-with-nothing-selected",
+          "detail": "Space with nothing selected starts the first track of the folder on screen instead of flipping to Pause :: playing track 3, position 0"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/window-title",
+          "detail": "the window title is the cleaned title the deck shows, without folder, extension or the shared prefix :: title \"ok One\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/in-order-stops",
+          "detail": "In order plays the folder to its end, stops with the first track loaded, and Play starts it again :: stopped at track 3, played again at track 3"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/single-folder-name",
+          "detail": "a library with one top-level folder shows that folder by its own name, not a letter :: folder \"Only Artist\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/natural-order",
+          "detail": "tracks are listed in natural order: Take 2 before Take 3 before Take 10 :: first \"2 Zed\", last \"10 Zed\""
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/no-audio-folder",
+          "detail": "a folder without audio is named on its own line and the deck is off :: pane \"No audio found in | states-empty-library\", shot package/music-player/desktop-app/target/e2e/states/shots/states-empty-states-no-audio.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-initial",
+          "detail": "the library the app starts on is measured by itself, once per file :: 2 measured"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-replaced-file",
+          "detail": "a file replaced on disk with different audio is measured again while the app runs, with no key pressed :: 2 decodes before, then one more"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-new-file",
+          "detail": "a file added to the folder is listed and measured by itself :: measured"
+        },
+        {
+          "outcome": "PASS",
+          "id": "states/refresh-broken-file-once",
+          "detail": "a file that cannot be decoded is reported once, however often the library changes afterwards :: reported once"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 0,
+      "passed": 13,
+      "failed": 0
+    },
+    {
+      "session": "visual",
+      "checks": [
+        {
+          "outcome": "PASS",
+          "id": "visual/dark-3B82F6",
+          "detail": "focus ring and badges in dark with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 528 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-3B82F6-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/dark-22C55E",
+          "detail": "focus ring and badges in dark with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 526 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-22C55E-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/light-3B82F6",
+          "detail": "focus ring and badges in light with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 524 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-light-3B82F6-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/light-22C55E",
+          "detail": "focus ring and badges in light with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 522 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-light-22C55E-*.png"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-dark-3B82F6",
+          "detail": "the track menu in dark with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 67,70,79"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-dark-3B82F6",
+          "detail": "the focus ring in dark with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 528 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-dark-22C55E",
+          "detail": "the track menu in dark with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 64,73,67"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-dark-22C55E",
+          "detail": "the focus ring in dark with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 526 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-light-3B82F6",
+          "detail": "the track menu in light with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 196,199,208"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-light-3B82F6",
+          "detail": "the focus ring in light with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 524 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/menu-light-22C55E",
+          "detail": "the track menu in light with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 191,202,196"
+        },
+        {
+          "outcome": "PASS",
+          "id": "visual/rings-light-22C55E",
+          "detail": "the focus ring in light with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 522 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role"
+        }
+      ],
+      "aborted": false,
+      "exitCode": 0,
+      "passed": 12,
+      "failed": 0
+    }
+  ],
+  "limitations": [
+    "Wide session aborted before its remaining assertions; session completion is not full-suite success.",
+    "No physical GPU; direct headless software compositor, private audio sinks.",
+    "Fixture selection and missing chooser backend are tested by a separate subsequent trial."
+  ],
+  "followups": [
+    {
+      "run": "38831098294",
+      "job": "116749813259",
+      "revision": "aa25cce3386f50873acb1921892d5a730e042b29",
+      "startedAt": "2026-10-16T00:43:27Z",
+      "completedAt": "2026-10-16T00:50:48Z",
+      "jobSeconds": 441,
+      "interactionStepSeconds": 199,
+      "runner": "depot-ubuntu-24.04-16",
+      "conclusion": "failure",
+      "sourceLogSha256": "e9399b47d9beb07326cdf74fff6a2b486cf7acce5b969bbb72dc2735b05d6785",
+      "totals": {
+        "passed": 116,
+        "failed": 1,
+        "notInjectable": 1
+      },
+      "sessions": [
+        {
+          "session": "wide",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "start/page",
+              "detail": "launch shows the player page, nothing playing, no ring :: folder \"Aaa Tones\", app pid 24806 in unit music-player-e2e-24741-wide",
+              "logLine": 2521
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/tab-order",
+              "detail": "Tab walks folder picker, track list, deck controls, search, settings, then wraps :: open-pill > folder-list > track-list > seek > previous > play > next > mode-group > search > settings > open-pill > folder-list > track-list",
+              "logLine": 2522
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/shift-tab",
+              "detail": "Shift+Tab walks the same order backwards, no trap :: folder-list > open-pill > settings > search > mode-group",
+              "logLine": 2523
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/ring-visible",
+              "detail": "a key press turns the ring on",
+              "logLine": 2524
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/ring-moves",
+              "detail": "the focus ring (2 px primary and 1 px on-primary) moves with Tab: pixels differ between two focus positions :: 2016 pixels differ, in {\"x\":57,\"y\":5,\"width\":438,\"height\":140}",
+              "logLine": 2525
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/alt-1-2",
+              "detail": "Alt+1 and Alt+2 focus the folder list and the track list",
+              "logLine": 2526
+            },
+            {
+              "outcome": "PASS",
+              "id": "focus/pointer-hides-ring",
+              "detail": "a pointer press turns the ring off",
+              "logLine": 2527
+            },
+            {
+              "outcome": "PASS",
+              "id": "play/enter-plays-row",
+              "detail": "Alt+2 then Enter selects the row under the ring, and Enter again plays it (D124) :: ring on \"01 Alpha tone\", now playing index 30, duration 200 s",
+              "logLine": 2528
+            },
+            {
+              "outcome": "PASS",
+              "id": "audio/private-sink",
+              "detail": "playback goes to the private null sink (node id) and nowhere else :: 1 output streams, 1 links, all to node 45; sink node 45",
+              "logLine": 2529
+            },
+            {
+              "outcome": "PASS",
+              "id": "play/space-list",
+              "detail": "Space toggles play and pause in the track list",
+              "logLine": 2530
+            },
+            {
+              "outcome": "PASS",
+              "id": "play/space-folder-list",
+              "detail": "Space toggles play and pause in the folder list",
+              "logLine": 2531
+            },
+            {
+              "outcome": "PASS",
+              "id": "play/space-button",
+              "detail": "Space on the focused Play button presses it once",
+              "logLine": 2532
+            },
+            {
+              "outcome": "PASS",
+              "id": "mode/ctrl-shift-digits",
+              "detail": "Ctrl+Shift+1 to 4 pick Repeat, In order, Shuffle folder, Shuffle all :: 1->0 2->1 3->2 4->3",
+              "logLine": 2533
+            },
+            {
+              "outcome": "PASS",
+              "id": "mode/ctrl-m",
+              "detail": "Ctrl+M cycles the mode through all four and wraps :: 1 > 2 > 3 > 0 > 1",
+              "logLine": 2534
+            },
+            {
+              "outcome": "PASS",
+              "id": "track/ctrl-right-left",
+              "detail": "Ctrl+Right is the next track and Ctrl+Left the previous :: 30 > 31 > 30",
+              "logLine": 2535
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/ctrl-home",
+              "detail": "Ctrl+Home restarts the track :: position 0.00 s",
+              "logLine": 2536
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/alt-right",
+              "detail": "Alt+Right seeks +10 s :: position 10.00 s",
+              "logLine": 2537
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/alt-shift-right",
+              "detail": "Alt+Shift+Right seeks +60 s :: position 70.00 s",
+              "logLine": 2538
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/alt-left",
+              "detail": "Alt+Left seeks -10 s :: position 60.00 s",
+              "logLine": 2539
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/alt-shift-left",
+              "detail": "Alt+Shift+Left seeks -60 s :: position 0.00 s",
+              "logLine": 2540
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/alt-right-held",
+              "detail": "a held Alt+Right keeps seeking (key repeat) :: 190.0 s gained in 0.9 s (each press is 10 s)",
+              "logLine": 2541
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/hold-repeat-count",
+              "detail": "a held Alt+Right repeats at the rate and delay the compositor announces, and not at all when repeat is off :: 60.0 s with repeat 5 a second after 400 ms, 10.0 s with repeat off",
+              "logLine": 2542
+            },
+            {
+              "outcome": "PASS",
+              "id": "seek/bar-arrows",
+              "detail": "a focused seek bar moves with Left and Right :: 0.0 > 5.0 > 0.0 s",
+              "logLine": 2543
+            },
+            {
+              "outcome": "PASS",
+              "id": "mode/group-arrows",
+              "detail": "a focused mode group moves with Left and Right :: 1 > 2 > 1",
+              "logLine": 2544
+            },
+            {
+              "outcome": "PASS",
+              "id": "browse/alt-down-up",
+              "detail": "Alt+Down and Alt+Up show the next and previous folder :: Aaa Tones > Mmm Tones > Zzz Tones > Mmm Tones",
+              "logLine": 2545
+            },
+            {
+              "outcome": "PASS",
+              "id": "browse/ctrl-shift-g",
+              "detail": "Ctrl+Shift+G shows the folder of the playing track :: folder \"Aaa Tones\"",
+              "logLine": 2546
+            },
+            {
+              "outcome": "PASS",
+              "id": "browse/ctrl-g",
+              "detail": "Ctrl+G shows the playing track",
+              "logLine": 2547
+            },
+            {
+              "outcome": "PASS",
+              "id": "browse/ctrl-o",
+              "detail": "Ctrl+O puts the keyboard in the folder list (two-pane layout)",
+              "logLine": 2548
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/ring-start",
+              "detail": "the ring starts on the current folder :: ring on \"Aaa Tones\"",
+              "logLine": 2549
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/down-up-home-end",
+              "detail": "Down, Up, Home and End move the folder ring :: Home Aaa Tones, Down F, Up Aaa Tones, End Zzz Tones",
+              "logLine": 2550
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/page-keys",
+              "detail": "PageUp and PageDown move the folder ring to the ends of a short list :: PageUp Aaa Tones, PageDown Zzz Tones",
+              "logLine": 2551
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/letter",
+              "detail": "a letter jumps to the first folder starting with it :: ring on \"Zzz Tones\"",
+              "logLine": 2552
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/left-right",
+              "detail": "Left and Right also move the folder ring :: Zzz Tones > Mmm Tones > Zzz Tones",
+              "logLine": 2553
+            },
+            {
+              "outcome": "PASS",
+              "id": "folder-list/enter",
+              "detail": "Enter shows the folder under the ring :: folder \"Zzz Tones\"",
+              "logLine": 2554
+            },
+            {
+              "outcome": "PASS",
+              "id": "track-list/keys",
+              "detail": "Down, Up, Home, End, PageUp and PageDown move the track ring :: Home \"01 Omega tone\", Down \"99 Trash me\", Up \"01 Omega tone\", End \"99 Trash me\", PageUp \"01 Omega tone\", PageDown \"99 Trash me\"",
+              "logLine": 2555
+            },
+            {
+              "outcome": "PASS",
+              "id": "track-list/enter-selects-then-toggles",
+              "detail": "Enter on a row selects it paused, Enter on the selected row plays it, and the next Enter pauses it (D124) :: index 64 selected paused, then playing, then paused",
+              "logLine": 2556
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/ctrl-shift-c",
+              "detail": "Ctrl+Shift+C copies the file name of the row under the ring to the clipboard :: clipboard of wayland-1: \"99 Trash me.wav\"",
+              "logLine": 2557
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/ctrl-shift-e",
+              "detail": "Ctrl+Shift+E opens the file manager on the folder of the row :: xdg-open /home/runner/temp/agent/music-player-e2e/run-MN3jrQ/library/Zzz Tones",
+              "logLine": 2558
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/shift-f10-unbound",
+              "detail": "Shift+F10 opens nothing: it is Run in JetBrains and is not used (D114) :: no menu, no page change, no shortcut use",
+              "logLine": 2559
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/alt-enter",
+              "detail": "Alt+Enter opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide",
+              "logLine": 2560
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/menu-key",
+              "detail": "the Menu key opens the row menu with its first row highlighted (D114) :: menu_open true, menu_ring 0, 312 px wide",
+              "logLine": 2561
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/menu-access-key",
+              "detail": "the access letter D of File details runs that row and closes the menu :: the menu closed after one use of an access letter; package/music-player/desktop-app/target/e2e/wide/shots/wide-access-key-notice.png",
+              "logLine": 2562
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/menu-keys",
+              "detail": "in the open track menu Down, Up, Enter and Escape work (menu opened by right click) :: menu_ring null > 0 > 1 > 0; Enter ran row 0; closed (index 64)",
+              "logLine": 2563
+            },
+            {
+              "outcome": "PASS",
+              "id": "row/delete",
+              "detail": "Delete moves the file of the row to the trash (scratch XDG trash), with an Undo message :: moved to /home/runner/temp/agent/music-player-e2e/run-MN3jrQ/wide-xdg/data/Trash/files/99 Trash me.wav",
+              "logLine": 2564
+            },
+            {
+              "outcome": "PASS",
+              "id": "menu/opens-at-pointer",
+              "detail": "a right click opens the track menu at the pointer (pulled back only to stay inside the window), in the two-pane layout :: click 520,80 gave a card at 520,80 (312 wide); click 700,80 gave a card at 688,80 (312 wide); click 990,80 gave a card at 688,80 (312 wide)",
+              "logLine": 2565
+            },
+            {
+              "outcome": "PASS",
+              "id": "menu/shortcut-hints-fit",
+              "detail": "the track menu is wider than 280 px, so the longest shortcut hint is not cut at the card edge :: 312 px wide",
+              "logLine": 2566
+            },
+            {
+              "outcome": "PASS",
+              "id": "tooltip/search-shows-shortcut",
+              "detail": "hovering the Search button shows a tooltip that names Ctrl+F :: 5734 pixels changed, in {\"x\":46,\"y\":8,\"width\":954,\"height\":662}; the text is in package/music-player/desktop-app/target/e2e/wide/shots/wide-tooltip-search.png",
+              "logLine": 2567
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/ctrl-f",
+              "detail": "Ctrl+F opens Search with the query field focused :: focus search-field",
+              "logLine": 2568
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/bare-keys-are-text",
+              "detail": "bare keys do nothing as shortcuts in the Search field, and typing works :: query \"tone \"",
+              "logLine": 2569
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/down-up-enter",
+              "detail": "Down and Up move through results, Enter opens one and leaves Search :: ring 0 > 1 > 0; opened index 64",
+              "logLine": 2570
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/escape",
+              "detail": "Escape leaves Search",
+              "logLine": 2571
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/unicode-text",
+              "detail": "typing Björk, かめりあ and Hangul with an emoji puts exactly that text in the Search field :: the field held Björk, かめりあ, 한국어😀 exactly",
+              "logLine": 2572
+            },
+            {
+              "outcome": "PASS",
+              "id": "search/result-selects-then-toggles",
+              "detail": "a Search result for another track selects it paused and stops the playing track; the same result again plays it (D127) :: track 64 played; the result selected 32 paused (playing false); the same result played it (playing true)",
+              "logLine": 2573
+            },
+            {
+              "outcome": "PASS",
+              "id": "click-through/unreadable-row-stays-selected",
+              "detail": "a row whose file cannot be opened stays the selected row, and the next click on it loads it once it decodes (D128) :: row 30 stayed selected and paused through two tries; after repair it played (true)",
+              "logLine": 2574
+            },
+            {
+              "outcome": "PASS",
+              "id": "double-shift/opens-search",
+              "detail": "two quick Shift taps open Search on the player page",
+              "logLine": 2575
+            },
+            {
+              "outcome": "PASS",
+              "id": "double-shift/slow",
+              "detail": "two slow Shift taps (600 ms apart) do nothing",
+              "logLine": 2576
+            },
+            {
+              "outcome": "PASS",
+              "id": "double-shift/interrupted",
+              "detail": "a key between the Shift taps cancels the double tap",
+              "logLine": 2577
+            },
+            {
+              "outcome": "PASS",
+              "id": "double-shift/with-key",
+              "detail": "Shift held with another key is not a tap",
+              "logLine": 2578
+            },
+            {
+              "outcome": "SKIP",
+              "id": "double-shift/repeat",
+              "detail": "a held Shift with repeats is not a double tap :: a modifier key never repeats on Wayland (the client skips modifiers when it repeats a held key, so holding Shift gives one press and one release, as on a real desktop); the case cannot occur, and the pure detector test covers the sequence",
+              "logLine": 2579
+            },
+            {
+              "outcome": "PASS",
+              "id": "settings/ctrl-alt-s",
+              "detail": "Ctrl+Alt+S opens Settings with the list focused :: focus ",
+              "logLine": 2580
+            },
+            {
+              "outcome": "PASS",
+              "id": "settings/ctrl-f-nothing",
+              "detail": "Ctrl+F does nothing in Settings",
+              "logLine": 2581
+            },
+            {
+              "outcome": "PASS",
+              "id": "settings/double-shift-nothing",
+              "detail": "double Shift does nothing in Settings",
+              "logLine": 2582
+            },
+            {
+              "outcome": "PASS",
+              "id": "settings/escape-ladder",
+              "detail": "template field: the first Escape returns to the list row, the second closes Settings; bare keys do nothing in the field :: field \"template-field\" > \"settings-list\" (settings-list) > page Player",
+              "logLine": 2583
+            },
+            {
+              "outcome": "PASS",
+              "id": "settings/screens-after",
+              "detail": "the player page is back with focus restored for keys",
+              "logLine": 2584
+            },
+            {
+              "outcome": "PASS",
+              "id": "badges/after-300ms",
+              "detail": "Ctrl held: no badge before 300 ms, badges after, gone on release :: shown at about 313 ms with [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G]; 1993 pixels differ with badges, 0 after release; badges 0",
+              "logLine": 2585
+            },
+            {
+              "outcome": "PASS",
+              "id": "badges/narrow-with-shift",
+              "detail": "adding Shift narrows the badges to the Ctrl+Shift chords; releasing Shift brings the Ctrl badges back :: Ctrl [search=F, folder-trigger=O, previous=Left, next=Right, mode-cycle=M, deck-title=G] > Ctrl+Shift [open-folder=O, mode-repeat=1, mode-in-order=2, mode-shuffle-folder=3, mode-shuffle-all=4, deck-folder=G, editor-reset=Backspace]",
+              "logLine": 2586
+            },
+            {
+              "outcome": "PASS",
+              "id": "badges/alt",
+              "detail": "Alt held shows the seek and focus badges :: [folder-list=1, track-list=2, seek-back=Left, seek-forward=Right]",
+              "logLine": 2587
+            },
+            {
+              "outcome": "PASS",
+              "id": "badges/quick-chord",
+              "detail": "a quick chord (under 300 ms) never flashes the badges",
+              "logLine": 2588
+            },
+            {
+              "outcome": "PASS",
+              "id": "badges/no-pointer-input",
+              "detail": "badges never take pointer input: a click through a shown badge reaches the control beneath",
+              "logLine": 2589
+            },
+            {
+              "outcome": "PASS",
+              "id": "click-through/row-select-then-toggle",
+              "detail": "a click on an unselected row selects it paused, and clicks on the selected row play it, then pause it (D124) :: A (0) selected, played true; B (2) selected paused true, played true, paused true",
+              "logLine": 2590
+            },
+            {
+              "outcome": "PASS",
+              "id": "click-through/search-wide",
+              "detail": "clicks on the empty Search page do not reach the hidden track list, and typing still works :: query \"tone\" typed after the clicks; the same click on the player page answers",
+              "logLine": 2591
+            },
+            {
+              "outcome": "PASS",
+              "id": "click-through/toast-wide",
+              "detail": "a click on the body of a toast does not play the track row under it :: the click on the toast changed nothing; the same click after the toast left reaches the row under it",
+              "logLine": 2592
+            },
+            {
+              "outcome": "PASS",
+              "id": "lists/picker-follows-search-result",
+              "detail": "after a Search result opens a folder far from the picker position, the folder picker scrolls to it :: Zzz Tones at offset 296, then Aaa Tones at offset 10",
+              "logLine": 2593
+            },
+            {
+              "outcome": "PASS",
+              "id": "lists/track-list-keeps-place-across-breakpoint",
+              "detail": "the track list keeps its scroll position when the window narrows below 600 px and widens again :: offset 672 kept at 443 px (672) and at 1000 px (672)",
+              "logLine": 2594
+            },
+            {
+              "outcome": "PASS",
+              "id": "layout/breakpoint-599",
+              "detail": "a window 599 px wide folds the layout, and the screenshot is exactly 599 px wide :: folded at 599x800",
+              "logLine": 2595
+            },
+            {
+              "outcome": "PASS",
+              "id": "layout/breakpoint-600",
+              "detail": "a window 600 px wide unfolds the layout, and the screenshot is exactly 600 px wide :: unfolded at 600x800",
+              "logLine": 2596
+            }
+          ],
+          "passed": 75,
+          "failed": 0,
+          "notInjectable": 1,
+          "terminalSummary": {
+            "passed": 75,
+            "failed": 0,
+            "notInjectable": 1,
+            "seconds": 75.2,
+            "logLine": 2677
+          },
+          "exitCode": 0,
+          "aborted": false
+        },
+        {
+          "session": "narrow",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "folded/tab-order",
+              "detail": "folded layout: Tab walks the folder trigger and Open, the track list, the deck, search, settings :: folder-trigger > open-pill > track-list > seek > previous > play > next > mode-group > search > settings",
+              "logLine": 2688
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/alt-1-opens-picker",
+              "detail": "Alt+1 opens the folder picker overlay and focuses its list :: picker_open true, focus folder-list",
+              "logLine": 2689
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/escape-closes-picker",
+              "detail": "Escape closes the picker overlay and focuses the track list, without leaving the page",
+              "logLine": 2690
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/ctrl-o-toggles",
+              "detail": "Ctrl+O opens the picker and Ctrl+O closes it",
+              "logLine": 2691
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/alt-2-closes-picker",
+              "detail": "Alt+2 closes the picker and focuses the track list",
+              "logLine": 2692
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/escape-on-player",
+              "detail": "Escape on the player page with nothing open does nothing",
+              "logLine": 2693
+            },
+            {
+              "outcome": "PASS",
+              "id": "folded/picker-enter-focuses-tracks",
+              "detail": "Enter on a folder in the picker shows it and moves the keyboard to the track list :: Aaa Tones > F",
+              "logLine": 2694
+            },
+            {
+              "outcome": "PASS",
+              "id": "editor-page/enter-and-escape",
+              "detail": "Settings list Enter opens the editor page; Escape returns to the Settings list; Escape leaves Settings :: TemplateEditor (focus ) > Settings (focus ) > Player",
+              "logLine": 2695
+            },
+            {
+              "outcome": "PASS",
+              "id": "editor-page/ctrl-enter",
+              "detail": "Ctrl+Enter applies the template and returns to the Settings list",
+              "logLine": 2696
+            },
+            {
+              "outcome": "PASS",
+              "id": "click-through/search-narrow",
+              "detail": "clicks on the empty Search page do not reach the hidden pause button, mode group or track list :: no click reached the player under Search; the mode segment answers the same click on the player page",
+              "logLine": 2697
+            }
+          ],
+          "passed": 10,
+          "failed": 0,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 10,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 5.3,
+            "logLine": 2712
+          },
+          "exitCode": 0,
+          "aborted": false
+        },
+        {
+          "session": "dialog",
+          "checks": [
+            {
+              "outcome": "FAIL",
+              "id": "browse/ctrl-shift-o",
+              "detail": "Ctrl+Shift+O opens the system folder dialog :: no dialog window covered the player (0 pixels differ)",
+              "logLine": 2723
+            },
+            {
+              "outcome": "PASS",
+              "id": "dialog/focus-returns",
+              "detail": "after the system folder dialog closes, the player window has the keyboard again and a key reaches it :: ok 1 index=0 app-id=monochromatic.music-player title=Music%20Player focused=true; Ctrl+F opened Search with focus search-field",
+              "logLine": 2724
+            }
+          ],
+          "passed": 1,
+          "failed": 1,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 1,
+            "failed": 1,
+            "notInjectable": 0,
+            "seconds": 16.9,
+            "logLine": 2731
+          },
+          "exitCode": 1,
+          "aborted": false
+        },
+        {
+          "session": "auto-play",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "auto-play/off-by-default-click-selects-paused",
+              "detail": "with no saved setting Auto-play on select is off, and a click on another row selects it paused (D124, D129) :: row A 30 played; the click on row B 31 left it paused with the setting off",
+              "logLine": 2753
+            },
+            {
+              "outcome": "PASS",
+              "id": "auto-play/switch-turns-it-on",
+              "detail": "End and Space on the Auto-play on select row of Settings turn the setting on and leave Settings open (D129) :: the switch row turned the setting on in place",
+              "logLine": 2754
+            },
+            {
+              "outcome": "PASS",
+              "id": "auto-play/on-click-selects-and-plays",
+              "detail": "with the setting on, a click on another row selects it and starts it at once; the selected row still toggles (D129) :: row A 30 played at once (true), row B 31 played at once (true) and the next click paused it (true)",
+              "logLine": 2755
+            },
+            {
+              "outcome": "PASS",
+              "id": "auto-play/setting-survives-restart",
+              "detail": "the setting is still on after Ctrl+Q and a restart, and a click on a row plays it at once (D129) :: the setting stayed on; the click on row 31 played at once",
+              "logLine": 2757
+            }
+          ],
+          "passed": 4,
+          "failed": 0,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 4,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 4.9,
+            "logLine": 2766
+          },
+          "exitCode": 0,
+          "aborted": false
+        },
+        {
+          "session": "quit",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "quit/ctrl-q",
+              "detail": "Ctrl+Q quits the app :: process 26965 ended",
+              "logLine": 2777
+            }
+          ],
+          "passed": 1,
+          "failed": 0,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 1,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 0.9,
+            "logLine": 2783
+          },
+          "exitCode": 0,
+          "aborted": false
+        },
+        {
+          "session": "states",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "states/reading",
+              "detail": "while the folder is read the window says \"Reading your library\" and the deck is off, not \"No folder is open\" :: pane \"Reading your library\", deck_disabled true, shot package/music-player/desktop-app/target/e2e/states/shots/states-main-states-reading.png",
+              "logLine": 2794
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/reading-ends",
+              "detail": "when the scan ends the pane goes, the first folder shows and the deck works :: folder \"Aaa Folder\", deck_disabled false",
+              "logLine": 2795
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/loose-letter-folder",
+              "detail": "loose files sit in the virtual folder of their letter, shown after the real folders :: ring on \"L\"",
+              "logLine": 2796
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/play-with-nothing-selected",
+              "detail": "Space with nothing selected starts the first track of the folder on screen instead of flipping to Pause :: playing track 3, position 0",
+              "logLine": 2797
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/window-title",
+              "detail": "the window title is the cleaned title the deck shows, without folder, extension or the shared prefix :: title \"ok One\"",
+              "logLine": 2798
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/in-order-stops",
+              "detail": "In order plays the folder to its end, stops with the first track loaded, and Play starts it again :: stopped at track 3, played again at track 3",
+              "logLine": 2799
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/single-folder-name",
+              "detail": "a library with one top-level folder shows that folder by its own name, not a letter :: folder \"Only Artist\"",
+              "logLine": 2801
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/natural-order",
+              "detail": "tracks are listed in natural order: Take 2 before Take 3 before Take 10 :: first \"2 Zed\", last \"10 Zed\"",
+              "logLine": 2802
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/no-audio-folder",
+              "detail": "a folder without audio is named on its own line and the deck is off :: pane \"No audio found in | states-empty-library\", shot package/music-player/desktop-app/target/e2e/states/shots/states-empty-states-no-audio.png",
+              "logLine": 2804
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/refresh-initial",
+              "detail": "the library the app starts on is measured by itself, once per file :: 2 measured",
+              "logLine": 2806
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/refresh-replaced-file",
+              "detail": "a file replaced on disk with different audio is measured again while the app runs, with no key pressed :: 2 decodes before, then one more",
+              "logLine": 2807
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/refresh-new-file",
+              "detail": "a file added to the folder is listed and measured by itself :: measured",
+              "logLine": 2808
+            },
+            {
+              "outcome": "PASS",
+              "id": "states/refresh-broken-file-once",
+              "detail": "a file that cannot be decoded is reported once, however often the library changes afterwards :: reported once",
+              "logLine": 2809
+            }
+          ],
+          "passed": 13,
+          "failed": 0,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 13,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 20.1,
+            "logLine": 2827
+          },
+          "exitCode": 0,
+          "aborted": false
+        },
+        {
+          "session": "visual",
+          "checks": [
+            {
+              "outcome": "PASS",
+              "id": "visual/dark-3B82F6",
+              "detail": "focus ring and badges in dark with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 528 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-3B82F6-*.png",
+              "logLine": 2838
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/dark-22C55E",
+              "detail": "focus ring and badges in dark with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 526 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-dark-22C55E-*.png",
+              "logLine": 2840
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/light-3B82F6",
+              "detail": "focus ring and badges in light with accent #3B82F6: ring and badges draw, and are gone after release :: ring pixels 524 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-light-3B82F6-*.png",
+              "logLine": 2842
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/light-22C55E",
+              "detail": "focus ring and badges in light with accent #22C55E: ring and badges draw, and are gone after release :: ring pixels 522 in {\"x\":227,\"y\":681,\"width\":46,\"height\":46}; shots in package/music-player/desktop-app/target/e2e/visual/shots/visual-light-22C55E-*.png",
+              "logLine": 2844
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/menu-dark-3B82F6",
+              "detail": "the track menu in dark with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 67,70,79",
+              "logLine": 2846
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/rings-dark-3B82F6",
+              "detail": "the focus ring in dark with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 528 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role",
+              "logLine": 2847
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/menu-dark-22C55E",
+              "detail": "the track menu in dark with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 0,0,0, edge 64,73,67",
+              "logLine": 2849
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/rings-dark-22C55E",
+              "detail": "the focus ring in dark with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 1162 ring pixels, 552 in the primary role; the Play circle: 526 ring pixels, 1222 in the primary role; the first Settings row: 2492 ring pixels, 2419 in the primary role",
+              "logLine": 2850
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/menu-light-3B82F6",
+              "detail": "the track menu in light with accent #3B82F6 is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 196,199,208",
+              "logLine": 2852
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/rings-light-3B82F6",
+              "detail": "the focus ring in light with accent #3B82F6 is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 524 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role",
+              "logLine": 2853
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/menu-light-22C55E",
+              "detail": "the track menu in light with accent #22C55E is the pure canvas color with an edge, and its row has a ring :: card 255,255,255, edge 191,202,196",
+              "logLine": 2855
+            },
+            {
+              "outcome": "PASS",
+              "id": "visual/rings-light-22C55E",
+              "detail": "the focus ring in light with accent #22C55E is a ring only on a pill, a circle and a rounded row, in the primary role :: the Open folder pill: 812 ring pixels, 552 in the primary role; the Play circle: 522 ring pixels, 1222 in the primary role; the first Settings row: 1684 ring pixels, 2419 in the primary role",
+              "logLine": 2856
+            }
+          ],
+          "passed": 12,
+          "failed": 0,
+          "notInjectable": 0,
+          "terminalSummary": {
+            "passed": 12,
+            "failed": 0,
+            "notInjectable": 0,
+            "seconds": 73.4,
+            "logLine": 2873
+          },
+          "exitCode": 0,
+          "aborted": false
+        }
+      ],
+      "limitations": [
+        "All sessions reached terminal summaries, but the dialog assertion still failed.",
+        "Wide session completed after fixture repair; the original root record remains unchanged.",
+        "One wide-session modifier-repeat check is not injectable and remains a SKIP.",
+        "Changed fixture and environment inputs prevent treating these jobs as unchanged-input timing repetitions.",
+        "Software compositor and private audio sink do not establish physical GPU or device coverage."
+      ]
+    }
+  ]
+}

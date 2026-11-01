@@ -8,7 +8,7 @@ import {
   type Checker,
   SignatureKind,
   type Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Classification for direct callable and constructable inputs.

@@ -2,8 +2,8 @@
 # Non-sensitive deny-list rules that apply to every clone of this repo.
 # Tail-format sections: a '==> name <==' header opens one rule; section names
 # surface in findings as 'rule=<name>'.
-# This file is concatenated with forbidden-strings.append.local.txt by
-# file-enforcer to produce the runtime .cache/forbidden-strings.rules.txt
+# The scanner reads this file and forbidden-strings.append.local.txt directly through
+# FORBIDDEN_STRINGS_RULES (.config/mise/conf.d/20-env.toml)
 # (the betterleaks baseline ships inside the scanner binary; repo scans pass
 # --builtin-rules). Keep sensitive rules (codenames, customer names, partner
 # identifiers, politically-charged literals) out of this file; put those in
@@ -134,7 +134,7 @@
 
 # Rules banning a bare identifier must be written so the pattern does not match
 # its own text, because this scanner has no per-rule path scoping and no per-rule
-# allowlists (package/cli/forbidden-strings/README.md, "When to pick something
+# allowlists (package/forbidden-strings/cli/README.md, "When to pick something
 # else"), so it reads this appendix as ordinary content like any other file. A
 # literal rule body therefore matches itself, and every later edit to this file
 # fails the commit on a line nobody touched. Bracketing one character keeps the
@@ -167,3 +167,8 @@
 # re-derive a deferral that was never load-bearing. Evidence:
 # doc/decision/prefer-readonly-member-channel-authority.md.
 /DEFERRED_MEMBER_NAME[S]/
+
+# `truncated-attempt` was renamed to `attempt-retry` when the benchmark's
+# second-attempt trigger broadened beyond truncation; the retired module
+# name must not come back.
+truncated-attempt

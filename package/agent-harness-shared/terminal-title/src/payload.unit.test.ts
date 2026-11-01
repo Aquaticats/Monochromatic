@@ -6,13 +6,13 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   MAX_TERMINAL_TITLE_UTF8_BYTES,
   safeTerminalTitlePayload,
   sanitizeTerminalTitleText,
   terminalTitleUtf8ByteLength,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-terminal-title';
 
 await describe({
   name: safeTerminalTitlePayload.name,

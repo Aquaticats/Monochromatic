@@ -90,7 +90,7 @@ function reportMethodMutation(
   if (((info.kind === 'array') && ((methodName === 'push') || (methodName === 'unshift')))
     || ((info.kind === 'setInline') && (methodName === 'add'))
     || ((info.kind === 'mapInline') && (methodName === 'set')))
-  {
+    {
     context.report({
       node: call,
       messageId: 'forbidden',
@@ -249,7 +249,7 @@ function reportPropertyAssignmentMutation(
       visitorKeys: context.sourceCode
         .visitorKeys,
     },))
-  {
+    {
     return;
   }
   if (referencesIdentifier({

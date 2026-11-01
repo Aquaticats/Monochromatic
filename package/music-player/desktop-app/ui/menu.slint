@@ -1,0 +1,246 @@
+// Track context menu body (D7, D8, D26-era menu, Android TrackMenuPopup). The caller hosts it in a PopupWindow
+// anchored to the track row; this component draws the card, the heading, the rows and the dividers only.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { FocusRing } from "focus.slint";
+
+// One menu row. `icon` indexes the glyph: 0 play, 1 shuffle, 2 file details, 3 show in file manager,
+// 4 copy filename, 5 move to trash.
+export struct TrackMenuItem {
+    // Visible label of the action, for example `Start shuffle from here`.
+    label: string,
+    // The label split around its access letter (D114): the text before it, the letter, and the text after it. The letter
+    // is drawn underlined, so a row can be told from its neighbors by the letter that runs it, not by color alone.
+    label-before: string,
+    access: string,
+    label-after: string,
+    // Glyph index from the list above.
+    icon: int,
+    // True for the destructive action; the row uses the error role for its glyph and label.
+    destructive: bool,
+    // True when a divider is drawn above this row, marking a new group.
+    divider-before: bool,
+    // Inline secondary value, drawn after the label as ` · value` (for File details); empty draws nothing.
+    value: string,
+    // Shortcut of the action, drawn right-aligned in the row, such as `Alt+Enter`; empty draws nothing (D106).
+    shortcut: string,
+}
+
+// Track action menu with a one-line heading, grouped rows and a destructive row.
+export component TrackMenu inherits Rectangle {
+    // Track name shown as the one-line heading; longer names end in an ellipsis.
+    in property <string> title: "";
+    // Rows in display order, one per action.
+    in property <[TrackMenuItem]> items: [];
+    // Extra start inset for the heading, rows and dividers; 12px on the inner panel, 0px on the cover.
+    in property <length> start-inset: 0px;
+    // Row the keyboard highlights (Up and Down move it, Enter chooses it), or -1 for none. It is drawn as the ring
+    // around the row and nothing else (D117): no fill, so the row's hover and pressed layers keep their own meaning.
+    in property <int> ring: -1;
+
+    // Fired with the row index when a row is pressed; the menu never closes itself on selection.
+    callback select(int);
+    // Fired when Escape is pressed while the menu has focus; the caller closes the popup.
+    callback dismiss();
+    // A popup takes the keyboard focus while it is open, so the window's key scope never sees the keys; the menu hands
+    // each key press and release to the caller. The press returns true when the caller used the key.
+    callback key-down(string, bool, bool, bool, bool, bool) -> bool;
+    callback key-up(string, bool, bool, bool, bool);
+
+    // Card width the host gives the popup: the width the rows need, at least 280 px (the Android menu width) and at most
+    // 360 px. A fixed 280 px cut the longest shortcut hints (`Ctrl+Shift+E`) at the card edge. The heading does not count
+    // toward it, because an ellipsized track name must not widen the menu.
+    out property <length> card-width: min(360px, max(280px, column.preferred-width));
+    // Fade-in progress, 0 when the menu is created and 1 after `Theme.motion-enter`, so the menu does not pop in.
+    property <float> enter: 0;
+    width: root.card-width;
+    height: column.preferred-height;
+    opacity: root.enter;
+    animate enter { duration: Theme.motion-enter; easing: ease-out; }
+    // The card is the canvas color itself, pure white in light and pure black in dark, untinted (D119). It is told apart from
+    // the page under it by the 1 px `outline-variant` outline drawn over its edge below, not by a fill.
+    background: Theme.canvas;
+    border-radius: 12px;
+    // No `clip`: a clip would cut the keyboard ring, which reaches 3 px past the edge of a row as wide as the card. The
+    // last row's layer takes the card's bottom corner radii instead, so no tint pokes out of the rounded corners.
+    forward-focus: keys;
+
+    // A popup does not give itself keyboard focus: the window's focus item is taken away when the popup opens, and nothing
+    // in the popup receives it unless asked, so the menu asks when it is created.
+    init => {
+        keys.focus();
+        root.enter = 1;
+    }
+
+    // Every key goes to the caller: Up, Down and Enter choose a row, Escape closes the menu, and the row chords act on its
+    // track (D106).
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (root.key-down(event.text, event.modifiers.control, event.modifiers.meta, event.modifiers.alt, event.modifiers.shift, event.repeat)) {
+                return accept;
+            }
+            return reject;
+        }
+        key-released(event) => {
+            root.key-up(event.text, event.modifiers.control, event.modifiers.meta, event.modifiers.alt, event.modifiers.shift);
+            return reject;
+        }
+    }
+
+    // Glyph path data for each icon index, copied from TrackMenuIcons.kt on a 24 by 24 grid.
+    function icon-commands(icon: int) -> string {
+        if (icon == 0) {
+            return "M8 5 v14 l11 -7 Z";
+        }
+        if (icon == 1) {
+            return "M10.59 9.17 L5.41 4 L4 5.41 l5.17 5.17 l1.42 -1.41 Z M14.5 4 l2.04 2.04 L4 18.59 L5.41 20 L17.96 7.46 L20 9.5 L20 4 h-5.5 Z M14.83 13.41 l-1.41 1.41 l3.13 3.13 L14.5 20 L20 20 v-5.5 l-2.04 2.04 l-3.13 -3.13 Z";
+        }
+        if (icon == 2) {
+            return "M11 7 h2 v2 h-2 Z M11 11 h2 v6 h-2 Z M12 2 C6.48 2 2 6.48 2 12 s4.48 10 10 10 s10 -4.48 10 -10 S17.52 2 12 2 Z M12 20 c-4.41 0 -8 -3.59 -8 -8 s3.59 -8 8 -8 s8 3.59 8 8 s-3.59 8 -8 8 Z";
+        }
+        if (icon == 3) {
+            return "M20 6 h-8 l-2 -2 L4 4 c-1.1 0 -1.99 0.9 -1.99 2 L2 18 c0 1.1 0.9 2 2 2 h16 c1.1 0 2 -0.9 2 -2 L22 8 c0 -1.1 -0.9 -2 -2 -2 Z M20 18 L4 18 L4 8 h16 v10 Z";
+        }
+        if (icon == 4) {
+            return "M16 1 L4 1 c-1.1 0 -2 0.9 -2 2 v14 h2 L4 3 h12 L16 1 Z M19 5 L8 5 c-1.1 0 -2 0.9 -2 2 v14 c0 1.1 0.9 2 2 2 h11 c1.1 0 2 -0.9 2 -2 L21 7 c0 -1.1 -0.9 -2 -2 -2 Z M19 21 L8 21 L8 7 h11 v14 Z";
+        }
+        return "M16 9 v10 H8 V9 h8 m-1.5 -6 h-5 l-1 1 H5 v2 h14 V4 h-3.5 l-1 -1 Z M18 7 H6 v12 c0 1.1 0.9 2 2 2 h8 c1.1 0 2 -0.9 2 -2 V7 Z";
+    }
+
+    // The card's boundary (D119): a 1 px outline in the `outline-variant` role. A pure black card over a pure black page, or a
+    // pure white card over a pure white page, has no edge without it. It is drawn under the rows, so the keyboard ring of a row
+    // (which reaches past the card's edge) crosses it without a notch, and a row's hover or pressed layer, which is
+    // see-through, tints it instead of hiding it. It takes no pointer input.
+    card-outline := Rectangle {
+        background: transparent;
+        border-width: 1px;
+        border-color: Theme.outline-variant;
+        border-radius: 12px;
+    }
+
+    column := VerticalLayout {
+        // Heading: the track name, one line, ellipsized, in the secondary role.
+        HorizontalLayout {
+            padding-left: 16px + root.start-inset;
+            padding-right: 16px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            Text {
+                text: root.title;
+                color: Theme.on-surface-variant;
+                font-size: Theme.body-small;
+                wrap: no-wrap;
+                overflow: elide;
+                vertical-alignment: center;
+                // The name never asks for width, so a long track name is ellipsized instead of widening the card.
+                preferred-width: 0px;
+                min-width: 0px;
+                accessible-role: text;
+            }
+        }
+
+        for item[index] in root.items : VerticalLayout {
+            // Group divider, inset 8px from the card edges (plus the start inset) with 5px margins.
+            if item.divider-before : Rectangle {
+                height: 11px;
+                Rectangle {
+                    x: 8px + root.start-inset;
+                    y: 5px;
+                    width: parent.width - self.x - 8px;
+                    height: 1px;
+                    background: Theme.outline-variant;
+                }
+            }
+
+            // One action row, 48px minimum, pressed as a whole.
+            row-card := Rectangle {
+                property <color> foreground: item.destructive ? Theme.error : Theme.on-surface;
+
+                height: max(48px, row.preferred-height);
+                // Rectangular hover and pressed layer over the whole action row, below its glyph and label. The last row is
+                // rounded at the bottom like the card.
+                StateLayer {
+                    tint: Theme.on-surface;
+                    hovered: row-touch.has-hover;
+                    pressed: row-touch.pressed;
+                    radius-bottom: index == root.items.length - 1 ? 12px : 0px;
+                }
+                // Keyboard ring around the row, flush outside it. A row is as wide as the card, so the ring reaches 3 px past
+                // the card's side edges and, on the last row, its bottom edge; the popup does not clip it.
+                FocusRing {
+                    active: index == root.ring;
+                }
+                row := HorizontalLayout {
+                    padding-left: 16px + root.start-inset;
+                    padding-right: 16px;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+                    spacing: 12px;
+                    alignment: stretch;
+
+                    // Glyph cell stretches to the row height so the 24px glyph centres on the label line.
+                    Rectangle {
+                        width: 24px;
+                        Path {
+                            width: 24px;
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            viewbox-width: 24;
+                            viewbox-height: 24;
+                            commands: root.icon-commands(item.icon);
+                            fill: row-card.foreground;
+                        }
+                    }
+
+                    // Label and inline value share a zero-spacing row so the middle dot sits tight to the label.
+                    HorizontalLayout {
+                        horizontal-stretch: 0;
+                        spacing: 0px;
+                        alignment: start;
+
+                        // The label with its access letter underlined (D114).
+                        StyledText {
+                            horizontal-stretch: 0;
+                            text: @markdown("\{item.label-before}<u>\{item.access}</u>\{item.label-after}");
+                            default-color: row-card.foreground;
+                            default-font-size: Theme.label-large;
+                            vertical-alignment: center;
+                        }
+
+                        // Inline value, in the secondary role, separated by a middle dot.
+                        if item.value != "" : Text {
+                            horizontal-stretch: 0;
+                            text: " · " + item.value;
+                            color: Theme.on-surface-variant;
+                            font-size: Theme.label-large;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Shortcut of the action, right-aligned in the row after the room the label leaves.
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        min-width: 12px;
+                    }
+                    Text {
+                        horizontal-stretch: 0;
+                        text: item.shortcut;
+                        color: Theme.on-surface-variant;
+                        font-size: Theme.body-small;
+                        vertical-alignment: center;
+                    }
+                }
+                row-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    // Each row is a button named by its label (with the inline value, such as the file size) and described
+                    // by its shortcut, so a screen reader announces the action and the key that runs it.
+                    accessible-role: button;
+                    accessible-label: item.value == "" ? item.label : item.label + ", " + item.value;
+                    accessible-description: item.shortcut;
+                    accessible-action-default => { root.select(index); }
+                    clicked => { root.select(index); }
+                }
+            }
+        }
+    }
+}

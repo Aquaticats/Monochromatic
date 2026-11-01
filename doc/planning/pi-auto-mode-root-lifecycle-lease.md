@@ -149,3 +149,13 @@ Writer custody,
 instruction authority,
 and human permission remain separate unmet production gates.
 Keep historical branch-snapshot behavior and consumed evidence intact.
+
+The data-copy and private-field experiments now have native and selected SDK-consumer results:
+`proc_0468`,
+`proc_5f26`,
+`proc_50e1`,
+and `proc_809e`.
+They separate data isolation from still-open method custody.
+[The SDK-owned custody proposal](pi-auto-mode-sdk-state-custody.md)
+records the next structural choice;
+its implementation is not included in the previous acceptance.

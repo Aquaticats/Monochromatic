@@ -1,13 +1,28 @@
-//! Probe inputs from the file itself: provenance and bones without platform tag readers.
+//! Probe inputs from the file itself:
+//!  provenance and bones without platform tag readers.
 //!
-//! The bucket policy needs two zero-cost inputs per track: its provenance (which bucket)
-//! and, for lossless files, the frame-size bones seeds. Sniffing a FLAC container and
-//! walking its framing is file-format knowledge, not platform knowledge, so it lives
-//! here; platforms hand over a path or the raw bytes and get the resolver's inputs back.
-//! Degradation contract: any read or parse failure yields the uninformed provenance
-//! (the bare bucket, the deepest coverage) with no bones, so a failure can only make the
-//! probe more thorough, never less safe. Store and youtube provenance need real tag
-//! readers, which stay platform-side; platforms that have them set the flags themselves.
+//! The bucket policy needs two zero-cost inputs per track:
+//!  its provenance (which bucket)
+//! and,
+//!  for lossless files,
+//!  the frame-size bones seeds.
+//!  Sniffing a FLAC container and
+//! walking its framing is file-format knowledge,
+//!  not platform knowledge,
+//!  so it lives
+//! here;
+//!  platforms hand over a path or the raw bytes and get the resolver's inputs back.
+//! Degradation contract:
+//!  any read or parse failure yields the uninformed provenance
+//! (the bare bucket,
+//!  the deepest coverage) with no bones,
+//!  so a failure can only make the
+//! probe more thorough,
+//!  never less safe.
+//!  Store and youtube provenance need real tag
+//! readers,
+//!  which stay platform-side;
+//!  platforms that have them set the flags themselves.
 
 /// Imports the bones profile walk and the hot-slot selection.
 use crate::bones::{bones_hot_bins, flac_bones_profile};
@@ -22,7 +37,10 @@ use std::path::Path;
 
 /// Whether `bytes` start a FLAC container (directly or behind a nonstandard ID3v2 tag).
 ///
-/// What: checks the fLaC magic, skipping a leading ID3v2 tag's syncsafe length. Why:
+/// What:
+///  checks the fLaC magic,
+///  skipping a leading ID3v2 tag's syncsafe length.
+///  Why:
 /// lossless detection must not depend on file names or platform tag readers.
 fn sniff_flac(bytes: &[u8]) -> bool {
     if bytes.len() >= 4 && &bytes[0..4] == b"fLaC" {
@@ -42,9 +60,14 @@ fn sniff_flac(bytes: &[u8]) -> bool {
 
 /// The resolver's inputs from a file's raw bytes.
 ///
-/// What: FLAC bytes yield lossless provenance plus bones hot bins (bones drop to None
-/// when the walk fails, keeping the lossless bucket); anything else yields the
-/// uninformed provenance. Why: one call turns bytes into everything
+/// What:
+///  FLAC bytes yield lossless provenance plus bones hot bins (bones drop to None
+/// when the walk fails,
+///  keeping the lossless bucket);
+///  anything else yields the
+/// uninformed provenance.
+///  Why:
+///  one call turns bytes into everything
 /// `resolve_decision_for` needs beyond the decoded source.
 pub fn probe_inputs_from_bytes(bytes: &[u8], policy: &Policy) -> (TrackProvenance, Option<Vec<usize>>) {
     if !sniff_flac(bytes) {
@@ -68,10 +91,15 @@ pub fn probe_inputs_from_bytes(bytes: &[u8], policy: &Policy) -> (TrackProvenanc
 
 /// The resolver's inputs from a file path.
 ///
-/// What: reads the file and delegates to `probe_inputs_from_bytes`; an unreadable file
-/// yields the uninformed provenance. Why: the one-line form platforms with paths call.
+/// What:
+///  reads the file and delegates to `probe_inputs_from_bytes`;
+///  an unreadable file
+/// yields the uninformed provenance.
+///  Why:
+///  the one-line form platforms with paths call.
 ///
-/// @example desktop: `let (provenance, bones) = probe_inputs_from_file(path, &policy);`
+/// @example desktop:
+///  `let (provenance, bones) = probe_inputs_from_file(path, &policy);`
 pub fn probe_inputs_from_file(path: &Path, policy: &Policy) -> (TrackProvenance, Option<Vec<usize>>) {
     // The degradation contract: any read failure lands in the bare bucket, cause logged.
     match fs::read(path) {
@@ -88,9 +116,14 @@ pub fn probe_inputs_from_file(path: &Path, policy: &Policy) -> (TrackProvenance,
     }
 }
 
-/// What:     `#[cfg(test)] #[path = "inputs_tests.rs"] mod tests;`. Test-only submodule in
-///           the sibling file, gated to test builds.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "inputs_tests.rs"] mod tests;`.
+///  Test-only submodule in
+///           the sibling file,
+///  gated to test builds.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 #[cfg(test)]
 #[path = "inputs_tests.rs"]
 mod tests;

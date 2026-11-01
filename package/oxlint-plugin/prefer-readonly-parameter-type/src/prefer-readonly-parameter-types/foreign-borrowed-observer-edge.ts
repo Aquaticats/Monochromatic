@@ -7,14 +7,14 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isCallExpression,
   isIdentifier,
   isInterfaceDeclaration,
   isMethodSignatureDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { callableDeclaration, } from './effect-call-resolution.ts';
 import { expressionElementOrigins, } from './effect-element-origin.ts';

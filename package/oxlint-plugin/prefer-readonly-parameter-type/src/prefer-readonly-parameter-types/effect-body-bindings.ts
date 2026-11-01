@@ -20,13 +20,13 @@ import {
   type ParameterDeclaration,
   SyntaxKind,
   type VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isBinaryExpression,
   isForOfStatement,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 
 import { discoverAliasOrigins, } from './effect-binding-origins.ts';

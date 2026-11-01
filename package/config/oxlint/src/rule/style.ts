@@ -190,6 +190,11 @@ export const styleRules: DummyRuleMap = {
   'import/no-named-export': 'off',
   'import/no-namespace': 'off',
 
+  //region stylistic: line indentation
+  // Leading whitespace follows the plugin's anchor-based indent model.
+  'stylistic/indentation': 'warn',
+  //endregion stylistic: line indentation
+
   //region stylistic: comment layout
   // TSDoc body lines omit canonical `* ` prefixes while retaining one-space block indentation.
   'stylistic/require-asterisk-prefix': [

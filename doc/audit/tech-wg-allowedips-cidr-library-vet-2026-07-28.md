@@ -1,5 +1,10 @@
 # Technology vet: wg-allowedips CIDR library
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/cli-wg-allowedips` is now `@monochromatic-dev/wg-cli-allowedips`.
+
 Status:
  complete.
  Lifecycle phase is recommended.

@@ -1,7 +1,8 @@
 # Re-screen list after dropping requirement (c)
 
 Classification of every G3 exit in the eight screening inputs
-(`screening-primary-chunk-{1,2,3}.md`, `screening-registry-chunk-{1,2,3}.md`, `screening-promoted-runners.md`, and the `## Screening` section of `discovery-expansion.md`).
+(`screening-primary-chunk-{1,2,3}.md`, `screening-registry-chunk-{1,2,3}.md`, `screening-promoted-runners.md`,
+and the `## Screening` section of `discovery-expansion.md`).
 G1 exits, G2 exits, and user exclusions are ignored.
 Machine-readable RESCREEN list: `rescreen-list.json`.
 
@@ -33,18 +34,27 @@ Machine-readable RESCREEN list: `rescreen-list.json`.
 - dev-process-manager (registry 3): (c) only. Borderline: notes CLI-to-daemon channel not documented as an interface.
 - baton-run (Baton) (registry 3): (c) only.
 - clier-ai (clier) (registry 3): (c) only. Borderline: notes Unix socket has no protocol reference.
-- fbecart/zinoma (promoted runners): (c) only. Borderline: sample output shows 0.19.0 vs latest 0.19.6, not recorded as confusion.
+- fbecart/zinoma (promoted runners): (c) only. Borderline: sample output shows 0.19.0 vs latest 0.19.6,
+not recorded as confusion.
 - Invincible (discovery expansion): (c) only.
-- affected, Rani367 (discovery expansion): (c) only. Borderline: (a) is one annotated example, which counted as an (a) gap elsewhere.
+- affected, Rani367 (discovery expansion): (c) only. Borderline: (a) is one annotated example,
+which counted as an (a) gap elsewhere.
 
 ## STAYS OUT, flags worth a second look
 
 These stay out under the literal rule, but the other failure is thin or tied to (c).
 
-- Confusion located only in extension or plugin docs: Yarn (hook list missing from plugin tutorial), Vite+ task runner (integration client linked off-site, same fact as its (c) gap), Live Test Runner (custom adapter loading undocumented), pantsbuild/pants (plugin debugging sent to Slack), thought-machine/please (plugin authoring path unclear).
-- Plugin-docs confusion plus a separate non-plugin signal: gradle/gradle (also three dependency-declaration entry points), sportradar/elixir-workspace (also ExDoc-only navigation structure signal), BindPort (also "docs site is a work in progress").
-- devtooie: otherwise (c) only; the block is one GitHub HTTP 429 abuse-detection response on a blob page, while a later GitHub probe returned 200.
-- smorsic/pacwich: its own subsection records (c) only, but the bun-workspaces subsection (registry 1) records confusion on the same pacwich.dev docs.
+- Confusion located only in extension or plugin docs: Yarn (hook list missing from plugin tutorial),
+Vite+ task runner (integration client linked off-site, same fact as its (c) gap),
+Live Test Runner (custom adapter loading undocumented), pantsbuild/pants (plugin debugging sent to Slack),
+thought-machine/please (plugin authoring path unclear).
+- Plugin-docs confusion plus a separate non-plugin signal: gradle/gradle (also three dependency-declaration entry
+points), sportradar/elixir-workspace (also ExDoc-only navigation structure signal),
+BindPort (also "docs site is a work in progress").
+- devtooie: otherwise (c) only; the block is one GitHub HTTP 429 abuse-detection response on a blob page,
+while a later GitHub probe returned 200.
+- smorsic/pacwich: its own subsection records (c) only, but the bun-workspaces subsection (registry 1) records
+confusion on the same pacwich.dev docs.
 
 ## STAYS OUT
 
@@ -52,7 +62,8 @@ These stay out under the literal rule, but the other failure is thin or tied to 
 
 - lerna/lerna: confusion, commands reference sends options to per-command GitHub READMEs.
 - vercel/turborepo: confusion, `daemon` config entry backs `turbo watch` but watch page never mentions it.
-- nrwl/nx: coverage (e) one-line MCP running-task listings; confusion, watch only in Knowledge Base, four module-boundary pages.
+- nrwl/nx: coverage (e) one-line MCP running-task listings; confusion, watch only in Knowledge Base,
+four module-boundary pages.
 - bazelbuild/bazel: confusion, duplicate sidebar entries and BEP filed under Remote Execution.
 - gradle/gradle: confusion, duplicate plugin-authoring page sets; three dependency-declaration entry points.
 - teambit/bit: no-JS, reference pages are JS app shells.
@@ -76,7 +87,8 @@ These stay out under the literal rule, but the other failure is thin or tied to 
 ### Primary chunk 2
 
 - paularmstrong/onerepo: confusion, `taskConfig` keys vs `tasks` examples.
-- sportradar/elixir-workspace: confusion, "third party plugin" referenced with no plugin docs; ExDoc-only navigation signal.
+- sportradar/elixir-workspace: confusion, "third party plugin" referenced with no plugin docs;
+ExDoc-only navigation signal.
 - smorsic/pacwich: confusion recorded under bun-workspaces (registry 1) on the same pacwich.dev docs.
 - run-z/run-z: coverage (a) no options reference; confusion, API docs link is a README copy.
 - electrode-io/fynpo: confusion signals, config page never names the config file.
@@ -86,7 +98,8 @@ These stay out under the literal rule, but the other failure is thin or tied to 
 - leostera/warp: docs site DNS failure; repo docs are title-only stubs.
 - rnza0u/blaze: confusion, "two kinds of executors" lists three; duplicate CLI nav link.
 - abuob/yanice: confusion, config example link targets an image; plugin API only in fixtures.
-- tylerbutler/trellis: structure signal (exit in chunk 2), sidebar "Full README" link-out and design only in `docs/DESIGN.md`.
+- tylerbutler/trellis: structure signal (exit in chunk 2), sidebar "Full README" link-out
+and design only in `docs/DESIGN.md`.
 - chgibb/mono-surveyor: coverage (a), `surveys.json` only in prose.
 - pnordahl/monorail: confusion, README `#tutorial` anchor missing.
 

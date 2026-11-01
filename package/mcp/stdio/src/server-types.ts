@@ -3,10 +3,12 @@
 
 import type {
   CacheHint,
+  ResourceDescriptor,
   ServerCapabilities,
 } from './protocol.ts';
 
 import type {
+  ResourceContents,
   ToolAnnotations,
   ToolDefinition,
   ToolHandler,
@@ -93,6 +95,34 @@ export type RegisteredTool = {
 
 //endregion
 
+//region Resource provider: optional dynamic resource surface
+
+/**
+ Provider answering `resources/list` and `resources/read` for one server.
+ `read` throws for unknown URIs so the dispatcher can report them as request errors
+ instead of smuggling absence through a nullable return.
+ 
+ @example
+ ```ts
+ const provider: ResourceProvider = {
+   list: () => [{ uri: 'search-fetch://response/abc', name: 'full response' }],
+   read: async (uri) => ({ uri, text: 'full response text' }),
+ };
+ ```
+ */
+export type ResourceProvider = {
+  /**
+   Lists every currently readable resource.
+   */
+  readonly list: () => readonly ResourceDescriptor[] | Promise<readonly ResourceDescriptor[]>;
+  /**
+   Reads one resource by URI.
+   */
+  readonly read: (uri: string) => Promise<ResourceContents>;
+};
+
+//endregion
+
 //region Server configuration: identity and discovery payload
 
 /**
@@ -118,6 +148,10 @@ export type McpServerConfig = {
   readonly capabilities?: ServerCapabilities;
   readonly discoverCache?: CacheHint;
   readonly toolsCache?: CacheHint;
+  /**
+   Freshness hint for `resources/list` and `resources/read` payloads.
+   */
+  readonly resourcesCache?: CacheHint;
 };
 
 //endregion

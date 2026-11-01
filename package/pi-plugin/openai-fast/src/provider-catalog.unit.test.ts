@@ -4,7 +4,7 @@
  @module
  */
 import type { Api, AnyModel, Credential, Model, Provider, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { createPriorityProvider, priorityTarget, } from '../dist/final/node/index.mjs';
 import { caughtFailure, fixtureModel, } from './host-fixture-model.ts';
@@ -88,7 +88,7 @@ await describe({ name: '', children: [
       const adapter = createPriorityProvider({ provider: bootstrap.provider,
         isConfigured: function isConfigured() { return Promise.resolve(true,); },
         getProvider: function getProvider() { catalogState.reads += 1;
-        return live.provider; },
+          return live.provider; },
         lookup: function lookup(id) { return live.state.models.find(function matchesModel(model: ForeignBorrowed<Model<Api>>) {
           return model.id === id;
         },); },

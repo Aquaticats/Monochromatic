@@ -53,7 +53,7 @@ Immediate action required:
    - Input validation for all user-facing applications
    - Secrets management audit and implementation
 
-3. **Core Library Completion** → [Packages Todo](packages.md#module-library-packages-modulees)
+3. **Core Library Completion** → [Packages Todo](packages.md#module-library-packagemodulees)
    - Missing async iterator utilities for complete functional programming
    - Essential array and object utilities for developer productivity
    - Type guard and validation utilities for type safety
@@ -100,7 +100,7 @@ Nice-to-have features and experimental improvements.
    - Experimental patterns and libraries
    - Integration with external tools and services
 
-2. **Optimization Projects** → [Performance Todo](performance.md#advanced-optimization)
+2. **Optimization Projects** → [Performance Todo](performance.md#phase-3-advanced-weeks-5-8)
    - Advanced caching strategies
    - Infrastructure performance tuning
    - Predictive analytics and monitoring
@@ -124,10 +124,10 @@ Nice-to-have features and experimental improvements.
 ### Next Sprint Candidates
 
 - **Package Development**:
-   Expanding module library functionality → [Packages Todo](packages.md#module-library-packages-modulees)
+   Expanding module library functionality → [Packages Todo](packages.md#module-library-packagemodulees)
 - **Performance**:
    Build system optimization → [Performance Todo](performance.md#build-performance)
 - **Documentation**:
-   API documentation automation → [Documentation Todo](documentation.md#api-documentation)
+   API documentation automation → [Documentation Todo](documentation.md#api-documentation-automation)
 - **Automation**:
    CI/CD pipeline enhancement → [Automation Todo](automation.md#cicd-pipeline)

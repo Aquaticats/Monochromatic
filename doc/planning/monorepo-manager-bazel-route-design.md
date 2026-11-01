@@ -191,7 +191,8 @@ Ranked most severe first.
    so system upgrades can leave stale outputs.
 7. Cargo remains for publishing and fuzzing,
    so Rust keeps two build definitions.
-8. pnpm `overrides` shims and `.pnpmfile.mjs` stubs are expected to reference package-store targets rules_js never creates;
+8. pnpm `overrides` shims and `.pnpmfile.mjs` stubs are expected
+   to reference package-store targets rules_js never creates;
    this is from source reading and needs a prototype.
 
 ## Result

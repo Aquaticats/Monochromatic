@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import { Text, } from '@earendil-works/pi-tui';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   type Static,
@@ -31,11 +31,11 @@ import {
 export const ASK_USER_QUESTION_TOOL_NAME = 'ask_user_question';
 
 /**
- One unrestricted model-authored question.
+ One free-form string per call, carrying any number of model-authored questions.
  */
 const AskUserQuestionParameters: TObject<{ question: TString; }> = Type.Object({
   question: Type.String({
-    description: 'Free-form question text to show in the Pi transcript while waiting for the user answer.',
+    description: 'Free-form question text to show in the Pi transcript while waiting for the user answer. May contain multiple questions (for example numbered) so one call carries a whole round of questions.',
   }),
 },);
 
@@ -73,7 +73,7 @@ export type ExternalAnswerRequester = (
 type AskUserQuestionToolDefinition = ToolDefinition<
   typeof AskUserQuestionParameters,
   AskUserQuestionDetails
->;
+  >;
 
 //endregion Types
 
@@ -114,7 +114,7 @@ function createAskUserQuestionTool(
   return {
     name: ASK_USER_QUESTION_TOOL_NAME,
     label: 'Ask User Question',
-    description: 'Ask the user free-form questions and block model execution until the user submits or cancels a multiline answer in the default editor.',
+    description: 'Ask the user free-form questions and block model execution until the user submits or cancels a multiline answer in the default editor. A call carries one free-form string, and that string may contain any number of questions (for example numbered), so batch a whole round of questions into one call instead of calling once per question; the user answers them together in one multiline answer.',
     promptSnippet: 'Ask the user free-form questions and wait for a multiline answer',
     parameters: AskUserQuestionParameters,
     executionMode: 'sequential',
@@ -137,34 +137,34 @@ function createAskUserQuestionTool(
      @mutates ctx - external requester uses host cancellation and working directory capabilities
      */
       async function executeAskUserQuestion(
-      _toolCallId: string,
-      params: { readonly question: string; },
+        _toolCallId: string,
+        params: { readonly question: string; },
       // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- Pi ToolDefinition.execute dictates this positional signal before required callback and context parameters.
-      signal: ForeignHostCapability<AbortSignal> | undefined,
-      _onUpdate: unknown,
-      ctx: ForeignHostCapability<ExtensionContext>,
-    ): Promise<AgentToolResult<AskUserQuestionDetails>> {
+        signal: ForeignHostCapability<AbortSignal> | undefined,
+        _onUpdate: unknown,
+        ctx: ForeignHostCapability<ExtensionContext>,
+      ): Promise<AgentToolResult<AskUserQuestionDetails>> {
       /**
        UTF-8 question size logged without exposing model-authored content.
        */
-      const questionBytes = Buffer.byteLength(
-        params.question,
-        'utf8',
-      );
-      l.info(`invoked in ${ctx.mode} mode with ${String(questionBytes,)} question bytes`,);
-      if (ctx.mode !== 'tui')
-        throw new AskUserQuestionUnavailableError();
+        const questionBytes = Buffer.byteLength(
+          params.question,
+          'utf8',
+        );
+        l.info(`invoked in ${ctx.mode} mode with ${String(questionBytes,)} question bytes`,);
+        if (ctx.mode !== 'tui')
+          throw new AskUserQuestionUnavailableError();
       /**
        External editor interaction while model remains blocked.
        */
-      const outcome = await requestAnswer({
-        cwd: ctx.cwd,
-        ...(signal === undefined ? {} : { signal, }),
-      },);
-      if (outcome.status === 'cancelled')
-        return buildCancelledResult();
-      return buildAnsweredResult({ answer: outcome.answer, },);
-    },
+        const outcome = await requestAnswer({
+          cwd: ctx.cwd,
+          ...(signal === undefined ? {} : { signal, }),
+        },);
+        if (outcome.status === 'cancelled')
+          return buildCancelledResult();
+        return buildAnsweredResult({ answer: outcome.answer, },);
+      },
     /* oxlint-disable unicorn/consistent-function-scoping -- ToolDefinition.renderCall expects positional host arguments. */
     renderCall:
     /**
@@ -181,26 +181,26 @@ function createAskUserQuestionTool(
      @mutates theme - theme methods can update Pi host styling caches
      */
       function renderAskUserQuestionCall(
-      args: { readonly question: string; },
-      theme: ForeignHostCapability<Theme>,
-      _context: unknown,
-    ) {
+        args: { readonly question: string; },
+        theme: ForeignHostCapability<Theme>,
+        _context: unknown,
+      ) {
       /**
        Complete question with terminal controls made visible instead of executable.
        */
-      const question = visibleTerminalText({ text: args.question, },);
-      return new Text(
-        [
-          theme.fg(
-            'toolTitle',
-            theme.bold('ask_user_question',),
-          ),
-          question,
-        ].join('\n',),
-        0,
-        0,
-      );
-    },
+        const question = visibleTerminalText({ text: args.question, },);
+        return new Text(
+          [
+            theme.fg(
+              'toolTitle',
+              theme.bold('ask_user_question',),
+            ),
+            question,
+          ].join('\n',),
+          0,
+          0,
+        );
+      },
     /* oxlint-enable unicorn/consistent-function-scoping */
   };
 }

@@ -160,6 +160,42 @@ No further Pro call was made to repair the original record.
 
 ## Upstream filing decision
 
+### Span 02 verification, 2026-10-19
+
+The user subsequently requested trying `respan/span-02`.
+Current anonymous metadata lists endpoint `Respan | respan/span-02-20261015`.
+Eight bounded Decisions calls return HTTP `200`, that exact versioned model label,
+and complete categorical distributions.
+The `state` is the original Gateway input string;
+question instructions remain unchanged and choice descriptions become keyed `criteria`.
+This verifies string-state categorical requests for this observed Span 02 endpoint.
+It does not establish support for arbitrary object state or revise the historical Span 01 failures.
+
+The owned trial serializer is
+`${HOME}/temp/agent/pi-mimo-preparation-failure-20261018/run-span02-trial.ts`:
+
+```javascript
+// Private run-span02-trial.ts, request construction
+const request = {
+  model: manifest.model,
+  state: input,
+  questions: sourceQuestions,
+  provider: manifest.provider,
+};
+```
+
+Response model validation admits only the requested alias and exact versioned labels in the retained metadata.
+The trial checks explicit authorization and prohibition controls,
+three unchanged repeats of the recorded escalation,
+two recorded approvals and a new prohibition appended to the original conversation.
+All routes match the authored expectations.
+The [package trial evidence](../../package/pi-plugin/auto-mode/doc/span-02-trial.md)
+records distributions, measurements, receipt locations and limits.
+The hosted implementation remains uninspected; no server-source cause or general accuracy claim follows.
+No new failing pattern or upstream filing arises from this successful trial.
+
+### Historical Span 01 filing decision
+
 No issue,
 comment,
 or vendor message was sent.

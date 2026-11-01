@@ -8,7 +8,7 @@
    Build system performance improvements
 - [**Automation**](automation.md#cicd-pipeline):
    CI/CD pipeline integration
-- [**Package Development**](packages.md#module-library-packages-modulees):
+- [**Package Development**](packages.md#module-library-packagemodulees):
    Module library build requirements
 
 ## Critical Issues

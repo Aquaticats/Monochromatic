@@ -1,0 +1,1029 @@
+{
+  "format": "translation-repair-document-link-audit-v2",
+  "checkedTargets": 168,
+  "checkedFiles": 168,
+  "checkedAnchors": 14,
+  "checkedSameDocumentAnchors": 1,
+  "failureCount": 0,
+  "scope": [
+    "local Markdown and JSON destinations originating from translation-repair-named Markdown documents",
+    "local Markdown and JSON destinations from any Markdown document when the target name starts with translation-repair",
+    "same-document heading fragments originating from translation-repair-named Markdown documents"
+  ],
+  "parser": {
+    "markdown": "unified@11.0.5 plus remark-parse@11.0.0",
+    "headingText": "mdast-util-to-string@4.0.0",
+    "headingSlug": "github-slugger@2.0.0"
+  },
+  "checkerSha256": "b140d3060547a2a1eddd342ecd380f3668d12872807bc2507a9cdc8f568d1f70",
+  "checkedRows": [
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../../package/module/translation-repair/doc/redaction-timing.md",
+      "resolvedTarget": "../package/module/translation-repair/doc/redaction-timing.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-a-d.md#candidate-a-serial-accountable-document-producers",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-a-d.md#candidate-b-specification-first-translation-compiler",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-a-d.md#candidate-c-brief-before-prose-editorial-room",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-a-d.md#candidate-d-proposal-immutable-shell-slot-compiler",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-e-g.md#candidate-e-proposal-quote-bound-conditional-shell-adoption",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-e-g.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-e-g.md#rejected-candidate-f-witness-switched-donor-assembly",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-e-g.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-e-g.md#candidate-g-proposal-verified-realization-ledger",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-e-g.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-h-j.md#candidate-h-proposal-closed-world-verdict-with-bounded-defect-evidence",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-h-j.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-h-j.md#candidate-i-plan-candidate-scoped-compact-ballots",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-h-j.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-h-j.md#candidate-i-posture-after-kimi-route-rejection",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-h-j.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-k-m.md#candidate-k-plan-three-family-authors-with-conjunctive-review-units",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-k-m.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-k-m.md#candidate-l-plan-lean-realization-with-readable-verification",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-k-m.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "target": "../planning/translation-repair-interface-candidates-k-m.md#candidate-m-plan-risk-attested-authors-and-role-split-challengers",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-k-m.md",
+      "result": "target-anchor-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "#redaction-timing",
+      "resolvedTarget": "handover/translation-repair-document-map.md",
+      "result": "same-document-anchor-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-pipeline-redesign.md",
+      "resolvedTarget": "planning/translation-repair-pipeline-redesign.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-interface-candidates-a-d.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-interface-candidates-e-g.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-e-g.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-interface-candidates-h-j.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-h-j.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../planning/translation-repair-interface-candidates-k-m.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-k-m.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-history-secondary-split-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-history-secondary-split-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-history-indented-split-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-history-indented-split-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "translation-repair-overlap-dial.md",
+      "resolvedTarget": "handover/translation-repair-overlap-dial.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "translation-repair-run-continuity.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../runbook/translation-repair-corpus-pass.md",
+      "resolvedTarget": "runbook/translation-repair-corpus-pass.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-process-state-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-process-state-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-document-split-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-document-split-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-document-links-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-document-links-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-document-link-controls-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-document-link-controls-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../troubleshooting/README.md",
+      "resolvedTarget": "troubleshooting/README.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../../package/module/translation-repair/doc/redaction-timing.md",
+      "resolvedTarget": "../package/module/translation-repair/doc/redaction-timing.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-document-map.md",
+      "target": "../audit/translation-repair-sensitive-material-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-sensitive-material-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-handover-2026-08-25-to-27.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-handover-2026-08-26-close.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-handover-2026-08-29.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-03.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-04.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-03-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-01-early-foundation-segment-03-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-03-2026-08-07-to-12-segment-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-04-2026-08-12-to-15-segment-03.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-03.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-07-2026-08-21-to-23-segment-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-09-2026-08-23-to-24-segment-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-02.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-10-2026-08-25-calibration-segment-03.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-11-2026-08-26-audit-segment-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-document-map.md",
+      "resolvedTarget": "handover/translation-repair-document-map.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-02-subpart-01.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-02-subpart-02.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-02-subpart-03.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-03.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-02-subpart-04.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-02-subpart-04.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-03-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-03-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-01-early-foundation-segment-03-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-01-early-foundation-segment-03-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-02-2026-08-05-to-07-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-02-2026-08-05-to-07-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-02-2026-08-05-to-07-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-02-2026-08-05-to-07-segment-02-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-02-2026-08-05-to-07-segment-02-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-02-2026-08-05-to-07-segment-02-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-03-2026-08-07-to-12-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-03-2026-08-07-to-12-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-03-2026-08-07-to-12-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-03-2026-08-07-to-12-segment-02.md",
+      "resolvedTarget": "handover/translation-repair-history-03-2026-08-07-to-12-segment-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-04-2026-08-12-to-15-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-04-2026-08-12-to-15-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-04-2026-08-12-to-15-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-04-2026-08-12-to-15-segment-02-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-04-2026-08-12-to-15-segment-02-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-04-2026-08-12-to-15-segment-02-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-04-2026-08-12-to-15-segment-03.md",
+      "resolvedTarget": "handover/translation-repair-history-04-2026-08-12-to-15-segment-03.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-05-2026-08-15-to-19-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-05-2026-08-15-to-19-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-05-2026-08-15-to-19-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-05-2026-08-15-to-19-segment-02-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-05-2026-08-15-to-19-segment-02-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-05-2026-08-15-to-19-segment-02-part-03.md",
+      "resolvedTarget": "handover/translation-repair-history-05-2026-08-15-to-19-segment-02-part-03.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-06-2026-08-19-to-21-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-06-2026-08-19-to-21-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-06-2026-08-19-to-21-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-07-2026-08-21-to-23-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-07-2026-08-21-to-23-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-07-2026-08-21-to-23-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-07-2026-08-21-to-23-segment-02.md",
+      "resolvedTarget": "handover/translation-repair-history-07-2026-08-21-to-23-segment-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-08-2026-08-23-decisions-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-08-2026-08-23-decisions-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-08-2026-08-23-decisions-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-08-2026-08-23-decisions-segment-02-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-08-2026-08-23-decisions-segment-02-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-08-2026-08-23-decisions-segment-02-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-09-2026-08-23-to-24-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-09-2026-08-23-to-24-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-09-2026-08-23-to-24-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-09-2026-08-23-to-24-segment-02.md",
+      "resolvedTarget": "handover/translation-repair-history-09-2026-08-23-to-24-segment-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-10-2026-08-25-calibration-segment-01-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-10-2026-08-25-calibration-segment-01-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-10-2026-08-25-calibration-segment-01-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-10-2026-08-25-calibration-segment-02-part-01.md",
+      "resolvedTarget": "handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-10-2026-08-25-calibration-segment-02-part-02.md",
+      "resolvedTarget": "handover/translation-repair-history-10-2026-08-25-calibration-segment-02-part-02.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-10-2026-08-25-calibration-segment-03.md",
+      "resolvedTarget": "handover/translation-repair-history-10-2026-08-25-calibration-segment-03.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-11-2026-08-26-audit-segment-01.md",
+      "resolvedTarget": "handover/translation-repair-history-11-2026-08-26-audit-segment-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "resolvedTarget": "handover/translation-repair-history-12-2026-09-01-stop-segment-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-history.md",
+      "target": "../../package/module/translation-repair/doc/redaction-timing.md",
+      "resolvedTarget": "../package/module/translation-repair/doc/redaction-timing.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-overlap-dial.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-overlap-dial.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity-cache-fixes.md",
+      "target": "translation-repair-run-continuity.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity-measurement.md",
+      "target": "translation-repair-run-continuity.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity-supervision.md",
+      "target": "translation-repair-run-continuity.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity.md",
+      "target": "translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity.md",
+      "target": "translation-repair-run-continuity-supervision.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity-supervision.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity.md",
+      "target": "translation-repair-run-continuity-measurement.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity-measurement.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair-run-continuity.md",
+      "target": "translation-repair-run-continuity-cache-fixes.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity-cache-fixes.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../audit/translation-repair-process-state-2026-09-01.json",
+      "resolvedTarget": "audit/translation-repair-process-state-2026-09-01.json",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../../package/module/translation-repair/doc/redaction-timing.md",
+      "resolvedTarget": "../package/module/translation-repair/doc/redaction-timing.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-document-map.md",
+      "resolvedTarget": "handover/translation-repair-document-map.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../planning/translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../planning/translation-repair-pipeline-redesign.md",
+      "resolvedTarget": "planning/translation-repair-pipeline-redesign.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-overlap-dial.md",
+      "resolvedTarget": "handover/translation-repair-overlap-dial.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-run-continuity.md",
+      "resolvedTarget": "handover/translation-repair-run-continuity.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "../troubleshooting/README.md",
+      "resolvedTarget": "troubleshooting/README.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-handover-2026-08-29.md",
+      "resolvedTarget": "handover/translation-repair-handover-2026-08-29.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-handover-2026-08-25-to-27.md",
+      "resolvedTarget": "handover/translation-repair-handover-2026-08-25-to-27.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-handover-2026-08-26-close.md",
+      "resolvedTarget": "handover/translation-repair-handover-2026-08-26-close.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "handover/translation-repair.md",
+      "target": "translation-repair-history.md",
+      "resolvedTarget": "handover/translation-repair-history.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-candidates-a-d.md",
+      "target": "translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-candidates-e-g.md",
+      "target": "translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-candidates-h-j.md",
+      "target": "translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-candidates-k-m.md",
+      "target": "translation-repair-interface-comparison.md",
+      "resolvedTarget": "planning/translation-repair-interface-comparison.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-candidates-k-m.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-comparison.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-comparison.md",
+      "target": "translation-repair-interface-candidates-a-d.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-a-d.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-comparison.md",
+      "target": "translation-repair-interface-candidates-e-g.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-e-g.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-comparison.md",
+      "target": "translation-repair-interface-candidates-h-j.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-h-j.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-interface-comparison.md",
+      "target": "translation-repair-interface-candidates-k-m.md",
+      "resolvedTarget": "planning/translation-repair-interface-candidates-k-m.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-pipeline-redesign.md",
+      "target": "../audit/translation-repair-redesign-failure-2026-09-01.md",
+      "resolvedTarget": "audit/translation-repair-redesign-failure-2026-09-01.md",
+      "result": "file-exists"
+    },
+    {
+      "source": "planning/translation-repair-pipeline-redesign.md",
+      "target": "../handover/translation-repair.md",
+      "resolvedTarget": "handover/translation-repair.md",
+      "result": "file-exists"
+    }
+  ]
+}

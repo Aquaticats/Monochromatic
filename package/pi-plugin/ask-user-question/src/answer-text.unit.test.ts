@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   isBlankAnswer,
@@ -16,40 +16,40 @@ await describe({
     describe({
       name: normalizeEditorAnswer.name,
       children: [
-          {
-            name: 'removes one final LF',
-            input: 'first\nsecond\n',
-            expected: 'first\nsecond',
+        {
+          name: 'removes one final LF',
+          input: 'first\nsecond\n',
+          expected: 'first\nsecond',
+        },
+        {
+          name: 'removes one final CRLF',
+          input: 'first\r\nsecond\r\n',
+          expected: 'first\r\nsecond',
+        },
+        {
+          name: 'preserves preceding final line ending',
+          input: 'answer\n\n',
+          expected: 'answer\n',
+        },
+        {
+          name: 'preserves text without final line ending',
+          input: 'answer',
+          expected: 'answer',
+        },
+        {
+          name: 'preserves lone final carriage return',
+          input: 'answer\r',
+          expected: 'answer\r',
+        },
+      ].map(function toNormalizationTest(testCase,) {
+        return it({
+          name: testCase.name,
+          fn: async () => {
+            expect(normalizeEditorAnswer({ text: testCase.input, }),)
+              .toBe(testCase.expected,);
           },
-          {
-            name: 'removes one final CRLF',
-            input: 'first\r\nsecond\r\n',
-            expected: 'first\r\nsecond',
-          },
-          {
-            name: 'preserves preceding final line ending',
-            input: 'answer\n\n',
-            expected: 'answer\n',
-          },
-          {
-            name: 'preserves text without final line ending',
-            input: 'answer',
-            expected: 'answer',
-          },
-          {
-            name: 'preserves lone final carriage return',
-            input: 'answer\r',
-            expected: 'answer\r',
-          },
-        ].map(function toNormalizationTest(testCase,) {
-          return it({
-            name: testCase.name,
-            fn: async () => {
-              expect(normalizeEditorAnswer({ text: testCase.input, }),)
-                .toBe(testCase.expected,);
-            },
-          },);
-        },),
+        },);
+      },),
     },),
     describe({
       name: isBlankAnswer.name,

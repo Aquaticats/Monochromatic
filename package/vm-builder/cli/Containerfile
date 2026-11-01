@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1
+# Custom dev VM image based on ucore-hci (Fedora CoreOS + HCI stack).
+# Pattern: https://github.com/ublue-os/image-template
+#
+# Layers on top of ucore-hci:
+# - KDE Plasma desktop (full plasma-workspace)
+# - Browser (LibreWolf) + password manager (KeePassXC)
+# - Terminal (Ghostty via COPR)
+# - Dev tools (helix, strace, inotify-tools, etc.)
+# - mise (task runner in the user's ~/.local/bin; tool versions are provisioned
+#   per worktree by `mise run toolchain:install`, never seeded into the image)
+# - User account with passwordless sudo
+
+FROM ghcr.io/ublue-os/ucore-hci:stable
+
+# Add LibreWolf RPM repo (domain changed from rpm.librewolf.net in 2026)
+RUN curl -fsSLo /etc/yum.repos.d/librewolf.repo \
+    https://repo.librewolf.net/librewolf.repo
+
+# Add scottames/ghostty COPR repo
+# shellcheck disable=SC1091
+RUN . /etc/os-release && \
+    curl -fsSL \
+      "https://copr.fedorainfracloud.org/coprs/scottames/ghostty/repo/fedora-${VERSION_ID}/scottames-ghostty-fedora-${VERSION_ID}.repo" \
+      -o /etc/yum.repos.d/scottames-ghostty.repo
+
+# Install all system packages in a single layer.
+# rpm-ostree is used because ucore-hci is an ostree native container.
+RUN rpm-ostree install \
+      plasma-workspace \
+      sddm \
+      konsole \
+      dolphin \
+      virt-manager \
+      librewolf \
+      keepassxc \
+      ghostty \
+      helix \
+      strace \
+      inotify-tools \
+      python3-devel \
+      potrace \
+      msitools \
+    && rpm-ostree cleanup -m \
+    && ostree container commit
+
+# Set graphical target and enable SDDM so KDE starts on boot.
+# ucore-hci defaults to multi-user.target; without this, SDDM never starts.
+# Symlinks must go in /usr/lib/systemd/system/ (the immutable ostree tree),
+# not /etc/systemd/system/ (which ostree three-way merges and may discard).
+RUN ln -sf graphical.target /usr/lib/systemd/system/default.target \
+    && mkdir -p /usr/lib/systemd/system/graphical.target.wants \
+    && ln -sf ../sddm.service /usr/lib/systemd/system/graphical.target.wants/sddm.service \
+    && ln -sf sddm.service /usr/lib/systemd/system/display-manager.service
+
+# Declare btrfs as the root filesystem for bootc-image-builder.
+# Without this, bootc-image-builder fails with "missing required info: DefaultRootFs"
+# because Fedora CoreOS / ucore does not ship a default.
+RUN mkdir -p /usr/lib/bootc/install \
+    && printf '%s\n' '[install.filesystem.root]' 'type = "btrfs"' \
+       > /usr/lib/bootc/install/00-ucore-dev.toml
+
+# Create user account with wheel group and passwordless sudo
+RUN useradd --create-home --groups wheel user \
+    && echo "user:password" | chpasswd \
+    && printf '%s\n' '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel-nopasswd \
+    && chmod 0440 /etc/sudoers.d/wheel-nopasswd
+
+# Configure SDDM auto-login for user
+RUN mkdir -p /etc/sddm.conf.d \
+    && printf '%s\n' '[Autologin]' 'User=user' 'Session=plasma' \
+       > /etc/sddm.conf.d/autologin.conf
+
+# Install mise as user (goes to ~/.local/bin/mise).
+# It runs repository tasks (`mise run`) only; tool versions are not managed here.
+# Done after useradd so the home directory exists.
+USER user
+RUN curl -fsSL https://mise.jdx.dev/install.sh | sh
+USER root
+
+# Bake dotfiles from package/config/dotfiles/ into the user's ~/.config/.
+# Build context is the monorepo root, so paths are relative to that.
+COPY --chown=user:user package/config/dotfiles/ghostty/ /home/user/.config/ghostty/

@@ -1,3 +1,8 @@
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 <!--
 This document uses HTML <table> elements for every numeric grid, by explicit
 precedent (doc/decision/zstd-cli-to-node-zlib.md), overriding the repo's
@@ -137,14 +142,18 @@ M1 (NEON).
   <tbody>
     <tr><td>compile <code>\w{24}</code></td><td>5.1 ms, 7 MiB RSS</td><td>1 511 ms, 503 MiB RSS</td></tr>
     <tr><td>compile <code>\w{26}</code></td><td>5.5 ms</td><td>176 ms, 49 MiB RSS</td></tr>
-    <tr><td>compile <code>\w{500}</code></td><td>refused: <code>CompiledTooBig</code> after 68 ms</td><td>203 ms, 47 MiB RSS</td></tr>
+    <tr><td>compile <code>\w{500}</code></td><td>refused: <code>CompiledTooBig</code> after 68 ms</td><td>203 ms,
+47 MiB RSS</td></tr>
     <tr><td>compile <code>\w{24}</code>, Ascii mode</td><td>n/a</td><td>160 µs</td></tr>
     <tr><td>match <code>\w{24}</code>, 8 MiB dense ASCII (warm)</td><td>12.0 ms</td><td>16.3 ms</td></tr>
     <tr><td>match <code>\w{100}</code>, 8 MiB dense ASCII (warm)</td><td><b>3 640 ms</b></td><td>31.4 ms</td></tr>
-    <tr><td>match <code>\w{500}</code>, 8 MiB dense ASCII (warm)</td><td><b>19 435 ms</b> (size cap raised)</td><td>33.3 ms</td></tr>
+    <tr><td>match <code>\w{500}</code>,
+8 MiB dense ASCII (warm)</td><td><b>19 435 ms</b> (size cap raised)</td><td>33.3 ms</td></tr>
     <tr><td>first match <code>\w{24}</code>, 8 MiB multilingual</td><td>12.2 ms</td><td>24.3 ms (bounded path)</td></tr>
-    <tr><td>first match <code>\w{26}</code>, 8 MiB multilingual</td><td>12.8 ms</td><td><b>27 309 ms</b> (then 49 ms warm)</td></tr>
-    <tr><td>first match <code>\w{500}</code>, 8 MiB multilingual</td><td>n/a (refused)</td><td><b>49 564 ms</b> (then 50 ms warm)</td></tr>
+    <tr><td>first match <code>\w{26}</code>,
+8 MiB multilingual</td><td>12.8 ms</td><td><b>27 309 ms</b> (then 49 ms warm)</td></tr>
+    <tr><td>first match <code>\w{500}</code>,
+8 MiB multilingual</td><td>n/a (refused)</td><td><b>49 564 ms</b> (then 50 ms warm)</td></tr>
   </tbody>
 </table>
 
@@ -181,10 +190,12 @@ determinization to first-match for n >= 26 on inputs that exercise the wide clas
 
 <table>
   <tbody>
-    <tr><th>x86-64 host</th><td>AMD Ryzen 7 8700F (8c/16t, up to 5.06 GHz), 62 GiB RAM, Fedora 44, Linux 7.0.9, governor "performance"</td></tr>
+    <tr><th>x86-64 host</th><td>AMD Ryzen 7 8700F (8c/16t, up to 5.06 GHz), 62 GiB RAM, Fedora 44, Linux 7.0.9,
+governor "performance"</td></tr>
     <tr><th>arm64 host</th><td>Apple M1 (8 cores), macOS 26.5.1; exercises resharp's NEON SIMD paths</td></tr>
     <tr><th>rustc</th><td>1.98.0-nightly (x86 6bdf43094 / arm cb46fbb8c)</td></tr>
-    <tr><th>resharp</th><td>upstream main <code>c1b3b87788c89bbeb1c8be53a849902d28433747</code> (v0.6.12 + PR #20), path dep, <code>diag</code> feature</td></tr>
+    <tr><th>resharp</th><td>upstream main <code>c1b3b87788c89bbeb1c8be53a849902d28433747</code> (v0.6.12 + PR #20),
+path dep, <code>diag</code> feature</td></tr>
     <tr><th>regex</th><td>1.12.4 (regex-automata 0.4.14, regex-syntax 0.8.11, aho-corasick 1.1.4)</td></tr>
     <tr><th>profile</th><td>release, <code>debug = true</code> for symbols</td></tr>
   </tbody>
@@ -318,7 +329,8 @@ resharp Full compile,
   <tbody>
     <tr><td><code>\w{24}</code></td><td>1 539 ms</td><td>14.6 ms</td><td>wide in Full (3-4 byte word chars)</td></tr>
     <tr><td><code>\W{24}</code></td><td>1 655 ms</td><td>9.8 ms</td><td>negated word: very wide in Full</td></tr>
-    <tr><td><code>\p{L}{24}</code></td><td>1 179 ms</td><td>1 162 ms</td><td>all Unicode letters: wide regardless of mode</td></tr>
+    <tr><td><code>\p{L}{24}</code></td><td>1 179 ms</td><td>1 162 ms</td><td>all Unicode letters:
+wide regardless of mode</td></tr>
     <tr><td><code>[\w\s]{24}</code></td><td>1 527 ms</td><td>1 528 ms</td><td>wide union</td></tr>
     <tr><td><code>\p{Lu}{24}</code></td><td>13 ms</td><td>12.6 ms</td><td>uppercase letters: narrower</td></tr>
     <tr><td><code>\d{24}</code></td><td>2 ms</td><td>0.2 ms</td><td>narrow</td></tr>
@@ -400,7 +412,8 @@ that column as "regex out of the box",
  not "regex at its best":
 
 <table>
-  <thead><tr><th>Pattern</th><th>compile</th><th>first pass</th><th>warm</th><th>regex (default) warm, same haystack</th></tr></thead>
+  <thead><tr><th>Pattern</th><th>compile</th><th>first pass</th><th>warm</th><th>regex (default) warm,
+same haystack</th></tr></thead>
   <tbody>
     <tr><td><code>\w{24}</code> (bounded path)</td><td>1 512 ms</td><td>24.3 ms</td><td>16.3 ms</td><td>12.2 ms</td></tr>
     <tr><td><code>\w{26}</code></td><td>176 ms</td><td>27.3 s</td><td>49 ms</td><td>11.9 ms</td></tr>
@@ -479,9 +492,11 @@ Setting the proof result to a constant `false`:
 <table>
   <thead><tr><th>Metric</th><th>stock</th><th>P1 (skip proof)</th></tr></thead>
   <tbody>
-    <tr><td>compile <code>\w{8..25}</code> Full</td><td>0.5 s to 1.56 s (rising)</td><td><b>flat ~180 ms</b> (cliff gone)</td></tr>
+    <tr><td>compile <code>\w{8..25}</code> Full</td><td>0.5 s
+to 1.56 s (rising)</td><td><b>flat ~180 ms</b> (cliff gone)</td></tr>
     <tr><td>compile <code>\w{24}</code></td><td>1 512 ms</td><td>176 ms</td></tr>
-    <tr><td><code>\w{24}</code> cold match, uni_mixed</td><td>24 ms (accelerator on)</td><td><b>25.8 s</b> (accelerator off)</td></tr>
+    <tr><td><code>\w{24}</code> cold match,
+uni_mixed</td><td>24 ms (accelerator on)</td><td><b>25.8 s</b> (accelerator off)</td></tr>
     <tr><td><code>\w{24}</code> warm match, run1k</td><td>16.3 ms</td><td>25.4 ms</td></tr>
   </tbody>
 </table>
@@ -567,7 +582,8 @@ ahead-of-time path that discharges both cliffs at consumption time.
 <table>
   <thead><tr><th>Step</th><th>cost</th><th>vs uncached</th></tr></thead>
   <tbody>
-    <tr><td>compile + <code>dump()</code> (one-time, offline)</td><td>188 ms + <b>31.4 s</b>, 11.3 MiB blob</td><td>same work as the first-match cliff</td></tr>
+    <tr><td>compile + <code>dump()</code> (one-time, offline)</td><td>188 ms + <b>31.4 s</b>,
+11.3 MiB blob</td><td>same work as the first-match cliff</td></tr>
     <tr><td><code>load()</code></td><td><b>7.5 ms</b></td><td>vs 176 ms compile</td></tr>
     <tr><td>first pass, 2.2 MiB real Chinese</td><td><b>9.8 ms</b> (1 938 matches)</td><td>vs 18.5 s, ~1 900x</td></tr>
     <tr><td>first pass, 8 MiB uni_mixed</td><td><b>49 ms</b> (38 122 matches, correct)</td><td>vs 27-30 s</td></tr>
@@ -668,7 +684,8 @@ mainstream engines cannot express conjunction and negation in one pattern.
 <table>
   <thead><tr><th>Engine</th><th>Warm pass</th><th>Shape</th></tr></thead>
   <tbody>
-    <tr><td>regex (default)</td><td><b>314 ms</b></td><td>one suffix-literal-only rule costs 275 ms; the other 133 ~0.3 ms (literal prefilter)</td></tr>
+    <tr><td>regex (default)</td><td><b>314 ms</b></td><td>one suffix-literal-only rule costs 275 ms;
+the other 133 ~0.3 ms (literal prefilter)</td></tr>
     <tr><td>resharp Default</td><td>1.33 s</td><td>flat ~10 ms/rule, no literal acceleration</td></tr>
     <tr><td>resharp Full</td><td>1.34 s</td><td>flat ~10-17 ms/rule</td></tr>
   </tbody>
@@ -732,10 +749,12 @@ and these are the corrected numbers (whole-process wall,
 compile on 16 hardware threads):
 
 <table>
-  <thead><tr><th>Workload</th><th>A (mixed, prod)</th><th>B (all-regex)</th><th>C-Ascii (resharp, Ascii)</th><th>C-Default (resharp, default config)</th></tr></thead>
+  <thead><tr><th>Workload</th><th>A (mixed, prod)</th><th>B (all-regex)</th><th>C-Ascii (resharp,
+Ascii)</th><th>C-Default (resharp, default config)</th></tr></thead>
   <tbody>
     <tr><td>cold start (ruleset load)</td><td>8.8 ms</td><td>10.0 ms</td><td>52.6 ms</td><td><b>2 112 ms</b></td></tr>
-    <tr><td>cold start, 1 thread (<code>RAYON_NUM_THREADS=1</code>)</td><td>-</td><td>-</td><td>304 ms</td><td><b>16.5 s</b></td></tr>
+    <tr><td>cold start,
+1 thread (<code>RAYON_NUM_THREADS=1</code>)</td><td>-</td><td>-</td><td>304 ms</td><td><b>16.5 s</b></td></tr>
     <tr><td>Monochromatic <code>--all</code></td><td>70.8 ms</td><td>74.1 ms</td><td>154 ms</td><td>3 194 ms</td></tr>
     <tr><td>Linux kernel <code>--all</code> (88 k files)</td><td>1.82 s</td><td>1.80 s</td><td>5.48 s</td><td>11.6 s</td></tr>
     <tr><td>kernel peak RSS</td><td>399 MiB</td><td>383 MiB</td><td>371 MiB</td><td><b>4 825 MiB</b></td></tr>
@@ -820,11 +839,15 @@ with or without algebra.
 <table>
   <thead><tr><th>Task</th><th>resharp (one pass) warm</th><th>regex decomposition warm</th><th>note</th></tr></thead>
   <tbody>
-    <tr><td>lines with Tom AND Sawyer</td><td>10.4 ms</td><td>3.9 ms</td><td>regex prefilter wins on literal anchors</td></tr>
+    <tr><td>lines
+with Tom AND Sawyer</td><td>10.4 ms</td><td>3.9 ms</td><td>regex prefilter wins on literal anchors</td></tr>
     <tr><td>lines with Tom, NOT Sawyer</td><td>13.7 ms</td><td>3.9 ms</td><td>both correct</td></tr>
-    <tr><td>password-policy token</td><td>32.3 ms</td><td>9.1 ms</td><td>decomposition <b>overcounts by 1 054</b>: not equivalent</td></tr>
-    <tr><td>40-char base64 span containing a digit</td><td>15.3 ms</td><td>17.5 ms</td><td>resharp wins (no literal to prefilter)</td></tr>
-    <tr><td>hex secret w/ stopword negation, dense corpus</td><td>53 ms</td><td>23.3 ms</td><td>exact agreement (128 297 hits)</td></tr>
+    <tr><td>password-policy token</td><td>32.3 ms</td><td>9.1 ms</td><td>decomposition <b>overcounts by 1 054</b>:
+not equivalent</td></tr>
+    <tr><td>40-char base64 span containing a digit</td><td>15.3 ms</td><td>17.5 ms</td><td>resharp wins (no literal
+to prefilter)</td></tr>
+    <tr><td>hex secret w/ stopword negation,
+dense corpus</td><td>53 ms</td><td>23.3 ms</td><td>exact agreement (128 297 hits)</td></tr>
   </tbody>
 </table>
 

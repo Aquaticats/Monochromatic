@@ -1,0 +1,22 @@
+diff --git a/mise.toml b/mise.toml
+index 44d94ebf82..89c9f3355e 100644
+--- a/mise.toml
++++ b/mise.toml
+@@ -596,7 +596,7 @@ const { execFileSync } = await import('node:child_process')
+ const runPlaywright = (config, extraFlags = []) => {
+   execFileSync('mise', ['run', 'prepare:playwright'], { stdio: 'inherit' })
+   const args = parseUsageArgs(process.env.usage_args ?? '')
+-  execFileSync('podman', ['run', '--rm', '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
++  execFileSync('sudo', ['--non-interactive', 'podman', 'run', '--rm', '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
+ }
+ """
+ 
+@@ -1085,7 +1085,7 @@ description = "Build Playwright container image via podman"
+ shell = "node --input-type=module-typescript -e"
+ run = """
+ {{vars.dispatch_workspace_node}}
+-runWorkspaceNode('package/dev-script/task-util', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
++runWorkspaceNode('package/dev-script/task-util', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:sudo --non-interactive podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'sudo', '--non-interactive', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
+ """
+ 
+ # Android SDK components for package/music-player/android-app. The android-sdk

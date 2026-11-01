@@ -1,0 +1,209 @@
+// Licenses page opened by the Licenses row of Settings (doc/decision/music-player-third-party-licenses.md). It holds the
+// "Made with Slint" widget that Slint's Royalty-free license asks for in an About screen, and the license notices of
+// everything built into the program, the same text `music-player --licenses` prints. The page covers the whole window in
+// both forms. It is drawn on the one canvas color like Settings: no band, card or divider, only spacing.
+// The notice text is about 40,000 lines, so the page never holds it as one string: the host fills `lines` with a model
+// that hands out one line at a time, and the ListView builds only the lines in view.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { AboutSlint, ListView } from "std-widgets.slint";
+import { Focus, FocusStop, FocusRing, Keys } from "focus.slint";
+import { Scrollbar } from "scrollbar.slint";
+
+// Header with the Back target, the "Made with Slint" widget, and the scrolling notice text.
+export component LicensesPage inherits Rectangle {
+    background: Theme.canvas;
+    clip: true;
+
+    // The notice text, one source line per entry. A blank entry is a paragraph gap.
+    in property <[string]> lines: [];
+    // Fires when the Back target in the header is tapped or pressed from the keyboard, or Escape is pressed.
+    callback back();
+
+    // Back arrow path on a 24 by 24 grid, the same as the Settings header.
+    property <string> back-path: "M20 11 H7.83 l5.59 -5.59 L12 4 l-8 8 8 8 l1.41 -1.41 L7.83 13 H20 v-2 Z";
+    // Header, attribution band and notice heading, in the Settings page's measures.
+    property <length> header-height: 64px;
+    property <length> about-height: 112px;
+    property <length> heading-height: 44px;
+    // Top of the notice list.
+    property <length> list-top: root.header-height + root.about-height + root.heading-height;
+    // Text inset from each window edge, as the Settings headings (24 px), and room for the scrollbar's grab zone.
+    property <length> text-inset: 24px;
+    property <length> scrollbar-room: 16px;
+    // Distance one arrow key scrolls: three lines of the notice text.
+    property <length> line-step: 48px;
+
+    // Takes keyboard focus when the page opens, so Escape, the arrows and Tab act on this page at once.
+    init => {
+        text-focus.focus();
+    }
+
+    // Scrolls the notice list to `target`, kept between its top and its end.
+    function scroll-to-offset(target: length) {
+        notice-list.content-y = max(min(0px, notice-list.height - notice-list.content-height), min(0px, target));
+    }
+
+    // Header with the Back target and the page title, drawn on the canvas with no band and no divider.
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.header-height;
+
+        // Circular hover and pressed layer over the 56 px Back target, 16 px from the edge.
+        StateLayer {
+            x: 16px;
+            y: 4px;
+            width: 56px;
+            height: 56px;
+            radius: 28px;
+            tint: Theme.on-surface;
+            hovered: back-touch.has-hover;
+            pressed: back-touch.pressed;
+        }
+        Path {
+            x: 32px;
+            y: 20px;
+            width: 24px;
+            height: 24px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: root.back-path;
+            fill: Theme.on-surface;
+        }
+        back-touch := TouchArea {
+            x: 16px;
+            y: 4px;
+            width: 56px;
+            height: 56px;
+            mouse-cursor: pointer;
+            accessible-role: button;
+            accessible-label: "Back";
+            accessible-action-default => { root.back(); }
+            clicked => {
+                Focus.ring-visible = false;
+                root.back();
+            }
+            Tooltip {
+                text: @markdown("Back (\{Keys.texts.back})");
+            }
+        }
+        back-stop := FocusStop {
+            label: "licenses-back";
+            x: 16px;
+            y: 4px;
+            width: 56px;
+            height: 56px;
+            activated => { root.back(); }
+        }
+        FocusRing {
+            x: 16px;
+            y: 4px;
+            width: 56px;
+            height: 56px;
+            round: true;
+            active: back-stop.ring;
+        }
+        Text {
+            x: 98px;
+            y: 0px;
+            width: parent.width - 98px - 16px;
+            height: root.header-height;
+            text: "Licenses";
+            font-size: Theme.title-large;
+            color: Theme.on-surface;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // Keys of the notice list: arrows, page keys, Home and End move the text; with Control, Alt or Meta held they pass on.
+    // It is a button zone, so Enter and Space are left alone and the window's shortcuts keep working.
+    text-focus := FocusStop {
+        label: "licenses-text";
+        zone: 6;
+        activates: false;
+        x: 0px;
+        y: root.list-top;
+        width: root.width;
+        height: root.height - root.list-top;
+        extra-key(event) => {
+            if (event.modifiers.control || event.modifiers.alt || event.modifiers.meta) {
+                return false;
+            }
+            if (event.text == Key.DownArrow) {
+                root.scroll-to-offset(notice-list.content-y - root.line-step);
+            } else if (event.text == Key.UpArrow) {
+                root.scroll-to-offset(notice-list.content-y + root.line-step);
+            } else if (event.text == Key.PageDown) {
+                root.scroll-to-offset(notice-list.content-y - notice-list.height + root.line-step);
+            } else if (event.text == Key.PageUp) {
+                root.scroll-to-offset(notice-list.content-y + notice-list.height - root.line-step);
+            } else if (event.text == Key.Home) {
+                root.scroll-to-offset(0px);
+            } else if (event.text == Key.End) {
+                root.scroll-to-offset(notice-list.height - notice-list.content-height);
+            } else {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    // The attribution Slint's Royalty-free license asks for: its "Made with Slint" widget, in the page that is the
+    // program's About screen for licenses. The widget draws its own logo for the light and the dark scheme.
+    about-slint := AboutSlint {
+        x: 0px;
+        y: root.header-height;
+        width: root.width;
+        height: root.about-height;
+    }
+
+    // Heading of the notice text, in the Settings section heading style.
+    Text {
+        x: root.text-inset;
+        y: root.header-height + root.about-height + 16px;
+        width: root.width - 2 * root.text-inset;
+        height: 20px;
+        text: "Notices";
+        font-size: Theme.label-large;
+        font-weight: 500;
+        color: Theme.primary;
+    }
+
+    // The notice text. Lines wrap to the window width, so a row's height is its wrapped height.
+    notice-list := ListView {
+        x: 0px;
+        y: root.list-top;
+        width: root.width;
+        height: root.height - root.list-top;
+        accessible-role: list;
+        accessible-label: "License notices";
+
+        for line in root.lines : Rectangle {
+            width: notice-list.width;
+            height: max(notice-line.preferred-height, 14px);
+            notice-line := Text {
+                x: root.text-inset;
+                width: parent.width - root.text-inset - root.scrollbar-room;
+                text: line;
+                font-size: Theme.body-small;
+                color: Theme.on-surface-variant;
+                wrap: word-wrap;
+            }
+        }
+    }
+
+    // Scrollbar (D22), the same as the other lists: always visible and draggable for the pointer. The wheel passes through it.
+    Scrollbar {
+        x: root.width - self.width;
+        y: notice-list.y;
+        height: notice-list.height;
+        content-y: notice-list.content-y;
+        content-height: notice-list.content-height;
+        scroll-to(y) => {
+            notice-list.content-y = y;
+        }
+    }
+}

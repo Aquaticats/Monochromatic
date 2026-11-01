@@ -115,7 +115,7 @@ then its output.
      min 19.0 ms,
      median 20.7 ms,
      max 21.7 ms.
-  - `node` importing `package/dev-script/file-enforcer/src/index.ts` without running a config:
+  - `node` importing `package/file-enforcer/core/src/index.ts` without running a config:
      min 143.3 ms,
      median 146.8 ms,
      max 160.0 ms.
@@ -280,7 +280,8 @@ so each component is a directory of sibling modules.
    forbids allocation-dependent operations,
    and notes that `Error::new` and `Error::other` allocate
    (`STD/os/unix/process.rs:60-110`, verified;
-   the same text is on <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html>, std 1.98.1, verified by curl).
+   the same text is on <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html>, std 1.98.1,
+   verified by curl).
 - The child applies `setpgid` (`STD/sys/process/unix/unix.rs:346-348`) and `setsid` (`:350-352`)
    before running closures (`:388-390`),
    so the cgroup write happens after process-group setup (verified).
@@ -310,7 +311,8 @@ so each component is a directory of sibling modules.
    kernel `cgroup_css_set_fork`, `SCR/rust-stack/src/linux-cgroup.c:6863-6950`, verified).
   Rejected for 0.x:
   - std's spawn has no `clone3` path;
-     `rg 'pidfd|PidFd|create_pidfd|clone3|CLONE_INTO_CGROUP'` over `STD/sys/process/unix/unix.rs` matched only pidfd lines (verified).
+     `rg 'pidfd|PidFd|create_pidfd|clone3|CLONE_INTO_CGROUP'`
+     over `STD/sys/process/unix/unix.rs` matched only pidfd lines (verified).
   - A `clone3` spawn needs hand-written exec,
      standard-descriptor setup,
      and error reporting that std already implements.
@@ -322,7 +324,8 @@ so each component is a directory of sibling modules.
 - pidfd:
    std's `create_pidfd` is nightly-only (`linux_pidfd`, issue 82971)
    (`STD/os/linux/process.rs:5`, `:191-210`, verified;
-   <https://doc.rust-lang.org/std/os/linux/process/trait.CommandExt.html> shows "This is a nightly-only experimental API", verified by curl).
+   <https://doc.rust-lang.org/std/os/linux/process/trait.CommandExt.html> shows "This is a nightly-only experimental
+   API", verified by curl).
   `rustix::process::pidfd_open` is stable
    (`REG/rustix-1.1.4/src/process/pidfd.rs:20-30`, verified).
 - `std::thread::available_parallelism` reads cgroup quotas on Linux and is recomputed on every call
@@ -642,7 +645,8 @@ so each component is a directory of sibling modules.
    `needless_return = "allow"` (`doc/planning/cargo-toml-file-enforcer.md:86-91`, verified);
    the root `clippy.toml` bans `Result::unwrap` (verified).
 - No Cargo workspace;
-   every crate is its own root with an empty `[workspace]` table (`doc/planning/cargo-toml-file-enforcer.md:12-22`, `:92-98`, verified).
+   every crate is its own root with an empty `[workspace]` table
+   (`doc/planning/cargo-toml-file-enforcer.md:12-22`, `:92-98`, verified).
 - Toolchain:
    floating `nightly` for every crate with no per-package override (`mise.no-env.toml:80-93`, verified);
    no `rust-toolchain*` file exists
@@ -652,7 +656,7 @@ so each component is a directory of sibling modules.
    `lint:clippy`,
    `lint:rust` via `monochromatic-rust-linter`,
    and `test` as `cargo nextest run --release`
-   (`package/cli/forbidden-strings/mise.toml`, verified);
+   (`package/forbidden-strings/cli/mise.toml`, verified);
    `cargo-nextest` is a root tool (`mise.no-env.toml:105`, verified).
 - Release precedent:
    `.github/workflows/cargo-publish.yml` has per-crate job sets.
@@ -662,7 +666,8 @@ so each component is a directory of sibling modules.
    so release binaries use the runner's default toolchain rather than the repository's nightly
    (which toolchain the runner provides is unverified).
   A Linux-only binary already has precedent in the `nws-*` jobs (x86_64 and aarch64 GNU only, verified).
-  The same workflow's shell logic is cited as an embedded-code gap in `doc/planning/load-bearing-code-languages.md:29-33` (verified).
+  The same workflow's shell logic is cited as an embedded-code gap in
+  `doc/planning/load-bearing-code-languages.md:29-33` (verified).
 - Recorded Rust build durations:
   - forbidden-strings clean release build 50.86 s after the build-override fix
      (`doc/troubleshooting/cargo-build-override-opt-level.md:247`, verified).
@@ -672,7 +677,8 @@ so each component is a directory of sibling modules.
      40.53 s (`doc/decision/kotlin-android-kopia-pcloud-vet-report/vet-tauri.md:330`, verified).
   - mise built from source in a bounded container,
      4 min 17 s (`doc/troubleshooting/mise-rust-components.md:546`, verified).
-  - Nothing is recorded for a tokio daemon of this shape (absence in the `rg` over `doc` and `package` Markdown, verified).
+  - Nothing is recorded for a tokio daemon of this shape
+     (absence in the `rg` over `doc` and `package` Markdown, verified).
 - Existing tokio use:
    `rt`,
    `sync`,
@@ -680,7 +686,8 @@ so each component is a directory of sibling modules.
    (`package/music-player/desktop-app/Cargo.toml:116`, `package/music-player/android-app/rust/Cargo.toml:81`, verified);
    no repository crate uses tokio networking or process APIs (inference from that `rg`).
 - Language approval:
-   the proposal keeps "TypeScript as default for repository automation" (`doc/planning/load-bearing-code-languages.md:82`, verified)
+   the proposal keeps "TypeScript as default for repository automation"
+   (`doc/planning/load-bearing-code-languages.md:82`, verified)
    and says approval is explicit per scope,
    not inferred from existing files (`:108-114`, verified).
   Both options need Rust approved for this scope.
@@ -698,7 +705,8 @@ unless noted.
 - `notify` 8.2.0,
    <https://docs.rs/notify/latest/notify/>:
   - The Installation section shows `notify = 8.1.0` on the 8.2.0 page (verified).
-  - "Linux: Bad File Descriptor / No space left on device" says to run `sudo sysctl fs.inotify.max_user_watches=524288` and then `sudo sysctl -p`,
+  - "Linux: Bad File Descriptor / No space left on device" says to run `sudo sysctl fs.inotify.max_user_watches=524288`
+     and then `sudo sysctl -p`,
      which reloads the configuration file rather than persisting the value just set,
      so the remediation reads as persistent when it is not (verified text; `sysctl -p` semantics from recall).
   - The example comment "All files and directories at that path and below will be monitored"
@@ -710,7 +718,8 @@ unless noted.
      "Serve a service over a TCP connection",
      while the signature accepts any `AsyncRead + AsyncWrite` (`server/src/utils.rs:86-99`, verified).
   - <https://docs.rs/jsonrpsee-server/latest/jsonrpsee_server/struct.ServerConfigBuilder.html>:
-     "`n` messages can be buffered and if the client can't keep with up the server." is an incomplete sentence (`server/src/server.rs:448-450`, verified).
+     "`n` messages can be buffered and if the client can't keep
+     with up the server." is an incomplete sentence (`server/src/server.rs:448-450`, verified).
   - <https://docs.rs/jsonrpsee/latest/jsonrpsee/server/fn.serve.html> returns "This page does not exist" (verified).
   - Result:
      cull `jsonrpsee`.
@@ -749,7 +758,8 @@ unless noted.
 - `tokio::signal::ctrl_c`,
    <https://docs.rs/tokio/latest/tokio/signal/fn.ctrl_c.html>:
    the doc of a function returning a future says "Even if this `Signal` instance is dropped",
-   and "the time it arrives, it will be translated to a stream event" is garbled (`REG/tokio-1.53.1/src/signal/ctrl_c.rs:18-31`, verified).
+   and "the time it arrives, it will be translated to a stream event" is garbled
+   (`REG/tokio-1.53.1/src/signal/ctrl_c.rs:18-31`, verified).
   Result:
    cull `ctrl_c`;
    use `tokio::signal::unix::signal`,
@@ -764,7 +774,8 @@ unless noted.
    <https://docs.rs/tokio-util/latest/tokio_util/codec/struct.LinesCodec.html>:
    "Subsequent calls will discard up to `limit` bytes from that line until a newline character is reached"
    leaves unclear what happens to the rest of an overlong line,
-   and names `limit` for a parameter called `max_length` (`REG/tokio-util-0.7.18/src/codec/lines_codec.rs:50-59`, verified).
+   and names `limit` for a parameter called `max_length`
+   (`REG/tokio-util-0.7.18/src/codec/lines_codec.rs:50-59`, verified).
   Result:
    cull;
    use `take` plus `read_until`.
@@ -794,7 +805,8 @@ unless noted.
 - <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html> (`pre_exec`, `process_group`).
 - <https://doc.rust-lang.org/std/os/linux/process/struct.PidFd.html> (loaded; unstable API not used).
 - <https://docs.rs/tokio/latest/tokio/process/struct.Command.html> (loaded; module culled).
-- <https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html> (lag semantics clear; not used, the event ring replaces it).
+- <https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html>
+   (lag semantics clear; not used, the event ring replaces it).
 - <https://docs.rs/tokio/latest/tokio/io/trait.AsyncBufReadExt.html> (`read_until`).
 - <https://docs.rs/tokio/latest/tokio/io/unix/struct.AsyncFd.html> (edge-triggered readiness text present).
 - <https://docs.rs/tokio/latest/tokio/net/unix/pipe/struct.Receiver.html> (`from_owned_fd`).
@@ -818,7 +830,8 @@ unless noted.
 - Option-specific pages are listed in each option's R9.
 
 Noted without culling:
-the `std::os::unix::net::UnixListener::bind` example prints "Couldn't connect" on a bind failure (`STD/os/unix/net/listener.rs:56-67`).
+the `std::os::unix::net::UnixListener::bind` example prints "Couldn't connect" on a bind failure
+(`STD/os/unix/net/listener.rs:56-67`).
 
 ### R10 maturity and maintenance
 
@@ -898,7 +911,8 @@ fetched 2026-09-16.
      ported.
   - FE18 and FE19 package provisioning and the Repology index:
      ported,
-     or delegated to Meta Package Manager as the vet allows (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:195-217`, per the research doc).
+     or delegated to Meta Package Manager as the vet allows
+     (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:195-217`, per the research doc).
   - FE21 to FE23 watching,
      protection,
      and echo suppression:
@@ -952,7 +966,7 @@ As "Shared Rust core evidence",
 As "Shared Rust core evidence",
 "R5 hashing".
 FE09's destination SHA-256 checks
-(`package/dev-script/file-enforcer/src/io/staleness-destination-match.ts:30-76`, per the research doc)
+(`package/file-enforcer/core/src/io/staleness-destination-match.ts:30-76`, per the research doc)
 can move to BLAKE3 in a rewrite,
 which invalidates every existing manifest once (inference).
 
@@ -964,7 +978,7 @@ As "Shared Rust core evidence",
 ### R7 file-enforcer interop
 
 Rewrite scope,
-measured by `SCR/rust-fe-count.ts` over `package/dev-script/file-enforcer/src`.
+measured by `SCR/rust-fe-count.ts` over `package/file-enforcer/core/src`.
 Code lines exclude blank lines and comment-only lines by a line heuristic,
 so they are approximate.
 
@@ -1010,7 +1024,7 @@ so they are approximate.
    the file-enforcer API,
    and `@monochromatic-dev/config-pnpr/ts` (`file-enforcer.config.ts:1-34`, verified).
 - Other TypeScript consumers:
-   `package/dev-script/vm-builder/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`;
+   `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`;
    `package/test-fixture/file-enforcer-perf/src/perf.config.ts:21` imports the API (verified).
 - Configuration rules:
    `AD2` says "Switch from config-as-data to TypeScript when conf needs logic" (`AGENTS.md:1737-1740`, verified).
@@ -1046,7 +1060,8 @@ so they are approximate.
 - Moving repository automation to Rust departs from the proposal's TypeScript default for repository automation
    (`doc/planning/load-bearing-code-languages.md:82`, verified).
 - The root `sync:files` tasks run the TypeScript CLI today
-   (`mise.no-env.toml:1120-1127`, per `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:64-66`, verified).
+   (`mise.no-env.toml:1120-1127`, per `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:64-66`,
+verified).
 
 ### R9 documentation quality
 
@@ -1143,7 +1158,7 @@ most severe first.
 - Each file-enforcer configuration evaluation is a task:
    `node <file-enforcer daemon entry> --config <absolute path> --events-fd 3`,
    spawned in its own task cgroup with `stdin` from `/dev/null`.
-- New TypeScript entry in `package/dev-script/file-enforcer`:
+- New TypeScript entry in `package/file-enforcer/core`:
    it sets the active config,
    imports the config,
    then writes the tracker's results as events on descriptor 3 and exits.
@@ -1170,7 +1185,7 @@ most severe first.
 - `stderr` carries tagged logs,
    which the daemon relays with a task prefix;
    the logger already writes to `stderr` in process runtimes
-   (`package/module/logger/src/sink/console.ts:226`, `:242`, verified).
+   (`package/logger/core/src/sink/console.ts:226`, `:242`, verified).
 - Descriptor 3 is created by `dup2` in the same `pre_exec` closure that joins the cgroup,
    avoiding `stdout` collisions with any library output.
 - The daemon's watcher subscribes to the union of tracked reads,
@@ -1304,7 +1319,8 @@ plus:
 - Everything in "Shared Rust core evidence",
    "R8 repository fit".
 - file-enforcer stays TypeScript,
-   matching the proposal's TypeScript default for repository automation (`doc/planning/load-bearing-code-languages.md:82`, verified).
+   matching the proposal's TypeScript default for repository automation
+   (`doc/planning/load-bearing-code-languages.md:82`, verified).
 - The root config keeps satisfying `AD2` (`AGENTS.md:1737-1740`, verified).
 - `vm-builder` and the perf fixture keep importing the TypeScript API unchanged.
 - The daemon needs Node 26 with type stripping on `PATH` for evaluations;

@@ -21,7 +21,7 @@ import {
 } from '@earendil-works/pi-ai/api/openai-responses';
 import { buildBaseOptions, } from '@earendil-works/pi-ai/api/simple-options';
 import { clampThinkingLevel, } from '@earendil-works/pi-ai/models';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   CODEX_API,

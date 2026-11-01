@@ -87,7 +87,8 @@ sh).
  every JS-backed ObjC delegate/handler is a libffi closure (Interop.
 mm:
 66-71 ffi_closure_alloc/ffi_prep_closure_loc).
- The NativeScript libffi fork (branch darind/v8-ios) compiles the aarch64 Apple port with FFI_EXEC_TRAMPOLINE_TABLE (src/aarch64/ffitarget.
+ The NativeScript libffi fork (branch darind/v8-ios) compiles the aarch64 Apple port
+  with FFI_EXEC_TRAMPOLINE_TABLE (src/aarch64/ffitarget.
 h:
 58-65,
  guarded on __MACH__).
@@ -207,7 +208,8 @@ background) for upload/download that the system continues after suspension,
  idle/charging-gated work.
  The runtime itself (Runtime.
 mm) does not extend background execution.
- So the kopia-to-pCloud transfer must be decomposed into discrete background-URLSession transfers plus BGProcessingTask resumption,
+ So the kopia-to-pCloud transfer must be decomposed
+  into discrete background-URLSession transfers plus BGProcessingTask resumption,
  not a single long-lived process.
  There is no NativeScript-specific blocker here and no NativeScript-specific help;
  the constraint is purely Apple's.
@@ -217,13 +219,15 @@ mm) does not extend background execution.
 
 Source:
  Architectural:
- NativeScript exposes BGTaskScheduler/NSURLSession via the metadata bridge (metadata-generator parses the iOS SDK headers;
+ NativeScript exposes BGTaskScheduler/NSURLSession via the metadata bridge (metadata-generator parses the iOS SDK
+  headers;
  SymbolLoader.
 mm resolves system frameworks,
  e.g. CFBundle path /System/Library/Frameworks SymbolLoader.
 mm:
 102).
- No background-extension code exists in /tmp/agent/nativescript-audit-20260612/NativeScript/runtime (grep for BGTask/URLSession in runtime returns no runtime-side background logic).
+ No background-extension code exists in /tmp/agent/nativescript-audit-20260612/NativeScript/runtime (grep
+  for BGTask/URLSession in runtime returns no runtime-side background logic).
  Apple platform fact:
  developer.
 apple.
@@ -241,7 +245,8 @@ Mechanism:
  so an in-app HTTP/S3 endpoint that kopia targets at 127.0.0.1 can be built on Network.
 framework (NWListener) or CFSocket/POSIX sockets,
  all exposed through metadata + libffi.
- Alternatively an Objective-C/Swift micro-server (e.g. GCDWebServer / Telegraph) is linked as a pod and driven from JS the same way.
+ Alternatively an Objective-C/Swift micro-server (e.g. GCDWebServer / Telegraph) is linked as a pod and driven
+  from JS the same way.
  There is no iOS prohibition on listening on a loopback socket in-process.
  Pure-JS server frameworks would run on the slow jitless interpreter,
  so the native-socket route is preferred for the streaming endpoint kopia hammers.
@@ -308,7 +313,8 @@ Output:
 Rust core reuse:
  REUSED via FFI,
  not rewritten.
- The existing symphonia+cpal Rust core (the music-player core) compiles as a staticlib and is driven through the exact same dlsym + libffi C-function bridge as kopia (wall 1).
+ The existing symphonia+cpal Rust core (the music-player core) compiles as a staticlib and is driven
+  through the exact same dlsym + libffi C-function bridge as kopia (wall 1).
  NativeScript is only the UI shell on top;
  it neither helps nor hinders the Rust audio pipeline.
  The Slint/winit/femtovg UI layer does NOT come along (NativeScript supplies its own UI),
@@ -341,7 +347,8 @@ int) plus a generated C header,
  and (b) register a JS-backed ObjC callback that actually fires,
  e.g. an NSURLSession (or NWListener) completion/delegate handler,
  or a UIButton tap handler,
- confirming the JS callback runs (proves the libffi FFI_EXEC_TRAMPOLINE_TABLE closure path works under jitless on a real,
+ confirming the JS callback runs (proves the libffi FFI_EXEC_TRAMPOLINE_TABLE closure path works under jitless
+  on a real,
  code-signed device).
  The decisive on-device signal:
  both the Rust return value AND the JS callback fire with NO EXC_BAD_ACCESS,
@@ -384,7 +391,8 @@ sh for the metadata generator,
    NSURLSession background upload to pCloud with delegate progress callbacks crossing the JS<->libffi-closure boundary,
    plus BGTaskScheduler resumption windows
 - FFI binding ergonomics vet:
-   cbindgen-generated C header -> NativeScript metadata regeneration -> typed-array/pointer marshalling for kopia and for the symphonia/cpal audio core (struct/by-ref encodings in FFICall.
+   cbindgen-generated C header -> NativeScript metadata regeneration -> typed-array/pointer marshalling for kopia and
+    for the symphonia/cpal audio core (struct/by-ref encodings in FFICall.
   cpp/TypeEncoding)
 - kopia static-lib packaging vet:
    gomobile c-archive .
@@ -537,7 +545,8 @@ c:
  non-executable config page,
 " but line 161 is only the `vm_address_t config_page;` struct-field declaration,
  and the comment immediately above it (line 160) literally reads "/* contiguous writable and executable pages */".
- The config page's actual non-executability is real but is established by the allocation logic in ffi_trampoline_table_alloc (config_page is vm_allocate'd at closures.
+ The config page's actual non-executability is real but is established by the allocation logic
+  in ffi_trampoline_table_alloc (config_page is vm_allocate'd at closures.
 c:
 198-200 and is never the target of the vm_remap onto the executable template at :
 211-213;

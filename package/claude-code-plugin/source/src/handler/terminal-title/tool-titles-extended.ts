@@ -16,17 +16,17 @@ import {
  */
 type ExtendedToolTitleName =
   | 'EnterPlanMode'
-  | 'ExitPlanMode'
-  | 'EnterWorktree'
-  | 'TaskCreate'
-  | 'TaskGet'
-  | 'TaskList'
-  | 'TaskOutput'
-  | 'TaskStop'
-  | 'TaskUpdate'
-  | 'CronCreate'
-  | 'CronDelete'
-  | 'CronList';
+    | 'ExitPlanMode'
+    | 'EnterWorktree'
+    | 'TaskCreate'
+    | 'TaskGet'
+    | 'TaskList'
+    | 'TaskOutput'
+    | 'TaskStop'
+    | 'TaskUpdate'
+    | 'CronCreate'
+    | 'CronDelete'
+    | 'CronList';
 
 /**
  Title entries for plan mode, worktree, task, and cron tools.

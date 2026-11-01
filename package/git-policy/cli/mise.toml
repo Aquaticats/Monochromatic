@@ -1,35 +1,98 @@
-[tasks.run]
-description = "Run git wrapper CLI"
-run = "node src/index.ts"
+[tasks."native:test:container"]
+description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 containers; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 128 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
+run = "node bin/test-native-container.ts"
+
+[tasks."native:interop"]
+description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- [--memory <size>] [--cpus <count>] <driver> [arguments]` from native-interop/ in it (the driver is old-format-driver; limits default to 2g and 2 CPUs and go before the driver name, because everything after it belongs to the driver)"
+run = "node bin/interop-native-container.ts"
+
+[tasks."native:mutation"]
+description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
+run = ["node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
+
+[tasks."native:mutation:scoped"]
+description = "Plant guard removals and run cargo-mutants for `-- --file <glob>` scopes (and `--examine <regex>` mutant-name patterns, `--timeout <s>`) against the last gate image; `--memory <size>`, `--cpus <count>` and `--pids-limit <count>` after the `--` override the 2g, 2 CPUs and 128 PIDs defaults"
+run = "node bin/mutate-native-container.ts"
+
+[tasks."native:mutation:parallel"]
+description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --"
+run = "node ../../mutation-test/cli-cargo-mutants/bin/mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --setenv NATIVE_MUTATION_SKIP_PLANTED=1 --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
+
+[tasks."native:mutation:list"]
+description = "List the mutants cargo-mutants finds in the native wrapper without building or running anything; `-- <options>` are passed on"
+run = "cargo mutants --list --no-config"
+
+[tasks."native:lock"]
+description = "Generate the standalone native wrapper Cargo lockfile"
+run = "cargo generate-lockfile --offline"
+
+[tasks."native:lock:members"]
+description = "Record a changed dependency list of the native wrapper in its lockfile without moving any other locked version"
+run = "cargo update --offline --workspace"
+
+[tasks."native:release"]
+description = "Bump the crate and the fuzz crate's exact pin, check, dry-run the publish and commit: `-- <from> <to> <note>` (quote the note; the shared crate-release options such as --memory-max follow the same --)"
+run = "node ../../crate-release/cli/bin/release.ts --crate-name monochromatic-git-policy-cli --crate-dir package/git-policy/cli --scope git-policy/cli --pin-file package/git-policy/cli.fuzz/Cargo.toml --check-bin cli-git-native --lock-task //package/git-policy/cli.fuzz:lock:members --unit-name cli-git-publish-dry"
+
+[tasks."native:release:wait"]
+description = "Wait for the cargo-publish run of a pushed release commit, then check crates.io and the GitHub release: `-- <sha> <version>`"
+run = "node ../../crate-release/cli/bin/wait-publish.ts --crate-name monochromatic-git-policy-cli"
+
+[tasks."native:build"]
+description = "Build the native wrapper executable on the host, for differential runs that start it by path"
+run = "cargo build --locked --offline --bin cli-git-native"
+
+[tasks."native:check"]
+description = "Type-check the native wrapper library, executable and test targets without running them"
+run = "cargo check --locked --offline --all-targets"
+
+[tasks."native:clippy"]
+description = "Lint the native wrapper on the host with the gate's Clippy flags; the container gate stays the authority"
+run = "cargo clippy --locked --offline --all-targets -- -D warnings"
+
+[tasks."native:clippy:windows"]
+description = "Type-check and lint the native wrapper library for x86_64-pc-windows-gnu with warnings denied; nothing is run"
+# Needs the Windows GNU standard library on the host: `rustup target add x86_64-pc-windows-gnu`.
+# The Linux gate never compiles the `#[cfg(not(unix))]` blocks; this is the only check that does.
+run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -D warnings"
+
+[tasks."native:test:host"]
+description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git 2.56.0"
+env = { CLI_GIT_LOCK_WAIT_SECONDS = "20", CLI_GIT_PUSH_LOCK_WAIT_SECONDS = "20" }
+run = "cargo nextest run --locked --offline --lib"
+
+[tasks."native:test:binary:host"]
+description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git 2.56.0 stays the authority"
+env = { CLI_GIT_LOCK_WAIT_SECONDS = "20", CLI_GIT_PUSH_LOCK_WAIT_SECONDS = "20" }
+run = "cargo nextest run --locked --offline --test native_binary"
+
+[tasks."test:git-image"]
+description = "Build the audited Git 2.56.0 release in the bounded Rust test image; `-- <git checkout> [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 128 PIDs; the make job count follows the whole CPUs)"
+run = "node bin/build-git-test-image.ts"
+
+[tasks."lint:clippy"]
+description = "Lint the native wrapper with Clippy, warnings denied; matches the sibling Rust CLI package/forbidden-strings/cli"
+run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
-extends = "build"
+description = "Build the native wrapper executable `cli-git-native` in release mode, the artifact the cargo-installed `git` runs"
+run = "cargo build --release --locked --offline --bin cli-git-native"
 
-[tasks.'build:js']
-extends = "build:js"
-
-[tasks.'build:js:node']
-extends = "build:js:node"
-
-[tasks.'watch:build']
-extends = "watch:build"
-
-[tasks.'watch:build:js']
-extends = "watch:build:js"
-
-[tasks.'watch:build:js:node']
-extends = "watch:build:js:node"
+[tasks."native:perf"]
+description = "Measure the latency the release wrapper adds to forwarded Git commands and explicit-path commits against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
+depends = ["build"]
+run = "node bin/native-perf.ts --binary target/release/cli-git-native --samples 30"
 
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
-[tasks.'lint:oxlint']
+[tasks."lint:oxlint"]
 extends = "lint:oxlint"
 
-[tasks.'lint:oxlint:paths']
+[tasks."lint:oxlint:paths"]
 description = "Lint explicitly selected git-policy-cli source paths without unrelated package diagnostics"
 usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
 shell = "node --input-type=module-typescript -e"
@@ -39,13 +102,13 @@ run = """
 const files = parseUsageArgs(process.env.usage_paths ?? '')
 if (files.length === 0) { throw new Error('lint:oxlint:paths requires at least one file') }
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', files)
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
 """
 
 [tasks."format:oxlint"]
 extends = "format:oxlint"
 
-[tasks.'format:oxlint:paths']
+[tasks."format:oxlint:paths"]
 description = "Auto-fix explicitly selected git-policy-cli paths with Oxlint without touching unrelated package files"
 usage = 'arg "[paths]" var=#true help="Package-relative files to fix"'
 shell = "node --input-type=module-typescript -e"
@@ -55,202 +118,13 @@ run = """
 const files = parseUsageArgs(process.env.usage_paths ?? '')
 if (files.length === 0) { throw new Error('format:oxlint:paths requires at least one file') }
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix', ...files])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
 """
 
-[tasks.'test:unit']
+[tasks."test:unit"]
 extends = "test:unit"
 
-[tasks.'verify:supported-runtime']
-description = "Import built public MJS and exercise representative CLI behavior at selected engines.node floor"
-run = "node src/runtime-contract.host-evidence.ts"
-
-[tasks.'pack:npm']
-description = "Build and create the unpublished npm tarball"
-depends = ["build"]
-# pnpm 12.3.4 drops --config.dedupe-direct-deps=false without a message; only the environment variable takes effect
-# (doc/troubleshooting/pnpm-pack-dedupe-direct-deps.md).
-env = { pnpm_config_dedupe_direct_deps = "false" }
-run = [
-  "pnpm install --force --filter @monochromatic-dev/git-policy-cli",
-  "node -e \"const { mkdirSync } = await import('node:fs'); mkdirSync('dist/pack', { recursive: true })\"",
-  "pnpm pack --pack-destination dist/pack",
-]
-
-[tasks.'test:built:trust']
-description = "Exercise packed shadow git trust lifecycle in a disposable container"
-depends = ["pack:npm"]
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { spawn } = await import('node:child_process')
-const { once } = await import('node:events')
-const { readFile } = await import('node:fs/promises')
-const { join } = await import('node:path')
-const packageRoot = process.cwd()
-const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
-const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-const child = spawn('podman', [
-  'run',
-  '--memory=1g',
-  '--cpus=1',
-  '--cap-add',
-  'SYS_ADMIN',
-  '--rm',
-  '--volume',
-  `${join(packageRoot, 'dist', 'pack', tarballName)}:/fixture/cli.tgz:ro,Z`,
-  '--volume',
-  `${join(packageRoot, 'src', 'trust', 'fixture')}:/fixture/tests:ro,Z`,
-  '--tmpfs',
-  '/work/recursive/child:rw,size=16m',
-  'docker.io/library/node:24-slim',
-  'node',
-  '/fixture/tests/built-trust-consumer.ts',
-], { stdio: 'inherit' })
-const [code] = await once(child, 'exit')
-if (code !== 0) throw new Error(`Packed trust container exited with ${String(code)}`)
-'''
-
-[tasks.'test:hk-config-cleanup']
-description = "Verify exact idempotent hk Git-config cleanup in disposable local and global fixtures"
-run = "node src/trust/fixture/hk-config-cleanup-consumer.ts"
-
-[tasks.'perf:lifecycle-latency']
-description = "Measure and enforce packed lifecycle latency budgets in a bounded container"
-depends = ["pack:npm"]
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { execFile, spawn } = await import('node:child_process')
-const { once } = await import('node:events')
-const { mkdir, readFile } = await import('node:fs/promises')
-const { join } = await import('node:path')
-const { promisify } = await import('node:util')
-const packageRoot = process.cwd()
-const evidenceRoot = join(packageRoot, 'dist/perf')
-await mkdir(evidenceRoot, { recursive: true })
-const execute = promisify(execFile)
-// Derived, never spelled out: a stale tarball under the previous package name
-// outlives a rename in dist/pack, so a literal path keeps mounting it and the
-// benchmark measures the package it replaced.
-const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
-const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-const tarballPath = join(packageRoot, 'dist/pack', tarballName)
-await readFile(tarballPath)
-const { stdout: revisionOutput } = await execute('/usr/bin/git', ['rev-parse', 'HEAD'], { cwd: packageRoot })
-const revision = revisionOutput.trim()
-const bootstrap = `
-const { execFile } = await import('node:child_process')
-const { mkdir } = await import('node:fs/promises')
-const { promisify } = await import('node:util')
-const run = promisify(execFile)
-await run('apt-get', ['update'])
-await run('apt-get', ['install', '--yes', '--no-install-recommends', 'git'])
-await mkdir('/work', { recursive: true })
-await run('npm', ['init', '--yes'], { cwd: '/work' })
-await run('npm', ['pkg', 'set', 'type=module'], { cwd: '/work' })
-await run('npm', ['install', '--ignore-scripts', '/fixture/cli.tgz'], { cwd: '/work' })
-await import('/work/perf/lifecycle-latency-benchmark.ts')
-`
-const child = spawn('podman', [
-  'run',
-  '--memory=2g',
-  '--cpus=2',
-  '--rm',
-  '--env',
-  'CLI_GIT_CAPTURE_LATENCY_BASELINE',
-  '--env',
-  `CLI_GIT_BENCHMARK_REVISION=${revision}`,
-  '--env',
-  'CLI_GIT_BENCHMARK_OUTPUT=/evidence/lifecycle-latency.json',
-  '--volume',
-  `${tarballPath}:/fixture/cli.tgz:ro,Z`,
-  '--volume',
-  `${evidenceRoot}:/evidence:rw,Z`,
-  '--volume',
-  `${join(packageRoot, 'perf')}:/work/perf:ro,Z`,
-  '--tmpfs',
-  '/work:rw,size=1g',
-  'docker.io/library/node:24-slim',
-  'node',
-  '--input-type=module-typescript',
-  '--eval',
-  bootstrap,
-], { stdio: 'inherit' })
-const [code] = await once(child, 'exit')
-if (code !== 0) throw new Error(`Lifecycle latency container exited with ${String(code)}`)
-'''
-
-[tasks.'perf:concurrent-commits']
-description = "Measure packed concurrent-commit throughput, lock holds, and lost races in a bounded container"
-depends = ["pack:npm"]
-usage = '''
-flag "--scenarios <ids>" help="Comma-separated scenario ids, measured in the listed order (default: the complete matrix)"
-flag "--output <name>" help="Evidence file name under dist/perf" default="concurrent-commit-latency.json"
-'''
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { execFile, spawn } = await import('node:child_process')
-const { once } = await import('node:events')
-const { mkdir, readFile } = await import('node:fs/promises')
-const { join } = await import('node:path')
-const { promisify } = await import('node:util')
-const packageRoot = process.cwd()
-const evidenceRoot = join(packageRoot, 'dist/perf')
-await mkdir(evidenceRoot, { recursive: true })
-const execute = promisify(execFile)
-const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
-const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-const tarballPath = join(packageRoot, 'dist/pack', tarballName)
-await readFile(tarballPath)
-const { stdout: revisionOutput } = await execute('/usr/bin/git', ['rev-parse', 'HEAD'], { cwd: packageRoot })
-const revision = revisionOutput.trim()
-const bootstrap = `
-const { execFile } = await import('node:child_process')
-const { mkdir } = await import('node:fs/promises')
-const { promisify } = await import('node:util')
-const run = promisify(execFile)
-await run('apt-get', ['update'])
-await run('apt-get', ['install', '--yes', '--no-install-recommends', 'git'])
-await mkdir('/work', { recursive: true })
-await run('npm', ['init', '--yes'], { cwd: '/work' })
-await run('npm', ['pkg', 'set', 'type=module'], { cwd: '/work' })
-await run('npm', ['install', '--ignore-scripts', '/fixture/cli.tgz'], { cwd: '/work' })
-await import('/work/perf/concurrent-commit-latency-benchmark.ts')
-`
-const child = spawn('podman', [
-  'run',
-  '--memory=2g',
-  '--cpus=2',
-  // An init reaps orphaned children; with the benchmark's Node as PID 1 they stay zombies
-  // until the container's 2048-PID limit fails spawns with EAGAIN.
-  '--init',
-  '--rm',
-  '--env',
-  `CLI_GIT_BENCHMARK_REVISION=${revision}`,
-  '--env',
-  `CLI_GIT_BENCHMARK_OUTPUT=/evidence/${process.env.usage_output ?? 'concurrent-commit-latency.json'}`,
-  '--env',
-  `CLI_GIT_BENCHMARK_SCENARIOS=${process.env.usage_scenarios ?? ''}`,
-  '--volume',
-  `${tarballPath}:/fixture/cli.tgz:ro,Z`,
-  '--volume',
-  `${evidenceRoot}:/evidence:rw,Z`,
-  '--volume',
-  `${join(packageRoot, 'perf')}:/work/perf:ro,Z`,
-  '--tmpfs',
-  '/work:rw,size=1g',
-  // Debian trixie: bookworm's Git 2.39.5 predates git merge-tree --merge-base (Git 2.40.0),
-  // so every commit that loses a landing race there fails fast with head-moved instead of replaying.
-  'docker.io/library/node:24-trixie-slim',
-  'node',
-  '--input-type=module-typescript',
-  '--eval',
-  bootstrap,
-], { stdio: 'inherit' })
-const [code] = await once(child, 'exit')
-if (code !== 0) throw new Error(`Concurrent-commit benchmark container exited with ${String(code)}`)
-'''
-
-[tasks.'e2e:concurrent:trace']
+[tasks."e2e:concurrent:trace"]
 description = "Mine anonymized commit shapes from repository history with real Git into e2e/commit-shape-trace.json"
 # Runs on the host with /usr/bin/git, bypassing the wrapper; the output holds shapes only
 # (no contents, paths, object IDs, messages, or author data).
@@ -273,66 +147,28 @@ const [code] = await once(child, 'exit')
 if (code !== 0) throw new Error(`commit-shape trace generator exited with ${String(code)}`)
 '''
 
-[tasks.'test:e2e:concurrent:image']
-description = "Build the concurrent-commit e2e image: Git 2.39.5, 2.40.0, and 2.55.0 from source, Node at the engines floor, packed cli-git"
-depends = ["pack:npm"]
-# Layer-cached: only the tarball layer rebuilds after a new pack. The build fetches Git sources
-# (checksum-pinned) and the tarball's npm dependencies; the suite itself runs with --network=none.
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { spawn } = await import('node:child_process')
-const { once } = await import('node:events')
-const { readFile } = await import('node:fs/promises')
-const { join } = await import('node:path')
-const packageRoot = process.cwd()
-// Derived, never spelled out, so a renamed package never mounts a stale tarball (see perf:lifecycle-latency).
-const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
-const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-const startedAt = performance.now()
-const child = spawn('podman', [
-  'build',
-  '--memory=2g',
-  '--tag', 'cli-git-concurrent-e2e',
-  '--file', 'e2e/concurrent-commits.Containerfile',
-  '--build-arg', `TARBALL=${tarballName}`,
-  join(packageRoot, 'dist', 'pack'),
-], { stdio: 'inherit' })
-const [code] = await once(child, 'exit')
-if (code !== 0) throw new Error(`concurrent e2e image build exited with ${String(code)}`)
-console.log(`concurrent e2e image built in ${String(Math.round((performance.now() - startedAt) / 1000))} s`)
-'''
+[tasks."test:e2e:concurrent:image"]
+description = "Build the base image of the concurrent-commit e2e suite: Git 2.55.0 from source, Node 24.11.0 and ssh-keygen (needs a network; GIT_POLICY_E2E_BASE_TAG names another tag than latest); `-- --memory <size>` overrides the 2g default"
+# Layer-cached: the Git builds keep their layers. The build fetches Git sources (checksum-pinned); the suite itself runs with --network=none.
+run = "node bin/e2e-native-container.ts base"
 
-[tasks.'test:e2e:concurrent']
-description = "Replay concurrent-commit workloads through the packed wrapper on Git 2.39.5, 2.40.0, and 2.55.0 in a bounded, network-isolated container"
-depends = ["test:e2e:concurrent:image"]
+[tasks."test:e2e:concurrent:native:image"]
+description = "Build the native end-to-end image: the release native executable linked as /opt/native/bin/git into the concurrent-commit e2e base image (built first when it does not exist); `-- --memory <size> --cpus <count>` override the 2g and 2 CPU defaults of the build"
+# Mount-free build in rust:1.97-bookworm (the e2e image's Debian release); GIT_POLICY_NATIVE_IMAGE_TAG names the image tag.
+run = "node bin/e2e-native-container.ts image"
+
+[tasks."test:e2e:concurrent:native"]
+description = "Replay concurrent-commit workloads through the native executable on Git 2.55.0 in a bounded, network-isolated container; the scenarios and invariants are the retired incumbent suite's, unchanged; `--memory <size>` and `--cpus <count>` override the 2g and 2 CPU defaults of the run only (the image build it depends on always uses the defaults)"
+depends = ["test:e2e:concurrent:native:image"]
 usage = '''
 flag "--seed <seed>" help="Replay this decimal seed (printed by every run)"
 flag "--scenario <names>" help="Comma-separated scenario names to run"
-flag "--git <versions>" help="Comma-separated Git versions to run (2.39.5, 2.40.0, 2.55.0)"
+flag "--git <versions>" help="Comma-separated Git versions to run (2.55.0)"
+flag "--memory <size>" help="Container memory, such as 512m or 2g (default 2g)"
+flag "--cpus <count>" help="Container CPUs, from 0.01, fractions allowed (default 2)"
 '''
-# Bounds per AGENTS.md BOX: 2 GiB, 2 CPUs, no network. Inputs are mounted read-only;
-# repositories are created inside the container and discarded with it.
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { spawn } = await import('node:child_process')
-const { once } = await import('node:events')
-const { join } = await import('node:path')
-const packageRoot = process.cwd()
-const child = spawn('podman', [
-  'run',
-  '--memory=2g',
-  '--cpus=2',
-  '--rm',
-  '--network=none',
-  '--env', `E2E_SEED=${process.env.usage_seed ?? ''}`,
-  '--env', `E2E_SCENARIOS=${process.env.usage_scenario ?? ''}`,
-  '--env', `E2E_GIT_VERSIONS=${process.env.usage_git ?? ''}`,
-  '--volume', `${join(packageRoot, 'e2e')}:/fixture/e2e:ro,Z`,
-  '--volume', `${join(packageRoot, '..', '..', 'module', 'caught-value')}:/fixture/caught-value:ro,Z`,
-  'cli-git-concurrent-e2e',
-  'node',
-  '/fixture/e2e/concurrent-e2e-consumer.ts',
-], { stdio: 'inherit' })
-const [code] = await once(child, 'exit')
-if (code !== 0) throw new Error(`concurrent e2e container exited with ${String(code)}`)
-'''
+run = "node bin/e2e-native-container.ts run"
+
+[tasks."native:lock:scanner"]
+description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
+run = ["cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock", "cargo update --workspace --offline"]

@@ -1,5 +1,16 @@
 # deepmerge-ts hardening grilling handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
+> `package/module/logger.fuzz` is now `package/logger/core.fuzz`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mutation-test` is now `package/mutation-test/cli`.
+
 ## Status
 
 Shared understanding confirmed 2026-09-23;
@@ -548,7 +559,8 @@ its `deepmerge`-then-`deepmergeInto` variant and the 8.0.0 changelog claim were 
 Its 2 docs errors are new, reproduced on 8.0.2, and added to issue section 11:
 the `deepmergeCustom` TSDoc example customizes the default,
 and `ObjectType` is documented as a utility but ships only as a `const enum`.
-Its ambiguities (null-prototype records, root `actions.skip`, into root kind change) are issue sections 4 and 5 or accepted.
+Its ambiguities (null-prototype records, root `actions.skip`,
+into root kind change) are issue sections 4 and 5 or accepted.
 Reading:
 an oracle written from the docs alone found no runtime defect the sidecar had missed,
 which is recall evidence for runtime values against documented behaviour,
@@ -586,7 +598,8 @@ and packaging (publint, attw 0.18.5 with a control), Node 16.9 to 26, CJS, Bun, 
 Reproduced independently here before entering the drafts
 (runtime and types in `src/verify-surface.local.ts`, the embargoed repro in a capped container,
 200-argument TS2589 in a scratch file;
-the docs-snippet type errors rest on `src/surface-docs-type.unit.test.ts`, whose `@ts-expect-error` pins pass `lint:types`):
+the docs-snippet type errors rest on `src/surface-docs-type.unit.test.ts`,
+whose `@ts-expect-error` pins pass `lint:types`):
 
 - Issue section 11 (docs):
    `ObjectType` consequences per toolchain,
@@ -609,19 +622,23 @@ the docs-snippet type errors rest on `src/surface-docs-type.unit.test.ts`, whose
    `src/type-export.unit.test.ts` references all 31 exported types,
    and `src/type-export-name.unit.test.ts` fails when the declaration file exports one it does not (commit `2e0b605bf`).
 - Default-function delegation (`src/type-default-function.unit.test.ts`) found a new declaration defect:
-   `utils.defaultMergeFunctions.mergeArrays`, `mergeSets`, and `mergeOthers` reject the `utils` their optional parameter declares (TS2345);
+   `utils.defaultMergeFunctions.mergeArrays`, `mergeSets`, and `mergeOthers`
+   reject the `utils` their optional parameter declares (TS2345);
    pinned there and added to issue section 12.
 - Literal-union cost families (`src/surface-type-cost-family.ts`, commit `5db24c179`):
    default, FastUnsafe, into, and three-input paths stay near-linear to 400 members;
-   no-filter and custom filter URIs grow about quadratically (1420365 instantiations and 22 s at 400) with TS2589 from 50;
+   no-filter and custom filter URIs grow about quadratically
+   (1420365 instantiations and 22 s at 400) with TS2589 from 50;
    added to issue section 12.
 - Tasks `recall:*` and `surface:*` with README entries (commit `26ac6cedf`, each run for real);
    `recall-setup.ts` moved to async APIs; the recall report counts each id once (commit `f4db75cc9`).
 - Checks after integration:
-   `format:oxlint`, `lint:oxlint` (0 warnings, 0 errors), `lint:types`, `test:unit`, and `fuzz:coverage` (1765 of 1772) pass.
+   `format:oxlint`, `lint:oxlint` (0 warnings, 0 errors),
+   `lint:types`, `test:unit`, and `fuzz:coverage` (1765 of 1772) pass.
 
 Method verdict:
-runtime search has measured recall (8 of 8 historical runtime bugs, and a docs-only oracle found no runtime defect the sidecar missed),
+runtime search has measured recall (8 of 8 historical runtime bugs,
+and a docs-only oracle found no runtime defect the sidecar missed),
 so the low runtime count reflects the library, within the fault classes measured.
 The misses and most new findings were on surfaces never searched before: result types under real consumer shapes,
 declarations of the customization API, documentation, and type-checker cost.

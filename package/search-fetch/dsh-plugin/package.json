@@ -1,0 +1,35 @@
+{
+  "name": "@monochromatic-dev/search-fetch-dsh-plugin",
+  "description": "DSH bundle connecting the shared search and fetch MCP server so dsh agents get Exa-first web_search and blocklist-enforced web_fetch",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/search-fetch/dsh-plugin"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "locale/en.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh-bundle",
+    "mcp",
+    "exa",
+    "search",
+    "fetch"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

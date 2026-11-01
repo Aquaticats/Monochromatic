@@ -8,10 +8,10 @@ Both Done development tasks used:
 run = "mise watch -w src -r -- node src/server.ts"
 ```
 
-Running `mise run //package/webapp-productivity/done:dev:site` failed before starting Node:
+Running `mise run //package/done/app:dev:site` failed before starting Node:
 
 ```text
-mise ERROR no task //package/webapp-productivity/done:node found
+mise ERROR no task //package/done/app:node found
 ```
 
 `--watch` and `--restart` worked as options.
@@ -71,7 +71,7 @@ mise watch --watch src --restart -- node src/server.ts
 Result:
 
 ```text
-mise ERROR no task //package/webapp-productivity/done:node found
+mise ERROR no task //package/done/app:node found
 ```
 
 ### Working patterns
@@ -96,8 +96,8 @@ run = "mise watch --watch src --restart serve:site"
 Verify each package with disposable database state:
 
 ```sh
-DB_PATH=:memory: mise run //package/webapp-productivity/done:dev:site
-DB_PATH=:memory: mise run //package/webapp-productivity/done-postcss:dev:site
+DB_PATH=:memory: mise run //package/done/app:dev:site
+DB_PATH=:memory: mise run //package/done/variant-postcss:dev:site
 ```
 
 Each watch task started its hidden `serve:site` task and printed a listening URL.
@@ -155,7 +155,8 @@ Long options make that distinction explicit.
 ## Upstream filing decision
 
 No `.out-of-scope/` entry matched mise watch task parsing.
-Open and closed mise issue and pull-request searches for `watch arbitrary command task not found` returned no matching report.
+Open and closed mise issue and pull-request searches
+for `watch arbitrary command task not found` returned no matching report.
 
 1.  **Upstream fault**
     No.

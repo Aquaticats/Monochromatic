@@ -2,7 +2,7 @@
  * HTTP status code re-exports.
  *
  * Re-exports the spec-defined codes from
- * `@monochromatic-dev/module-const` so route and client imports
+ * `@monochromatic-dev/const-core` so route and client imports
  * keep this module's familiar import path.
  */
 
@@ -15,4 +15,4 @@ export {
   HTTP_NOT_FOUND,
   HTTP_OK,
   HTTP_UNAUTHORIZED,
-} from '@monochromatic-dev/module-const';
+} from '@monochromatic-dev/const-core';

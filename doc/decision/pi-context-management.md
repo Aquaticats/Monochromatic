@@ -20,7 +20,8 @@ Decision record for the agentic context-management plugin wired into this Pi har
    which replaces Pi's default compaction.
    Any future context-management plugin must be checked against that package before installation.
 
-Measurements and source reads in this file were taken on 2026-06-15 from the live repo and the cloned candidate repositories under `/tmp/agent`.
+Measurements and source reads in this file were taken on 2026-06-15
+from the live repo and the cloned candidate repositories under `/tmp/agent`.
 
 ## Candidates surveyed
 
@@ -95,14 +96,17 @@ Source files read:
    The code itself calls `ctx.abort()` on `turn_end` while a compact is pending,
    which limits concurrency in practice.
 - **Deferred navigation via `setTimeout`**:
-   `src/index.ts:465-500` defers `navigateTree` and `sendMessage` with a zero-timeout to work around `agent_end` firing before the agent is fully idle.
+   `src/index.ts:465-500` defers `navigateTree` and `sendMessage`
+   with a zero-timeout to work around `agent_end` firing
+   before the agent is fully idle.
    This is fragile to Pi core timing changes.
 - **Regex use is bounded**:
    `resolveTargetId` uses `/^[0-9a-f]{8,}$/i` only to decide whether a target looks like an ID;
    it does not extract data.
    Acceptable for this boundary.
 - **Iterative tree walks**:
-   the maintainer converted recursive DFS to iterative stack-based traversal after issue #19 (stack overflow on deep trees);
+   the maintainer converted recursive DFS to iterative stack-based traversal
+   after issue #19 (stack overflow on deep trees);
    the fix is in the current source.
 - **No automated tests**:
    only `test/test.md`,
@@ -117,7 +121,8 @@ Source files read:
    this Pi profile has `pi-context@1.1.4`;
    npm latest is `2.0.0-beta.0`.
    The 2.
-  x line renames the tools from `context_tag`/`context_log`/`context_checkout` to `context_checkpoint`/`context_timeline`/`context_compact`.
+  x line renames the tools from `context_tag`/`context_log`/`context_checkout`
+  to `context_checkpoint`/`context_timeline`/`context_compact`.
 
 ### Validation run
 

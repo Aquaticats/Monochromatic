@@ -1,16 +1,31 @@
 import {
   defineConfig,
   type OutputOptions,
+  type Plugin,
   type RolldownOptions,
+  VERSION,
 } from 'rolldown';
 import { dts, } from 'rolldown-plugin-dts';
 
+import { binShebangPlugin, } from './bin-shebang.ts';
 import { browserslistTargets, } from './browserslist-targets.ts';
+import { checkoutBundlerPlugin, } from './checkout-bundler.ts';
+import { copiedAssetsPlugin, } from './copied-assets.ts';
 import {
   anchoredExternal,
   packageExternals,
 } from './package-externals.ts';
+import {
+  familyDependencies,
+  familyEntrySpecifier,
+} from './package-family.ts';
 import { shebangExecutablePlugin, } from './shebang-executable.ts';
+
+export {
+  type CopiedAsset,
+  CopiedAssetReadError,
+  copiedAssetsPlugin,
+} from './copied-assets.ts';
 
 /**
  Resolved Browserslist targets shared by Node builds, via
@@ -68,6 +83,17 @@ export async function nodeExternal({ alwaysBundle, }: {
 }
 
 /**
+ Plugins shared by every Node build:
+ Oxc declarations,
+ executable bits for shebang outputs,
+ and Node shebang injection for bin-targeted chunks.
+ */
+const basePlugins = [
+  dts({ generator: 'oxc', },),
+  shebangExecutablePlugin(),
+];
+
+/**
  Shared raw-rolldown options for Node platform builds, without an input.
  
  Bundles workspace dependencies (`@monochromatic-dev/*`) into the output
@@ -83,10 +109,7 @@ const baseOptions: RolldownOptions = {
   platform: 'node',
   external: await nodeExternal({ alwaysBundle: NODE_ALWAYS_BUNDLE, },),
   transform: { target: [...target,], },
-  plugins: [
-    dts({ generator: 'oxc', },),
-    shebangExecutablePlugin(),
-  ],
+  plugins: basePlugins,
 };
 
 /**
@@ -128,6 +151,9 @@ function isInputList(
 /**
  Build one Node flavor config with overridable input and output directory.
  
+ Bin-targeted entry chunks get `#!/usr/bin/env node` injected at byte 0
+ through {@link binShebangPlugin}, so built CLIs cannot fall through to `/bin/sh`.
+ 
  @param input - Source input paths; defaults to the package index.
  
  @param outputDir - Output directory; committed Claude Code plugin bundles
@@ -138,6 +164,9 @@ function isInputList(
  
  @param external - Replacement external list from {@link nodeExternal} for
    consumers with custom bundle-inclusion patterns.
+ 
+ @param extraPlugins - Plugins appended after the shared ones, such as
+   {@link copiedAssetsPlugin} for data files the built output must carry.
  
  @returns Node flavor rolldown config for one self-contained build.
  
@@ -154,23 +183,111 @@ export function nodeConfig(
     outputDir = 'dist/final/node',
     outputOverrides = {},
     external,
+    extraPlugins = [],
   }: {
     readonly input?: readonly string[] | Readonly<Record<string, string>>;
     readonly outputDir?: string;
     readonly outputOverrides?: OutputOptions;
     readonly external?: readonly RegExp[];
+    readonly extraPlugins?: readonly Plugin[];
   } = {},
 ): RolldownOptions {
   return defineConfig({
     ...baseOptions,
     ...external === undefined ? {} : { external: [...external,], },
     input: isInputList(input,) ? [...input,] : { ...input, },
+    plugins: [
+      ...basePlugins,
+      binShebangPlugin({ outputDir, },),
+      ...extraPlugins,
+    ],
     output: {
       ...baseOutput,
       dir: outputDir,
       cleanDir: true,
       ...outputOverrides,
     },
+  },);
+}
+
+/**
+ Build a library member of a package family: its family siblings stay
+ imports, emitted against each sibling's built entry, while everything else
+ follows {@link nodeConfig}.
+
+ Family members check classes by identity across package boundaries, so a
+ process must load each member from one file; see
+ `src/package-family.ts` for why inlining siblings breaks that.
+
+ The build refuses to run under a bundler other than the version this
+ checkout installs; see `src/checkout-bundler.ts`.
+
+ @param familyPrefix - package-name prefix every member of the family shares
+ 
+ @param packageDir - directory holding the building package's package.json; defaults to the build cwd
+ 
+ @param input - source input paths; defaults to the package index
+ 
+ @param outputOverrides - shallow output-option overrides, as {@link nodeConfig} takes them
+
+ @param extraPlugins - plugins appended after the shared ones, such as {@link copiedAssetsPlugin} for a data file the
+   member's built module reads beside itself
+
+ @returns Node flavor rolldown config for the library build
+
+ @example
+ ```ts
+ // rolldown.node.config.ts
+ export default await familyLibraryNodeConfig({ familyPrefix: '\@monochromatic-dev/translation-repair-', },);
+ ```
+ */
+export async function familyLibraryNodeConfig({
+  familyPrefix,
+  packageDir = process.cwd(),
+  input = ['./src/index.ts',],
+  outputOverrides = {},
+  extraPlugins = [],
+}: {
+  readonly familyPrefix: string;
+  readonly packageDir?: string;
+  readonly input?: readonly string[] | Readonly<Record<string, string>>;
+  readonly outputOverrides?: OutputOptions;
+  readonly extraPlugins?: readonly Plugin[];
+},): Promise<RolldownOptions> {
+  /**
+   Family members the building package depends on.
+   */
+  const family = new Set(await familyDependencies({
+    packageDir,
+    familyPrefix,
+  },),);
+  return nodeConfig({
+    input,
+    external: [
+      ...await nodeExternal({ alwaysBundle: NODE_ALWAYS_BUNDLE, },),
+      ...[...family,].map(function toMatcher(name: string,): RegExp {
+        return anchoredExternal(name,);
+      },),
+    ],
+    outputOverrides: {
+      paths: function emittedSpecifier(id: string,): string {
+        return familyEntrySpecifier({
+          id,
+          family,
+        },);
+      },
+      ...outputOverrides,
+    },
+    // A FAMILY BUILD REFUSES ANOTHER CHECKOUT'S BUNDLER (`checkout-bundler.ts`):
+    // family runners print a pipeline digest over their built files, which names
+    // a reproducible build only when this checkout's own bundler made them. A
+    // family config lists this library build first, and the bundler stops a
+    // list at its first failed build, so the refusal also stops the runner
+    // builds listed after it.
+    extraPlugins: [
+      checkoutBundlerPlugin({ installedVersion: VERSION, },),
+      ...extraPlugins,
+    ],
   },);
 }
 
@@ -233,6 +350,10 @@ export function perEntryNodeConfig(
     return {
       ...baseOptions,
       input: [entry,],
+      plugins: [
+        ...basePlugins,
+        binShebangPlugin({ outputDir, },),
+      ],
       output: {
         ...baseOutput,
         dir: outputDir,

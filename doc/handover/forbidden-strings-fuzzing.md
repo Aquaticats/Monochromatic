@@ -1,5 +1,11 @@
 # Forbidden-strings fuzzing handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 ## Sibling-sidecar relocation, 2026-09-26
 
 The maintainer requires fuzz sidecars at `package/<category>/<name>.fuzz`.
@@ -175,13 +181,18 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 <td>4</td>
 <td>Fuzz-only API surface</td>
 <td>DONE</td>
-<td>`[features] fuzzing = []`, `src/fuzz_api.rs`, `compile_rule_src`, `load_ruleset_from_source`. Committed (4225d7ef). `cargo check --features fuzzing` passes.</td>
+<td>`[features] fuzzing = []`, `src/fuzz_api.rs`, `compile_rule_src`, `load_ruleset_from_source`. Committed (4225d7ef).
+ `cargo check --features fuzzing` passes.</td>
 </tr>
 <tr>
 <td>5</td>
 <td>Scaffold cargo-fuzz</td>
 <td>PARTIAL</td>
-<td>Workspace materialized via `cargo +nightly fuzz init --fuzzing-workspace=true`. Cargo.toml wired for the `fuzzing` feature + arbitrary + sha2 + panic=unwind. Root `.gitignore` ignores corpus growth while re-including `seed-*`; `Cargo.lock` is tracked directly because root `.gitignore` does not ignore Cargo lockfiles. Committed (4a1fe951). **PLACEHOLDER `fuzz_targets/fuzz_target_1.rs` STILL PRESENT**, delete it when phase 7 lands.</td>
+<td>Workspace materialized via `cargo +nightly fuzz init --fuzzing-workspace=true`. Cargo.toml wired
+ for the `fuzzing` feature + arbitrary + sha2 + panic=unwind. Root `.gitignore` ignores corpus growth
+ while re-including `seed-*`; `Cargo.lock` is tracked directly
+ because root `.gitignore` does not ignore Cargo lockfiles. Committed (4a1fe951).
+ **PLACEHOLDER `fuzz_targets/fuzz_target_1.rs` STILL PRESENT**, delete it when phase 7 lands.</td>
 </tr>
 <tr>
 <td>6</td>
@@ -205,7 +216,8 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 <td>9</td>
 <td>Tooling integration</td>
 <td>TODO</td>
-<td>Root `mise.toml` `[tools]` `cargo:cargo-fuzz = "0.13.1"` not yet added. Per-package nightly pinning not yet added. Package `mise.toml` tasks not yet added.</td>
+<td>Root `mise.toml` `[tools]` `cargo:cargo-fuzz = "0.13.1"` not yet added. Per-package nightly pinning not yet added.
+ Package `mise.toml` tasks not yet added.</td>
 </tr>
 <tr>
 <td>10</td>
@@ -217,7 +229,8 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 <td>11</td>
 <td>Final verification (incl. soundness-by-revert)</td>
 <td>TODO</td>
-<td>The soundness validation is the load-bearing Done criterion — proves `fuzz_extract_gate_soundness` is real. Use a disposable worktree, revert `e49d8694`, run for 120s, confirm failure with a redacted reproducer.</td>
+<td>The soundness validation is the load-bearing Done criterion — proves `fuzz_extract_gate_soundness` is real.
+ Use a disposable worktree, revert `e49d8694`, run for 120s, confirm failure with a redacted reproducer.</td>
 </tr>
 </tbody>
 </table>

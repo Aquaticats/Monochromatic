@@ -2,7 +2,9 @@
 
 ## What this proves
 
-This procedure verifies the installed extension through a real fullscreen Pi session and Nano selected by user-level config.
+This procedure verifies the installed extension
+through a real fullscreen Pi session
+and Nano selected by user-level config.
 It covers multiline submission,
 cancellation,
 and continued transcript interaction while the model waits.

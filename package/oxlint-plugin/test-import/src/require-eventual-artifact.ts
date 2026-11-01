@@ -368,7 +368,7 @@ export const requireEventualArtifact: CreateOnceRule = {
 
         if ((outcome !== 'relative-source')
           && (outcome !== 'own-source-subpath'))
-        {
+          {
           return;
         }
 

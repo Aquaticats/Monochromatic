@@ -1,14 +1,17 @@
 # gxhash 3.5.0 requires the `aes` CPU target-feature at build time, has no software fallback, and panics on aarch64 debug builds
 
+Historical record, kept for the external facts below.
+Update on 2026-10-14:
+the music player left `gxhash` for XXH3-64 from `twox-hash`
+([`doc/decision/music-player-fingerprint-hash.md`](../decision/music-player-fingerprint-hash.md)),
+and every `-C target-feature=+aes` setting, the `gxhash` dependency, and the startup concerns below are gone from it.
 Update on 2026-09-17:
 the monorepo manager left `gxhash` after collision findings and now uses XXH3-128
-([`doc/decision/monorepo-manager-cache-key-hash.md`](../decision/monorepo-manager-cache-key-hash.md)),
-so the `+aes` build and its startup check no longer apply there.
-The music player still uses `gxhash`;
-its switch is issue #545,
-and the collision evidence is in
+([`doc/decision/monorepo-manager-cache-key-hash.md`](../decision/monorepo-manager-cache-key-hash.md)).
+The collision evidence is in
 [`doc/planning/monorepo-manager-route-research/gxhash-owned.md`](../planning/monorepo-manager-route-research/gxhash-owned.md).
-The constraints below still describe `gxhash` itself.
+Everything below describes `gxhash` 3.5.0 itself and the music player's setup as of 2026-09-16,
+and no current build follows it.
 
 The music-player peak-cache fingerprint hash migrated from hand-written FNV-1a to the
 `gxhash` crate (both flavors:

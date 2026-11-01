@@ -86,7 +86,8 @@ The `es20xx` presets are difference lists over ES5.
 `ENV_ES_2024` (`apps/oxlint/src-js/generated/envs.ts:1842-1874`) lists only later additions such as `Map`,
 `Promise`,
 and `Set`.
-`isGlobalReference` (`apps/oxlint/src-js/plugins/scope.ts:334-360`) requires a global-scope variable with no definitions:
+`isGlobalReference` (`apps/oxlint/src-js/plugins/scope.ts:334-360`)
+requires a global-scope variable with no definitions:
 
 ```ts
 const variable = globalScope.set.get(node.name);
@@ -305,7 +306,8 @@ and `no-undef env Array` found no matching report.
    and `Buffer` all `global=true`.
    The env-free config still reports `Buffer global=false` after the patch.
    Gap:
-   the upstream vitest fixtures `apps/oxlint/test/fixtures/globals` and `sourceCode_scope_methods` need the napi test build
+   the upstream vitest fixtures `apps/oxlint/test/fixtures/globals`
+   and `sourceCode_scope_methods` need the napi test build
    and were not run;
    their snapshots may change.
 

@@ -2,7 +2,16 @@
 
 ## Status: development paused
 
-Active development is paused pending repo-wide work. `mise run //packages/webapp-forge/server:lint` currently reports 13 errors from `no-restricted-syntax/no-regex` across `src/server/routes/{me,read}.ts`, `src/storage/adapter-s3.ts`, `src/storage/write-buffer.unit.test.ts`, `src/worker/render-phase2.ts`, and `src/worker/render.ts`. The refactor is deferred; resume by completing the no-regex sweep documented in `HANDOVER.no-regex.md`.
+Active development is paused pending repo-wide work.
+`mise run //packages/webapp-forge/server:lint` currently reports 13 errors
+from `no-restricted-syntax/no-regex` across
+`src/server/routes/{me,read}.ts`,
+`src/storage/adapter-s3.ts`,
+`src/storage/write-buffer.unit.test.ts`,
+`src/worker/render-phase2.ts`,
+and `src/worker/render.ts`.
+The refactor is deferred;
+resume by completing the no-regex sweep documented in `HANDOVER.no-regex.md`.
 
 GitHub-alternative forge with **rebuild-on-write fragment cache**.
 

@@ -1,0 +1,23 @@
+diff --git a/tsc/internal/lsp/server.go b/tsc/internal/lsp/server.go
+index 8a0b7214c..4f86be5cc 100644
+--- a/tsc/internal/lsp/server.go
++++ b/tsc/internal/lsp/server.go
+@@ -535,6 +535,9 @@ func (s *Server) dispatchLoop(ctx context.Context) error {
+ 	for {
+ 		req, err := s.requestQueue.Get(ctx)
+ 		if err != nil {
++			if errors.Is(context.Cause(ctx), io.EOF) {
++				return io.EOF
++			}
+ 			return err
+ 		}
+ 
+@@ -557,7 +560,7 @@ func (s *Server) dispatchLoop(ctx context.Context) error {
+ 					lspExit(err)
+ 				}
+ 			} else if errors.Is(err, io.EOF) {
+-				lspExit(nil)
++				lspExit(io.EOF)
+ 			} else {
+ 				if err := s.sendError(req.ID, err); err != nil {
+ 					lspExit(err)

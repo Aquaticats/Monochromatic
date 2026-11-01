@@ -213,7 +213,7 @@ but its journal and stage stay behind and every later linked-worktree command ex
 
 The logger writes `node_modules/.monochromatic/<timestamp>.log.jsonl` under the nearest `node_modules` of the
 invoking directory
-(`package/module/logger/src/sink/file.ts:120-215`),
+(`package/logger/core/src/sink/file.ts:120-215`),
 which is inside the ignored tree the copy selects.
 Measured on 2026-09-26 with `du --summarize --bytes` and `find -type f | wc --lines`:
 

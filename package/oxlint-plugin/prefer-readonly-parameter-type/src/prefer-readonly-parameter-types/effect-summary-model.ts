@@ -12,7 +12,7 @@ import type {
   FunctionTypeNode,
   MethodSignatureDeclaration,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import type {
   EffectSlot,
   ParameterIndex,
@@ -26,7 +26,7 @@ import {
   isFunctionTypeNode,
   isMethodSignatureDeclaration,
   isPropertyAccessExpression,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Sentinel when expression root does not resolve to a callable slot.
@@ -67,11 +67,11 @@ export const OWNED_CALLABLE_UNAVAILABLE: unique symbol = Symbol(
  */
 export type EffectCallableDeclaration =
   | FunctionLikeDeclaration
-  | CallSignatureDeclaration
-  | ConstructSignatureDeclaration
-  | MethodSignatureDeclaration
-  | FunctionTypeNode
-  | ConstructorTypeNode;
+    | CallSignatureDeclaration
+    | ConstructSignatureDeclaration
+    | MethodSignatureDeclaration
+    | FunctionTypeNode
+    | ConstructorTypeNode;
 
 /**
  Tests whether node participates in callable effect contract.
@@ -143,7 +143,7 @@ export type ResultApplication =
     readonly kind: 'mutated' | 'returned';
     readonly provenance?: never;
   }
-  | {
+    | {
     /**
      A result handed to something outliving the call.
      
@@ -159,10 +159,10 @@ export type ResultApplication =
      type-check, leaving a runtime throw as the only thing standing between a
      well-typed literal and a crash inside the fixed point.
      */
-    readonly callSiteKey: string;
-    readonly kind: 'retained';
-    readonly provenance: string;
-  };
+      readonly callSiteKey: string;
+      readonly kind: 'retained';
+      readonly provenance: string;
+    };
 
 /**
  One owned call edge with caller-relative argument roots.

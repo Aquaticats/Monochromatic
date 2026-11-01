@@ -189,3 +189,49 @@ Alternatives considered and viable but not shipped:
 - Nothing to file;
    no issue or comment draft is kept,
    and there is nothing to add to upstream from this incident.
+
+## Node 26.12.0 syntax checking treats module-typescript standard input as CommonJS
+
+This is a separate command path from `--eval` execution.
+While checking an inline Depot task on 2026-10-16,
+Node `v26.12.0` rejected a JavaScript body containing top-level `await`
+under `--check --input-type=module-typescript`:
+
+```text
+SyntaxError: await is only valid in async functions and the top level bodies of modules
+    at wrapSafe (node:internal/modules/cjs/loader:1900:18)
+    at checkSyntax (node:internal/main/check_syntax:88:3)
+```
+
+The same body passed `--check --input-type=module`.
+The body contained no TypeScript annotations,
+so this is a verified syntax-check workaround for that input only.
+The executable mise task continues to use its existing module-typescript eval shell.
+
+In Node tag `v26.12.0`,
+`lib/internal/main/check_syntax.js:62` handles standard input with this exact comparison:
+
+```javascript
+// nodejs/node, lib/internal/main/check_syntax.js:62 at v26.12.0
+format = (getOptionValue('--input-type') === 'module') ? 'module' : 'commonjs';
+```
+
+The `module-typescript` value therefore takes the CommonJS branch on this syntax-check path.
+Lines 82 to 88 choose module parsing only for the `module` format,
+otherwise calling `wrapSafe`.
+This source trace explains the observed check failure;
+it does not establish an eval regression or a result for annotated TypeScript input.
+No upstream issue was filed because the supported syntax-check contract and duplicate reports
+have not been assessed.
+
+On 2026-10-18,
+a Depot fixture preflight reproduced this check-path failure with a typed binding under Node `v26.12.0`.
+The verified annotated-input workaround first calls `stripTypeScriptTypes()` from `node:module`,
+then passes the resulting JavaScript to `node --input-type=module --check`.
+The installed `node_modules/@types/node/module.d.ts` documents that stripping API.
+Every generated Dockerfile program passed this check;
+an intentionally malformed JavaScript body failed the same checker.
+The [BuildKit source archive](../audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz)
+retains the preflight commands and results.
+This checks syntax only;
+the subsequent remote consumers establish execution separately.

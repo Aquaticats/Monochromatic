@@ -16,9 +16,91 @@ the root `lint` aggregate in `mise.toml` does not list `lint:rust`;
 Paths are repository-relative;
 line numbers are as of commit `8d73b1bab`.
 
-Owner states:
-"decided" names the round that settled it,
-"open" means a pending question in the handover.
+The source survey and early-round owner states are historical.
+Current implementation choices are governed by `doc/planning/unified-linter.md`,
+including decisions settled after this inventory.
+On 2026-10-04,
+the cli-git rewrite agent also became the unified-linter owner,
+JSONC replaced HCL,
+and container,
+mutation,
+and fuzz tests became explicit acceptance gates.
+
+## New Rust requirements
+
+The user added these requirements on 2026-10-04;
+they are not incumbent parity work:
+
+- Reject anonymous functions using the new `rust/no-anonymous-functions` rule.
+  The implementation detects actual `CLOSURE_EXPR` nodes,
+  including assigned,
+  nested,
+  move,
+  async,
+  and const closures.
+  It does not expand macro token trees or rewrite captured state automatically.
+  Named functions,
+  methods,
+  and function pointers stay allowed.
+  Configuration registration and the focused container suite passed:
+  5 tests,
+  77 unrelated tests filtered out.
+  This is not a full-suite pass.
+  Focused mutation verification caught both viable mutants;
+  the remaining mutant is unviable because `Diagnostic` has no `Default` implementation.
+  The new Rust-style ASAN target ran 1,274 verified executions with exit 0
+  (`campaign-xNoaiG`).
+  The separate container Clippy gate passed after applying the newly enforced shadowing policy
+  without relaxing it.
+  Rule dispatch in the unfinished executable remains pending.
+- Require explicit Rust annotations,
+  including the motivating `parse::<u16>()`,
+  `.map::<String, _>(user_name)`,
+  and `.collect::<Vec<String>>()` calls.
+  The closure ban supersedes the originally shown inline closure.
+  The user selected full enforcement (option A),
+  authorizing semantic resolution for `rust/require-explicit-types`
+  and superseding the prior syntax-only restriction for this rule.
+  Preserve `_` for unnameable function-item types.
+  Do not mistake unresolved standalone snippet calls for verified annotation coverage.
+
+## Native implementation verification
+
+The active implementation record is
+[`cli-git-rust-implementation.md`](../handover/cli-git-rust-implementation.md),
+whose `Handoff 2026-10-05` section carries the full current state.
+
+Implemented and verified:
+configuration merge and discovery,
+Rust rules (max-lines, rustdoc, anonymous functions, explicit types),
+native Markdown/MDX adapter and rules,
+JSONL/stdin-fix output routing,
+literal/glob discovery,
+bounded fixpoint loop,
+embedded processors (virtual Rust and Rustdoc extraction with host-mapped fixes),
+and the forbidden-strings in-process scanner API.
+
+Verification evidence:
+170-test container gate (`proc_0fca`),
+processor delegate 203-test suite with Clippy and guard-focused mutation
+(image `62a207e21b353bf4`),
+scanner delegate full suite with ASan fuzzing (256,297 runs) and panic controls,
+and fuzz campaign `campaign-KqhBLf` covering merge, configuration,
+rust-style, explicit-types, and Markdown/MDX including tables and prose.
+
+Open mutation state:
+full-snapshot campaign `proc_3d86` recorded 18 survivors on its older snapshot;
+Markdown-scoped rerun `proc_ea56` recorded 17 survivors
+centered on table cell boundaries, continuation prefixes,
+and prose break/block-start guards.
+Both survivor inventories need disposition or new controls before any completion claim.
+
+Remaining implementation:
+linter executable orchestration and consumer migration,
+native cli-git wrapper (configuration, policies, Git operations, transactions),
+Windows-native scanner mutation verification,
+and native LFS URL normalization vetting
+(planning record: `native-lfs-url-normalization-evaluation.md`).
 
 ## Rust linter
 
@@ -101,8 +183,9 @@ Packages:
    Rust language plugin,
    Rust-only (decided,
    round 2),
-   expressed in HCL (decided,
-   round 2).
+   deferred until a consumer exists in the final design.
+  The historical HCL format choice was replaced by JSONC on 2026-10-04;
+   no declarative pattern-rule format is being added in this implementation.
 - `builtin/invalid-disable-directive`,
    always `error`:
    a directive without justification,
@@ -200,9 +283,10 @@ the mapping is open.
    no `rust-linter.toml` exists;
    every consumer runs on built-in defaults.
 - Owner:
-   HCL in meow's block form (decided,
-   round 2);
-   lookup semantics open.
+   the unified linter's JSONC loader,
+   using the repository's Rust JSONC package.
+  Configuration is an ordered array of blocks;
+   nearest-file lookup and ordered deepmerge semantics are settled in the final design.
 
 ### Default exemptions
 
@@ -240,6 +324,11 @@ parity).
    core,
    for both languages;
    spelling open (depends on the name).
+- Built 2026-10-18 (merge `6808166dfd`) as `monochromatic-lint-disable` and siblings:
+   doc comments are not directives (this list said "any comment token"),
+   only full rule identifiers are accepted,
+   and the Markdown form is an HTML comment.
+   See the package README section "Inline directives".
 
 ### Autofix
 
@@ -307,7 +396,8 @@ core.
 - Owner:
    one server for both languages;
    framework open
-   (`doc/audit/tech-meow-language-server-framework-vet-2026-09-17.md` recommends `lsp-server` 0.10.0 with `gen-lsp-types` 0.11.0).
+   (`doc/audit/tech-meow-language-server-framework-vet-2026-09-17.md`
+   recommends `lsp-server` 0.10.0 with `gen-lsp-types` 0.11.0).
 
 ### Introspection and library surface
 
@@ -518,10 +608,11 @@ registered as `markdown/autofix` in `cli-git.config.ts:22-43`.
    or Android Gradle Lint.
   The same claim appears in `doc/planning/monorepo-manager-from-scratch-design.md:1892`.
 - Rust crates without `lint:rust`:
-   `package/cli/forbidden-strings.fuzz`
-   and `package/rust-module/forbidden-regex.fuzz`,
+   `package/forbidden-strings/cli.fuzz`
+   and `package/forbidden-strings/core.fuzz`,
    whose path escapes the `**/fuzz/**` default.
-- Root `lint:markdown` and `format:markdown` run `node package/cli/markdown-lint/src/cli.ts --lfs-image-exclude=package/ssg/`,
+- Root `lint:markdown` and `format:markdown`
+   run `node package/cli/markdown-lint/src/cli.ts --lfs-image-exclude=package/ssg/`,
    inside the `lint` and `format` aggregates.
 - `file-enforcer.config.ts`:
    `CARGO_PROFILE_LINTER` (`1570`,
@@ -625,6 +716,17 @@ tests excluded unless named.
    and `doc/handover/issue-401-formatting-investigation.md`:
    a proposed repository-owned CSS checker,
    adjacent scope.
+
+## Verification ownership
+
+The implementing agent owns container tests,
+mutation testing,
+and fuzzing for the Rust wrapper,
+unified linter,
+and their integration.
+The concrete targets and acceptance criteria are recorded in
+[`cli-git-rust-implementation.md`](cli-git-rust-implementation.md#verification-gates).
+No retained responsibility is complete solely because unit tests compile or pass.
 
 ## Incidental defects
 

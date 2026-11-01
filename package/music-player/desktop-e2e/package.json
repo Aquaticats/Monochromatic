@@ -1,0 +1,35 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/music-player-desktop-e2e",
+  "description": "Keyboard end-to-end runner for the desktop music player: hosts the release binary in a nested Wayland compositor, presses real keys, and reads the app's state from its log.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "bin": {
+    "music-player-desktop-e2e": "src/cli.ts"
+  },
+  "exports": {
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/music-player/desktop-e2e"
+  },
+  "sideEffects": false
+}

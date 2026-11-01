@@ -1,17 +1,40 @@
-//! Binary entry point. Builds the Slint window, spawns the engine on its own
-//! thread, and wires the two together: UI callbacks send `Command`s to the
-//! engine, and engine `Update`s are applied to the window's properties from the
-//! event-loop thread. Also handles CLI path arguments and the file-open dialog.
+//! Binary entry point.
+//!  Builds the Slint window,
+//!  spawns the engine on its own
+//! thread,
+//!  and wires the two together:
+//!  UI callbacks send `Command`s to the
+//! engine,
+//!  and engine `Update`s are applied to the window's properties from the
+//! event-loop thread.
+//!  Also handles CLI path arguments and the file-open dialog.
+//!
+//! On Windows the executable is linked for the GUI subsystem, so a double-click opens no console window;
+//!  `main` attaches to the console of the parent process first, so `--version` and the logs still print in a terminal
+//! (`src/console_attach.rs`, `doc/decision/music-player-windows-gui-subsystem.md`).
+//!  The unit-test build of this binary keeps the console subsystem so the test harness prints as usual.
+#![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 
-/// What:     `mod slint_generated { ... }` creates a private namespace around
-///           Rust emitted by Slint. The lint attribute applies only inside that
-///           namespace, while package-owned Rust remains under the manifest's
-///           denied `implicit_return` lint.
-/// Why:      Slint 1.17 emits tail-expression returns and already marks generated
-///           output as exempt from several Clippy groups. This extra exemption
-///           covers the restriction lint until Slint includes it itself.
-/// Gotcha:   The direct attribute on `slint::include_modules!()` is ignored by
-///           rustc; a module boundary is required for the lint level to apply.
+/// What:
+///      `mod slint_generated;` loads the sibling `slint_generated.rs` module,
+///           the private lint boundary around Rust emitted by Slint.
+///  That file
+///           carries the generated-code Clippy allowances,
+///  while package-owned
+///           Rust remains under the manifest's denied `implicit_return` and
+///           shadow lints.
+/// Why:
+///       Slint's generated output needs restriction-lint exemptions that must
+///           not leak into maintained modules,
+///  and keeping the boundary in its
+///           own file keeps those exemption lines out of this file's max-lines
+///           budget;
+///  see
+///           `doc/troubleshooting/slint-generated-rust-implicit-return.md`.
+/// Gotcha:
+///    The direct attribute on `slint::include_modules!()` is ignored by
+///           rustc;
+///  a module boundary is required for the lint level to apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,25 +42,21 @@
 ///   export * from './app.slint.generated';
 /// }
 /// ```
-#[allow(clippy::implicit_return)]
-mod slint_generated {
-    // What:     `slint::include_modules!()` includes build-time generated Rust.
-    // Why:      `AppWindow` and related UI bindings come from Slint markup.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // export * from './app.slint.generated';
-    // ```
-    slint::include_modules!();
-}
+mod slint_generated;
 
 /// Imports every public Slint binding from the generated-only lint boundary.
 use slint_generated::*;
 
-/// What:     `mod ui_progress;` loads the sibling `ui_progress.rs` module into this
+use music_player::color_scheme::{COLOR_SCHEME_ENV, FOLLOW_SYSTEM, scheme_override};
+
+/// What:
+///      `mod ui_progress;` loads the sibling `ui_progress.rs` module into this
 ///           binary crate.
-/// Why:      The progress debounce bridge uses generated Slint types, so it belongs
-///           beside `main.rs`, not in the reusable library crate.
+/// Why:
+///       The progress debounce bridge uses generated Slint types,
+///  so it belongs
+///           beside `main.rs`,
+///  not in the reusable library crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,22 +64,174 @@ use slint_generated::*;
 /// ```
 mod ui_progress;
 
-/// What:     `mod ui_page;` loads the sibling `ui_page.rs` module into this binary crate.
-/// Why:      The queue/now-playing projection helpers use generated Slint types, so they belong
-///           beside `main.rs`, not in the reusable library crate.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as uiPage from "./ui_page";
-/// ```
-mod ui_page;
-
 /// Playback mode conversion and displayed-page scope projection.
 mod ui_playback;
 
-/// What:     `mod ui_font_scale;` loads the sibling `ui_font_scale.rs` module.
-/// Why:      The OS-font-tracking scale handler uses the generated `AppWindow`, so it
-///           belongs beside `main.rs`; splitting it out also keeps `main.rs` under the
+mod ui_screen;
+
+mod ui_screen_rows;
+
+mod ui_notices;
+
+mod ui_screen_pages;
+
+mod ui_screen_scroll;
+
+mod ui_screen_throttle;
+
+mod ui_screen_view;
+
+mod ui_licenses;
+
+mod ui_search;
+
+mod ui_settings;
+
+mod ui_settings_model;
+
+mod ui_text_size;
+
+mod ui_templates;
+
+mod ui_search_model;
+
+mod ui_search_anchor;
+
+mod ui_search_apply;
+
+mod ui_wire;
+
+mod ui_files;
+
+mod ui_keys;
+
+mod ui_keys_actions;
+
+mod ui_keys_focus;
+
+mod ui_host;
+
+mod ui_lists;
+
+mod ui_hints;
+
+mod ui_state_log;
+
+/// Shared helpers of the window tests that press real key events.
+#[cfg(test)]
+mod ui_test_support;
+
+/// Window tests of the focus model: Tab order, rings and the lists' focus keys.
+#[cfg(test)]
+mod ui_keys_focus_tests;
+
+/// Window tests of every D106 shortcut, pressed as real key events on the testing backend.
+#[cfg(test)]
+mod ui_keys_window_tests;
+
+/// Window tests of Auto-play on select (D129): the Settings switch row and what a click, Enter and a Search result do.
+#[cfg(test)]
+mod ui_auto_play_window_tests;
+
+/// Window tests of the Text size setting: the steppers, the reset row, the live window, the saves and the layout at the
+/// ends of the range.
+#[cfg(test)]
+mod ui_text_size_window_tests;
+
+/// Window tests of the Licenses row of Settings and the Licenses page: the row, the AboutSlint widget, the keys and the ring.
+#[cfg(test)]
+mod ui_licenses_window_tests;
+
+/// Window tests of the empty, reading and failure states.
+#[cfg(test)]
+mod ui_states_window_tests;
+
+/// Window tests of the second polish review's interaction defects: click-through, menu position, rings, headers, fades.
+#[cfg(test)]
+mod ui_interaction_window_tests;
+
+/// Window tests of the list defects of the second polish review: long names, picker reveal, breakpoint scroll, scrollbars.
+#[cfg(test)]
+mod ui_lists_window_tests;
+
+/// Window tests of the folded folder picker: it never opens blank, whatever the library, the saved selection or the size.
+#[cfg(test)]
+mod ui_picker_window_tests;
+
+/// Rendered tests of the list defects: the ellipsis, the playing-row marker and the scrollbar, read from pixels.
+#[cfg(test)]
+mod ui_lists_render_tests;
+
+/// Shared helpers of the rendered window tests: the software-rendered window, its pixels and rounded-box geometry.
+#[cfg(test)]
+mod ui_render_support;
+
+/// Rendered tests of the focus ring on the player page (D117): its band, its shape and what focus leaves unchanged.
+#[cfg(test)]
+mod ui_focus_ring_tests;
+
+/// Rendered tests of the focus ring on the other pages (D117) and of the menu card's color (D119).
+#[cfg(test)]
+mod ui_focus_ring_pages_tests;
+
+/// Rendered tests of the Search page restyle (D126): the canvas header, the divider, the rounded rows and the status block.
+#[cfg(test)]
+mod ui_search_restyle_tests;
+
+/// Rendered tests of the track menu: the ring on a row (D117) and the card's color and outline (D119).
+#[cfg(test)]
+mod ui_focus_ring_menu_tests;
+
+/// Rendered tests of the focus ring component alone: its shapes, and a ring above a clipping parent.
+#[cfg(test)]
+mod ui_focus_ring_fixture_tests;
+
+mod ui_menu;
+
+mod ui_menu_model;
+
+mod ui_overlays;
+
+mod ui_overlays_model;
+
+/// Headless layout tests for the composed window at the cover and unfolded widths.
+#[cfg(test)]
+#[path = "ui_layout_tests.rs"]
+mod ui_layout_tests;
+
+/// Synthetic libraries for the scale tests; the library crate compiles the same file.
+#[cfg(test)]
+#[path = "scale_library_tests.rs"]
+mod scale_library_tests;
+
+/// Scale tests of the window projection and the Search service at 1k to 1M tracks (`src/scale_tests.rs`).
+#[cfg(test)]
+mod scale_tests;
+
+/// Search page tests with the testing backend: refresh in place while a slow scan adds tracks (D111).
+#[cfg(test)]
+#[path = "ui_search_ingest_tests.rs"]
+mod ui_search_ingest_tests;
+
+/// What:
+///      `mod ui_theme;` loads the sibling `ui_theme.rs` module.
+/// Why:
+///       It writes the OKLCH-derived theme roles into the generated `Theme` global and follows accent changes,
+///           so it needs the generated window type and stays out of `main.rs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as uiTheme from "./ui_theme";
+/// ```
+mod ui_theme;
+
+/// What:
+///      `mod ui_font_scale;` loads the sibling `ui_font_scale.rs` module.
+/// Why:
+///       The OS-font-tracking scale handler uses the generated `AppWindow`,
+///  so it
+///           belongs beside `main.rs`;
+///  splitting it out also keeps `main.rs` under the
 ///           max-lines limit.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,59 +240,42 @@ mod ui_playback;
 /// ```
 mod ui_font_scale;
 
-/// What:     `mod ui_led_rows;` loads measured LED row-membership adapter.
-/// Why:      Slint owns full-width plate paint while Rust derives cap end corners from
-///           actual wrapped positions through generated `LedRowGeometry` interface.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as uiLedRows from "./ui_led_rows";
-/// ```
-mod ui_led_rows;
-
-/// What:     `mod ui_led_palette;` loads runtime LED pigment derivation.
-/// Why:      Slint delegates color-coordinate changes to Rust so every derived pigment
-///           is mixed in OKLCH rather than RGB or HSV.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as uiLedPalette from "./ui_led_palette";
-/// ```
-mod ui_led_palette;
-
-/// What:     `mod ui_page_style;` loads the sibling settings-persistence bridge.
-/// Why:      Page-control preference wiring uses generated `AppWindow` methods and stays
-///           separate so `main.rs` remains under its code-line limit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as uiPageStyle from "./ui_page_style";
-/// ```
-mod ui_page_style;
-
-/// What:     `#[cfg(test)] #[path = "ui_binding_tests.rs"] mod ui_binding_tests;` loads
-///           the headless UI regression tests, compiled ONLY under `cargo test` /
-///           `cargo nextest run`. `#[path]` names the sibling file explicitly because
+/// What:
+///      `#[cfg(test)] #[path = "ui_binding_tests.rs"] mod ui_binding_tests;` loads
+///           the headless UI regression tests,
+///  compiled ONLY under `cargo test` /
+///           `cargo nextest run`.
+///  `#[path]` names the sibling file explicitly because
 ///           the module name differs from the default `ui_binding_tests/mod.rs` lookup.
-/// Why:      They instantiate `AppWindow` (in scope here from `include_modules!`) and
-///           drive its Sliders via `i-slint-backend-testing`, so they belong beside
-///           `main.rs` in the binary crate, not in the reusable library crate.
+/// Why:
+///       They instantiate `AppWindow` (in scope here from `include_modules!`) and
+///           drive its Sliders via `i-slint-backend-testing`,
+///  so they belong beside
+///           `main.rs` in the binary crate,
+///  not in the reusable library crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // test-only import, tree-shaken from production builds
 /// import "./ui_binding_tests.test";
 /// ```
-#[cfg(test)]
-#[path = "ui_binding_tests.rs"]
-mod ui_binding_tests;
-
-/// What:     `use std::path::PathBuf;`. The OWNED filesystem path type: a heap-
-///           allocated, growable path buffer. Sibling: `&Path`, a BORROWED view
-///           that does not own its bytes (the `String` vs `&str` distinction, but
+/// What:
+///      `use std::path::PathBuf;`.
+///  The OWNED filesystem path type:
+///  a heap-
+///           allocated,
+///  growable path buffer.
+///  Sibling:
+///  `&Path`,
+///  a BORROWED view
+///           that does not own its bytes (the `String` vs `&str` distinction,
+///  but
 ///           for paths).
-/// Why:      Picked folders and the music dir become owned `PathBuf`s, and the two
-///           path helpers below return `Option<PathBuf>`; `PathBuf` (not `&Path`)
+/// Why:
+///       Picked folders and the music dir become owned `PathBuf`s,
+///  and the two
+///           path helpers below return `Option<PathBuf>`;
+///  `PathBuf` (not `&Path`)
 ///           because these paths outlive the calls that produce them.
 ///
 /// In TS you'd write (pseudocode):
@@ -130,15 +284,27 @@ mod ui_binding_tests;
 /// ```
 use std::path::PathBuf;
 
-/// What:     `#[cfg(unix)] use std::path::Path;`. The BORROWED path view (`&Path`),
-///           imported ONLY on Unix targets. `#[cfg(unix)]` is a conditional-
+/// What:
+///      `#[cfg(unix)] use std::path::Path;`.
+///  The BORROWED path view (`&Path`),
+///           imported ONLY on Unix targets.
+///  `#[cfg(unix)]` is a conditional-
 ///           compilation attribute that keeps the line on Unix (Linux/macOS/BSD)
-///           and drops it elsewhere; siblings: `windows`, `target_os = "..."`.
-/// Why:      `Path::new` is used solely inside the Unix-only `xdg_user_dir_music`
-///           helper below, so importing it unconditionally would be an unused
+///           and drops it elsewhere;
+///  siblings:
+///  `windows`,
+///  `target_os = "..."`.
+/// Why:
+///       `Path::new` is used solely inside the Unix-only `xdg_user_dir_music`
+///           helper below,
+///  so importing it unconditionally would be an unused
 ///           import on Windows (which trips the deny-warnings clippy gate).
-/// Gotcha:   `#[cfg(...)]` is COMPILE-time conditional compilation, not a runtime
-///           `if`: the line literally does not exist in a non-Unix build, so it
+/// Gotcha:
+///    `#[cfg(...)]` is COMPILE-time conditional compilation,
+///  not a runtime
+///           `if`:
+///  the line literally does not exist in a non-Unix build,
+///  so it
 ///           cannot be an unused import there.
 ///
 /// In TS you'd write (pseudocode):
@@ -148,10 +314,13 @@ use std::path::PathBuf;
 #[cfg(unix)]
 use std::path::Path;
 
-/// What:     `use anyhow::Result;` imports `anyhow`'s one-parameter application
-///           result alias. Sibling typed results name exact error types like
+/// What:
+///      `use anyhow::Result;` imports `anyhow`'s one-parameter application
+///           result alias.
+///  Sibling typed results name exact error types like
 ///           `slint::PlatformError`.
-/// Why:      Startup and event-loop failures share one user-facing error channel.
+/// Why:
+///       Startup and event-loop failures share one user-facing error channel.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,13 +328,26 @@ use std::path::Path;
 /// ```
 use anyhow::Result;
 
-/// What:     `use std::rc::Rc;`. `Rc<T>` is a single-threaded shared-ownership
-///           pointer (reference counted). Sibling: `Arc<T>` (atomic refcount, safe
-///           to share across threads); `Box<T>` (single owner, no sharing).
-/// Why:      Several UI callbacks need to share the one `Engine`; they all run on
-///           the UI thread, so non-atomic `Rc` is enough (and cheaper than `Arc`'s
-///           atomic counter), and we never need `Box`'s single-owner model.
-/// Gotcha:   `Rc` is NOT thread-safe; sending one across threads does not compile.
+/// What:
+///      `use std::rc::Rc;`.
+///  `Rc<T>` is a single-threaded shared-ownership
+///           pointer (reference counted).
+///  Sibling:
+///  `Arc<T>` (atomic refcount,
+///  safe
+///           to share across threads);
+///  `Box<T>` (single owner,
+///  no sharing).
+/// Why:
+///       Several UI callbacks need to share the one `Engine`;
+///  they all run on
+///           the UI thread,
+///  so non-atomic `Rc` is enough (and cheaper than `Arc`'s
+///           atomic counter),
+///  and we never need `Box`'s single-owner model.
+/// Gotcha:
+///    `Rc` is NOT thread-safe;
+///  sending one across threads does not compile.
 ///           The cross-thread sharing below uses `Arc` instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,16 +356,28 @@ use anyhow::Result;
 /// ```
 use std::rc::Rc;
 
-/// What:     `use std::sync::{Arc, Mutex};`. `Arc<T>` is a thread-safe shared owner
-///           (atomic refcount; sibling: single-thread `Rc<T>`), and `Mutex<T>` is a
-///           lock that lets one thread mutate `T` at a time (sibling: `RwLock<T>`,
+/// What:
+///      `use std::sync::{Arc, Mutex};`.
+///  `Arc<T>` is a thread-safe shared owner
+///           (atomic refcount;
+///  sibling:
+///  single-thread `Rc<T>`),
+///  and `Mutex<T>` is a
+///           lock that lets one thread mutate `T` at a time (sibling:
+///  `RwLock<T>`,
 ///           many readers OR one writer).
-/// Why:      The engine update callback must be `Send`, so progress debounce state
-///           cannot be an `Rc`; an `Arc<Mutex<_>>` crosses into the UI callback
+/// Why:
+///       The engine update callback must be `Send`,
+///  so progress debounce state
+///           cannot be an `Rc`;
+///  an `Arc<Mutex<_>>` crosses into the UI callback
 ///           safely and still mutates only one small state object (no need for
 ///           `RwLock`'s reader/writer split).
-/// Gotcha:   a `Mutex` in Rust WRAPS the data it guards; you reach the value only
-///           by locking. There is no "forgot to lock" path like a bare JS object.
+/// Gotcha:
+///    a `Mutex` in Rust WRAPS the data it guards;
+///  you reach the value only
+///           by locking.
+///  There is no "forgot to lock" path like a bare JS object.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,11 +385,21 @@ use std::rc::Rc;
 /// ```
 use std::sync::{Arc, Mutex};
 
-/// What:     `use std::time::Instant;`. `Instant` is a monotonic timestamp (only
-///           ever moves forward). Sibling: `Duration`, the elapsed span produced by
-///           `Instant::elapsed`; `SystemTime`, the wall clock that can jump.
-/// Why:      Progress debounce decisions use elapsed time since startup, which needs
-///           the monotonic `Instant`, not the jumpy `SystemTime`.
+/// What:
+///      `use std::time::Instant;`.
+///  `Instant` is a monotonic timestamp (only
+///           ever moves forward).
+///  Sibling:
+///  `Duration`,
+///  the elapsed span produced by
+///           `Instant::elapsed`;
+///  `SystemTime`,
+///  the wall clock that can jump.
+/// Why:
+///       Progress debounce decisions use elapsed time since startup,
+///  which needs
+///           the monotonic `Instant`,
+///  not the jumpy `SystemTime`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,11 +407,16 @@ use std::sync::{Arc, Mutex};
 /// ```
 use std::time::Instant;
 
-/// What:     `use music_player::command::{Command, PlaybackMode, Update};`. The
-///           message types from our library crate. The package is `music-player`
-///           but a Rust crate identifier cannot contain `-`, so the lib crate is
+/// What:
+///      `use music_player::command::{Command, PlaybackMode, Update};`.
+///  The
+///           message types from our library crate.
+///  The package is `music-player`
+///           but a Rust crate identifier cannot contain `-`,
+///  so the lib crate is
 ///           `music_player` (the hyphen becomes an underscore).
-/// Why:      We build `Command`s and read `Update`s.
+/// Why:
+///       We build `Command`s and read `Update`s.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,18 +424,26 @@ use std::time::Instant;
 /// ```
 use music_player::command::{Command, Update};
 
-/// What:     `use music_player::cli::Cli;`. The clap-derived argument-parser struct
+/// What:
+///      `use music_player::cli::Cli;`.
+///  The clap-derived argument-parser struct
 ///           from our library crate (its fields are `start_playing` and `paths`).
-/// Why:      `main` calls `Cli::parse()` to turn the command line into that struct.
+/// Why:
+///       `main` calls `Cli::parse()` to turn the command line into that struct.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { Cli } from "music-player/cli";
 /// ```
+/// The Windows build parses through `cli::parse_with_color` instead, so it names neither `Cli` nor the trait.
+#[cfg(not(windows))]
 use music_player::cli::Cli;
 
-/// What:     `use music_player::engine::Engine;`. The controller handle.
-/// Why:      We spawn it and send commands.
+/// What:
+///      `use music_player::engine::Engine;`.
+///  The controller handle.
+/// Why:
+///       We spawn it and send commands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,9 +451,13 @@ use music_player::cli::Cli;
 /// ```
 use music_player::engine::Engine;
 
-/// What:     `use music_player::progress::ProgressDebouncer;`. The pure debounce
+/// What:
+///      `use music_player::progress::ProgressDebouncer;`.
+///  The pure debounce
 ///           state shared with the binary-only UI bridge.
-/// Why:      The binary owns the state object; `ui_progress` owns the Slint wiring.
+/// Why:
+///       The binary owns the state object;
+///  `ui_progress` owns the Slint wiring.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -244,8 +465,11 @@ use music_player::engine::Engine;
 /// ```
 use music_player::progress::ProgressDebouncer;
 
-/// What:     `use music_player::session::Session;`. The saved-state record.
-/// Why:      We load it on launch to restore the last session.
+/// What:
+///      `use music_player::session::Session;`.
+///  The saved-state record.
+/// Why:
+///       We load it on launch to restore the last session.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -253,25 +477,18 @@ use music_player::progress::ProgressDebouncer;
 /// ```
 use music_player::session::Session;
 
-/// What:     `use music_player::pagination;`. The pure queue-pagination module.
-///           Importing the MODULE (not its items) so calls read `pagination::paginate`
-///           / `pagination::page_of_index`, keeping the origin obvious at the call.
-/// Why:      The binary groups the queue's display paths into pages: one per top-
-///           level folder for subfolder tracks, A-Z + `#` letter pages for root-
-///           level tracks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as pagination from "music-player/pagination";
-/// ```
-use music_player::pagination;
-
-/// What:     `use music_player::launcher::{self, Launcher};`. The desktop-shell
-///           integration: `self` re-imports the MODULE itself (so `launcher::set_window_app_id`
-///           still resolves), and `Launcher` pulls in the struct that emits KDE
+/// What:
+///      `use music_player::launcher::{self, Launcher};`.
+///  The desktop-shell
+///           integration:
+///  `self` re-imports the MODULE itself (so `launcher::set_window_app_id`
+///           still resolves),
+///  and `Launcher` pulls in the struct that emits KDE
 ///           taskbar progress.
-/// Why:      `main` installs the app-id hook via the module path and constructs a
-///           `Launcher`, so it needs both the module and the type in scope.
+/// Why:
+///       `main` installs the app-id hook via the module path and constructs a
+///           `Launcher`,
+///  so it needs both the module and the type in scope.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -280,24 +497,57 @@ use music_player::pagination;
 /// ```
 use music_player::launcher::{self, Launcher};
 
-/// What:     `use clap::Parser;`. The `Parser` TRAIT whose `parse()` method reads the
-///           process arguments into a `Cli`. The matching `#[derive(Parser)]` MACRO
-///           lives beside the struct in `cli.rs`; here we import only the trait so we
+/// What: `use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};`.
+///  The system indicator for the true-peak analysis, and the app identity it shows.
+/// Why:
+///       D107 replaces the in-app banner with a Plasma job or a freedesktop notification.
+use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};
+/// What: `use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};`.
+/// Why: the notification that replaced the "cannot be played" message in the window (D122).
+use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};
+
+/// What: `use music_player::sweep_gate::SweepGate;`. The pause gate of the background analysis sweep.
+/// Why: the indicator's Pause and Resume buttons stop and restart the sweep workers through it (D107).
+use music_player::sweep_gate::SweepGate;
+
+/// What:
+///      `use clap::Parser;`.
+///  The `Parser` TRAIT whose `parse()` method reads the
+///           process arguments into a `Cli`.
+///  The matching `#[derive(Parser)]` MACRO
+///           lives beside the struct in `cli.rs`;
+///  here we import only the trait so we
 ///           can CALL `Cli::parse()` (a trait method needs its trait in scope).
-/// Why:      Without the trait in scope, `Cli::parse()` would not resolve.
-/// Gotcha:   in Rust a method can come from a TRAIT, and the trait must be imported
-///           to call it, even though `Cli` is already in scope. There is no TS
-///           analogue: TS methods always live on the value itself.
+/// Why:
+///       Without the trait in scope,
+///  `Cli::parse()` would not resolve.
+/// Gotcha:
+///    in Rust a method can come from a TRAIT,
+///  and the trait must be imported
+///           to call it,
+///  even though `Cli` is already in scope.
+///  There is no TS
+///           analogue:
+///  TS methods always live on the value itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { parseArgs } from "some-cli-parser";
 /// ```
+#[cfg(not(windows))]
 use clap::Parser;
 
-/// What:     `use i_slint_backend_winit::Backend;`. Slint's winit backend, built
+/// What: the startup steps that end the program when they fail, and the debug-build hook that fails one on purpose.
+/// Why: a failed double-click start on Windows is reported in a message box (`src/startup_failure.rs`).
+use music_player::startup_failure::StartupStep;
+
+/// What:
+///      `use i_slint_backend_winit::Backend;`.
+///  Slint's winit backend,
+///  built
 ///           explicitly so a window-attributes hook can run.
-/// Why:      The default backend selector gives no hook to set the Wayland app id.
+/// Why:
+///       The default backend selector gives no hook to set the Wayland app id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -305,15 +555,26 @@ use clap::Parser;
 /// ```
 use i_slint_backend_winit::Backend;
 
-/// What:     `use slint::{ComponentHandle, Model, SharedString, VecModel};`.
+/// What:
+///      `use slint::{ComponentHandle, Model, SharedString, VecModel};`.
 ///           `ComponentHandle` is the trait giving `.as_weak()`/`.run()` on the
-///           window; `Model` is the trait whose `.iter()` reads a list property
-///           back (we re-read the full `queue` model to repaginate); `SharedString`
-///           is Slint's cheap-to-clone string (sibling: `String`, which would force
-///           a fresh allocation on every clone); `VecModel` builds the list model
-///           behind a list property. (The `ModelRc` a setter wants is produced by
-///           `.into()`, so it needs no import.)
-/// Why:      Needed to drive the window, read its `queue`, and set its list props;
+///           window;
+///  `Model` is the trait whose `.iter()` reads a list property
+///           back (we re-read the full `queue` model to repaginate);
+///  `SharedString`
+///           is Slint's cheap-to-clone string (sibling:
+///  `String`,
+///  which would force
+///           a fresh allocation on every clone);
+///  `VecModel` builds the list model
+///           behind a list property.
+///  (The `ModelRc` a setter wants is produced by
+///           `.into()`,
+///  so it needs no import.)
+/// Why:
+///       Needed to drive the window,
+///  read its `queue`,
+///  and set its list props;
 ///           `SharedString` over `String` because Slint clones these strings often
 ///           and a refcounted clone is far cheaper than reallocating.
 ///
@@ -321,26 +582,21 @@ use i_slint_backend_winit::Backend;
 /// ```ts
 /// import { ComponentHandle, Model, SharedString, VecModel } from "slint";
 /// ```
-use slint::{ComponentHandle, Model, SharedString, VecModel};
+use slint::ComponentHandle;
 
-/// What:     `use ui_page::{set_now_playing, set_queue_model, PageNav};`. The sibling module's
-///           page-navigation intent type and the property-setter helpers.
-/// Why:      `refresh_page` and `apply_update` below project engine `Update`s onto Slint
-///           properties through these.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { setNowPlaying, setQueueModel, PageNav } from "./ui_page";
-/// ```
-use ui_page::{set_now_playing, set_queue_model, PageNav};
-/// Playback-mode conversion and displayed-page scope helpers.
-use ui_playback::{int_to_playback_mode, kept_page, page_scope, playback_mode_to_int};
-
-/// What:     `fn format_time(secs: f64) -> String`. Format seconds as "m:ss".
-///           `f64` is a 64-bit float (sibling: `f32`); `String` is an owned heap
-///           string (sibling: `&str`, a borrowed view we could not return here
+/// What:
+///      `fn format_time(secs: f64) -> String`.
+///  Format seconds as "m:ss".
+///           `f64` is a 64-bit float (sibling:
+///  `f32`);
+///  `String` is an owned heap
+///           string (sibling:
+///  `&str`,
+///  a borrowed view we could not return here
 ///           because it would point at this function's freed locals).
-/// Why:      Slint number-to-string is awkward, so we format here and pass strings;
+/// Why:
+///       Slint number-to-string is awkward,
+///  so we format here and pass strings;
 ///           the result is `String` (owned) so the caller can keep it past this call.
 ///
 /// In TS you'd write (pseudocode):
@@ -377,466 +633,40 @@ pub(crate) fn format_time(secs: f64) -> String {
     return format!("{}:{:02}", whole / 60, whole % 60)
 }
 
-/// What:     `fn refresh_page(app: &AppWindow, target: PageNav)`. Rebuild the
-///           page-tab list and the visible page from the full `queue` property.
-///           `app: &AppWindow` is a BORROWED, read-only reference to the window (we
-///           only call its getters/setters, we do not own it). `target` is a `PageNav`:
-///           `Show(page)` to show a specific page, `Follow` to jump to the current
-///           track's page, or `Keep` to preserve the page already shown. No `-> ...`, so
-///           it returns `()` (the unit type, like TS `void`). Runs on the UI thread.
-/// Why:      One place derives the pagination view, so the tabs, the visible rows,
-///           and the selected tab can never disagree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refreshPage(app: AppWindow, target: PageNav): void { ... }
-/// ```
-fn refresh_page(app: &AppWindow, target: PageNav) {
-    // What:     `let names: Vec<String> = app.get_queue().iter().map(|s| s.to_string()).collect();`.
-    //           `app.get_queue()` returns the full-list model (`ModelRc<SharedString>`);
-    //           `.iter()` (from the `Model` trait) walks it yielding `SharedString`;
-    //           `.map(|s| s.to_string())` copies each into an OWNED `String` (the
-    //           `|s| ...` is a closure, `.to_string()` allocates); `.collect()`
-    //           gathers them into the `Vec<String>` named by the annotation (a
-    //           heap-allocated growable array; sibling `&[String]` is a borrowed view).
-    // Why:      Re-read the canonical full list to regroup it into pages; owned
-    //           `String`s because `paginate` keeps them past the borrowed model.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const names: string[] = [...app.queue];
-    // ```
-    let names: Vec<String> = app.get_queue().iter().map(|s| return s.to_string()).collect();
-    // What:     `let pages = pagination::paginate(&names);`. Call the module function,
-    //           passing `&names` which BORROWS the vector (lends it read-only without
-    //           giving up ownership). Returns the grouped pages (folder pages, then
-    //           A-Z letter pages, then `#`).
-    // Why:      The single source of the tabs and page contents; borrowing avoids
-    //           copying the whole list into the callee.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const pages = pagination.paginate(names);
-    // ```
-    let pages = pagination::paginate(&names);
-    let kept_page = kept_page(app, &pages);
-
-    // What:     `let labels: Vec<SharedString> = pages.iter().map(|page| SharedString::from(page.label.as_str())).collect();`.
-    //           `.iter()` borrows each `page`; the closure takes its `label` (a
-    //           `String`), `.as_str()` borrows it as `&str`, and `SharedString::from`
-    //           builds the Slint string the model holds. `.collect()` gathers them
-    //           into a `Vec<SharedString>`.
-    // Why:      The tab captions, one per page, in page order.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const labels = pages.map((page) => page.label);
-    // ```
-    let labels: Vec<SharedString> = pages
-        .iter()
-        .map(|page| return SharedString::from(page.label.as_str()))
-        .collect();
-    // What:     `app.set_page_labels(Rc::new(VecModel::from(labels)).into());`.
-    //           `VecModel::from(labels)` wraps the vector in a list model;
-    //           `Rc::new(...)` puts it behind a shared-ownership pointer; `.into()`
-    //           converts that `Rc<VecModel>` into the `ModelRc` the setter wants;
-    //           `set_page_labels` is the generated setter for the `page-labels`
-    //           property.
-    // Why:      Push the tab list to the UI.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.pageLabels = labels;
-    // ```
-    app.set_page_labels(Rc::new(VecModel::from(labels)).into());
-
-    // What:     `let requested: i32 = match target { ... };`. A `match` used as an
-    //           EXPRESSION assigned to `requested`. Decides which page to show: the
-    //           explicit one, the page already shown, or the page of the current track.
-    // Why:      `Show` carries an explicit page; `Keep` preserves the current page; `Follow`
-    //           computes the current track's page.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const requested: number = target.kind === "show" ? target.page : target.kind === "keep" ? app.selectedPage : pageOfCurrent();
-    // ```
-    let requested: i32 = match target {
-        // What:     `PageNav::Show(page) => page`. Destructure the explicit page and yield it.
-        // Why:      Honour the explicitly clicked tab (or page 0 on a fresh open).
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (target.kind === "show") return target.page;
-        // ```
-        PageNav::Show(page) => page,
-        // What:     `PageNav::Keep => app.get_selected_page()`. Yield the page already shown.
-        // Why:      A rescan reconcile must not move the user's tab; clamping below still keeps
-        //           it in range if the page count shrank.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (target.kind === "keep") return app.selectedPage;
-        // ```
-        PageNav::Keep => kept_page,
-        // What:     `PageNav::Follow => { ... }`. The follow arm; its `{ ... }` block computes
-        //           the page to follow the current track.
-        // Why:      Keep the playing row visible after a track change.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // /* compute from current track */
-        // ```
-        PageNav::Follow => {
-            // What:     `let index = app.get_current_index();`. The playing track's
-            //           load-order index, or `-1` when nothing is playing.
-            // Why:      We map it onto a page.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const index = app.currentIndex;
-            // ```
-            let index = app.get_current_index();
-            // What:     `if index < 0 { app.get_selected_page() } else { ... }`. An
-            //           `if/else` EXPRESSION (both arms yield an `i32`). With no
-            //           current track (-1), keep the page the user is already viewing;
-            //           otherwise find the page holding that track.
-            // Why:      Do not yank the view to page 0 when nothing is playing.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return index < 0 ? app.selectedPage : (pageOfIndex(pages, index) ?? app.selectedPage);
-            // ```
-            if index < 0 {
-                app.get_selected_page()
-            } else {
-                // What:     `match pagination::page_of_index(&pages, index as usize) { ... }`.
-                //           `index as usize` casts the `i32` to `usize` (the pointer-
-                //           sized unsigned index type std collections want; siblings
-                //           `u32`/`u64`); `page_of_index` returns `Option<usize>`
-                //           (`Some(page)` or `None`).
-                // Why:      Locate the current track's page.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const found = pageOfIndex(pages, index);
-                // ```
-                match pagination::page_of_index(&pages, index as usize) {
-                    // What:     `Some(page) => page as i32`. Destructure the found
-                    //           page index (`usize`) and `as i32` widens it back to the
-                    //           property's signed type.
-                    // Why:      Show that page.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // if (found !== null) return found;
-                    // ```
-                    Some(page) => page as i32,
-                    // What:     `None => app.get_selected_page()`. Not found (stale
-                    //           index mid-update); keep the current view.
-                    // Why:      Safe fallback.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // return app.selectedPage;
-                    // ```
-                    None => app.get_selected_page(),
-                }
-            }
-        }
-    };
-
-    // What:     `let clamped: i32 = if pages.is_empty() { 0 } else { requested.clamp(0, pages.len() as i32 - 1) };`.
-    //           An `if/else` EXPRESSION. With no pages, page 0; otherwise
-    //           `i32::clamp(lo, hi)` returns the nearest bound when `requested` is
-    //           outside `[0, len-1]`. `pages.len()` is a `usize` count, `as i32`
-    //           narrows it.
-    // Why:      A stale or out-of-range page index must not index past the pages.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const clamped = pages.length ? Math.min(Math.max(requested, 0), pages.length - 1) : 0;
-    // ```
-    let clamped: i32 = if pages.is_empty() {
-        0
-    } else {
-        requested.clamp(0, pages.len() as i32 - 1)
-    };
-
-    // What:     `let items: Vec<PageItem> = match pages.get(clamped as usize) { ... };`.
-    //           `clamped as usize` casts the index; `pages.get(i)` returns
-    //           `Option<&Page>` (`None` when out of range, instead of panicking like
-    //           `pages[i]` would). A `match` builds the selected page's rows as the
-    //           generated `PageItem` struct.
-    // Why:      The ListView shows only this page's tracks.
-    // Gotcha:   `.get(i)` is the SAFE indexer returning an `Option`; `pages[i]`
-    //           would panic on an out-of-range index. Prefer `.get` for fallbacks.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const items = (pages[clamped]?.entries ?? []).map((e) => ({ name: e.name, index: e.index }));
-    // ```
-    let items: Vec<PageItem> = match pages.get(clamped as usize) {
-        // What:     `Some(page) => page.entries.iter().map(|entry| PageItem { name: pagination::row_display(&page.label, &entry.name).into(), index: entry.index as i32 }).collect()`.
-        //           Destructure the present page; `.iter()` borrows its entries; the closure
-        //           builds a Slint `PageItem`. `pagination::row_display(&page.label, &entry.name)`
-        //           lends the page LABEL and the full display NAME read-only (each `&` borrows,
-        //           transferring no ownership) and returns a `&str` VIEW: the name with the
-        //           `<label>/` folder prefix stripped on folder pages, or the whole name on
-        //           letter / `#` pages. `.into()` then converts that `&str` into the
-        //           `SharedString` field (copying it). `entry.index as i32` narrows the index.
-        //           `.collect()` gathers into the `Vec<PageItem>`.
-        // Why:      Show the path BELOW the folder tab (the folder name is already the tab
-        //           caption), while still carrying the real queue index so a click maps back
-        //           correctly.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // page.entries.map((entry) => ({ name: rowDisplay(page.label, entry.name), index: entry.index }));
-        // ```
-        Some(page) => page
-            .entries
-            .iter()
-            .map(|entry| return PageItem {
-                name: pagination::row_display(&page.label, &entry.name).into(),
-                index: entry.index as i32,
-            })
-            .collect(),
-        // What:     `None => Vec::new()`. `Vec::new()` constructs an empty vector (no
-        //           page, e.g. empty queue): no rows.
-        // Why:      Show an empty list.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // [];
-        // ```
-        None => Vec::new(),
-    };
-    // What:     `app.set_page_items(Rc::new(VecModel::from(items)).into());`. Same
-    //           `VecModel` -> `Rc` -> `.into()` -> `ModelRc` wrapping as the labels
-    //           above; `set_page_items` sets the `page-items` property.
-    // Why:      Render the selected page's rows.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.pageItems = items;
-    // ```
-    app.set_page_items(Rc::new(VecModel::from(items)).into());
-    let selected_page_key = pages.get(clamped as usize).map(pagination::page_identity).unwrap_or_default();
-    app.set_selected_page_key(selected_page_key.into());
-    // What:     `app.set_selected_page(clamped);`. Set the `selected-page` property
-    //           to mark which tab is active.
-    // Why:      Highlight the visible tab.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.selectedPage = clamped;
-    // ```
-    app.set_selected_page(clamped);
-}
-
-/// What:     `fn apply_update(app: &AppWindow, update: &Update)`. Apply one engine
-///           update to the window's properties. `app` is a borrowed window handle;
-///           `update` is BORROWED (`&Update`) so the progress-debounce wrapper can forward
-///           the very same value without rebuilding it. The match reads the payload by
-///           reference. Runs on the event-loop thread.
-/// Why:      Keep the on-screen state mirroring the engine's state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function applyUpdate(app: AppWindow, update: Update): void { ... }
-/// ```
-fn apply_update(app: &AppWindow, update: &Update) {
-    // What:     `match update { ... }`. Pattern-match (and destructure) the update
-    //           enum's variant; exhaustive over every `Update` case.
-    // Why:      Each variant maps to one or more property setters.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // switch (update.kind) { ... }
-    // ```
-    match update {
-        // What:     `Update::Queue(names) => { ... }`. Tuple-variant pattern: binds
-        //           the variant's single payload (the `Vec<String>` of names) to
-        //           `names`, moving it out of `update`.
-        // Why:      Render the filenames.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "queue": { const { names } = update; ... }
-        // ```
-        Update::Queue(names) => {
-            // What:     `set_queue_model(app, names);`. Store the full list (consuming `names`).
-            // Why:      The canonical full list; the visible rows come from the paginated
-            //           `page-items` set inside `refresh_page` just below.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // setQueueModel(app, names);
-            // ```
-            set_queue_model(app, names);
-            // What:     `refresh_page(app, PageNav::Show(0));`. Rebuild the tabs and show the
-            //           first page. A fresh queue (open/restore) resets to page 0; the
-            //           `NowPlaying` update that follows a restore then jumps to the current
-            //           track's page.
-            // Why:      A fresh queue starts at the first tab.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // refreshPage(app, { kind: "show", page: 0 });
-            // ```
-            refresh_page(app, PageNav::Show(0));
-        }
-        // What:     `Update::NowPlaying { index, name, duration } => { ... }`. A
-        //           STRUCT-variant pattern: destructures the variant's named fields
-        //           directly into the locals `index`, `name`, `duration`.
-        // Why:      Update the now-playing label, highlight, and seek-bar max.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "nowPlaying": { const { index, name, duration } = update; ... }
-        // ```
-        Update::NowPlaying {
-            index,
-            name,
-            duration,
-        } => {
-            // What:     `set_now_playing(app, index, name, duration);`. Mirror the title, seek-bar
-            //           maximum and total-time label, and the highlighted row.
-            // Why:      A track change refreshes the now-playing view.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // setNowPlaying(app, index, name, duration);
-            // ```
-            set_now_playing(app, *index, name, *duration);
-            // What:     `refresh_page(app, PageNav::Follow);`. FOLLOW the now-playing track:
-            //           switch the visible page to the one holding it so the highlighted row
-            //           stays on screen after Next / auto-advance / a row selection.
-            // Why:      Keep the playing track visible across track changes.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // refreshPage(app, { kind: "follow" });
-            // ```
-            refresh_page(app, PageNav::Follow);
-        }
-        // What:     `Update::Reconciled { names, index, name, duration } => { ... }`. A live
-        //           rescan reconciled the queue with disk: refresh the list AND the now-playing
-        //           view, but keep the user's current tab.
-        // Why:      An on-disk change to other files must not move the selected tab or track.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "reconciled": { const { names, index, name, duration } = update; ... }
-        // ```
-        Update::Reconciled {
-            names,
-            index,
-            name,
-            duration,
-        } => {
-            // What:     `set_queue_model(app, names);`. Replace the full list with the reconciled
-            //           paths (rows may have been added or removed).
-            // Why:      The list must reflect the new on-disk contents.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // setQueueModel(app, names);
-            // ```
-            set_queue_model(app, names);
-            // What:     `set_now_playing(app, index, name, duration);`. Refresh the title and the
-            //           highlighted row (the current track's index may have shifted).
-            // Why:      The same track stays selected; only its position in the list may differ.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // setNowPlaying(app, index, name, duration);
-            // ```
-            set_now_playing(app, *index, name, *duration);
-            // What:     `refresh_page(app, PageNav::Keep);`. Repaginate but KEEP the current tab.
-            // Why:      A reconcile must not yank the user off the page they are browsing, even
-            //           when the queue or the current track's page changed.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // refreshPage(app, { kind: "keep" });
-            // ```
-            refresh_page(app, PageNav::Keep);
-        }
-        // What:     `Update::Position(secs) => { ... }`. Tuple-variant pattern binding
-        //           the live playback position (`f64` seconds) to `secs`.
-        // Why:      Move the seek bar and update the elapsed label.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "position": { const { secs } = update; ... }
-        // ```
-        Update::Position(secs) => {
-            // What:     `app.set_position(secs as f32);`. `as f32` narrows to Slint's
-            //           float for the slider thumb position.
-            // Why:      Slider thumb position.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // app.position = secs;
-            // ```
-            app.set_position(*secs as f32);
-            // What:     `app.set_position_text(format_time(secs).into());`. Format the
-            //           elapsed seconds and `.into()` to `SharedString`.
-            // Why:      Elapsed-time label.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // app.positionText = formatTime(secs);
-            // ```
-            app.set_position_text(format_time(*secs).into());
-        }
-        // What:     `Update::Playing(on) => app.set_playing(on)`. One-line arm: bind
-        //           the play/pause boolean `on` and set the `playing` property.
-        // Why:      Toggle the button label.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "playing": app.playing = on; break;
-        // ```
-        Update::Playing(on) => app.set_playing(*on),
-        // What:     `Update::Volume(v) => app.set_volume(v)`. Bind the volume `v`
-        //           (already an `f32`) and set the `volume` property.
-        // Why:      Sync the slider.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "volume": app.volume = v; break;
-        // ```
-        Update::Volume(v) => app.set_volume(*v),
-        // What:     `Update::Shuffle(mode) => app.set_playback_mode_mode(playback_mode_to_int(mode))`.
-        //           Bind the `PlaybackMode`, encode it to an int via the helper, and
-        //           set the radio group's property.
-        // Why:      Highlight the selected shuffle radio.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "shuffle": app.shuffleMode = shuffleToInt(mode); break;
-        // ```
-        Update::PlaybackMode(mode) => app.set_playback_mode(playback_mode_to_int(*mode)),
-    }
-}
 
 
 
-/// What:     `fn xdg_user_dir_music() -> Option<PathBuf>`. Last-resort lookup: shell
-///           out to the `xdg-user-dir MUSIC` command and use its printed path. The
-///           return is `Option<PathBuf>`: `Some(path)` on success, `None` otherwise
-///           (Rust has no `null`; absence is modeled by the `Option` enum).
-/// Why:      Some setups (and some `directories` parsing gaps) leave the music dir
-///           discoverable only through the official `xdg-user-dir` tool; this is the
+/// What:
+///      `fn xdg_user_dir_music() -> Option<PathBuf>`.
+///  Last-resort lookup:
+///  shell
+///           out to the `xdg-user-dir MUSIC` command and use its printed path.
+///  The
+///           return is `Option<PathBuf>`:
+///  `Some(path)` on success,
+///  `None` otherwise
+///           (Rust has no `null`;
+///  absence is modeled by the `Option` enum).
+/// Why:
+///       Some setups (and some `directories` parsing gaps) leave the music dir
+///           discoverable only through the official `xdg-user-dir` tool;
+///  this is the
 ///           fallback when the env var and the user-dirs file both come up empty.
-/// What:     `#[cfg(unix)]` compiles this Unix version of the helper only on Unix
-///           targets (Linux/macOS/BSD); the `#[cfg(not(unix))]` stub just below
-///           replaces it on Windows. `unix` is a built-in cfg covering the whole
-///           Unix family; siblings: `windows`, `target_os = "linux"`.
-/// Why:      `xdg-user-dir` is a freedesktop CLI tool that exists only on Unix
-///           desktops; on Windows the spawn would always fail, so gate it out and
+/// What:
+///      `#[cfg(unix)]` compiles this Unix version of the helper only on Unix
+///           targets (Linux/macOS/BSD);
+///  the `#[cfg(not(unix))]` stub just below
+///           replaces it on Windows.
+///  `unix` is a built-in cfg covering the whole
+///           Unix family;
+///  siblings:
+///  `windows`,
+///  `target_os = "linux"`.
+/// Why:
+///       `xdg-user-dir` is a freedesktop CLI tool that exists only on Unix
+///           desktops;
+///  on Windows the spawn would always fail,
+///  so gate it out and
 ///           let the stub return `None` instead of wasting a process spawn.
 ///
 /// In TS you'd write (pseudocode):
@@ -941,13 +771,21 @@ fn xdg_user_dir_music() -> Option<PathBuf> {
     return Some(PathBuf::from(trimmed))
 }
 
-/// What:     `#[cfg(not(unix))] fn xdg_user_dir_music() -> Option<PathBuf>`. The
-///           non-Unix stub (Windows): same signature as the Unix version above,
-///           compiled only when NOT a Unix target. `not(unix)` inverts the `unix`
+/// What:
+///      `#[cfg(not(unix))] fn xdg_user_dir_music() -> Option<PathBuf>`.
+///  The
+///           non-Unix stub (Windows):
+///  same signature as the Unix version above,
+///           compiled only when NOT a Unix target.
+///  `not(unix)` inverts the `unix`
 ///           cfg predicate.
-/// Why:      Windows has no `xdg-user-dir` tool, and `music_dir()` already resolves
+/// Why:
+///       Windows has no `xdg-user-dir` tool,
+///  and `music_dir()` already resolves
 ///           the Windows Music known-folder via the `directories` crate one step
-///           earlier, so this fallback has nothing to do; keep the call site
+///           earlier,
+///  so this fallback has nothing to do;
+///  keep the call site
 ///           platform-agnostic by returning `None`.
 ///
 /// In TS you'd write (pseudocode):
@@ -967,110 +805,205 @@ fn xdg_user_dir_music() -> Option<PathBuf> {
     None
 }
 
-/// What:     `fn music_dir() -> Option<PathBuf>`. Find the user's music directory:
-///           the `XDG_MUSIC_DIR` environment variable first, then the XDG user-dirs
-///           file via the `directories` crate, then the `xdg-user-dir MUSIC`
-///           command. Returns `None` unless one yields an existing directory.
-/// Why:      The containerized `run` task bind-mounts the host music folder and
-///           exports `XDG_MUSIC_DIR` as its in-container path; a native run has no
-///           such env, so we fall back to the user-dirs file and finally the
-///           `xdg-user-dir` tool. The `directories` crate reads only the file, never
-///           the env var, so the env lookup must be explicit here.
+/// What:
+///      `fn music_dir() -> Option<PathBuf>`.
+///  Find the user's music directory:
+///           the `XDG_MUSIC_DIR` environment variable first,
+///  then the XDG user-dirs
+///           file via the `directories` crate,
+///  then the `xdg-user-dir MUSIC`
+///           command,
+///  then `Music` inside the home folder (D95: a library is always open).
+///  Returns `None` unless one yields an existing directory.
+/// Why:
+///       The containerized `run` task bind-mounts the host music folder and
+///           exports `XDG_MUSIC_DIR` as its in-container path;
+///  a native run has no
+///           such env,
+///  so we fall back to the user-dirs file and finally the
+///           `xdg-user-dir` tool.
+///  The `directories` crate reads only the file,
+///  never
+///           the env var,
+///  so the env lookup must be explicit here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function musicDir(): string | null { ... }
 /// ```
 fn music_dir() -> Option<PathBuf> {
-    // What:     `std::env::var_os("XDG_MUSIC_DIR")`. Read an environment variable as
-    //           an `Option<OsString>` (raw OS bytes, not required to be UTF-8).
-    //           Sibling: `var(...)` returns `Result<String, _>` and errors on
-    //           non-UTF-8; `var_os` returns `None` when unset and never errors. This
-    //           expression starts a method chain whose value is the function tail.
-    // Why:      Paths may hold non-UTF-8 bytes, and "unset" is not an error here, so
-    //           `var_os` (not `var`) is the right reader.
+    // What:     the places to look, in order: `XDG_MUSIC_DIR`, the user-dirs file, the `xdg-user-dir` tool, then `Music`
+    //           inside the home folder. Each later place is computed only if the earlier ones gave no folder.
+    // Why:      D95: a library is always open. A home folder with a `Music` folder but no user-dirs entry used to show
+    //           the "No folder is open" screen (EM7). The first place that is an existing folder wins, so a variable
+    //           pointing at a missing folder falls through instead of ending the search.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return (process.env.XDG_MUSIC_DIR ?? userDirs()?.audioDir ?? xdgUserDirMusic())
-    //   ?.let((p) => isDir(p) ? p : null) ?? null;
+    // return [process.env.XDG_MUSIC_DIR, userDirs()?.audioDir, xdgUserDirMusic(), join(homedir(), "Music")].find(isDir) ?? null;
     // ```
-    return std::env::var_os("XDG_MUSIC_DIR")
-        // What:     `.map(PathBuf::from)`. On `Some(osStr)`, convert the `OsString`
-        //           into an owned `PathBuf`; passing `PathBuf::from` (the function
-        //           itself) is the closure shorthand. `None` stays `None`.
-        // Why:      We want a path, not a raw OS string.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // (process.env.XDG_MUSIC_DIR as path | undefined)
-        // ```
-        .map(PathBuf::from)
-        // What:     `.or_else(|| ...)`. If the env var was unset (`None`), run the
-        //           zero-argument closure `|| ...` to compute a fallback. `or_else`
-        //           is LAZY: the closure runs only on `None` (sibling `.or(x)` would
-        //           evaluate `x` eagerly).
-        // Why:      A native run has no `XDG_MUSIC_DIR` env; read the user-dirs file
-        //           only when needed.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // ?? userDirs()?.audioDir
-        // ```
-        .or_else(|| {
-            // What:     `directories::UserDirs::new().and_then(|dirs| dirs.audio_dir().map(|p| p.to_path_buf()))`.
-            //           `UserDirs::new()` is `Option<UserDirs>`; `.and_then(...)` runs
-            //           the closure only when present and flattens the nested
-            //           `Option`; `dirs.audio_dir()` is `Option<&Path>` parsed from the
-            //           XDG user-dirs file; `.map(|p| p.to_path_buf())` turns the
-            //           borrowed `&Path` into an owned `PathBuf`.
-            // Why:      Standard music-dir lookup for a native (non-container) run.
-            // Gotcha:   `.and_then` is the `Option`-flattening combinator (`flatMap`),
-            //           NOT `.map`; using `.map` here would give `Option<Option<_>>`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // userDirs()?.audioDir;
-            // ```
-            return directories::UserDirs::new()
-                .and_then(|dirs| return dirs.audio_dir().map(|p| return p.to_path_buf()))
-        })
-        // What:     `.or_else(xdg_user_dir_music)`. If both the env var and the
-        //           user-dirs file came up empty, fall back to the `xdg-user-dir`
-        //           command. Passing the function by name is the closure shorthand
-        //           (its signature `() -> Option<PathBuf>` matches what `or_else`
-        //           wants).
-        // Why:      Final fallback for setups where only the tool knows the path.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // ?? xdgUserDirMusic()
-        // ```
-        .or_else(xdg_user_dir_music)
-        // What:     `.filter(|p| p.is_dir())`. Keep the path only if the closure is
-        //           `true`, i.e. it exists and is a directory; otherwise the whole
-        //           `Option` becomes `None`. `|p|` borrows the path.
-        // Why:      Do not feed a missing or non-directory path to the engine.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // ?.let((p) => isDir(p) ? p : null)
-        // ```
-        .filter(|p| return p.is_dir())
+    let from_environment = std::iter::once(std::env::var_os("XDG_MUSIC_DIR").map(PathBuf::from));
+    let from_user_dirs = std::iter::once_with(|| {
+        return directories::UserDirs::new().and_then(|dirs| return dirs.audio_dir().map(|p| return p.to_path_buf()));
+    });
+    let from_tool = std::iter::once_with(xdg_user_dir_music);
+    let from_home = std::iter::once_with(|| {
+        return directories::BaseDirs::new().map(|dirs| return music_player::default_library::home_music_folder(dirs.home_dir()));
+    });
+    return music_player::default_library::first_existing_dir(
+        from_environment.chain(from_user_dirs).chain(from_tool).chain(from_home),
+    );
 }
 
-/// What:     `fn main() -> Result<()>`. The entry point. The return type is
-///           `anyhow`'s success-or-error enum: `Ok(())` (success with the unit
-///           value, like `void`) or `Err(anyhow::Error)`. Returning `Err` from
+/// What:
+///      `fn color_scheme_from_env() -> i32`.
+///  The `Theme.scheme-override` value that `MUSIC_PLAYER_COLOR_SCHEME` selects.
+/// Why:
+///       A mistyped value is logged and the window follows the system, so the app still opens.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function colorSchemeFromEnv(): number {
+///   try { return schemeOverride(process.env.MUSIC_PLAYER_COLOR_SCHEME); } catch (error) { warn(error); return FOLLOW_SYSTEM; }
+/// }
+/// ```
+fn color_scheme_from_env() -> i32 {
+    // What:     `scheme_override(value.as_deref())`. Map the variable's text to the override.
+    // Why:      An absent variable is `None`, which follows the system.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = process.env.MUSIC_PLAYER_COLOR_SCHEME;
+    // ```
+    let value = std::env::var(COLOR_SCHEME_ENV).ok();
+    return match scheme_override(value.as_deref()) {
+        Ok(scheme) => scheme,
+        Err(error) => {
+            tracing::warn!(error = %error, "ignoring the color scheme override");
+            FOLLOW_SYSTEM
+        }
+    };
+}
+
+/// What: `start_analysis_notifier` starts the system indicator for the true-peak analysis (D107).
+/// Why: its Pause and Resume go to the sweep gate, which parks the sweep workers before their next claim; the callback
+/// only flips the gate, so it returns at once. The name and icon are those of the shipped desktop file, so a run
+/// without the installed file still gets a named header.
+fn start_analysis_notifier() -> AnalysisNotifier {
+    return AnalysisNotifier::spawn(NotifierConfig::session(
+        app_identity(),
+        true,
+        Box::new(|paused| SweepGate::shared().set_paused(paused)),
+    ))
+}
+
+/// What: `app_identity` names the app to the desktop for every system notification it posts.
+/// Why: the analysis indicator (D107) and the "cannot be played" notification (D122) show the same name, icon and
+/// desktop entry, so they are built from one value.
+fn app_identity() -> Identity {
+    return Identity {
+        desktop_entry: music_player::identity::APP_ID.to_string(),
+        app_name: "Music Player".to_string(),
+        app_icon: "multimedia-player".to_string(),
+    };
+}
+
+/// What: `start_unplayable_notifier` starts the system notification for files that cannot be played (D122).
+/// Why: the engine thread hands it the paths; it posts them on its own thread, so neither the engine nor the window
+/// waits on the bus. The window itself shows only the row mark.
+fn start_unplayable_notifier() -> UnplayableNotifier {
+    return UnplayableNotifier::spawn(UnplayableConfig::session(app_identity()));
+}
+
+/// What:
+///      `fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError>`.
+///  In a Windows debug build, fails `step` on purpose when `MUSIC_PLAYER_FORCE_STARTUP_FAILURE` names it.
+/// Why:
+///       The Windows runner proves the failure report by forcing each step and reading the message box back
+///           (`.github/workflows/music-player-release.yml`, job `test-windows`). The error goes through the same
+///           path as a real one.
+#[cfg(all(windows, debug_assertions))]
+fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
+    use music_player::startup_failure::{FORCE_STARTUP_FAILURE_ENV, forced_failure_detail, forced_startup_failure};
+    let value = std::env::var(FORCE_STARTUP_FAILURE_ENV).ok();
+    if forced_startup_failure(value.as_deref()) == Some(step) {
+        tracing::warn!(?step, "failing a startup step on purpose ({FORCE_STARTUP_FAILURE_ENV})");
+        return Err(slint::PlatformError::from(forced_failure_detail(step)));
+    }
+    return Ok(());
+}
+
+/// What:
+///      `fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError>`.
+///  Release builds and non-Windows builds: never fails.
+/// Why:
+///       The test hook is compiled out of the release; the call sites stay the same on every build.
+#[cfg(not(all(windows, debug_assertions)))]
+fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError> {
+    return Ok(());
+}
+
+/// What:
+///      `fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
+///  Windows: reports the failed step (a message box when stderr reaches nobody, the text on stderr otherwise), then
+///  hands the error on to `main`.
+/// Why:
+///       A double-click start has no console, so the error `main` returns would be written nowhere.
+#[cfg(windows)]
+fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error {
+    music_player::startup_failure_win32::report_startup_failure(step, &error.to_string());
+    tracing::debug!(?step, "the startup failure was reported; main returns the error and drops its state");
+    return anyhow::Error::from(error);
+}
+
+/// What:
+///      `fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
+///  Linux and macOS: hands the error on to `main` unchanged, which prints it as before.
+/// Why:
+///       Those builds always have a terminal or a session log for stderr.
+#[cfg(not(windows))]
+fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Error {
+    return anyhow::Error::from(error);
+}
+
+/// What:
+///      `fn main() -> Result<()>`.
+///  The entry point.
+///  The return type is
+///           `anyhow`'s success-or-error enum:
+///  `Ok(())` (success with the unit
+///           value,
+///  like `void`) or `Err(anyhow::Error)`.
+///  Returning `Err` from
 ///           `main` makes the process exit non-zero and prints the error.
-/// Why:      Propagate window/backend failure (e.g. no display server) as the exit
-///           status, rather than panicking.
+/// Why:
+///       Propagate window/backend failure (e.g. no display server) as the exit
+///           status,
+///  rather than panicking.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function main(): Promise<void> { ... } // throws on platform failure
 /// ```
 fn main() -> Result<()> {
+    // What:     `let console_attach = attach_parent_console();`. Windows only: attach to the console of the
+    //           parent process and repair stdout and stderr (a handle the parent passed on is kept).
+    // Why:      The Windows executable is a GUI-subsystem program, which starts with no console. This runs before
+    //           the logger and before `Cli::parse()`, because both print. A double-click start has no parent
+    //           console; the attach then fails, nothing is printed anywhere and no window opens.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const consoleAttach = attachParentConsole(); // win32 only
+    // ```
+    #[cfg(windows)]
+    let console_attach = music_player::console_attach_win32::attach_parent_console();
+    // What:     `let console_colors = enable_console_colors();`. Windows only: switch every console behind stdout and
+    //           stderr to interpret ANSI color sequences, and measure what each handle does with them.
+    // Why:      The logger and clap write colors only where they become colors: never into a file, never as literal
+    //           ESC characters on a console without VT processing (`src/console_color.rs`).
+    #[cfg(windows)]
+    let console_colors = music_player::console_attach_win32::enable_console_colors();
     // What:     `music_player::logging::init();`. Install the stderr tracing subscriber
     //           before anything else, so startup events have a sink. Idempotent.
     // Why:      Every `tracing` event from this crate and `truepeak-core` needs a sink;
@@ -1080,7 +1013,23 @@ fn main() -> Result<()> {
     // ```ts
     // logging.init();
     // ```
+    #[cfg(not(windows))]
     music_player::logging::init();
+    #[cfg(windows)]
+    music_player::logging::init_with_ansi(music_player::console_color::log_colors_wanted(
+        console_colors.stderr,
+        std::env::var("NO_COLOR").ok().as_deref(),
+    ));
+    // What:     `log_console_attach(&console_attach);` and `log_console_colors(&console_colors);`. Windows only: write
+    //           what the attach and the color setup did at debug level, then add the panic message box.
+    // Why:      Both ran before the logger existed, so their outcome is logged now. The panic hook shows a panic of the
+    //           main thread in a message box when stderr reaches nobody (a double-click start).
+    #[cfg(windows)]
+    {
+        music_player::console_attach::log_console_attach(&console_attach);
+        music_player::console_color::log_console_colors(&console_colors);
+        music_player::startup_failure_win32::install_panic_message_box();
+    }
     // What:     `let cli = Cli::parse();`. Read and validate the command-line
     //           arguments FIRST, before any backend, window, or GPU setup.
     //           `Cli::parse()` (from the `clap::Parser` trait) reads the real process
@@ -1097,7 +1046,31 @@ fn main() -> Result<()> {
     // ```ts
     // const cli = parseArgs(process.argv); // prints help / exits on bad args
     // ```
+    #[cfg(not(windows))]
     let cli = Cli::parse();
+    // Windows: the same parse, with clap's colors off when a console refused VT processing.
+    #[cfg(windows)]
+    let cli = music_player::cli::parse_with_color(music_player::console_color::cli_color(console_colors));
+    // A debug-build test hook: `MUSIC_PLAYER_FORCE_STARTUP_FAILURE=panic` panics here, on the main thread.
+    if let Err(error) = forced_failure(StartupStep::Panic) {
+        panic!("{error}");
+    }
+
+    // What:     `if cli.licenses { ... return Ok(()) }`. Print the embedded license notices to stdout and exit before
+    //           any backend, window or audio setup.
+    // Why:      The notices must be reachable from the program itself (the Windows release is one executable), and
+    //           printing them needs no display, so it works on a headless machine too. A closed pipe (`| head`)
+    //           ends the listing without an error (`write_notices`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (cli.licenses) { writeNotices(process.stdout); return; }
+    // ```
+    if cli.licenses {
+        tracing::debug!("printing the license notices for --licenses");
+        music_player::licenses::write_notices(&mut std::io::stdout().lock())?;
+        return Ok(());
+    }
 
     // What:     Install Slint's winit backend explicitly, with a window-attributes
     //           hook that stamps the Wayland app id. This `{ ... }` is a BARE BLOCK
@@ -1179,7 +1152,9 @@ fn main() -> Result<()> {
         // ```ts
         // const backend = builder.build(); // throws PlatformError on failure
         // ```
-        let backend = builder.build()?;
+        let backend = forced_failure(StartupStep::WindowSystem)
+            .and_then(|()| return builder.build())
+            .map_err(|error| return startup_failed(StartupStep::WindowSystem, error))?;
         // What:     `slint::platform::set_platform(Box::new(backend)).expect("no Slint platform should already be set");`.
         //           `Box::new(backend)` moves the backend onto the heap behind an
         //           owning pointer (the API wants a `Box<dyn Platform>` trait object;
@@ -1208,7 +1183,31 @@ fn main() -> Result<()> {
     // ```ts
     // const app = new AppWindow();
     // ```
-    let app = AppWindow::new()?;
+    let app = forced_failure(StartupStep::Window)
+        .and_then(|()| return AppWindow::new())
+        .map_err(|error| return startup_failed(StartupStep::Window, error))?;
+    // What:     `app.global::<Theme>().set_scheme_override(color_scheme_from_env());`.
+    //           Apply the color scheme override before the first frame.
+    // Why:      Verification runs fix the scheme with MUSIC_PLAYER_COLOR_SCHEME; unset follows the system.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // app.theme.schemeOverride = colorSchemeFromEnv();
+    // ```
+    app.global::<Theme>().set_scheme_override(color_scheme_from_env());
+    // What:     `ui_theme::apply_accent_override_from_env(&app);` then `ui_theme::install_accent_tracking(&app);`.
+    //           Apply the optional accent override, derive the theme roles for the current root (the system accent,
+    //           or the baseline when none exists), and register the callback that re-derives them on an accent change.
+    // Why:      A3 and D108: the OS accent is the theme root and every other color is derived from it in OKLCH.
+    //           The override comes first so the first derivation already uses it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // applyAccentOverrideFromEnv(app);
+    // installAccentTracking(app);
+    // ```
+    ui_theme::apply_accent_override_from_env(&app);
+    ui_theme::install_accent_tracking(&app);
 
     // What:     `let weak = app.as_weak();`. `.as_weak()` makes a WEAK handle to the
     //           window: it does not keep the window alive, and can be sent to other
@@ -1244,13 +1243,10 @@ fn main() -> Result<()> {
     // ```ts
     // applyLedRowGeometry(app);
     // ```
-    ui_led_rows::apply(&app);
 
     // Derive every runtime LED pigment through OKLCH coordinates.
-    ui_led_palette::apply(&app);
 
-    // Restore page-control preference and register settings persistence.
-    ui_page_style::apply(&app);
+    // Register settings persistence.
 
     // What:     `let launcher = Launcher::new();`. Construct the KDE taskbar-progress
     //           emitter (a cheap-to-clone session-bus handle, or a no-op without a
@@ -1301,28 +1297,58 @@ fn main() -> Result<()> {
     // ```ts
     // const engine = Engine.spawn(update => postToUiThread(() => applyUpdate(app, update)));
     // ```
+    let analysis_notifier = start_analysis_notifier();
+    let update_notifier = analysis_notifier.clone();
+    let unplayable_notifier = start_unplayable_notifier();
+    let unplayable_engine_notifier = unplayable_notifier.clone();
+    // The Search service answers on its own thread and takes scan batches from the engine thread (D111, D112).
+    let search_service = ui_search::start_service(&app);
+    // Joins the service's threads when `main` ends, before the thread-local handle is dropped during process exit.
+    let _search_shutdown = ui_search::ServiceShutdown;
+    let scan_service = search_service.clone();
     let engine = Rc::new(Engine::spawn(move |update| {
-        // What:     `let weak = weak.clone();`. `.clone()` of a weak handle is cheap
-        //           (bumps a refcount); the outer closure is called repeatedly so it
-        //           cannot move `weak` out, hence a fresh clone per call.
+        // What:     post the sweep's progress to the system indicator before the window sees the update.
+        // Why:      D107: the indicator runs on its own thread, so this only queues a message; the window draws no
+        //           analysis indicator at all.
+        if let Update::Analysis { done, total } = &update {
+            update_notifier.report(*done, *total);
+        }
+        // What:     hand the files that cannot be played to the system notification, before the window sees the update.
+        // Why:      D122: the window marks the rows and draws no message; the notifier thread posts the notification,
+        //           so this only queues a message on the engine thread.
+        if let Update::Unplayable(paths) = &update {
+            unplayable_engine_notifier.report(paths);
+        }
+        // What:     hand tracks the folder walk has found to the Search index, on the engine thread.
+        // Why:      D111: Search works while the library is still being scanned; the window needs no part in it.
+        if matches!(update, Update::ScanBatch { .. }) {
+            if let Update::ScanBatch { first_index, names } = update {
+                scan_service.stream_batch(first_index, names);
+            }
+            return;
+        }
+        // What:     `let update_weak = weak.clone();`. `.clone()` of a weak handle is
+        //           cheap (bumps a refcount); the outer closure is called repeatedly so
+        //           it cannot move `weak` out, hence a fresh per-call clone under its
+        //           own name.
         // Why:      Each update needs its own handle to move into the inner closure.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const w = weak; // GC: no explicit clone needed
         // ```
-        let weak = weak.clone();
-        // What:     `let launcher = launcher.clone();`. Clone the progress emitter for
-        //           this call (same reason as `weak`: the outer closure is `Fn` and
-        //           may run many times).
+        let update_weak = weak.clone();
+        // What:     `let update_launcher = launcher.clone();`. Clone the progress emitter
+        //           for this call (same reason as `update_weak`: the outer closure is `Fn`
+        //           and may run many times).
         // Why:      The inner closure moves it to the UI thread to emit progress.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const l = launcher;
         // ```
-        let launcher = launcher.clone();
-        // What:     `let progress_debouncer = Arc::clone(&progress_debouncer);`.
+        let update_launcher = launcher.clone();
+        // What:     `let update_debouncer = Arc::clone(&progress_debouncer);`.
         //           `Arc::clone(&x)` makes another owner of the SAME shared state by
         //           bumping the atomic refcount (the `&` lends the `Arc` to clone
         //           from). Written `Arc::clone(&x)` rather than `x.clone()` to make
@@ -1334,7 +1360,7 @@ fn main() -> Result<()> {
         // ```ts
         // const progressDebouncerForUpdate = progressDebouncer;
         // ```
-        let progress_debouncer = Arc::clone(&progress_debouncer);
+        let update_debouncer = Arc::clone(&progress_debouncer);
         // What:     `let progress_elapsed = progress_started_at.elapsed();`.
         //           `.elapsed()` returns a `Duration` measuring monotonic time since
         //           the captured `Instant`.
@@ -1360,19 +1386,19 @@ fn main() -> Result<()> {
         // queueMicrotaskOnUiThread(() => { ... });
         // ```
         let _ = slint::invoke_from_event_loop(move || {
-            // What:     `if let Some(app) = weak.upgrade() { ... }`. `upgrade()` turns
-            //           the weak handle back into `Option<AppWindow>`; the `if let
-            //           Some(app)` pattern runs the body only when the window still
-            //           exists, binding the strong handle to `app`.
+            // What:     `if let Some(window) = update_weak.upgrade() { ... }`. `upgrade()`
+            //           turns the weak handle back into `Option<AppWindow>`; the `if let
+            //           Some(window)` pattern runs the body only when the window still
+            //           exists, binding the strong handle under its own name.
             // Why:      The window may have closed before this scheduled closure runs.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // const app = weak.deref(); if (app) { ... }
             // ```
-            if let Some(app) = weak.upgrade() {
-                // What:     `ui_progress::apply_update_with_progress_debounce(&app, &launcher, &progress_debouncer, progress_elapsed, update);`.
-                //           Call the bridge, lending `app`, `launcher`, and the
+            if let Some(window) = update_weak.upgrade() {
+                // What:     `ui_progress::apply_update_with_progress_debounce(&window, &update_launcher, &update_debouncer, progress_elapsed, update);`.
+                //           Call the bridge, lending `window`, `update_launcher`, and the
                 //           debouncer by reference (`&`), and moving `progress_elapsed`
                 //           and `update` in by value.
                 // Why:      State updates stay immediate, while seek-bar and taskbar
@@ -1383,352 +1409,17 @@ fn main() -> Result<()> {
                 // uiProgress.applyUpdateWithProgressDebounce(app, launcher, progressDebouncer, progressElapsed, update);
                 // ```
                 ui_progress::apply_update_with_progress_debounce(
-                    &app,
-                    &launcher,
-                    &progress_debouncer,
+                    &window,
+                    &update_launcher,
+                    &update_debouncer,
                     progress_elapsed,
                     update,
                 );
             }
         });
     }));
+    ui_wire::wire(&app, &engine);
 
-    // What:     `app.on_toggle_play({ let engine = engine.clone(); move || engine.send(Command::TogglePlay) });`.
-    //           Register the play/pause handler. The `{ ... }` BLOCK EXPRESSION clones
-    //           the `Rc<Engine>` and evaluates to a `move` closure that owns the
-    //           clone. `on_toggle_play` is the generated registrar for the
-    //           `toggle-play` callback.
-    // Why:      Button press -> engine command.
-    // Gotcha:   the `{ let engine = ...; move || ... }` block is a common Rust idiom
-    //           to clone a capture BEFORE moving it into the closure, so the original
-    //           `engine` stays usable for the next handler.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onTogglePlay(() => engine.send(Command.TogglePlay));
-    // ```
-    app.on_toggle_play({
-        // What:     `let engine = engine.clone();`. A shared-owner clone of the `Rc`
-        //           for this closure (cheap: bumps the reference count).
-        // Why:      The closure must own an engine handle that outlives this scope.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move || engine.send(Command::TogglePlay)`. A zero-argument MOVE
-        //           closure (the `|| ...` is the param list) that owns the cloned
-        //           `engine` and sends the toggle command.
-        // Why:      Ask the engine to toggle play/pause.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // () => engine.send(Command.TogglePlay)
-        // ```
-        move || engine.send(Command::TogglePlay)
-    });
-
-    // What:     `app.on_prev({ ... })`. Register the previous-track handler, same
-    //           clone-then-move-closure idiom as `on_toggle_play`.
-    // Why:      Prev button -> `Command::Prev`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onPrev(() => engine.send(Command.Prev));
-    // ```
-    app.on_prev({
-        // What:     `let engine = engine.clone();`. Clone the `Rc<Engine>` for this
-        //           handler's closure (refcount bump).
-        // Why:      The closure needs its own owning handle.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move || engine.send(Command::Prev)`. Zero-arg move closure that
-        //           sends the previous-track command.
-        // Why:      One Prev click -> one `Prev` command.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // () => engine.send(Command.Prev)
-        // ```
-        move || engine.send(Command::Prev)
-    });
-
-    // What:     `app.on_next({ ... })`. Register the next-track handler.
-    // Why:      Next button -> `Command::Next`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onNext(() => engine.send(Command.Next));
-    // ```
-    app.on_next({
-        // What:     `let engine = engine.clone();`. Clone the `Rc<Engine>` for this
-        //           handler's closure.
-        // Why:      The closure needs its own owning handle.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move || engine.send(Command::Next)`. Zero-arg move closure that
-        //           sends the next-track command.
-        // Why:      One Next click -> one `Next` command.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // () => engine.send(Command.Next)
-        // ```
-        move || engine.send(Command::Next)
-    });
-
-    // What:     `app.on_seek({ ... })`. Register the seek handler; its closure takes
-    //           the slider value `secs: f32` and forwards it as `f64` seconds.
-    // Why:      Dragging the seek bar jumps playback.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onSeek((secs) => engine.send(Command.Seek(secs)));
-    // ```
-    app.on_seek({
-        // What:     `let engine = engine.clone();`. Clone the `Rc<Engine>` for this
-        //           handler's closure.
-        // Why:      The closure needs its own owning handle.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move |secs| engine.send(Command::Seek(secs as f64))`. A move
-        //           closure taking one `f32` parameter `secs`; `as f64` WIDENS it to
-        //           the seconds type `Command::Seek` carries.
-        // Why:      One seek drag -> one `Seek` command at the dragged position.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // (secs) => engine.send(Command.Seek(secs))
-        // ```
-        move |secs| engine.send(Command::Seek(secs as f64))
-    });
-
-    // What:     `app.on_set_volume({ ... })`. Register the volume handler; its closure
-    //           takes the gain `v: f32`.
-    // Why:      Volume slider -> `Command::SetVolume`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onSetVolume((v) => engine.send(Command.SetVolume(v)));
-    // ```
-    app.on_set_volume({
-        // What:     `let engine = engine.clone();`. Clone the `Rc<Engine>` for this
-        //           handler's closure.
-        // Why:      The closure needs its own owning handle.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move |v| engine.send(Command::SetVolume(v))`. A move closure
-        //           taking one `f32` gain `v` and forwarding it.
-        // Why:      One slider change -> one `SetVolume` command.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // (v) => engine.send(Command.SetVolume(v))
-        // ```
-        move |v| engine.send(Command::SetVolume(v))
-    });
-
-    // What:     `app.on_set_playback_mode_mode({ ... })`. Register the shuffle radio
-    //           handler; the clicked radio passes its mode integer `m: i32` (0/1/2).
-    //           Map it back to the enum and send. No property read needed: the radio
-    //           carries the target mode directly.
-    // Why:      Selecting a shuffle radio sets that exact mode.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onSetPlaybackMode((m) => engine.send(Command.SetPlaybackMode(intToShuffle(m))));
-    // ```
-    app.on_set_playback_mode({
-        let engine = engine.clone();
-        let weak = app.as_weak();
-        move |mode| {
-            if let Some(app) = weak.upgrade() {
-                engine.send(Command::SetPageScope(page_scope(
-                    &app,
-                    app.get_selected_page(),
-                )));
-                engine.send(Command::SetPlaybackMode(int_to_playback_mode(mode)));
-            }
-        }
-    });
-
-    // What:     `app.on_select_index({ ... })`. Register the row-select handler; its
-    //           closure takes the queue row `i: i32` and sends it as a `usize` index.
-    // Why:      A single click on an unselected row selects it (Rust loads it
-    //           paused); the UI sends `TogglePlay` instead when the clicked row is
-    //           already current, so this only ever carries a select.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onSelectIndex((i) => engine.send(Command.SelectIndex(i)));
-    // ```
-    app.on_select_index({
-        // What:     `let engine = engine.clone();`. Clone the `Rc<Engine>` for this
-        //           handler's closure.
-        // Why:      The closure needs its own owning handle.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const e = engine;
-        // ```
-        let engine = engine.clone();
-        // What:     `move |i| engine.send(Command::SelectIndex(i as usize))`. A move
-        //           closure taking the row `i: i32`; `as usize` casts it to the
-        //           pointer-sized index type the command carries.
-        // Why:      One row click -> one `SelectIndex` command.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // (i) => engine.send(Command.SelectIndex(i))
-        // ```
-        move |i| engine.send(Command::SelectIndex(i as usize))
-    });
-    // What:     `app.on_select_page({ ... })`. Register the tab-click handler; the
-    //           closure takes the page index `p: i32`. It does NOT touch the engine:
-    //           pagination is a pure display concern, so it just re-renders the
-    //           chosen page from the existing `queue` property. Needs a weak handle
-    //           to read/write properties.
-    // Why:      Clicking a tab filters the list to that folder (or letter) page.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onSelectPage((p) => refreshPage(app, p));
-    // ```
-    app.on_select_page({
-        // What:     `let weak = app.as_weak();`. A WEAK handle the `'static` closure
-        //           can hold (it cannot borrow `app`, which would not live long
-        //           enough).
-        // Why:      `refresh_page` needs the window to read `queue` and set the page.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const w = app; // WeakRef so the closure does not keep the window alive
-        // ```
-        let weak = app.as_weak();
-        let engine = engine.clone();
-        // What:     `move |p| { if let Some(app) = weak.upgrade() { refresh_page(&app, PageNav::Show(p)); } }`.
-        //           A move closure taking the page `p`; `weak.upgrade()` yields
-        //           `Option<AppWindow>`, the `if let Some(app)` runs only if the window
-        //           still exists, and `refresh_page(&app, PageNav::Show(p))` lends the window
-        //           and requests that EXACT page (not the follow-current or keep paths).
-        // Why:      Show the clicked tab's tracks.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // (p) => { const app = weak.deref(); if (app) refreshPage(app, { kind: "show", page: p }); }
-        // ```
-        move |p| {
-            if let Some(app) = weak.upgrade() {
-                refresh_page(&app, PageNav::Show(p));
-                engine.send(Command::SetPageScope(page_scope(&app, p)));
-            }
-        }
-    });
-
-    // What:     `app.on_open_files({ ... })`. Register the Open-button handler. It
-    //           opens the FOLDER picker on a SEPARATE thread (the dialog blocks) and
-    //           sends the chosen directory.
-    // Why:      A blocking dialog must not freeze the UI event loop. The XDG portal
-    //           treats files and folders as separate dialog modes, so this player
-    //           picks a folder and scans it recursively (individual files are still
-    //           openable via command-line arguments).
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // app.onOpenFiles(() => { showFolderPickerAsync().then((dir) => tx.send(openPaths([dir], false))); });
-    // ```
-    app.on_open_files({
-        // What:     `let tx = engine.sender();`. `.sender()` returns a `Send`
-        //           `CommandSender` (the command channel's send end bundled with the
-        //           worker handle) for the picker thread, because the `Rc<Engine>`
-        //           itself is `!Send` (single-thread only).
-        // Why:      The thread cannot hold the `Rc`; it holds the sender instead, and
-        //           sending through it also wakes the worker.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const tx = engine.sender();
-        // ```
-        let tx = engine.sender();
-        // What:     `move || { ... }`. The zero-argument move handler closure that owns
-        //           `tx`.
-        // Why:      Launch the picker when the Open button fires.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // () => { ... }
-        // ```
-        move || {
-            // What:     `let tx = tx.clone();`. Clone the sender for this invocation.
-            // Why:      Each open spawns a fresh thread that owns its own sender.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const t = tx;
-            // ```
-            let tx = tx.clone();
-            // What:     `std::thread::spawn(move || { ... });`. `thread::spawn` starts
-            //           a NEW OS thread running the move closure (which owns `tx`).
-            // Why:      Run the blocking dialog off the UI thread so the UI stays
-            //           responsive while it is open.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // runInWorker(() => { ... });
-            // ```
-            std::thread::spawn(move || {
-                // What:     `if let Some(dir) = rfd::FileDialog::new().pick_folder() { ... }`.
-                //           `FileDialog::new().pick_folder()` shows a folder picker (XDG
-                //           portal on Wayland) and returns `Option<PathBuf>`: `Some(dir)`
-                //           if the user confirmed, `None` if cancelled. The `if let
-                //           Some(dir)` runs the body only on confirm.
-                // Why:      Let the user enqueue a whole folder.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const dir = await showOpenDialog({ directory: true });
-                // if (dir) { ... }
-                // ```
-                if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                    // What:     `tx.send(Command::OpenRoot { root: dir, select: None, play: false });`.
-                    //           The picked folder becomes the Source Root; `select: None`
-                    //           opens with nothing cued; `play: false` loads PAUSED (only a
-                    //           `--start-playing` command-line launch auto-plays).
-                    //           `CommandSender::send` swallows a send error (engine gone)
-                    //           internally, then wakes the worker; the engine scans the root.
-                    // Why:      Replace the queue with the folder's tracks without surprise
-                    //           playback; the user presses play.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // tx.send(Command.OpenRoot({ root: dir, select: null, play: false }));
-                    // ```
-                    tx.send(Command::OpenRoot {
-                        root: dir,
-                        select: None,
-                        play: false,
-                    });
-                }
-            });
-        }
-    });
 
     // What:     `match cli.path { Some(path) => ..., None => ... }`. The single optional
     //           positional path was parsed into `cli` at the top of `main`. A CLI path
@@ -1807,10 +1498,11 @@ fn main() -> Result<()> {
             // const root = (session.sourceRoot && isDir(session.sourceRoot)) ? session.sourceRoot : null;
             // ```
             let root = session.source_root.clone().filter(|r| return r.is_dir());
-            // What:     `if let Some(root) = root { ... } else if let Some(music_dir) = music_dir() { ... }`.
+            // What:     `if let Some(saved_root) = root { ... } else if let Some(music_dir) = music_dir() { ... }`.
             //           Restore the saved root with its Selected Track and position, else
             //           restore the music directory carrying the saved settings but no
-            //           selection, else leave the queue empty.
+            //           selection, else leave the queue empty. The present path keeps its
+            //           own name so it never shadows the filtered `Option`.
             // Why:      Keep the user's settings even when the saved root is gone, and never
             //           leave a usable launch empty when a music directory exists.
             //
@@ -1819,9 +1511,9 @@ fn main() -> Result<()> {
             // if (root) restore(root, session.selected, ...);
             // else if (musicDir()) restore(musicDir(), null, settingsOnly);
             // ```
-            if let Some(root) = root {
+            if let Some(saved_root) = root {
                 engine.send(Command::Restore {
-                    root,
+                    root: saved_root,
                     selected: session.selected,
                     position: session.position_secs,
                     volume: session.volume,
@@ -1835,6 +1527,12 @@ fn main() -> Result<()> {
                     volume: session.volume,
                     playback_mode: session.playback_mode,
                 });
+            } else {
+                // What:     `engine.send(Command::NoLibrary);`. Say that there is nothing to open.
+                // Why:      The window shows "No folder is open" only when told so (EM1); the engine no longer says it
+                //           at start, before this decision.
+                tracing::info!("no saved folder and no music folder; the window offers to open one");
+                engine.send(Command::NoLibrary);
             }
         }
     }
@@ -1853,6 +1551,17 @@ fn main() -> Result<()> {
     // await app.run();
     // return;
     // ```
-    app.run()?;
+    // What:     run the event loop, then close the indicator and release the sweep before the engine drops.
+    // Why:      a Plasma job or notification must not outlive the app, and a sweep parked by Pause must not wait for a
+    //           resume that can no longer come.
+    let run_result = forced_failure(StartupStep::EventLoop).and_then(|()| return app.run());
+    analysis_notifier.shutdown();
+    unplayable_notifier.shutdown();
+    SweepGate::shared().close();
+    run_result.map_err(|error| return startup_failed(StartupStep::EventLoop, error))?;
     return Ok(())
 }
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

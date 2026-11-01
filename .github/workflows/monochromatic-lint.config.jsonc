@@ -1,0 +1,142 @@
+// monochromatic-lint.config.jsonc
+// Shell rules for the run steps of the GitHub Actions workflows.
+//
+// This file governs only the YAML in this directory: the nearest configuration wins, so the root
+// configuration does not apply here, and the repository-pinned monochromatic-lint, which does not
+// read YAML, never loads it. A binary that knows the shell rules checks every step's script.
+// Each ratchet block below holds one file at the worst step it has today: lower its numbers as the
+// scripts move into TypeScript, and delete the block once the file passes the default budgets
+// (2 lines and no banned construct). Raising a number needs the repository owner's approval.
+// Design and measurements: doc/planning/workflow-shell-line-limit.md.
+[
+  {
+    "name": "shell-steps",
+    "files": ["*.yml/*", "*.yaml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error" },
+      "shell/no-pipe": { "severity": "error" },
+      "shell/no-and-chain": { "severity": "error" },
+      "shell/no-or-chain": { "severity": "error" },
+      "shell/no-pipe-stderr": { "severity": "error" },
+      "shell/no-semicolon": { "severity": "error" },
+      "shell/no-dollar-paren": { "severity": "error" },
+      "shell/no-backtick": { "severity": "error" },
+      "shell/no-ampersand": { "severity": "error" },
+    },
+  },
+  {
+    "name": "shell-ratchet-admission-gate-yml",
+    "files": ["admission-gate.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 81 },
+    },
+  },
+  {
+    "name": "shell-ratchet-advisory-core-yml",
+    "files": ["advisory-core.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 37 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 6 },
+      "shell/no-or-chain": { "severity": "error", "max": 3 },
+      "shell/no-semicolon": { "severity": "error", "max": 4 },
+    },
+  },
+  {
+    "name": "shell-ratchet-cargo-publish-yml",
+    "files": ["cargo-publish.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 37 },
+      "shell/no-and-chain": { "severity": "error", "max": 3 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 2 },
+      "shell/no-or-chain": { "severity": "error", "max": 2 },
+      "shell/no-pipe": { "severity": "error", "max": 2 },
+      "shell/no-semicolon": { "severity": "error", "max": 8 },
+    },
+  },
+  {
+    "name": "shell-ratchet-current-baseline-yml",
+    "files": ["current-baseline.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 5 },
+    },
+  },
+  {
+    "name": "shell-ratchet-env-local-json-yml",
+    "files": ["env-local-json.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 6 },
+    },
+  },
+  {
+    "name": "shell-ratchet-forbidden-strings-yml",
+    "files": ["forbidden-strings.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 58 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 4 },
+      "shell/no-or-chain": { "severity": "error", "max": 2 },
+      "shell/no-semicolon": { "severity": "error", "max": 15 },
+    },
+  },
+  {
+    "name": "shell-ratchet-ide-release-yml",
+    "files": ["ide-release.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 63 },
+      "shell/no-and-chain": { "severity": "error", "max": 8 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 4 },
+      "shell/no-or-chain": { "severity": "error", "max": 1 },
+      "shell/no-pipe": { "severity": "error", "max": 9 },
+      "shell/no-semicolon": { "severity": "error", "max": 14 },
+    },
+  },
+  {
+    "name": "shell-ratchet-kotlin-linter-publish-yml",
+    "files": ["kotlin-linter-publish.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 20 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 3 },
+      "shell/no-pipe": { "severity": "error", "max": 2 },
+      "shell/no-semicolon": { "severity": "error", "max": 6 },
+    },
+  },
+  {
+    "name": "shell-ratchet-logger-fuzz-yml",
+    "files": ["logger-fuzz.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 10 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 1 },
+      "shell/no-or-chain": { "severity": "error", "max": 1 },
+      "shell/no-pipe": { "severity": "error", "max": 1 },
+      "shell/no-semicolon": { "severity": "error", "max": 2 },
+    },
+  },
+  {
+    "name": "shell-ratchet-music-player-release-yml",
+    "files": ["music-player-release.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 283 },
+      "shell/no-ampersand": { "severity": "error", "max": 1 },
+      "shell/no-and-chain": { "severity": "error", "max": 8 },
+      "shell/no-dollar-paren": { "severity": "error", "max": 6 },
+      "shell/no-or-chain": { "severity": "error", "max": 1 },
+      "shell/no-pipe": { "severity": "error", "max": 5 },
+      "shell/no-semicolon": { "severity": "error", "max": 17 },
+    },
+  },
+  {
+    "name": "shell-ratchet-npm-release-yml",
+    "files": ["npm-release.yml/*"],
+    "rules": {
+      "shell/no-dollar-paren": { "severity": "error", "max": 1 },
+      "shell/no-pipe": { "severity": "error", "max": 1 },
+    },
+  },
+  {
+    "name": "shell-ratchet-pnpr-publish-yml",
+    "files": ["pnpr-publish.yml/*"],
+    "rules": {
+      "shell/max-lines": { "severity": "error", "max": 3 },
+      "shell/no-pipe": { "severity": "error", "max": 1 },
+    },
+  },
+]

@@ -20,7 +20,7 @@ import readdir from 'tiny-readdir-glob';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { maybeConvert, } from './convert.ts';
 
@@ -76,23 +76,23 @@ const tasks = scanResults.flatMap(function buildTasks(
     /**
      Base filename without extension, used to derive the AVIF output path.
      */
-    const nameWithoutExt = basename(
-      filePath,
-      extname(filePath,),
-    );
+      const nameWithoutExt = basename(
+        filePath,
+        extname(filePath,),
+      );
     /**
      Target AVIF path sitting alongside the source raster image.
      */
-    const avifPath = join(
-      dirname(filePath,),
-      `${nameWithoutExt}.avif`,
-    );
-    return maybeConvert({
-      filePath,
-      avifPath,
-      l,
+      const avifPath = join(
+        dirname(filePath,),
+        `${nameWithoutExt}.avif`,
+      );
+      return maybeConvert({
+        filePath,
+        avifPath,
+        l,
+      },);
     },);
-  },);
 },);
 
 /**

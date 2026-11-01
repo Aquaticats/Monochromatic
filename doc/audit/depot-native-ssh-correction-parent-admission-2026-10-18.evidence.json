@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T20:58:12.259Z",
+  "proposal": {
+    "path": "doc/audit/depot-native-ssh-correction-2026-10-18.evidence.json",
+    "bytes": 15620,
+    "sha256": "7ca21ccf99331620b162bcb5f19d20e3741596051a827f5d9beca3f55dfbd1c4"
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz",
+    "gzipBytes": 329845,
+    "gzipSha256": "11118675368dcfecfcba9d6f3d3cee8856e6d6c9c1709eca9f78dc00d59b806a",
+    "uncompressedBytes": 1490378,
+    "uncompressedSha256": "84c2e45130dd4741104c7e07f68ab31a7a73335627c281575d748cb259904546",
+    "sourceCount": 16
+  },
+  "admission": {
+    "approvedSource": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+    "approvedControllerSha256": "150583785d9de5ecb7d5ac757b0f4dea0e73ce8ff060f4f3db222a4d34622173",
+    "approvedHelperSha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626",
+    "approvedAskpassSha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2",
+    "approvedRemoteConsumerSha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a",
+    "approvedManifestProjectionSha256": "1f517b13cd137ac39319499b18994b21039b7f166ad78d1a226a31cfdac4a503",
+    "rootReviewed": true,
+    "maximumRuns": 2,
+    "maximumNominalUsd": 0.036,
+    "admittedAt": "2026-10-18T20:58:12.259Z"
+  },
+  "verification": {
+    "retainedSourceBodies": 16,
+    "fixtureGitAndFilesystemJoins": 2,
+    "directRemoteMatches": true,
+    "controllerHelperBridgesProjectionHashes": true,
+    "firstTerminalStateHashBound": true,
+    "archiveAndElfHashes": true,
+    "fixtureDiffReviewed": true
+  },
+  "limits": {
+    "approved": false,
+    "maximumNewJobs": 1,
+    "maximumCumulativeJobs": 2,
+    "maximumConcurrentJobs": 1,
+    "requestedCpu": 2,
+    "requestedMemoryGiB": 8,
+    "serverJobMinutes": 3,
+    "pausedStepMinutes": 2,
+    "cancellationDeadlineSeconds": 150,
+    "eachSshLegSeconds": 15,
+    "combinedNominalReservationUsd": 0.036,
+    "noAggregateInvoiceCap": true,
+    "globalSlotRequiresRootCoverageCoordination": true
+  },
+  "cloudAllocations": 0
+}

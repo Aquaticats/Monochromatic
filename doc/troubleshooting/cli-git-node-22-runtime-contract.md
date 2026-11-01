@@ -6,12 +6,15 @@ Issue #429 aligned cli-git's declared floor with the latest published Node LTS l
 Issue #475 keeps that exact floor and adds the verified newer Node line.
 `package/git-policy/cli/package.json` is the source of truth and carries one caret branch per supported line,
 currently `^24.11.0 || ^26.0.0`.
-The lowest branch is the maintained minimum supported runtime and the build derives its `node24.11.0` transform target from it.
+The lowest branch is the maintained minimum supported runtime
+and the build derives its `node24.11.0` transform target from it.
 
-`package/git-policy/cli/src/runtime-contract.host-evidence.ts` requires execution at the exact floor of any declared line,
+`package/git-policy/cli/src/runtime-contract.host-evidence.ts`
+requires execution at the exact floor of any declared line,
 imports the built public MJS without extra output,
 and checks successful help plus invalid-usage behavior.
-`.github/workflows/cli-git-trust.yml` builds and runs unit and host evidence at every declared floor.
+`.github/workflows/cli-git-trust.yml` built and ran unit and host evidence at every declared floor;
+the workflow was deleted on 2026-10-13 in commit `642b6d72cb`, together with the TypeScript wrapper it tested.
 A separate CI check compares the lowest declared branch with Node's official release index each day,
 so a newly published LTS line that should advance the maintained minimum fails visibly.
 
@@ -44,7 +47,8 @@ and minimum-runtime host evidence confirmed:
 
 The guard had two positive controls after its first commit:
 
-- running host evidence under repository Node 26.7.0 failed before artifact execution because it was not exact declared floor;
+- running host evidence under repository Node 26.7.0 failed
+  before artifact execution because it was not exact declared floor;
 - temporarily restoring `^22.18.0`,
   rebuilding through derived `node22.18.0` target,
   and running on Node 22.18.0 failed representative invalid CLI behavior with exit `1`.
@@ -136,7 +140,7 @@ including:
 - `package/git-policy/cli/src/bin.ts`;
 - `package/git-policy/cli/src/worktree-copy/entry-compare.ts`;
 - `package/git-policy/cli/src/worktree-copy/journal-lock.ts`;
-- `package/module/caught-value/src/index.ts`.
+- `package/caught-value/core/src/index.ts`.
 
 The [Node 24.0.0 release notes][node-24] identify explicit resource management and `Error.isError` as features
 added with Node 24's V8 13.6 update.
@@ -298,7 +302,8 @@ Cons:
 
 Ranking:
 raising the floor is first because it matches the measured artifact and existing source design with a verified runtime.
-Preserving Node 22 is second because it retains broader support but requires an unbuilt cross-package compatibility change.
+Preserving Node 22 is second because it retains broader support
+but requires an unbuilt cross-package compatibility change.
 
 ## What does not work
 
@@ -339,6 +344,83 @@ Preserving Node 22 is second because it retains broader support but requires an 
 
 Do not file an issue against Node or CAC.
 Track any engine-floor or downleveling decision in this repository.
+
+## Node 26.10.0 copied into a Node 24 fixture lacked a shared library
+
+### Symptom and boundary
+
+During the cli-git rewrite evaluation on 2026-10-04,
+a disposable fixture copied the host's Node 26.10.0 executable over a Node 24.11.0 image's executable.
+The Linux dynamic loader failed before any JavaScript or performance measurement ran:
+
+```text
+# Dynamic-loader stderr from the disposable policy fixture
+node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory
+```
+
+The container command exited 127.
+This was an agent-authored fixture packaging error,
+not the reported slow-commit incident and not a Node language compatibility failure.
+
+### Evidence and verification
+
+On the host,
+`ldd` on the exact copied executable reported:
+
+```text
+# ldd on the host's Node 26.10.0 executable
+libatomic.so.1 => /usr/lib64/libatomic.so.1
+```
+
+The failing fixture extended local image
+`9b764e5240b8c4721640320ac499b3b3440612e3109481fb2df8ce48705f51e8`,
+which was built on the Node 24.11.0 cli-git end-to-end runtime.
+Copying the executable did not supply its shared-library dependencies.
+This conclusion uses the loader diagnostic and the exact binary's dependency listing;
+no upstream source defect is asserted.
+
+The corrected fixture uses the locally installed `node:26-slim` image,
+ID `8469107207880d917ddc60bb6aa76f35bb44965420f266840e1dea8758ff186b`,
+and copies the same host Node executable into that runtime.
+It then copies the existing Git executables,
+installed cli-git package,
+and benchmark inputs into the image.
+That combination launched Node 26.10.0,
+executed the Markdown CLI,
+and reached cli-git's configuration validation.
+A subsequent `Policy markdown/autofix options failed Valibot validation` error was a separate fixture-input error,
+not a shared-library failure.
+
+### Workaround and limits
+
+Use a runtime image that supplies the copied executable's dependencies,
+then verify the actual executable and consumer invocation.
+Do not treat an executable file alone as the complete Node runtime distribution.
+Changing the image also changes the userspace environment;
+measure all comparison variants in that same corrected image.
+The configuration error does not establish a passing performance run.
+
+### Upstream filing decision
+
+1.  Upstream fault:
+    no;
+    the evaluation fixture replaced a binary without its required runtime libraries.
+2.  Upstream fix:
+    unnecessary;
+    the fixture image is repository-owned.
+3.  Supported use:
+    no claim is made that a copied executable supports an arbitrary older runtime image.
+4.  Contribution policy:
+    not applicable to this local fixture correction.
+5.  Upstream willingness:
+    not applicable;
+    no upstream change is requested.
+6.  Prototype:
+    the corrected image launches the exact copied Node version and reaches application code.
+
+No upstream filing or draft is warranted.
+Reproduction inputs and subsequent measurement scope are recorded in
+[`cli-git-rust-rewrite.md`](../planning/cli-git-rust-rewrite.md).
 
 [node-24]: https://nodejs.org/en/blog/release/v24.0.0
 [runtime-contract-ci]: https://github.com/Aquaticat/Monochromatic/actions/runs/33219232827

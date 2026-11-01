@@ -1,0 +1,40 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/translation-repair-source-scan",
+  "description": "The source-scan part of the translation-repair pipeline; README.md says what it holds and what it leans on.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "exports": {
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
+    "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
+    "@monochromatic-dev/translation-repair-markup": "workspace:*",
+    "@monochromatic-dev/translation-repair-run": "workspace:*",
+    "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
+    "@monochromatic-dev/translation-repair-typography": "workspace:*",
+    "@types/mdast": "catalog:",
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/translation-repair/source-scan"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

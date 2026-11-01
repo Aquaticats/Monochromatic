@@ -7,7 +7,7 @@
 import type {
   Project,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Detects exact project-owned foreign host capability marker.
@@ -53,20 +53,20 @@ export function isForeignHostCapabilityType({
     if ((alias !== undefined)
       && (alias.name === 'ForeignHostCapability')
       && alias.declarations
-      .some(function markerDeclaration(handle,): boolean {
+        .some(function markerDeclaration(handle,): boolean {
         /**
          Resolved marker declaration for exact source identity.
          */
-        const declaration = handle.resolve(project,);
-        return (declaration !== undefined)
-          && declaration.getSourceFile()
-          .fileName
-          .replaceAll(
-            '\\',
-            '/',
-          )
-          .endsWith('/ownership-marker/foreign-borrowed/src/index.ts',);
-      },))
+          const declaration = handle.resolve(project,);
+          return (declaration !== undefined)
+            && declaration.getSourceFile()
+              .fileName
+              .replaceAll(
+              '\\',
+              '/',
+              )
+              .endsWith('/ownership-marker/foreign-borrowed/src/index.ts',);
+        },))
       return true;
     if (current.isUnionType() || current.isIntersectionType()) {
       current.getTypes()

@@ -12,14 +12,14 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
 } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 import { fauxAssistantMessage, } from '@earendil-works/pi-ai';
-import { AdvisorCompletionError, } from './advisor-completion-error.ts';
+import { AdvisorCompletionError, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 import {
   parseAdvisorHostJsonl,
   verifyAdvisorHostEvidence,
@@ -74,7 +74,7 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
    Each host owns its home, session, configuration, and dispatch trace.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'advisor-host-',
   ),);
   /**

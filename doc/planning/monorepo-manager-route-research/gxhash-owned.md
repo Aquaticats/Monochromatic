@@ -62,12 +62,14 @@ tracked in issue #545.
   Issue #111's panic depends on toolchain and frame layout and did not reproduce on Linux,
   with a positive control,
    in the platform probes (Verified by reading `probe-platforms.md`).
-- gxhash has seed-independent structural collisions between inputs that differ in one or two bytes of a lane's last block:
+- gxhash has seed-independent structural collisions between inputs that differ in one
+   or two bytes of a lane's last block:
    1 full 128-bit collision among the 1,044,480 single-byte edits of one random 4096-byte buffer,
    2 on SMHasher3's zero-base OneByte keyset,
    matching SMHasher3's report (Verified).
   Keeping gxhash 3 output keeps them;
-   two lab candidates for a new output version showed 0 on the same OneByte keysets and have had no other quality testing.
+   two lab candidates for a new output version showed 0 on the same OneByte keysets
+   and have had no other quality testing.
 - Upstream's reasons for no runtime detection and nightly-only VAES are outdated:
    safe `#[target_feature]` functions are stable since 1.86 and VAES intrinsics since 1.89 (Verified).
   Measured cost of runtime detection:
@@ -249,7 +251,8 @@ The rest go to `compress_8` in groups of 8 blocks.
     `lane2 = add8(lane2, dup32(n))`,
     return `aesenc(lane1, lane2)`.
 
-Two consequences follow from the definition of `aesenclast` (Verified by the split-accumulator check in "Reimplementation check"):
+Two consequences follow from the definition of `aesenclast`
+(Verified by the split-accumulator check in "Reimplementation check"):
 
 - Each lane update is `lane = SR(SB(aesenc(x, t))) XOR lane`,
   so a lane is the XOR of `h` and one independent term per group.
@@ -388,7 +391,9 @@ Upstream's golden values are in `mod.rs:217-225` (`is_stable`).
      `difftest OK: 97545 (input, seed) pairs matched on aarch64, gxhash hybrid feature = false`.
   - x86_64 against upstream built with `--features hybrid` and `+aes,+sse2,+avx2,+vaes` on nightly:
      `difftest OK: 97545 (input, seed) pairs matched on x86_64, gxhash hybrid feature = true`.
-- The same runs also compare `gxhash128` with a lab variant that accumulates the per-group lane terms in two separate XOR accumulators (even and odd groups) and combines them at the end;
+- The same runs also compare `gxhash128` with a lab variant
+   that accumulates the per-group lane terms in two separate XOR accumulators (even and odd groups)
+   and combines them at the end;
   all 97,545 pairs matched on x86_64 and on aarch64 under QEMU (Verified,
    second prototype shape),
   which confirms the order-independence stated in "Long inputs".
@@ -406,7 +411,8 @@ Upstream's golden values are in `mod.rs:217-225` (`is_stable`).
    MIT,
    "Copyright (c) 2023 Olivier Giniaux" (Verified).
   Its condition:
-   "The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software."
+   "The above copyright notice and this permission notice shall be included in all copies
+   or substantial portions of the Software."
 - `Cargo.toml`:
    `license = "MIT"`,
    `authors = ["Olivier Giniaux"]` (Verified).
@@ -432,7 +438,7 @@ Upstream's golden values are in `mod.rs:217-225` (`is_stable`).
    not a license term.
 - The repository has no REUSE configuration (`rg --files` for `REUSE.toml` and `.reuse/dep5` found none),
   and packages carry `LICENSES/GPL-3.0-or-later.txt` and `LICENSES/LGPL-3.0-or-later.txt`
-  (for example `package/rust-module/forbidden-regex/LICENSES`) (Verified).
+  (for example `package/forbidden-strings/core/LICENSES`) (Verified).
 
 ## Upstream issues and pull requests
 
@@ -451,7 +457,8 @@ Upstream activity:
    OPEN since 2025-01-10.
   The panic text is
    "unsafe precondition(s) violated:
-   ptr::copy_nonoverlapping requires that both pointer arguments are aligned and non-null and the specified memory ranges do not overlap",
+   ptr::copy_nonoverlapping requires that both pointer arguments are aligned and non-null
+   and the specified memory ranges do not overlap",
    reported on Apple Silicon with Rust 1.84 and gxhash 3.4.1,
    and "Still an issue with gxhash `v3.5.0`" (2025-03-22).
   The reproducer (`pedantic79/gxhash-test`,
@@ -478,7 +485,8 @@ Upstream activity:
    over `gxhash64`,
    `gxhash128`,
    and `GxHasher` for lengths 0 to 67 plus the issue's `HashMap` reproducer,
-   while a deliberately overlapping `copy_nonoverlapping` control aborted "with the issue's exact message on both compilers".
+   while a deliberately overlapping `copy_nonoverlapping` control aborted "with the issue's exact message on both
+   compilers".
   Its source explanation for nightly:
    aarch64 `vld1q_s8` calls `ptr::read_unaligned`,
    which now calls `read`,
@@ -589,7 +597,8 @@ Upstream activity:
 - Two facts that change this trade-off since 2024 (Verified):
   - Rust 1.86.0 "Allow safe functions to be marked with the `#[target_feature]` attribute" (`RELEASES.md:1549`).
   - Rust 1.89.0 "Stabilize the avx512 target features" (`RELEASES.md:1139`);
-    `_mm256_aesenc_epi128` is `#[stable(feature = "stdarch_x86_avx512", since = "1.89")]` (`stdarch/crates/core_arch/src/x86/vaes.rs:42`).
+    `_mm256_aesenc_epi128` is `#[stable(feature = "stdarch_x86_avx512", since = "1.89")]`
+    (`stdarch/crates/core_arch/src/x86/vaes.rs:42`).
   - Building upstream `hybrid` on stable 1.98.1 still fails only on the crate attribute:
      "error[E0554]:
      `#![feature]` may not be used on the stable release channel" at `gxhash-3.5.0/src/lib.rs:3:33`.
@@ -671,7 +680,8 @@ Upstream activity:
   - Every colliding byte sits in the last block of a lane,
     which matches the 4-byte difference described in "Long inputs".
 - Ecosystem precedent (Verified):
-   crate `whasher` 0.1.8 wraps gxhash 3.5.0 and says it routes inputs of 32 KiB and more to independent streaming checksums
+   crate `whasher` 0.1.8 wraps gxhash 3.5.0 and says it routes inputs of 32 KiB
+   and more to independent streaming checksums
    "规避 gxhash 单次直算的结构性碰撞族" (to avoid gxhash one-shot's structural collision family)
    (`whasher-0.1.8/src/lib.rs:22`,
    also `:12-14`).
@@ -760,9 +770,9 @@ Upstream activity:
      `rg 'unsafe_code|unsafe_op_in_unsafe_fn|undocumented_unsafe|forbid\(unsafe|deny\(unsafe'` over the repository matched only prose in docs.
   - Root `clippy.toml` bans only `Result::unwrap`;
      crate manifests deny `disallowed_methods` and `implicit_return`
-     (for example `package/rust-module/forbidden-regex/Cargo.toml:22-25`).
+     (for example `package/forbidden-strings/core/Cargo.toml:22-25`).
   - The word `unsafe` appears in 27 Rust source files (`rg --count-matches '\bunsafe\b'` over `package`),
-     including SIMD kernels in `package/rust-module/forbidden-regex/src/dfa/sheng.rs`
+     including SIMD kernels in `package/forbidden-strings/core/src/dfa/sheng.rs`
      (`is_x86_feature_detected!` guards,
      `#[target_feature(enable = "avx512f,avx512bw,avx512vbmi")] unsafe fn`,
      lines 227-282).
@@ -774,7 +784,7 @@ Upstream activity:
    `lto = true`,
    `codegen-units = 1`,
    `overflow-checks = true`,
-   and sibling `.bench` and `.fuzz` packages (`package/rust-module/forbidden-regex*`,
+   and sibling `.bench` and `.fuzz` packages (`package/forbidden-strings/core*`,
    Verified).
 - Existing consumers (Verified,
    `rg 'GxHasher|GxBuildHasher|gxhash::Hash(Map|Set)|gxhash32|gxhash128'` outside docs matched only a doc comment):
@@ -1048,13 +1058,14 @@ Disqualifying problems found:
 - aarch64 correctness in CI through QEMU user mode (Verified feasible with `rust-lld` and `aarch64-unknown-linux-musl`).
 - Fuzzing:
    a `cargo-fuzz` differential target against the oracle,
-   following `package/rust-module/forbidden-regex.fuzz`.
+   following `package/forbidden-strings/core.fuzz`.
 - Mutation testing:
    `forbidden-regex` keeps `mutants.out` (Verified),
    a precedent for `cargo-mutants`.
 - Publishing:
    a new crate name;
-   license expression covering MIT for derived code plus the repository's `LGPL-3.0-or-later` or MIT alone (user decision).
+   license expression covering MIT for derived code plus the repository's `LGPL-3.0-or-later`
+   or MIT alone (user decision).
 
 ### Ranking
 
@@ -1175,7 +1186,8 @@ What it costs:
 
 ### If the two decisions differ
 
-- Keeping gxhash 3 output for the music player and a new version for the monorepo cache means one crate with two output families,
+- Keeping gxhash 3 output for the music player and a new version for the monorepo cache means one crate
+   with two output families,
   shared primitives,
    and two sets of golden vectors.
 - The cache key already covers tool versions (design doc,
@@ -1289,7 +1301,8 @@ so these matter only if the owned crate also offers `HashMap` support.
 
 ## Benchmarks
 
-All numbers are Verified outputs of `scratchpad/gxhash/analyze.ts` over `results.tsv` (first series) and `results-r2.tsv` (second series).
+All numbers are Verified outputs of `scratchpad/gxhash/analyze.ts` over `results.tsv` (first series)
+and `results-r2.tsv` (second series).
 x86_64 only:
  QEMU user mode translates aarch64 instructions on the x86_64 host,
  so its timings would describe the emulator,
@@ -1324,7 +1337,8 @@ x86_64 only:
   - `v3_vaes_hybrid`:
      `-C target-cpu=x86-64-v3 -C target-feature=+aes,+vaes`,
      gxhash `hybrid` on;
-     `objdump` counts 10 `vaesenc` instructions on `ymm` registers (the baseline build has 92 `aesenc` and no `ymm` use).
+     `objdump` counts 10 `vaesenc` instructions on `ymm` registers
+     (the baseline build has 92 `aesenc` and no `ymm` use).
      `xxhash-rust` picks its AVX2 path from `target_feature = "avx2"` at compile time (`xxh3.rs:16-24`).
 - Crates:
    `gxhash` 3.5.0,
@@ -1448,7 +1462,8 @@ Reading:
    `gxhash64` at 5.100 is 25% below `xxh3_64` at 6.784,
    beyond both bands.
 - 128-bit:
-   `gxhash128` is 31% below `xxh3_128` in the baseline build (6.579 against 9.592) and 37% below in v3 (5.772 against 9.101),
+   `gxhash128` is 31% below `xxh3_128` in the baseline build (6.579 against 9.592)
+   and 37% below in v3 (5.772 against 9.101),
    beyond bands.
 - Owned prototype against upstream:
    baseline `owned64` 5.111 against `gxhash64` 6.787,
@@ -1588,7 +1603,8 @@ Second series,
    57% slower,
    beyond band.
   Disassembly of the v3 wrapper:
-   `call gxlab::owned::gxhash::<false>` with the state returned through the stack (`mov %rsp,%rdi` then `mov (%rsp),%rax`).
+   `call gxlab::owned::gxhash::<false>` with the state returned through the stack
+   (`mov %rsp,%rdi` then `mov (%rsp),%rax`).
 - Second shape,
    one single-caller inner copy per entry through an extra const generic:
    the wrapper contains the whole hash (no call),
@@ -1706,10 +1722,12 @@ Each question is separable;
   but `cargo miri setup` failed on the std sysroot's dependencies with
    "Could not connect to server (Failed to connect to index.crates.io:443 after 22 ms ...)"
    while `curl` to `https://index.crates.io/config.json` returned `200` in the same shell (Verified).
-  This matches the per-application network policy recorded in `doc/planning/monorepo-manager-route-research/stack-rust-crates.md`.
+  This matches the per-application network policy recorded in
+  `doc/planning/monorepo-manager-route-research/stack-rust-crates.md`.
   Workaround used,
    without bypassing the policy:
-   a scratch manifest depending on the 31 registry packages in the toolchain's `library/Cargo.lock` was fetched from the scratchpad (`scratchpad/gxhash/sysroot-fetch`),
+   a scratch manifest depending on the 31 registry packages in the toolchain's `library/Cargo.lock` was fetched
+   from the scratchpad (`scratchpad/gxhash/sysroot-fetch`),
    then `CARGO_NET_OFFLINE=true cargo +nightly-2026-09-16 miri setup` succeeded.
 - aarch64 cross builds used `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld` with `aarch64-unknown-linux-musl`,
   no C cross toolchain (Verified).

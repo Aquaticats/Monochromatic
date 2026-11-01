@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-10-18T04:37:00.942Z",
+  "removed": [
+    {
+      "directoryName": "depot-native-runners-native-20261018T034256508Z",
+      "branch": "trial/depot-native-runners-native-20261018T034256508Z",
+      "head": "3e51a06848ba363a90d4ce30816760042153f349",
+      "trackedAndUntrackedClean": true,
+      "ignoredDryRunEmpty": true,
+      "strayRootGitEntriesAbsent": true,
+      "worktreeRemoved": true,
+      "branchPreserved": true
+    },
+    {
+      "directoryName": "depot-native-runners-windows-20261018T034256508Z",
+      "branch": "trial/depot-native-runners-windows-20261018T034256508Z",
+      "head": "46dbdaf5dcb44961e738496da40f44ed17f4d6a6",
+      "trackedAndUntrackedClean": true,
+      "ignoredDryRunEmpty": true,
+      "strayRootGitEntriesAbsent": true,
+      "worktreeRemoved": true,
+      "branchPreserved": true
+    },
+    {
+      "directoryName": "depot-native-long-path-20261018T035939491Z",
+      "branch": "trial/depot-native-long-path-20261018T035939491Z",
+      "head": "20b7e331ad5a4e29bd493aba1829fff5f07d27a8",
+      "trackedAndUntrackedClean": true,
+      "ignoredDryRunEmpty": true,
+      "strayRootGitEntriesAbsent": true,
+      "worktreeRemoved": true,
+      "branchPreserved": true
+    }
+  ],
+  "otherRegisteredWorktreesPreserved": 71,
+  "noForceUsed": true,
+  "noIgnoredArtifactsDeleted": true,
+  "sourceHarnessBranchesPreserved": true
+}

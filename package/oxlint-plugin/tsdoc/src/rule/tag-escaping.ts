@@ -106,8 +106,8 @@ export const escapeInlineTags: CreateOnceRule = {
         // Skip the last line which is the legitimate closing `*/`
         lines
           .slice(
-            0,
-            -1,
+          0,
+          -1,
           )
           .forEach(function checkLine(
             line,
@@ -116,7 +116,7 @@ export const escapeInlineTags: CreateOnceRule = {
             // Skip the first line opener
             if ((index === 0)
               && line.trimEnd()
-              .endsWith('*',))
+                .endsWith('*',))
               return;
             /**
              Line stripped of indent and `*` so an embedded `*\/` becomes detectable in content.

@@ -1,22 +1,32 @@
 //! Decode-throughput micro-benchmark shared by the path and fd JNI benchmark
-//! entry points. Split out of `lib.rs` to keep that file under the max-lines
-//! budget; the JNI exports stay in `lib.rs` and call `bench::benchmark_decode`.
+//! entry points.
+//!  Split out of `lib.rs` to keep that file under the max-lines
+//! budget;
+//!  the JNI exports stay in `lib.rs` and call `bench::benchmark_decode`.
 
-/// What:     `use crate::decode;` brings the crate's `decode` module into scope so
+/// What:
+///      `use crate::decode;` brings the crate's `decode` module into scope so
 ///           this file can name `decode::Source` (the decoder trait-object type).
 ///           `crate::` is the absolute path to this crate's root module.
-/// Why:      `benchmark_decode` takes a `Box<dyn decode::Source>` and drives its
-///           trait methods (`spec`, `next_chunk`, `seek`).
+/// Why:
+///       `benchmark_decode` takes a `Box<dyn decode::Source>` and drives its
+///           trait methods (`spec`,
+///  `next_chunk`,
+///  `seek`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import * as decode from "./decode";
 /// ```
 use crate::decode;
-/// What:     `use jni::sys::jdouble;` imports the JVM `double` alias (a 64-bit float;
-///           the plain-Rust sibling is `f64`). The `j*` alias documents "this value
+/// What:
+///      `use jni::sys::jdouble;` imports the JVM `double` alias (a 64-bit float;
+///           the plain-Rust sibling is `f64`).
+///  The `j*` alias documents "this value
 ///           crosses the JVM ABI boundary".
-/// Why:      `benchmark_decode` returns a `jdouble` (microseconds per sample, or a
+/// Why:
+///       `benchmark_decode` returns a `jdouble` (microseconds per sample,
+///  or a
 ///           negative sentinel) straight back to the calling JNI export.
 ///
 /// In TS you'd write (pseudocode):
@@ -24,9 +34,12 @@ use crate::decode;
 /// type jdouble = number; // 64-bit float
 /// ```
 use jni::sys::jdouble;
-/// What:     `use std::time::Instant;` imports a monotonic clock reading (`Instant`
-///           never runs backwards, unlike its wall-clock sibling `SystemTime`).
-/// Why:      The benchmark records `Instant::now()` before the decode loop and reads
+/// What:
+///      `use std::time::Instant;` imports a monotonic clock reading (`Instant`
+///           never runs backwards,
+///  unlike its wall-clock sibling `SystemTime`).
+/// Why:
+///       The benchmark records `Instant::now()` before the decode loop and reads
 ///           the elapsed `Duration` after it.
 ///
 /// In TS you'd write (pseudocode):
@@ -35,23 +48,43 @@ use jni::sys::jdouble;
 /// ```
 use std::time::Instant;
 
-/// What:     `fn benchmark_decode(mut source: Box<dyn decode::Source>) -> jdouble`
-///           declares a crate-visible helper (`pub(crate)`: callable from other
-///           modules of this crate, namely the JNI benchmark exports in `lib.rs`). `mut source` = the parameter is mutable (we call mutating methods
-///           on it). `Box<dyn decode::Source>` is an OWNING heap pointer to "some
-///           value that implements the `Source` trait, exact type chosen at runtime"
-///           (`dyn` = dynamic dispatch, like a TS interface reference; `Box` is the
-///           owned heap box, siblings `Rc<T>`/`Arc<T>` would be shared-ownership
-///           pointers, which we do not want here because exactly one owner runs the
-///           benchmark). `-> jdouble` returns a 64-bit float (the JVM `double`).
-/// Why:      Both the path and fd benchmarks open a decoder and then run the SAME
-///           timed loop; factoring it here avoids duplicating the loop twice. It
+/// What:
+///      `fn benchmark_decode(mut source: Box<dyn decode::Source>) -> jdouble`
+///           declares a crate-visible helper (`pub(crate)`:
+///  callable from other
+///           modules of this crate,
+///  namely the JNI benchmark exports in `lib.rs`).
+///  `mut source` = the parameter is mutable (we call mutating methods
+///           on it).
+///  `Box<dyn decode::Source>` is an OWNING heap pointer to "some
+///           value that implements the `Source` trait,
+///  exact type chosen at runtime"
+///           (`dyn` = dynamic dispatch,
+///  like a TS interface reference;
+///  `Box` is the
+///           owned heap box,
+///  siblings `Rc<T>`/`Arc<T>` would be shared-ownership
+///           pointers,
+///  which we do not want here because exactly one owner runs the
+///           benchmark).
+///  `-> jdouble` returns a 64-bit float (the JVM `double`).
+/// Why:
+///       Both the path and fd benchmarks open a decoder and then run the SAME
+///           timed loop;
+///  factoring it here avoids duplicating the loop twice.
+///  It
 ///           returns microseconds per interleaved sample (comparable to the Media3
-///           MediaCodec ~0.33 baseline), or a negative sentinel: -3 decode error,
-///           -4 zero samples. It also exercises seek once untimed so the seek path
+///           MediaCodec ~0.33 baseline),
+///  or a negative sentinel:
+///  -3 decode error,
+///           -4 zero samples.
+///  It also exercises seek once untimed so the seek path
 ///           is covered on-device.
-/// Gotcha:   `Box<dyn Source>` is an OWNED value moved INTO this function; the caller
-///           gives it up. In TS the caller would still hold a reference afterward.
+/// Gotcha:
+///    `Box<dyn Source>` is an OWNED value moved INTO this function;
+///  the caller
+///           gives it up.
+///  In TS the caller would still hold a reference afterward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

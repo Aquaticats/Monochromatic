@@ -77,7 +77,8 @@ rg --line-number --glob '*.md' --glob '!node_modules' --glob '!CLAUDE.md' '(AGEN
 ```
 
 That pattern only covers the most common filenames.
-Other split tokens turn up by pairing lines ending in `[A-Za-z]\.` with continuation lines starting with an extension-like fragment:
+Other split tokens turn up by pairing lines ending in `[A-Za-z]\.` with continuation lines starting
+with an extension-like fragment:
 
 ```bash
 rg --line-number --glob '*.md' --glob '!node_modules' --glob '!CLAUDE.md' '^ ?(md|ts|json|toml|txt|yaml|lock)\b' .

@@ -39,18 +39,18 @@ body {
 }
 
 [data-sr-only] {
-  /* stylelint-disable-next-line property-disallowed-list,property-no-deprecated -- special use */
+  /* special use */
   clip: rect(0 0 0 0);
 
   position: absolute;
 
-  /* stylelint-disable-next-line property-disallowed-list,unit-disallowed-list -- copypaste */
+  /* copypaste */
   width: 1px;
 
-  /* stylelint-disable-next-line property-disallowed-list,unit-disallowed-list -- copypaste */
+  /* copypaste */
   height: 1px;
 
-  /* stylelint-disable-next-line property-disallowed-list -- copypaste */
+  /* copypaste */
   overflow: hidden;
 
   white-space: nowrap;
@@ -144,7 +144,7 @@ details {
       content: '';
     }
 
-    /* stylelint-disable-next-line no-descending-specificity -- nested context differs from .result__link ::after */
+    /* nested context differs from .result__link ::after */
     &::after {
       color: var(--fg-weaker);
 
@@ -162,7 +162,7 @@ details {
 }
 
 ::details-content {
-  /* stylelint-disable-next-line property-disallowed-list -- to be split into separate properties */
+  /* to be split into separate properties */
   transition: block-size 0.5s ease, content-visibility 0.5s ease allow-discrete;
 
   block-size: 0;

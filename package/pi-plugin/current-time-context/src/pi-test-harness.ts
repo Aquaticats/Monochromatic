@@ -207,12 +207,14 @@ function getBeforeAgentStartHandler(
 function createBeforeAgentStartEvent(): BeforeAgentStartEvent {
   return {
     type: 'before_agent_start',
+    messageType: 'user',
     prompt: 'Reply with ok.',
     systemPrompt: '',
     // Pi 0.87 hands handlers collection-complete options; `normalizeBuildSystemPromptOptions` is not exported.
     systemPromptOptions: {
       cwd: process.cwd(),
       selectedTools: [],
+      hiddenTools: [],
       toolSnippets: {},
       toolGuidelines: {},
       promptGuidelines: [],

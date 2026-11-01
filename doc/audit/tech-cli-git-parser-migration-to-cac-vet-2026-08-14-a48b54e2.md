@@ -191,7 +191,8 @@ Run each literal lookup or query:
 - registry search `cac cli`;
 - registry search `cac command line parser`.
 
-Continue each search query until the registry reports exhaustion or two consecutive complete pages add no new CAC provenance,
+Continue each search query until the registry reports exhaustion
+ or two consecutive complete pages add no new CAC provenance,
 package,
 or taxonomy evidence.
 
@@ -548,7 +549,8 @@ Candidate and version:
  `cac@7.0.0` plus inlined `mri@1.2.0`.
 
 Claim and relevance:
- the production parser is compact enough to audit but its declared dependency count understates the inlined MRI boundary.
+ the production parser is compact enough to audit
+  but its declared dependency count understates the inlined MRI boundary.
 
 Gate:
  human auditability,
@@ -585,7 +587,8 @@ Primary evidence accessed 2026-08-14:
 
 Outcome:
 source is inspectable,
-but cli-git's macOS requirement must be validated at the consumer boundary and upstream test breadth remains a scored concern.
+but cli-git's macOS requirement must be validated at the consumer boundary
+ and upstream test breadth remains a scored concern.
 
 ### CAC lexical-preservation source trace
 
@@ -726,7 +729,8 @@ Primary source:
 
 Outcome:
 a management-only adapter can avoid process exit and pass explicit argv,
-but exact help must remain caller-owned and cli-git must project CAC's `any` result through its own validated type boundary.
+but exact help must remain caller-owned and cli-git must project CAC's `any` result
+ through its own validated type boundary.
 
 ### Maintenance audit
 
@@ -1272,7 +1276,8 @@ They do not spawn subprocesses or perform I/O themselves.
 Network:
  dependency retrieval may use the package registry during filtered install.
 All candidate behavior probes and maintained tests use no candidate-controlled network.
-Existing package tasks that bootstrap disposable containers retain their inspected package-manager and apt network behavior.
+Existing package tasks that bootstrap disposable containers retain their inspected package-manager
+ and apt network behavior.
 
 Reads and writes:
  only the disposable worktree,
@@ -1392,7 +1397,8 @@ Reason:
   `unknownOptions` token sequence.
 
 These are hard failures for cli-git's raw-argv fidelity and fail-closed classification constraints.
-Reading and rescanning `CAC.rawArgs` would retain the current owned parser responsibility rather than make CAC the parser.
+Reading and rescanning `CAC.rawArgs` would retain the current owned parser responsibility rather than make CAC the
+ parser.
 
 ### CAC as the only cli-git parser
 

@@ -15,7 +15,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { HIGHLIGHT_STYLES, } from '../highlight/styles.ts';
 import { INLAY_STYLES, } from '../inlay/styles.ts';

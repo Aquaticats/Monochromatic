@@ -311,7 +311,7 @@ the decisive question is which language runs that per-chunk copy loop.
 - `@nativescript/core` `Http` is a buffering CLIENT,
    not a server.
    It exposes only
-  `request/getString/getJSON/getFile/...` (`package/core/http/index.ts`),
+  `request/getString/getJSON/getFile/...` (`packages/core/http/index.ts`),
    the transport is
   `java.net.HttpURLConnection` (not OkHttp),
    the request body is written whole

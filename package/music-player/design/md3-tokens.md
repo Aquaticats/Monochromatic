@@ -102,6 +102,29 @@ custom component that may legitimately differ.
  This project chose to **comply** (72dp)
 rather than take that exception.
 
+Re-check on 2026-10-05,
+at material-web commit `763a97326fc2d0f425366cc3fa87bd0eccfaabdc`
+(design system 34.0.21):
+
+```text
+list-item-one-line-container-height     56px
+list-item-two-line-container-height     72px
+list-item-three-line-container-height   88px
+list-item-top-space / bottom-space      10px
+list-item-leading-space / trailing      16px
+list-item-between-space                 12px
+list-item-trailing-icon-size            24px
+divider-height                           1px
+divider-leading-space / trailing        16px
+```
+
+The three container heights are unchanged.
+`list-item-top-space` and `list-item-bottom-space` now read `10px`;
+the `12px` top/bottom value recorded in this section's first block does not
+match that file.
+No drawn surface was changed by this re-check.
+Read the token again before relying on either value.
+
 ---
 
 ## Slider, updated M3 slider (`_md-comp-slider.scss`) — also was wrong
@@ -275,6 +298,43 @@ The Settings mocks use a 52×32 track with a 24px selected handle,
  which matches the
 v0.192 selected-handle figure.
  Re-check against `latest` if switches become prominent.
+
+Re-check on 2026-10-05 for the D11 Settings study,
+at material-web commit `763a97326fc2d0f425366cc3fa87bd0eccfaabdc`
+(`tokens/versions/latest/sass/_md-comp-switch.scss`,
+design system 34.0.21):
+
+```text
+track-width × track-height          52 × 32px
+track-outline-width                  2px
+track-shape / handle-shape           corner-full
+handle (generic)                    20 × 20px
+unselected-handle                   16 × 16px
+selected-handle                     24 × 24px
+with-icon-handle                    24 × 24px
+pressed-handle                      28 × 28px
+selected-icon / unselected-icon     16px
+state-layer-size                    40px
+```
+
+Colour roles:
+ selected track = primary,
+ selected handle = on-primary,
+ unselected track = surface-container-highest with a 2px `outline` border,
+ unselected handle = `outline`.
+
+`latest` now carries the unselected,
+ selected,
+ pressed and state-layer figures that this section previously attributed
+to v0.192 only.
+ The settings-a mock's selected switch matches these values.
+ Its unselected switch does not:
+ it draws a 24px handle and no track outline,
+ where the token file gives a 16px handle and a 2px outline.
+ Draw the Settings study with the platform's Material 3 switch,
+ not a copy of the mock's off state.
+ The 40px state layer is smaller than the project's 48dp layout floor;
+ the row or switch target must supply the floor.
 
 ---
 

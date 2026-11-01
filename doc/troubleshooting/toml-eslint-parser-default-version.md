@@ -9,10 +9,10 @@ Our `parse-toml-edit.ts` TSDoc had incorrectly called the parser default TOML 1.
 
 ## Root cause
 
-`package/module/toml-edit/src/parse-toml-edit.ts:116` forwards `undefined` without selecting a version:
+`package/toml-edit/core/src/parse-toml-edit.ts:116` forwards `undefined` without selecting a version:
 
 ```ts
-// package/module/toml-edit/src/parse-toml-edit.ts
+// package/toml-edit/core/src/parse-toml-edit.ts
 return parseTOML(
   source,
   tomlVersion === undefined ? undefined : { tomlVersion, },
@@ -54,7 +54,7 @@ The earlier TOML 1.0 reading was our stale comment,
 ## Verification
 
 Tested with installed `toml-eslint-parser@1.0.3` and the source at tag `v1.0.3`.
-Run this from `package/module/toml-edit`:
+Run this from `package/toml-edit/core`:
 
 ```sh
 node --input-type=module -e "
@@ -81,7 +81,7 @@ Failing catalog:
 - Explicit TOML 1.0:
   `1.0 ParseError No newlines are allowed between the curly braces unless they are valid within a value`.
 
-The package-level regression in `package/module/toml-edit/src/parse-toml-edit.unit.test.ts`
+The package-level regression in `package/toml-edit/core/src/parse-toml-edit.unit.test.ts`
  now tests all of these selections through the built package.
 
 ## Verified workarounds

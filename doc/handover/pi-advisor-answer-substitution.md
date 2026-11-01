@@ -144,11 +144,13 @@ prompting,
 and interpretation with the caller.
 Advisor can reuse that transport without importing goal behavior.
 A structured contract would deterministically constrain response shape,
-but string fields would still need bounded semantics because a schema alone cannot prove that prose is not a replacement answer.
+but string fields would still need bounded semantics because a schema alone cannot prove that prose is not a
+replacement answer.
 
 ## Current external precedent
 
-Anthropic's current [Advisor tool documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/advisor-tool),
+Anthropic's current
+[Advisor tool documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/advisor-tool),
 fetched on 2026-08-26,
 changes the design reading in several important ways:
 
@@ -518,7 +520,8 @@ These questions are superseded by the expressiveness requirement.
    and validation.
 - Do not treat prompt wording alone as deterministic enforcement.
 - Do not claim prevention from a test that only checks static prompt text.
-- Verify behavioral protections with a model or deterministic transport capable of emitting forbidden replacement content.
+- Verify behavioral protections with a model or deterministic transport capable of emitting forbidden replacement
+content.
 
 ## Rejected recommendation and prior rankings
 
@@ -613,7 +616,8 @@ so it does not satisfy the corrected requirement.
 
 ### Compatibility boundary
 
-Full natural-language review expressiveness and deterministic semantic exclusion cannot both be supplied by an output grammar.
+Full natural-language review expressiveness and deterministic semantic exclusion cannot both be supplied by an output
+grammar.
 The same passage can be a direct answer,
 a quoted defect,
 a corrected example,
@@ -622,13 +626,15 @@ Any local grammar that rejects every answer-like passage also rejects legitimate
 Any grammar that accepts those legitimate passages admits the same text when a model uses it as a substitute.
 
 The prevention seam must therefore move from vocabulary to ownership and call sequence.
-The strongest deterministic claim available without narrowing language is that Advisor cannot run until the primary agent supplies
+The strongest deterministic claim available without narrowing language is that Advisor cannot run until the primary
+agent supplies
 an explicit review artifact.
 Whether that artifact is substantive,
 whether the review remains anchored to it,
 and whether the primary agent later copies advice remain semantic judgments.
 
-Anthropic's current [Building effective agents](https://www.anthropic.com/research/building-effective-agents) guidance names an
+Anthropic's current [Building effective agents](https://www.anthropic.com/research/building-effective-agents) guidance
+names an
 evaluator-optimizer workflow in which one model first generates a response and another evaluates it with feedback.
 That candidate-first ordering matches the local reviewer role better than Anthropic's current Advisor tool,
 which intentionally gives an executor unrestricted strategic plans early in a task.
@@ -656,7 +662,8 @@ it does not constrain either text channel.
 The tool rejects absent or blank artifacts before provider dispatch.
 The exact incident call therefore fails because it contains only a task-performing focus request.
 The primary model must first state the approach or result it wants reviewed.
-The manual `/advisor` command uses the latest non-Advisor primary text as its artifact and reports no-reviewable-artifact when none
+The manual `/advisor` command uses the latest non-Advisor primary text as its artifact
+and reports no-reviewable-artifact when none
 exists.
 
 The provider request serializes objective,
@@ -718,7 +725,8 @@ Its recommended correction is a two-phase protocol:
 3. Invoke Advisor later using only the opaque checkpoint ID and optional model routing.
 4. Return unrestricted review text associated with that checkpoint.
 
-This removes fresh natural-language parameters from the review call while preserving both text channels at checkpoint time.
+This removes fresh natural-language parameters from the review call
+while preserving both text channels at checkpoint time.
 Checkpoint criteria can still carry the incident instruction verbatim one interaction earlier.
 The protocol proves sequence and primary-assistant tool-call provenance,
 not substantive authorship or instruction elimination.
@@ -728,7 +736,8 @@ blocking adjudicator.
 Both reject the exact no-artifact incident,
 but only the adjudicator introduces false positives that can withhold valid expressive reviews.
 
-`synthetic/hf:Qwen/Qwen3.6-27B` stressed that ordering is not semantic prevention and identified additional architectures:
+`synthetic/hf:Qwen/Qwen3.6-27B` stressed that ordering is not semantic prevention
+and identified additional architectures:
 
 - blind review that withholds the original objective;
 - dual-context review that sends only artifact and evidence;
@@ -757,11 +766,13 @@ Advisor review accepts only checkpoint identity and model routing,
 then returns unrestricted prose unchanged.
 
 Add non-blocking shadow role adjudication only as measurement.
-A blocking gate remains undecided until a representative corpus demonstrates that it accepts rich answer-like corrections grounded
+A blocking gate remains undecided until a representative corpus demonstrates that it accepts rich answer-like
+corrections grounded
 in primary artifacts.
 Prompt-only framing remains the lowest-protection baseline.
 
-Blind and reduced-context review are not current recommendations because withholding objective or evidence removes review
+Blind and reduced-context review are not current recommendations because withholding objective
+or evidence removes review
 capabilities even though it leaves output vocabulary unrestricted.
 Claim decomposition is useful for some artifacts but not universal.
 Consumer reconciliation is complementary and needs a concrete enforcement seam before it can claim more than guidance.
@@ -784,7 +795,8 @@ Deterministic tests must prove:
   user-authored,
   Advisor-authored,
   and mutated checkpoint references fail before Advisor dispatch;
-- arbitrary multiline artifact and criteria text persist immutably and survive request construction without semantic rewriting;
+- arbitrary multiline artifact and criteria text persist immutably
+and survive request construction without semantic rewriting;
 - accepted Advisor text containing detailed corrections,
   code,
   mathematics,
@@ -816,7 +828,8 @@ Behavioral evaluation must include:
 - repeated runs across eligible reviewer and adjudicator models before interpreting a null or isolated failure.
 
 The positive control is essential:
-any proposed role gate that rejects the incident must also accept rich answer-like corrections when they are grounded in a real
+any proposed role gate that rejects the incident must also accept rich answer-like corrections
+when they are grounded in a real
 primary artifact.
 Otherwise the gate has merely recreated the rejected expressiveness loss.
 

@@ -1,0 +1,14 @@
+# In-process Advisor plugin row for this profile.
+#
+# The package `@monochromatic-dev/dsh-plugin-advisor` exports `apply(ctx,
+# config)`, `inject`, and a Schemastery `Config` schema that validates the
+# structural row only (`config: {}`): every behavioral setting lives in the
+# unified `~/.pi/agent/extensions/pi-advisor.json` and
+# `<working directory>/.pi/extensions/pi-advisor.json` files shared with the
+# pi extension, never in this row. The plugin registers the `advisor` tool and
+# the `/advisor` command over the `tools`, `commands`, `llm`, `systemPrompt`,
+# and `workingDirectory` services.
+- insert:
+    - id: advisor
+      name: '@monochromatic-dev/dsh-plugin-advisor'
+      config: {}

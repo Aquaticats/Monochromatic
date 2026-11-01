@@ -71,9 +71,9 @@ export function needsPerLineFix({
     offset: boundaryOffsets.openOffset,
   },)
     === lineAt({
-    sourceText,
-    offset: firstRange[0],
-  },)) {
+      sourceText,
+      offset: firstRange[0],
+    },)) {
     return true;
   }
 
@@ -90,9 +90,9 @@ export function needsPerLineFix({
     offset: lastRange[1],
   },)
     === lineAt({
-    sourceText,
-    offset: boundaryOffsets.closeOffset,
-  },)) {
+      sourceText,
+      offset: boundaryOffsets.closeOffset,
+    },)) {
     return true;
   }
 
@@ -117,9 +117,9 @@ export function needsPerLineFix({
       offset: prevRange[1],
     },)
       === lineAt({
-      sourceText,
-      offset: currRange[0],
-    },)) {
+        sourceText,
+        offset: currRange[0],
+      },)) {
       return true;
     }
   }

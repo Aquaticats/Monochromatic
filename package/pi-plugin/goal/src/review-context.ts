@@ -67,7 +67,7 @@ function contentBlockText(
 function messageContentText(
   content: ForeignBorrowed<
     string | (TextContent | ImageContent | ToolCall | ThinkingContent)[]
-  >,
+    >,
 ): string {
   if ((typeof content) === 'string')
     return content;

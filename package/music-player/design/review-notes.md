@@ -1148,3 +1148,19 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
      Questionnaire validators
     compare each data URL with its named source raster and sample disclosed role mappings
     pixel by pixel.
+16. **Nothing is locked by hash.**
+     No check refuses a page,
+    template,
+    builder,
+    test or record because it differs from a recorded digest,
+    and a recorded digest is never a reason to leave something uncorrected.
+    D88 holds the human's words and its scope:
+    this package's evidence and capture tooling,
+    not the repository at large.
+17. **What the human must see goes through the question tool.**
+     On 2026-10-06 the human said the transcript does not show everything with reasonable effort:
+    "For reliably making me see something,
+    use the ask user question tool."
+    A handoff,
+    a proposal or an open choice written only as chat prose may never be read,
+    so its silence means nothing.

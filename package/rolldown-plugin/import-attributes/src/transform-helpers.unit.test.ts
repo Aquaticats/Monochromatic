@@ -21,7 +21,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { skipWithClauseWhitespace, } from './transform-helpers.ts';
 
@@ -105,7 +105,7 @@ await describe({
         },),
 
         it({
-          name: 'stops at a form feed (outside the four-char set that \\s would match)',
+          name: String.raw`stops at a form feed (outside the four-char set that \s would match)`,
           fn: async () => {
             expect(skipWithClauseWhitespace({ s: '\fwith', idx: 0, },),).toBe(0,);
           },

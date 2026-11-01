@@ -4,7 +4,7 @@
  * Contains the {@link PartialCompletionError} class for abort handling,
  * and helper functions for timing display, usage parsing, and result assembly.
  */
-import { MS_PER_SECOND, } from '@monochromatic-dev/module-const/ts';
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
 
 import {
   l,

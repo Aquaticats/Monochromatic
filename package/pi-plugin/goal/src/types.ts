@@ -108,10 +108,10 @@ type ReviewUnavailableGoalState = {
  */
 type GoalState =
   | AbsentGoalState
-  | ActiveGoalState
-  | ModelCompletedGoalState
-  | ManualCompletedGoalState
-  | ReviewUnavailableGoalState;
+    | ActiveGoalState
+    | ModelCompletedGoalState
+    | ManualCompletedGoalState
+    | ReviewUnavailableGoalState;
 
 //endregion Persisted states
 
@@ -242,14 +242,14 @@ type GoalRunClearedEvent = {
  */
 type GoalEvent =
   | GoalRunStartedEvent
-  | GoalGenerationRotatedEvent
-  | GoalReviewDeniedEvent
-  | LegacyGoalReviewDeniedEvent
-  | GoalContinuationIssuedEvent
-  | GoalModelCompletedEvent
-  | GoalManualCompletedEvent
-  | GoalReviewUnavailableEvent
-  | GoalRunClearedEvent;
+    | GoalGenerationRotatedEvent
+    | GoalReviewDeniedEvent
+    | LegacyGoalReviewDeniedEvent
+    | GoalContinuationIssuedEvent
+    | GoalModelCompletedEvent
+    | GoalManualCompletedEvent
+    | GoalReviewUnavailableEvent
+    | GoalRunClearedEvent;
 
 //endregion Persisted events
 
@@ -263,11 +263,11 @@ type ParsedGoalCommand =
     readonly kind: 'start';
     readonly objective: string
   }
-  | { readonly kind: 'clear'; }
-  | {
-    readonly kind: 'rejected';
-    readonly diagnostic: string
-  };
+    | { readonly kind: 'clear'; }
+    | {
+      readonly kind: 'rejected';
+      readonly diagnostic: string
+    };
 
 /**
  Visible goal custom-message metadata.
@@ -345,34 +345,34 @@ type GoalEffect =
     readonly type: 'persist';
     readonly event: GoalEvent
   }
-  | {
-    readonly type: 'set_footer';
-    readonly text: string
-  }
-  | { readonly type: 'clear_footer'; }
-  | {
-    readonly type: 'send_message';
-    readonly message: GoalMessage;
-    readonly triggerTurn: true
-  }
-  | {
-    readonly type: 'persist_review_unavailable_diagnostic';
-    readonly diagnostic: GoalReviewUnavailableDiagnostic
-  }
-  | {
-    readonly type: 'persist_completion_diagnostic';
-    readonly diagnostic: GoalCompletionDiagnostic
-  }
-  | {
-    readonly type: 'notify';
-    readonly level: 'info' | 'warning' | 'error';
-    readonly message: string
-  }
-  | {
-    readonly type: 'log';
-    readonly level: 'debug' | 'warn' | 'error';
-    readonly message: string
-  };
+    | {
+      readonly type: 'set_footer';
+      readonly text: string
+    }
+    | { readonly type: 'clear_footer'; }
+    | {
+      readonly type: 'send_message';
+      readonly message: GoalMessage;
+      readonly triggerTurn: true
+    }
+    | {
+      readonly type: 'persist_review_unavailable_diagnostic';
+      readonly diagnostic: GoalReviewUnavailableDiagnostic
+    }
+    | {
+      readonly type: 'persist_completion_diagnostic';
+      readonly diagnostic: GoalCompletionDiagnostic
+    }
+    | {
+      readonly type: 'notify';
+      readonly level: 'info' | 'warning' | 'error';
+      readonly message: string
+    }
+    | {
+      readonly type: 'log';
+      readonly level: 'debug' | 'warn' | 'error';
+      readonly message: string
+    };
 
 /**
  Controller transition result with next immutable state and effects.

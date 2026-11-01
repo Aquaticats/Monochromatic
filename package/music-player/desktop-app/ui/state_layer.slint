@@ -1,0 +1,31 @@
+// Material 3 state layer for clickable elements: a tint over the element that shows hover (8 percent) and pressed
+// (12 percent), so every control answers the pointer. Put it inside the clickable element, above its fill and below its
+// content, and bind `hovered` and `pressed` to the element's TouchArea `has-hover` and `pressed`. Keyboard focus is not a
+// state of this layer: focus shows only as the ring of `FocusRing` (D117), which adds no fill or tint.
+import { Theme } from "theme.slint";
+
+// Overlay that fills its parent. `tint` is the content color of the surface it sits on (on-surface for plain
+// surfaces, the role's own content color for tonal fills), and `radius` must match the parent's corner radius.
+export component StateLayer inherits Rectangle {
+    // True while the pointer is over the element.
+    in property <bool> hovered: false;
+    // True while the pointer button is held on the element.
+    in property <bool> pressed: false;
+    // True when the element is disabled, which shows no state.
+    in property <bool> disabled: false;
+    // Content color of the surface the layer sits on.
+    in property <color> tint: Theme.on-surface;
+    // Corner radius of the element, so the tint does not poke out of rounded corners.
+    in property <length> radius: 0px;
+    // Radius of the two top corners and of the two bottom corners, for an element that is rounded on one side only, such as
+    // the last row of a rounded card. They follow `radius` unless set.
+    in property <length> radius-top: root.radius;
+    in property <length> radius-bottom: root.radius;
+
+    border-top-left-radius: root.radius-top;
+    border-top-right-radius: root.radius-top;
+    border-bottom-left-radius: root.radius-bottom;
+    border-bottom-right-radius: root.radius-bottom;
+    background: root.disabled ? transparent : root.pressed ? root.tint.with-alpha(0.12) : root.hovered ? root.tint.with-alpha(0.08) : transparent;
+    animate background { duration: 100ms; }
+}

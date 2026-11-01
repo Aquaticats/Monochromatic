@@ -242,7 +242,7 @@ export const noClass: CreateOnceRule = {
       if (
         (superClass.type
           === 'Identifier')
-        && matchesSuffix(superClass.name,)
+          && matchesSuffix(superClass.name,)
       ) {
         return;
       }
@@ -253,7 +253,7 @@ export const noClass: CreateOnceRule = {
       const { id, } = node;
       if (
         (id !== null)
-        && (id !== undefined)
+          && (id !== undefined)
           && matchesSuffix(id.name,)
       ) {
         return;

@@ -39,11 +39,11 @@ export const NO_PREVIOUS_STATEMENT: unique symbol = Symbol('no.immediate-mutatio
  */
 type InitializerKind =
   | 'array'
-  | 'object'
-  | 'setInline'
-  | 'mapInline'
-  | 'setNeedsSpreadTemp'
-  | 'mapNeedsSpreadTemp';
+    | 'object'
+    | 'setInline'
+    | 'mapInline'
+    | 'setNeedsSpreadTemp'
+    | 'mapNeedsSpreadTemp';
 
 /**
  Previous statement initializer details needed to compare with mutation target.

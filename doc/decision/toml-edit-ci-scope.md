@@ -11,7 +11,7 @@ not a repository-wide workflow migration.
 ## Decision and rationale
 
 Replace inline Bash decision logic with the dependency-free Node command
-[`package/module/toml-edit.fuzz/src/ci-scope.ts`](../../package/module/toml-edit.fuzz/src/ci-scope.ts).
+[`package/toml-edit/core.fuzz/src/ci-scope.ts`](../../package/toml-edit/core.fuzz/src/ci-scope.ts).
 The [Bash usage investigation](../planning/bash-usage-boundary.md)
 found no Bash requirement for this boundary.
 Node execution before project setup was verified through the
@@ -74,7 +74,7 @@ The no-op result is not interchangeable with an unavailable comparison.
 
 ## Verification
 
-[`ci-scope.unit.test.ts`](../../package/module/toml-edit.fuzz/src/ci-scope.unit.test.ts)
+[`ci-scope.unit.test.ts`](../../package/toml-edit/core.fuzz/src/ci-scope.unit.test.ts)
 copies the deployed source into disposable Git repositories without `node_modules`.
 It extracts the actual workflow launcher,
 checks the step's interpreter and event bindings,
@@ -108,9 +108,9 @@ Local verification commands:
 
 ```sh
 # From the repository root
-mise run //package/module/toml-edit.fuzz:test:scope
-mise run //package/module/toml-edit.fuzz:lint:scope
-mise run //package/module/toml-edit.fuzz:lint:types
+mise run //package/toml-edit/core.fuzz:test:scope
+mise run //package/toml-edit/core.fuzz:lint:scope
+mise run //package/toml-edit/core.fuzz:lint:types
 ```
 
 `SCOPE_TEST_NODE` selects a separate bootstrap executable for subprocess tests.

@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   FORBIDDEN_RETRY_DELAY_MS,
@@ -32,6 +32,10 @@ function subprocessError(output: string,): Error {
 
 /**
  Refusal npm printed in pnpr-publish run 34922532212.
+
+ The PUT URL in it is that run's pre-move root surface;
+ from the 0.1.0-alpha.16 base the same request targets
+ `https://pnpr.c.aquati.cat/npm/~monochromatic-dev/...`.
  */
 const FORBIDDEN_OUTPUT = `${NPM_FORBIDDEN_MARKER}\nnpm error 403 403 Forbidden - PUT https://pnpr.c.aquati.cat/~monochromatic-dev/@monochromatic-dev%2fconfig-oxlint`;
 

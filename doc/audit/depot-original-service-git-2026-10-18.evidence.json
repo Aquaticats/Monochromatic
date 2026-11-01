@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-18T12:59:12.625Z",
+  "image": {
+    "at": "2026-10-18T12:58:16.960Z",
+    "requestedReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+    "id": "aedf411bcd17538e70d87272ba16677ed7ec62f2211cf4f30a3f38ec8ce6b55a",
+    "digest": "sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+    "repoDigests": [
+      "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+      "registry.depot.dev/27m5m3vjlv@sha256:6132df16f6e66c0d2a08179fd7c9fefb377d2fc72e90fef79d6b83d2b88f9ff7"
+    ],
+    "architecture": "amd64",
+    "os": "linux",
+    "config": {
+      "entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "cmd": [
+        "node",
+        "--input-type=module-typescript",
+        "-e",
+        "import {createServer} from 'node:http'; import {readFileSync} from 'node:fs'; const input=JSON.parse(readFileSync('/app/probe.json','utf8')); const nonce: string=process.env.MONO_RESEARCH_NONCE??input.cohort; const server=createServer((request,response)=>{const path=new URL(request.url??'/', 'http://fixture.invalid').pathname; const status=path==='/health'||path==='/nonce'?200:404; response.writeHead(status,{'content-type':'application/json','cache-control':'no-store'}); response.end(JSON.stringify({status:status===200?'ok':'not-found',nonce,cohort:input.cohort,repositoryBase:input.repositoryBase,harnessCommit:process.env.BUILD_HARNESS_SHA,architecture:process.arch,nodeVersion:process.version,path}));}); server.on('error',error=>{throw error;}); process.on('SIGTERM',()=>server.close()); server.listen(Number(process.env.PORT??8080),'0.0.0.0');"
+      ],
+      "env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "NODE_VERSION=24.22.0",
+        "YARN_VERSION=1.22.22",
+        "BUILD_HARNESS_SHA=5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+        "PORT=8080"
+      ]
+    },
+    "stderr": "",
+    "cloudAllocation": false
+  },
+  "cloudAllocation": false,
+  "registryNetworkRequests": false,
+  "containerName": "depot-original-service-git-1a1dbf89",
+  "program": "import {spawnSync} from 'node:child_process';import {lstatSync} from 'node:fs';import {join} from 'node:path';import {strict as assert} from 'node:assert';const observe=(command,args)=>{const result=spawnSync(command,args,{encoding:'utf8',timeout:5000});return {command,args,status:result.status,signal:result.signal,stdout:result.stdout,stderr:result.stderr,error:result.error?{name:result.error.name,code:result.error.code,errno:result.error.errno,syscall:result.error.syscall,path:result.error.path,message:result.error.message}:null};};const positive=observe(process.execPath,['--version']);assert.equal(positive.status,0);assert.equal(positive.stdout.trim(),'v24.22.0');const missing=observe('/__monochromatic_positive_control_absent_git_20261018',['--version']);assert.equal(missing.error?.code,'ENOENT');const git=observe('git',['--version']);assert.equal(git.error?.code,'ENOENT');const candidates=(process.env.PATH??'').split(':').map(directory=>{const path=join(directory,'git');try{const entry=lstatSync(path);return {path,exists:true,mode:entry.mode};}catch(error){return {path,exists:false,error:{code:error.code,syscall:error.syscall,path:error.path}};}});assert(candidates.length>0&&candidates.every(row=>!row.exists&&row.error?.code==='ENOENT'));process.stdout.write(JSON.stringify({node:process.version,architecture:process.arch,execPath:process.execPath,path:process.env.PATH,positive,missing,git,candidates,imagePathGitUnavailable:true}));",
+  "argv": [
+    "run",
+    "--name",
+    "depot-original-service-git-1a1dbf89",
+    "--pull",
+    "never",
+    "--platform",
+    "linux/amd64",
+    "--memory",
+    "2g",
+    "--cpus",
+    "2",
+    "--pids-limit",
+    "64",
+    "--network",
+    "none",
+    "--read-only",
+    "--read-only-tmpfs=false",
+    "--http-proxy=false",
+    "--timeout",
+    "30",
+    "--entrypoint",
+    "node",
+    "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+    "--input-type=module",
+    "-e",
+    "import {spawnSync} from 'node:child_process';import {lstatSync} from 'node:fs';import {join} from 'node:path';import {strict as assert} from 'node:assert';const observe=(command,args)=>{const result=spawnSync(command,args,{encoding:'utf8',timeout:5000});return {command,args,status:result.status,signal:result.signal,stdout:result.stdout,stderr:result.stderr,error:result.error?{name:result.error.name,code:result.error.code,errno:result.error.errno,syscall:result.error.syscall,path:result.error.path,message:result.error.message}:null};};const positive=observe(process.execPath,['--version']);assert.equal(positive.status,0);assert.equal(positive.stdout.trim(),'v24.22.0');const missing=observe('/__monochromatic_positive_control_absent_git_20261018',['--version']);assert.equal(missing.error?.code,'ENOENT');const git=observe('git',['--version']);assert.equal(git.error?.code,'ENOENT');const candidates=(process.env.PATH??'').split(':').map(directory=>{const path=join(directory,'git');try{const entry=lstatSync(path);return {path,exists:true,mode:entry.mode};}catch(error){return {path,exists:false,error:{code:error.code,syscall:error.syscall,path:error.path}};}});assert(candidates.length>0&&candidates.every(row=>!row.exists&&row.error?.code==='ENOENT'));process.stdout.write(JSON.stringify({node:process.version,architecture:process.arch,execPath:process.execPath,path:process.env.PATH,positive,missing,git,candidates,imagePathGitUnavailable:true}));"
+  ],
+  "toolVersion": "podman version 5.8.7",
+  "scope": "AMD64 original image default PATH only; not an exhaustive filesystem search or a direct observation of the historical checkout environment",
+  "cleanup": {
+    "status": 0,
+    "stdout": "depot-original-service-git-1a1dbf89\n",
+    "stderr": ""
+  },
+  "command": {
+    "status": 0,
+    "signal": null,
+    "stdout": "{\"node\":\"v24.22.0\",\"architecture\":\"x64\",\"execPath\":\"/usr/local/bin/node\",\"path\":\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\"positive\":{\"command\":\"/usr/local/bin/node\",\"args\":[\"--version\"],\"status\":0,\"signal\":null,\"stdout\":\"v24.22.0\\n\",\"stderr\":\"\",\"error\":null},\"missing\":{\"command\":\"/__monochromatic_positive_control_absent_git_20261018\",\"args\":[\"--version\"],\"status\":null,\"signal\":null,\"error\":{\"name\":\"Error\",\"code\":\"ENOENT\",\"errno\":-2,\"syscall\":\"spawnSync /__monochromatic_positive_control_absent_git_20261018\",\"path\":\"/__monochromatic_positive_control_absent_git_20261018\",\"message\":\"spawnSync /__monochromatic_positive_control_absent_git_20261018 ENOENT\"}},\"git\":{\"command\":\"git\",\"args\":[\"--version\"],\"status\":null,\"signal\":null,\"error\":{\"name\":\"Error\",\"code\":\"ENOENT\",\"errno\":-2,\"syscall\":\"spawnSync git\",\"path\":\"git\",\"message\":\"spawnSync git ENOENT\"}},\"candidates\":[{\"path\":\"/usr/local/sbin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/usr/local/sbin/git\"}},{\"path\":\"/usr/local/bin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/usr/local/bin/git\"}},{\"path\":\"/usr/sbin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/usr/sbin/git\"}},{\"path\":\"/usr/bin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/usr/bin/git\"}},{\"path\":\"/sbin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/sbin/git\"}},{\"path\":\"/bin/git\",\"exists\":false,\"error\":{\"code\":\"ENOENT\",\"syscall\":\"lstat\",\"path\":\"/bin/git\"}}],\"imagePathGitUnavailable\":true}",
+    "stderr": "",
+    "error": null
+  },
+  "observation": {
+    "node": "v24.22.0",
+    "architecture": "x64",
+    "execPath": "/usr/local/bin/node",
+    "path": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "positive": {
+      "command": "/usr/local/bin/node",
+      "args": [
+        "--version"
+      ],
+      "status": 0,
+      "signal": null,
+      "stdout": "v24.22.0\n",
+      "stderr": "",
+      "error": null
+    },
+    "missing": {
+      "command": "/__monochromatic_positive_control_absent_git_20261018",
+      "args": [
+        "--version"
+      ],
+      "status": null,
+      "signal": null,
+      "error": {
+        "name": "Error",
+        "code": "ENOENT",
+        "errno": -2,
+        "syscall": "spawnSync /__monochromatic_positive_control_absent_git_20261018",
+        "path": "/__monochromatic_positive_control_absent_git_20261018",
+        "message": "spawnSync /__monochromatic_positive_control_absent_git_20261018 ENOENT"
+      }
+    },
+    "git": {
+      "command": "git",
+      "args": [
+        "--version"
+      ],
+      "status": null,
+      "signal": null,
+      "error": {
+        "name": "Error",
+        "code": "ENOENT",
+        "errno": -2,
+        "syscall": "spawnSync git",
+        "path": "git",
+        "message": "spawnSync git ENOENT"
+      }
+    },
+    "candidates": [
+      {
+        "path": "/usr/local/sbin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/usr/local/sbin/git"
+        }
+      },
+      {
+        "path": "/usr/local/bin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/usr/local/bin/git"
+        }
+      },
+      {
+        "path": "/usr/sbin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/usr/sbin/git"
+        }
+      },
+      {
+        "path": "/usr/bin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/usr/bin/git"
+        }
+      },
+      {
+        "path": "/sbin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/sbin/git"
+        }
+      },
+      {
+        "path": "/bin/git",
+        "exists": false,
+        "error": {
+          "code": "ENOENT",
+          "syscall": "lstat",
+          "path": "/bin/git"
+        }
+      }
+    ],
+    "imagePathGitUnavailable": true
+  },
+  "container": {
+    "imageId": "aedf411bcd17538e70d87272ba16677ed7ec62f2211cf4f30a3f38ec8ce6b55a",
+    "state": {
+      "OciVersion": "1.2.1",
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-18T08:59:12.73683074-04:00",
+      "FinishedAt": "2026-10-18T08:59:12.871612199-04:00",
+      "CheckpointedAt": "0001-01-01T00:00:00Z",
+      "RestoredAt": "0001-01-01T00:00:00Z"
+    },
+    "mountCount": 0,
+    "memoryBytes": 2147483648,
+    "cpuQuota": 200000,
+    "cpuPeriod": 100000,
+    "pidsLimit": 64,
+    "networkMode": "none"
+  },
+  "containerAbsentAfter": true,
+  "finishedAt": "2026-10-18T12:59:13.129Z",
+  "programSha256": "8947149bc00aa6819116bbd35087b7b0125e092ce1cca59ac1f1fc02a2c45ca0",
+  "indexBinding": {
+    "sourceArtifact": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
+    "indexDigest": "sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+    "architecture": "amd64",
+    "childManifestDigest": "sha256:6132df16f6e66c0d2a08179fd7c9fefb377d2fc72e90fef79d6b83d2b88f9ff7",
+    "configDigest": "sha256:aedf411bcd17538e70d87272ba16677ed7ec62f2211cf4f30a3f38ec8ce6b55a",
+    "localImageIdMatchesConfig": true
+  }
+}

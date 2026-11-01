@@ -1,0 +1,41 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/css-core-edit",
+  "description": "Byte-preserving CSS read, edit, and write utility. Free-function API over an immutable CssEditState; stylesheet-structure CST over the @csstools/css-tokenizer spec tokenizer, with comments and formatting as first-class token data.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "node": "./dist/final/node/index.mjs",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@csstools/css-tokenizer": "catalog:",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "type-fest": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/css/core-edit"
+  }
+}

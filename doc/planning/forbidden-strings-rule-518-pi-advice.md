@@ -12,7 +12,8 @@ Use:
 ```
 
 This best matches the scanning objective.
- The secret-bearing evidence is the MongoDB scheme followed by bounded user information and an unambiguous `@` delimiter.
+ The secret-bearing evidence is the MongoDB scheme followed by bounded user information
+and an unambiguous `@` delimiter.
 
 - **Coverage:**
    catches ordinary,

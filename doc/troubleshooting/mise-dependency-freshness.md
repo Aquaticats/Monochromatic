@@ -411,7 +411,7 @@ after `pnpm install --frozen-lockfile`),
 `mise run build` exited 1 after 3874 log lines and ended with:
 
 ```text
-Error: package fanout failed: //package/music-player/android-app:build, //package/ssg/aquati.cat:build, //package/webapp-productivity/doodle-widget:build, //package/desktop-app/terminal:build
+Error: package fanout failed: //package/music-player/android-app:build, //package/ssg/aquati.cat:build, //package/doodle-widget/app:build, //package/terminal/app:build
     at [eval]:24:32
 [//:build] ERROR task failed
 ```
@@ -420,15 +420,56 @@ Each named package printed its own error earlier in the log:
 `No NDK under .../android-sdk/23.0/ndk; run mise run prepare:android`,
 a failing `git log --follow` in the `aquati.cat` site build,
 `[RESOLVE_ERROR] Could not resolve 'canvg'` from `jspdf` in `doodle-widget`,
-and `missing release libghostty-vt build output; run build first` in `desktop-app/terminal`.
+and `missing release libghostty-vt build output; run build first` in `terminal/app`.
 These are environment and build-order failures in those packages,
 not mise behavior.
+Correction (2026-10-20,
+commit `1eee51ee2f`):
+the "environment and build-order" diagnosis is wrong for the
+`terminal/app` staging error,
+and the staging error's own text names the same wrong assumption.
+The build ran and succeeded;
+`stage:runtime-libs` failed because it globbed only
+`target/<profile>/build/libghostty-vt-sys-<hash>/out`.
+This machine's `~/.cargo/config.toml` sets
+`[build] build-dir = "/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`
+(relocated to a second disk on 2026-10-14),
+and `cargo metadata` reports `build_directory`
+`/var/mnt/encrypted/cargo-build/f8/4f84da14ad940c`
+beside `target_directory` `/var/home/user/Monochromatic/package/terminal/app/target`,
+so build-script output lands in
+`<build_directory>/<profile>/build/libghostty-vt-sys/<hash>/out`
+while final artifacts stay in `target/`.
+Commit `1eee51ee2f` made `package/terminal/app/mise.toml` discover roots
+from `cargo metadata` (`target_directory` and `build_directory`),
+`CARGO_TARGET_DIR`,
+and the package target dir,
+and glob both directory layouts in every root.
+This correction covers only the `terminal/app` staging error;
+the other three diagnoses are unchanged,
+and "not mise behavior" still holds for all four.
 The `fanout_packages` snippet does name the failures;
 the per-package error lines are interleaved far above the final line,
 so a capped or filtered view of the output can show the exit code without them.
-The same run printed `UNRESOLVED_IMPORT` warnings for `@monochromatic-dev/module-logger`
+The same run printed `UNRESOLVED_IMPORT` warnings for `@monochromatic-dev/logger-core`
 from two raw `src/main.ts` configs,
 which the #570 handover already records.
+
+### Durable lesson: consult `cargo metadata` `build_directory`
+
+Any task staging cargo build-script output must consult the `cargo metadata` `build_directory`,
+not just `target/`.
+`cargo metadata` reports `target_directory` and `build_directory` separately,
+and a machine-level `[build] build-dir` can move build-script output away from `target/`
+while final artifacts stay in `target/`.
+Build-script output directories have two layouts:
+`<root>/<profile>/build/libghostty-vt-sys-<hash>/out` in the classic `target/` shape and
+`<root>/<profile>/build/libghostty-vt-sys/<hash>/out` under a relocated build dir.
+Discover every root from `cargo metadata`,
+`CARGO_TARGET_DIR`,
+and the package target dir,
+and glob both layouts in each root
+(the discovery `package/terminal/app/mise.toml` implements in commit `1eee51ee2f`).
 
 ## Verification
 

@@ -2,7 +2,7 @@
  * HTTP status code constants.
  *
  * Spec-defined codes are re-exported from
- * `@monochromatic-dev/module-const`. Codes used only by this app
+ * `@monochromatic-dev/const-core`. Codes used only by this app
  * (302/303/410/413) stay local because they have no second consumer in
  * the workspace yet; promote to the shared package when one appears.
  */
@@ -17,7 +17,7 @@ export {
   HTTP_NOT_FOUND,
   HTTP_NOT_MODIFIED,
   HTTP_OK,
-} from '@monochromatic-dev/module-const/ts';
+} from '@monochromatic-dev/const-core/ts';
 
 /**
  * 302 Found: temporary redirect that may change method on follow.

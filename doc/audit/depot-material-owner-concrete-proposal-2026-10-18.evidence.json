@@ -1,0 +1,515 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-18T17:52:14.222Z",
+  "state": "concrete proposed finite profiles; no allocation admitted or created",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "maximumConcurrentJobs": 2,
+  "maximumPrimaryJobs": 7,
+  "maximumCorrectionJobs": 2,
+  "maximumJobMinutes": 30,
+  "profiles": [
+    {
+      "id": "ide-full",
+      "owner": "package/desktop-app/ide",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "owningTask": "//package/desktop-app/ide:test",
+      "producerTasks": [
+        "//package/desktop-app/ide:fetch",
+        "//package/desktop-app/ide:runtime"
+      ],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--no-default-features",
+        "--lib",
+        "--tests"
+      ],
+      "prerequisites": [
+        "Build the frozen terminal Containerfile locally in the owned VM.",
+        "Retain its original digest and prerequisite probes; add only an explicit clang/clang-devel/cmake/make/openssl-devel/zlib-devel tool layer if absent.",
+        "Build the frozen IDE Containerfile from that qualified terminal base; record resolved stable Rust, Nextest, Zig0.15.2, cargo-about0.9.2 and native library identities.",
+        "Run the real frozen runtime fetch/build producer for Helix revision ba40e547426b0f9896c8bdc699a4ab11f2b37dbc, retain selected grammar inventory and every staged grammar/query/notices hash."
+      ],
+      "reader": "Cargo metadata package/target identity plus every actual Nextest binary/case/status and summary; no success from compilation alone.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/ide/mise.toml",
+          "gitObject": "bb2efd55a953a9b65aa45033a1720cc2ec0ddff9",
+          "bytes": 54802,
+          "sha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32"
+        },
+        {
+          "path": "package/desktop-app/ide/Cargo.toml",
+          "gitObject": "17666cd0023e1cbac22387de6efea2be2634721b",
+          "bytes": 4954,
+          "sha256": "da8aec631b82ce8775c995e6814e3187e59d16c77992f1306dd33b59c7aeda2f"
+        },
+        {
+          "path": "package/desktop-app/ide/Cargo.lock",
+          "gitObject": "ddaba64e9ae07d474a96ce26015206ca6ca1c1d0",
+          "bytes": 168872,
+          "sha256": "63643ead5cbdcc74ef608cea372971b8450b3283a45778a14dd5ec9eec6ed4c2"
+        },
+        {
+          "path": "package/desktop-app/ide/Containerfile",
+          "gitObject": "bf64a4dbe644d75c3bb3160142924137cdea2d0a",
+          "bytes": 1189,
+          "sha256": "54e2afbe0910c7db5f3745352aa88dbfb2c6cf3b41509cf9272b5b2c71420283"
+        },
+        {
+          "path": "package/desktop-app/terminal/Containerfile",
+          "gitObject": "d4eaffb510dcad8b832be171a659019eacb5c663",
+          "bytes": 3235,
+          "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": {
+        "consumerCpu": 4,
+        "consumerMemoryGiB": 12,
+        "pids": 2048,
+        "network": "none for test bodies",
+        "cargoBuildAndNextestConcurrency": "default, with authored explicit CARGO_BUILD_JOBS removed only in the recorded resource/scheduler adapter",
+        "runtimeProducer": "real frozen producer, original explicit bounds retained and recorded"
+      }
+    },
+    {
+      "id": "ide-reader-lifecycle",
+      "owner": "package/desktop-app/ide",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "owningTask": "//package/desktop-app/ide:test:reader-lifecycle",
+      "producerTasks": [
+        "//package/desktop-app/ide:fetch"
+      ],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--no-default-features",
+        "--lib"
+      ],
+      "prerequisites": [
+        "Prepare the same exact frozen terminal and IDE toolchain Containerfiles and native prerequisite probes.",
+        "Do not prepare the grammar runtime for this independently labelled owning subset/control."
+      ],
+      "reader": "Its own Cargo target and Nextest binary/case identities, labelled subset/control; never credit this row as the full IDE owner.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/ide/mise.toml",
+          "gitObject": "bb2efd55a953a9b65aa45033a1720cc2ec0ddff9",
+          "bytes": 54802,
+          "sha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32"
+        },
+        {
+          "path": "package/desktop-app/ide/Cargo.toml",
+          "gitObject": "17666cd0023e1cbac22387de6efea2be2634721b",
+          "bytes": 4954,
+          "sha256": "da8aec631b82ce8775c995e6814e3187e59d16c77992f1306dd33b59c7aeda2f"
+        },
+        {
+          "path": "package/desktop-app/ide/Cargo.lock",
+          "gitObject": "ddaba64e9ae07d474a96ce26015206ca6ca1c1d0",
+          "bytes": 168872,
+          "sha256": "63643ead5cbdcc74ef608cea372971b8450b3283a45778a14dd5ec9eec6ed4c2"
+        },
+        {
+          "path": "package/desktop-app/ide/Containerfile",
+          "gitObject": "bf64a4dbe644d75c3bb3160142924137cdea2d0a",
+          "bytes": 1189,
+          "sha256": "54e2afbe0910c7db5f3745352aa88dbfb2c6cf3b41509cf9272b5b2c71420283"
+        },
+        {
+          "path": "package/desktop-app/terminal/Containerfile",
+          "gitObject": "d4eaffb510dcad8b832be171a659019eacb5c663",
+          "bytes": 3235,
+          "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": {
+        "consumerCpu": 4,
+        "consumerMemoryGiB": 12,
+        "pids": 2048,
+        "network": "none for test bodies",
+        "cargoBuildAndNextestConcurrency": "default, with authored explicit CARGO_BUILD_JOBS removed only in the recorded resource/scheduler adapter",
+        "runtimeProducer": "real frozen producer, original explicit bounds retained and recorded"
+      }
+    },
+    {
+      "id": "terminal-release",
+      "owner": "package/desktop-app/terminal",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "owningTask": "//package/desktop-app/terminal:test:container",
+      "producerTasks": [],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--release"
+      ],
+      "prerequisites": [
+        "Build the real frozen terminal Containerfile with its checksum-qualified Zig0.15.2 and installed Fontconfig/FreeType/Noto payloads.",
+        "Probe compiler, Zig, Nextest, native library/header identities and actual font files; qualify an explicit missing-tool layer separately."
+      ],
+      "reader": "Actual release Nextest binary/case/status outcomes and summary, plus native/compiler/font hashes. No terminal GUI or compositor launch.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/terminal/mise.toml",
+          "gitObject": "33977d661093ee3a21f0c95e72c9368ed6b05773",
+          "bytes": 14283,
+          "sha256": "1f50ab3c41ee0cbbc574ebe19fee73cda2d416661688d4732c69791b3f5fb8fc"
+        },
+        {
+          "path": "package/desktop-app/terminal/Cargo.toml",
+          "gitObject": "8b7f4fe1198c97dcb18e1f2788432027fe75e365",
+          "bytes": 3327,
+          "sha256": "46016a819d8ecfc9dbbd5c56d09407845d5f9e907c27a2ed01b93d4d7e1cf99e"
+        },
+        {
+          "path": "package/desktop-app/terminal/Cargo.lock",
+          "gitObject": "2706b1b88a2de9886908bbb47a176f1b8e1e00cb",
+          "bytes": 153923,
+          "sha256": "cd1b6b2dd1ac2a51f2812c7c96bc259e9c68682045c5a4847d1b97b741e7dd43"
+        },
+        {
+          "path": "package/desktop-app/terminal/Containerfile",
+          "gitObject": "d4eaffb510dcad8b832be171a659019eacb5c663",
+          "bytes": 3235,
+          "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": {
+        "consumerCpu": 4,
+        "consumerMemoryGiB": 4,
+        "pids": 2048,
+        "network": "none after dependency fetch",
+        "cargoBuildAndNextestConcurrency": "default"
+      }
+    },
+    {
+      "id": "file-manager-gtk-release",
+      "owner": "package/desktop-app/file-manager",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "owningTask": "//package/desktop-app/file-manager:test",
+      "producerTasks": [],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--release"
+      ],
+      "prerequisites": [
+        "Install minimal nightly-2026-10-17 and verified Nextest0.9.148.",
+        "Install build-essential,pkg-config,libgtk-4-dev,clang,libclang-dev,cmake,libssl-dev; require actual GTK>=4.12 before build."
+      ],
+      "reader": "Cargo package/lib/bin enumeration plus actual release Nextest case identities; GTK startup is not inferred from pure model/filesystem tests.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/file-manager/mise.toml",
+          "gitObject": "a78bec752662e85a9294052b14dbf2016e375761",
+          "bytes": 1575,
+          "sha256": "81166da55bba68ded0b73b54d18b4f1ec18b6b6161ccbc57d7bfccf0d197fd5e"
+        },
+        {
+          "path": "package/desktop-app/file-manager/Cargo.toml",
+          "gitObject": "4cd795a9103dccc423bab0e12a44a6fa79f1d7ec",
+          "bytes": 3275,
+          "sha256": "f844483562199d0100020686d773df0e692b403ff7441a273955ff3bd7932771"
+        },
+        {
+          "path": "package/desktop-app/file-manager/Cargo.lock",
+          "gitObject": "ca8559906835c5130a973ec8e2dddfaba3d5ad9f",
+          "bytes": 55465,
+          "sha256": "9be2ec600240a43680fe70f5330e0c2b465bc4256617329fd7c45c7442d2ad00"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": null
+    },
+    {
+      "id": "file-manager-sticky-release",
+      "owner": "package/desktop-app/file-manager-gtk-sticky",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "owningTask": "//package/desktop-app/file-manager-gtk-sticky:test",
+      "producerTasks": [],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--release"
+      ],
+      "inputOwnerDependencies": [
+        "package/desktop-app/file-manager"
+      ],
+      "prerequisites": [
+        "Same pinned minimal Rust/Nextest and actual GTK/native prerequisites as the GTK owner.",
+        "Keep the authored ignored Wayland boundary ignored; never run test:wayland or launch compositor."
+      ],
+      "reader": "Separate owning package/binary/case identities; retain the authored Wayland skip and do not count path-dependency tests as this owner.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/file-manager-gtk-sticky/mise.toml",
+          "gitObject": "9c4ddaf62d064430242ffa6a7d837739f0329819",
+          "bytes": 1756,
+          "sha256": "49940aae01463b9fc65dbcb801a12bfadf6ba56c041666e9b73d402041912d77"
+        },
+        {
+          "path": "package/desktop-app/file-manager-gtk-sticky/Cargo.toml",
+          "gitObject": "16b35bbf74515ea977d341897fa805a986ba91c2",
+          "bytes": 2150,
+          "sha256": "4c3964ff6070348021ff61adb966dd840ebb3c3c7f87b992a1e45ce8962760a4"
+        },
+        {
+          "path": "package/desktop-app/file-manager-gtk-sticky/Cargo.lock",
+          "gitObject": "589417b612fd60e7de49b7d874a54709a3fee4e6",
+          "bytes": 56517,
+          "sha256": "79de51d3deda1821dece0b15b8517eb16b2d3d6be39fa572cce3c19e528f5011"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": null
+    },
+    {
+      "id": "file-manager-qt-release",
+      "owner": "package/desktop-app/file-manager-qt",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "owningTask": "//package/desktop-app/file-manager-qt:test",
+      "producerTasks": [],
+      "consumerArgv": [
+        "cargo",
+        "nextest",
+        "run",
+        "--no-fail-fast",
+        "--locked",
+        "--release"
+      ],
+      "prerequisites": [
+        "Same minimal nightly-2026-10-17 and Nextest0.9.148.",
+        "Install build-essential,pkg-config,cmake,clang,libclang-dev,qt6-base-dev,qt6-declarative-dev,qt6-tools-dev,qt6-tools-dev-tools.",
+        "Probe qmake6 and Qt6Core/Gui/Qml/Network, preserve build.rs real QML/cxx-qt producer. The authored default-state QString assertion requires no QGuiApplication launch."
+      ],
+      "reader": "Actual cxx-qt/QML build identities plus executed release Nextest outcomes; no GUI interaction claim.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/desktop-app/file-manager-qt/mise.toml",
+          "gitObject": "d9fb781488010717147a609ab238b17b951ffa17",
+          "bytes": 1924,
+          "sha256": "0f37e932caf3c82c6a8569b0a0ee8bb7ad789e2aa5948c67f83e8ffc0eeba2dc"
+        },
+        {
+          "path": "package/desktop-app/file-manager-qt/Cargo.toml",
+          "gitObject": "11d0bf0690befdf144e8f1da20b5757f0efe8306",
+          "bytes": 2082,
+          "sha256": "3c1341c61103f3e580ad26ae605e3d7da2f4967e83131a1b56ff3c1bc623e10d"
+        },
+        {
+          "path": "package/desktop-app/file-manager-qt/Cargo.lock",
+          "gitObject": "cccc4cd7f001738f8944a37da81c8b418bd4a64a",
+          "bytes": 36149,
+          "sha256": "07de4e174d187f75c65d91ccdc81e2b5e47870e1190fb1e57bc5c77f1a433817"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": null
+    },
+    {
+      "id": "design-authored-node-imagemagick",
+      "owner": "package/music-player/design",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "owningTasks": [
+        "//package/music-player/design:test:unit",
+        "//package/music-player/design:test:cover-picker:revisit",
+        "//package/music-player/design:test:feedback:overlay",
+        "//package/music-player/design:test:first-run:access",
+        "//package/music-player/design:test:keyboard-map",
+        "//package/music-player/design:test:scan-indicator",
+        "//package/music-player/design:test:search:filename-comparison",
+        "//package/music-player/design:test:settings-pane",
+        "//package/music-player/design:test:template-editor",
+        "//package/music-player/design:test:template-reference",
+        "//package/music-player/design:test:track-menu"
+      ],
+      "producerTasks": [],
+      "prerequisites": [
+        "Materialize exact frozen design and referenced music-player assets; verify every admitted pointer OID/size/hash and actual PNG dimensions before consumers.",
+        "Use locked Node26.12 and a private Fedora41 tooling container with real ImageMagick7 and libstdc++; probe actual Node/ImageMagick identities first.",
+        "Run each authored Node owner unchanged, sequentially. All image mutations/builds stay in owned disposable fixtures."
+      ],
+      "reader": "Retain each real owning process status and its actual custom guard output, with generated image identities only. There is no authored Playwright/browser owner in these tasks.",
+      "frozenSourceInputs": [
+        {
+          "path": "package/music-player/design/mise.toml",
+          "gitObject": "539e63df00d3e6e627f2017bd4ff026d3834f450",
+          "bytes": 29911,
+          "sha256": "ee883c9c0add0dfd09714f32aa93114df0a038c9e09f5a99222fba6841f0233b"
+        }
+      ],
+      "sourceAssertionsChanged": false,
+      "testSelectionAdapter": "Preserve owning package/features/target/profile selection; replace IDE cargo test with required Nextest, add one non-fail-fast scheduler flag, and require the frozen lock. Do not modify authored tests.",
+      "containerBounds": {
+        "consumerCpu": 2,
+        "consumerMemoryGiB": 2,
+        "pids": 256,
+        "network": "none for consumers",
+        "nodeHeapMiB": 768
+      }
+    }
+  ],
+  "primaryNominalReservationUsd": 1.08,
+  "conditionalCorrectionProfiles": [
+    {
+      "selection": "Only an observed prerequisite/resource/harness failure in one named primary owner; same frozen tests and source.",
+      "maximumJobs": 2,
+      "provider": "depot-managed-github-actions",
+      "label": "depot-ubuntu-24.04-16",
+      "cpu": 16,
+      "documentedMemoryGB": 64,
+      "documentedDiskGB": 180,
+      "jobMinutes": 30,
+      "campaignMinutes": 27,
+      "listRateUsdPerMinute": 0.048,
+      "reservationEachUsd": 1.44,
+      "totalReservationUsd": 2.88,
+      "containerResourceAdapter": {
+        "maximumCpu": 16,
+        "maximumMemoryGiB": 48,
+        "maximumPids": 4096,
+        "appliesOnlyToObservedResourceFailure": true,
+        "sourceContainerfileAndTestAssertionsUnchanged": true,
+        "defaultCargoAndNextestConcurrency": true,
+        "producerBounds": "Any increase from authored producer resource bounds is an explicit recorded research adapter, never silent."
+      }
+    }
+  ],
+  "unpricedStorageLfsAndOtherContingencyUsd": 1.04,
+  "totalNominalGuardUsd": 5,
+  "budgetBoundary": "The compute reservations use captured public list rates, not invoices. The unpriced contingency is explicit headroom, not a rate or observed charge. No allocation can exceed the remaining campaign guard.",
+  "artifactBounds": {
+    "maximumEvidenceBytesPerJob": 67108864,
+    "maximumPrimaryAndCorrectionJobs": 9,
+    "retentionDays": 1,
+    "sourceMediaOrToolImageBytesUploaded": false,
+    "newGeneratedImages": "private; publish metadata and hashes only unless every region is separately inspected"
+  },
+  "sourceInputContract": {
+    "localAssetAudit": {
+      "path": "material-owner-input-payload-audit/result.json",
+      "sha256": "efae95f1d286ad57011c931b010da08de266225601626f441bc79840ea156ef2",
+      "summary": {
+        "files": 1582,
+        "admitted": 1582,
+        "rejected": 0,
+        "lfsObjects": 1428,
+        "actualBytes": 350992617
+      }
+    },
+    "cloud": "Checkout frozen e02 without implicit full LFS download; materialize only admitted owner/shared assets and verify actual payload hashes/formats before any consumer.",
+    "rawGitPointerAndWorkingByteEquivalenceNotClaimed": true
+  },
+  "decidingExistingEvidence": {
+    "legacySearch": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.evidence.json",
+    "legacySearchSha256": "3b3d8017b4127cb3303426f42861e268c8a01705f917f252f93a557ce17a1962",
+    "filesInventoried": 169,
+    "filesSearched": 168,
+    "staticAssertionCatalogExplicitlyExcluded": true,
+    "originalOrEmbeddedZipControls": 94,
+    "verifiedMemberCrcs": 3558,
+    "syntheticAliasControls": 72,
+    "qualifyingSelectedOwnerOutcomes": 0,
+    "kotlinClosed": "doc/audit/depot-kotlin-gradle-owner-join-2026-10-18.evidence.json"
+  },
+  "noAndroidEmulatorCompositorOrDesktopRelaunch": true,
+  "noImageRegistryPushOrProductionPublication": true,
+  "noModelCallsOrBroadNewCredentials": true,
+  "preparedRustImagesRequired": false,
+  "allocationAdmissionRequiredFromParent": true,
+  "supersedesProposalSha256": "bb2cfebf5cdb7def3237b5a58dbaa5a851dad4618d843fd705b0feedb02dd3d5"
+}

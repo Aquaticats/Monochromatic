@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-10-16T00:41:24.221Z",
+  "elapsedSeconds": 33.241799386,
+  "restRequests": 0,
+  "allowed": false,
+  "used": {
+    "minute": 0,
+    "hour": 0,
+    "day": 8
+  },
+  "requests": 10,
+  "points": 10,
+  "visited": 959,
+  "spent": {
+    "label": "day",
+    "max": 8
+  }
+}

@@ -8,13 +8,13 @@ import type {
   FunctionLikeDeclaration,
   Identifier,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isFunctionLikeDeclaration,
   isIdentifier,
   isReturnStatement,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 /**
  Tests whether callable directly returns exact local binding symbol.

@@ -1,0 +1,12 @@
+{
+  "format": "translation-repair-process-audit-v1",
+  "checkedProcEntries": 614,
+  "exactArgumentBasenames": [
+    "corpus-pass.mjs",
+    "corpus-pass.ts",
+    "resume-run.sh",
+    "resume-supervisor.ts"
+  ],
+  "matchingProcessCount": 0,
+  "matches": []
+}

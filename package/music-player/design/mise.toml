@@ -404,12 +404,12 @@ dir = "{{config_root}}"
 run = "node search-status-evidence.mjs validate"
 
 [tasks."build:search:filename-comparison"]
-description = "Build the independent offline filename placement and visibility review from inspected native evidence"
+description = "Build the offline filename evidence review with configurable-support boundaries and optional observations"
 dir = "{{config_root}}"
 run = "node search-filename-comparison.mjs build"
 
 [tasks."lint:search:filename-comparison"]
-description = "Validate exact offline filename review content, native image hashes and independent unselected questions"
+description = "Validate exact filename evidence review content, native image dimensions and absence of policy voting"
 dir = "{{config_root}}"
 run = "node search-filename-comparison.mjs validate"
 
@@ -422,6 +422,116 @@ run = ["node search-filename-comparison.mjs build", "node search-filename-compar
 description = "Exercise native filename review provenance and required-scroll guards on a disposable fixture"
 dir = "{{config_root}}"
 run = "node search-filename-comparison-test.mjs"
+
+[tasks."test:keyboard-map"]
+description = "Exercise the actual keyboard demonstration classifier and ownership guards on disposable inputs"
+dir = "{{config_root}}"
+run = "node keyboard-map-test.mjs"
+
+[tasks."build:first-run:access"]
+description = "Build offline first-run access state evidence from inspected native witnesses"
+dir = "{{config_root}}"
+run = "node first-run-access.mjs build"
+
+[tasks."lint:first-run:access"]
+description = "Validate the first-run evidence review, its image geometry, drawn text and no-policy-ballot boundary"
+dir = "{{config_root}}"
+run = "node first-run-access.mjs validate"
+
+[tasks."verify:first-run:access"]
+description = "Build first-run state review before validating its exact committed output"
+dir = "{{config_root}}"
+run = ["node first-run-access.mjs build", "node first-run-access.mjs validate"]
+
+[tasks."build:feedback:overlay"]
+description = "Build the D83 evidence viewer from exact inspected held native poses"
+dir = "{{config_root}}"
+run = "node feedback-overlay.mjs build"
+
+[tasks."lint:feedback:overlay"]
+description = "Validate exact offline feedback evidence and authored-hold boundaries"
+dir = "{{config_root}}"
+run = "node feedback-overlay.mjs validate"
+
+[tasks."test:feedback:overlay"]
+description = "Exercise overlay cohort, hold, acquisition and no-ballot guards in disposable copies"
+dir = "{{config_root}}"
+run = "node feedback-overlay-test.mjs"
+
+[tasks."build:track-menu"]
+description = "Build the evidence-only native D7 context-menu viewer from inspected witnesses"
+dir = "{{config_root}}"
+run = "node track-menu.mjs build"
+
+[tasks."lint:track-menu"]
+description = "Validate exact context-menu images, native input provenance and operation boundaries"
+dir = "{{config_root}}"
+run = "node track-menu.mjs validate"
+
+[tasks."test:track-menu"]
+description = "Exercise menu cohort, heading, input, crop and no-ballot guards on disposable copies"
+dir = "{{config_root}}"
+run = "node track-menu-test.mjs"
+
+[tasks."build:scan-indicator"]
+description = "Build the evidence-only native D26 scan-indicator viewer from inspected witnesses"
+dir = "{{config_root}}"
+run = "node scan-indicator.mjs build"
+
+[tasks."lint:scan-indicator"]
+description = "Validate exact scan-indicator images, authored states, bar slot, status readings and label clearance pixels"
+dir = "{{config_root}}"
+run = "node scan-indicator.mjs validate"
+
+[tasks."test:scan-indicator"]
+description = "Exercise every scan viewer rule on disposable copies; `-- without <rule>` deletes one rule, `-- list` names them"
+dir = "{{config_root}}"
+run = "node scan-indicator-test.mjs"
+
+[tasks."build:settings-pane"]
+description = "Build the evidence-only native D11 Settings-pane viewer from inspected witnesses"
+dir = "{{config_root}}"
+run = "node settings-pane.mjs build"
+
+[tasks."lint:settings-pane"]
+description = "Validate exact Settings-pane images, authored states, row and header geometry, scroll extents and drawn switch positions"
+dir = "{{config_root}}"
+run = "node settings-pane.mjs validate"
+
+[tasks."test:settings-pane"]
+description = "Exercise every Settings viewer rule on disposable copies; `-- without <rule>` deletes one rule, `-- list` names them"
+dir = "{{config_root}}"
+run = "node settings-pane-test.mjs"
+
+[tasks."test:first-run:access"]
+description = "Exercise first-run review image, metadata, cohort and ballot guards in disposable fixtures"
+dir = "{{config_root}}"
+run = ["node first-run-scroll-evidence-test.mjs", "node first-run-access-test.mjs"]
+
+[tasks."test:template-reference"]
+description = "Exercise the design reference for the supporting-text template language: fields, formats, conditions, error lines and typing help"
+dir = "{{config_root}}"
+run = ["node template-reference-test.mjs", "node template-editor-scenes-test.mjs"]
+
+[tasks."build:template-editor"]
+description = "Build the template editor review from inspected native views of its three preview layouts"
+dir = "{{config_root}}"
+run = "node template-editor.mjs build"
+
+[tasks."lint:template-editor"]
+description = "Validate the template editor review: image geometry, drawn text against the template reference, what each layout keeps in view, and its one question"
+dir = "{{config_root}}"
+run = "node template-editor.mjs validate"
+
+[tasks."verify:template-editor"]
+description = "Build the template editor review before validating its exact committed output"
+dir = "{{config_root}}"
+run = ["node template-editor.mjs build", "node template-editor.mjs validate"]
+
+[tasks."test:template-editor"]
+description = "Prove the template editor review refuses changed evidence, a broken layout claim and a page without its question"
+dir = "{{config_root}}"
+run = "node template-editor-test.mjs"
 
 [tasks."build:search:ranking"]
 description = "Rebuild the archived D/P and M/F/T comparison from sanitized native captures"
@@ -504,3 +614,23 @@ description = "Validate the historical folded-cover P questionnaire"
 dir = "{{config_root}}"
 shell = "node --input-type=module-typescript -e"
 run = "{{vars.validate_cover_question}}"
+
+[tasks."build:cover-picker:revisit"]
+description = "Build the offline folded-cover picker review (D46 revisit) from inspected native witnesses"
+dir = "{{config_root}}"
+run = "node cover-picker-revisit.mjs build"
+
+[tasks."lint:cover-picker:revisit"]
+description = "Validate the cover picker review, its image geometry, drawn text and no-ballot boundary"
+dir = "{{config_root}}"
+run = "node cover-picker-revisit.mjs validate"
+
+[tasks."verify:cover-picker:revisit"]
+description = "Build the cover picker review before validating its exact committed output"
+dir = "{{config_root}}"
+run = ["node cover-picker-revisit.mjs build", "node cover-picker-revisit.mjs validate"]
+
+[tasks."test:cover-picker:revisit"]
+description = "Exercise cover picker review image, metadata, cohort and ballot guards in disposable fixtures; `-- <guard>` deletes one"
+dir = "{{config_root}}"
+run = "node cover-picker-revisit-test.mjs"

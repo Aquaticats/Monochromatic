@@ -1,5 +1,16 @@
 # Meta Package Manager 7.6.1 extends through manager definitions but TOML cannot forward restore versions
 
+> Definition path note:
+>  this record is the 7.6.1 investigation and stays historical as written.
+>  In `meta-package-manager` 8.2.0,
+>  the version this repository adopts,
+>  trusted local definitions belong under `[mpm.overrides.<id>]`
+>  (moved 2026-10-26),
+>  so the `[mpm.managers.<id>]` blocks in this record are the historical path
+>  (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`,
+>  `doc/planning/mpm-toolchain-migration.md`,
+>  section `Implementation record (toolchain-core, 2026-10-26)`).
+
 ## Symptom
 
 A Mise-removal assessment initially treated missing Meta Package Manager adapters as requiring commands outside MPM.
@@ -169,7 +180,8 @@ A broader registration search found `ManagerPool.add_manager()` callers only in 
 and
 `meta_package_manager/config.py:739-779` adds trusted config-defined managers.
 
-Historical issue [kdeldycke/meta-package-manager#276][issue-276] asked for extension documentation and mentioned plugins.
+Historical issue [kdeldycke/meta-package-manager#276][issue-276]
+asked for extension documentation and mentioned plugins.
 The maintainer rejected external plugins in 2021 because the project preferred a monolithic source and test surface.
 The later config-defined manager feature supplies a lightweight out-of-tree extension path,
 but 7.6.1 still has no full-power external class-plugin mechanism.
@@ -201,7 +213,8 @@ a read-only fixture mount,
 and a temporary home.
 The repository was not mounted.
 
-`gh attestation verify` did not accept the release attestation under its default GitHub Actions issuer policy and emitted:
+`gh attestation verify` did not accept the release attestation
+under its default GitHub Actions issuer policy and emitted:
 
 ```text
 Error: verifying with issuer "sigstore.dev"

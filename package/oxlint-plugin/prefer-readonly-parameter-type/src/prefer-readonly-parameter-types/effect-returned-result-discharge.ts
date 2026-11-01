@@ -4,16 +4,16 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
-import { isCallExpression, } from 'typescript/unstable/ast/is';
+} from 'typescript/ast';
+import { isCallExpression, } from 'typescript/ast/is';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   callResultElementReceiver,
@@ -77,10 +77,10 @@ function callResultIsReceiverState({
   readonly call: CallExpression;
 },): boolean {
   return (callResultElementReceiver({
-      project,
-      checker,
-      call,
-    },) !== RESULT_NOT_RECEIVER_STATE)
+    project,
+    checker,
+    call,
+  },) !== RESULT_NOT_RECEIVER_STATE)
     || (callResultReceiver({
       project,
       checker,
@@ -152,7 +152,7 @@ function callersAllResolve({
     /**
      Every usage of this callable's signature the project can enumerate.
      */
-    const usages = project.checker
+    const usages = project.languageService
       .getSignatureUsage(declaration,);
     /* An empty enumeration is refused rather than accepted, and the distinction is the
      * whole soundness of this test. `every` over nothing is true, so a callable with no

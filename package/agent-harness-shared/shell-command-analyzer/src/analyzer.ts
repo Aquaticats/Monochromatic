@@ -5,7 +5,7 @@
  */
 
 import { parse, } from 'unbash';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   looksLikePath,
   extractParamRefs,
@@ -79,7 +79,7 @@ function tryParseScript(
     /**
      Parsed script with optional tolerant diagnostics.
      */
-    const script = parse(command,) as ParsedUnbashScript;
+    const script = parse(command,);
     /**
      Public parse diagnostics converted from parser result.
      */
@@ -203,47 +203,47 @@ function analyzeShellCommand(command: string,): ShellCommandAnalysis {
    */
   const executedCommands = collection.commands
     .filter(function isExecutedCommand(info,): boolean {
-    return info.context
-      .kind
-      === 'executed';
-  },);
+      return info.context
+        .kind
+        === 'executed';
+    },);
   /**
    Commands stored inside function bodies.
    */
   const functionDefinitionCommands = collection.commands
     .filter(function isFunctionDefinitionCommand(info,): boolean {
-    return info.context
-      .kind
-      === 'functionDefinition';
-  },);
+      return info.context
+        .kind
+        === 'functionDefinition';
+    },);
   /**
    File-like command arguments and redirect targets.
    */
   const allFiles = collection.commands
     .flatMap(function collectFiles(info,): string[] {
-    return [
-      ...info.envAssignments
-        .map(function assignmentValue(assignment,): string {
-          return assignment.value;
-        },)
-        .filter(function assignmentValueLooksLikePath(value,): boolean {
-          return looksLikePath(value,);
-        },),
-      ...info.args
-        .filter(function argLooksLikePath(arg,): boolean {
-        return looksLikePath(arg,);
-      },),
-      ...info.redirectTargets,
-    ];
-  },);
+      return [
+        ...info.envAssignments
+          .map(function assignmentValue(assignment,): string {
+            return assignment.value;
+          },)
+          .filter(function assignmentValueLooksLikePath(value,): boolean {
+            return looksLikePath(value,);
+          },),
+        ...info.args
+          .filter(function argLooksLikePath(arg,): boolean {
+            return looksLikePath(arg,);
+          },),
+        ...info.redirectTargets,
+      ];
+    },);
   /**
    Deduplicated parameter references aggregated across command records.
    */
   const allParamRefs = [...new Set(
     collection.commands
       .flatMap(function collectRefs(info,): readonly string[] {
-      return info.paramRefs;
-    },),
+        return info.paramRefs;
+      },),
   ),];
   if ((allParamRefs.length === 0) && (preScanRefs.length > 0))
     allParamRefs.push(...preScanRefs,);
@@ -264,11 +264,11 @@ function analyzeShellCommand(command: string,): ShellCommandAnalysis {
       .hasProcessSubstitution,
     hasHeredoc: collection.commands
       .some(function commandHasHeredoc(info,): boolean {
-      return info.redirects
-        .some(function redirectIsHeredoc(redirect,): boolean {
-        return (redirect.kind === 'heredoc') || (redirect.kind === 'hereString');
-      },);
-    },),
+        return info.redirects
+          .some(function redirectIsHeredoc(redirect,): boolean {
+            return (redirect.kind === 'heredoc') || (redirect.kind === 'hereString');
+          },);
+      },),
     allFiles,
     allParamRefs,
   };

@@ -6,25 +6,26 @@ Campaign in progress.
 The Node orchestration layer,
  the Node sink boundary layer,
  the coverage-reachability gate,
- and the CI workflow landed on 2026-09-06 in the sidecar package `package/module/logger.fuzz` and `.github/workflows/logger-fuzz.yml`.
-The toml-edit campaign moved into `package/module/toml-edit.fuzz` on 2026-09-06 (`doc/decision/toml-edit-fuzzing.md`,
+ and the CI workflow landed on 2026-09-06 in the sidecar package `package/logger/core.fuzz`
+ and `.github/workflows/logger-fuzz.yml`.
+The toml-edit campaign moved into `package/toml-edit/core.fuzz` on 2026-09-06 (`doc/decision/toml-edit-fuzzing.md`,
  "Sidecar package").
 The Playwright browser layer landed the same day,
  so every deliverable of the campaign is on main.
 Plan,
  grill records,
  and landed commits:
- `package/module/logger/bulletproofing.plan.md`.
+ `package/logger/core/bulletproofing.plan.md`.
 Per-contract design rationale:
- `package/module/logger/DECISIONS.md`.
+ `package/logger/core/DECISIONS.md`.
 
-This document is the decision record for how `@monochromatic-dev/module-logger` is verified,
+This document is the decision record for how `@monochromatic-dev/logger-core` is verified,
 rewritten on 2026-09-06 from the June design-only record.
 The June contracts that the shipped code reversed are listed under "Superseded decisions" so the history stays readable.
 
 ## Context
 
-The goal is the verification bar `package/module/toml-edit` already meets:
+The goal is the verification bar `package/toml-edit/core` already meets:
 a budgeted property campaign,
  a reference-model oracle,
  a committed coverage-reachability gate,
@@ -43,7 +44,7 @@ and no colour or escape sequence flows through the logger today.
 
 ## Decision: sidecar package
 
-The campaign lives in `package/module/logger.fuzz`,
+The campaign lives in `package/logger/core.fuzz`,
  a private workspace package,
 the convention `jsonc-edit.fuzz` and `css-edit.fuzz` set.
 The runtime package's `src` stays pure production code and ships in the tarball;
@@ -60,7 +61,7 @@ The sidecar's `fuzz` task rebuilds the runtime package first for that reason.
 
 The toml-edit campaign,
  which still lives inside its runtime package under `src/fuzz/`,
-migrates into `package/module/toml-edit.fuzz` after the logger campaign,
+migrates into `package/toml-edit/core.fuzz` after the logger campaign,
  copying this layout.
 
 ## Decision: scheduler, not grammar
@@ -101,7 +102,8 @@ Every sink carries a stable index,
  so a shrunk counterexample reads as
 `sink 2: verify [resolve-true*] write [reject, resolve*] flush absent`.
 Every scripted rejection gets its own rejection handler at creation,
-because the scheduler holds rejected promises until released and an unhandled rejection would otherwise kill the test-file process.
+because the scheduler holds rejected promises until released and an unhandled rejection would otherwise kill the
+test-file process.
 A trace records every hook call and settlement with its call index,
  so the model can fold the observed order.
 
@@ -183,7 +185,8 @@ the campaign's value so far is that the contract is now executable.
 
 ## Landed: sink boundary properties under Node
 
-`src/sink-boundary.property.unit.test.ts` feeds adversarial records through each Node-reachable sink built from the artifact and inspects what came out.
+`src/sink-boundary.property.unit.test.ts` feeds adversarial records through each Node-reachable sink built from the
+artifact and inspects what came out.
 The corpus (`src/boundary-corpus.ts`) holds JSON delimiters and record-forging text,
  terminal escape sequences (well-formed,
  unterminated,
@@ -191,13 +194,15 @@ The corpus (`src/boundary-corpus.ts`) holds JSON delimiters and record-forging t
  and 8-bit C1),
  lone and paired surrogates,
  and astral text;
-the arbitrary (`src/adversarial-message.ts`) interleaves those tokens with binary text and with control characters drawn uniformly across C0,
+the arbitrary (`src/adversarial-message.ts`) interleaves those tokens with binary text
+and with control characters drawn uniformly across C0,
  DEL,
  and C1,
 because the default binary string arbitrary reaches DEL and C1 about once per million code units.
 Four properties:
 
-- The console neutralizer agrees with an independent code-unit-indexed reference and leaves no forbidden control in its output.
+- The console neutralizer agrees with an independent code-unit-indexed reference
+and leaves no forbidden control in its output.
 - The console sink emits exactly the reference prediction of its grouped output:
   one text per contiguous same-level run,
    every message neutralized,
@@ -235,7 +240,8 @@ The campaign measures its own reach with the deterministic V8 line-coverage gate
  `src/coverage-aggregate.ts`,
  and `src/coverage-report.ts`
 and pointed at the runtime package's `src` through the `/ts` subpath it resolves.
-The driver (`src/coverage-driver.ts` and the `src/coverage-*.ts` scenario modules) imports the runtime source the same way
+The driver (`src/coverage-driver.ts` and the `src/coverage-*.ts` scenario modules) imports the runtime source the same
+way
 and replays fixed inputs through every orchestration branch (scripted fake sinks with the identity gate)
 and every Node-reachable sink branch:
 the console sink under silent,
@@ -254,7 +260,8 @@ the record buffer's every trigger including page-lifecycle events fired through 
 the key,
  quota,
  and quota-error helpers under staged Deno and Bun markers.
-The `fuzz:coverage` task runs the driver under `--localstorage-file` so the localStorage sink elects instead of taking the flagless short-circuit;
+The `fuzz:coverage` task runs the driver under `--localstorage-file`
+so the localStorage sink elects instead of taking the flagless short-circuit;
 `--write` refreezes `coverage-baseline.json`.
 
 First baseline,
@@ -273,13 +280,14 @@ The browser-only IndexedDB,
 The driver's adequacy was checked against the uncovered-line list,
  not assumed:
 each scenario added after the first freeze targeted a named uncovered line,
-and one apparent gap (the store's oldest-first sort) turned out to need two prior-run entries before the comparator runs at all.
+and one apparent gap (the store's oldest-first sort) turned out to need two prior-run entries before the comparator
+runs at all.
 
 ## Landed: CI workflow
 
 `.github/workflows/logger-fuzz.yml` mirrors `toml-edit-fuzz.yml`:
-path-filtered to `package/module/logger/**`,
- `package/module/logger.fuzz/**`,
+path-filtered to `package/logger/core/**`,
+ `package/logger/core.fuzz/**`,
  this document,
  and itself,
 with the merge-queue scope step,
@@ -298,7 +306,7 @@ the smoke takes about 25 seconds and the gate about 20 seconds on the developmen
 The browser-only backends are checked in real browsers rather than through stand-ins.
 `src/browser/properties.ts` is bundled by the sidecar's `bundle:browser-properties` task
 (rolldown's client flavor under the browser platform,
- so `@monochromatic-dev/module-logger` resolves to the neutral artifact and fast-check is inlined)
+ so `@monochromatic-dev/logger-core` resolves to the neutral artifact and fast-check is inlined)
 and served to the Playwright harness page from `/dist/module-logger.fuzz/client/properties.js`.
 The bundle installs a runner on the page;
  `src/browser/properties.browser.test.ts` loads it,
@@ -331,16 +339,19 @@ restored and rebuilt,
 The task is named `bundle:browser-properties`,
  not `build`:
 the sidecar ships nothing,
- and the `require-eventual-artifact` lint treats a package with a build task as one whose tests must import built output,
+ and the `require-eventual-artifact` lint treats a package with a build task as one whose tests must import built
+ output,
 which would reject every relative helper import in the sidecar's test files.
 No workflow runs the browser suite today;
-the layer is a local podman run (`mise run test:browser -- package/module/logger.fuzz/src/browser/properties.browser.test.ts`) until a browser CI job exists.
+the layer is a local podman run
+(`mise run test:browser -- package/logger/core.fuzz/src/browser/properties.browser.test.ts`) until a browser CI job
+exists.
 
 ## Superseded decisions
 
 The June record fixed several contracts at design time;
  the shipped code reversed them.
-Each is recorded in `package/module/logger/DECISIONS.md`.
+Each is recorded in `package/logger/core/DECISIONS.md`.
 
 - Failure stance:
    log calls never throw.
@@ -368,7 +379,7 @@ Each is recorded in `package/module/logger/DECISIONS.md`.
   Shipped:
    `STARTUP_BUFFER_CAP` is an exported constant (10000),
    dropping oldest with a marker record.
-- `@monochromatic-dev/module-async-time` promoted to a runtime dependency.
+- `@monochromatic-dev/async-time-core` promoted to a runtime dependency.
   Shipped:
    it stays a devDependency imported through its `/ts` subpath and inlined by the build;
   the published `dependencies` map is empty.

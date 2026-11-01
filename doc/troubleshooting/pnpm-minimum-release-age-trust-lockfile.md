@@ -44,7 +44,7 @@ The current install still checks the lockfile identity and active policy before 
 pnpm 11.15.1 also rejected an intentionally adopted dependency during fresh resolution:
 
 ```console
-$ pnpm install --filter @monochromatic-dev/cli-wg-allowedips --lockfile=false --ignore-scripts
+$ pnpm install --filter @monochromatic-dev/wg-cli-allowedips --lockfile=false --ignore-scripts
 [ERR_PNPM_NO_MATURE_MATCHING_VERSION] 2 versions do not meet the minimumReleaseAge constraint:
   cidr-tools@12.1.3 ...
   ip-bigint@9.0.7 ...
@@ -214,7 +214,8 @@ if (log.status === 'cached') {
 }
 ```
 
-An earlier concern that `verified 4d ago` meant newly introduced tarballs escaped current lockfile identity checking was wrong.
+An earlier concern
+that `verified 4d ago` meant newly introduced tarballs escaped current lockfile identity checking was wrong.
 The source proves cache reuse requires same parsed lockfile content and acceptable cached policy.
 
 ## Verification
@@ -372,7 +373,8 @@ then added the visible cached-verdict message reproduced here.
     No prototype is appropriate because constraint one fails and the installed behavior matches upstream design.
 
 There is nothing additive to post on issue 12324.
-The maintainer comment and merged pull request already contain the source-backed explanation and user-visible resolution.
+The maintainer comment and merged pull request already contain the source-backed explanation
+and user-visible resolution.
 No new issue or comment should be filed.
 
 ## pnpm 12.3.4: verification fetches `@jsr/*` metadata from `registry.npmjs.org` and fails with 404

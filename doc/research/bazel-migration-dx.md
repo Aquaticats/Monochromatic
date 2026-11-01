@@ -283,7 +283,8 @@ Clones:
 `~/temp/agent/bazel-lib-2026-09-16` at `7ca5f6d`.
 
 - Inspection:
-   the Build Event Protocol is the documented interface that "allows third-party programs to gain insight into a Bazel invocation"
+   the Build Event Protocol is the documented interface
+   that "allows third-party programs to gain insight into a Bazel invocation"
    (`docs/remote/bep.mdx:8-10`).
   `--bes_backend=grpc://HOST:PORT` streams those events to any server implementing the public
    `google/devtools/build/v1/publish_build_event.proto` service
@@ -296,7 +297,8 @@ Clones:
   Exit code 8 documents an interrupted build with orderly shutdown
    (`docs/run/scripts.mdx:53`),
    so a daemon that owns the `bazel` client process can cancel it.
-  The client-to-server gRPC protocol with `Run` and `Cancel` is mentioned only in contributor docs as internal code layout
+  The client-to-server gRPC protocol with `Run` and `Cancel`
+   is mentioned only in contributor docs as internal code layout
    (`docs/contribute/codebase.mdx:87-91`),
    not documented for users.
 - Queries during a build:

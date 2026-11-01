@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "calculatedAt": "2026-10-18T04:17:34.158Z",
+  "purpose": "Planning arithmetic for an intentional hybrid, not an invoice or deployment forecast.",
+  "repository": {
+    "isPrivate": false,
+    "nameWithOwner": "Aquaticats/Monochromatic",
+    "visibility": "PUBLIC"
+  },
+  "userObjective": {
+    "futureAllProviderMonthlyCeilingUsd": 200,
+    "preferDeveloperWhenPractical": true,
+    "elapsedUnfinishedUnionHourlyCad": 8.975,
+    "overlappingWaitingCountedOnce": true,
+    "trialMayUseExistingStartupAllowance": true
+  },
+  "fx": {
+    "url": "https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?start_date=2026-10-16&end_date=2026-10-16",
+    "date": "2026-10-16",
+    "cadPerUsd": 1.4154,
+    "rawObservation": {
+      "d": "2026-10-16",
+      "FXUSDCAD": {
+        "v": "1.4154"
+      }
+    }
+  },
+  "timeValueUsdPerHour": 6.340963685177335,
+  "startupFeePremiumUsd": 180,
+  "startupFeePremiumBreakEvenWaitingHours": 28.38685236768802,
+  "plans": {
+    "developer": {
+      "feeUsd": 20,
+      "ciSmallestSandboxMinutes": 2000,
+      "githubRunnerMinutes": 2000,
+      "dockerBuildMinutes": 500,
+      "storageGb": 25,
+      "macosAvailable": false
+    },
+    "startup": {
+      "feeUsd": 200,
+      "ciSmallestSandboxMinutes": 20000,
+      "githubRunnerMinutes": 20000,
+      "dockerBuildMinutes": 5000,
+      "storageGb": 250,
+      "macosAvailable": true
+    }
+  },
+  "rates": {
+    "ciUsdPerSmallestSandboxMinute": 0.006,
+    "windows4CpuUsdPerElapsedMinute": 0.016,
+    "windows4CpuIncludedMinutesMultiplier": 4,
+    "macos15UsdPerElapsedMinute": 0.08
+  },
+  "sources": [
+    {
+      "url": "https://depot.dev/pricing",
+      "finding": "Plan fees, separate included product pools, and overage rates."
+    },
+    {
+      "url": "https://depot.dev/docs/ci/overview",
+      "finding": "CI included minutes use the smallest 2 CPU, 8 GB sandbox as a base."
+    },
+    {
+      "url": "https://depot.dev/docs/github-actions/overview",
+      "finding": "Developer provides Linux and Windows; Startup also provides macOS."
+    },
+    {
+      "url": "https://depot.dev/docs/github-actions/runner-types",
+      "finding": "Windows 4 CPU label costs USD 0.016 per elapsed minute and uses a 4x minutes multiplier; macOS 15 lists USD 0.08 per elapsed minute."
+    },
+    {
+      "url": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+      "finding": "Standard GitHub-hosted public-repository compute and self-hosted orchestration are free; storage has separate billing rules."
+    }
+  ],
+  "ciOnlyDominance": {
+    "startupAdditionalFeeUsd": 180,
+    "startupAdditionalCiAllowanceGrossValueUsd": 108,
+    "startupMinimumExtraCostUsd": 72,
+    "developerNeverCostsMoreForCiUsageAlone": true,
+    "breakpointControlPassed": true
+  },
+  "observedSet": {
+    "attempts": 108,
+    "smallestSandboxMinuteEquivalents": 2427.2932666666666,
+    "grossComputeUsd": 14.5637596,
+    "acceptedCompleteGraph": false
+  },
+  "illustrations": [
+    {
+      "recorded108AttemptSetRepetitions": 1,
+      "smallestSandboxMinuteEquivalents": 2427.2932666666666,
+      "developerCiOnlyUsd": 22.5637596,
+      "startupCiOnlyUsd": 200
+    },
+    {
+      "recorded108AttemptSetRepetitions": 4,
+      "smallestSandboxMinuteEquivalents": 9709.173066666666,
+      "developerCiOnlyUsd": 66.25503839999999,
+      "startupCiOnlyUsd": 200
+    },
+    {
+      "recorded108AttemptSetRepetitions": 8,
+      "smallestSandboxMinuteEquivalents": 19418.346133333333,
+      "developerCiOnlyUsd": 124.5100768,
+      "startupCiOnlyUsd": 200
+    },
+    {
+      "recorded108AttemptSetRepetitions": 12,
+      "smallestSandboxMinuteEquivalents": 29127.5192,
+      "developerCiOnlyUsd": 182.7651152,
+      "startupCiOnlyUsd": 254.7651152
+    },
+    {
+      "recorded108AttemptSetRepetitions": 13,
+      "smallestSandboxMinuteEquivalents": 31554.812466666666,
+      "developerCiOnlyUsd": 197.3288748,
+      "startupCiOnlyUsd": 269.3288748
+    },
+    {
+      "recorded108AttemptSetRepetitions": 14,
+      "smallestSandboxMinuteEquivalents": 33982.10573333333,
+      "developerCiOnlyUsd": 211.8926344,
+      "startupCiOnlyUsd": 283.89263439999996
+    },
+    {
+      "recorded108AttemptSetRepetitions": 20,
+      "smallestSandboxMinuteEquivalents": 48545.865333333335,
+      "developerCiOnlyUsd": 299.275192,
+      "startupCiOnlyUsd": 371.275192
+    },
+    {
+      "recorded108AttemptSetRepetitions": 30,
+      "smallestSandboxMinuteEquivalents": 72818.798,
+      "developerCiOnlyUsd": 444.912788,
+      "startupCiOnlyUsd": 516.912788
+    }
+  ],
+  "limitations": [
+    "Illustrations repeat the recorded 108 attempts at fixed resource usage; they are not measured monthly demand or accepted complete-graph costs.",
+    "GitHub runner, container build, registry, storage, passing-result and historical unbound charges are not included in the CI-only figures.",
+    "The plan pools are separate; CI and GitHub runner minutes are not merged or netted against the trial invoice.",
+    "Mixed Windows/Linux runner allowance allocation and macOS minute normalization are not assumed.",
+    "Published rates and Github timestamps are not an independently retrieved Depot runner invoice.",
+    "No account-wide usage, subscription or cap setting is inspected or changed.",
+    "A faster noncritical job does not reduce the unfinished-job union when another required job still determines completion."
+  ]
+}

@@ -202,11 +202,11 @@ export function workloadDigest(attempts: readonly AttemptRecord[],): string {
         attempt.selectedPaths,
         attempt.captured
           .map(function capturedDigest(captured,) {
-          return [
-            captured.path,
-            contentOf(captured.bytes,),
-          ];
-        },),
+            return [
+              captured.path,
+              contentOf(captured.bytes,),
+            ];
+          },),
       ],);
     },)
     .toSorted(function byText(

@@ -1,0 +1,1 @@
+{ "policies": { "require-root": "off", "linked-worktree-only": "warn", "branch-worktree-only": "error", "add-explicit": "off", "final-newline": "error", "mono/dependent-version-bump": "off" } }

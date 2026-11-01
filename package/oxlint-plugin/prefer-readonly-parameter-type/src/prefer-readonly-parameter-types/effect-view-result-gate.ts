@@ -7,12 +7,12 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import type {
   Checker,
   Project,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   callResultComesFromObserver,

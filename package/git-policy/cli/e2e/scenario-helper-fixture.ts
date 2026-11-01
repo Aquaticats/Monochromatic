@@ -111,8 +111,8 @@ export function workerPaths({
       _unused,
       index,
     ) {
-    return `${prefix}-${String(index,)}.txt`;
-  },
+      return `${prefix}-${String(index,)}.txt`;
+    },
   );
 }
 
@@ -183,11 +183,11 @@ export function disjointPlans(count: number,): readonly WorkerPlan[] {
       path,
       index,
     ) {
-    return {
-      label: `w${String(index,)}`,
-      paths: [path,],
-    };
-  },);
+      return {
+        label: `w${String(index,)}`,
+        paths: [path,],
+      };
+    },);
 }
 
 /**
@@ -212,16 +212,16 @@ export async function rewritePaths({
   await Promise.all(plans.flatMap(function planWrites(plan,) {
     return plan.paths
       .map(async function rewrite(path,) {
-      await writeWorktree({
-        ...context,
-        path,
-        bytes: synthesizeText({
-          random: context.random
-            .fork(`${plan.label}:${path}`,),
-          size: SEED_TEXT_BYTES,
-        },),
+        await writeWorktree({
+          ...context,
+          path,
+          bytes: synthesizeText({
+            random: context.random
+              .fork(`${plan.label}:${path}`,),
+            size: SEED_TEXT_BYTES,
+          },),
+        },);
       },);
-    },);
   },),);
 }
 
@@ -360,21 +360,21 @@ export async function runSequentialWorkers({
     /**
      Records so far.
      */
-    const done = await previous;
+      const done = await previous;
     /**
      This worker's record.
      */
-    const record = await (await startAttempt({
-      ...context,
-      label: plan.label,
-      paths: plan.paths,
-      mode: 'explicit',
-    },)).finished;
-    return [
-      ...done,
-      record,
-    ];
-  },
+      const record = await (await startAttempt({
+        ...context,
+        label: plan.label,
+        paths: plan.paths,
+        mode: 'explicit',
+      },)).finished;
+      return [
+        ...done,
+        record,
+      ];
+    },
     Promise.resolve([],),
   );
 }

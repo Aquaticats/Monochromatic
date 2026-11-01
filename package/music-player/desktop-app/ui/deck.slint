@@ -1,0 +1,1259 @@
+// Transport deck for the desktop player: heading, seek row, transport buttons and the adaptive
+// mode control. Ports the Android TransportDeck. The deck takes its content height, so the parent
+// lays it out at the bottom of a pane and never clips it.
+import { Theme } from "theme.slint";
+import { DeckLabels } from "deck_labels.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, PlayerStop, FocusRing, KeyBadge, Keys } from "focus.slint";
+
+// One connected segment of the mode control. The outline has square inner corners and rounds only
+// the corners the group exposes, so adjacent segments share one hairline.
+component ModeSegment inherits Rectangle {
+    // True when this segment is the playback mode in effect.
+    in property <bool> selected;
+    // Visible text of the segment.
+    in property <string> label;
+    // End of the visible text, drawn right after the label when the label is cut with an ellipsis, so the text reads
+    // "start...end" (D1's middle ellipsis for the Shuffle segment's folder name); empty for no tail.
+    in property <string> label-tail: "";
+    // True to center the text inside its label width, which keeps a short name in the middle of the fixed-width Shuffle segment.
+    in property <bool> center-label: false;
+    // Width the label is laid out in, already capped for the shuffle folder name.
+    in property <length> label-width;
+    // Font size of the label, already multiplied by the text scale.
+    in property <length> label-size;
+    // Typeface family of the label; an empty string selects the platform default.
+    in property <string> font-family;
+    // Top-left outside corner radius; zero when the corner is internal to the group.
+    in property <length> radius-tl: 0px;
+    // Top-right outside corner radius.
+    in property <length> radius-tr: 0px;
+    // Bottom-right outside corner radius.
+    in property <length> radius-br: 0px;
+    // Bottom-left outside corner radius.
+    in property <length> radius-bl: 0px;
+    // Key hint badge text of this segment; empty draws none.
+    in property <string> badge: "";
+    // Tooltip text of this segment, with its shortcut.
+    in property <string> tip: "";
+    // Fired when the user presses the segment.
+    callback activated();
+
+    // Path coordinates are unitless, so the outline works in float pixels. Radii are floored at a
+    // hair above zero because a zero-radius arc is undefined in SVG terms.
+    property <float> pw: root.width / 1px;
+    // Segment height in float pixels.
+    property <float> ph: root.height / 1px;
+    // Largest radius the inset outline can hold: half the shorter side less the stroke, so the two arcs on one side never cross.
+    property <float> r-max: (min(root.pw, root.ph) - 1) / 2;
+    // Top-left radius in float pixels, floored and capped at the largest radius the outline holds.
+    property <float> r-tl: min(max(root.radius-tl / 1px, 0.01), root.r-max);
+    // Top-right radius in float pixels, floored and capped.
+    property <float> r-tr: min(max(root.radius-tr / 1px, 0.01), root.r-max);
+    // Bottom-right radius in float pixels, floored and capped.
+    property <float> r-br: min(max(root.radius-br / 1px, 0.01), root.r-max);
+    // Bottom-left radius in float pixels, floored and capped.
+    property <float> r-bl: min(max(root.radius-bl / 1px, 0.01), root.r-max);
+
+    // Width of the check mark slot and the gap after it, passed from the deck. Only the selected segment shows the slot.
+    in property <length> check-slot;
+    // Horizontal padding on each side of the content, passed from the deck.
+    in property <length> content-pad;
+    // Spoken label for assistive technology, with the full folder name in the shuffle segment.
+    in property <string> spoken;
+    // Content color of the segment's surface, which tints the hover and pressed layer of an unselected segment.
+    property <color> layer-tint: Theme.on-surface;
+    // Opacity of the hover or pressed layer of an unselected segment: 8 percent on hover and 12 percent while pressed,
+    // as StateLayer uses. A selected segment steps to the theme's OKLCH-derived hovered and pressed fills instead.
+    property <float> layer-alpha: segment-touch.pressed ? 0.12 : (segment-touch.has-hover ? 0.08 : 0);
+    // Edge length of the check mark glyph.
+    property <length> check-size: 18px;
+    // Check slot this segment shows: the full slot when selected, none otherwise. It eases over the same 150 ms as the
+    // segment width, so the label and the check mark move with the outline.
+    property <length> slot-w: root.selected ? root.check-slot : 0px;
+    // Segment geometry eases with the slot, so the outline, the label and the check mark stay in step on every selection change.
+    animate x, width { duration: 150ms; easing: ease-in-out; }
+    // Slot width eases on the same timing as the geometry, so the width always equals the natural width plus the slot.
+    animate slot-w { duration: 150ms; easing: ease-in-out; }
+    // Label width after clamping to the room left by the padding and the slot this segment shows.
+    property <length> shown-width: min(root.label-width, root.width - 2 * root.content-pad - root.slot-w);
+    // Full content width: the slot this segment shows plus the label.
+    property <length> content-width: root.slot-w + root.shown-width;
+    // Left edge of the content, centered in the segment on a whole pixel.
+    property <length> content-x: max(0px, round((root.width - root.content-width) / 2 / 1px) * 1px);
+
+    // Outline, selected fill and hover tint. The tint is part of the fill because a segment's corners differ,
+    // and StateLayer takes one radius. The half-pixel inset keeps the 1px stroke crisp inside the segment bounds.
+    Path {
+        width: root.width;
+        height: root.height;
+        fill: root.selected ? (segment-touch.pressed ? Theme.secondary-container-pressed : (segment-touch.has-hover ? Theme.secondary-container-hovered : Theme.secondary-container)) : root.layer-tint.with-alpha(root.layer-alpha);
+        stroke: Theme.outline;
+        stroke-width: 1px;
+
+        MoveTo {
+            x: 0.5 + root.r-tl;
+            y: 0.5;
+        }
+        LineTo {
+            x: root.pw - 0.5 - root.r-tr;
+            y: 0.5;
+        }
+        ArcTo {
+            x: root.pw - 0.5;
+            y: 0.5 + root.r-tr;
+            radius-x: root.r-tr;
+            radius-y: root.r-tr;
+            sweep: true;
+        }
+        LineTo {
+            x: root.pw - 0.5;
+            y: root.ph - 0.5 - root.r-br;
+        }
+        ArcTo {
+            x: root.pw - 0.5 - root.r-br;
+            y: root.ph - 0.5;
+            radius-x: root.r-br;
+            radius-y: root.r-br;
+            sweep: true;
+        }
+        LineTo {
+            x: 0.5 + root.r-bl;
+            y: root.ph - 0.5;
+        }
+        ArcTo {
+            x: 0.5;
+            y: root.ph - 0.5 - root.r-bl;
+            radius-x: root.r-bl;
+            radius-y: root.r-bl;
+            sweep: true;
+        }
+        LineTo {
+            x: 0.5;
+            y: 0.5 + root.r-tl;
+        }
+        ArcTo {
+            x: 0.5 + root.r-tl;
+            y: 0.5;
+            radius-x: root.r-tl;
+            radius-y: root.r-tl;
+            sweep: true;
+        }
+        Close {}
+    }
+
+    // Check mark on the selected segment, drawn on a 24 by 24 grid like the Android glyph. It fades in and out with the selection.
+    Path {
+        opacity: root.selected ? 1 : 0;
+        animate opacity { duration: 150ms; easing: ease-in-out; }
+        x: root.content-x;
+        y: (root.height - root.check-size) / 2;
+        width: root.check-size;
+        height: root.check-size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z";
+        fill: Theme.on-secondary-container;
+    }
+
+    // Width of the tail, on a whole pixel; zero without a tail.
+    property <length> tail-width: root.label-tail == "" ? 0px : ceil(tail-text.preferred-width / 1px) * 1px;
+    // Room for the label text before the tail.
+    property <length> label-room: max(0px, root.shown-width - root.tail-width);
+    // Width the label text takes: its own width, or the room when it is cut.
+    property <length> label-drawn: min(ceil(label-text.preferred-width / 1px) * 1px, root.label-room);
+    // Left edge of the text: after the check slot, and moved to the middle of the label width when asked to center.
+    property <length> text-x: root.content-x + root.slot-w + (root.center-label ? max(0px, round((root.shown-width - root.label-drawn - root.tail-width) / 2 / 1px) * 1px) : 0px);
+
+    // Visible label, placed after the check slot this segment shows. Long text elides at the end.
+    label-text := Text {
+        x: root.text-x;
+        width: root.label-drawn;
+        height: root.height;
+        text: root.label;
+        font-size: root.label-size;
+        font-family: root.font-family;
+        font-weight: 500;
+        color: root.selected ? Theme.on-secondary-container : Theme.on-surface;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        wrap: no-wrap;
+        overflow: elide;
+        accessible-role: none;
+    }
+    // End of the text after the ellipsis (empty unless the label was shortened).
+    tail-text := Text {
+        visible: root.label-tail != "";
+        x: root.text-x + root.label-drawn;
+        height: root.height;
+        text: root.label-tail;
+        font-size: root.label-size;
+        font-family: root.font-family;
+        font-weight: 500;
+        color: root.selected ? Theme.on-secondary-container : Theme.on-surface;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        wrap: no-wrap;
+        accessible-role: none;
+    }
+
+    // Keyboard focus draws nothing here: the ring of the selected segment is drawn by the deck in a layer above all four
+    // segments (D117), because a segment drawn later would otherwise paint over the part of the ring that reaches past
+    // this segment's edge into its neighbour.
+
+    // Whole segment is the touch target, never smaller than 48px tall because the parent sets the height.
+    segment-touch := TouchArea {
+        mouse-cursor: pointer;
+        accessible-role: radio-button;
+        accessible-label: root.spoken;
+        accessible-checkable: true;
+        accessible-checked: root.selected;
+        clicked => {
+            Focus.ring-visible = false;
+            root.activated();
+        }
+        Tooltip {
+            text: @markdown("\{root.tip}");
+        }
+    }
+    KeyBadge {
+        x: root.width - self.width;
+        y: 0px;
+        text: root.badge;
+    }
+}
+
+// Whether the deck is switched off. The Rust side sets it while the library has no track to play (reading, empty or
+// without audio): the deck then looks dimmed, takes no pointer input and no keyboard focus, so it never looks live
+// with nothing loaded. A global rather than a property keeps the window files unchanged.
+export global DeckState {
+    in property <bool> disabled: false;
+}
+
+// The transport deck. Every size is in logical pixels, and `text-scale` multiplies only the fonts,
+// so the 200 percent text capture grows its labels while the 48px targets keep their size.
+export component TransportDeck inherits Rectangle {
+    // Title of the playing track, drawn bold on the title line.
+    in property <string> title;
+    // Folder that holds the playing track, drawn before the title with a separator; empty hides the folder part.
+    in property <string> folder;
+    // Preformatted line under the title, such as the track index and loudness.
+    in property <string> subtitle;
+    // Playhead in seconds.
+    in property <float> position-seconds;
+    // Track length in seconds.
+    in property <float> duration-seconds;
+    // True while playback runs; the center button then shows pause.
+    in property <bool> playing;
+    // Selected playback mode: 0 repeat, 1 in order, 2 shuffle folder, 3 shuffle all.
+    in property <int> mode;
+    // Folder name shown after the shuffle prefix in the shuffle segment.
+    in property <string> shuffle-folder-label;
+    // The folder name without its last few characters and those characters, which the Shuffle segment shows around a
+    // middle ellipsis when the whole name is wider than the cap (D1: the `Shuffle` prefix stays complete).
+    in property <string> shuffle-folder-head: "";
+    in property <string> shuffle-folder-tail: "";
+    // Multiplier for every font size; 2.0 reproduces the 200 percent text capture.
+    in property <float> text-scale: 1.0;
+    // Typeface family for every text in the deck; an empty string selects the platform default.
+    in property <string> font-family: "";
+
+    // Requests a seek to an absolute position in seconds.
+    callback seek(float);
+    // Requests the previous track.
+    callback previous();
+    // Requests a play or pause toggle.
+    callback toggle-play();
+    // Requests the next track.
+    callback next();
+    // Requests selection of one playback mode, using the same 0 to 3 numbering as `mode`.
+    callback select-mode(int);
+    // Requests that the track list shows the playing track; fired by a click on the title part of the heading.
+    callback reveal-playing();
+    // Requests that the track list shows the folder of the playing track; fired by a click on the folder part of the heading.
+    callback reveal-folder();
+    // False when there is no list to jump in (Search is open), so the heading is plain text with no click target.
+    in property <bool> reveal-enabled: true;
+
+    // Minimum touch target for every control, matching the Theme token.
+    property <length> target: Theme.touch-target;
+    // Width of the check mark slot the selected mode segment shows: an 18px check and an 8px gap.
+    property <length> check-slot: 26px;
+    // Horizontal padding on each side of a mode segment's content.
+    property <length> content-pad: 10px;
+    // Vertical padding above and below a mode segment's label, which sets the stacked row pitch.
+    property <length> seg-vpad: 10px;
+    // Edge length of the drawn transport glyphs, on the 24 by 24 grid of the Android icons.
+    property <length> icon-size: 24px;
+    // Outer horizontal inset of the seek row and the mode control, measured from the capture.
+    property <length> pad-x: 31px;
+    // Outer vertical padding above the heading and below the mode control.
+    property <length> pad-y: 16px;
+    // Vertical gap between the heading, seek row, transport row and mode control.
+    property <length> group-gap: 8px;
+    // Horizontal gap between the time labels, slider and the transport buttons.
+    property <length> control-gap: 8px;
+    // Diameter of the drawn transport circles inside their 48px touch targets.
+    property <length> circle: 40px;
+    // Height of the slider track bar.
+    property <length> track-h: 16px;
+    // Width of the slider thumb.
+    property <length> thumb-w: 4px;
+    // Height of the slider thumb.
+    property <length> thumb-h: 43px;
+
+    // Font sizes, each Theme token multiplied by the text scale.
+    property <length> font-title: Theme.title-medium * root.text-scale;
+    // Subtitle font size.
+    property <length> font-sub: Theme.body-small * root.text-scale;
+    // Clock font size for the elapsed and total labels, the 12sp label role of the capture.
+    property <length> font-time: Theme.body-small * root.text-scale;
+    // Mode segment label font size.
+    property <length> font-label: Theme.label-large * root.text-scale;
+
+    // Playhead as a fraction of the track, clamped to zero to one.
+    property <float> fraction: DeckLabels.progress-fraction(root.position-seconds, root.duration-seconds);
+
+    // Converts a pointer x position over the track into a fraction clamped to zero to one.
+    function fraction-at(x: length) -> float {
+        if !(root.slider-w > 0px) {
+            return 0;
+        }
+        return max(0, min(1, x / root.slider-w));
+    }
+
+    // Rounds a length up to a whole pixel, so a label width or segment width never ends between pixels.
+    function round-up-px(value: length) -> length {
+        return ceil(value / 1px) * 1px;
+    }
+
+    // Rounds a length to the nearest whole pixel, so a box origin built from fractional text widths lands on a pixel.
+    function round-px(value: length) -> length {
+        return round(value / 1px) * 1px;
+    }
+
+    // ---- Heading: folder, separator and title on one centered title line, subtitle under it. ----
+    // Hidden probes measure the folder, separator and title so the title line can be centered and each part elided.
+    m-folder := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: root.folder;
+        font-size: root.font-title;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+    // Separator probe, measuring the same text the separator draws.
+    m-sep := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: " / ";
+        font-size: root.font-title;
+        font-family: root.font-family;
+        wrap: no-wrap;
+    }
+    // Title probe at the title weight.
+    m-title := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: root.title;
+        font-size: root.font-title;
+        font-family: root.font-family;
+        font-weight: 700;
+        wrap: no-wrap;
+    }
+
+    // Folder part width: its full text, capped at 40 percent of the deck width, and zero when no folder is shown.
+    property <length> folder-w: root.folder == "" ? 0px : min(m-folder.preferred-width, root.width * 0.4);
+    // Separator width, present only together with a folder part.
+    property <length> sep-w: root.folder == "" ? 0px : m-sep.preferred-width;
+    // Horizontal inset of the title line from each deck edge, so the folder and title never touch the edges.
+    property <length> title-inset: 16px;
+    // Title part width: its full text, or the room left inside the insets after the folder part and the separator.
+    property <length> title-w: min(m-title.preferred-width, max(0px, root.width - 2 * root.title-inset - root.folder-w - root.sep-w));
+    // Width of the whole title line.
+    property <length> title-line-w: root.folder-w + root.sep-w + root.title-w;
+    // Left edge of the title line, which centers it in the deck and never sits closer than the inset to an edge.
+    property <length> title-line-x: max(root.title-inset, (root.width - root.title-line-w) / 2);
+    // Height of the title line click targets, from the deck's top edge and at least 48 px tall.
+    property <length> title-line-h: max(root.target, root.pad-y + title-text.height);
+
+    // Hover and pressed layer behind the folder part, drawn under its text.
+    StateLayer {
+        x: root.title-line-x;
+        y: 0px;
+        width: root.folder-w;
+        height: root.title-line-h;
+        radius: 8px;
+        hovered: folder-touch.has-hover;
+        pressed: folder-touch.pressed;
+        disabled: !root.reveal-enabled;
+        tint: Theme.on-surface-variant;
+    }
+    // Hover and pressed layer behind the title part, drawn under its text.
+    StateLayer {
+        x: root.title-line-x + root.folder-w + root.sep-w;
+        y: 0px;
+        width: root.title-w;
+        height: root.title-line-h;
+        radius: 8px;
+        hovered: title-touch.has-hover;
+        pressed: title-touch.pressed;
+        disabled: !root.reveal-enabled;
+        tint: Theme.on-surface;
+    }
+
+    // Folder part of the title line, elided at its end.
+    folder-text := Text {
+        x: root.title-line-x;
+        y: title-text.y;
+        width: root.folder-w;
+        height: title-text.height;
+        text: root.folder;
+        font-size: root.font-title;
+        font-family: root.font-family;
+        font-weight: 500;
+        color: Theme.on-surface-variant;
+        horizontal-alignment: left;
+        wrap: no-wrap;
+        overflow: elide;
+        visible: root.folder != "";
+    }
+    // Separator between the folder part and the title part.
+    sep-text := Text {
+        x: root.title-line-x + root.folder-w;
+        y: title-text.y;
+        width: root.sep-w;
+        height: title-text.height;
+        text: " / ";
+        font-size: root.font-title;
+        font-family: root.font-family;
+        color: Theme.on-surface-variant;
+        horizontal-alignment: left;
+        wrap: no-wrap;
+        visible: root.folder != "";
+    }
+    // Title part of the title line, elided at its end; its preferred height sets the heading block height.
+    title-text := Text {
+        x: root.title-line-x + root.folder-w + root.sep-w;
+        y: root.pad-y;
+        width: root.title-w;
+        height: max(self.preferred-height, root.font-title * 1.5);
+        text: root.title;
+        font-size: root.font-title;
+        font-family: root.font-family;
+        font-weight: 700;
+        color: Theme.on-surface;
+        horizontal-alignment: left;
+        wrap: no-wrap;
+        overflow: elide;
+    }
+    // Subtitle text under the title.
+    subtitle-text := Text {
+        x: 0px;
+        y: title-text.y + title-text.height;
+        width: root.width;
+        height: max(self.preferred-height, root.font-sub * 1.33);
+        text: root.subtitle;
+        font-size: root.font-sub;
+        font-family: root.font-family;
+        color: Theme.on-surface-variant;
+        horizontal-alignment: center;
+        wrap: no-wrap;
+        overflow: elide;
+    }
+
+    // Click target over the folder part of the title line, from the deck's top edge so it is at least 48 px high.
+    folder-touch := TouchArea {
+        x: root.title-line-x;
+        y: 0px;
+        width: root.folder-w;
+        height: root.title-line-h;
+        visible: root.folder != "";
+        enabled: root.reveal-enabled;
+        mouse-cursor: root.reveal-enabled ? pointer : default;
+        accessible-role: button;
+        accessible-label: "Show folder of playing track";
+        clicked => {
+            Focus.ring-visible = false;
+            root.reveal-folder();
+        }
+        Tooltip {
+            text: @markdown("Show the folder of the playing track (\{Keys.texts.deck-folder})");
+        }
+    }
+    KeyBadge {
+        x: root.title-line-x + root.folder-w - self.width;
+        y: 0px;
+        text: root.folder == "" ? "" : Keys.badges.deck-folder;
+    }
+    // Click target over the title part of the title line, the same height as the folder target: jumps to the playing track.
+    title-touch := TouchArea {
+        x: root.title-line-x + root.folder-w + root.sep-w;
+        y: 0px;
+        width: root.title-w;
+        height: root.title-line-h;
+        visible: root.title != "";
+        enabled: root.reveal-enabled;
+        mouse-cursor: root.reveal-enabled ? pointer : default;
+        accessible-role: button;
+        accessible-label: "Show playing track";
+        clicked => {
+            Focus.ring-visible = false;
+            root.reveal-playing();
+        }
+        Tooltip {
+            text: @markdown("Show the playing track (\{Keys.texts.deck-title})");
+        }
+    }
+    KeyBadge {
+        x: root.title-line-x + root.folder-w + root.sep-w + root.title-w - self.width;
+        y: 0px;
+        text: root.title == "" ? "" : Keys.badges.deck-title;
+    }
+
+    // ---- Vertical rhythm, derived from the heading and the mode control heights. ----
+    // Heading block height.
+    property <length> heading-h: title-text.height + subtitle-text.height;
+    // Top of the seek row.
+    property <length> seek-y: root.pad-y + root.heading-h + root.group-gap;
+    // Top of the transport row when it has its own line; on the shared line it is the top of that line.
+    property <length> row-y: root.seek-y + root.target + root.group-gap;
+    // Height of the shared line when the controls fit on one line: the mode control or a 48px target, whichever is taller.
+    property <length> line-h: max(root.target, root.mode-h);
+    // Top of the transport buttons, centered on the shared line when the controls fit on one line.
+    property <length> transport-y: root.one-line ? root.row-y + (root.line-h - root.target) / 2 : root.row-y;
+    // Top of the mode control on a whole pixel, centered on the shared line when the controls fit on one line, otherwise below the transport row.
+    property <length> mode-y: root.round-px(root.one-line ? root.row-y + (root.line-h - root.mode-h) / 2 : root.row-y + root.target + root.group-gap);
+
+    // ---- Seek row: elapsed time, slider, total time. ----
+    // Probe for the widest clock text: three-digit minutes and two-digit seconds, measured at the current text scale.
+    m-time := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "888:88";
+        font-size: root.font-time;
+        font-family: root.font-family;
+        wrap: no-wrap;
+    }
+    // Fixed width of each time label, rounded up to whole pixels, so the clock text never moves the slider.
+    property <length> time-w: root.round-up-px(m-time.preferred-width);
+    // Elapsed clock label in a fixed box at the inset, its text right-aligned against the slider.
+    elapsed-text := Text {
+        x: root.pad-x;
+        y: root.seek-y;
+        width: root.time-w;
+        height: root.target;
+        text: DeckLabels.clock(root.position-seconds);
+        font-size: root.font-time;
+        font-family: root.font-family;
+        color: Theme.on-surface-variant;
+        vertical-alignment: center;
+        horizontal-alignment: right;
+        wrap: no-wrap;
+    }
+    // Total clock label in a fixed box ending at the inset, its text left-aligned against the slider.
+    total-text := Text {
+        x: root.slider-x + root.slider-w + root.control-gap;
+        y: root.seek-y;
+        width: root.time-w;
+        height: root.target;
+        text: DeckLabels.clock(root.duration-seconds);
+        font-size: root.font-time;
+        font-family: root.font-family;
+        color: Theme.on-surface-variant;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        wrap: no-wrap;
+    }
+    // Left edge of the slider track, after the fixed-width elapsed label.
+    property <length> slider-x: root.pad-x + root.time-w + root.control-gap;
+    // Slider track width between the two fixed-width labels; it follows only the label widths and the inset.
+    property <length> slider-w: max(0px, root.width - 2 * root.pad-x - 2 * root.time-w - 2 * root.control-gap);
+    // Top of the slider bar, centered in the seek row.
+    property <length> track-y: root.seek-y + (root.target - root.track-h) / 2;
+    // Thumb center on the track. It moves between half a thumb width inside each end, so at position 0 the thumb's left edge
+    // sits exactly on the track start and at the end its right edge sits on the track end. Centering it on the end points
+    // pushed it 2 px outside the track at 0 and hid the first 8 px of the track behind its gap, which read as two bars.
+    // Rounded to a whole pixel so the thumb never straddles pixels.
+    property <length> thumb-x: root.round-px(root.slider-x + root.thumb-w / 2 + (root.slider-w - root.thumb-w) * root.fraction);
+    // Width of the filled part: the thumb's left edge less the 6px gap.
+    property <length> filled-w: max(0px, root.thumb-x - root.thumb-w / 2 - 6px - root.slider-x);
+    // Left edge of the unfilled part: the thumb's right edge plus the 6px gap.
+    property <length> unfilled-x: root.thumb-x + root.thumb-w / 2 + 6px;
+    // Width of the unfilled part, never negative.
+    property <length> unfilled-w: max(0px, root.slider-x + root.slider-w - root.unfilled-x);
+
+    // Filled part of the track; its right end is square next to the thumb gap.
+    seek-filled := Rectangle {
+        x: root.slider-x;
+        y: root.track-y;
+        width: root.filled-w;
+        height: root.track-h;
+        border-radius: root.track-h / 2;
+        background: Theme.primary;
+    }
+    // Square cover over the rounded right end of the filled part.
+    Rectangle {
+        x: root.slider-x + root.filled-w - min(root.filled-w, root.track-h / 2);
+        y: root.track-y;
+        width: min(root.filled-w, root.track-h / 2);
+        height: root.track-h;
+        background: Theme.primary;
+    }
+    // Unfilled part of the track, rounded on the right end only.
+    seek-unfilled := Rectangle {
+        x: root.unfilled-x;
+        y: root.track-y;
+        width: root.unfilled-w;
+        height: root.track-h;
+        border-radius: root.track-h / 2;
+        background: Theme.secondary-container;
+    }
+    // Square cover over the rounded left end of the unfilled part.
+    Rectangle {
+        x: root.unfilled-x;
+        y: root.track-y;
+        width: min(root.unfilled-w, root.track-h / 2);
+        height: root.track-h;
+        background: Theme.secondary-container;
+    }
+    // Dot at the track end that marks the remaining length, drawn in the primary role as in the capture.
+    Rectangle {
+        visible: root.unfilled-w > 0px;
+        x: root.slider-x + root.slider-w - 10px;
+        y: root.track-y + 6px;
+        width: 4px;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.primary;
+    }
+    // Thumb drawn as a thin vertical bar at the playhead; it widens slightly while the pointer is over the track.
+    seek-thumb := Rectangle {
+        // Centered on the playhead, but never past either end of the track, so the hover growth cannot push the thumb out.
+        x: max(root.slider-x, min(root.slider-x + root.slider-w - self.width, root.thumb-x - self.width / 2));
+        y: root.seek-y + (root.target - root.thumb-h) / 2;
+        width: root.thumb-w + (seek-touch.has-hover ? 2px : 0px);
+        height: root.thumb-h;
+        border-radius: self.width / 2;
+        background: Theme.primary;
+        animate width { duration: 100ms; }
+    }
+    // Pointer area over the track; a press or a drag reports the absolute seek position.
+    seek-touch := TouchArea {
+        x: root.slider-x;
+        y: root.seek-y;
+        width: root.slider-w;
+        height: root.target;
+        mouse-cursor: pointer;
+        accessible-role: slider;
+        accessible-label: "Track position";
+        accessible-value: DeckLabels.clock(root.position-seconds);
+        accessible-value-minimum: 0;
+        accessible-value-maximum: root.duration-seconds;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.seek(root.fraction-at(self.mouse-x) * root.duration-seconds);
+            }
+        }
+        moved => {
+            if self.pressed {
+                root.seek(root.fraction-at(self.mouse-x) * root.duration-seconds);
+            }
+        }
+        Tooltip {
+            text: @markdown("Track position (\{Keys.texts.seek-back} back, \{Keys.texts.seek-forward} forward)");
+        }
+    }
+    // Keyboard seek bar: a focus stop over the track. Left and Right move 5 seconds, Home and End jump to the ends. The
+    // ring around the 48 px tall pill shows the focus; the bar itself does not change.
+    seek-stop := PlayerStop {
+        enabled: Focus.player-active && !DeckState.disabled;
+        label: "seek";
+        zone: 3;
+        activates: false;
+        x: root.slider-x;
+        y: root.seek-y;
+        width: root.slider-w;
+        height: root.target;
+        extra-key(event) => {
+            if (event.text == Key.LeftArrow) {
+                root.seek(max(0, root.position-seconds - 5));
+                return true;
+            }
+            if (event.text == Key.RightArrow) {
+                root.seek(min(root.duration-seconds, root.position-seconds + 5));
+                return true;
+            }
+            if (event.text == Key.Home) {
+                root.seek(0);
+                return true;
+            }
+            if (event.text == Key.End) {
+                root.seek(root.duration-seconds);
+                return true;
+            }
+            return false;
+        }
+    }
+    FocusRing {
+        x: root.slider-x;
+        y: root.seek-y;
+        width: root.slider-w;
+        height: root.target;
+        round: true;
+        active: seek-stop.ring;
+    }
+    KeyBadge {
+        x: root.slider-x;
+        y: root.seek-y;
+        text: Keys.badges.seek-back;
+    }
+    KeyBadge {
+        x: root.slider-x + root.slider-w - self.width;
+        y: root.seek-y;
+        text: Keys.badges.seek-forward;
+    }
+
+    // ---- Transport row: previous, play or pause, next, centered, or left of the mode control on the shared line. ----
+    // Left edge of the three 48px targets with 8px gaps: centered in the deck, or with the mode control when they share a line.
+    property <length> transport-x: root.one-line ? (root.width - root.pair-w) / 2 : (root.width - root.transport-w) / 2;
+
+    // Previous button: outlined circle in a 48px target.
+    prev-touch := TouchArea {
+        x: root.transport-x;
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        mouse-cursor: pointer;
+        accessible-role: button;
+        accessible-label: "Previous track";
+        clicked => {
+            Focus.ring-visible = false;
+            root.previous();
+        }
+        Tooltip {
+            text: @markdown("Previous track (\{Keys.texts.previous})");
+        }
+    }
+    Rectangle {
+        x: root.transport-x + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        border-radius: root.circle / 2;
+        border-width: 1px;
+        border-color: Theme.on-surface;
+    }
+    // Hover and pressed layer over the previous circle.
+    StateLayer {
+        x: root.transport-x + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        radius: root.circle / 2;
+        hovered: prev-touch.has-hover;
+        pressed: prev-touch.pressed;
+        tint: Theme.on-surface;
+    }
+    Path {
+        x: root.transport-x + (root.target - root.icon-size) / 2;
+        y: root.transport-y + (root.target - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M6 6h2v12H6zM9.5 12l8.5 6V6z";
+        fill: Theme.on-surface;
+    }
+
+    prev-stop := PlayerStop {
+        enabled: Focus.player-active && !DeckState.disabled;
+        label: "previous";
+        zone: 5;
+        x: root.transport-x;
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        activated => {
+            root.previous();
+        }
+    }
+    FocusRing {
+        x: root.transport-x + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        round: true;
+        active: prev-stop.ring;
+    }
+    KeyBadge {
+        x: root.transport-x + root.target - self.width;
+        y: root.transport-y;
+        text: Keys.badges.previous;
+    }
+
+    // Play or pause button: filled primary circle in a 48px target.
+    play-touch := TouchArea {
+        x: root.transport-x + root.target + root.control-gap;
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        mouse-cursor: pointer;
+        accessible-role: button;
+        accessible-label: root.playing ? "Pause" : "Play";
+        clicked => {
+            Focus.ring-visible = false;
+            root.toggle-play();
+        }
+        Tooltip {
+            text: @markdown("\{root.playing ? "Pause" : "Play"} (\{Keys.texts.play})");
+        }
+    }
+    Rectangle {
+        x: root.transport-x + root.target + root.control-gap + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        border-radius: root.circle / 2;
+        background: Theme.primary;
+    }
+    // Hover and pressed layer over the play or pause circle, tinted with its own content color.
+    StateLayer {
+        x: root.transport-x + root.target + root.control-gap + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        radius: root.circle / 2;
+        hovered: play-touch.has-hover;
+        pressed: play-touch.pressed;
+        tint: Theme.on-primary;
+    }
+    Path {
+        visible: !root.playing;
+        x: root.transport-x + root.target + root.control-gap + (root.target - root.icon-size) / 2;
+        y: root.transport-y + (root.target - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M8 5v14l11-7z";
+        fill: Theme.on-primary;
+    }
+    Path {
+        visible: root.playing;
+        x: root.transport-x + root.target + root.control-gap + (root.target - root.icon-size) / 2;
+        y: root.transport-y + (root.target - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M6 19h4V5H6v14zm8-14v14h4V5h-4z";
+        fill: Theme.on-primary;
+    }
+
+    play-stop := PlayerStop {
+        enabled: Focus.player-active && !DeckState.disabled;
+        label: "play";
+        zone: 5;
+        x: root.transport-x + root.target + root.control-gap;
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        activated => {
+            root.toggle-play();
+        }
+    }
+    // The ring hugs the filled circle, flush outside it. The circle is filled with the same primary role as the near ring, so
+    // the 1 px on-primary ring around it is what shows the ring against the deck.
+    FocusRing {
+        x: root.transport-x + root.target + root.control-gap + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        round: true;
+        active: play-stop.ring;
+    }
+
+    // Next button: outlined circle in a 48px target.
+    next-touch := TouchArea {
+        x: root.transport-x + 2 * (root.target + root.control-gap);
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        mouse-cursor: pointer;
+        accessible-role: button;
+        accessible-label: "Next track";
+        clicked => {
+            Focus.ring-visible = false;
+            root.next();
+        }
+        Tooltip {
+            text: @markdown("Next track (\{Keys.texts.next})");
+        }
+    }
+    Rectangle {
+        x: root.transport-x + 2 * (root.target + root.control-gap) + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        border-radius: root.circle / 2;
+        border-width: 1px;
+        border-color: Theme.on-surface;
+    }
+    // Hover and pressed layer over the next circle.
+    StateLayer {
+        x: root.transport-x + 2 * (root.target + root.control-gap) + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        radius: root.circle / 2;
+        hovered: next-touch.has-hover;
+        pressed: next-touch.pressed;
+        tint: Theme.on-surface;
+    }
+    Path {
+        x: root.transport-x + 2 * (root.target + root.control-gap) + (root.target - root.icon-size) / 2;
+        y: root.transport-y + (root.target - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z";
+        fill: Theme.on-surface;
+    }
+
+    next-stop := PlayerStop {
+        enabled: Focus.player-active && !DeckState.disabled;
+        label: "next";
+        zone: 5;
+        x: root.transport-x + 2 * (root.target + root.control-gap);
+        y: root.transport-y;
+        width: root.target;
+        height: root.target;
+        activated => {
+            root.next();
+        }
+    }
+    FocusRing {
+        x: root.transport-x + 2 * (root.target + root.control-gap) + (root.target - root.circle) / 2;
+        y: root.transport-y + (root.target - root.circle) / 2;
+        width: root.circle;
+        height: root.circle;
+        round: true;
+        active: next-stop.ring;
+    }
+    KeyBadge {
+        x: root.transport-x + 2 * (root.target + root.control-gap) + root.target - self.width;
+        y: root.transport-y;
+        text: Keys.badges.next;
+    }
+
+    // ---- Mode control measuring. Hidden texts report the widths the labels need. ----
+    // Repeat label width probe.
+    m-repeat := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "Repeat";
+        font-size: root.font-label;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+    // In order label width probe.
+    m-in-order := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "In order";
+        font-size: root.font-label;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+    // Shuffle all label width probe.
+    m-shuffle-all := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "Shuffle all";
+        font-size: root.font-label;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+    // Shuffle label at the reference folder name, which caps the folder text.
+    m-shuffle-cap := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "Shuffle Camellia";
+        font-size: root.font-label;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+    // Shuffle label with the real folder name, before the cap.
+    m-shuffle-folder := Text {
+        opacity: 0;
+        accessible-role: none;
+        text: "Shuffle " + root.shuffle-folder-label;
+        font-size: root.font-label;
+        font-family: root.font-family;
+        font-weight: 500;
+        wrap: no-wrap;
+    }
+
+    // Shuffle segment text width: the full label, capped at the reference name's width.
+    // Always the cap, whatever the folder is called (LS6): the width of this segment decides whether the mode control fits one
+    // row, and a width that followed the name moved the transport, the seek bar and the mode control every time the user
+    // browsed to a folder with a longer or shorter name. D1 caps the name's width at the rendered "Camellia"; it never asked
+    // for a shorter segment for a shorter name.
+    property <length> shuffle-w: m-shuffle-cap.preferred-width;
+    // True when the whole name is wider than the cap, so the segment shows the head, an ellipsis and the tail.
+    property <bool> shuffle-truncated: m-shuffle-folder.preferred-width > m-shuffle-cap.preferred-width;
+    // Label widths per segment, in mode order, each rounded up to a whole pixel so segment and content positions stay on pixels.
+    property <length> text-w-0: root.round-up-px(m-repeat.preferred-width);
+    // Label width of the in-order segment.
+    property <length> text-w-1: root.round-up-px(m-in-order.preferred-width);
+    // Label width of the shuffle-folder segment, after the cap.
+    property <length> text-w-2: root.round-up-px(root.shuffle-w);
+    // Label width of the shuffle-all segment.
+    property <length> text-w-3: root.round-up-px(m-shuffle-all.preferred-width);
+
+    // Natural segment widths without the check slot: padding on both sides and the label. Each is a whole pixel.
+    property <length> nat-w-0: 2 * root.content-pad + root.text-w-0;
+    // Natural width of the in-order segment.
+    property <length> nat-w-1: 2 * root.content-pad + root.text-w-1;
+    // Natural width of the shuffle-folder segment.
+    property <length> nat-w-2: 2 * root.content-pad + root.text-w-2;
+    // Natural width of the shuffle-all segment.
+    property <length> nat-w-3: 2 * root.content-pad + root.text-w-3;
+
+    // One-row segment widths: the natural width, plus the check slot on the selected mode only. The selected segment grows
+    // and its neighbours shift, while the total stays at one-sum.
+    property <length> seg-w-0: root.nat-w-0 + (root.mode == 0 ? root.check-slot : 0px);
+    // One-row width of the in-order segment, with the slot only when that mode is selected.
+    property <length> seg-w-1: root.nat-w-1 + (root.mode == 1 ? root.check-slot : 0px);
+    // One-row width of the shuffle-folder segment, with the slot only when that mode is selected.
+    property <length> seg-w-2: root.nat-w-2 + (root.mode == 2 ? root.check-slot : 0px);
+    // One-row width of the shuffle-all segment, with the slot only when that mode is selected.
+    property <length> seg-w-3: root.nat-w-3 + (root.mode == 3 ? root.check-slot : 0px);
+
+    // Width available to the mode control.
+    property <length> avail: root.width - 2 * root.pad-x;
+    // Width of the one-row group for every selection: the four natural widths, one check slot, less the three shared hairlines.
+    property <length> one-sum: root.nat-w-0 + root.nat-w-1 + root.nat-w-2 + root.nat-w-3 + root.check-slot - 3px;
+    // True when one row fits: the Android floor of 189dp and the group width fits.
+    property <bool> one-fits: root.avail >= 4 * root.target - 3px && root.one-sum <= root.avail;
+    // Width of one cell in the two-by-two block, sharing one hairline per row, rounded up to a whole pixel.
+    property <length> two-cell: root.round-up-px((root.avail + 1px) / 2);
+    // Widest any one segment can be, with its check slot: the fixed bound that keeps the two-row decision independent of the selection.
+    property <length> widest-seg: max(max(root.nat-w-0, root.nat-w-1), max(root.nat-w-2, root.nat-w-3)) + root.check-slot;
+    // True when two rows fit: the Android floor of 95dp and every label with its check slot fits a cell.
+    property <bool> two-fits: root.avail >= 2 * root.target - 1px && root.widest-seg <= root.two-cell;
+    // Number of rows the mode control uses: one, two or four.
+    property <int> rows: root.one-fits ? 1 : (root.two-fits ? 2 : 4);
+    // Width of the transport group: three 48px targets with two 8px gaps.
+    property <length> transport-w: root.target * 3 + root.control-gap * 2;
+    // Gap between the transport group and the mode control when they share a line.
+    property <length> one-gap: 24px;
+    // Width of the shared line: the transport group, the gap and the one-row mode control at its natural width.
+    property <length> pair-w: root.transport-w + root.one-gap + root.one-sum;
+    // True when the transport group and the one-row mode control fit side by side in the width minus the outer inset.
+    property <bool> one-line: root.avail >= root.pair-w;
+    // Height of one segment in whole pixels: the 48px target or the label height plus padding, whichever is taller.
+    property <length> seg-h: root.round-up-px(max(root.target, m-repeat.preferred-height + 2 * root.seg-vpad));
+    // Total height of the mode control for the chosen rows.
+    property <length> mode-h: root.rows == 1 ? root.seg-h : (root.rows == 2 ? root.seg-h * 2 - 1px : root.seg-h * 4 - 3px);
+    // Corner radius cap for a stacked group; one row uses a full pill instead.
+    property <length> outer-max: 20px;
+    // Outside corner radius: a full pill for one row, capped at outer-max when stacked.
+    property <length> outer-r: root.rows == 1 ? root.seg-h / 2 : min(root.outer-max, root.seg-h / 2);
+    // Height of the whole deck, which the deck reports as its own height; the shared line replaces the transport row and the mode row.
+    // Rounded up to a whole pixel so the deck's top edge, pinned to the bottom of its pane, lands on a pixel and so do the mode borders.
+    property <length> content-h: root.round-up-px(root.one-line ? root.row-y + root.line-h + root.pad-y : root.mode-y + root.mode-h + root.pad-y);
+
+    // Mode control container, at the inset below the transport row, or right of the transport group on the shared line.
+    Rectangle {
+        x: root.one-line ? root.round-px(root.transport-x + root.transport-w + root.one-gap) : root.pad-x;
+        y: root.mode-y;
+        width: root.one-line ? root.one-sum : root.avail;
+        height: root.mode-h;
+
+        // Left edge of the first one-row segment on a whole pixel, centering the connected group.
+        property <length> one-x0: root.round-px((self.width - root.one-sum) / 2);
+        // Keyboard stop of the whole group: one Tab stop. The arrows move the selection, and the ring is drawn on the
+        // selected segment.
+        mode-stop := PlayerStop {
+            enabled: Focus.player-active && !DeckState.disabled;
+            label: "mode-group";
+            zone: 4;
+            activates: false;
+            extra-key(event) => {
+                if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                    root.select-mode(max(0, root.mode - 1));
+                    return true;
+                }
+                if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                    root.select-mode(min(3, root.mode + 1));
+                    return true;
+                }
+                return false;
+            }
+        }
+        // Top segment and left column positions per mode, with the shared hairlines removed.
+        seg-0 := ModeSegment {
+            x: root.rows == 1 ? parent.one-x0 : 0px;
+            y: 0px;
+            width: root.rows == 1 ? root.seg-w-0 : (root.rows == 2 ? root.two-cell : parent.width);
+            height: root.seg-h;
+            selected: root.mode == 0;
+            badge: Keys.badges.mode-repeat;
+            tip: "Repeat track (" + Keys.texts.mode-repeat + ")";
+            label: "Repeat";
+            label-width: root.text-w-0;
+            label-size: root.font-label;
+            check-slot: root.check-slot;
+            content-pad: root.content-pad;
+            spoken: "Repeat track";
+            font-family: root.font-family;
+            radius-tl: root.outer-r;
+            radius-tr: root.rows == 4 ? root.outer-r : 0px;
+            radius-bl: root.rows == 1 ? root.outer-r : 0px;
+            activated => {
+                root.select-mode(0);
+            }
+        }
+        seg-1 := ModeSegment {
+            x: root.rows == 1 ? parent.one-x0 + root.seg-w-0 - 1px : (root.rows == 2 ? root.two-cell - 1px : 0px);
+            y: root.rows == 4 ? root.seg-h - 1px : 0px;
+            width: root.rows == 1 ? root.seg-w-1 : (root.rows == 2 ? root.two-cell : parent.width);
+            height: root.seg-h;
+            selected: root.mode == 1;
+            badge: Keys.badges.mode-in-order;
+            tip: "Play in order (" + Keys.texts.mode-in-order + ")";
+            label: "In order";
+            label-width: root.text-w-1;
+            label-size: root.font-label;
+            check-slot: root.check-slot;
+            content-pad: root.content-pad;
+            spoken: "Play in order";
+            font-family: root.font-family;
+            radius-tr: root.rows == 2 ? root.outer-r : 0px;
+            activated => {
+                root.select-mode(1);
+            }
+        }
+        seg-2 := ModeSegment {
+            x: root.rows == 1 ? parent.one-x0 + root.seg-w-0 - 1px + root.seg-w-1 - 1px : 0px;
+            y: root.rows == 2 ? root.seg-h - 1px : (root.rows == 4 ? 2 * (root.seg-h - 1px) : 0px);
+            width: root.rows == 1 ? root.seg-w-2 : (root.rows == 2 ? root.two-cell : parent.width);
+            height: root.seg-h;
+            selected: root.mode == 2;
+            badge: Keys.badges.mode-shuffle-folder;
+            tip: "Shuffle the folder (" + Keys.texts.mode-shuffle-folder + ")";
+            label: "Shuffle " + (root.shuffle-truncated ? root.shuffle-folder-head : root.shuffle-folder-label);
+            label-tail: root.shuffle-truncated ? root.shuffle-folder-tail : "";
+            center-label: true;
+            label-width: root.text-w-2;
+            label-size: root.font-label;
+            check-slot: root.check-slot;
+            content-pad: root.content-pad;
+            spoken: "Shuffle " + root.shuffle-folder-label;
+            font-family: root.font-family;
+            radius-bl: root.rows == 2 ? root.outer-r : 0px;
+            activated => {
+                root.select-mode(2);
+            }
+        }
+        seg-3 := ModeSegment {
+            x: root.rows == 1 ? parent.one-x0 + root.seg-w-0 + root.seg-w-1 + root.seg-w-2 - 3px : (root.rows == 2 ? root.two-cell - 1px : 0px);
+            y: root.rows == 2 ? root.seg-h - 1px : (root.rows == 4 ? 3 * (root.seg-h - 1px) : 0px);
+            width: root.rows == 1 ? root.seg-w-3 : (root.rows == 2 ? root.two-cell : parent.width);
+            height: root.seg-h;
+            selected: root.mode == 3;
+            badge: Keys.badges.mode-shuffle-all;
+            tip: "Shuffle all folders (" + Keys.texts.mode-shuffle-all + ")";
+            label: "Shuffle all";
+            label-width: root.text-w-3;
+            label-size: root.font-label;
+            check-slot: root.check-slot;
+            content-pad: root.content-pad;
+            spoken: "Shuffle all folders";
+            font-family: root.font-family;
+            radius-tr: root.rows == 1 ? root.outer-r : 0px;
+            radius-br: root.outer-r;
+            radius-bl: root.rows == 4 ? root.outer-r : 0px;
+            activated => {
+                root.select-mode(3);
+            }
+        }
+        // The keyboard ring of the group, on the selected segment only (the group is one Tab stop and the arrows move the
+        // selection). It is a layer above all four segments, so no neighbour paints over the part that reaches past the
+        // segment's edge, and it takes each segment's own corner radii: an outside corner is rounded, an inside corner stays
+        // square.
+        FocusRing {
+            x: seg-0.x;
+            y: seg-0.y;
+            width: seg-0.width;
+            height: seg-0.height;
+            radius-tl: seg-0.radius-tl;
+            radius-tr: seg-0.radius-tr;
+            radius-br: seg-0.radius-br;
+            radius-bl: seg-0.radius-bl;
+            active: mode-stop.ring && root.mode == 0;
+        }
+        FocusRing {
+            x: seg-1.x;
+            y: seg-1.y;
+            width: seg-1.width;
+            height: seg-1.height;
+            radius-tl: seg-1.radius-tl;
+            radius-tr: seg-1.radius-tr;
+            radius-br: seg-1.radius-br;
+            radius-bl: seg-1.radius-bl;
+            active: mode-stop.ring && root.mode == 1;
+        }
+        FocusRing {
+            x: seg-2.x;
+            y: seg-2.y;
+            width: seg-2.width;
+            height: seg-2.height;
+            radius-tl: seg-2.radius-tl;
+            radius-tr: seg-2.radius-tr;
+            radius-br: seg-2.radius-br;
+            radius-bl: seg-2.radius-bl;
+            active: mode-stop.ring && root.mode == 2;
+        }
+        FocusRing {
+            x: seg-3.x;
+            y: seg-3.y;
+            width: seg-3.width;
+            height: seg-3.height;
+            radius-tl: seg-3.radius-tl;
+            radius-tr: seg-3.radius-tr;
+            radius-br: seg-3.radius-br;
+            radius-bl: seg-3.radius-bl;
+            active: mode-stop.ring && root.mode == 3;
+        }
+        KeyBadge {
+            x: parent.width - self.width;
+            y: 0px;
+            text: Keys.badges.mode-cycle;
+        }
+    }
+
+    // Switched-off cover: dims every control and swallows pointer input while the library has nothing to play.
+    if DeckState.disabled : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: Theme.deck.with-alpha(0.62);
+        TouchArea {
+            mouse-cursor: not-allowed;
+        }
+    }
+
+    // Deck background and height: the deck takes exactly its content height.
+    background: Theme.deck;
+    height: root.content-h;
+}

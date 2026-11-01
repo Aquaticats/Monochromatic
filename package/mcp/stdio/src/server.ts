@@ -1,11 +1,15 @@
 // MCP server: immutable tool registry and JSON-RPC dispatch for spec revision 2026-07-28.
 
 import {
+  JSON_RPC_INVALID_PARAMS,
   JSON_RPC_METHOD_NOT_FOUND,
+  type JsonRpcId,
   type JsonRpcInbound,
   type JsonRpcOutbound,
   type JsonRpcRequest,
 } from './json-rpc.ts';
+
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { DEFAULT_CACHE_HINT, } from './protocol.ts';
 
@@ -13,7 +17,9 @@ import type { Implementation, } from './protocol-meta.ts';
 
 import {
   buildDiscoverResult,
+  buildListResourcesResult,
   buildListToolsResult,
+  buildReadResourceResult,
 } from './server-result.ts';
 
 import {
@@ -30,6 +36,7 @@ import type {
   DispatchResult,
   McpServerConfig,
   McpServerHandle,
+  ResourceProvider,
   ToolEntry,
 } from './server-types.ts';
 import { requireProtocolVersion, } from './server-request-version.ts';
@@ -76,9 +83,14 @@ export function createMcpServer(
   {
     config,
     tools,
+    resources,
   }: {
     readonly config: McpServerConfig;
     readonly tools: readonly ToolEntry[];
+    /**
+     Optional dynamic resource surface answering `resources/list` and `resources/read`.
+     */
+    readonly resources?: ResourceProvider;
   },
 ): McpServerHandle {
   /**
@@ -119,7 +131,10 @@ export function createMcpServer(
         id,
         result: buildDiscoverResult({
           serverInfo,
-          capabilities: config.capabilities ?? { tools: {}, },
+          capabilities: config.capabilities ?? {
+            tools: {},
+            ...(resources === undefined ? {} : { resources: {}, }),
+          },
           cache: config.discoverCache ?? DEFAULT_CACHE_HINT,
           ...((config.instructions === undefined) ? {} : { instructions: config.instructions, }),
         },),
@@ -144,6 +159,15 @@ export function createMcpServer(
         serverInfo,
       },);
     }
+    if (method === 'resources/list') {
+      return respondResourcesList({ id, },);
+    }
+    if (method === 'resources/read') {
+      return respondResourcesRead({
+        id,
+        ...(request.params === undefined ? {} : { params: request.params, }),
+      },);
+    }
     return Promise.resolve(
       respondError({
         id,
@@ -152,6 +176,115 @@ export function createMcpServer(
       },),
     );
   }
+
+  //region Resource dispatch: answers the dynamic resource surface when configured
+
+  /**
+   Answers `resources/list` through the configured resource provider.
+   
+   @param id - Request `id` echoed in the response.
+   
+   @returns JSON-RPC success or method-not-found response.
+   */
+  async function respondResourcesList(
+    { id, }: {
+      /**
+       Request id echoed in the response.
+       */
+      readonly id: JsonRpcId;
+    },
+  ): Promise<JsonRpcOutbound> {
+    if (resources === undefined)
+      return respondError({
+        id,
+        code: JSON_RPC_METHOD_NOT_FOUND,
+        message: 'Method not found: resources/list',
+      },);
+
+    return respondSuccess({
+      id,
+      result: buildListResourcesResult({
+        resources: await resources
+          .list(),
+        serverInfo,
+        cache: config.resourcesCache ?? DEFAULT_CACHE_HINT,
+      },),
+    },);
+  }
+
+  /**
+   Answers `resources/read` through the configured resource provider.
+   
+   @param id - Request `id` echoed in the response.
+   
+   @param params - Raw request params whose `uri` selects the resource.
+   
+   @returns JSON-RPC success, method-not-found, or invalid-params response.
+   */
+  async function respondResourcesRead(
+    {
+      id,
+      params,
+    }: {
+      /**
+       Request id echoed in the response.
+       */
+      readonly id: JsonRpcId;
+      /**
+       Raw request params whose `uri` selects the resource.
+       */
+      readonly params?: Readonly<Record<string, unknown>>;
+    },
+  ): Promise<JsonRpcOutbound> {
+    if (resources === undefined)
+      return respondError({
+        id,
+        code: JSON_RPC_METHOD_NOT_FOUND,
+        message: 'Method not found: resources/read',
+      },);
+
+    /**
+     Resource URI taken from raw params, validated before it reaches the provider.
+     */
+    const uri = (params === undefined) ? undefined : params.uri;
+    if ((typeof uri) !== 'string')
+      return respondError({
+        id,
+        code: JSON_RPC_INVALID_PARAMS,
+        message: 'resources/read requires a string "uri" parameter',
+      },);
+
+    // Deliberate catch-and-return: a provider that cannot serve a URI reports a request
+    // error to the client rather than crashing the server process.
+    try {
+      /**
+       Contents served by the provider for this URI.
+       */
+      const contents = await resources
+        .read(uri,);
+      return respondSuccess({
+        id,
+        result: buildReadResourceResult({
+          contents: [contents,],
+          serverInfo,
+          cache: config.resourcesCache ?? DEFAULT_CACHE_HINT,
+        },),
+      },);
+    }
+    catch (error: unknown) {
+      console.error(
+        `[mcp-stdio] resource read failed for "${uri}":`,
+        error,
+      );
+      return respondError({
+        id,
+        code: JSON_RPC_INVALID_PARAMS,
+        message: `Resource not readable: ${uri}: ${caughtValueText(error,)}`,
+      },);
+    }
+  }
+
+  //endregion
 
   /**
    Validates the request's declared protocol revision, then routes it.

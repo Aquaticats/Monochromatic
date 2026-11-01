@@ -4,7 +4,7 @@
  @module
  */
 
-import type { RedirectOperator as UnbashRedirectOperator, } from 'unbash';
+import type { Redirection as UnbashRedirection, } from 'unbash';
 
 //region Command context
 
@@ -34,6 +34,11 @@ type ShellCommandContext = {
    Lexically enclosing `for` bindings from outermost to innermost loop.
    */
   readonly loopBindings: readonly ShellLoopBinding[];
+  /**
+   Count of lexically enclosing `while` and `until` loops, including their condition lists.
+   Zero outside any such loop.
+   */
+  readonly conditionLoopDepth: number;
 } & (
   | {
     /**
@@ -41,16 +46,16 @@ type ShellCommandContext = {
      */
     readonly kind: 'executed';
   }
-  | {
+    | {
     /**
      Command is stored in a function body and runs only if that function is called.
      */
-    readonly kind: 'functionDefinition';
+      readonly kind: 'functionDefinition';
     /**
      Function name whose body contains the command.
      */
-    readonly functionName: string;
-  }
+      readonly functionName: string;
+    }
 );
 
 //endregion Command context
@@ -90,9 +95,9 @@ type ShellEnvAssignment = {
  */
 type ShellRedirectKind =
   | 'file'
-  | 'fileDescriptor'
-  | 'heredoc'
-  | 'hereString';
+    | 'fileDescriptor'
+    | 'heredoc'
+    | 'hereString';
 
 /**
  Parsed redirect attached to a command or compound command.
@@ -101,7 +106,7 @@ type ShellRedirect = {
   /**
    Bash redirect operator reported by `unbash`.
    */
-  readonly operator: UnbashRedirectOperator;
+  readonly operator: UnbashRedirection['operator'];
   /**
    Parsed target word value, when present.
    */
@@ -114,6 +119,10 @@ type ShellRedirect = {
    Explicit file descriptor before redirect operator, when present.
    */
   readonly fileDescriptor?: number;
+  /**
+   Variable receiving a dynamically allocated descriptor, distinct from a numeric descriptor.
+   */
+  readonly fileDescriptorVariable?: string;
   /**
    Destination category useful for callers deciding whether redirects touch files.
    */

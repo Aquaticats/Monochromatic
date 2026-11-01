@@ -57,12 +57,12 @@ export const validTypes: CreateOnceRule = {
       ): void {
         result.messages
           .forEach(function reportMessage(message,): void {
-          context.report({
-            loc: commentReportLoc(result.comment,),
-            messageId: 'parseError',
-            data: { message: `${message.messageId}: ${message.unformattedText}`, },
+            context.report({
+              loc: commentReportLoc(result.comment,),
+              messageId: 'parseError',
+              data: { message: `${message.messageId}: ${message.unformattedText}`, },
+            },);
           },);
-        },);
       },
     },);
   },

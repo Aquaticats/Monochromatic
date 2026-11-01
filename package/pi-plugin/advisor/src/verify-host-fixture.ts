@@ -105,27 +105,27 @@ export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAP
     provider: 'fixture-credit',
     api: 'fixture-credit-api',
     models: [
-    {
-      id: 'a',
-      maxTokens: 1_000,
-      cost: {
-        input: 10,
-        output: 10,
-        cacheRead: 0,
-        cacheWrite: 0,
+      {
+        id: 'a',
+        maxTokens: 1_000,
+        cost: {
+          input: 10,
+          output: 10,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
       },
-    },
-    {
-      id: 'b',
-      maxTokens: 1_000,
-      cost: {
-        input: 9,
-        output: 9,
-        cacheRead: 0,
-        cacheWrite: 0,
+      {
+        id: 'b',
+        maxTokens: 1_000,
+        cost: {
+          input: 9,
+          output: 9,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
       },
-    },
-  ],
+    ],
   },);
   initial.setResponses([
     /**
@@ -184,17 +184,17 @@ export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAP
     provider: 'fixture-alternate',
     api: 'fixture-alternate-api',
     models: [
-    {
-      id: 'c',
-      maxTokens: 1_000,
-      cost: {
-        input: 1,
-        output: 1,
-        cacheRead: 0,
-        cacheWrite: 0,
+      {
+        id: 'c',
+        maxTokens: 1_000,
+        cost: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
       },
-    },
-  ],
+    ],
   },);
   alternate.setResponses([
     /**

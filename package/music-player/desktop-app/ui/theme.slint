@@ -1,0 +1,157 @@
+// Shared design tokens for the accepted player design. The root color is the only thing taken from the platform: the
+// system accent that Slint reports (XDG portal `accent-color` on Linux, DWM colorization on Windows, `NSColor` accent on
+// macOS), or the Fold capture baseline (#4E5E8B) when no accent exists (A3, D108). Every role below is derived from
+// that root by moving lightness, chroma and hue in OKLCH with gamut mapping and a WCAG contrast fit, in
+// `src/theme_roles.rs`; the Rust side writes the result into `dark-roles` and `light-roles` at startup and whenever the
+// accent changes (`src/ui_theme.rs`).
+// The literals below are the roles for the baseline root, so a viewer or preview that runs no Rust still renders the
+// accepted look; a test keeps them equal to what Rust derives. Do not edit them by hand: change `theme_roles.rs`, and
+// the failing test prints the new literals.
+// The canvas is pure black in dark mode (D41) and pure white in light (D34, D45); every gray (deck, rows, surfaces,
+// outlines, text variants) carries the root hue unless the root is completely neutral (D118).
+import { Palette } from "std-widgets.slint";
+
+// One scheme's color roles, written as a whole by the Rust side.
+export struct RoleSet {
+    // Page background.
+    canvas: color,
+    // Playback deck background.
+    deck: color,
+    // Background of the playing row.
+    current-row: color,
+    // Menus, search header and snackbar surface.
+    surface-high: color,
+    // Primary text and icons.
+    on-surface: color,
+    // Secondary text and icons.
+    on-surface-variant: color,
+    // Borders and strong dividers.
+    outline: color,
+    // Hairline dividers.
+    outline-variant: color,
+    // Accent fill and accent text.
+    primary: color,
+    // Content on the accent fill.
+    on-primary: color,
+    // Selected segment and rail cell fill.
+    secondary-container: color,
+    // Selected fill under the hover layer.
+    secondary-container-hovered: color,
+    // Selected fill under the pressed layer.
+    secondary-container-pressed: color,
+    // Content on the selected fill.
+    on-secondary-container: color,
+    // Search match highlight (D59), opaque.
+    match-fill: color,
+    // Error text and icons.
+    error: color,
+    // Error card fill.
+    error-container: color,
+    // Content on the error card.
+    on-error-container: color,
+}
+
+export global Theme {
+    // 0 follows the system, 1 forces light, 2 forces dark. Previews, screenshots and tests set it.
+    in property <int> scheme-override: 0;
+    out property <bool> dark: root.scheme-override == 2 || (root.scheme-override == 0 && Palette.color-scheme == ColorScheme.dark);
+
+    // Replaces the system accent as the theme root when its alpha is above 0; transparent follows the system.
+    // Previews, screenshots and tests set it (the Rust side derives the roles from it).
+    in property <color> accent-override: transparent;
+    // The theme root: the override when set, else the system accent that Slint reports (SlintInternal needs the
+    // experimental-features switch the package already sets in `mise.toml`). Alpha 0 means no accent is available and
+    // the Rust side then uses the baseline root.
+    out property <color> accent-source: root.accent-override.alpha > 0 ? root.accent-override : SlintInternal.accent-color;
+
+    // Roles of each scheme, derived by `src/theme_roles.rs`. The defaults are the baseline roles.
+    in property <RoleSet> dark-roles: {
+        canvas: #000000,
+        deck: #0A0A0D,
+        current-row: #121318,
+        surface-high: #1E1F25,
+        on-surface: #E4E5F0,
+        on-surface-variant: #C5C6D0,
+        outline: #8E9099,
+        outline-variant: #44464F,
+        primary: #BAC5EE,
+        on-primary: #1F2D52,
+        secondary-container: #353B4D,
+        secondary-container-hovered: #414759,
+        secondary-container-pressed: #474D60,
+        on-secondary-container: #DDE2F9,
+        match-fill: #2B3045,
+        error: #FFB4AB,
+        error-container: #8C1D18,
+        on-error-container: #F9DEDC,
+    };
+    in property <RoleSet> light-roles: {
+        canvas: #FFFFFF,
+        deck: #F4F3FA,
+        current-row: #F4F3FA,
+        surface-high: #E8E7EE,
+        on-surface: #30323B,
+        on-surface-variant: #585A65,
+        outline: #757780,
+        outline-variant: #C5C6D0,
+        primary: #455481,
+        on-primary: #FFFFFF,
+        secondary-container: #DDE2F9,
+        secondary-container-hovered: #CBD0E7,
+        secondary-container-pressed: #C2C7DE,
+        on-secondary-container: #161B2C,
+        match-fill: #C9D2E9,
+        error: #BA1A1A,
+        error-container: #F9DEDC,
+        on-error-container: #410E0B,
+    };
+    out property <RoleSet> roles: root.dark ? root.dark-roles : root.light-roles;
+
+    // Surfaces.
+    out property <color> canvas: root.roles.canvas;
+    out property <color> deck: root.roles.deck;
+    out property <color> current-row: root.roles.current-row;
+    out property <color> surface-high: root.roles.surface-high;
+
+    // Content.
+    out property <color> on-surface: root.roles.on-surface;
+    out property <color> on-surface-variant: root.roles.on-surface-variant;
+    out property <color> outline: root.roles.outline;
+    out property <color> outline-variant: root.roles.outline-variant;
+
+    // Accent roles.
+    out property <color> primary: root.roles.primary;
+    out property <color> on-primary: root.roles.on-primary;
+    // Secondary and on-secondary follow the primary pair, as the Android theme maps them (PlayerTheme.kt: secondary =
+    // primary, onSecondary = onPrimary), so no new derived role is needed.
+    out property <color> secondary: root.roles.primary;
+    out property <color> on-secondary: root.roles.on-primary;
+    out property <color> secondary-container: root.roles.secondary-container;
+    out property <color> secondary-container-hovered: root.roles.secondary-container-hovered;
+    out property <color> secondary-container-pressed: root.roles.secondary-container-pressed;
+    out property <color> on-secondary-container: root.roles.on-secondary-container;
+    out property <color> match-fill: root.roles.match-fill;
+
+    // Error roles: semantic constants that follow no accent.
+    out property <color> error: root.roles.error;
+    out property <color> error-container: root.roles.error-container;
+    out property <color> on-error-container: root.roles.on-error-container;
+
+
+    // Type scale in logical pixels (Material 3 roles used by the design).
+    out property <length> body-large: 16px;
+    out property <length> body-medium: 14px;
+    out property <length> body-small: 12px;
+    out property <length> title-large: 22px;
+    out property <length> title-medium: 16px;
+    out property <length> label-large: 14px;
+
+    // The 48 logical pixel minimum for every interactive target (C1).
+    out property <length> touch-target: 48px;
+
+    // Duration of the fade that a page, the picker overlay, the track menu and a toast play when it appears. It stays
+    // under the 150 ms of the Settings pane cross-fade (D109), it only answers a user action (never autonomous or
+    // decorative motion), and it is one token so the app has one place to change or switch it off. Slint 1.18 exposes
+    // no reduced-motion setting of the OS, so there is none to follow yet.
+    out property <duration> motion-enter: 120ms;
+}

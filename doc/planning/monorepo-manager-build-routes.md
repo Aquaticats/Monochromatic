@@ -70,16 +70,16 @@ sections "Requirement checklist" and "Frozen hard constraints".
 Both routes can reuse these;
 their READMEs define current scope.
 
-- `@monochromatic-dev/dev-script-file-enforcer`:
+- `@monochromatic-dev/file-enforcer-core`:
    the incumbent for FE01 to FE24,
    including watch mode,
    protected destinations,
    the persistent staleness manifest,
    and the tracking API.
-- `@monochromatic-dev/dev-script-watch-restart`:
+- `@monochromatic-dev/watch-restart-cli`:
    watches source files and restarts one long-running child process;
    it replaced `watchexec` in one dev loop.
-- `@monochromatic-dev/dev-script-task-util`:
+- `@monochromatic-dev/monorepo-task-core-exec`:
    task helpers,
    including a `tsc` wrapper and an `oxlint` wrapper that preserves findings and exit status.
 - `@monochromatic-dev/mcp-stdio`:

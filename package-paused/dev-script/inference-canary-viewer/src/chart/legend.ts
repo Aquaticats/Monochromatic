@@ -3,7 +3,7 @@
  *
  * Circle = pass-1 (initial) score. Diamond = pass-2 (fix) score.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * HTML for the shape legend, displayed once per chart area

@@ -9,7 +9,7 @@
 // Safety: only rewrites specifiers in import/export context (preceded by a
 // word-boundaried `from`, `import`, or `import(`), so bare string-literal
 // package names (e.g. `const X = '@monochromatic-dev/git-policy-cli'`, oxlint rule
-// config `package: '@monochromatic-dev/module-logger/types'`) are untouched.
+// config `package: '@monochromatic-dev/logger-core/types'`) are untouched.
 // Skips files owned by the target itself (self-imports).
 import { Glob } from 'bun';
 import {
@@ -103,7 +103,7 @@ for (const rel of new Glob('package/**/*.{ts,tsx,mts}').scanSync(root)) {
   );
   if (!text.includes(scoped)) continue;
   let hits = 0;
-  const next = text.replace(
+  const next = text.replaceAll(
     re,
     (
       _m,
@@ -111,9 +111,9 @@ for (const rel of new Glob('package/**/*.{ts,tsx,mts}').scanSync(root)) {
       gap: string,
       q: string
     ) => {
-    hits += 1;
-    return `${kw}${gap}${q}${canonical}${q}`;
-  }
+      hits += 1;
+      return `${kw}${gap}${q}${canonical}${q}`;
+    }
   );
   if (next !== text) {
     totalHits += hits;

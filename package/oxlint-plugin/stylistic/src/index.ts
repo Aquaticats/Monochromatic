@@ -11,6 +11,7 @@ import { commaDangle, } from './rule/comma-dangle.ts';
 import { destructurePerLine, } from './rule/destructure-per-line.ts';
 import { exportPerLine, } from './rule/export-per-line.ts';
 import { importPerLine, } from './rule/import-per-line.ts';
+import { indentation, } from './rule/indentation.ts';
 import { invocationDepthPerLine, } from './rule/invocation-depth-per-line.ts';
 import { maxStatementsPerLine, } from './rule/max-statements-per-line.ts';
 import { noMixedOperators, } from './rule/no-mixed-operators.ts';
@@ -23,22 +24,42 @@ import { tuplePerLine, } from './rule/tuple-per-line.ts';
 import { typePropertyPerLine, } from './rule/type-property-per-line.ts';
 
 export type { ChainNode, } from './utility/chain.ts';
-export { chainBreakOffsets, } from './utility/chain-flatten.ts';
+export { chainBreaks, } from './utility/chain-flatten.ts';
 export {
+  type ChainBreak,
   type ChainSegment,
   renderCanonical,
-  selectBreakOffsets,
+  selectBreaks,
 } from './utility/chain-render.ts';
+export {
+  computeIndentExpectations,
+  type ComputeIndentExpectationsParams,
+  type IndentExpectationRoute,
+  type LineIndentExpectation,
+} from './utility/indent-expectation.ts';
+export {
+  closeValueOfOpenBracket,
+} from './utility/indent-routes.ts';
 export {
   baseIndentAt,
   leadingWhitespace,
 } from './utility/indent.ts';
+export type {
+  ExpectationNode,
+  ExpectationToken,
+} from './utility/indent-tree.ts';
 
 /**
- Oxlint JS plugin for TypeScript stylistic rules: one-item-per-line
- formatting across multi-element constructs, readable brace-delimited bodies,
- semicolon enforcement, trailing comma enforcement, and explicit operator
- structure in nested expressions.
+ Oxlint JS plugin for TypeScript stylistic rules: indentation from each
+ line's structural anchor, one-item-per-line formatting across
+ multi-element constructs, readable brace-delimited bodies, semicolon
+ enforcement, trailing comma enforcement, and explicit operator structure
+ in nested expressions.
+ 
+ The indentation rule replaces the TypeScript indentation dprint used to
+ own: checked lines anchor at their structural base plus two columns,
+ template-literal content stays exempt, and the autofix normalizes deviating
+ lines in one pass.
  
  The per-line rules fire when 2 or more items share a source line and
  auto-fix by placing every item on its own line with consistent
@@ -67,6 +88,10 @@ const plugin: Plugin = eslintCompatPlugin({
     name: 'stylistic',
   },
   rules: {
+    //region Indentation: enforce two-space indentation from each line's structural anchor
+    indentation,
+    //endregion Indentation
+
     //region Per-line rules: enforce one item per line in multi-element constructs
     'param-per-line': paramPerLine,
     'argument-per-line': argumentPerLine,

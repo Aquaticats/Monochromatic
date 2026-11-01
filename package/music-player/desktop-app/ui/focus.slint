@@ -1,0 +1,272 @@
+// Keyboard focus model shared by every page (D102, D106): the focus zone the Rust key classifier reads, the focus ring,
+// the key hint badges and the shortcut texts the tooltips show.
+//
+// Every focusable element is a `FocusStop`. It reports its zone to the `Focus` global when it gains focus, so the
+// classifier knows whether a key lands in a list, on a button or in a text field. The ring is drawn only while the
+// keyboard is in use: a key press turns it on and a pointer press turns it off, like the browsers' focus-visible rule.
+import { Theme } from "theme.slint";
+
+// Zone numbers, shared with `FocusZone::from_int` in src/keymap.rs:
+// 0 none or the window's key scope, 1 folder list, 2 track list, 3 seek bar, 4 mode group, 5 deck button,
+// 6 any other button, 7 text field, 8 Settings list.
+export global Focus {
+    // True after a key press and false after a pointer press, so a click never leaves a ring behind.
+    in-out property <bool> ring-visible: false;
+    // Kind of element that holds keyboard focus now.
+    in-out property <int> zone: 0;
+    // Name of the element that holds keyboard focus now, for the log and the tests; empty for none.
+    in-out property <string> label: "";
+    // False while a page other than the player is shown. The player's controls then refuse focus, so Tab stays on the
+    // page that is on top.
+    in-out property <bool> player-active: true;
+    // Fired after the zone or the name changed, so the Rust side can log the new focus.
+    callback zone-changed(int);
+    changed zone => {
+        root.zone-changed(root.zone);
+    }
+    // A key press or a pointer press flips the ring; the log records it so a reader sees the ring turn on and off.
+    changed ring-visible => {
+        root.zone-changed(root.zone);
+    }
+    // Two buttons share a zone, so a move between them changes only the name; the log still needs the new focus.
+    changed label => {
+        root.zone-changed(root.zone);
+    }
+}
+
+// A focusable element. It shows its ring through `ring` and reports its zone while it holds focus. Enter and Space
+// activate it when `activates` is true, as a button does.
+export component FocusStop inherits FocusScope {
+    // Zone number this element reports (see the list above).
+    in property <int> zone: 6;
+    // Name of this element, reported to `Focus.label` while it holds focus.
+    in property <string> label: "";
+    // True for a button: Enter and Space fire `activated`.
+    in property <bool> activates: true;
+    // True while the ring should be drawn around the element: it has focus and the keyboard is in use.
+    out property <bool> ring: root.has-focus && Focus.ring-visible;
+    // Fired by Enter or Space on a button.
+    callback activated();
+    // Fired when the element gains or loses focus, so a list can place its ring.
+    callback gained();
+    callback lost();
+    // Offers a key the element does not handle itself, such as an arrow on a slider; true when the element used it.
+    callback extra-key(KeyEvent) -> bool;
+
+    // A pointer press never moves focus here, so the element shows no ring after a click.
+    focus-on-click: false;
+
+    focus-gained => {
+        Focus.zone = root.zone;
+        Focus.label = root.label;
+        root.gained();
+    }
+    focus-lost => {
+        // Only the element that set the zone clears it, so the next element's own zone is never overwritten.
+        if (Focus.zone == root.zone) {
+            Focus.zone = 0;
+        }
+        if (Focus.label == root.label) {
+            Focus.label = "";
+        }
+        root.lost();
+    }
+    key-pressed(event) => {
+        if (root.activates && (event.text == Key.Return || event.text == " ")) {
+            root.activated();
+            return accept;
+        }
+        if (root.extra-key(event)) {
+            return accept;
+        }
+        return reject;
+    }
+}
+
+// A focusable element of the player page. It refuses focus while another page is shown over the player.
+export component PlayerStop inherits FocusStop {
+    enabled: Focus.player-active;
+}
+
+// The parameters of the focus ring (D117), in one place. The values are the pair Firefox paints for `:focus-visible`
+// (`Theme::PaintAutoStyleOutline` in widget/Theme.cpp): a 2 px ring in the `primary` role flush against the element, and a
+// 1 px ring in the `on-primary` role around it. The colors are theme roles, never literals.
+export global FocusRingStyle {
+    // Width of the ring nearest the element.
+    out property <length> near-width: 2px;
+    // Width of the ring around the near ring.
+    out property <length> outer-width: 1px;
+    // Distance between the element and the near ring; Firefox and Chromium draw the ring flush, so none.
+    out property <length> gap: 0px;
+    // Color of the near ring.
+    out property <color> near-color: Theme.primary;
+    // Color of the outer ring: the role that contrasts with the near ring on any surface.
+    out property <color> outer-color: Theme.on-primary;
+    // Outer radius of the near ring around an element with square corners; Firefox rounds such a ring by 2 px.
+    out property <length> square-radius: 2px;
+}
+
+// The focus ring (D117): two solid rings drawn the way Firefox draws a focus outline, but hugging the element instead of its
+// bounding box. Put it where the element is, with the element's own x, y, width and height (or leave them out to fill the
+// parent), and give it the element's corner radius. The near ring starts at the element's edge (plus the gap, none by
+// default) and the outer ring wraps it, so both follow the element's shape: each corner's radius grows by the widths inside
+// it, a pill stays a pill, a circle a circle, and a square corner is rounded by `square-radius` as Firefox does. The ring is
+// the only thing focus draws: no fill, tint or size change goes with it, and it takes no pointer input.
+//
+// A Slint `Rectangle` does not clip its children, so the ring may reach past the element's box. Two rules keep it whole:
+// put it in a layer above any sibling that could paint over it (a neighbour's later fill), and never inside an element
+// with `clip: true` unless the element has `reach` of room around the ring. The 40 px visible circles and pills sit in 48 px
+// targets for this reason: the ring (3 px) always fits inside the target.
+export component FocusRing inherits Rectangle {
+    // True while the ring is drawn.
+    in property <bool> active: false;
+    // Corner radius of the element the ring surrounds, for every corner unless one is set on its own.
+    in property <length> radius: 0px;
+    // True for a pill or a circle: the radius is half the shorter side, whatever the size is.
+    in property <bool> round: false;
+    // Radii of single corners, for elements such as the segments of a connected group or the rows of a rounded group.
+    in property <length> radius-tl: root.radius;
+    in property <length> radius-tr: root.radius;
+    in property <length> radius-br: root.radius;
+    in property <length> radius-bl: root.radius;
+    // True for an element that fills its container edge to edge, such as a list row as wide as its pane: outside the box
+    // there is no room (the pane or the window ends there), so both rings are drawn inside the element's own edge, the
+    // outer ring at the edge and the near ring inside it. This is the one case where the ring is not outside the element.
+    in property <bool> inside: false;
+    // The parameters, from `FocusRingStyle`; they are properties so a fixture can check that the geometry follows them.
+    in property <length> near-width: FocusRingStyle.near-width;
+    in property <length> outer-width: FocusRingStyle.outer-width;
+    in property <length> gap: FocusRingStyle.gap;
+    in property <color> near-color: FocusRingStyle.near-color;
+    in property <color> outer-color: FocusRingStyle.outer-color;
+    in property <length> square-radius: FocusRingStyle.square-radius;
+
+    // How far the outer edge of the outer ring lies outside the element; zero for an `inside` ring, which stays in the box.
+    out property <length> reach: root.inside ? 0px : root.gap + root.near-width + root.outer-width;
+    // How far the near ring's outer edge lies outside the element.
+    property <length> near-reach: root.inside ? -root.outer-width : root.gap + root.near-width;
+    // Half of the shorter side, the radius of a pill or a circle.
+    property <length> half: min(root.width, root.height) / 2;
+
+    // The radius of the near ring's outer edge for an element corner radius: grown by the gap and the near ring's width, and
+    // for a square corner the configured square radius (plus the gap).
+    pure function near-radius(corner: length) -> length {
+        if (root.inside) {
+            return root.round ? root.half : corner;
+        }
+        if (root.round) {
+            return root.half + root.gap + root.near-width;
+        }
+        return corner > 0px ? corner + root.gap + root.near-width : root.square-radius + root.gap;
+    }
+    // The same for the near ring of an `inside` ring, which lies one outer-ring width inside the element's edge.
+    pure function inner-radius(corner: length) -> length {
+        return root.inside ? max(0px, root.near-radius(corner) - root.outer-width) : root.near-radius(corner);
+    }
+
+    // Outer ring, drawn first so the near ring lies over its inner edge.
+    outer-ring := Rectangle {
+        visible: root.active;
+        x: -root.reach;
+        y: -root.reach;
+        width: root.width + 2 * root.reach;
+        height: root.height + 2 * root.reach;
+        background: transparent;
+        border-width: root.outer-width;
+        border-color: root.outer-color;
+        border-top-left-radius: root.near-radius(root.radius-tl) + (root.inside ? 0px : root.outer-width);
+        border-top-right-radius: root.near-radius(root.radius-tr) + (root.inside ? 0px : root.outer-width);
+        border-bottom-right-radius: root.near-radius(root.radius-br) + (root.inside ? 0px : root.outer-width);
+        border-bottom-left-radius: root.near-radius(root.radius-bl) + (root.inside ? 0px : root.outer-width);
+    }
+    // Near ring: starts at the element's edge, or the gap away from it.
+    ring-box := Rectangle {
+        visible: root.active;
+        x: -root.near-reach;
+        y: -root.near-reach;
+        width: root.width + 2 * root.near-reach;
+        height: root.height + 2 * root.near-reach;
+        background: transparent;
+        border-width: root.near-width;
+        border-color: root.near-color;
+        border-top-left-radius: root.inner-radius(root.radius-tl);
+        border-top-right-radius: root.inner-radius(root.radius-tr);
+        border-bottom-right-radius: root.inner-radius(root.radius-br);
+        border-bottom-left-radius: root.inner-radius(root.radius-bl);
+    }
+}
+
+// Badge texts of the controls that have a shortcut, written by the Rust side while the modifiers of a shortcut are held
+// (D106). An empty text draws no badge.
+export struct KeyBadges {
+    search: string,
+    settings: string,
+    open-folder: string,
+    folder-trigger: string,
+    folder-list: string,
+    track-list: string,
+    previous: string,
+    next: string,
+    seek-back: string,
+    seek-forward: string,
+    mode-repeat: string,
+    mode-in-order: string,
+    mode-shuffle-folder: string,
+    mode-shuffle-all: string,
+    mode-cycle: string,
+    deck-title: string,
+    deck-folder: string,
+    editor-reset: string,
+}
+
+// Shortcut texts of the controls, written once at startup from the binding table for the running platform. Tooltips and
+// the Back and Reset controls show them.
+export struct ShortcutTexts {
+    search: string,
+    settings: string,
+    open-folder: string,
+    folder-trigger: string,
+    previous: string,
+    play: string,
+    next: string,
+    seek-back: string,
+    seek-forward: string,
+    mode-repeat: string,
+    mode-in-order: string,
+    mode-shuffle-folder: string,
+    mode-shuffle-all: string,
+    mode-cycle: string,
+    deck-title: string,
+    deck-folder: string,
+    back: string,
+    editor-reset: string,
+}
+
+// Badges and shortcut texts, set from Rust.
+export global Keys {
+    in property <KeyBadges> badges;
+    in property <ShortcutTexts> texts;
+}
+
+// A key hint badge: a small inverse chip with the key, drawn over the corner of its control. It takes no pointer input
+// and sits on top of the content without moving it. The chip uses the on-surface role as its fill and the canvas role
+// for the key, so it reads in both schemes and under every accent.
+export component KeyBadge inherits Rectangle {
+    // The key to show, such as F or Left. Empty draws nothing.
+    in property <string> text;
+
+    visible: root.text != "";
+    height: 18px;
+    width: max(18px, label.preferred-width + 10px);
+    border-radius: 4px;
+    background: Theme.on-surface;
+
+    label := Text {
+        text: root.text;
+        color: Theme.canvas;
+        font-size: 11px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

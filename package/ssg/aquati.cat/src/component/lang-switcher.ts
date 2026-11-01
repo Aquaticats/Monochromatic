@@ -20,7 +20,7 @@ import {
   cssVar,
   hCss as $,
   hHtml as h,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,
@@ -152,7 +152,7 @@ export function css(): string {
         $({
           rule: '&[aria-current="page"]::before',
           decls: {
-            content: '"\\2713\\00a0"',
+            content: String.raw`"\2713\00a0"`,
           },
         },),
       ],
@@ -199,7 +199,7 @@ function resolveHref(
      */
     const hasTarget = (availableInLangs === undefined)
       || availableInLangs
-      .includes(targetLang,);
+        .includes(targetLang,);
     if (hasTarget)
       return `/${targetLang}/${currentName}`;
   }

@@ -23,9 +23,9 @@ The error depends on whether the package inside the prefix is scoped,
  and whether a range follows it.
 Neither `package.json` nor a lockfile is written in any failing case.
 
-A scoped package (`mirror:@monochromatic-dev/module-logger@^0.4.0`,
- `mirror:@monochromatic-dev/module-logger`,
- `npmjs:@monochromatic-dev/module-logger@^0.4.0`,
+A scoped package (`mirror:@monochromatic-dev/logger-core@^0.4.0`,
+ `mirror:@monochromatic-dev/logger-core`,
+ `npmjs:@monochromatic-dev/logger-core@^0.4.0`,
  `gh:@pnpm/foo@^1.0.0`)
  fails with `ERR_PNPM_INVALID_DEPENDENCY_NAME`,
  naming the prefix as the dependency:
@@ -164,7 +164,7 @@ Source:
      }
      ```
 
-     For `mirror:@monochromatic-dev/module-logger@^0.4.0` the name is `mirror:`;
+     For `mirror:@monochromatic-dev/logger-core@^0.4.0` the name is `mirror:`;
      for `mirror:is-number@^7.0.0` it is `mirror:is-number`;
      for `mirror:is-number` (no `@`) it is the whole argument.
 
@@ -314,9 +314,9 @@ The session drove these entries from a scratch Node script that did exactly this
 
 `ERR_PNPM_INVALID_DEPENDENCY_NAME`:
 
-- `pnpm add mirror:@monochromatic-dev/module-logger@^0.4.0`
-- `pnpm add mirror:@monochromatic-dev/module-logger`
-- `pnpm add npmjs:@monochromatic-dev/module-logger@^0.4.0`
+- `pnpm add mirror:@monochromatic-dev/logger-core@^0.4.0`
+- `pnpm add mirror:@monochromatic-dev/logger-core`
+- `pnpm add npmjs:@monochromatic-dev/logger-core@^0.4.0`
 - `pnpm add gh:@pnpm/foo@^1.0.0`
 
 `ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR` (404 for `mirror%3Ais-number` on `registry.npmjs.org`):
@@ -331,20 +331,21 @@ The session drove these entries from a scratch Node script that did exactly this
 
 ### Works on `12.3.4`, `12.4.1`, and unpatched `main`
 
-- `pnpm add '@monochromatic-dev/module-logger@mirror:@monochromatic-dev/module-logger@^0.4.0'`
-   saves `"@monochromatic-dev/module-logger": "mirror:@monochromatic-dev/module-logger@^0.4.0"`
+- `pnpm add '@monochromatic-dev/logger-core@mirror:@monochromatic-dev/logger-core@^0.4.0'`
+   saves `"@monochromatic-dev/logger-core": "mirror:@monochromatic-dev/logger-core@^0.4.0"`
    and locks `mirror:0.4.0`.
    Routing control:
     with `mirror` pointed at `https://registry.invalid/`,
     the same command fails fetching `https://registry.invalid/@monochromatic-dev%2Fmodule-logger`.
-- `pnpm add 'logger@mirror:@monochromatic-dev/module-logger@^0.4.0'`
-   saves under `logger` and locks `@monochromatic-dev/module-logger@mirror:0.4.0`.
+- `pnpm add 'logger@mirror:@monochromatic-dev/logger-core@^0.4.0'`
+   saves under `logger` and locks `@monochromatic-dev/logger-core@mirror:0.4.0`.
 - `pnpm add 'num@npm:is-number@^7.0.0'`
    (an `npm:` alias control).
-- `pnpm install` with a hand-written `"@monochromatic-dev/module-logger": "mirror:@monochromatic-dev/module-logger@^0.4.0"`,
-   `"logger": "mirror:@monochromatic-dev/module-logger@^0.4.0"`,
+- `pnpm install` with a hand-written
+  `"@monochromatic-dev/logger-core": "mirror:@monochromatic-dev/logger-core@^0.4.0"`,
+   `"logger": "mirror:@monochromatic-dev/logger-core@^0.4.0"`,
    or `"is-number": "npmjs:is-number@^7.0.0"`.
-- `pnpm install` with the short form `"@monochromatic-dev/module-logger": "mirror:^0.4.0"`
+- `pnpm install` with the short form `"@monochromatic-dev/logger-core": "mirror:^0.4.0"`
    (checked on `12.3.4` and patched `main`),
    with the `registry.invalid` routing control failing as expected.
 
@@ -355,7 +356,7 @@ Every `pnpm add` form in the failing catalog except `gh:@pnpm/foo@^1.0.0`,
  (the routing works;
  the package does not exist there).
 pnpm 11 saves the short form:
- `mirror:@monochromatic-dev/module-logger@^0.4.0` records `"@monochromatic-dev/module-logger": "mirror:^0.4.0"`,
+ `mirror:@monochromatic-dev/logger-core@^0.4.0` records `"@monochromatic-dev/logger-core": "mirror:^0.4.0"`,
  and `npmjs:is-number@^7.0.0` records `"is-number": "npmjs:^7.0.0"`.
 
 ## Verified workarounds
@@ -363,14 +364,14 @@ pnpm 11 saves the short form:
 ### Name the package twice
 
 ```sh
-pnpm add '@monochromatic-dev/module-logger@mirror:@monochromatic-dev/module-logger@^0.4.0'
+pnpm add '@monochromatic-dev/logger-core@mirror:@monochromatic-dev/logger-core@^0.4.0'
 ```
 
 The text before the first `@` is a valid alias,
  so the argument never reaches `split_name_spec`.
 Tradeoffs:
  the manifest records the typed selector verbatim
- (`mirror:@monochromatic-dev/module-logger@^0.4.0`)
+ (`mirror:@monochromatic-dev/logger-core@^0.4.0`)
  instead of the pinned short form pnpm 11 writes (`mirror:^0.4.0`),
  so a typed `^0` stays `^0` rather than being rewritten to the resolved version's range,
  and the two pnpm majors produce different manifests for the same command.
@@ -381,7 +382,7 @@ Mistyping the second name installs a different package under the first name.
 ```json
 {
   "dependencies": {
-    "@monochromatic-dev/module-logger": "mirror:^0.4.0"
+    "@monochromatic-dev/logger-core": "mirror:^0.4.0"
   }
 }
 ```
@@ -400,7 +401,7 @@ The short form works only when the manifest key equals the package name
 `@monochromatic-dev:registry=https://registry.example/` in `.npmrc`
  (or a `scopes` list on the `registries` entry)
  needs no prefix in the specifier,
- so a plain `pnpm add @monochromatic-dev/module-logger` works.
+ so a plain `pnpm add @monochromatic-dev/logger-core` works.
 Tradeoff:
  every package in the scope now resolves from that registry,
  so it must proxy the scope members it does not host.
@@ -431,7 +432,8 @@ What it changes,
  all in `pnpm/crates/package-manager/src/add`:
 
 - New `named_registry.rs`:
-   `NamedRegistrySelector::parse` merges the configured `registries_by_prefix` over the built-ins with `merge_named_registries`
+   `NamedRegistrySelector::parse` merges the configured `registries_by_prefix` over the built-ins
+with `merge_named_registries`
    (the validation the install uses)
    and runs `parse_named_registry_specifier_to_registry_package_spec`.
    `save_specifier` picks the version from the prefix's registry
@@ -450,7 +452,8 @@ What it changes,
    preferred versions,
    and range style.
    The metadata cache key already includes the registry URL
-   (`metadata_cache_key(&scope, opts.registry, &spec.name, ..)` in `pnpm/crates/resolving-npm-resolver/src/pick_package.rs`),
+   (`metadata_cache_key(&scope, opts.registry, &spec.name, ..)`
+   in `pnpm/crates/resolving-npm-resolver/src/pick_package.rs`),
    so the two registries do not share cache entries.
 - `add.rs`:
    `ParseNamedRegistrySpecifier` and `InvalidNamedRegistry` error variants,
@@ -472,7 +475,8 @@ Build and test bounds:
  `RUSTUP_TOOLCHAIN=1.97.1` (the image's toolchain;
  upstream pins `1.97.0`),
  and `CARGO_PROFILE_DEV_DEBUG=0`.
-The clone's `.cargo/config.toml` block that replaces crates.io with the pnpm-managed `.pnpm/crates` vendor directory was deleted locally,
+The clone's `.cargo/config.toml` block that replaces crates.io
+with the pnpm-managed `.pnpm/crates` vendor directory was deleted locally,
  because that directory is populated by a `pnpm install` the container did not run;
  the patch does not include that edit.
 
@@ -498,12 +502,12 @@ Unpatched `main`:
 Patched `main`:
 
 ```text
-add mirror:@monochromatic-dev/module-logger@^0.4.0  exit=0  {"@monochromatic-dev/module-logger":"mirror:^0.4.0"}  lock mirror:0.4.0
+add mirror:@monochromatic-dev/logger-core@^0.4.0  exit=0  {"@monochromatic-dev/logger-core":"mirror:^0.4.0"}  lock mirror:0.4.0
 add mirror:is-number@^7.0.0                         exit=0  {"is-number":"mirror:^7.0.0"}                         lock mirror:7.0.0
 add mirror:is-number                                exit=0  {"is-number":"mirror:^7.0.0"}                         lock mirror:7.0.0
-add mirror:@monochromatic-dev/module-logger         exit=0  {"@monochromatic-dev/module-logger":"mirror:^0.4.0"}  lock mirror:0.4.0
+add mirror:@monochromatic-dev/logger-core         exit=0  {"@monochromatic-dev/logger-core":"mirror:^0.4.0"}  lock mirror:0.4.0
 add npmjs:is-number@^7.0.0                          exit=0  {"is-number":"npmjs:^7.0.0"}                          lock npmjs:7.0.0
-add npmjs:@monochromatic-dev/module-logger@^0.4.0   exit=0  {"@monochromatic-dev/module-logger":"npmjs:^0.4.0"}  lock npmjs:0.4.0
+add npmjs:@monochromatic-dev/logger-core@^0.4.0   exit=0  {"@monochromatic-dev/logger-core":"npmjs:^0.4.0"}  lock npmjs:0.4.0
 add gh:@pnpm/foo@^1.0.0                             exit=1  ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR: 404 from https://npm.pkg.github.com/@pnpm%2Ffoo
 add mirror:is-number, mirror -> registry.invalid    exit=1  ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR: https://registry.invalid/is-number
 ```
@@ -555,7 +559,9 @@ The cause is not the patch.
  with nothing in that function waiting for in-flight handlers.
 The reproduction is consistent with a later test drawing the still-busy server and stalling;
  the mockito server loop itself was not traced.
-Running only that test plus `add::tests::reporting::` fails the concurrency test in every run on unpatched `main` (2 of 2) and on the patched tree (2 of 2),
+Running only
+that test plus `add::tests::reporting::` fails the concurrency test in every run on unpatched `main` (2 of 2)
+and on the patched tree (2 of 2),
  while whole-module runs that skip the new test pass on both (4 of 4 each);
  adding any test that draws pool servers changes which test receives the busy one.
 
@@ -677,7 +683,7 @@ Labels: regression
 cd -- "$(mktemp --directory)"
 printf '%s\n' 'registries:' '  https://registry.npmmirror.com/:' '    prefix: mirror' > pnpm-workspace.yaml
 printf '%s\n' '{ "name": "probe", "private": true }' > package.json
-pnpm add 'mirror:@monochromatic-dev/module-logger@^0.4.0'
+pnpm add 'mirror:@monochromatic-dev/logger-core@^0.4.0'
 pnpm add 'mirror:is-number@^7.0.0'
 pnpm add 'npmjs:is-number@^7.0.0'
 ```
@@ -686,7 +692,7 @@ pnpm add 'npmjs:is-number@^7.0.0'
 
 As documented for 12.x (https://pnpm.io/settings/dependency-resolution, `pnpm add work:@corp/lib@^2.0.0`)
 and as pnpm 11.25.0 does: the package inside the prefix is resolved from the prefix's registry,
-and the manifest records `"@monochromatic-dev/module-logger": "mirror:^0.4.0"` / `"is-number": "mirror:^7.0.0"`.
+and the manifest records `"@monochromatic-dev/logger-core": "mirror:^0.4.0"` / `"is-number": "mirror:^7.0.0"`.
 
 ### Actual behavior
 
@@ -702,7 +708,7 @@ Unscoped package: the default registry is asked for a package literally named `m
 without a range, `ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_LATEST`). This happens even when the prefix points at an unreachable URL.
 
 Writing the same specifier into package.json and running `pnpm install` works, and so does
-`pnpm add '@monochromatic-dev/module-logger@mirror:@monochromatic-dev/module-logger@^0.4.0'`.
+`pnpm add '@monochromatic-dev/logger-core@mirror:@monochromatic-dev/logger-core@^0.4.0'`.
 
 ### Additional information
 

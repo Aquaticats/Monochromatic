@@ -1,15 +1,27 @@
 //! Current-track true-peak swap strategy.
 //!
-//! Cache hits keep the old zero-delay path: the measured gain is available before
-//! any samples are decoded. Cache misses start a dedicated measurement thread for
-//! the current track, immediately use the safe -1 dBTP ceiling gain, and let the
-//! controller wait up to one second when playback is about to start. If the
-//! measurement finishes later, the controller swaps future decoded samples to the
+//! Cache hits keep the old zero-delay path:
+//!  the measured gain is available before
+//! any samples are decoded.
+//!  Cache misses start a dedicated measurement thread for
+//! the current track,
+//!  immediately use the safe -1 dBTP ceiling gain,
+//!  and let the
+//! controller apply it on the next poll, so playback never waits for it.
+//!  If the
+//! measurement finishes later,
+//!  the controller swaps future decoded samples to the
 //! measured gain while already-buffered fallback samples drain unchanged.
 
-/// What:     `use std::path::{Path, PathBuf};`. `Path` is a borrowed filesystem
-///           path view; `PathBuf` is the owned, growable path buffer sibling.
-/// Why:      Public helpers borrow the loaded track path, while the worker thread
+/// What:
+///      `use std::path::{Path, PathBuf};`.
+///  `Path` is a borrowed filesystem
+///           path view;
+///  `PathBuf` is the owned,
+///  growable path buffer sibling.
+/// Why:
+///       Public helpers borrow the loaded track path,
+///  while the worker thread
 ///           must own its path after the caller returns.
 ///
 /// In TS you'd write (pseudocode):
@@ -18,22 +30,27 @@
 /// ```
 use std::path::{Path, PathBuf};
 
-/// What:     `use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};`.
+/// What:
+///      `use std::sync::mpsc::{self, Receiver, TryRecvError};`.
 ///           Rust's multi-producer/single-consumer channel module plus the receive
-///           half and two error enums. `Receiver<T>` is the owned read end;
-///           `TryRecvError` reports non-blocking empty/disconnected states;
-///           `RecvTimeoutError` reports timeout/disconnected states.
-/// Why:      The measurement worker sends exactly one result back to the controller
+///           half and an error enum.
+///  `Receiver<T>` is the owned read end;
+///           `TryRecvError` reports non-blocking empty/disconnected states.
+/// Why:
+///       The measurement worker sends exactly one result back to the controller
 ///           without blocking the audio thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const channel = makeOneShotChannel<PeakGainResult>();
 /// ```
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 
-/// What:     `use std::thread;`. Rust's standard OS-thread API.
-/// Why:      Current-track measurement decodes the whole file away from the
+/// What:
+///      `use std::thread;`.
+///  Rust's standard OS-thread API.
+/// Why:
+///       Current-track measurement decodes the whole file away from the
 ///           controller thread.
 ///
 /// In TS you'd write (pseudocode):
@@ -42,18 +59,13 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 /// ```
 use std::thread;
 
-/// What:     `use std::time::Duration;`. A monotonic span of time.
-/// Why:      The controller waits for at most the CSS-font-style swap window.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Duration = number;
-/// ```
-use std::time::Duration;
-
-/// What:     `use crate::peakcache::{self, CacheHandle};`. Import the peak-cache
-///           module itself for `peakcache::fingerprint`, plus the `CacheHandle` type.
-/// Why:      The strategy checks cached peaks before spawning and stores fresh
+/// What:
+///      `use crate::peakcache::{self, CacheHandle};`.
+///  Import the peak-cache
+///           module itself for `peakcache::fingerprint`,
+///  plus the `CacheHandle` type.
+/// Why:
+///       The strategy checks cached peaks before spawning and stores fresh
 ///           measurements after decoding.
 ///
 /// In TS you'd write (pseudocode):
@@ -63,10 +75,14 @@ use std::time::Duration;
 /// ```
 use crate::peakcache::{self, CacheHandle};
 
-/// What:     `use crate::truepeak::{normalization_gain, resolve_current};`. The shared
+/// What:
+///      `use crate::truepeak::{normalization_gain, resolve_current};`.
+///  The shared
 ///           foreground resolver (probe-or-full) and the peak-to-gain conversion used only
 ///           for the cold-start fallback.
-/// Why:      Cache misses resolve the current track's decision; `normalization_gain` builds
+/// Why:
+///       Cache misses resolve the current track's decision;
+///  `normalization_gain` builds
 ///           the -1 dBTP fallback while measurement runs.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,18 +90,7 @@ use crate::peakcache::{self, CacheHandle};
 /// import { normalizationGain, resolveCurrent } from "./truepeak";
 /// ```
 use crate::truepeak::{normalization_gain, resolve_current};
-
-/// What:     `const PEAK_SWAP_WAIT_SECS: u64 = 1;`. One second, stored as the
-///           unsigned integer width `Duration::from_secs` expects. Siblings would
-///           be `u32` or `usize`, but the constructor takes `u64`.
-/// Why:      This is the borrowed-from-CSS-fonts swap window: wait briefly for the
-///           measured peak, then play with the fallback gain if it is still absent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const PEAK_SWAP_WAIT_SECS = 1;
-/// ```
-const PEAK_SWAP_WAIT_SECS: u64 = 1;
+use truepeak_core::Decision;
 
 // What:     `#[derive(Clone, Copy, Debug)]` auto-generates cheap copying and debug
 //           formatting for `PeakGainResult`. `Copy` is valid because both fields
@@ -97,11 +102,15 @@ const PEAK_SWAP_WAIT_SECS: u64 = 1;
 // ```ts
 // type PeakGainResult = { generation: number; gain: number };
 // ```
-#[derive(Clone, Copy, Debug)]
-/// What:     `pub(crate) struct PeakGainResult { ... }`. A crate-visible result
-///           from one current-track measurement. It carries the generation that
+#[derive(Clone, Debug)]
+/// What:
+///      `pub(crate) struct PeakGainResult { ... }`.
+///  A crate-visible result
+///           from one current-track measurement.
+///  It carries the generation that
 ///           was current when the worker spawned plus the measured gain.
-/// Why:      Generation lets the controller ignore stale results from tracks that
+/// Why:
+///       Generation lets the controller ignore stale results from tracks that
 ///           are no longer current while still allowing those workers to warm the cache.
 ///
 /// In TS you'd write (pseudocode):
@@ -109,20 +118,38 @@ const PEAK_SWAP_WAIT_SECS: u64 = 1;
 /// type PeakGainResult = { generation: number; gain: number };
 /// ```
 pub(crate) struct PeakGainResult {
-    /// What:     `pub(crate) generation: u64`. Monotonic track-load generation,
-    ///           visible inside the crate. `u64` is used instead of `usize` so the
+    /// What:
+    ///      `pub(crate) generation: u64`.
+    ///  Monotonic track-load generation,
+    ///           visible inside the crate.
+    ///  `u64` is used instead of `usize` so the
     ///           value is platform-independent and effectively never wraps.
-    /// Why:      Identify which loaded track this result belongs to.
+    /// Why:
+    ///       Identify which loaded track this result belongs to.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// generation: number;
     /// ```
     pub(crate) generation: u64,
-    /// What:     `pub(crate) gain: f32`. Linear playback gain from true-peak
-    ///           normalization. Sibling `f64` would add precision the PCM path does
+    /// What:
+    ///      `pub(crate) path: PathBuf`. The track this measurement belongs to.
+    /// Why:
+    ///       The window's row for this track takes the measure from the decision, keyed by path.
+    pub(crate) path: PathBuf,
+    /// What:
+    ///      `pub(crate) decision: Decision`. The full decision the measurement stored in the cache.
+    /// Why:
+    ///       The result carries the decision itself, so the row can show it without a racing cache read.
+    pub(crate) decision: Decision,
+    /// What:
+    ///      `pub(crate) gain: f32`.
+    ///  Linear playback gain from true-peak
+    ///           normalization.
+    ///  Sibling `f64` would add precision the PCM path does
     ///           not use.
-    /// Why:      The controller multiplies future decoded samples by this value.
+    /// Why:
+    ///       The controller multiplies future decoded samples by this value.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -131,11 +158,15 @@ pub(crate) struct PeakGainResult {
     pub(crate) gain: f32,
 }
 
-/// What:     `pub(crate) enum PendingPeakStatus { ... }`. The three states a
-///           non-blocking or timed receive can report: result ready, still pending,
+/// What:
+///      `pub(crate) enum PendingPeakStatus { ... }`.
+///  The three states a
+///           non-blocking or timed receive can report:
+///  result ready,
+///  still pending,
 ///           or the worker ended without sending.
-/// Why:      The controller needs the same state machine for polling and for the
-///           one-second start wait.
+/// Why:
+///       The controller needs one state machine for polling the measurement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,19 +176,28 @@ pub(crate) struct PeakGainResult {
 ///   | { kind: "closed" };
 /// ```
 pub(crate) enum PendingPeakStatus {
-    /// What:     `Ready(PeakGainResult)` wraps the measured result.
-    /// Why:      Hand the generation and gain to the controller.
+    /// What:
+    ///      `Ready(PeakGainResult)` wraps the measured result.
+    /// Why:
+    ///       Hand the generation and gain to the controller.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "ready", result }
     /// ```
     Ready(
-        /// What:     Unnamed field `.0` of the `Ready` variant: the measured
-        ///           `PeakGainResult` (the sibling struct declared above, carrying a
-        ///           `generation` and a `gain`). Not an `f32` alone: the controller
-        ///           needs the generation too, to reject stale results.
-        /// Why:      Hands the generation and gain to the controller when a result
+        /// What:
+        ///      Unnamed field `.0` of the `Ready` variant:
+        ///  the measured
+        ///           `PeakGainResult` (the sibling struct declared above,
+        ///  carrying a
+        ///           `generation` and a `gain`).
+        ///  Not an `f32` alone:
+        ///  the controller
+        ///           needs the generation too,
+        ///  to reject stale results.
+        /// Why:
+        ///       Hands the generation and gain to the controller when a result
         ///           lands.
         ///
         /// In TS you'd write (pseudocode):
@@ -166,16 +206,22 @@ pub(crate) enum PendingPeakStatus {
         /// ```
         PeakGainResult,
     ),
-    /// What:     `Pending` has no payload.
-    /// Why:      The worker is still running, so fallback gain remains active.
+    /// What:
+    ///      `Pending` has no payload.
+    /// Why:
+    ///       The worker is still running,
+    ///  so fallback gain remains active.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "pending" }
     /// ```
     Pending,
-    /// What:     `Closed` has no payload.
-    /// Why:      Measurement failed or the worker exited without a result, so the
+    /// What:
+    ///      `Closed` has no payload.
+    /// Why:
+    ///       Measurement failed or the worker exited without a result,
+    ///  so the
     ///           controller can stop polling and keep the fallback gain.
     ///
     /// In TS you'd write (pseudocode):
@@ -185,9 +231,12 @@ pub(crate) enum PendingPeakStatus {
     Closed,
 }
 
-/// What:     `pub(crate) struct PendingPeakMeasurement { ... }`. The controller's
+/// What:
+///      `pub(crate) struct PendingPeakMeasurement { ... }`.
+///  The controller's
 ///           handle to one in-flight current-track measurement.
-/// Why:      Encapsulates the channel receiver so command handling can poll or wait
+/// Why:
+///       Encapsulates the channel receiver so command handling can poll
 ///           without knowing mpsc error details.
 ///
 /// In TS you'd write (pseudocode):
@@ -195,9 +244,13 @@ pub(crate) enum PendingPeakStatus {
 /// class PendingPeakMeasurement { constructor(private receiver: Receiver<PeakGainResult>) {} }
 /// ```
 pub(crate) struct PendingPeakMeasurement {
-    /// What:     `receiver: Receiver<PeakGainResult>`. The owned read end of the
-    ///           one-shot channel. The sibling write end lives in the measurement thread.
-    /// Why:      Poll or wait for the measured gain.
+    /// What:
+    ///      `receiver: Receiver<PeakGainResult>`.
+    ///  The owned read end of the
+    ///           one-shot channel.
+    ///  The sibling write end lives in the measurement thread.
+    /// Why:
+    ///       Poll for the measured gain.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -206,18 +259,23 @@ pub(crate) struct PendingPeakMeasurement {
     receiver: Receiver<PeakGainResult>,
 }
 
-/// What:     `impl PendingPeakMeasurement { ... }`. Methods for the pending
+/// What:
+///      `impl PendingPeakMeasurement { ... }`.
+///  Methods for the pending
 ///           measurement wrapper.
-/// Why:      Keep raw channel details local to this module.
+/// Why:
+///       Keep raw channel details local to this module.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class PendingPeakMeasurement { /* fromReceiver, tryResult, waitResult */ }
+/// class PendingPeakMeasurement { /* fromReceiver, tryResult */ }
 /// ```
 impl PendingPeakMeasurement {
-    /// What:     `pub(crate) fn from_receiver(receiver: Receiver<PeakGainResult>) -> PendingPeakMeasurement`.
+    /// What:
+    ///      `pub(crate) fn from_receiver(receiver: Receiver<PeakGainResult>) -> PendingPeakMeasurement`.
     ///           Build a wrapper from an owned channel receiver.
-    /// Why:      Production spawn and unit tests both need to construct pending handles.
+    /// Why:
+    ///       Production spawn and unit tests both need to construct pending handles.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -237,9 +295,12 @@ impl PendingPeakMeasurement {
         return PendingPeakMeasurement { receiver }
     }
 
-    /// What:     `pub(crate) fn try_result(&self) -> PendingPeakStatus`. Poll once
+    /// What:
+    ///      `pub(crate) fn try_result(&self) -> PendingPeakStatus`.
+    ///  Poll once
     ///           without blocking.
-    /// Why:      The engine loop checks whether a measured gain landed before
+    /// Why:
+    ///       The engine loop checks whether a measured gain landed before
     ///           decoding another chunk.
     ///
     /// In TS you'd write (pseudocode):
@@ -285,61 +346,17 @@ impl PendingPeakMeasurement {
             Err(TryRecvError::Disconnected) => return PendingPeakStatus::Closed,
         }
     }
-
-    /// What:     `pub(crate) fn wait_result(&self, timeout: Duration) -> PendingPeakStatus`.
-    ///           Wait for a result until the timeout expires.
-    /// Why:      The start path gives the current-track measurement a one-second chance
-    ///           before swapping to fallback playback.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// waitResult(timeoutMs: number): PendingPeakStatus { return this.receiver.readWithTimeout(timeoutMs); }
-    /// ```
-    pub(crate) fn wait_result(&self, timeout: Duration) -> PendingPeakStatus {
-        // What:     `match self.receiver.recv_timeout(timeout) { ... }`. Blocking
-        //           receive with a maximum duration.
-        // Why:      Wait briefly without risking an indefinite playback stall.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // switch (await this.receiver.readWithTimeout(timeoutMs)) { /* value, timeout, closed */ }
-        // ```
-        match self.receiver.recv_timeout(timeout) {
-            // What:     `Ok(result) => PendingPeakStatus::Ready(result)`. The worker
-            //           finished inside the swap window.
-            // Why:      The track can start with its exact measured gain.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return { kind: "ready", result };
-            // ```
-            Ok(result) => return PendingPeakStatus::Ready(result),
-            // What:     `Err(RecvTimeoutError::Timeout) => PendingPeakStatus::Pending`.
-            //           The one-second window expired.
-            // Why:      Start with fallback now and keep polling for the later swap.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return { kind: "pending" };
-            // ```
-            Err(RecvTimeoutError::Timeout) => return PendingPeakStatus::Pending,
-            // What:     `Err(RecvTimeoutError::Disconnected) => PendingPeakStatus::Closed`.
-            //           The worker ended without sending a result.
-            // Why:      Clear the pending handle and keep the fallback gain.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return { kind: "closed" };
-            // ```
-            Err(RecvTimeoutError::Disconnected) => return PendingPeakStatus::Closed,
-        }
-    }
 }
 
-/// What:     `pub(crate) enum TrackGainResolution { ... }`. Result of preparing a
-///           loaded track's gain: either immediately ready from cache, or pending
+/// What:
+///      `pub(crate) enum TrackGainResolution { ... }`.
+///  Result of preparing a
+///           loaded track's gain:
+///  either immediately ready from cache,
+///  or pending
 ///           on an async measurement.
-/// Why:      `install_source` can set `track_gain` without blocking on a cache miss.
+/// Why:
+///       `install_source` can set `track_gain` without blocking on a cache miss.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -348,19 +365,28 @@ impl PendingPeakMeasurement {
 ///   | { kind: "pending"; pending: PendingPeakMeasurement };
 /// ```
 pub(crate) enum TrackGainResolution {
-    /// What:     `Ready(f32)` carries an already-known gain.
-    /// Why:      Cache hit path keeps exact normalization from the first sample.
+    /// What:
+    ///      `Ready(f32)` carries an already-known gain.
+    /// Why:
+    ///       Cache hit path keeps exact normalization from the first sample.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "ready", gain }
     /// ```
     Ready(
-        /// What:     Unnamed field `.0` of the `Ready` variant: an already-known
-        ///           linear playback `gain` as an `f32` (32-bit float). Sibling the
-        ///           reader might expect: `f64` (64-bit double).
-        /// Why:      `f32` (not `f64`) matches the PCM path's sample width, which
-        ///           never uses double precision; this is the cache-hit gain the
+        /// What:
+        ///      Unnamed field `.0` of the `Ready` variant:
+        ///  an already-known
+        ///           linear playback `gain` as an `f32` (32-bit float).
+        ///  Sibling the
+        ///           reader might expect:
+        ///  `f64` (64-bit double).
+        /// Why:
+        ///       `f32` (not `f64`) matches the PCM path's sample width,
+        ///  which
+        ///           never uses double precision;
+        ///  this is the cache-hit gain the
         ///           controller can apply from the first sample.
         ///
         /// In TS you'd write (pseudocode):
@@ -369,20 +395,29 @@ pub(crate) enum TrackGainResolution {
         /// ```
         f32,
     ),
-    /// What:     `Pending(PendingPeakMeasurement)` carries a measurement handle.
-    /// Why:      Cache miss path can start with fallback while the worker decodes.
+    /// What:
+    ///      `Pending(PendingPeakMeasurement)` carries a measurement handle.
+    /// Why:
+    ///       Cache miss path can start with fallback while the worker decodes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "pending", pending }
     /// ```
     Pending(
-        /// What:     Unnamed field `.0` of the `Pending` variant: a
+        /// What:
+        ///      Unnamed field `.0` of the `Pending` variant:
+        ///  a
         ///           `PendingPeakMeasurement` handle (the sibling struct declared
-        ///           above, wrapping the channel receiver). Not a raw `Receiver`: the
-        ///           wrapper hides the mpsc error details behind poll/wait methods.
-        /// Why:      Lets the controller start with fallback gain while the worker
-        ///           decodes, then poll or wait on this handle for the measured gain.
+        ///           above,
+        ///  wrapping the channel receiver).
+        ///  Not a raw `Receiver`:
+        ///  the
+        ///           wrapper hides the mpsc error details behind the poll method.
+        /// Why:
+        ///       Lets the controller start with fallback gain while the worker
+        ///           decodes,
+        ///  then poll this handle for the measured gain.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts
@@ -392,29 +427,12 @@ pub(crate) enum TrackGainResolution {
     ),
 }
 
-/// What:     `pub(crate) fn peak_swap_wait() -> Duration`. Return the configured
-///           one-second swap window as a `Duration` value.
-/// Why:      The controller calls this at every playback-start boundary.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function peakSwapWait(): number { return PEAK_SWAP_WAIT_SECS * 1000; }
-/// ```
-pub(crate) fn peak_swap_wait() -> Duration {
-    // What:     `Duration::from_secs(PEAK_SWAP_WAIT_SECS)`. Build a `Duration` from
-    //           an integer second count. Tail expression returns it.
-    // Why:      Avoid repeating the conversion at call sites.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return PEAK_SWAP_WAIT_SECS * 1000;
-    // ```
-    return Duration::from_secs(PEAK_SWAP_WAIT_SECS)
-}
-
-/// What:     `pub(crate) fn fallback_track_gain() -> f32`. Return the temporary
+/// What:
+///      `pub(crate) fn fallback_track_gain() -> f32`.
+///  Return the temporary
 ///           gain used while an uncached true peak is still measuring.
-/// Why:      `normalization_gain(1.0)` is exactly the existing -1 dBTP ceiling value,
+/// Why:
+///       `normalization_gain(1.0)` is exactly the existing -1 dBTP ceiling value,
 ///           so fallback keeps a clipping-safety bias without waiting forever.
 ///
 /// In TS you'd write (pseudocode):
@@ -433,9 +451,11 @@ pub(crate) fn fallback_track_gain() -> f32 {
     return normalization_gain(1.0)
 }
 
-/// What:     `pub(crate) fn cached_track_gain(path: &Path, cache: &CacheHandle) -> Option<f32>`.
+/// What:
+///      `pub(crate) fn cached_track_gain(path: &Path, cache: &CacheHandle) -> Option<f32>`.
 ///           Try to read a measured peak from the cache and convert it to gain.
-/// Why:      Cache hits must avoid spawning a redundant current-track worker.
+/// Why:
+///       Cache hits must avoid spawning a redundant current-track worker.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -472,10 +492,14 @@ pub(crate) fn cached_track_gain(path: &Path, cache: &CacheHandle) -> Option<f32>
     return Some(decision.gain)
 }
 
-/// What:     `pub(crate) fn prepare_track_gain(...) -> TrackGainResolution`. Prepare
+/// What:
+///      `pub(crate) fn prepare_track_gain(...) -> TrackGainResolution`.
+///  Prepare
 ///           the loaded track's gain with the swap strategy.
-/// Why:      A cache hit returns exact gain now; a miss starts measurement and lets
-///           playback begin with fallback after the one-second start wait.
+/// Why:
+///       A cache hit returns exact gain now;
+///  a miss starts measurement and lets
+///           playback begin at once with the fallback gain until the result lands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -545,10 +569,14 @@ pub(crate) fn prepare_track_gain(
     return TrackGainResolution::Pending(pending)
 }
 
-/// What:     `fn spawn_current_track_measurement(...) -> PendingPeakMeasurement`. Spawn
+/// What:
+///      `fn spawn_current_track_measurement(...) -> PendingPeakMeasurement`.
+///  Spawn
 ///           a detached worker for one current track.
-/// Why:      Current-track measurement must not block load, but it should run at normal
-///           priority because playback may wait briefly for it.
+/// Why:
+///       Current-track measurement must not block load,
+///  but it should run at normal
+///           priority so the exact gain lands soon after a track change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -589,7 +617,7 @@ fn spawn_current_track_measurement(
         // ```ts
         // const gain = measureAndStoreGain(path, cache, fingerprint); if (gain != null) { ... }
         // ```
-        if let Some(gain) = measure_and_store_gain(&path, &cache, fingerprint) {
+        if let Some(decision) = measure_and_store_gain(&path, &cache, fingerprint) {
             // What:     `let _ = sender.send(PeakGainResult { generation, gain });`.
             //           Send the result; `let _ =` discards the error if the controller
             //           already moved to another track and dropped the receiver.
@@ -600,7 +628,12 @@ fn spawn_current_track_measurement(
             // ```ts
             // try { sender.send({ generation, gain }); } catch {}
             // ```
-            let _ = sender.send(PeakGainResult { generation, gain });
+            let _ = sender.send(PeakGainResult {
+                generation,
+                gain: decision.gain,
+                path,
+                decision,
+            });
         }
         // What:     `worker.unpark();`. Wake the controller/engine thread after the
         //           measurement either sent a value or ended without one.
@@ -624,9 +657,14 @@ fn spawn_current_track_measurement(
     return PendingPeakMeasurement::from_receiver(receiver)
 }
 
-/// What:     `fn measure_and_store_gain(...) -> Option<f32>`. Resolve the current track's
-///           decision (probe-or-full), cache it if a fingerprint exists, and return its gain.
-/// Why:      Shared worker body for the current-track async path.
+/// What:
+///      `fn measure_and_store_gain(...) -> Option<Decision>`.
+///  Resolve the current track's
+///           decision (probe-or-full),
+///  cache it if a fingerprint exists,
+///  and return the decision.
+/// Why:
+///       Shared worker body for the current-track async path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -636,7 +674,7 @@ fn measure_and_store_gain(
     path: &Path,
     cache: &CacheHandle,
     fingerprint: Option<u64>,
-) -> Option<f32> {
+) -> Option<Decision> {
     // What:     `let decision = resolve_current(path).ok()?;`. Resolve the foreground
     //           decision and convert `Result` to `Option`; `?` returns `None` on failure.
     // Why:      A failed measurement should not replace the fallback gain.
@@ -676,12 +714,14 @@ fn measure_and_store_gain(
     // ```ts
     // return decision.gain;
     // ```
-    return Some(decision.gain)
+    return Some(decision)
 }
 
-/// What:     `#[cfg(test)] #[path = "peak_swap_tests.rs"] mod tests;` declares a
+/// What:
+///      `#[cfg(test)] #[path = "peak_swap_tests.rs"] mod tests;` declares a
 ///           test-only child module loaded from the sibling file.
-/// Why:      Keep tests beside this module without adding production code lines.
+/// Why:
+///       Keep tests beside this module without adding production code lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

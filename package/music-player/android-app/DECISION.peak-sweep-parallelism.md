@@ -33,6 +33,16 @@ Written so a future session does not re-run the ninety-minute benchmark.
 - Do not adopt Turso and do not move the cache to Room.
    The cache was never the bottleneck.
 
+Update of 2026-10-13 (the decision above stands; only the trigger and the upkeep split changed):
+no activity or application class starts the foreground service.
+`PlaybackService.analyzeNewTracks` calls `PeakSweepService.startIfNeeded` after the first library load,
+after a picked-folder load and after every live-update rescan (D113),
+and the service starts only when the library is readable and the ledger (`sweep-ledger.bin`, `core/SweepLedger.kt`)
+holds new, changed or retryable tracks.
+"When the app is opened" therefore means "when `PlaybackService` has loaded or rescanned the library",
+and the foreground service also analyzes files added later;
+the low-priority `WorkManager` job that `PeakSweepScheduler.enqueue` queues stays as the charging-plus-idle path.
+
 ## Context
 
 The sweep measures each track's true peak once and memoizes it
@@ -71,7 +81,8 @@ What was ruled out by inspection,
 - The warm-restart skip is deterministic,
    so it is not a re-measure-forever bug.
    The
-  fingerprint is `gxhash64(uri + size + mtime, seed = 0)` (`rust/src/fingerprint.rs:81`),
+  fingerprint was `gxhash64(uri + size + mtime, seed = 0)` (`rust/src/fingerprint.rs:81`; since 2026-10-14
+  it is the shared XXH3-64 `track_fingerprint`, see `doc/decision/music-player-fingerprint-hash.md`),
    and
   for MediaStore URIs the mtime query asks for the DocumentsContract `COLUMN_LAST_MODIFIED`
   column that MediaStore lacks,

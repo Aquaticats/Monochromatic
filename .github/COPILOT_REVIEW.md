@@ -20,7 +20,8 @@ Why this works
 - A PR from your active branch (head) into a dedicated “stub” base branch gives a visible,
    auditable place to request AI review while preserving the team’s existing push/merge workflow.
 - The approach is manual,
-   avoiding changes to branch protection or developer habits while still enabling automated or manual review tools on the PR.
+   avoiding changes to branch protection or developer habits
+   while still enabling automated or manual review tools on the PR.
 
 Benefits
 

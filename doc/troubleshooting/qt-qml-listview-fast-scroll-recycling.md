@@ -23,16 +23,16 @@ diagnostics here start from a working setup.
 
 Mirrors the Slint spike's scale so the numbers are comparable:
 
-- `package/desktop-app/file-manager/src/strip.rs`:
+- `package/file-manager/app/src/strip.rs`:
    `COLUMN_COUNT = 1200`,
    a pane mix
   of roughly `400*26 + 800*5`,
    about 14400 panes total.
-- `package/desktop-app/file-manager/src/rowmodel.rs`:
+- `package/file-manager/app/src/rowmodel.rs`:
    directory panes address up to
   100000 rows each;
    only the visible handful is ever materialized.
-- `package/desktop-app/file-manager/src/preview.rs`:
+- `package/file-manager/app/src/preview.rs`:
    preview panes decode 384x256
   bitmaps off-thread,
    show a placeholder,
@@ -164,7 +164,7 @@ each worth knowing for any future QML debugging in this repo:
    Measure FPS from `frameSwapped` counted once per second instead,
    and give the
   real app non-blocking logging (see
-  [the file-manager-qt README](../../package/desktop-app/file-manager-qt/README.md)
+  [the file-manager-qt README](../../package/file-manager/variant-qt/README.md)
   and the non-blocking-logging work):
    `tracing` with a `tracing-appender` non-blocking
   writer,
@@ -198,13 +198,13 @@ each worth knowing for any future QML debugging in this repo:
 ## Reproduce
 
 The optimized harness is
-`package/desktop-app/file-manager-qt/bench/strip-virtualization.qml`.
+`package/file-manager/variant-qt/bench/strip-virtualization.qml`.
  It needs a pool
 of 256 distinct 384x256 thumbnails beside it,
  generated with ffmpeg (kept out of git):
 
 ```sh
-cd package/desktop-app/file-manager-qt/bench
+cd package/file-manager/variant-qt/bench
 mkdir -p imgs
 ffmpeg -y -loglevel error -f lavfi -i "testsrc2=size=384x256:rate=1" \
   -frames:v 256 "imgs/img_%03d.png"
@@ -223,7 +223,7 @@ result.
 
 - [winit-toolkits-no-wayland-drag-and-drop.md](winit-toolkits-no-wayland-drag-and-drop.md):
   why the app moved from Slint to Qt in the first place.
-- `package/desktop-app/file-manager/src/strip.rs`,
+- `package/file-manager/app/src/strip.rs`,
    `rowmodel.rs`,
    `preview.rs`:
    the

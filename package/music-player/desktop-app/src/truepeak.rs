@@ -1,19 +1,40 @@
-//! Desktop true-peak resolution: a thin adapter that drives the shared policy resolver.
+//! Desktop true-peak resolution:
+//!  a thin adapter that drives the shared policy resolver.
 //!
-//! "True peak" (a.k.a. inter-sample peak) is the highest level the analog waveform reaches
-//! AFTER a DAC reconstructs it between the stored samples; it can sit above the largest
-//! stored sample. The measurement policy (full-scan short tracks, probe long ones), the
-//! Catmull-Rom meter, the attenuate-only gain, the window placement, and the decision cache
-//! now all live once in the shared `truepeak-core` crate. This module keeps only the
-//! desktop-specific glue: a [`TruePeakSource`] adapter over the desktop `decode::Source`, and
-//! two openers that hand that adapter to the shared resolvers. Foreground playback resolves a
-//! probe-or-full decision quickly ([`resolve_current`]); background warming upgrades to an
-//! exact full scan ([`resolve_full`]). See
+//! "True peak" (a.k.a.
+//!  inter-sample peak) is the highest level the analog waveform reaches
+//! AFTER a DAC reconstructs it between the stored samples;
+//!  it can sit above the largest
+//! stored sample.
+//!  The measurement policy (full-scan short tracks,
+//!  probe long ones),
+//!  the
+//! Catmull-Rom meter,
+//!  the attenuate-only gain,
+//!  the window placement,
+//!  and the decision cache
+//! now all live once in the shared `truepeak-core` crate.
+//!  This module keeps only the
+//! desktop-specific glue:
+//!  a [`TruePeakSource`] adapter over the desktop `decode::Source`,
+//!  and
+//! two openers that hand that adapter to the shared resolvers.
+//!  Foreground playback resolves a
+//! probe-or-full decision quickly ([`resolve_current`]);
+//!  background warming upgrades to an
+//! exact full scan ([`resolve_full`]).
+//!  See
 //! ../../../doc/handover/music-player-truepeak-core-integration.md.
 
-/// What:     `use std::path::Path;`. Borrowed filesystem-path type (sibling: the owned
-///           `PathBuf`, like `&str` vs `String`).
-/// Why:      The openers only read the path, so they borrow it.
+/// What:
+///      `use std::path::Path;`.
+///  Borrowed filesystem-path type (sibling:
+///  the owned
+///           `PathBuf`,
+///  like `&str` vs `String`).
+/// Why:
+///       The openers only read the path,
+///  so they borrow it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,10 +42,17 @@
 /// ```
 use std::path::Path;
 
-/// What:     `use crate::decode;`. The decode module, for `decode::open`. The `Source` trait
-///           is NOT imported: its `spec`/`next_chunk`/`seek` methods are callable on the
-///           `Box<dyn Source>` value through the trait object itself, with no import.
-/// Why:      Measurement decodes through the same path playback uses.
+/// What:
+///      `use crate::decode;`.
+///  The decode module,
+///  for `decode::open`.
+///  The `Source` trait
+///           is NOT imported:
+///  its `spec`/`next_chunk`/`seek` methods are callable on the
+///           `Box<dyn Source>` value through the trait object itself,
+///  with no import.
+/// Why:
+///       Measurement decodes through the same path playback uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,12 +60,21 @@ use std::path::Path;
 /// ```
 use crate::decode;
 
-/// What:     `use truepeak_core::{AudioSpec, Decision, TruePeakError, TruePeakSource,
-///           default_policy, resolve_decision, resolve_full_scan};`. The shared source
-///           contract and its descriptor, the decision type, the crate error, the shipped
-///           policy, and the two resolvers.
-/// Why:      The adapter implements `TruePeakSource` (returning an `AudioSpec`, mapping decode
-///           errors into `TruePeakError`); the openers call the resolvers under
+/// What:
+///      `use truepeak_core::{AudioSpec, Decision, TruePeakError, TruePeakSource,
+///           default_policy, resolve_decision, resolve_full_scan};`.
+///  The shared source
+///           contract and its descriptor,
+///  the decision type,
+///  the crate error,
+///  the shipped
+///           policy,
+///  and the two resolvers.
+/// Why:
+///       The adapter implements `TruePeakSource` (returning an `AudioSpec`,
+///  mapping decode
+///           errors into `TruePeakError`);
+///  the openers call the resolvers under
 ///           `default_policy` and return a `Decision`.
 ///
 /// In TS you'd write (pseudocode):
@@ -49,10 +86,15 @@ use truepeak_core::{
     resolve_decision_for, resolve_full_scan,
 };
 
-/// What:     `pub use truepeak_core::normalization_gain;`. Re-export the shared attenuate-only
+/// What:
+///      `pub use truepeak_core::normalization_gain;`.
+///  Re-export the shared attenuate-only
 ///           gain function under this module's path.
-/// Why:      `peak_swap` computes the cold-start fallback gain (`normalization_gain(1.0)`, the
-///           -1 dBTP ceiling) from here, so the one shared implementation stays authoritative.
+/// Why:
+///       `peak_swap` computes the cold-start fallback gain (`normalization_gain(1.0)`,
+///  the
+///           -1 dBTP ceiling) from here,
+///  so the one shared implementation stays authoritative.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,12 +102,20 @@ use truepeak_core::{
 /// ```
 pub use truepeak_core::normalization_gain;
 
-/// What:     `struct DesktopSource { inner: Box<dyn decode::Source> }`. A newtype wrapping the
-///           desktop decoder so it satisfies the shared [`TruePeakSource`] contract. `Box<dyn
-///           decode::Source>` is an owned, heap-allocated trait object (the concrete decoder,
-///           Symphonia or Opus, erased).
-/// Why:      The shared resolver drives any `TruePeakSource`; this adapts the desktop decoder
-///           to it, bridging the seconds-based `seek` to the frame-based `seek_to_frame` and
+/// What:
+///      `struct DesktopSource { inner: Box<dyn decode::Source> }`.
+///  A newtype wrapping the
+///           desktop decoder so it satisfies the shared [`TruePeakSource`] contract.
+///  `Box<dyn
+///           decode::Source>` is an owned,
+///  heap-allocated trait object (the concrete decoder,
+///           Symphonia or Opus,
+///  erased).
+/// Why:
+///       The shared resolver drives any `TruePeakSource`;
+///  this adapts the desktop decoder
+///           to it,
+///  bridging the seconds-based `seek` to the frame-based `seek_to_frame` and
 ///           mapping the desktop `PlayerError` to the crate's `TruePeakError`.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,8 +123,11 @@ pub use truepeak_core::normalization_gain;
 /// class DesktopSource implements TruePeakSource { constructor(private inner: Source) {} }
 /// ```
 struct DesktopSource {
-    /// What:     `inner: Box<dyn decode::Source>`. The owned desktop decoder.
-    /// Why:      The adapter forwards every trait method to it.
+    /// What:
+    ///      `inner: Box<dyn decode::Source>`.
+    ///  The owned desktop decoder.
+    /// Why:
+    ///       The adapter forwards every trait method to it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -83,18 +136,27 @@ struct DesktopSource {
     inner: Box<dyn decode::Source>,
 }
 
-/// What:     `impl TruePeakSource for DesktopSource { ... }`. Implement the shared contract by
+/// What:
+///      `impl TruePeakSource for DesktopSource { ... }`.
+///  Implement the shared contract by
 ///           forwarding to the wrapped decoder.
-/// Why:      Let the shared resolvers measure desktop audio without knowing the decoder.
+/// Why:
+///       Let the shared resolvers measure desktop audio without knowing the decoder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // DesktopSource satisfies TruePeakSource
 /// ```
 impl TruePeakSource for DesktopSource {
-    /// What:     `fn spec(&self) -> AudioSpec`. Map the desktop `decode::AudioSpec` to the
-    ///           shared `AudioSpec` (identical fields, different crate).
-    /// Why:      The resolver reads rate, channels, and duration through this.
+    /// What:
+    ///      `fn spec(&self) -> AudioSpec`.
+    ///  Map the desktop `decode::AudioSpec` to the
+    ///           shared `AudioSpec` (identical fields,
+    ///  different crate).
+    /// Why:
+    ///       The resolver reads rate,
+    ///  channels,
+    ///  and duration through this.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -124,9 +186,14 @@ impl TruePeakSource for DesktopSource {
         }
     }
 
-    /// What:     `fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError>`. Forward the
-    ///           next decoded block, mapping a decode error to `TruePeakError::Decode`.
-    /// Why:      The meter feeds these blocks; the error type must be the crate's.
+    /// What:
+    ///      `fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError>`.
+    ///  Forward the
+    ///           next decoded block,
+    ///  mapping a decode error to `TruePeakError::Decode`.
+    /// Why:
+    ///       The meter feeds these blocks;
+    ///  the error type must be the crate's.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -147,14 +214,26 @@ impl TruePeakSource for DesktopSource {
             .map_err(|error| return TruePeakError::Decode { message: error.to_string() })
     }
 
-    /// What:     `fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError>`. Seek
+    /// What:
+    ///      `fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError>`.
+    ///  Seek
     ///           the desktop decoder to the interleaved frame by converting it to seconds
-    ///           (`frame / rate`), mapping a seek error to `TruePeakError::Seek`.
-    /// Why:      The probe places windows by frame; the desktop decoder seeks by seconds.
-    /// Gotcha:   The seconds-granular seek lands at the nearest packet boundary, not the exact
-    ///           frame, so probe windows are placed approximately. That is acceptable for the
-    ///           runtime: the probe takes the loudest of several spread windows, and a few
-    ///           milliseconds of drift does not change which window is loudest. The bench
+    ///           (`frame / rate`),
+    ///  mapping a seek error to `TruePeakError::Seek`.
+    /// Why:
+    ///       The probe places windows by frame;
+    ///  the desktop decoder seeks by seconds.
+    /// Gotcha:
+    ///    The seconds-granular seek lands at the nearest packet boundary,
+    ///  not the exact
+    ///           frame,
+    ///  so probe windows are placed approximately.
+    ///  That is acceptable for the
+    ///           runtime:
+    ///  the probe takes the loudest of several spread windows,
+    ///  and a few
+    ///           milliseconds of drift does not change which window is loudest.
+    ///  The bench
     ///           sidecar (which needs exact placement) uses its own frame-exact source.
     ///
     /// In TS you'd write (pseudocode):
@@ -192,10 +271,16 @@ impl TruePeakSource for DesktopSource {
     }
 }
 
-/// What:     `fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError>`. Open the
-///           desktop decoder for `path` and wrap it in the shared-source adapter, mapping an
-///           open failure to `TruePeakError::Decode`. Module-private.
-/// Why:      Both openers start the same way; one helper keeps the open-and-wrap in one place.
+/// What:
+///      `fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError>`.
+///  Open the
+///           desktop decoder for `path` and wrap it in the shared-source adapter,
+///  mapping an
+///           open failure to `TruePeakError::Decode`.
+///  Module-private.
+/// Why:
+///       Both openers start the same way;
+///  one helper keeps the open-and-wrap in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,12 +307,21 @@ fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError> {
     return Ok(DesktopSource { inner })
 }
 
-/// What:     `pub(crate) fn resolve_current(path: &Path) -> Result<Decision, TruePeakError>`.
-///           Resolve the foreground gain decision under the shipped policy: full-scan a short
-///           track, probe a long one. `pub(crate)` so `peak_swap` calls it.
-/// Why:      The current-track path wants a usable gain quickly; the probe yields one for a
+/// What:
+///      `pub(crate) fn resolve_current(path: &Path) -> Result<Decision, TruePeakError>`.
+///           Resolve the foreground gain decision under the shipped policy:
+///  full-scan a short
+///           track,
+///  probe a long one.
+///  `pub(crate)` so `peak_swap` calls it.
+/// Why:
+///       The current-track path wants a usable gain quickly;
+///  the probe yields one for a
 ///           long track without decoding the whole file.
-/// Gotcha:   This BLOCKS on decode; call it on a worker thread, never on the audio callback.
+/// Gotcha:
+///    This BLOCKS on decode;
+///  call it on a worker thread,
+///  never on the audio callback.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,12 +360,19 @@ pub(crate) fn resolve_current(path: &Path) -> Result<Decision, TruePeakError> {
     return resolve_decision_for(&policy, &mut source, provenance, bones.as_deref())
 }
 
-/// What:     `pub(crate) fn resolve_full(path: &Path) -> Result<Decision, TruePeakError>`.
-///           Resolve an EXACT gain decision by full-scanning the whole track, regardless of
-///           length. `pub(crate)` so `measure` (background warming) calls it.
-/// Why:      Warming upgrades a probe estimate to an exact cached gain over idle time; the
+/// What:
+///      `pub(crate) fn resolve_full(path: &Path) -> Result<Decision, TruePeakError>`.
+///           Resolve an EXACT gain decision by full-scanning the whole track,
+///  regardless of
+///           length.
+///  `pub(crate)` so `measure` (background warming) calls it.
+/// Why:
+///       Warming upgrades a probe estimate to an exact cached gain over idle time;
+///  the
 ///           cache's exact-over-probe precedence then keeps the exact decision.
-/// Gotcha:   This BLOCKS on a full decode; warming runs it at idle scheduling priority.
+/// Gotcha:
+///    This BLOCKS on a full decode;
+///  warming runs it at idle scheduling priority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,9 +398,12 @@ pub(crate) fn resolve_full(path: &Path) -> Result<Decision, TruePeakError> {
     return resolve_full_scan(&default_policy(), &mut source)
 }
 
-/// What:     `#[cfg(test)] #[path = "truepeak_tests.rs"] mod tests;` declares a test-only
+/// What:
+///      `#[cfg(test)] #[path = "truepeak_tests.rs"] mod tests;` declares a test-only
 ///           submodule whose code lives in the sibling file `truepeak_tests.rs`.
-/// Why:      Keep `truepeak.rs` to production code; the test lives beside it without inflating
+/// Why:
+///       Keep `truepeak.rs` to production code;
+///  the test lives beside it without inflating
 ///           this file or its max-lines budget (sibling `*_tests.rs` files are exempt from the
 ///           linter).
 ///

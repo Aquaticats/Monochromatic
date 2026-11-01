@@ -41,7 +41,8 @@ not a reason to disable parts of it.
   abort,
   or recovery.
   The design session chose a private ref under `refs/cli-git/`;
-  the implementation replaced it with a per-transaction shadow repository whose own object store holds the pending commit,
+  the implementation replaced it with a per-transaction shadow repository
+  whose own object store holds the pending commit,
   so no `refs/cli-git/` ref exists
   (see "Private `HEAD` shape:
    shadow repository with alternates").
@@ -176,6 +177,10 @@ broad when absent.
 Pushes are single-flight per branch.
 A landed commit joins an in-flight push covering its OID or pushes the branch tip itself,
 and exits only once the remote contains its OID.
+A push that the remote refuses as stale is reconciled by a merge made from objects, signed when the repository signs
+commits, and published with a plain push; since 2026-10-19 the branch and a clean worktree are then fast-forwarded to
+it.
+The specification is the "Auto-push" section of `package/git-policy/cli/SPEC.md`.
 
 ## Recovery and compatibility
 
@@ -548,6 +553,15 @@ and instead requires the non-fast-forward push failure to be surfaced with exit 
 Refusing `--amend` on published commits was rejected
 because it would change amend behavior in every repository,
 including solo use.
+
+Narrowed 2026-10-19 (user, by question; the original decision above stays as the record):
+auto-push never fails for want of a conflict-free merge,
+so commits landed on top of an amend of an already-published commit are merged into the remote branch,
+and the replaced commit stays in the remote history beside the amended one.
+Only a real conflict between the two histories keeps the rejection,
+and it is surfaced with the paths that conflict.
+The container checker now accepts either the original failure note or the `cli-git: auto-push: not published:` line
+for that case.
 
 ## Rejected
 

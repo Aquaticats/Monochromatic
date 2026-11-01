@@ -24,7 +24,7 @@ That contradicts the chosen i18n architecture and is removed here.
    `ca`,
    `en`,
    `zh`.
-  The set is determined by the grammar renderers shipped in `@monochromatic-dev/module-i18n-compose`
+  The set is determined by the grammar renderers shipped in `@monochromatic-dev/i18n-compose-core`
   (`defineCatalanLocale`,
    `defineEnglishLocale`,
    `defineChineseLocale`).
@@ -54,7 +54,7 @@ That contradicts the chosen i18n architecture and is removed here.
 ## Prerequisite: complete the i18n migration first
 
 Phase 6 of `doc/planning/module-i18n-compose.md` (migrate `ssg-test` off `typesafe-i18n` onto
-`@monochromatic-dev/module-i18n-compose`) is a hard prerequisite,
+`@monochromatic-dev/i18n-compose-core`) is a hard prerequisite,
  not part of this plan.
 The config and i18n design below assume it is done:
  `siteName` and `siteDescription` are `label` keys,
@@ -283,7 +283,7 @@ Create `package/webapp-content/site-aquaticat/` containing only Aquaticat conten
 
 The previous plan never said how a consumer triggers a build whose entry lives in `node_modules`.
 
-- [ ] Add a `bin` entry to the SSG `package.json` (modeled on `package/git-policy/cli/package.json:8`),
+- [ ] Add a `bin` entry to the SSG `package.json` (modeled on `package/mvm/cli/package.json:9`),
       for example `{ "mono-ssg": "dist/final/node/index.mjs" }`,
        with subcommands `build`,
        `dev`,
@@ -342,7 +342,7 @@ naming choice;
        `license` (`LGPL-3.0-or-later`),
        and `repository`;
       remove `private: true`;
-       add `publishConfig` mirroring `package/module/i18n-compose/package.json`.
+       add `publishConfig` mirroring `package/i18n-compose/core/package.json`.
 - [ ] Add a `README.md`:
        what it is,
        the supported locale set,

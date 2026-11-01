@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-18T17:14:07.006Z",
+  "reviewer": "/root",
+  "status": "pass",
+  "scope": "Current terminal30-row sanitized follow-on snapshot; future OS/owner/debug/cleanup allocations excluded until separately normalized",
+  "input": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
+    "bytes": 104936,
+    "sha256": "1b1dd7688d54bdb0559cf6129d3081b7f60bc964eb841e53b1e4b4a338d2d45e",
+    "sourceArchive": {
+      "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+      "bytes": 387034,
+      "sha256": "a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2",
+      "uncompressedBytes": 3121960,
+      "records": 35
+    }
+  },
+  "baselineUnchanged": true,
+  "checks": {
+    "uniqueRows": 30,
+    "sourceBodies": 35,
+    "retainedTimestampPointerJoins": 30,
+    "baselineDuplicates": 0,
+    "exactBigIntArithmetic": true,
+    "invoiceAndVmLifetimeUnobserved": true,
+    "reservationsExcluded": true
+  },
+  "nominalProviderWindowProxy": {
+    "usd": 0.6041,
+    "numerator": "36246000000",
+    "denominator": "60000000000"
+  },
+  "rootGraphSubtotal": {
+    "usd": 0.487,
+    "numerator": "29220000000",
+    "denominator": "60000000000"
+  },
+  "separateBuildRequestProxy": {
+    "usd": 0.015897333333333333,
+    "numerator": "953840000",
+    "denominator": "60000000000",
+    "actualAllocatedBuilderCompute": null
+  },
+  "frozenReviewSourceArchive": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz",
+    "bytes": 398912,
+    "sha256": "9a71dca1550e93b8a4cfebd18c28e53ad29347a93a1f31f6a93cddd2aa6903a5",
+    "records": 2,
+    "nestedRetainedSourceBodies": 35
+  }
+}

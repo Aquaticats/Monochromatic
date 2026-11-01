@@ -343,8 +343,8 @@ export function planProviderFilters(
      */
     const retirements = decision.retirements
       .filter(function onProvider(retirement,) {
-      return retirement.provider === provider;
-    },);
+        return retirement.provider === provider;
+      },);
     /**
      Incumbent configuration for this provider, when pi exposes one.
      */

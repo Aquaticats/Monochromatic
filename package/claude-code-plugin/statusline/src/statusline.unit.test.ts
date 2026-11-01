@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { spawnSync, } from 'node:child_process';
 import { join, } from 'node:path';
 
@@ -12,12 +12,12 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   parseStatuslineInput,
   renderStatusline,
-} from './statusline.ts';
+} from '../dist/final/node/statusline.mjs';
 
 /**
  Stable render timestamp used by rate-limit tests.
@@ -84,7 +84,7 @@ async function makeWorkspace(): Promise<TempWorkspace> {
    Temporary root path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'claude-statusline-',
   ),);
 
@@ -222,7 +222,17 @@ await describe({
             );
             await writeFile(
               transcriptPath,
-              'Assistant is compiling, then testing the statusline.',
+              `${JSON.stringify({
+                type: 'assistant',
+                message: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Assistant is compiling, then testing the statusline.',
+                    },
+                  ],
+                },
+              },)}\n`,
             );
 
             const line = await renderStatusline({

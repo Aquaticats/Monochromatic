@@ -338,7 +338,8 @@ The build-backed entry test verifies the new artifact before restart.
 Commands with unproven expansion or mutation-capable options intentionally remain on normal judge or
 user-approval handling.
 The tradeoff is an approval round trip.
-This is preferable to broadening static trust because unknown runtime path sets cannot be canonically checked in advance.
+This is preferable
+to broadening static trust because unknown runtime path sets cannot be canonically checked in advance.
 
 No safe configuration-only workaround was found for the pre-fix home-identity bug.
 Changing package-wide agent guidance does not alter extension path classification.

@@ -1,0 +1,30 @@
+# Release build environment for the IDE: the executable that ships is compiled in this image (IDE_RELEASE=1 selects it).
+# It is Ubuntu 24.04 through the terminal-release image because the glibc of the build image sets the oldest glibc the
+# released binary runs on (doc/decision/container-base-distro.md, exceptions). Development uses Containerfile.
+FROM localhost/monochromatic/terminal-release
+
+# Helix's grammar manager requests a C++ driver even for grammars whose generated parser is C.
+# Search integration tests exercise the same ripgrep subprocess protocol as the native reader.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends g++ ripgrep \
+    && rm --recursive --force /var/lib/apt/lists/*
+
+# The native tests render on the host's hardware GPU through wgpu's Vulkan backend (owner decision of 2026-10-19: no CPU
+# painting in the IDE, tests included). libvulkan1 is the loader library wgpu opens, and mesa-vulkan-drivers holds
+# RADV for AMD GPUs; the same package also holds lavapipe, a CPU rasterizer, which the test harness refuses and the
+# test task hides with VK_DRIVER_FILES. The container sees a GPU only when the task passes --device /dev/dri.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libvulkan1 mesa-vulkan-drivers \
+    && rm --recursive --force /var/lib/apt/lists/*
+
+# The shared minimal toolchain supplies clippy but omits cargo-fmt.
+RUN CARGO_HOME=/usr/local rustup component add rustfmt
+
+# cargo-about writes the Rust crate license list the executable carries (the `notices` task; user decision of
+# 2026-10-06). Pinned to 0.9.2, the latest release on that day: its crates.io archive (sha256
+# 0cd19d99696eb83f0a2d6ab7a347b14968d2980416c8cca827ded220e6e9c4bb) names the tagged commit
+# f7394d5c8f618623573072caadf6594821c789b6. The command needs the `cli` feature; without it the install builds
+# and installs nothing. Installing is the only step that needs the network: the tasks run it with --frozen.
+RUN CARGO_HOME=/tmp/cargo-about-build \
+    cargo install --locked --features cli --version 0.9.2 --root /usr/local cargo-about \
+ && rm -rf /tmp/cargo-about-build

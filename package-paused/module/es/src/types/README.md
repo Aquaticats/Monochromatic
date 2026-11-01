@@ -1,6 +1,7 @@
 # Types Directory Organization System
 
-A sophisticated hierarchical organization system for TypeScript utilities, built around **return types** with fine-grained categorization and constraint specification.
+A sophisticated hierarchical organization system for TypeScript utilities,
+built around **return types** with fine-grained categorization and constraint specification.
 
 ## Table of Contents
 
@@ -248,7 +249,8 @@ partition/
 
 ### Type Guards (Boolean Returns)
 
-**String Type Guard**: [`type boolean/type is/type param string/from/type unknown/restriction sync/params positional/index.ts`](type%20boolean/type%20is/type%20param%20string/from/type%20unknown/restriction%20sync/params%20positional/index.ts)
+**String Type Guard**:
+[`type boolean/type is/type param string/from/type unknown/restriction sync/params positional/index.ts`](type%20boolean/type%20is/type%20param%20string/from/type%20unknown/restriction%20sync/params%20positional/index.ts)
 
 ```typescript
 /**
@@ -276,7 +278,8 @@ isString(null,); // false
 
 ### String Transformations
 
-**Export Code Generator**: [`type string/from/type any/export/restriction sync/params positional/index.ts`](type%20string/from/type%20any/export/restriction%20sync/params%20positional/index.ts)
+**Export Code Generator**:
+[`type string/from/type any/export/restriction sync/params positional/index.ts`](type%20string/from/type%20any/export/restriction%20sync/params%20positional/index.ts)
 
 ```typescript
 /**
@@ -296,7 +299,8 @@ toExport([1, 2, 3,],); // "Object.freeze([1,2,3])"
 toExport({ a: 1, b: 2, },); // "Object.freeze(Object.fromEntries([["a",1],["b",2]]))"
 ```
 
-**String Array Concatenation**: [`type string/from/type array/type param string/concat/restriction sync/params positional/index.ts`](type%20string/from/type%20array/type%20param%20string/concat/restriction%20sync/params%20positional/index.ts)
+**String Array Concatenation**:
+[`type string/from/type array/type param string/concat/restriction sync/params positional/index.ts`](type%20string/from/type%20array/type%20param%20string/concat/restriction%20sync/params%20positional/index.ts)
 
 ```typescript
 /**
@@ -317,7 +321,8 @@ arrayConcat(['A', 'B', 'C',],); // "ABC"
 
 ### Array Creation (Object/Array Returns)
 
-**Iterable to Array Converter**: [`type object/type array/from/type iterable/restriction sync/params positional/index.ts`](type%20object/type%20array/from/type%20iterable/restriction%20sync/params%20positional/index.ts)
+**Iterable to Array Converter**:
+[`type object/type array/from/type iterable/restriction sync/params positional/index.ts`](type%20object/type%20array/from/type%20iterable/restriction%20sync/params%20positional/index.ts)
 
 ```typescript
 /**
@@ -343,7 +348,8 @@ iterableToArray([1, 2, 3,],); // [1, 2, 3] (identity for arrays)
 
 ### UUID Generation
 
-**Random UUID**: [`type string/type uuid/from/type never/random/restriction sync/params positional/index.ts`](type%20string/type%20uuid/from/type%20never/random/restriction%20sync/params%20positional/index.ts)
+**Random UUID**:
+[`type string/type uuid/from/type never/random/restriction sync/params positional/index.ts`](type%20string/type%20uuid/from/type%20never/random/restriction%20sync/params%20positional/index.ts)
 
 ```typescript
 /**
@@ -361,7 +367,8 @@ randomUUID(); // "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 
 ### Generator Functions
 
-**Number Range Generator**: [`type function/type generator/type param number/from/type number/range/params positional/index.ts`](type function/type generator/type param number/from/type number/range/restriction sync/params positional/index.ts)
+**Number Range Generator**:
+[`type function/type generator/type param number/from/type number/range/params positional/index.ts`](type function/type generator/type param number/from/type number/range/restriction sync/params positional/index.ts)
 
 ```typescript
 /**
@@ -732,7 +739,7 @@ Final: Implementation
      describe,
      expect,
      it,
-   } from '@monochromatic-dev/module-test';
+   } from '@monochromatic-dev/test-harness-core';
    import { $ as isValidEmail, } from './index.ts';
 
    describe('Email validation type guard', () => {
@@ -792,7 +799,8 @@ export * as positional from './p p/index.ts';
 export * as sync from './r s/index.ts'; // sync subdirectory groups sync variants
 ```
 
-The directory hierarchy (`r s/` vs top-level) already indicates synchronous vs asynchronous variants. Export names should focus on parameter style (named vs positional) rather than repeating information already in the path.
+The directory hierarchy (`r s/` vs top-level) already indicates synchronous vs asynchronous variants. Export names
+should focus on parameter style (named vs positional) rather than repeating information already in the path.
 
 **DRY Principle for Positional Variants**
 
@@ -847,7 +855,7 @@ import {
   expect,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 import { $ as myFunction, } from './index.ts';
 
 describe('Function category: specific function', () => {
@@ -937,7 +945,8 @@ export function $(email: string,): User {
 
 ### Legacy `src/type/` Structure Mapping
 
-The utilities are being migrated from the legacy [`../type/`](../../../../../bak/20251014/type) directory structure to the new organized system. Here's how the mappings work:
+The utilities are being migrated from the legacy [`../type/`](../../../../../bak/20251014/type) directory structure to
+the new organized system. Here's how the mappings work:
 
 #### Directory Mapping
 
@@ -1291,7 +1300,7 @@ const _typeCheck: (input: InputType,) => OutputType = $;
      describe,
      expect,
      it,
-   } from '@monochromatic-dev/module-test';
+   } from '@monochromatic-dev/test-harness-core';
    ```
 
 3. **Test file location**: Place tests alongside implementations
@@ -1434,7 +1443,9 @@ tree types/type\ string/from/type\ array/
 - 🔄 **Migration ongoing**: Functions being moved from legacy [`src/type/`](../../../../../bak/20251014/type) structure
 - ⏳ **Full coverage**: Complete migration of all 500+ utilities planned
 
-This organizational system provides the precision and scalability needed for a comprehensive functional programming utilities library while maintaining intuitive navigation and clear semantic meaning.
+This organizational system provides the precision
+and scalability needed for a comprehensive functional programming utilities library
+while maintaining intuitive navigation and clear semantic meaning.
 
 ## Abbv
 

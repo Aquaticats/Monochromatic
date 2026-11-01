@@ -25,7 +25,7 @@ Candidate descriptions are historical unless a named decision explicitly
 makes them the current baseline.
 MD3-on-Slint feasibility and implementing the keyboard map are
 developer-owned;
-the single revised keyboard-map design remains open.
+the keyboard-map design is settled by D102.
 
 ## Historical inventory
 
@@ -87,32 +87,40 @@ which were left as historical style comparisons.
 <tr>
 <td>**mode-d**</td>
 <td>860×620</td>
-<td>The mode control question settled: connected button group (56px, 2px gaps, pill outer ends, 8px inner corners, selected inner corners 50%) in one row and wrapped to a grid, with the outlined segmented button (40px) shown beneath for comparison. All at real token values.</td>
+<td>The mode control question settled: connected button group (56px, 2px gaps, pill outer ends, 8px inner corners,
+selected inner corners 50%) in one row and wrapped to a grid, with the outlined segmented button (40px) shown beneath
+for comparison. All at real token values.</td>
 </tr>
 <tr>
 <td>**light-c**</td>
 <td>852×fill</td>
-<td>D34 light colors: tonal panes, `outlineVariant` rail line, white center surface and white 16dp picker/transport divider. Its depicted 24dp empty center gap is obsolete under clarified E2; only informative material must clear the user's 7.5mm physical dent.</td>
+<td>D34 light colors: tonal panes, `outlineVariant` rail line, white center surface and white 16dp picker/transport
+divider. Its depicted 24dp empty center gap is obsolete under clarified E2; only informative material must clear the
+user's 7.5mm physical dent.</td>
 </tr>
 <tr>
 <td>**dbtp-a**</td>
 <td>426×883</td>
-<td>D35 default supporting line: duration and true peak share `onSurfaceVariant`; custom display templating will own optional emphasis.</td>
+<td>D35 default supporting line: duration and true peak share `onSurfaceVariant`; custom display templating will own
+optional emphasis.</td>
 </tr>
 <tr>
 <td>**sub-a**</td>
 <td>860×600</td>
-<td>A folder containing subfolders: subfolders in a labelled section above the folder’s own tracks, one screen, mixed content.</td>
+<td>A folder containing subfolders: subfolders in a labelled section above the folder’s own tracks, one screen, mixed
+content.</td>
 </tr>
 <tr>
 <td>**ctx-b**</td>
 <td>860×600</td>
-<td>Track context menu, eight items in three groups, headed by the track name, dB value inline, Re-analyse, Move to trash.</td>
+<td>Track context menu, eight items in three groups, headed by the track name, dB value inline, Re-analyse, Move to
+trash.</td>
 </tr>
 <tr>
 <td>**err-b**</td>
 <td>860×520</td>
-<td>Missing file drops out of the list with a dismissible bar explaining it; folder renamed mid-playback changes nothing visible.</td>
+<td>Missing file drops out of the list with a dismissible bar explaining it; folder renamed mid-playback changes
+nothing visible.</td>
 </tr>
 <tr>
 <td>**empty-a**</td>
@@ -122,7 +130,10 @@ which were left as historical style comparisons.
 <tr>
 <td>**settings-a**</td>
 <td>860×600</td>
-<td>Three flat switch rows; says out loud that the pane is short.</td>
+<td>Three flat switch rows; says out loud that the pane is short. D84 (2026-10-05) removes the third row,
+`Analyse true peak in the background`, because true-peak analysis is automatic and not optional; D85 (2026-10-05)
+removes the closing sentence. D86 (2026-10-05) removes the two remaining rows: prefix stripping and resume are always
+on and are not settings.</td>
 </tr>
 <tr>
 <td>**tabletop-c**</td>
@@ -354,7 +365,8 @@ fill,
 <tr>
 <td>**light-a**</td>
 <td>852×fill</td>
-<td>Light theme, all-tonal: surface ground and tracks, surface-container-low picker, surface-container transport, surface-container-high rail. No dividers.</td>
+<td>Light theme, all-tonal: surface ground and tracks, surface-container-low picker, surface-container transport,
+surface-container-high rail. No dividers.</td>
 </tr>
 <tr>
 <td>**light-b**</td>
@@ -364,7 +376,8 @@ fill,
 <tr>
 <td>**light-c**</td>
 <td>852×fill</td>
-<td>**CHOSEN (D34), final:** surface-container panes, visible `outlineVariant` rail line, white vertical center spacer, and white horizontal picker/transport divider.</td>
+<td>**CHOSEN (D34), final:** surface-container panes, visible `outlineVariant` rail line, white vertical center spacer,
+and white horizontal picker/transport divider.</td>
 </tr>
 <tr>
 <td>**light-abc**</td>
@@ -379,7 +392,8 @@ fill,
 <tr>
 <td>**dark-b**</td>
 <td>418×fill</td>
-<td>**CHOSEN (D32)** — the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F / #22222A.</td>
+<td>**CHOSEN (D32)** — the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F /
+#22222A.</td>
 </tr>
 <tr>
 <td>**dark-ab**</td>
@@ -389,17 +403,20 @@ fill,
 <tr>
 <td>**dbtp-a/b/c**</td>
 <td>426×883</td>
-<td>**3a CHOSEN (D35):** one on-surface-variant line, because planned display templating will provide user-selected emphasis. 3b strengthens true peak; 3c moves it to the trailing slot.</td>
+<td>**3a CHOSEN (D35):** one on-surface-variant line, because planned display templating will provide user-selected
+emphasis. 3b strengthens true peak; 3c moves it to the trailing slot.</td>
 </tr>
 <tr>
 <td>**light-a/b/c**</td>
 <td>852×fill</td>
-<td>**1c CHOSEN (D34); final separator treatment is gray rail line plus white vertical and horizontal pane spacers.**</td>
+<td>**1c CHOSEN (D34); final separator treatment is gray rail line plus white vertical and horizontal pane spacers.**</t
+d>
 </tr>
 <tr>
 <td>**candidates/_ds/**</td>
 <td>—</td>
-<td>Copied MD3 token sheets (palette, color, fonts, typography, shape, elevation, spacing, state) so candidate files resolve them without `../`.</td>
+<td>Copied MD3 token sheets (palette, color, fonts, typography, shape, elevation, spacing, state) so candidate files
+resolve them without `../`.</td>
 </tr>
 </tbody>
 </table>
@@ -517,18 +534,24 @@ the visible dynamic rail line.
 <tr>
 <td>**unf-j**</td>
 <td>852×883</td>
-<td>**Current best unfolded screen.** unf-i + D31 names (plain text, several per line, primary + underline on the selection) and the D28 adaptive rail built from buckets.js. Every session-3 decision applied. Supersedes unf-h and unf-i.</td>
+<td>**Current best unfolded screen.** unf-i + D31 names (plain text, several per line, primary + underline on the
+selection) and the D28 adaptive rail built from buckets.js. Every session-3 decision applied. Supersedes unf-h and
+unf-i.</td>
 </tr>
 <tr>
 <td>**pk-h**</td>
 <td>418×883</td>
-<td>Rejected: 14px with middot separators (2.0 screens vs 2.2). Denser, but reads as running text rather than a set of targets.</td>
+<td>Rejected: 14px with middot separators (2.0 screens vs 2.2). Denser, but reads as running text rather than a set of
+targets.</td>
 </tr>
 <tr>
 <td>**pk-g**</td>
 <td>418×883</td>
 <td>**CHOSEN (D31).**</td>
-<td>**The picker presentation proposal (D31).** Plain 16px text, several names per line at natural width, 24dp gaps, 48dp targets, nothing truncated, selection = primary colour + 2dp underline. No pill, no fill, no outline. This is unf-i&#39;s layout with the chip styling removed. Extent counter is measured off the DOM (C = 2.2 screens, worst letter S = 2.5), not estimated.</td>
+<td>**The picker presentation proposal (D31).** Plain 16px text, several names per line at natural width, 24dp gaps,
+48dp targets, nothing truncated, selection = primary colour + 2dp underline. No pill, no fill, no outline. This is
+unf-i&#39;s layout with the chip styling removed. Extent counter is measured off the DOM (C = 2.2 screens, worst letter
+S = 2.5), not estimated.</td>
 </tr>
 </tbody>
 </table>
@@ -547,17 +570,22 @@ the visible dynamic rail line.
 <tr>
 <td>**scan-ef**</td>
 <td>2×411×923</td>
-<td>**scan-F CHOSEN (D26)** — right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E (left, 2dp bottom-edge line, no text or control) rejected as too little for an hour-long job.</td>
+<td>**scan-F CHOSEN (D26)** — right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E
+(left, 2dp bottom-edge line, no text or control) rejected as too little for an hour-long job.</td>
 </tr>
 <tr>
 <td>**first-run-a**</td>
 <td>411×923</td>
-<td>**Settled behaviour (D27).** Auto-opens the system music library and asks before analysing: Scan once / Always scan / Dismiss once / Dismiss forever, all 48dp. Interactive — walks into the scan-F bar, the dismissed state and always-scan.</td>
+<td>**Settled behaviour (D27).** Auto-opens the system music library and asks before analysing: Scan once / Always scan
+/ Dismiss once / Dismiss forever, all 48dp. Interactive — walks into the scan-F bar, the dismissed state and
+always-scan. D84 (2026-10-05) supersedes the ask-before-analysing prompt and its four answers: true-peak analysis is
+automatic and not optional. Automatic opening of the system music library stands.</td>
 </tr>
 <tr>
 <td>**toast-a**</td>
 <td>411×923</td>
-<td>**Settled behaviour (D29).** Undo as a content-width toast floating above the error bar, both visible; it lifts and drops with the bar. Tap rows to trash, × to dismiss the bar.</td>
+<td>**Settled behaviour (D29).** Undo as a content-width toast floating above the error bar, both visible; it lifts and
+drops with the bar. Tap rows to trash, × to dismiss the bar.</td>
 </tr>
 <tr>
 <td>**unf-i**</td>
@@ -582,7 +610,8 @@ the visible dynamic rail line.
 <tr>
 <td>**pk-d**</td>
 <td>418×883</td>
-<td>VOID — bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already killed, and kept chip styling. Do not build on it.</td>
+<td>VOID — bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already
+killed, and kept chip styling. Do not build on it.</td>
 </tr>
 <tr>
 <td>**pk-e**</td>
@@ -592,7 +621,8 @@ the visible dynamic rail line.
 <tr>
 <td>**pk-f**</td>
 <td>418×883</td>
-<td>REJECTED — one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the reserved search (D25).</td>
+<td>REJECTED — one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the
+reserved search (D25).</td>
 </tr>
 </tbody>
 </table>
@@ -611,7 +641,8 @@ the visible dynamic rail line.
 <tr>
 <td>**scroll-a**</td>
 <td>1100×640</td>
-<td>Scrollbar spec: A = Compose M3 nonInteractiveScrollbar exactly (fades); B = same look, interactive, always on (desktop); C = which surface gets which. Both lists live.</td>
+<td>Scrollbar spec: A = Compose M3 nonInteractiveScrollbar exactly (fades); B = same look, interactive, always on
+(desktop); C = which surface gets which. Both lists live.</td>
 </tr>
 </tbody>
 </table>
@@ -635,12 +666,14 @@ the visible dynamic rail line.
 <tr>
 <td>**unf-h**</td>
 <td>852×883</td>
-<td>unf-g + desc-f&#39;s outlined segmented control + desc-g&#39;s rebalanced transport; bucket chips removed on request. **Current best unfolded screen.**</td>
+<td>unf-g + desc-f&#39;s outlined segmented control + desc-g&#39;s rebalanced transport; bucket chips removed on
+request. **Current best unfolded screen.**</td>
 </tr>
 <tr>
 <td>**desc-f**</td>
 <td>418×883</td>
-<td>CHOSEN over desc-e: outlined segmented button, all four always visible. Called &quot;un-balanced&quot; → desc-g.</td>
+<td>CHOSEN over desc-e: outlined segmented button, all four always visible. Called &quot;un-balanced&quot; →
+desc-g.</td>
 </tr>
 <tr>
 <td>**desc-g**</td>
@@ -674,7 +707,8 @@ the visible dynamic rail line.
 <tr>
 <td>**unf-f**</td>
 <td>852×883</td>
-<td>Picker that copes with 1,218 folders without listing them: letter rail → optional 2-letter bucket chips → wrapped content-width chips, ~one screen max. Interactive. Deck right.</td>
+<td>Picker that copes with 1,218 folders without listing them: letter rail → optional 2-letter bucket chips → wrapped
+content-width chips, ~one screen max. Interactive. Deck right.</td>
 </tr>
 </tbody>
 </table>
@@ -709,7 +743,8 @@ the visible dynamic rail line.
 <tr>
 <td>**cover-c**</td>
 <td>411×923</td>
-<td>CHOSEN (D14). Reframed at fixed device size. HTML-era baseline; the native cover round of 2026-09-17 re-verifies it at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume element is gone per D43.</td>
+<td>CHOSEN (D14). Reframed at fixed device size. HTML-era baseline; the native cover round of 2026-09-17 re-verifies it
+at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume element is gone per D43.</td>
 </tr>
 </tbody>
 </table>
@@ -728,28 +763,34 @@ the visible dynamic rail line.
 <tr>
 <td>**unf-b**</td>
 <td>852×883</td>
-<td>REJECTED — letter grid reads as a keyboard. Unfolded, deck RIGHT. ~1,218 folders (artists.js) in two columns of 48dp rows with letter headers + counts; 27-cell A–Z strip (48dp) pinned at the bottom of the left half, tap to jump; total folder count in the header; tracks + deck right; 16dp seam. Interactive.</td>
+<td>REJECTED — letter grid reads as a keyboard. Unfolded, deck RIGHT. ~1,218 folders (artists.js) in two columns of
+48dp rows with letter headers + counts; 27-cell A–Z strip (48dp) pinned at the bottom of the left half, tap to jump;
+total folder count in the header; tracks + deck right; 16dp seam. Interactive.</td>
 </tr>
 <tr>
 <td>**unf-c**</td>
 <td>852×883</td>
-<td>REJECTED (same grid). Same file, deck LEFT under the folders and strip; tracks take the whole right half. Known cost: at 883dp the folder list gets ~340dp (≈7 rows) before scrolling.</td>
+<td>REJECTED (same grid). Same file, deck LEFT under the folders and strip; tracks take the whole right half. Known
+cost: at 883dp the folder list gets ~340dp (≈7 rows) before scrolling.</td>
 </tr>
 <tr>
 <td>**cover-c**</td>
 <td>411×923</td>
-<td>Cover screen, full player: chip + Open top, track list, deck at the bottom (thumb reach), volume inline, mode group 2×2. Verified at 411 wide.</td>
+<td>Cover screen, full player: chip + Open top, track list, deck at the bottom (thumb reach), volume inline, mode group
+2×2. Verified at 411 wide.</td>
 </tr>
 <tr>
 <td>**cover-d**</td>
 <td>411×923</td>
-<td>REJECTED. Cover screen, controls only: 88dp play, 64dp prev/next, mode group, no volume (hardware keys), list behind one 72dp &quot;Tracks&quot; row. Verified at 411 wide.</td>
+<td>REJECTED. Cover screen, controls only: 88dp play, 64dp prev/next, mode group, no volume (hardware keys), list
+behind one 72dp &quot;Tracks&quot; row. Verified at 411 wide.</td>
 </tr>
 <tr>
 <td>**desc-a**</td>
 <td>418×883</td>
 <td>SUPERSEDED by desc-d (wrong model of subfolders). Descend demo, interactive (▶</td>
-<td>steps playback): the list FOLLOWS into the subfolder; chip becomes a breadcrumb; &quot;Up to Camellia&quot; row.</td>
+<td>steps playback): the list FOLLOWS into the subfolder; chip becomes a breadcrumb; &quot;Up to Camellia&quot;
+row.</td>
 </tr>
 <tr>
 <td>**desc-b**</td>
@@ -759,7 +800,8 @@ the visible dynamic rail line.
 <tr>
 <td>**desc-c**</td>
 <td>418×883</td>
-<td>SUPERSEDED. Same demo: the list STAYS; the playing subfolder row takes the highlight with &quot;Playing · track&quot; beneath.</td>
+<td>SUPERSEDED. Same demo: the list STAYS; the playing subfolder row takes the highlight with &quot;Playing ·
+track&quot; beneath.</td>
 </tr>
 </tbody>
 </table>
@@ -1130,7 +1172,7 @@ flow was exercised,
  but it neither proves the native TouchAreas were activated nor
 measures the target phone geometry.
 D21's global hotkey and Settings row are not inherited by the Search page.
-D25's Ctrl+F reservation remains open with the whole keyboard map.
+D25's Ctrl+F reservation is part of the keyboard map D102 accepted.
  At that retired round,
  Search targets and result effects/ranking were still design questions;
  D58 to D61 and D63 to D80 now settle the visible and interaction goals.

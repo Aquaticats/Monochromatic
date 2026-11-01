@@ -154,7 +154,7 @@ export const checkParamNames: CreateOnceRule = {
  /\**
   \@param name - user name
   \@param count - greeting count
-  *\/
+ *\/
  function greet(name: string, count: number): void {}
  ```
  */

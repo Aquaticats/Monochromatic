@@ -13,6 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  # actions: read lets the scan step list this workflow's past runs
+  # (gh run list) to find the last validated push head. Read-only.
+  actions: read
   contents: read
   attestations: read
 
@@ -38,10 +41,15 @@ jobs:
       run: |
         set -euo pipefail
 
-        cargo_toml='package/cli/forbidden-strings/Cargo.toml'
+        cargo_toml='package/forbidden-strings/cli/Cargo.toml'
         version=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         tag="forbidden-strings-v${version}"
-        if ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+        archive="forbidden-strings-${version}-x86_64-unknown-linux-gnu.tar.gz"
+        # Download the public asset directly. `gh release view/download` use
+        # the shared installation REST quota and can mask HTTP 403 as 404.
+        status=$(curl --silent --show-error --location --output "$archive" --write-out '%{http_code}' \
+          "https://github.com/$REPO/releases/download/$tag/$archive")
+        if [ "$status" = '404' ]; then
           echo "::notice::Release $tag not yet published; falling back to latest forbidden-strings-v* release."
           tag=$(gh release list --repo "$REPO" --limit 50 --json tagName \
             --jq '[.[].tagName | select(startswith("forbidden-strings-v"))][0] // ""')
@@ -51,15 +59,27 @@ jobs:
           fi
           version="${tag#forbidden-strings-v}"
           echo "Using fallback release: $tag"
+          archive="forbidden-strings-${version}-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/$REPO/releases/download/$tag/$archive"
+        elif [ "$status" != '200' ]; then
+          echo "::error::Downloading $archive from $REPO returned HTTP $status." >&2
+          exit 1
         fi
-
-        archive="forbidden-strings-${version}-x86_64-unknown-linux-gnu.tar.gz"
-        gh release download "$tag" --repo "$REPO" --pattern "$archive"
 
         # SLSA build-provenance: binds the archive's sha256 to the
         # cargo-publish.yml run that produced it. A swapped-out release
         # asset would fail this step.
-        gh attestation verify "$archive" --repo "$REPO"
+        if [ "$version" = '0.5.0' ]; then
+          # This release was signed before the organization transfer. Retain
+          # its original signed bundle and exact signing identity; signatures
+          # and the archive digest are still verified by gh.
+          gh attestation verify "$archive" --repo Aquaticat/Monochromatic \
+            --signer-workflow Aquaticat/Monochromatic/.github/workflows/cargo-publish.yml \
+            --bundle package/forbidden-strings/cli/provenance/0.5.0-x86_64-unknown-linux-gnu.sigstore.jsonl
+        else
+          gh attestation verify "$archive" --repo "$REPO"
+        fi
 
         # Install to a path on PATH so downstream steps invoke the binary
         # as plain `forbidden-strings`. Lives under RUNNER_TEMP so it
@@ -102,31 +122,77 @@ jobs:
         fi
 
     - name: Scan changed files
-      # Pushes use the event's before/after range because origin/main already
-      # points at HEAD after checkout. Pull requests and merge groups retain
-      # their merge-base comparison with main. Replaces both the old full-tree
-      # push scan and the earlier `mise exec -- hk check` step.
+      # Scope follows validation state, not the push event range (issue #993).
+      # The push baseline is the newest commit whose tree an earlier successful
+      # run of this workflow already validated. Only successful runs establish
+      # such a baseline, so a canceled, failed, or timed-out run can never hide
+      # its changes from later runs. `validated-tree-watermark-v1` marks
+      # workflow revisions whose push runs scan the tree-to-tree delta from
+      # their baseline, which proves their own head tree; runs of earlier
+      # revisions scanned only their own push range and must never be trusted
+      # as baselines. Without a suitable baseline (the first marked run, a
+      # rewritten main, or an unavailable run list) the current tree is
+      # scanned instead, the only coverage-safe answer. Pull requests and
+      # merge groups keep their cumulative merge-base comparison and never
+      # establish a baseline.
       env:
         EVENT_NAME: ${{ github.event_name }}
         HEAD_SHA: ${{ github.sha }}
-        PUSH_BASE_SHA: ${{ github.event.before }}
+        BRANCH: ${{ github.ref_name }}
+        REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
+        rules="$RUNNER_TEMP/forbidden-strings.rules.txt"
         if [ "$EVENT_NAME" = 'push' ]; then
-          # A rewritten main branch can leave the event's before commit outside
-          # every fetched ref even with fetch-depth 0. Fetch that exact object
-          # before comparing trees instead of falling back to a full-tree scan.
-          if ! git cat-file -e "$PUSH_BASE_SHA^{commit}"; then
-            git fetch --no-tags --depth=1 origin "$PUSH_BASE_SHA"
+          watermark=''
+          candidates=''
+          if ! candidates=$(gh run list \
+            --repo "$REPO" \
+            --workflow forbidden-strings.yml \
+            --branch "$BRANCH" \
+            --event push \
+            --status success \
+            --limit 50 \
+            --json headSha \
+            --jq '.[].headSha'); then
+            echo '::notice::Workflow-run listing failed; scanning the current tree instead.'
           fi
-          mapfile -d '' -t changed < <(
-            git diff --name-only --diff-filter=ACMRT -z "$PUSH_BASE_SHA" "$HEAD_SHA"
-          )
-          comparison="$PUSH_BASE_SHA..$HEAD_SHA"
+          mapfile -t candidate_shas <<< "$candidates"
+          for candidate in "${candidate_shas[@]}"; do
+            [ -n "$candidate" ] || continue
+            if ! git cat-file -e "$candidate^{commit}" 2>/dev/null; then continue; fi
+            if ! git merge-base --is-ancestor "$candidate" "$HEAD_SHA"; then continue; fi
+            candidate_workflow=$(git show "$candidate:.github/workflows/forbidden-strings.yml" 2>/dev/null) || candidate_workflow=''
+            if ! grep -qF 'validated-tree-watermark-v1' <<< "$candidate_workflow"; then continue; fi
+            # Any validated tree is coverage-safe; keep the one nearest to
+            # HEAD so the scanned delta stays small.
+            if [ -z "$watermark" ]; then
+              watermark="$candidate"
+            elif [ "$(git rev-list --count "$candidate".."$HEAD_SHA")" -lt "$(git rev-list --count "$watermark".."$HEAD_SHA")" ]; then
+              watermark="$candidate"
+            fi
+          done
+          if [ -n "$watermark" ]; then
+            changed_list="$RUNNER_TEMP/forbidden-strings.changed"
+            if ! git diff --name-only --diff-filter=ACMRT -z "$watermark" "$HEAD_SHA" > "$changed_list"; then
+              echo "::error::Could not list files changed since validated commit $watermark." >&2
+              exit 1
+            fi
+            mapfile -d '' -t changed < "$changed_list"
+            comparison="$watermark..$HEAD_SHA"
+          else
+            echo '::notice::No validated scan baseline; scanning the current tree.'
+            forbidden-strings --builtin-rules --rules "$rules" --all
+            exit 0
+          fi
         else
-          mapfile -d '' -t changed < <(
-            git diff --name-only --diff-filter=ACMRT -z origin/main...HEAD
-          )
+          changed_list="$RUNNER_TEMP/forbidden-strings.changed"
+          if ! git diff --name-only --diff-filter=ACMRT -z origin/main...HEAD > "$changed_list"; then
+            echo '::error::Could not list files changed against origin/main.' >&2
+            exit 1
+          fi
+          mapfile -d '' -t changed < "$changed_list"
           comparison='origin/main...HEAD'
         fi
         if [ ${#changed[@]} -eq 0 ]; then
@@ -135,4 +201,4 @@ jobs:
         fi
         printf 'Scanning %d changed file(s) from %s:\n' "${#changed[@]}" "$comparison"
         printf '  %s\n' "${changed[@]}"
-        forbidden-strings --builtin-rules --rules "$RUNNER_TEMP/forbidden-strings.rules.txt" "${changed[@]}"
+        forbidden-strings --builtin-rules --rules "$rules" "${changed[@]}"

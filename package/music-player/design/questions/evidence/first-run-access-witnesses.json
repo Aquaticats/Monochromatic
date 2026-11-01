@@ -1,0 +1,1514 @@
+{
+  "schema": 2,
+  "scope": "Authored debug-native first-run source states, not production discovery, permission evaluation, recovery, analysis, matching or native accessibility acceptance.",
+  "supersedes": "The rebuild after D84 of prototype 61e2cf7764f627d40a77bdf6039143e229ad36ea: four states, among them one with no source open, which D95 removed, and a declined state that asked to choose a folder.",
+  "prototypeCommit": "7a2ea6888cce59c9db23d556a520f4c60f8824c6",
+  "apkSha256": "060ab216713c070c928e9ce2982748f84c3174b0d4f0dfe3beb79e43979a0c4c",
+  "provenanceNote": "The commit and APK digest say what produced the captures. Nothing is checked against them (D88).",
+  "analysisText": "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.",
+  "counts": {
+    "initial": 24,
+    "scrolled": 4
+  },
+  "privacy": "Only inspected app-area crops; status strips removed, navigation retained. Raw hierarchies, logs and screenshots stay private.",
+  "capture": {
+    "visits": [
+      "runtime-calm-a",
+      "runtime-calm-b",
+      "runtime-quietbaagcbbb-b",
+      "runtime-quietbaagcbbb-c"
+    ],
+    "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+    "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+    "systemDialogsAnswered": 3,
+    "note": "Views were collected over more than one emulator boot when a boot ended early; each view names its visit. Every view was captured from the same installed APK and checked in its own environment."
+  },
+  "lifecycle": {
+    "lastVisitRestoredRecordedFields": {
+      "fontScale": "1.0",
+      "nightMode": "Night mode: no",
+      "deviceState": "Committed state: DeviceState{identifier=2, name='OPENED', app_accessible=true, cancel_when_requester_not_on_top=false}",
+      "accessibilityEnabled": "0",
+      "enabledAccessibilityServices": "null",
+      "geometry": "Physical size: 2076x2152\nPhysical density: 390",
+      "fingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys"
+    },
+    "restoredToBaselineOf": "/home/user/temp/agent/settings-pane-native-private/runtime-first/initial-settings.json",
+    "ownedContainerAbsent": true,
+    "matchingEmulatorProcessAbsent": true,
+    "limitation": "Only recorded identifiers and settings are compared; the read-back happens before shutdown."
+  },
+  "verificationLimits": [
+    "Each first view was followed by upward drags until app pixels stopped changing. Where nothing moved, gesture delivery or inability to scroll is not inferred.",
+    "A kept end view shows changed app pixels and a displaced body text; it is not a claim about scrolling in general.",
+    "Native buttons are debug callbacks only; not picker, Settings or permission-recovery acceptance.",
+    "Hierarchy rectangles are not native action or ink bounds.",
+    "The explanation of analysis is study copy that no decision chose; D84 decides only that analysis is automatic and not optional. When analysis runs is undecided.",
+    "Views that moved when dragged, each with a kept end view: first-run-access-inner-declined-light-s200-end.png, first-run-access-inner-declined-dark-s200-end.png, first-run-access-cover-declined-light-s200-end.png, first-run-access-cover-declined-dark-s200-end.png. Every other first view did not move, and its hierarchy reported no scrollable container.",
+    "TalkBack, focus order, speech and contrast were not exercised."
+  ],
+  "witnesses": [
+    {
+      "file": "first-run-access-inner-declined-light-s100.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791319796529-c572ee0102f92.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791319796529-c572ee0102f92.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-a",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-system-no-audio-light-s100.png",
+      "panel": "inner",
+      "scene": "system-no-audio",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791319832941-bc873b12e67538.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791319832941-bc873b12e67538.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-a",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-folder-no-audio-light-s100.png",
+      "panel": "inner",
+      "scene": "folder-no-audio",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320277088-c030a75f04a8f8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320277088-c030a75f04a8f8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-declined-dark-s100.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320345095-8034c161aa93c8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320345095-8034c161aa93c8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-system-no-audio-dark-s100.png",
+      "panel": "inner",
+      "scene": "system-no-audio",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320399780-6d2610a6c437d8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320399780-6d2610a6c437d8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-folder-no-audio-dark-s100.png",
+      "panel": "inner",
+      "scene": "folder-no-audio",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320436617-9fcda85bd6c0c8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320436617-9fcda85bd6c0c8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-declined-light-s200.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320480219-ef9af179e678f8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320480219-ef9af179e678f8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": true,
+        "dragsUntilRest": 1
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-declined-light-s200-end.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "scrolled",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320497321-1f24769d6e0b.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320497321-1f24769d6e0b.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragsToRest": 1,
+      "scrollProof": {
+        "bodyText": "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.",
+        "beforeBounds": [
+          1097,
+          1794,
+          2017,
+          2074
+        ],
+        "afterBounds": [
+          1097,
+          1397,
+          2017,
+          2015
+        ],
+        "verticalDisplacement": -397,
+        "appRgbChanged": true
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-system-no-audio-light-s200.png",
+      "panel": "inner",
+      "scene": "system-no-audio",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320524663-70e31981d35998.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320524663-70e31981d35998.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-folder-no-audio-light-s200.png",
+      "panel": "inner",
+      "scene": "folder-no-audio",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320550778-af99ecc3c9a0c.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320550778-af99ecc3c9a0c.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-declined-dark-s200.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320584532-6ec0b2601480c8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320584532-6ec0b2601480c8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": true,
+        "dragsUntilRest": 1
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-declined-dark-s200-end.png",
+      "panel": "inner",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "scrolled",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320614718-9bcb81cbb757.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320614718-9bcb81cbb757.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragsToRest": 1,
+      "scrollProof": {
+        "bodyText": "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.",
+        "beforeBounds": [
+          1097,
+          1794,
+          2017,
+          2074
+        ],
+        "afterBounds": [
+          1097,
+          1397,
+          2017,
+          2015
+        ],
+        "verticalDisplacement": -397,
+        "appRgbChanged": true
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-system-no-audio-dark-s200.png",
+      "panel": "inner",
+      "scene": "system-no-audio",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320633311-e23da52666af5.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320633311-e23da52666af5.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-inner-folder-no-audio-dark-s200.png",
+      "panel": "inner",
+      "scene": "folder-no-audio",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320657410-ade4e2b116bb5.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320657410-ade4e2b116bb5.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-light-s100.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320683649-b93d57fb2bff68.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320683649-b93d57fb2bff68.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-system-no-audio-light-s100.png",
+      "panel": "cover",
+      "scene": "system-no-audio",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320702541-bac65c9e1c24a.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320702541-bac65c9e1c24a.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-folder-no-audio-light-s100.png",
+      "panel": "cover",
+      "scene": "folder-no-audio",
+      "scheme": "light",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791320734909-6765e6033ac68.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791320734909-6765e6033ac68.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-calm-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-dark-s100.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322285902-137a20d05ae6c8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322285902-137a20d05ae6c8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-system-no-audio-dark-s100.png",
+      "panel": "cover",
+      "scene": "system-no-audio",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322302748-3561b620a2ac68.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322302748-3561b620a2ac68.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-folder-no-audio-dark-s100.png",
+      "panel": "cover",
+      "scene": "folder-no-audio",
+      "scheme": "dark",
+      "fontScale": 1,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322320108-53a4b66375db98.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322320108-53a4b66375db98.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-light-s200.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322339949-2c94f455eaf5b8.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322339949-2c94f455eaf5b8.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": true,
+        "dragsUntilRest": 1
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-light-s200-end.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "scrolled",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322349501-73b109ba8160f.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322349501-73b109ba8160f.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragsToRest": 1,
+      "scrollProof": {
+        "bodyText": "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.",
+        "beforeBounds": [
+          59,
+          1810,
+          1021,
+          2325
+        ],
+        "afterBounds": [
+          59,
+          1791,
+          1021,
+          2306
+        ],
+        "verticalDisplacement": -19,
+        "appRgbChanged": true
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-system-no-audio-light-s200.png",
+      "panel": "cover",
+      "scene": "system-no-audio",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322364076-bedfdaf1784db.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322364076-bedfdaf1784db.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-folder-no-audio-light-s200.png",
+      "panel": "cover",
+      "scene": "folder-no-audio",
+      "scheme": "light",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322382376-5d36b5dbf0841.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322382376-5d36b5dbf0841.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-b",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-dark-s200.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322746525-2dcd56a1073f1.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322746525-2dcd56a1073f1.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-c",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragTest": {
+        "movedAppPixels": true,
+        "dragsUntilRest": 1
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-declined-dark-s200-end.png",
+      "panel": "cover",
+      "scene": "declined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "scrolled",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322758497-1a38c955530ae.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322758497-1a38c955530ae.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-c",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": true,
+      "texts": [
+        "The device music library can't be read",
+        "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.",
+        "Allow access",
+        "Open a folder",
+        "Settings",
+        "About true-peak analysis",
+        "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs."
+      ],
+      "dragsToRest": 1,
+      "scrollProof": {
+        "bodyText": "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.",
+        "beforeBounds": [
+          59,
+          1810,
+          1021,
+          2325
+        ],
+        "afterBounds": [
+          59,
+          1791,
+          1021,
+          2306
+        ],
+        "verticalDisplacement": -19,
+        "appRgbChanged": true
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-system-no-audio-dark-s200.png",
+      "panel": "cover",
+      "scene": "system-no-audio",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322772497-2d28f57d7b2778.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322772497-2d28f57d7b2778.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-c",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in the device music library",
+        "The device music library was checked completely. You can open a folder that is not listed there.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    },
+    {
+      "file": "first-run-access-cover-folder-no-audio-dark-s200.png",
+      "panel": "cover",
+      "scene": "folder-no-audio",
+      "scheme": "dark",
+      "fontScale": 2,
+      "position": "initial",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "keyboardClosed": true,
+      "stableAppFrames": true,
+      "freshHierarchyValidated": true,
+      "hierarchyDumpAttempts": [
+        {
+          "remotePath": "/sdcard/settings-pane-1791322790902-dc73f28d09844.xml",
+          "status": 0,
+          "stdout": "UI hierchary dumped to: /sdcard/settings-pane-1791322790902-dc73f28d09844.xml\n",
+          "stderr": ""
+        }
+      ],
+      "launchAttempts": 1,
+      "sceneAttempt": 1,
+      "visit": "runtime-quietbaagcbbb-c",
+      "productionServicesObserved": false,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true,
+      "scrollableContainerReported": false,
+      "texts": [
+        "No audio found in Cult of Luna",
+        "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.",
+        "Open a folder",
+        "Settings"
+      ],
+      "dragTest": {
+        "movedAppPixels": false,
+        "dragsUntilRest": 0
+      },
+      "inspection": "Complete published app-area region inspected in a light and dark pair."
+    }
+  ]
+}

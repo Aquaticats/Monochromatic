@@ -3,7 +3,7 @@
  
  Renders a list of available languages linking to their landing pages.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,
@@ -49,7 +49,7 @@ export function indexPage(
       return str.charAt(0,)
         .toUpperCase()
         + str
-        .slice(1,);
+          .slice(1,);
     },)
     .join(' ',);
 

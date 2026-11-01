@@ -173,7 +173,8 @@ Q7 A was accepted:
 Opt-in controls concurrent speculative work only.
 Explicit-model calls remain exact.
 
-The user then ended the grilling session and authorized implementation unless another consequential design question arose.
+The user then ended the grilling session
+and authorized implementation unless another consequential design question arose.
 No further product decision was identified.
 
 Proposed engineering details for the confirmation summary:

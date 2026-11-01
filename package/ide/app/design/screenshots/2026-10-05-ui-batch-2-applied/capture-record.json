@@ -1,0 +1,1114 @@
+[
+  {
+    "scene": "divider",
+    "scheme": "dark",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "dividerProperties": {
+        "absolutePosition": {
+          "x": 256
+        },
+        "accessibleLabel": "Sidebar width",
+        "accessibleRole": "Slider",
+        "accessibleValue": "256",
+        "accessibleValueMaximum": 859,
+        "accessibleValueMinimum": 160,
+        "accessibleValueStep": 16,
+        "computedOpacity": 1,
+        "size": {
+          "height": 660,
+          "width": 1
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "AppWindow::sidebar-divider",
+            "typeName": "SidebarDivider"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "widthAfterVerticalDrag": 256,
+      "pixels": {
+        "rest": "srgba(73,73,73,1)",
+        "hovered": [
+          "srgba(164,164,164,1)",
+          "srgba(164,164,164,1)",
+          "srgba(164,164,164,1)"
+        ],
+        "dragging": [
+          "srgba(28,28,28,1)",
+          "srgba(255,255,255,1)",
+          "srgba(255,255,255,1)",
+          "srgba(255,255,255,1)",
+          "srgba(28,28,28,1)"
+        ],
+        "focused": [
+          "srgba(28,28,28,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(28,28,28,1)"
+        ],
+        "focusedHandle": [
+          "srgba(28,28,28,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(96,205,255,1)",
+          "srgba(28,28,28,1)"
+        ]
+      }
+    },
+    "frames": [
+      "divider-rest-dark.png",
+      "divider-hovered-dark.png",
+      "divider-dragging-dark.png",
+      "divider-focused-dark.png",
+      "divider-focused-dark-2x.png",
+      "divider-rest-dark-2x.png",
+      "divider-hovered-dark-2x.png"
+    ]
+  },
+  {
+    "scene": "divider",
+    "scheme": "light",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "dividerProperties": {
+        "absolutePosition": {
+          "x": 256
+        },
+        "accessibleLabel": "Sidebar width",
+        "accessibleRole": "Slider",
+        "accessibleValue": "256",
+        "accessibleValueMaximum": 859,
+        "accessibleValueMinimum": 160,
+        "accessibleValueStep": 16,
+        "computedOpacity": 1,
+        "size": {
+          "height": 660,
+          "width": 1
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "AppWindow::sidebar-divider",
+            "typeName": "SidebarDivider"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "widthAfterVerticalDrag": 256,
+      "pixels": {
+        "rest": "srgba(205,205,205,1)",
+        "hovered": [
+          "srgba(115,115,115,1)",
+          "srgba(115,115,115,1)",
+          "srgba(115,115,115,1)"
+        ],
+        "dragging": [
+          "srgba(250,250,250,1)",
+          "srgba(25,25,25,1)",
+          "srgba(25,25,25,1)",
+          "srgba(25,25,25,1)",
+          "srgba(250,250,250,1)"
+        ],
+        "focused": [
+          "srgba(250,250,250,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(250,250,250,1)"
+        ],
+        "focusedHandle": [
+          "srgba(250,250,250,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(0,95,184,1)",
+          "srgba(250,250,250,1)"
+        ]
+      }
+    },
+    "frames": [
+      "divider-rest-light.png",
+      "divider-hovered-light.png",
+      "divider-dragging-light.png",
+      "divider-focused-light.png",
+      "divider-focused-light-2x.png",
+      "divider-rest-light-2x.png",
+      "divider-hovered-light-2x.png"
+    ]
+  },
+  {
+    "scene": "find",
+    "scheme": "dark",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "findEmpty": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 803
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "clearWhileEmpty": null,
+      "findText": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleDescription": "Match 1 of 200",
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "Latin",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 775
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "findClear": {
+        "absolutePosition": {
+          "x": 996,
+          "y": 608
+        },
+        "accessibleLabel": "Clear find text",
+        "accessibleRole": "Button",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "257"
+        },
+        "size": {
+          "height": 48,
+          "width": 48
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "valueAfterReleaseOutside": "Latin",
+      "afterSetValue": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleDescription": "Match 2 of 200",
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "smooth",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 772
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "afterAccessibleClear": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 803
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "menuAreaChangedPixels": 3274.52,
+      "menu": [
+        {
+          "label": "Undo",
+          "role": "Text"
+        },
+        {
+          "label": "Redo",
+          "role": "Text"
+        },
+        {
+          "label": "Cut",
+          "role": "Text"
+        },
+        {
+          "label": "Copy",
+          "role": "Text"
+        },
+        {
+          "label": "Paste",
+          "role": "Text"
+        },
+        {
+          "label": "Select All",
+          "role": "Text"
+        }
+      ]
+    },
+    "frames": [
+      "find-empty-dark.png",
+      "find-text-dark.png",
+      "find-clear-hovered-dark.png",
+      "find-clear-pressed-dark.png",
+      "find-text-dark-2x.png",
+      "find-clear-hovered-dark-2x.png",
+      "find-menu-dark.png"
+    ]
+  },
+  {
+    "scene": "find",
+    "scheme": "light",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "findEmpty": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 803
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "clearWhileEmpty": null,
+      "findText": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleDescription": "Match 1 of 200",
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "Latin",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 775
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "findClear": {
+        "absolutePosition": {
+          "x": 996,
+          "y": 608
+        },
+        "accessibleLabel": "Clear find text",
+        "accessibleRole": "Button",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "280"
+        },
+        "size": {
+          "height": 48,
+          "width": 48
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "valueAfterReleaseOutside": "Latin",
+      "afterSetValue": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleDescription": "Match 2 of 200",
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "smooth",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 772
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "afterAccessibleClear": {
+        "absolutePosition": {
+          "x": 269,
+          "y": 608
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Find text",
+        "accessiblePlaceholderText": "Find in file",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "245"
+        },
+        "size": {
+          "height": 48,
+          "width": 803
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "FindBar::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "menuAreaChangedPixels": 3478.82,
+      "menu": [
+        {
+          "label": "Undo",
+          "role": "Text"
+        },
+        {
+          "label": "Redo",
+          "role": "Text"
+        },
+        {
+          "label": "Cut",
+          "role": "Text"
+        },
+        {
+          "label": "Copy",
+          "role": "Text"
+        },
+        {
+          "label": "Paste",
+          "role": "Text"
+        },
+        {
+          "label": "Select All",
+          "role": "Text"
+        }
+      ]
+    },
+    "frames": [
+      "find-empty-light.png",
+      "find-text-light.png",
+      "find-clear-hovered-light.png",
+      "find-clear-pressed-light.png",
+      "find-text-light-2x.png",
+      "find-clear-hovered-light-2x.png",
+      "find-menu-light.png"
+    ]
+  },
+  {
+    "scene": "references",
+    "scheme": "dark",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "list": {
+        "absolutePosition": {
+          "x": 475,
+          "y": 80
+        },
+        "accessibleItemCount": 6,
+        "accessibleLabel": "6 references",
+        "accessibleRole": "List",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "173"
+        },
+        "size": {
+          "height": 328,
+          "width": 480
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ReferenceList::keys",
+            "typeName": "FocusScope"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "label": "src/greet.ts:2",
+          "selected": true,
+          "position": {
+            "x": 479,
+            "y": 112
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:1",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 160
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:3",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 208
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:4",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 256
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/other.ts:1",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 304
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/other.ts:3",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 352
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        }
+      ]
+    },
+    "frames": [
+      "selected-references-dark.png",
+      "selected-references-second-dark.png"
+    ]
+  },
+  {
+    "scene": "references",
+    "scheme": "light",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "list": {
+        "absolutePosition": {
+          "x": 475,
+          "y": 80
+        },
+        "accessibleItemCount": 6,
+        "accessibleLabel": "6 references",
+        "accessibleRole": "List",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "160"
+        },
+        "size": {
+          "height": 328,
+          "width": 480
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ReferenceList::keys",
+            "typeName": "FocusScope"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "label": "src/greet.ts:2",
+          "selected": true,
+          "position": {
+            "x": 479,
+            "y": 112
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:1",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 160
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:3",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 208
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/main.ts:4",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 256
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/other.ts:1",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 304
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        },
+        {
+          "label": "src/other.ts:3",
+          "selected": false,
+          "position": {
+            "x": 479,
+            "y": 352
+          },
+          "size": {
+            "height": 48,
+            "width": 472
+          }
+        }
+      ]
+    },
+    "frames": [
+      "selected-references-light.png",
+      "selected-references-second-light.png"
+    ]
+  },
+  {
+    "scene": "search",
+    "scheme": "dark",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "searchEmpty": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "selectedResult": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 154
+        },
+        "accessibleDescription": "File ",
+        "accessibleItemSelectable": true,
+        "accessibleItemSelected": true,
+        "accessibleLabel": "fixture.ts",
+        "accessibleRole": "ListItem",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "196"
+        },
+        "size": {
+          "height": 64,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "searchText": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "fixture",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "searchClear": {
+        "absolutePosition": {
+          "x": 890,
+          "y": 98
+        },
+        "accessibleLabel": "Clear search query",
+        "accessibleRole": "Button",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "191"
+        },
+        "size": {
+          "height": 48,
+          "width": 48
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "valueAfterReleaseOutside": "fixture",
+      "afterSeatClickOnClear": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "typedAfterClear": "fix"
+    },
+    "frames": [
+      "search-empty-dark.png",
+      "search-text-dark.png",
+      "search-clear-hovered-dark.png",
+      "search-clear-pressed-dark.png"
+    ]
+  },
+  {
+    "scene": "search",
+    "scheme": "light",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "searchEmpty": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "selectedResult": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 154
+        },
+        "accessibleDescription": "File ",
+        "accessibleItemSelectable": true,
+        "accessibleItemSelected": true,
+        "accessibleLabel": "fixture.ts",
+        "accessibleRole": "ListItem",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "196"
+        },
+        "size": {
+          "height": 64,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "searchText": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "accessibleValue": "fixture",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "searchClear": {
+        "absolutePosition": {
+          "x": 890,
+          "y": 98
+        },
+        "accessibleLabel": "Clear search query",
+        "accessibleRole": "Button",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "191"
+        },
+        "size": {
+          "height": 48,
+          "width": 48
+        },
+        "typeNamesAndIds": [
+          {
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "valueAfterReleaseOutside": "fixture",
+      "afterSeatClickOnClear": {
+        "absolutePosition": {
+          "x": 162,
+          "y": 98
+        },
+        "accessibleEnabled": true,
+        "accessibleLabel": "Search query",
+        "accessiblePlaceholderText": "Files and contents · % for contents only",
+        "accessibleRole": "TextInput",
+        "computedOpacity": 1,
+        "handle": {
+          "generation": "1",
+          "index": "176"
+        },
+        "size": {
+          "height": 48,
+          "width": 776
+        },
+        "typeNamesAndIds": [
+          {
+            "id": "ProjectSearch::input",
+            "typeName": "QueryInput"
+          },
+          {
+            "id": "root",
+            "typeName": "Rectangle"
+          }
+        ]
+      },
+      "typedAfterClear": "fix"
+    },
+    "frames": [
+      "search-empty-light.png",
+      "search-text-light.png",
+      "search-clear-hovered-light.png",
+      "search-clear-pressed-light.png"
+    ]
+  },
+  {
+    "scene": "tree",
+    "scheme": "dark",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "selectedRow": [
+        "fixture.ts"
+      ]
+    },
+    "frames": [
+      "selected-tree-dark.png",
+      "selected-tree-hovered-dark.png",
+      "selected-tree-focused-dark.png",
+      "selected-search-dark.png"
+    ]
+  },
+  {
+    "scene": "tree",
+    "scheme": "light",
+    "passed": true,
+    "checks": {
+      "windowSize": {
+        "height": 660,
+        "width": 1100
+      },
+      "selectedRow": [
+        "fixture.ts"
+      ]
+    },
+    "frames": [
+      "selected-tree-light.png",
+      "selected-tree-hovered-light.png",
+      "selected-tree-focused-light.png",
+      "selected-search-light.png"
+    ]
+  }
+]

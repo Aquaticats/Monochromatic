@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Monochromatic IDE
+GenericName=Source Code Reader
+Comment=Read and navigate the source code in a local folder
+Categories=Development;IDE;
+Exec=monochromatic-ide %f
+Icon=accessories-text-editor
+Terminal=false
+StartupNotify=true
+StartupWMClass=monochromatic.ide
+MimeType=inode/directory;

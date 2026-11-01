@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T20:57:07.381Z",
+  "proposal": {
+    "path": "doc/audit/depot-matched-windows-gnu-control-proposal-2026-10-18.evidence.json",
+    "bytes": 6017,
+    "sha256": "08d4532e0166621c3e53007b6fe7da0d2265748aca4cf51ee0fb35282c2ea1ca"
+  },
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harnessSha": "28f3167d8f0e731d13378d072dd5f23a7e392554",
+  "actualRemoteBranch": "research/depot-complete-coverage-20261018",
+  "proposalBranchLabelMismatch": "The proposal names a descriptive branch, while the exact published executable is on research/depot-complete-coverage-20261018. Dispatch must use the verified actual branch.",
+  "verification": {
+    "workflowGitHash": true,
+    "generatedMiseGitHash": true,
+    "actualSerializedFunctionDiffOnlyRuntimeMetadata": true,
+    "decodedJobDiffOnlyAdmittedProviderAndLimits": true,
+    "exactChangedPaths": [
+      ".depot/workflows/coverage-android.yml",
+      ".depot/workflows/coverage-current-desktop.yml",
+      ".github/workflows/music-player-windows.yml",
+      "package/dev-script/coverage-host-research/mise.toml",
+      "package/dev-script/material-owner-research/config.json",
+      "package/dev-script/material-owner-research/mise.toml"
+    ],
+    "directRemoteMatches": true
+  },
+  "admission": {
+    "primaryJobs": 1,
+    "conditionalHarnessCorrectionJobs": 1,
+    "maximumGlobalConcurrentJobs": 2,
+    "shape": {
+      "label": "depot-windows-2025-4",
+      "cpu": 4,
+      "documentedMemoryGB": 16,
+      "documentedDiskGB": 130,
+      "listRateUsdPerMinute": 0.016,
+      "jobMinutes": 20,
+      "innerMinutes": 17
+    },
+    "nominalGuardUsd": 0.64,
+    "materialPriority": true,
+    "requiresFreshReleasedSlot": true,
+    "assertionEdits": false,
+    "flakeRateRetry": false,
+    "invoiceCapClaim": false
+  },
+  "cloudAllocations": 0
+}

@@ -220,7 +220,7 @@ Take the first branch that fits:
 2.   **Presence establishable here**:
      guard with `if` and return early so the typed slot receives only `T`.
 3.   **Absence should fail loud at this boundary**:
-     throw via `nonNullishOrThrow` from `@monochromatic-dev/module-or-throw`.
+     throw via `nonNullishOrThrow` from `@monochromatic-dev/or-throw-core`.
 4.   **Absence must travel onward as a real value**:
      mint a domain-specific `unique symbol` sentinel for this exact absence condition,
      or carry a distinct non-empty domain value when the domain has one.
@@ -285,10 +285,12 @@ This rule enumerates and bans the whole statically-detectable space in one pass.
 The fixes are the same four:
  `foo?: T` for an optional property;
  an `if`-guard so the value is always present where typed;
- throw via `nonNullishOrThrow` (`@monochromatic-dev/module-or-throw`);
+ throw via `nonNullishOrThrow` (`@monochromatic-dev/or-throw-core`);
  or a real sentinel (a unique `Symbol`,
  or a distinct non-empty domain value).
-A genuine external-boundary mirror uses a scoped `oxlint-disable-next-line no-restricted-syntax/no-optional-escape` with a justification.
+A genuine external-boundary mirror uses a scoped
+`oxlint-disable-next-line no-restricted-syntax/no-optional-escape`
+with a justification.
 
 ### Banned (each its own diagnostic)
 
@@ -448,7 +450,9 @@ If the rule reports a borderline-style description in real source,
  rewrite that Symbol description to carry more context rather than weakening the classifier.
 
 The calibration data lives in `package/test-fixture/oxlint-no-restricted-syntax/data/`.
-A browser benchmark there (`no-low-information-symbol-description.benchmark.html`) compares this production classifier against threshold-only baselines (minimum length,
+A browser benchmark there (`no-low-information-symbol-description.benchmark.html`)
+compares this production classifier against threshold-only baselines
+(minimum length,
  distinct words,
  type-token ratio) over the labeled pass and fail rows.
 The classifier reaches zero misclassifications where the threshold baselines do not.

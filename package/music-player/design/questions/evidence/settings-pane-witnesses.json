@@ -1,0 +1,3297 @@
+{
+  "schema": 1,
+  "scope": "Inspected native authored Settings switch states, not stored preferences, working settings or a new policy ballot.",
+  "prototypeCommit": "67eae28d1f31689bcc9f132e4db97ec87426e572",
+  "apkSha256": "5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab",
+  "coordinateSpace": "Rectangles are physical screenshot pixels before the status-strip crop; subtract cropPixels.y for image rows. Named rectangles are whole elements; visible rectangles are the parts the scroll viewport shows, or null when none shows.",
+  "witnesses": [
+    {
+      "file": "settings-pane-inner-closed-light-s100.png",
+      "panel": "inner",
+      "view": "closed",
+      "position": "none",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "38fd503865c2109fa94922de6fc321828146af2c4503a5a4acd1528d19fdd2a2",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-accepted-light-s100.png",
+      "panel": "inner",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "242055847377f3e1fb0bb2493f60def64447aff191cfd3ddd4b12de43930adce",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        190,
+        2037,
+        259
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            530
+          ],
+          "title": [
+            1132,
+            343,
+            1842,
+            402
+          ],
+          "supporting": [
+            1132,
+            402,
+            1871,
+            500
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            532,
+            2076,
+            748
+          ],
+          "title": [
+            1132,
+            561,
+            1565,
+            620
+          ],
+          "supporting": [
+            1132,
+            620,
+            1871,
+            718
+          ],
+          "switch": [
+            1910,
+            561,
+            2037,
+            639
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              530
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              532,
+              2076,
+              748
+            ],
+            "switch": [
+              1910,
+              561,
+              2037,
+              639
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-inverse-light-s100.png",
+      "panel": "inner",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "62a1d545efc823beff26ef9e9c551f28e5d9bc29c0690e6c82a8364ff4d12b3e",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        190,
+        2037,
+        259
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            530
+          ],
+          "title": [
+            1132,
+            343,
+            1842,
+            402
+          ],
+          "supporting": [
+            1132,
+            402,
+            1871,
+            500
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            532,
+            2076,
+            748
+          ],
+          "title": [
+            1132,
+            561,
+            1565,
+            620
+          ],
+          "supporting": [
+            1132,
+            620,
+            1871,
+            718
+          ],
+          "switch": [
+            1910,
+            561,
+            2037,
+            639
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              530
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              532,
+              2076,
+              748
+            ],
+            "switch": [
+              1910,
+              561,
+              2037,
+              639
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-closed-dark-s100.png",
+      "panel": "inner",
+      "view": "closed",
+      "position": "none",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "8f62905de82cfe724ae13b74ad1c34764178cd65976e9e3a37e6cd55cdeaec05",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-accepted-dark-s100.png",
+      "panel": "inner",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "44bf60a262b7b5367be7e98b07e2f5cf886c5bbb06f3c9bba3e4ce9374f371fa",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        190,
+        2037,
+        259
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            530
+          ],
+          "title": [
+            1132,
+            343,
+            1842,
+            402
+          ],
+          "supporting": [
+            1132,
+            402,
+            1871,
+            500
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            532,
+            2076,
+            748
+          ],
+          "title": [
+            1132,
+            561,
+            1565,
+            620
+          ],
+          "supporting": [
+            1132,
+            620,
+            1871,
+            718
+          ],
+          "switch": [
+            1910,
+            561,
+            2037,
+            639
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              530
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              532,
+              2076,
+              748
+            ],
+            "switch": [
+              1910,
+              561,
+              2037,
+              639
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-inverse-dark-s100.png",
+      "panel": "inner",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "72e4fd194dfeb286cf046a328ab4b283568e1c816fb47122d3717b926fc478f8",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        190,
+        2037,
+        259
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            530
+          ],
+          "title": [
+            1132,
+            343,
+            1842,
+            402
+          ],
+          "supporting": [
+            1132,
+            402,
+            1871,
+            500
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            532,
+            2076,
+            748
+          ],
+          "title": [
+            1132,
+            561,
+            1565,
+            620
+          ],
+          "supporting": [
+            1132,
+            620,
+            1871,
+            718
+          ],
+          "switch": [
+            1910,
+            561,
+            2037,
+            639
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              530
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              532,
+              2076,
+              748
+            ],
+            "switch": [
+              1910,
+              561,
+              2037,
+              639
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-closed-light-s200.png",
+      "panel": "inner",
+      "view": "closed",
+      "position": "none",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "f1e0b72dbd0116986fbb13ba195efd0f443c5eb6a06ac8d1d9fa3a17ae7edd6b",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-accepted-light-s200.png",
+      "panel": "inner",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "c0060c461b6e9ad7955d22779bd49df1a4f72f15046655987a2e473855f0110a",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        170,
+        2037,
+        279
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            943
+          ],
+          "title": [
+            1132,
+            343,
+            1871,
+            549
+          ],
+          "supporting": [
+            1132,
+            549,
+            1871,
+            913
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            945,
+            2076,
+            1483
+          ],
+          "title": [
+            1132,
+            974,
+            1871,
+            1180
+          ],
+          "supporting": [
+            1132,
+            1180,
+            1871,
+            1453
+          ],
+          "switch": [
+            1910,
+            974,
+            2037,
+            1052
+          ],
+          "titleLines": 2,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              943
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              945,
+              2076,
+              1483
+            ],
+            "switch": [
+              1910,
+              974,
+              2037,
+              1052
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-inverse-light-s200.png",
+      "panel": "inner",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "963dcc94d0bea04cdfb62b296bc3436d92acb886e25bf85a33049a0c9dbcf2bb",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        170,
+        2037,
+        279
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            943
+          ],
+          "title": [
+            1132,
+            343,
+            1871,
+            549
+          ],
+          "supporting": [
+            1132,
+            549,
+            1871,
+            913
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            945,
+            2076,
+            1483
+          ],
+          "title": [
+            1132,
+            974,
+            1871,
+            1180
+          ],
+          "supporting": [
+            1132,
+            1180,
+            1871,
+            1453
+          ],
+          "switch": [
+            1910,
+            974,
+            2037,
+            1052
+          ],
+          "titleLines": 2,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              943
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              945,
+              2076,
+              1483
+            ],
+            "switch": [
+              1910,
+              974,
+              2037,
+              1052
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-closed-dark-s200.png",
+      "panel": "inner",
+      "view": "closed",
+      "position": "none",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "0cf2ad10b541e1f8634b01f40e6138ca3162ba6acda7ce9ec963c037d5ce1d75",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-accepted-dark-s200.png",
+      "panel": "inner",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "7e0b9f9e8bd7bb873a415e77bde16d6fbeb4ba1cd585824492b73711a68f621d",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        170,
+        2037,
+        279
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            943
+          ],
+          "title": [
+            1132,
+            343,
+            1871,
+            549
+          ],
+          "supporting": [
+            1132,
+            549,
+            1871,
+            913
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            945,
+            2076,
+            1483
+          ],
+          "title": [
+            1132,
+            974,
+            1871,
+            1180
+          ],
+          "supporting": [
+            1132,
+            1180,
+            1871,
+            1453
+          ],
+          "switch": [
+            1910,
+            974,
+            2037,
+            1052
+          ],
+          "titleLines": 2,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              943
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              945,
+              2076,
+              1483
+            ],
+            "switch": [
+              1910,
+              974,
+              2037,
+              1052
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-inner-inverse-dark-s200.png",
+      "panel": "inner",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "8f7a455524a41ec72075f43708b7d8fbf15d10ffbbcad879756169bc7ce14bb0",
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        1038,
+        0,
+        2076,
+        2152
+      ],
+      "header": [
+        1038,
+        136,
+        2076,
+        312
+      ],
+      "back": [
+        1132,
+        166,
+        1249,
+        283
+      ],
+      "title": [
+        1269,
+        170,
+        2037,
+        279
+      ],
+      "viewport": [
+        1038,
+        314,
+        2076,
+        2152
+      ],
+      "left": [
+        0,
+        0,
+        1038,
+        2152
+      ],
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            1038,
+            314,
+            2076,
+            943
+          ],
+          "title": [
+            1132,
+            343,
+            1871,
+            549
+          ],
+          "supporting": [
+            1132,
+            549,
+            1871,
+            913
+          ],
+          "switch": [
+            1910,
+            343,
+            2037,
+            421
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            1038,
+            945,
+            2076,
+            1483
+          ],
+          "title": [
+            1132,
+            974,
+            1871,
+            1180
+          ],
+          "supporting": [
+            1132,
+            1180,
+            1871,
+            1453
+          ],
+          "switch": [
+            1910,
+            974,
+            2037,
+            1052
+          ],
+          "titleLines": 2,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              1038,
+              314,
+              2076,
+              943
+            ],
+            "switch": [
+              1910,
+              343,
+              2037,
+              421
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              1038,
+              945,
+              2076,
+              1483
+            ],
+            "switch": [
+              1910,
+              974,
+              2037,
+              1052
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-closed-light-s100.png",
+      "panel": "cover",
+      "view": "closed",
+      "position": "none",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "bc6c9539362d13c52a26626ad2fd0120965f26c1a7d86c09ff9fa14f2c80ef5d",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-accepted-light-s100.png",
+      "panel": "cover",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "b572f4cfcacfb9e708005487e11a36c22f1746e8eba1fbee0657ce5e4c3d9690",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        206,
+        1041,
+        275
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            546
+          ],
+          "title": [
+            39,
+            359,
+            749,
+            418
+          ],
+          "supporting": [
+            39,
+            418,
+            875,
+            516
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            548,
+            1080,
+            764
+          ],
+          "title": [
+            39,
+            577,
+            472,
+            636
+          ],
+          "supporting": [
+            39,
+            636,
+            875,
+            734
+          ],
+          "switch": [
+            914,
+            577,
+            1041,
+            655
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              546
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              548,
+              1080,
+              764
+            ],
+            "switch": [
+              914,
+              577,
+              1041,
+              655
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-inverse-light-s100.png",
+      "panel": "cover",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 1,
+      "sha256": "65d87b4bcc8499250b2c7022eaf70203a873391a1a58a8a883dbb731e541cc26",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        206,
+        1041,
+        275
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            546
+          ],
+          "title": [
+            39,
+            359,
+            749,
+            418
+          ],
+          "supporting": [
+            39,
+            418,
+            875,
+            516
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            548,
+            1080,
+            764
+          ],
+          "title": [
+            39,
+            577,
+            472,
+            636
+          ],
+          "supporting": [
+            39,
+            636,
+            875,
+            734
+          ],
+          "switch": [
+            914,
+            577,
+            1041,
+            655
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              546
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              548,
+              1080,
+              764
+            ],
+            "switch": [
+              914,
+              577,
+              1041,
+              655
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-closed-dark-s100.png",
+      "panel": "cover",
+      "view": "closed",
+      "position": "none",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "b55d631d1ad6f24dae7f4c7849ab9b8a55ce7d7aafc170204e0e4fcd2033efc9",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-accepted-dark-s100.png",
+      "panel": "cover",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "18429c7106213cf350b89dfe3b4024657250fbf23a893ddb167ef97278f950c6",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        206,
+        1041,
+        275
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            546
+          ],
+          "title": [
+            39,
+            359,
+            749,
+            418
+          ],
+          "supporting": [
+            39,
+            418,
+            875,
+            516
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            548,
+            1080,
+            764
+          ],
+          "title": [
+            39,
+            577,
+            472,
+            636
+          ],
+          "supporting": [
+            39,
+            636,
+            875,
+            734
+          ],
+          "switch": [
+            914,
+            577,
+            1041,
+            655
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              546
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              548,
+              1080,
+              764
+            ],
+            "switch": [
+              914,
+              577,
+              1041,
+              655
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-inverse-dark-s100.png",
+      "panel": "cover",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 1,
+      "sha256": "9d42df5db94dd4ca960950780e8a0080824dc9e581e47b2c329d7fef339b2437",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        206,
+        1041,
+        275
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            546
+          ],
+          "title": [
+            39,
+            359,
+            749,
+            418
+          ],
+          "supporting": [
+            39,
+            418,
+            875,
+            516
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            548,
+            1080,
+            764
+          ],
+          "title": [
+            39,
+            577,
+            472,
+            636
+          ],
+          "supporting": [
+            39,
+            636,
+            875,
+            734
+          ],
+          "switch": [
+            914,
+            577,
+            1041,
+            655
+          ],
+          "titleLines": 1,
+          "supportingLines": 2,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              546
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              548,
+              1080,
+              764
+            ],
+            "switch": [
+              914,
+              577,
+              1041,
+              655
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-closed-light-s200.png",
+      "panel": "cover",
+      "view": "closed",
+      "position": "none",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "98d39a4ab850e7641ddfd76ec11f154fc282ac808d14d640179de85411eb8353",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-accepted-light-s200.png",
+      "panel": "cover",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "8eecb937eb2d0b7a4ad47008667856412032311691dcf9068d87c50a2529accf",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        186,
+        1041,
+        295
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            959
+          ],
+          "title": [
+            39,
+            359,
+            875,
+            565
+          ],
+          "supporting": [
+            39,
+            565,
+            875,
+            929
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            961,
+            1080,
+            1396
+          ],
+          "title": [
+            39,
+            990,
+            795,
+            1093
+          ],
+          "supporting": [
+            39,
+            1093,
+            875,
+            1366
+          ],
+          "switch": [
+            914,
+            990,
+            1041,
+            1068
+          ],
+          "titleLines": 1,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              959
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              961,
+              1080,
+              1396
+            ],
+            "switch": [
+              914,
+              990,
+              1041,
+              1068
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-inverse-light-s200.png",
+      "panel": "cover",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "light",
+      "fontScale": 2,
+      "sha256": "d91b92a045f39210b19f3619a085b54ed0de64b5ec50e33a37067a1f4de9fa4b",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        186,
+        1041,
+        295
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            959
+          ],
+          "title": [
+            39,
+            359,
+            875,
+            565
+          ],
+          "supporting": [
+            39,
+            565,
+            875,
+            929
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            961,
+            1080,
+            1396
+          ],
+          "title": [
+            39,
+            990,
+            795,
+            1093
+          ],
+          "supporting": [
+            39,
+            1093,
+            875,
+            1366
+          ],
+          "switch": [
+            914,
+            990,
+            1041,
+            1068
+          ],
+          "titleLines": 1,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              959
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              961,
+              1080,
+              1396
+            ],
+            "switch": [
+              914,
+              990,
+              1041,
+              1068
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-closed-dark-s200.png",
+      "panel": "cover",
+      "view": "closed",
+      "position": "none",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "743ce3a4f3cb6632020da9caaaccb14aa8a0e3f4e9f66a03262e310c08405bde",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": false,
+        "strip": true,
+        "resume": true
+      },
+      "player": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "pane": null,
+      "header": null,
+      "back": null,
+      "title": null,
+      "viewport": null,
+      "left": null,
+      "rows": null,
+      "visible": null,
+      "scrollMaxPixels": null,
+      "titleLines": null,
+      "titleOverflow": null,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-accepted-dark-s200.png",
+      "panel": "cover",
+      "view": "accepted",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "0ace0c16a0965fa4b1147904396c5104244d14ae36adf26f2cf3c24b7bbf3222",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": true,
+        "resume": true
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        186,
+        1041,
+        295
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            959
+          ],
+          "title": [
+            39,
+            359,
+            875,
+            565
+          ],
+          "supporting": [
+            39,
+            565,
+            875,
+            929
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            961,
+            1080,
+            1396
+          ],
+          "title": [
+            39,
+            990,
+            795,
+            1093
+          ],
+          "supporting": [
+            39,
+            1093,
+            875,
+            1366
+          ],
+          "switch": [
+            914,
+            990,
+            1041,
+            1068
+          ],
+          "titleLines": 1,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              959
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              961,
+              1080,
+              1396
+            ],
+            "switch": [
+              914,
+              990,
+              1041,
+              1068
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    },
+    {
+      "file": "settings-pane-cover-inverse-dark-s200.png",
+      "panel": "cover",
+      "view": "inverse",
+      "position": "start",
+      "scheme": "dark",
+      "fontScale": 2,
+      "sha256": "5e137c9f44b48375ec16955e8be4aebc94eea9c817fac05777404d360d5a67d7",
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "state": {
+        "opened": true,
+        "strip": false,
+        "resume": false
+      },
+      "player": null,
+      "pane": [
+        0,
+        0,
+        1080,
+        2424
+      ],
+      "header": [
+        0,
+        152,
+        1080,
+        328
+      ],
+      "back": [
+        39,
+        182,
+        156,
+        299
+      ],
+      "title": [
+        176,
+        186,
+        1041,
+        295
+      ],
+      "viewport": [
+        0,
+        330,
+        1080,
+        2424
+      ],
+      "left": null,
+      "rows": [
+        {
+          "id": "strip-common-prefixes",
+          "row": [
+            0,
+            330,
+            1080,
+            959
+          ],
+          "title": [
+            39,
+            359,
+            875,
+            565
+          ],
+          "supporting": [
+            39,
+            565,
+            875,
+            929
+          ],
+          "switch": [
+            914,
+            359,
+            1041,
+            437
+          ],
+          "titleLines": 2,
+          "supportingLines": 4,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        },
+        {
+          "id": "resume-where-left-off",
+          "row": [
+            0,
+            961,
+            1080,
+            1396
+          ],
+          "title": [
+            39,
+            990,
+            795,
+            1093
+          ],
+          "supporting": [
+            39,
+            1093,
+            875,
+            1366
+          ],
+          "switch": [
+            914,
+            990,
+            1041,
+            1068
+          ],
+          "titleLines": 1,
+          "supportingLines": 3,
+          "titleOverflow": false,
+          "supportingOverflow": false
+        }
+      ],
+      "visible": {
+        "rows": [
+          {
+            "id": "strip-common-prefixes",
+            "row": [
+              0,
+              330,
+              1080,
+              959
+            ],
+            "switch": [
+              914,
+              359,
+              1041,
+              437
+            ]
+          },
+          {
+            "id": "resume-where-left-off",
+            "row": [
+              0,
+              961,
+              1080,
+              1396
+            ],
+            "switch": [
+              914,
+              990,
+              1041,
+              1068
+            ]
+          }
+        ]
+      },
+      "scrollMaxPixels": 0,
+      "titleLines": 1,
+      "titleOverflow": false,
+      "freshHierarchyValidated": true,
+      "stableAppFrames": true,
+      "keyboardClosed": true,
+      "renderer": "Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+      "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "opaque": true,
+      "essentialPngChunksOnly": true
+    }
+  ]
+}

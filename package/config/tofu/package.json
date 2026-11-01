@@ -8,7 +8,7 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
-    "@monochromatic-dev/module-wg-allowedips": "workspace:*"
+    "@monochromatic-dev/wg-core-allowedips": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:"

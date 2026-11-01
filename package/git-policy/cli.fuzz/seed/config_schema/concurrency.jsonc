@@ -1,0 +1,1 @@
+{ "hooks": { "concurrentCommits": true }, "indexLock": { "unprovenOwnerTimeoutMs": 2.5e3 }, "landing": { "reserveAfterLostRaces": 9007199254740991 } }

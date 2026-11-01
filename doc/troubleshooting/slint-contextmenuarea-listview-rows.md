@@ -24,7 +24,7 @@ delegate;
 
 ## Symptom
 
-In the prototype at `package/desktop-app/file-manager/`,
+In the prototype at `package/file-manager/app/`,
  each directory pane is a
 custom `ListView` whose row delegate is a `Rectangle` containing a `TouchArea`
 (for hover and selection).
@@ -149,8 +149,8 @@ Reproduction harness:
 build the prototype with the embedded Slint MCP server and drive it headless.
 
 ```bash
-# package/desktop-app/file-manager
-mise run //package/desktop-app/file-manager:mcp   # binds 127.0.0.1:9317
+# package/file-manager/app
+mise run //package/file-manager/app:mcp   # binds 127.0.0.1:9317
 ```
 
 Fails (built-in path on a row):
@@ -245,13 +245,13 @@ key-pressed(event) => {
 }
 ```
 
-The implementation is `package/desktop-app/file-manager/ui/app.slint` (the
+The implementation is `package/file-manager/app/ui/app.slint` (the
 `context-menu` area,
  the row `touch` `pointer-event`,
  and the pane `FocusScope`
 `key-pressed`),
  with the Rust identity plumbing in
-`package/desktop-app/file-manager/src/menu.rs`.
+`package/file-manager/app/src/menu.rs`.
 
 Tradeoffs:
 

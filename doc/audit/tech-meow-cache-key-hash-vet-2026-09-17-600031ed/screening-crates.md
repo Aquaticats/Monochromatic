@@ -1,6 +1,7 @@
 # Screening appendix: every crates.io result
 
-Appendix to [`tech-meow-cache-key-hash-vet-2026-09-17-600031ed.md`](../tech-meow-cache-key-hash-vet-2026-09-17-600031ed.md),
+Appendix
+to [`tech-meow-cache-key-hash-vet-2026-09-17-600031ed.md`](../tech-meow-cache-key-hash-vet-2026-09-17-600031ed.md),
  section "Screening".
 One entry per distinct crate returned by the crates.io queries of this vet
  (CC01 to CC24 and XC01 to XC04)

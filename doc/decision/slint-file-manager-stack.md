@@ -20,7 +20,8 @@ The user wants a Niri-like interaction model where each pane is a file list.
 The first real version must target Windows,
 macOS,
 and Linux.
-Electron is out of scope because its security posture and runtime surface are not acceptable for a privileged file manager.
+Electron is out of scope because its security posture and runtime surface
+are not acceptable for a privileged file manager.
 
 The existing assessment in `doc/handover/slint-file-manager-assessment.md` corrected an earlier overstatement:
 third-party file managers can register themselves for some default-folder-viewer paths,
@@ -145,7 +146,8 @@ and a larger framework surface.
 
 Rejection reason:
 Qt is the first fallback,
-but Slint plus Rust is smaller and better aligned with a Rust-first privileged desktop application if the Slint spikes pass.
+but Slint plus Rust is smaller and better aligned
+with a Rust-first privileged desktop application if the Slint spikes pass.
 
 ### GPUI
 
@@ -261,7 +263,8 @@ GPUI beats Flutter because it stays Rust-native for the custom pane problem.
 Flutter beats Avalonia because it has stronger custom-rendered cross-desktop positioning for this UI shape.
 Avalonia beats Iced because it is more mature for shipped desktop apps.
 Iced beats Tauri because it avoids WebView IPC.
-Tauri beats Slint plus TypeScript only because Tauri has a more explicit security model than an ad hoc Node-hosted Slint app,
+Tauri beats Slint plus TypeScript only because Tauri has a more explicit security model
+than an ad hoc Node-hosted Slint app,
 though neither is preferred.
 
 ## Consequences

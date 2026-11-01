@@ -8,7 +8,6 @@
     <plugin id='com.github.oxc.project.oxcintellijplugin' />
     <plugin id='com.intellij.modules.json' />
     <plugin id='com.intellij.plugins.watcher' />
-    <plugin id='com.intellij.stylelint' />
     <plugin id='mdx.js' />
     <plugin id='org.editorconfig.editorconfigjetbrains' />
     <plugin id='org.intellij.plugins.markdown' />

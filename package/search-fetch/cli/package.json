@@ -1,0 +1,33 @@
+{
+  "name": "@monochromatic-dev/search-fetch-cli",
+  "description": "Terminal front door for the shared search and fetch tools: the search-fetch command over the shared core.",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "bin": {
+    "search-fetch": "dist/final/node/index.mjs"
+  },
+  "dependencies": {
+    "@monochromatic-dev/search-fetch-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/search-fetch/cli"
+  }
+}

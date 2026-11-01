@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Hall Monitor
+Comment=Desktop activity analyzer using local LLM
+Exec=/bin/sh -c 'exec /var/home/user/Monochromatic/package/hall-monitor/daemon/hall-monitor 2>&1 | systemd-cat -t hall-monitor -p debug'
+Terminal=false
+X-KDE-autostart-phase=2

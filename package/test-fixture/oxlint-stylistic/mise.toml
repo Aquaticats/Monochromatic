@@ -1,4 +1,4 @@
-# lint:oxlint omitted -- root oxlint.config.ts ignorePatterns includes **/test-fixture/**
+# lint:oxlint omitted -- root oxlint.config.ts ignorePatterns includes **/package/test-fixture/**
 # but per-package tasks run oxlint from within the package directory where
 # CWD-relative paths no longer contain "test-fixture/".
 

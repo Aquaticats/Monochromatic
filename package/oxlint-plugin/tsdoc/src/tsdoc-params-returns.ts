@@ -38,7 +38,7 @@ export function functionReturnsValue(node: ForeignBorrowed<Span & ReadonlyRecord
     === 'MethodDefinition')
     || (node.type
       === 'TSAbstractMethodDefinition'))
-  {
+    {
     /**
      Method kind (constructor/get/set/method); read on the outer MethodDefinition before unwrap.
      */

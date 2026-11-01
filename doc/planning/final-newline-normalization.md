@@ -24,7 +24,7 @@ deleted,
 symlink,
 and submodule candidates.
 The exact hk exclusion families remain unchanged:
-`package/cli/forbidden-strings.fuzz/corpus/**`,
+`package/forbidden-strings/cli.fuzz/corpus/**`,
 `package/test-fixture/toml-edit/src/**`,
 and `**/dist/final/node/**`.
 Tsdown outputs therefore keep producer-native missing final LF.
@@ -65,7 +65,7 @@ and 1,547 non-empty text-like violations.
 
 The violations split by ownership:
 
-- 1,344 files under `package/cli/forbidden-strings.fuzz/corpus/`.
+- 1,344 files under `package/forbidden-strings/cli.fuzz/corpus/`.
   These are fuzz inputs whose bytes are data,
   not source formatting.
 - 52 TOML inputs under `package/test-fixture/toml-edit/src/`.
@@ -140,7 +140,7 @@ local finalNewline = (Builtins.newlines) {
   batch = true
   exclude = List(
     "**/dist/final/node/**",
-    "package/cli/forbidden-strings.fuzz/corpus/**",
+    "package/forbidden-strings/cli.fuzz/corpus/**",
     "package/test-fixture/toml-edit/src/**",
   )
 }
@@ -281,10 +281,10 @@ The ordinary files identified during planning were:
 - `.idea/modules.xml`
 - `.remarkignore`
 - `package-paused/webapp-content/messages-demo/src/server.ts`
-- `package/cli/mutation-test/src/host/cli-options.ts`
+- `package/mutation-test/cli/src/host/cli-options.ts`
 - `package/linter/kotlin/build.gradle.kts`
-- `package/module/toml-edit/src/fuzz/coverage-v8.ts`
-- `package/module/toml-edit/src/values.ts`
+- `package/toml-edit/core/src/fuzz/coverage-v8.ts`
+- `package/toml-edit/core/src/values.ts`
 - `package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts`
 - `package/ssg/aquati.cat/public/manifest.webmanifest`
 - `package/ssg/aquati.cat/src/content/en/on-humanity.mdx`
@@ -310,7 +310,9 @@ Git clean filters remain rejected because local driver configuration and worktre
 platform's exact-byte model.
 Formatter-only enforcement remains incomplete because it cannot protect every in-scope text file.
 
-Issue `#356` added independent final-newline CI in `.github/workflows/final-newline.yml`.
+Issue `#356` added independent final-newline CI in `.github/workflows/final-newline.yml`
+(Removed on 2026-10-14 at the owner's request, together with `package/git-policy/cli/bin/final-newline-workflow.mjs`:
+the check rebuilt the wrapper on every pull request.).
 Hosted run `29171565809` passed while invoking cli-git's direct checker through typed Node orchestration over a
 disposable clone without loading unrelated hk or Pkl tooling.
 Issues `#356` and `#357` completed the independent CI gate and hk/Pkl retirement.

@@ -14,7 +14,7 @@ import type { ModelRegistry, } from '@earendil-works/pi-coding-agent';
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type {
   ForeignBorrowed,
   ForeignHostCapability,
@@ -128,9 +128,9 @@ export function createOriginalDispatch({
      */
     const available = await state.registry
       .getAvailableOfType(
-        'chat',
-        provider.id,
-        { signal, },
+      'chat',
+      provider.id,
+      { signal, },
       );
     return available.length > 0;
   }
@@ -154,9 +154,9 @@ export function createOriginalDispatch({
     if (state.registry !== undefined)
       return state.registry
         .getModelOfType(
-          'chat',
-          provider.id,
-          id,
+        'chat',
+        provider.id,
+        id,
         );
     return provider.getModels()
       .find(function matchingModel(model: ForeignHostCapability<Model<Api>>,) {
@@ -200,9 +200,9 @@ export function createOriginalDispatch({
       throw new FastModelError(`${provider.id} fast dispatch requires an initialized pi session. Start or reload the session before requesting a fast model.`,);
     return state.registry
       .stream(
-        model,
-        context,
-        options,
+      model,
+      context,
+      options,
       );
   }
 

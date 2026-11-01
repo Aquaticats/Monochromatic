@@ -103,9 +103,9 @@ export const RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED: unique symbol = Symbol(
  */
 export type MemberResultRelation =
   | typeof RESULT_RELATION_RECEIVER_VALUE
-  | typeof RESULT_RELATION_RECEIVER_ELEMENTS
-  | typeof RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED
-  | typeof RESULT_RELATION_OBSERVER_RETURN;
+    | typeof RESULT_RELATION_RECEIVER_ELEMENTS
+    | typeof RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED
+    | typeof RESULT_RELATION_OBSERVER_RETURN;
 
 /**
  One verified result relation, with the receiver position its result comes from.
@@ -119,16 +119,16 @@ export type MemberResultProvenance =
   | {
     readonly relation:
       | typeof RESULT_RELATION_RECEIVER_VALUE
-      | typeof RESULT_RELATION_OBSERVER_RETURN;
+        | typeof RESULT_RELATION_OBSERVER_RETURN;
     readonly receiverTypeArgumentIndex: number;
     /**
      Whether the relation holds only when the call supplies a starting accumulator.
      */
     readonly seededOnly?: boolean;
   }
-  | {
-    readonly relation: typeof RESULT_RELATION_RECEIVER_ELEMENTS;
-    readonly receiverTypeArgumentIndex: number;
+    | {
+      readonly relation: typeof RESULT_RELATION_RECEIVER_ELEMENTS;
+      readonly receiverTypeArgumentIndex: number;
     /**
      Position in the result's own type arguments holding what the receiver held.
      
@@ -140,12 +140,12 @@ export type MemberResultProvenance =
      so the comparison read `undefined` against `V` and answered with the sentinel
      for a relation that is true.
      */
-    readonly resultTypeArgumentIndex: number;
-  }
-  | {
-    readonly relation: typeof RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED;
-    readonly receiverTypeArgumentIndex: number;
-    readonly resultTypeArgumentIndex: number;
+      readonly resultTypeArgumentIndex: number;
+    }
+    | {
+      readonly relation: typeof RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED;
+      readonly receiverTypeArgumentIndex: number;
+      readonly resultTypeArgumentIndex: number;
     /**
      Position inside each yielded tuple holding what the receiver held.
      
@@ -153,8 +153,8 @@ export type MemberResultProvenance =
      documentation explains: flow reaches the whole tuple once any position is
      shown to carry a receiver element.
      */
-    readonly pairedElementIndex: number;
-  };
+      readonly pairedElementIndex: number;
+    };
 
 /**
  Members whose result provenance is verified, by declaring interface.
@@ -177,186 +177,186 @@ export type MemberResultProvenance =
  */
 const PROVENANCE_BY_OWNER: Readonly<
   Record<string, Readonly<Record<string, MemberResultProvenance>>>
-> = {
-  Array: {
-    reduce: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-      seededOnly: true,
+  > = {
+    Array: {
+      reduce: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+        seededOnly: true,
+      },
+      reduceRight: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+        seededOnly: true,
+      },
+      at: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      flatMap: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+      },
+      map: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+      },
+      filter: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      find: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      findLast: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      pop: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      shift: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      slice: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      toSorted: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      toReversed: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      entries: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+        pairedElementIndex: 1,
+      },
+      values: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
     },
-    reduceRight: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-      seededOnly: true,
+    ReadonlyArray: {
+      reduce: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+        seededOnly: true,
+      },
+      reduceRight: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+        seededOnly: true,
+      },
+      at: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      flatMap: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+      },
+      map: {
+        relation: RESULT_RELATION_OBSERVER_RETURN,
+        receiverTypeArgumentIndex: 0,
+      },
+      filter: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      find: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      findLast: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 0,
+      },
+      slice: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      toSorted: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      toReversed: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      entries: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+        pairedElementIndex: 1,
+      },
+      values: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
     },
-    at: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
+    Map: {
+      get: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 1,
+      },
+      entries: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
+        receiverTypeArgumentIndex: 1,
+        resultTypeArgumentIndex: 0,
+        pairedElementIndex: 1,
+      },
+      keys: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      values: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 1,
+        resultTypeArgumentIndex: 0,
+      },
     },
-    flatMap: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
+    ReadonlyMap: {
+      get: {
+        relation: RESULT_RELATION_RECEIVER_VALUE,
+        receiverTypeArgumentIndex: 1,
+      },
+      entries: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
+        receiverTypeArgumentIndex: 1,
+        resultTypeArgumentIndex: 0,
+        pairedElementIndex: 1,
+      },
+      keys: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 0,
+        resultTypeArgumentIndex: 0,
+      },
+      values: {
+        relation: RESULT_RELATION_RECEIVER_ELEMENTS,
+        receiverTypeArgumentIndex: 1,
+        resultTypeArgumentIndex: 0,
+      },
     },
-    map: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-    },
-    filter: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    find: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    findLast: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    pop: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    shift: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    slice: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    toSorted: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    toReversed: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    entries: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-      pairedElementIndex: 1,
-    },
-    values: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-  },
-  ReadonlyArray: {
-    reduce: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-      seededOnly: true,
-    },
-    reduceRight: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-      seededOnly: true,
-    },
-    at: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    flatMap: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-    },
-    map: {
-      relation: RESULT_RELATION_OBSERVER_RETURN,
-      receiverTypeArgumentIndex: 0,
-    },
-    filter: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    find: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    findLast: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 0,
-    },
-    slice: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    toSorted: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    toReversed: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    entries: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-      pairedElementIndex: 1,
-    },
-    values: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-  },
-  Map: {
-    get: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 1,
-    },
-    entries: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
-      receiverTypeArgumentIndex: 1,
-      resultTypeArgumentIndex: 0,
-      pairedElementIndex: 1,
-    },
-    keys: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    values: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 1,
-      resultTypeArgumentIndex: 0,
-    },
-  },
-  ReadonlyMap: {
-    get: {
-      relation: RESULT_RELATION_RECEIVER_VALUE,
-      receiverTypeArgumentIndex: 1,
-    },
-    entries: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED,
-      receiverTypeArgumentIndex: 1,
-      resultTypeArgumentIndex: 0,
-      pairedElementIndex: 1,
-    },
-    keys: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 0,
-      resultTypeArgumentIndex: 0,
-    },
-    values: {
-      relation: RESULT_RELATION_RECEIVER_ELEMENTS,
-      receiverTypeArgumentIndex: 1,
-      resultTypeArgumentIndex: 0,
-    },
-  },
-};
+  };
 
 /**
  Verified result relations indexed for lookup, by interface then member.
@@ -364,18 +364,18 @@ const PROVENANCE_BY_OWNER: Readonly<
 export const RESULT_PROVENANCE_BY_INTERFACE: ReadonlyMap<
   string,
   ReadonlyMap<string, MemberResultProvenance>
-> = new Map(Object.entries(PROVENANCE_BY_OWNER,)
-  .map(function ownerProvenance(
-    [ownerName, members,],
-  ): readonly [
-    string,
-    ReadonlyMap<string, MemberResultProvenance>,
-  ] {
-    return [
-      ownerName,
-      new Map(Object.entries(members,),),
-    ];
-  },),);
+  > = new Map(Object.entries(PROVENANCE_BY_OWNER,)
+    .map(function ownerProvenance(
+      [ownerName, members,],
+    ): readonly [
+      string,
+      ReadonlyMap<string, MemberResultProvenance>,
+    ] {
+      return [
+        ownerName,
+        new Map(Object.entries(members,),),
+      ];
+    },),);
 
 /**
  Total verified entries, pinned so silent table growth fails the guard.

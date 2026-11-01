@@ -60,35 +60,36 @@ export type PublishedVersions = {
 };
 
 /**
- Reads every workspace manifest keyed by package name.
+ Reads every workspace manifest under a repository root.
 
- @returns Workspace packages by name.
+ @param rootDir - Repository root whose two-level package directories hold the manifests.
+
+ @returns Workspace packages in directory-listing order, one per manifest.
 
  @throws Error when a manifest is not an object with a string name.
 
  @example
  ```ts
- (await readWorkspace()).get('@monochromatic-dev/module-or-throw');
+ (await readWorkspaceEntries({ rootDir: REPOSITORY_ROOT })).map((entry) => entry.name);
  ```
  */
-export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntry>> {
+export async function readWorkspaceEntries(
+  { rootDir, }: { readonly rootDir: string; },
+): Promise<readonly WorkspaceEntry[]> {
   /**
    Manifest paths relative to the repository root.
    */
   const manifestPaths = await Array.fromAsync(glob(
     'package/*/*/package.json',
-    { cwd: REPOSITORY_ROOT, },
+    { cwd: rootDir, },
   ),);
-  /**
-   Parsed workspace entries.
-   */
-  const entries = await Promise.all(manifestPaths.map(async function readEntry(manifestPath,): Promise<WorkspaceEntry> {
+  return Promise.all(manifestPaths.map(async function readEntry(manifestPath,): Promise<WorkspaceEntry> {
     /**
      Parsed manifest, untrusted until narrowed.
      */
     const manifest: unknown = JSON.parse(await readFile(
       join(
-        REPOSITORY_ROOT,
+        rootDir,
         manifestPath,
       ),
       'utf8',
@@ -104,6 +105,25 @@ export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntr
       manifest,
     };
   },),);
+}
+
+/**
+ Reads every workspace manifest of this repository keyed by package name.
+
+ @returns Workspace packages by name.
+
+ @throws Error when a manifest is not an object with a string name.
+
+ @example
+ ```ts
+ (await readWorkspace()).get('@monochromatic-dev/or-throw-core');
+ ```
+ */
+export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntry>> {
+  /**
+   Parsed workspace entries.
+   */
+  const entries = await readWorkspaceEntries({ rootDir: REPOSITORY_ROOT, },);
   return new Map(entries.map(function toPair(entry,) {
     return [
       entry.name,
@@ -125,7 +145,7 @@ export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntr
 
  @example
  ```ts
- await fetchPublishedVersions({ origin: 'https://pnpr.c.aquati.cat', name: '@monochromatic-dev/module-or-throw' });
+ await fetchPublishedVersions({ origin: 'https://pnpr.c.aquati.cat', name: '@monochromatic-dev/or-throw-core' });
  ```
  */
 export async function fetchPublishedVersions(
@@ -141,7 +161,7 @@ export async function fetchPublishedVersions(
    Anonymous packument response.
    */
   const response = await fetch(
-    `${origin}/${name.replace(
+    `${origin}/npm/${name.replace(
       '/',
       '%2f',
     )}`,

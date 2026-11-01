@@ -1,0 +1,106 @@
+// Transient in-file find. Native code owns match positions and identity; this markup only edits the find text.
+import { Surface } from "surface.slint";
+import { Palette } from "std-widgets.slint";
+import { QueryInput } from "query-input.slint";
+
+export component FindBar inherits Rectangle {
+    in property <bool> open;
+    in property <string> status;
+    in property <string> status-detail;
+    in property <bool> no-match;
+    in property <string> error-message;
+    in-out property <string> query;
+    // Ink of selected find text, which the owner chooses from the selection fill.
+    in property <brush> selected-ink: Palette.accent-foreground;
+    out property <bool> query-has-focus: input.has-focus;
+    // The clear control of the find text: whether it is shown, and its layout cell in window coordinates.
+    out property <bool> clear-shown: input.clear-shown;
+    out property <length> clear-x: input.clear-x;
+    out property <length> clear-y: input.clear-y;
+    out property <length> clear-width: input.clear-width;
+    out property <length> clear-height: input.clear-height;
+    // The owner sets this height only while open, so a closed bar reserves no space.
+    out property <length> bar-height: root.row-height + (root.error-message == "" ? 0px : error.preferred-height + 8px);
+    callback edited(string);
+    callback navigate(int);
+    callback shortcut(string, bool, bool, bool);
+    public function focus-query() {
+        input.focus();
+        input.select-all();
+    }
+    private property <length> row-height: 56px;
+    background: Surface.background;
+    clip: true;
+    accessible-role: search;
+    accessible-label: "Find in file";
+    forward-focus: input;
+
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 1px;
+        background: Palette.foreground;
+        opacity: 0.2;
+    }
+
+    // Capture match navigation before the single-line input consumes Return.
+    FocusScope {
+        width: parent.width;
+        height: parent.height;
+        // Only the find input is a focus stop; this scope observes its keys and must not hold focus itself.
+        focus-on-tab-navigation: false;
+        focus-on-click: false;
+        capture-key-pressed(event) => {
+            if event.text == Key.Return {
+                root.navigate(event.modifiers.shift ? -1 : 1);
+                return accept;
+            }
+            // Recent-file shortcuts keep working while the find text has focus; native code decodes the key.
+            if event.modifiers.control {
+                root.shortcut(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt);
+            }
+            reject
+        }
+        HorizontalLayout {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: root.row-height;
+            padding: 4px;
+            padding-left: 12px;
+            padding-right: 12px;
+            spacing: 12px;
+            input := QueryInput {
+                enabled: root.open;
+                max-height: 48px;
+                text <=> root.query;
+                placeholder-text: "Find in file";
+                clear-label: "Clear find text";
+                selected-ink: root.selected-ink;
+                accessible-label: "Find text";
+                accessible-description: root.status-detail;
+                edited(text) => { root.edited(text); }
+            }
+            Text {
+                horizontal-stretch: 0;
+                text: root.status;
+                color: Palette.foreground;
+                font-weight: root.no-match ? 600 : 400;
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                accessible-role: text;
+                accessible-label: root.status-detail;
+            }
+        }
+        error := Text {
+            visible: root.error-message != "";
+            x: 12px;
+            y: root.row-height;
+            width: parent.width - 24px;
+            text: root.error-message;
+            color: Palette.foreground;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+    }
+}

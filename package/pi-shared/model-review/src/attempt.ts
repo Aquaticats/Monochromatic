@@ -8,7 +8,7 @@ import type {
   Context,
   Tool,
 } from '@earendil-works/pi-ai';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ForeignBorrowed,
   ForeignHostCapability,

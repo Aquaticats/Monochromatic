@@ -1,0 +1,5 @@
+# The fixture sources are byte-exact inputs: their trailing bytes are part of what the
+# toml-edit tests read. `-text` stops EOL normalization, and the commit guard's
+# final-newline policy honors it, so these files keep their exact bytes wherever this
+# package moves.
+src/** -text

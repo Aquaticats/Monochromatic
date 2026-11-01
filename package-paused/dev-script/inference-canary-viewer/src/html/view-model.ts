@@ -4,7 +4,7 @@
  * Each model gets a nested `<details>` element containing one scatter chart
  * per probe, plus an aggregate chart of overall score.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { renderScatterChart, } from '../chart/scatter.ts';
 import { vendorColor, } from '../data/model-colors.ts';

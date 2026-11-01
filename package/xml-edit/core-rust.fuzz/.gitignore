@@ -1,0 +1,10 @@
+# libFuzzer scratch: discoveries, crashes and instrumented builds are reproducible locally and
+# must not be committed. Committed seeds live in seed/, not corpus/.
+/target
+/corpus
+/artifacts
+# Crash artifacts libFuzzer drops next to the binary; they belong in artifacts/, never in git.
+/crash-*
+/oom-*
+/timeout-*
+/leak-*

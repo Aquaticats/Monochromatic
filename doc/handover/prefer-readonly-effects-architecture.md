@@ -1,5 +1,10 @@
 # Handover: `prefer-readonly-parameter-type` effect architecture
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`.
+
 Living record for the catalog-free,
 fail-closed effect architecture in
 `package/oxlint-plugin/prefer-readonly-parameter-type`.
@@ -7,7 +12,9 @@ fail-closed effect architecture in
 ## Final decision
 
 Keep the rule as an Oxlint JavaScript plugin using the released JavaScript-plugin boundary and
-TypeScript 7.0.2's `typescript/unstable/sync` semantic API.
+TypeScript 7.0.2's `typescript/unstable/sync` semantic API
+(`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20).
 Do not add Rust,
 Node-API,
 `ttsc`,

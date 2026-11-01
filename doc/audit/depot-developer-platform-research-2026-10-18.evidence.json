@@ -1,0 +1,672 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T05:19:04.418Z",
+  "scope": "Public source and repository-scoped CLI reads; no subscription, invoice, organization-wide usage or account settings reads",
+  "sourceRevisions": [
+    {
+      "repository": "https://github.com/depot/docs",
+      "revision": "e40bfe1683ae561156d415513f2a648f89e82f12",
+      "commitDate": "2026-09-11T19:03:07+01:00"
+    },
+    {
+      "repository": "https://github.com/depot/cli",
+      "revision": "67a618f86b05d925f317e3d3a4f656f2fc8ff447"
+    },
+    {
+      "repository": "https://github.com/depot/sandbox-sdk",
+      "revision": "0e740b788d2613128b2ba6ed9b4129333244ee56"
+    }
+  ],
+  "pageCollections": [
+    {
+      "collectedAt": "2026-10-18T04:58:43.889Z",
+      "pages": [
+        {
+          "url": "https://depot.dev/docs/ci/compatibility",
+          "status": 200,
+          "sha256": "c280d485f0c990dc9ff344c8c02f103b0e748bebf923f26ac4d59aa43966fe37"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/cache-disks",
+          "status": 200,
+          "sha256": "b3e299dcdfa5bdb0e116b1aa1fe50c511303e54e2bab074f2d91b6fcaaafb566"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/custom-images",
+          "status": 200,
+          "sha256": "b0fda1a94862ccbfa592f26d61b7277773c4e4a11fd1747e586cf11dc252e3db"
+        },
+        {
+          "url": "https://depot.dev/docs/agents/overview",
+          "status": 200,
+          "sha256": "a47e6830d1b5a0754c4ac4acee1933a6908c160b11f97a3401988b2911e8fc58"
+        },
+        {
+          "url": "https://depot.dev/docs/agents/claude-code/quickstart",
+          "status": 200,
+          "sha256": "807646e1bcc75196c3d35928a178ef61ab5873a0981849f4df7f2b4ff7adcd2e"
+        },
+        {
+          "url": "https://depot.dev/docs/code/overview",
+          "status": 200,
+          "sha256": "6b59683ccc7dd4890f5212e547c21d88eabf59eaca869bf222a1ae736515a5b8"
+        },
+        {
+          "url": "https://depot.dev/docs/api/overview",
+          "status": 200,
+          "sha256": "ee67d533f837d453eb563c29ce57e19dcaabfa0c7766c257a1bac7025cfd4e98"
+        },
+        {
+          "url": "https://depot.dev/docs/api/sandbox-sdk-reference",
+          "status": 200,
+          "sha256": "22d66d2380b0cdb7a7df9cb401e6c623e3b990cca18561cde48ffdea90c7dd53"
+        },
+        {
+          "url": "https://depot.dev/docs/registry/overview",
+          "status": 200,
+          "sha256": "15c997ed7f5e73d685bfe6e289b8339f3d4ef6eb8581a9065cb5e10be50c2ca9"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/observability/depot-ci-test-results",
+          "status": 200,
+          "sha256": "75a68238f7077916a1f75297f059ebb05deb0afc4219af3e559a7f32f441a8e9"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/split-tests",
+          "status": 200,
+          "sha256": "981903de2d089b2c17be3d3cd72f15dc027face441ce4c0aa135b6ccf9b1de9a"
+        },
+        {
+          "url": "https://depot.dev/docs/github-actions/observability/github-actions-test-results",
+          "status": 200,
+          "sha256": "16606a496691bab7c0c54df071f85cc732febef7f605305d09d5e5fff8319651"
+        },
+        {
+          "url": "https://depot.dev/docs/container-builds/overview",
+          "status": 200,
+          "sha256": "44b84dfd12577d73aeab6b6672a933877f36b3ae568e201ab68095ec9c7113f4"
+        },
+        {
+          "url": "https://depot.dev/docs/container-builds/how-to-guides/autoscaling",
+          "status": 200,
+          "sha256": "92aae5148402a2985324e99bae21f9cf6782c9a3f5cc5c31ed4bd40105c7c706"
+        }
+      ]
+    },
+    {
+      "collectedAt": "2026-10-18T05:16:34.650Z",
+      "pages": [
+        {
+          "url": "https://depot.dev/docs/registry/pull-through-cache",
+          "status": 200,
+          "sha256": "f836e6b80cf30d42ab912856ad9d944cd12ab028b0a09e1c34e66322cae8c8aa"
+        },
+        {
+          "url": "https://depot.dev/docs/github-actions/runner-types",
+          "status": 200,
+          "sha256": "66d8c4caba8fd22ab10eb039fcd71b1814b59fd7099491335f95a9fa378f4cb4"
+        },
+        {
+          "url": "https://depot.dev/docs/github-actions/overview",
+          "status": 200,
+          "sha256": "6db8ef8ca7c306995da87fac308e756f271c9535e47a7ff3692fa726800a1964"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/parallel-steps",
+          "status": 200,
+          "sha256": "18ab889e1e41cd02bc1935e1630236cd3f391e00cf99ed309dcec16be8047176"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/retry-steps",
+          "status": 200,
+          "sha256": "a2ac4f78e533b7c5a540303ba6e0d29d459a8a22c3e4784b18a57756a0071046"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/how-to-guides/manage-workflow-runs",
+          "status": 200,
+          "sha256": "d590e8a3f12938d1ff7fcbc4ee520c9f67157c1aef5039b71d2a46d58d95e614"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/overview",
+          "status": 200,
+          "sha256": "485a349ce84d5ccab9b493becc5942d7a8e3be2b2534bf631d712ab35288c8db"
+        },
+        {
+          "url": "https://depot.dev/docs/cache/overview",
+          "status": 200,
+          "sha256": "3dbc27186ad10f0146fd9b494debc9819ae9f703a758071c35ec59dab7d726d0"
+        },
+        {
+          "url": "https://depot.dev/docs/cache/integrations/github-actions",
+          "status": 200,
+          "sha256": "73b4b645aa0690164cacad9bc32771769bf9f9259d2d569f54230dade8e6735f"
+        },
+        {
+          "url": "https://depot.dev/docs/github-actions/how-to-guides/access-private-resources",
+          "status": 200,
+          "sha256": "56e246f27d739f24e40e9c5db868e5120d5c6c20a0f9e8cadd39158a0ace8b36"
+        },
+        {
+          "url": "https://depot.dev/docs/container-builds/how-to-guides/docker-bake",
+          "status": 200,
+          "sha256": "77ee7f511a1e35f33a17ae61345e27c8f63a5f289ec85e86403d9843a1222811"
+        },
+        {
+          "url": "https://depot.dev/docs/ci/oidc",
+          "status": 200,
+          "sha256": "5d43fa6b29ab0e8685525386d68c618456730f0505357774dca00bfedabda370"
+        }
+      ]
+    },
+    {
+      "collectedAt": "2026-10-18T04:54:20.946Z",
+      "pages": [
+        {
+          "url": "https://depot.dev/pricing",
+          "status": 200,
+          "sha256": "2171c115316050f681ea20cce75eaa0e77e6fe58f7c841d6edcee578ade35009",
+          "bytes": 399072
+        },
+        {
+          "url": "https://depot.dev/terms-of-service",
+          "status": 200,
+          "sha256": "b3504cc36ba96b214a924dd84000fc0f0d094e67ebe40f432de002e4267f5537",
+          "bytes": 197671
+        }
+      ]
+    }
+  ],
+  "historicalVersusDeployedComparison": {
+    "checkedAt": "2026-10-18T05:15:30.586Z",
+    "revision": "e40bfe1683ae561156d415513f2a648f89e82f12",
+    "rows": [
+      {
+        "path": "ci/compatibility",
+        "source": {
+          "url": "https://raw.githubusercontent.com/depot/docs/e40bfe1683ae561156d415513f2a648f89e82f12/content/ci/compatibility.mdx",
+          "status": 200,
+          "sha256": "b1fe387dc36bda17ff597f1fc4d15acde1df4efb11e185f99e8df2d6ecc32dcb"
+        },
+        "deployed": {
+          "url": "https://depot.dev/docs/ci/compatibility",
+          "status": 200,
+          "sha256": "71950777e0df2898ba22c18535277979103e04dbeebc536d32d8b91550c9d190"
+        },
+        "historicalStatement": "The `uses` key for referencing workflows from other repositories is not supported.",
+        "currentStatement": "You can call a reusable workflow from another repository",
+        "sourceMatch": true,
+        "deployedRenderedMatch": true
+      },
+      {
+        "path": "api/overview",
+        "source": {
+          "url": "https://raw.githubusercontent.com/depot/docs/e40bfe1683ae561156d415513f2a648f89e82f12/content/api/overview.mdx",
+          "status": 200,
+          "sha256": "aade04c308c107d70a8dc83f89e4db7ece808ce3e0918ff3de7992c4612fc846"
+        },
+        "deployed": {
+          "url": "https://depot.dev/docs/api/overview",
+          "status": 200,
+          "sha256": "15dae62bbabdc60d056c84ba6ecd20d2e6deef23249dd2e753df96ff137feaaa"
+        },
+        "historicalStatement": "The Sandbox SDK is in private beta.",
+        "currentStatement": "The Sandbox SDK is in public beta.",
+        "sourceMatch": true,
+        "deployedRenderedMatch": true
+      },
+      {
+        "path": "code/overview",
+        "source": {
+          "url": "https://raw.githubusercontent.com/depot/docs/e40bfe1683ae561156d415513f2a648f89e82f12/content/code/overview.mdx",
+          "status": 200,
+          "sha256": "9f229953b571cff81d48f898c7300340d802e16dca91e90fb92ebdb9ca174e43"
+        },
+        "deployed": {
+          "url": "https://depot.dev/docs/code/overview",
+          "status": 200,
+          "sha256": "7d995caf2089790d86204cf76110f93558dd60762ce63bd0fbe2ab788567e8cf"
+        },
+        "historicalStatement": "Depot CI triggers are currently disabled by default for standalone repos",
+        "currentStatement": "enabled by default for all organizations",
+        "sourceMatch": true,
+        "deployedRenderedMatch": true
+      }
+    ]
+  },
+  "pricingSingleProductEnvelopes": {
+    "assumptions": "USD, only this product incurs overage; zero other providers, taxes and extra products; no active job or storage overshoot",
+    "ceiling": 200,
+    "base": 20,
+    "available": 180,
+    "ciBaseMinutes": 32000,
+    "defaultBuilderMinutes": 5000,
+    "linuxBaseRunnerMinutes": 32000,
+    "windows4CpuWallMinutes": 11750,
+    "agentMinutes": 18000,
+    "averageSharedStorageGb": 925,
+    "passingResults": 181000000,
+    "fastRegistryEgressGb": 1800
+  },
+  "cliHelpProbes": {
+    "observedAt": "2026-10-18T04:54:19.911Z",
+    "rows": [
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "--version"
+          ],
+          "exitCode": 0,
+          "stdout": "depot version 2.102.23 (2026-10-15)\nhttps://github.com/depot/cli/releases/tag/v2.102.23\n",
+          "stderr": "",
+          "stdoutSha256": "688a557ead79ef18db991dee8cab17d00843543fbae3841fc5f4af011c935a87"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "ci",
+            "run",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "Run a local CI workflow YAML via the Depot CI API.\n\nIf there are local changes relative to the remote state of your branch, they are\nautomatically uploaded as a patch and applied during the workflow run. For pushed\nbranches, the patch contains only unpushed changes; for unpushed branches, the\npatch is relative to the default branch.\n\nRepositories are detected from GitHub and Origin git remotes.\nUse --forge when more than one supported source is configured.\nUse --forge depot to run a Depot Code repository.\n\nUsage:\n  depot ci run [flags]\n  depot ci run [command]\n\nExamples:\n  # Run a workflow\n  depot ci run --workflow .depot/workflows/ci.yml\n\n  # Run specific jobs\n  depot ci run --workflow .depot/workflows/ci.yml --job build --job test\n\n  # Run a job and connect to its terminal via SSH\n  depot ci run --workflow .depot/workflows/ci.yml --job build --ssh\n\n  # Debug with tmate after a specific step\n  depot ci run --workflow .depot/workflows/ci.yml --job build --ssh-after-step 3\n\n  # Run a workflow from a Depot Code repository\n  depot ci run --workflow .depot/workflows/ci.yml --forge depot\n\nAvailable Commands:\n  list        List CI runs\n  show        Show a CI run\n\nFlags:\n  -f, --follow               Follow live logs\n      --forge string         Repository forge: github, origin, or depot\n  -h, --help                 help for run\n      --job strings          Job name(s) to run (repeatable; omit to run all)\n      --org string           Organization ID (required when user is a member of multiple organizations)\n      --repo string          Repository name to use instead of detecting from git remotes\n      --ssh                  Start the run and connect to the job's sandbox via interactive terminal (requires single --job)\n      --ssh-after-step int   1-based step index to insert a tmate debug step after (requires single --job)\n      --token string         Depot API token\n      --workflow string      Path to workflow YAML file\n\nUse \"depot ci run [command] --help\" for more information about a command.\n",
+          "stderr": "",
+          "stdoutSha256": "fe975c9cc0a8f185d9fbd93986427ffdbf8e20e600298a9201510482a1bd12ea"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "ci",
+            "run",
+            "list",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "List CI runs for your organization.\n\nUsage:\n  depot ci run list [flags]\n\nAliases:\n  list, ls\n\nExamples:\n  # List runs (defaults to queued and running)\n  depot ci run list\n\n  # List failed runs\n  depot ci run list --status failed\n\n  # List runs for a repository and commit SHA prefix\n  depot ci run list --repo depot/api --sha abc123\n\n  # List failed runs for a pull request\n  depot ci run list --repo depot/api --status failed --pr 42\n\n  # List workflow dispatch runs\n  depot ci run list --trigger workflow_dispatch\n\n  # List finished and failed runs\n  depot ci run list --status finished --status failed\n\n  # List the 5 most recent runs\n  depot ci run list -n 5\n\n  # Output as JSON\n  depot ci run list --output json\n\nFlags:\n  -h, --help             help for list\n  -n, --n int32          Number of runs to return (default 50)\n      --org string       Organization ID (required when user is a member of multiple organizations)\n  -o, --output string    Output format (json)\n      --pr string        Filter by pull request number (requires --repo)\n      --repo string      Filter by repository (owner/repo)\n      --sha string       Filter by commit SHA prefix\n      --status strings   Filter by status (repeatable: queued, running, finished, failed, cancelled)\n      --token string     Depot API token\n      --trigger string   Filter by trigger, e.g. push or workflow_dispatch\n",
+          "stderr": "",
+          "stdoutSha256": "facc4a3f67fb6906c2ed2f58225c64cb4b321ffe54b515a6d7b59ee05bcfa638"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "ci",
+            "cancel",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "Cancel a queued or running CI run, workflow (and all its child jobs), or a single job within a workflow.\n\nWith no scope flags, the entire run is cancelled. Use --workflow to cancel an entire\nworkflow and all its jobs; use --job to cancel a single job within its workflow.\n\nUsage:\n  depot ci cancel <run-id> [flags]\n\nExamples:\n  # Cancel a run\n  depot ci cancel <run-id>\n\n  # Cancel a workflow (and all its jobs)\n  depot ci cancel <run-id> --workflow <workflow-id>\n\n  # Cancel a single job in a workflow\n  depot ci cancel <run-id> --job <job-id>\n\n  # Output the RPC response as JSON\n  depot ci cancel <run-id> --output json\n\nFlags:\n  -h, --help              help for cancel\n      --job string        Job ID to cancel within its workflow\n      --org string        Organization ID (required when user is a member of multiple organizations)\n  -o, --output string     Output format (json)\n      --token string      Depot API token\n      --workflow string   Workflow ID to cancel\n",
+          "stderr": "",
+          "stdoutSha256": "78d88edae2309ebd7dda6ac9994a4c5083feb770d82d60320da27e7ea3649fc3"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "ci",
+            "status",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "Look up the status of a CI run, including its workflows, jobs, and attempts.\n\nWith --wait, poll every five seconds until the run finishes, fails, or is cancelled.\nProgress updates are written to stderr and the final status is written to stdout.\nExit with code 0 for a finished run, or code 1 for a failed or cancelled run.\n\nUsage:\n  depot ci status <run-id> [flags]\n\nExamples:\n  # Look up the current status\n  depot ci status <run-id>\n\n  # Wait for completion and print the final status as JSON\n  depot ci status <run-id> --wait --output json\n\nFlags:\n  -h, --help            help for status\n      --org string      Organization ID (required when user is a member of multiple organizations)\n  -o, --output string   Output format (json)\n      --token string    Depot API token\n      --wait            Wait for the run to complete\n",
+          "stderr": "",
+          "stdoutSha256": "18a1e9e9711cf8ed9ef4ac19dc76198374dede1ee0816a930ee2f5b9125108c3"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "ci",
+            "artifacts",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "List CI artifact metadata and download one artifact by artifact ID.\n\nUsage:\n  depot ci artifacts [flags]\n  depot ci artifacts [command]\n\nExamples:\n  # List artifacts for a run\n  depot ci artifacts list <run-id>\n\n  # Download one artifact by ID\n  depot ci artifacts download <artifact-id> --output-file coverage.zip\n\nAvailable Commands:\n  download    Download one CI artifact by artifact ID\n  list        List artifacts for a CI run\n\nFlags:\n  -h, --help   help for artifacts\n\nUse \"depot ci artifacts [command] --help\" for more information about a command.\n",
+          "stderr": "",
+          "stdoutSha256": "c3adb97f3a032d393b849681f1c1e48d282bd2adb07f7ac98c76f9729a94eebf"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "tests",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "List parsed test results for a Depot CI attempt or GitHub Actions job.\n\nBy default, Depot tries the ID as Depot CI results or GitHub Actions results.\n\nUse --ci to restrict lookup to Depot CI results. The ID may be a run, job, or\nattempt ID; run and job IDs resolve to the latest matching attempt, matching\ndepot ci logs.\n\nUse --gha to restrict lookup to GitHub Actions results. The ID may be a GitHub\nActions job ID.\n\nUsage:\n  depot tests <id> [flags]\n  depot tests [command]\n\nExamples:\n  # List Depot CI results for one attempt\n  depot tests <attempt-id>\n\n  # List Depot CI results for one job in a run\n  depot tests <run-id> --job test\n\n  # List failed GitHub Actions results for one job\n  depot tests <github-job-id> --gha --status failed\n\n  # Emit JSON for automation\n  depot tests <attempt-id> --output json\n\nAvailable Commands:\n  analytics   Find flaky or slow tests across runs\n  report      Upload JUnit XML test reports\n  run         Run a test shard and upload JUnit XML reports\n  split       Print candidates assigned to a test shard\n\nFlags:\n      --ci                   Restrict lookup to Depot CI test results\n      --class string         Test class name to include\n      --file string          Source filename to include\n      --gha                  Restrict lookup to GitHub Actions test results\n  -h, --help                 help for tests\n      --job string           Depot CI job key to select when ID is a run\n      --org string           Organization ID (required when user is a member of multiple organizations)\n      --output string        Output format (auto, table, json) (default \"auto\")\n      --page-size uint32     Number of results to return per page (max 500) (default 100)\n      --page-token string    Token to fetch the next page\n      --status stringArray   Test status to include (unknown, passed, failed, errored, skipped); repeatable\n      --suite string         Test suite name to include\n      --test string          Test case name to include\n      --token string         Depot API token\n      --workflow string      Depot CI workflow path to filter jobs (e.g. ci.yml)\n\nUse \"depot tests [command] --help\" for more information about a command.\n",
+          "stderr": "",
+          "stdoutSha256": "64f8665ec7ce403ef5f10196877bb51df0c34fb2943079ab6674558cbe5b7c0f"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "depot",
+            "build",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "Start a build\n\nUsage:\n  depot build [OPTIONS] PATH | URL | - [flags]\n\nAliases:\n  build, b\n\nFlags:\n      --add-host strings              Add a custom host-to-IP mapping (format: \"host:ip\")\n      --allow strings                 Allow extra privileged entitlement (e.g., \"network.host\", \"security.insecure\")\n      --annotation stringArray        Add annotation to the image\n      --attest stringArray            Attestation parameters (format: \"type=sbom,generator=image\")\n      --build-arg stringArray         Set build-time variables\n      --build-context stringArray     Additional build contexts (e.g., name=path)\n      --build-platform string         Run builds on this platform (\"dynamic\", \"linux/amd64\", \"linux/arm64\") (default \"dynamic\")\n      --cache-from stringArray        External cache sources (e.g., \"user/app:cache\", \"type=local,src=path/to/dir\")\n      --cache-to stringArray          Cache export destinations (e.g., \"user/app:cache\", \"type=local,dest=path/to/dir\")\n      --cgroup-parent string          Optional parent cgroup for the container\n  -f, --file string                   Name of the Dockerfile (default: \"PATH/Dockerfile\")\n  -h, --help                          help for build\n      --iidfile string                Write the image ID to the file\n      --label stringArray             Set metadata for an image\n      --lint                          Lint Dockerfiles\n      --lint-fail-on string           controls lint severity that fails the build (\"info\", \"warn\", \"error\", \"none\") (default \"error\")\n      --load                          Shorthand for \"--output=type=docker\"\n      --metadata-file string          Write build result metadata to the file\n      --network string                Set the networking mode for the \"RUN\" instructions during build (default \"default\")\n      --no-cache                      Do not use cache when building the image\n      --no-cache-filter stringArray   Do not cache specified stages\n  -o, --output stringArray            Output destination (format: \"type=local,dest=path\")\n      --platform stringArray          Set target platform for build\n      --progress string               Set type of progress output (\"auto\", \"plain\", \"tty\"). Use plain to show container output (default \"auto\")\n      --project string                Depot project ID\n      --provenance string             Shorthand for \"--attest=type=provenance\"\n      --pull                          Always attempt to pull all referenced images\n      --push                          Shorthand for \"--output=type=registry\"\n  -q, --quiet                         Suppress the build output and print image ID on success\n      --save                          Saves the build to the depot registry\n      --save-tag stringArray          Additional custom tag for the saved image, use with --save\n      --sbom string                   Shorthand for \"--attest=type=sbom\"\n      --sbom-dir string               directory to store SBOM attestations\n      --secret stringArray            Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")\n      --shm-size bytes                Size of \"/dev/shm\"\n      --ssh stringArray               SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")\n  -t, --tag stringArray               Name and optionally a tag (format: \"name:tag\")\n      --target string                 Set the target build stage to build\n      --token string                  Depot token\n      --ulimit ulimit                 Ulimit options (default [])\n",
+          "stderr": "",
+          "stdoutSha256": "e207ee7d7eea46f68215cd384c2395ae05ca036693d0457ce47c03bdbf45e74e"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "gh",
+            "--version"
+          ],
+          "exitCode": 0,
+          "stdout": "gh version 2.102.0 (2026-09-30)\nhttps://github.com/cli/cli/releases/tag/v2.102.0\n",
+          "stderr": "",
+          "stdoutSha256": "a679442459bed23fdc13efb977dec3b17c3c923d8d48abc0d8e522182250955f"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "gh",
+            "run",
+            "cancel",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "Cancel a workflow run\n\nUSAGE\n  gh run cancel [<run-id>] [flags]\n\nFLAGS\n  --force   Force cancel a workflow run\n\nINHERITED FLAGS\n      --help                     Show help for command\n  -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format\n\nLEARN MORE\n  Use `gh <command> <subcommand> --help` for more information about a command.\n  Read the manual at https://cli.github.com/manual\n  Learn about exit codes using `gh help exit-codes`\n  Learn about accessibility experiences using `gh help accessibility`\n\n",
+          "stderr": "",
+          "stdoutSha256": "d8a7954211d6c84a5a900676690ceb8df2b2ee04d32684dcac94dba1638080e2"
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "command": [
+            "gh",
+            "run",
+            "view",
+            "--help"
+          ],
+          "exitCode": 0,
+          "stdout": "View a summary of a workflow run.\n\nDue to platform limitations, `gh` may not always be able to associate jobs with their\ncorresponding logs when using the primary method of fetching logs in zip format.\n\nIn such cases, `gh` will attempt to fetch logs for each job individually via the API.\nThis fallback is slower and more resource-intensive. If more than 25 job logs are missing,\nthe operation will fail with an error.\n\nAdditionally, due to similar platform constraints, some log lines may not be\nassociated with a specific step within a job. In these cases, the step name will\nappear as `UNKNOWN STEP` in the log output.\n\nFor more information about output formatting flags, see `gh help formatting`.\n\nUSAGE\n  gh run view [<run-id>] [flags]\n\nFLAGS\n  -a, --attempt uint      The attempt number of the workflow run\n      --exit-status       Exit with non-zero status if run failed\n  -j, --job string        View a specific job ID from a run\n  -q, --jq expression     Filter JSON output using a jq expression\n      --json fields       Output JSON with the specified fields\n      --log               View full log for either a run or specific job\n      --log-failed        View the log for any failed steps in a run or specific job\n  -t, --template string   Format JSON output using a Go template; see \"gh help formatting\"\n  -v, --verbose           Show job steps\n  -w, --web               Open run in the browser\n\nINHERITED FLAGS\n      --help                     Show help for command\n  -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format\n\nJSON FIELDS\n  attempt, conclusion, createdAt, databaseId, displayTitle, event, headBranch,\n  headSha, jobs, name, number, startedAt, status, updatedAt, url,\n  workflowDatabaseId, workflowName\n\nEXAMPLES\n  # Interactively select a run to view, optionally selecting a single job\n  $ gh run view\n  \n  # View a specific run\n  $ gh run view 12345\n  \n  # View a specific run with specific attempt number\n  $ gh run view 12345 --attempt 3\n  \n  # View a specific job within a run\n  $ gh run view --job 456789\n  \n  # View the full log for a specific job\n  $ gh run view --log --job 456789\n  \n  # Exit non-zero if a run failed\n  $ gh run view 0451 --exit-status && echo \"run pending or passed\"\n\nLEARN MORE\n  Use `gh <command> <subcommand> --help` for more information about a command.\n  Read the manual at https://cli.github.com/manual\n  Learn about exit codes using `gh help exit-codes`\n  Learn about accessibility experiences using `gh help accessibility`\n\n",
+          "stderr": "",
+          "stdoutSha256": "bc53445e2dbd82abb6f8b24d34b62b0b6366b260da5d3552c9424c7c651c65fd"
+        }
+      }
+    ]
+  },
+  "scopeAuthority": {
+    "url": "https://github.com/depot/docs/pull/188#issuecomment-5797275767",
+    "authorAssociation": "CONTRIBUTOR",
+    "excerpt": "docs changes are authored in app and synced here.",
+    "noPublishingScheduleClaimed": true
+  },
+  "harnesses": [
+    {
+      "name": "provider-cli-read-only-probes",
+      "miseToml": "[tasks.provider-cli-read-only-probes]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {execFile}=await import('node:child_process');const {promisify}=await import('node:util');const {writeFileSync}=await import('node:fs');const {createHash}=await import('node:crypto');const run=promisify(execFile);const commands=[['depot',['--version']],['depot',['ci','run','--help']],['depot',['ci','run','list','--help']],['depot',['ci','cancel','--help']],['depot',['ci','status','--help']],['depot',['ci','artifacts','--help']],['depot',['tests','--help']],['depot',['build','--help']],['gh',['--version']],['gh',['run','cancel','--help']],['gh',['run','view','--help']]];const rows=await Promise.allSettled(commands.map(async ([bin,args])=>{const result=await run(bin,args,{maxBuffer:1024*1024});const name=[bin,...args].join('_').replaceAll('--','');writeFileSync(name+'.txt',result.stdout+result.stderr);return {command:[bin,...args],exitCode:0,stdout:result.stdout,stderr:result.stderr,stdoutSha256:createHash('sha256').update(result.stdout).digest('hex')}}));writeFileSync('cli-read-only-probes.json',JSON.stringify({observedAt:new Date().toISOString(),rows},null,2)+'\\n');for(let i=0;i<rows.length;i++){const row=rows[i];if(row.status==='fulfilled')console.log(JSON.stringify({command:row.value.command,exitCode:row.value.exitCode,sha256:row.value.stdoutSha256,output:row.value.stdout}));else console.log(JSON.stringify({command:commands[i],error:String(row.reason),code:row.reason?.code}));}\n'''\n"
+    },
+    {
+      "name": "fetch-current-capability-pages",
+      "miseToml": "[tasks.fetch-current-capability-pages]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {execFileSync}=await import('node:child_process');const {writeFileSync,readFileSync}=await import('node:fs');const {createHash}=await import('node:crypto');const pages=['ci/compatibility','ci/how-to-guides/cache-disks','ci/how-to-guides/custom-images','agents/overview','agents/claude-code/quickstart','code/overview','api/overview','api/sandbox-sdk-reference','registry/overview','ci/observability/depot-ci-test-results','ci/how-to-guides/split-tests','github-actions/observability/github-actions-test-results','container-builds/overview','container-builds/how-to-guides/autoscaling'];const rows=[];for(let start=0;start<pages.length;start+=3){const results=await Promise.allSettled(pages.slice(start,start+3).map(async page=>{const url='https://depot.dev/docs/'+page;const response=await fetch(url,{signal:AbortSignal.timeout(30000)});const body=await response.text();const name='current-'+page.replaceAll('/','-');writeFileSync(name+'.html',body);execFileSync('pandoc',['--from=html','--to=plain',name+'.html','--output',name+'.txt']);const plain=readFileSync(name+'.txt','utf8');const matches=[...plain.matchAll(/reusable workflow|private beta|free to use|free during|unsupported|not supported|only supported|only available|2 vCPU|4 GB|\\$0\\.01|no included|usage cap|fork|timeout|FIFO|32 GB|environment variable|write back|branch isolation/giu)].map(m=>({index:m.index,context:plain.slice(Math.max(0,m.index-100),m.index+400)}));return {url,status:response.status,sha256:createHash('sha256').update(body).digest('hex'),htmlPath:name+'.html',plainPath:name+'.txt',matches}}));for(let i=0;i<results.length;i++){const row=results[i];if(row.status==='fulfilled'){rows.push(row.value);console.log(JSON.stringify({url:row.value.url,status:row.value.status,matches:row.value.matches}));}else{rows.push({page:pages[start+i],error:String(row.reason)});console.log(JSON.stringify(rows.at(-1)));}}}writeFileSync('current-capability-page-observations.json',JSON.stringify({fetchedAt:new Date().toISOString(),rows},null,2)+'\\n');\n'''\n"
+    },
+    {
+      "name": "fetch-unretained-cited-documents",
+      "miseToml": "[tasks.fetch-unretained-cited-documents]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {writeFileSync}=await import('node:fs');const {execFileSync}=await import('node:child_process');const {createHash}=await import('node:crypto');const {strict:assert}=await import('node:assert');const paths=['registry/pull-through-cache','github-actions/runner-types','github-actions/overview','ci/how-to-guides/parallel-steps','ci/how-to-guides/retry-steps','ci/how-to-guides/manage-workflow-runs','ci/overview','cache/overview','cache/integrations/github-actions','github-actions/how-to-guides/access-private-resources','container-builds/how-to-guides/docker-bake','ci/oidc'];const rows=[];for(let index=0;index<paths.length;index+=4){const batch=await Promise.allSettled(paths.slice(index,index+4).map(async path=>{const url='https://depot.dev/docs/'+path;const response=await fetch(url,{signal:AbortSignal.timeout(30000)});assert.equal(response.status,200);const html=await response.text();const file='supplement-'+path.replaceAll('/','-');writeFileSync(file+'.html',html);execFileSync('pandoc',['--from=html','--to=plain',file+'.html','--output',file+'.txt']);return {url,status:response.status,sha256:createHash('sha256').update(html).digest('hex'),htmlPath:file+'.html',plainPath:file+'.txt'}}));for(const result of batch){assert.equal(result.status,'fulfilled',result.status==='rejected'?String(result.reason):undefined);rows.push(result.value)}}writeFileSync('supplemental-cited-page-observations.json',JSON.stringify({fetchedAt:new Date().toISOString(),rows},null,2)+'\\n');console.log(JSON.stringify({pages:rows.length,rows}));\n'''\n"
+    },
+    {
+      "name": "verify-deployed-versus-mirrored-docs",
+      "miseToml": "[tasks.verify-deployed-versus-mirrored-docs]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {execFileSync}=await import('node:child_process');const {readFileSync,writeFileSync}=await import('node:fs');const {createHash}=await import('node:crypto');const {strict:assert}=await import('node:assert');const revision='e40bfe1683ae561156d415513f2a648f89e82f12';const cases=[{path:'ci/compatibility',old:'The `uses` key for referencing workflows from other repositories is not supported.',current:'You can call a reusable workflow from another repository'},{path:'api/overview',old:'The Sandbox SDK is in private beta.',current:'The Sandbox SDK is in public beta.'},{path:'code/overview',old:'Depot CI triggers are currently disabled by default for standalone repos',current:'enabled by default for all organizations'}];const rows=[];for(const item of cases){const sourceUrl='https://raw.githubusercontent.com/depot/docs/'+revision+'/content/'+item.path+'.mdx',liveUrl='https://depot.dev/docs/'+item.path;const fetched=await Promise.all([sourceUrl,liveUrl].map(async url=>{const response=await fetch(url,{signal:AbortSignal.timeout(30000)});assert.equal(response.status,200);const body=await response.text();return {url,status:response.status,body,sha256:createHash('sha256').update(body).digest('hex')}}));const source=fetched[0],live=fetched[1];const name='source-comparison-'+item.path.replaceAll('/','-');writeFileSync(name+'.html',live.body);execFileSync('pandoc',['--from=html','--to=plain',name+'.html','--output',name+'.txt']);const rendered=readFileSync(name+'.txt','utf8').replace(/\\s/gu,' ');const normalized=rendered.replace(/ +/gu,' ');assert(source.body.includes(item.old));assert(normalized.includes(item.current));const {body:oldBody,...sourceMeta}=source;const {body:liveBody,...liveMeta}=live;rows.push({path:item.path,source:sourceMeta,deployed:liveMeta,historicalStatement:item.old,currentStatement:item.current,sourceMatch:true,deployedRenderedMatch:true});}const result={checkedAt:new Date().toISOString(),revision,rows};writeFileSync('deployed-versus-mirrored-docs-verified.json',JSON.stringify(result,null,2)+'\\n');console.log(JSON.stringify(result));\n'''\n"
+    },
+    {
+      "name": "inspect-pricing-matrix-and-budget-envelopes",
+      "miseToml": "[tasks.inspect-pricing-matrix-and-budget-envelopes]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync}=await import('node:fs');const html=readFileSync('pricing.html','utf8');for(const label of ['Windows Runners','macOS M2 Runners','Egress Filtering','Usage caps','API Access','Agent Sandboxes']){const re=new RegExp('<tr[^>]*>(?:(?!<tr)[\\\\s\\\\S])*?'+label.replace(/[.*+?^${}()|[\\]\\\\]/gu,'\\\\$&')+'(?:(?!<tr)[\\\\s\\\\S])*?</tr>','u');const row=html.match(re)?.[0];console.log(JSON.stringify({label,row:row??null}));}const ceiling=200,base=20,available=ceiling-base;const envelope={assumptions:'USD, only this product incurs overage; zero other providers, taxes and extra products; no active job or storage overshoot',ceiling,base,available,ciBaseMinutes:2000+available/0.006,defaultBuilderMinutes:500+available/0.04,linuxBaseRunnerMinutes:2000+available/0.006,windows4CpuWallMinutes:2000/4+available/0.016,agentMinutes:available/0.01,averageSharedStorageGb:25+available/0.2,passingResults:1000000+available/0.000001,fastRegistryEgressGb:available/0.1};writeFileSync('public-one-product-budget-envelopes.json',JSON.stringify(envelope,null,2)+'\\n');console.log(JSON.stringify(envelope));\n'''\n"
+    },
+    {
+      "name": "verify-published-capability-documents",
+      "miseToml": "[tasks.verify-published-capability-documents]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync,existsSync,realpathSync}=await import('node:fs');const {homedir}=await import('node:os');const {join,dirname,resolve}=await import('node:path');const {execFileSync}=await import('node:child_process');const {strict:assert}=await import('node:assert');const root=realpathSync(join(homedir(),'Monochromatic'));const docs=['doc/planning/depot-developer-pool-capabilities-research.md','doc/troubleshooting/depot-documentation-source-drift.md','doc/troubleshooting/depot-sandbox-runtime-registry-boundary.md'];const rows=[];for(const path of docs){const source=readFileSync(join(root,path),'utf8');const name=path.slice(path.lastIndexOf('/')+1,-3);const html=execFileSync('pandoc',['--from=commonmark','--to=html5',join(root,path)],{encoding:'utf8'});writeFileSync(name+'.rendered.html',html);const headings=[...html.matchAll(/<h[1-4][^>]*>(.*?)<[/]h[1-4]>/gsu)].map(match=>match[1]);assert(headings.length>=7);assert(!html.includes('<table'));assert(!html.includes('<em>'));assert(!source.includes(String.fromCharCode(0x2013)));assert(!source.includes(String.fromCharCode(0x2014)));const links=[...html.matchAll(/href=\"([^\"]+)\"/gu)].map(match=>match[1]);for(const href of links.filter(href=>!/^https?:/u.test(href)))assert(existsSync(resolve(dirname(join(root,path)),href.split('#')[0])),'Broken local link: '+href);assert(!html.includes('[sdk-evidence]'));rows.push({path,headings,renderedBytes:Buffer.byteLength(html),localLinksChecked:links.filter(href=>!/^https?:/u.test(href)).length});}const jsons=['doc/audit/depot-developer-sandbox-sdk-2026-10-18.evidence.json','doc/audit/depot-developer-platform-research-2026-10-18.evidence.json'];for(const path of jsons){const content=readFileSync(join(root,path),'utf8');JSON.parse(content);assert(!content.includes(homedir()));assert(!/eyJ[a-zA-Z0-9_-]{20,}[.]/u.test(content));}execFileSync('dprint',['check','--config',join(root,'package/config/dprint/index.json'),'--',...jsons.map(path=>join(root,path))],{cwd:root,stdio:'inherit'});const receipt={checkedAt:new Date().toISOString(),markdown:rows,jsonFiles:jsons};writeFileSync('published-capability-documents-verification.json',JSON.stringify(receipt,null,2)+'\\n');console.log(JSON.stringify(receipt));\n'''\n"
+    },
+    {
+      "name": "verify-retained-ci-kvm-consumer",
+      "miseToml": "[tasks.verify-retained-ci-kvm-consumer]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync,realpathSync}=await import('node:fs');const {join}=await import('node:path');const {homedir}=await import('node:os');const {createHash}=await import('node:crypto');const {execFileSync}=await import('node:child_process');const {strict:assert}=await import('node:assert');const root=realpathSync(join(homedir(),'Monochromatic'));const source=JSON.parse(readFileSync(join(root,'doc/audit/depot-vm-recovery-2026-10-17.evidence.json'),'utf8'));const zip=join(homedir(),'temp/agent/depot-complete-accounting-20261016',source.diagnosticRoute.artifact.file);const bytes=readFileSync(zip);const sha=buffer=>createHash('sha256').update(buffer).digest('hex');assert.equal(bytes.length,source.diagnosticRoute.artifact.artifact.size_bytes);assert.equal(sha(bytes),source.diagnosticRoute.artifact.sha256);const members=['lifecycle.json','results.json','prepare-ubuntu.stdout.log','prepare-ubuntu.stderr.log','destroy-preparation-ubuntu.stdout.log','destroy-preparation-ubuntu.stderr.log','daemon-mvm-depot-preparation-ubuntu-fs0-virtiofsd.log','private-domain-list-before.stdout.log','private-domain-list-after.stdout.log','private-domain-list-cleanup.stdout.log'];const extracted=Object.fromEntries(members.map(name=>[name,execFileSync('unzip',['-p',zip,name],{encoding:'utf8',maxBuffer:1024*1024})]));const parsed={lifecycle:JSON.parse(extracted['lifecycle.json']),results:JSON.parse(extracted['results.json'])};for(const input of source.sourceInputs){const body=execFileSync('git',['show',source.sourceRevision+':'+input.path],{cwd:root});assert.equal(sha(body),input.sha256);}const files=execFileSync('git',['ls-tree','-r','--name-only',source.sourceRevision,'--','package/cli/mvm/src'],{cwd:root,encoding:'utf8'}).trim().split('\\n');const xmlSources=[];for(const path of files.filter(path=>/domain|xml/u.test(path))){const body=execFileSync('git',['show',source.sourceRevision+':'+path],{cwd:root,encoding:'utf8'});if(body.includes('kvm'))xmlSources.push({path,sha256:sha(Buffer.from(body)),matches:body.split('\\n').flatMap((line,index)=>line.includes('kvm')?[{line:index+1,text:line}]:[])});}const result={checkedAt:new Date().toISOString(),sourceRevision:source.sourceRevision,harnessRevision:source.diagnosticRoute.harnessRevision,runId:source.diagnosticRoute.runId,artifact:{...source.diagnosticRoute.artifact.artifact,sha256:sha(bytes),bytes:bytes.length},sourceInputsVerified:source.sourceInputs,xmlSources,parsed,members:Object.entries(extracted).map(([name,content])=>({name,sha256:sha(Buffer.from(content)),bytes:Buffer.byteLength(content),content}))};writeFileSync('retained-ci-kvm-consumer-verified.json',JSON.stringify(result,null,2)+'\\n');console.log(JSON.stringify({checkedAt:result.checkedAt,runId:result.runId,artifact:result.artifact,sourceInputsVerified:result.sourceInputsVerified,xmlSources,parsed}));\n'''\n"
+    },
+    {
+      "name": "inspect-retained-ci-kvm-logs",
+      "miseToml": "[tasks.inspect-retained-ci-kvm-logs]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync}=await import('node:fs');const {join}=await import('node:path');const {homedir}=await import('node:os');const {execFileSync}=await import('node:child_process');const {strict:assert}=await import('node:assert');const {createHash}=await import('node:crypto');const proof=JSON.parse(readFileSync('retained-ci-kvm-consumer-verified.json','utf8'));const zip=join(homedir(),'temp/agent/depot-complete-accounting-20261016/collected-vq299blkbw/logger-vm-evidence.zip');const daemon=execFileSync('unzip',['-p',zip,'daemon-mvm-depot-preparation-ubuntu.log'],{encoding:'utf8',maxBuffer:1024*1024});const accelLines=daemon.split('\\n').filter(line=>line.includes('-accel')||line.includes('KVM'));const otherLogs=Object.fromEntries(proof.members.filter(row=>/prepare-ubuntu|destroy-preparation|virtiofsd/u.test(row.name)).map(row=>[row.name,row.content]));assert.deepEqual(proof.parsed.lifecycle.cleanupErrors,[]);assert.equal(proof.parsed.lifecycle.finalIdentity.head,proof.sourceRevision);assert.equal(proof.parsed.lifecycle.finalIdentity.trackedStatus,'');for(const name of ['private-domain-list-before.stdout.log','private-domain-list-after.stdout.log','private-domain-list-cleanup.stdout.log'])assert.equal(proof.members.find(row=>row.name===name).content.trim(),'');assert(proof.xmlSources.some(row=>row.matches.some(match=>match.text.includes(\"type: 'kvm'\"))));const result={...proof,qemuDaemon:{member:'daemon-mvm-depot-preparation-ubuntu.log',bytes:Buffer.byteLength(daemon),sha256:createHash('sha256').update(daemon).digest('hex'),accelLines},retainedDomainListsEmpty:true,retainedCleanupErrorsEmpty:true};writeFileSync('retained-ci-kvm-consumer-verified.json',JSON.stringify(result,null,2)+'\\n');console.log(JSON.stringify({accelLines,otherLogs}));\n'''\n"
+    }
+  ],
+  "documentationVerification": {
+    "checkedAt": "2026-10-18T05:29:55.588Z",
+    "markdown": [
+      {
+        "path": "doc/planning/depot-developer-pool-capabilities-research.md",
+        "headings": [
+          "Depot Developer platform capabilities research",
+          "Plan and independent usage pools",
+          "Depot CI orchestration and coverage expansion",
+          "GitHub Actions runners and network controls",
+          "Cache mechanisms and their different trust boundaries",
+          "Remote builds, registries, and artifact consumers",
+          "Test reporting, history, and timing-based splitting",
+          "Generic Sandbox SDK and remote agents",
+          "Debugging, APIs, credentials, and source hosting",
+          "Budget enforcement and trial transition limits",
+          "Evidence limits and remaining research decisions"
+        ],
+        "renderedBytes": 31016,
+        "localLinksChecked": 8
+      },
+      {
+        "path": "doc/troubleshooting/depot-documentation-source-drift.md",
+        "headings": [
+          "Depot docs e40bfe1: source mirror yields obsolete capability\nexclusions",
+          "Symptom",
+          "Root cause and evidence",
+          "Verification",
+          "Verified workaround",
+          "What does not work",
+          "Upstream filing decision"
+        ],
+        "renderedBytes": 7947,
+        "localLinksChecked": 9
+      },
+      {
+        "path": "doc/troubleshooting/depot-sandbox-runtime-registry-boundary.md",
+        "headings": [
+          "Depot Sandbox SDK 0.1.0-beta.7: public OCI runtime rejected at\ncreate",
+          "Symptom",
+          "Root cause and source trace",
+          "Verification",
+          "Verified workaround",
+          "Separate listing and device observations",
+          "What does not work",
+          "Upstream filing decision"
+        ],
+        "renderedBytes": 13459,
+        "localLinksChecked": 28
+      }
+    ],
+    "jsonFiles": [
+      "doc/audit/depot-developer-sandbox-sdk-2026-10-18.evidence.json",
+      "doc/audit/depot-developer-platform-research-2026-10-18.evidence.json"
+    ],
+    "monochromaticLint": {
+      "argv": [
+        "mise",
+        "run",
+        "lint:monochromatic-lint",
+        "--",
+        "doc/planning/depot-developer-pool-capabilities-research.md",
+        "doc/troubleshooting/depot-documentation-source-drift.md",
+        "doc/troubleshooting/depot-sandbox-runtime-registry-boundary.md"
+      ],
+      "exitCode": 0
+    },
+    "renderedOutputInspected": true
+  },
+  "retainedCiKvmConsumer": {
+    "checkedAt": "2026-10-18T05:24:56.454Z",
+    "noAdditionalCloudAllocation": true,
+    "sourceRevision": "ef01490f5e960f8ca0b424c12242caeb3c5a2b5e",
+    "harnessRevision": "a683cd54f98b11add860c1bab48b33d14883a370",
+    "originalEvidencePath": "doc/audit/depot-vm-recovery-2026-10-17.evidence.json",
+    "artifact": {
+      "artifact_id": "01a14835-9090-7ae6-9802-21e1bc74a1ee",
+      "run_id": "vq299blkbw",
+      "workflow_id": "kn1wz06pnt",
+      "workflow_path": "",
+      "job_id": "knx7fkp81f",
+      "job_key": "_inline_0.yaml:vm",
+      "attempt_id": "0nfgv4zjz8",
+      "attempt": 1,
+      "name": "logger-vm-evidence",
+      "size_bytes": 21474,
+      "created_at": "2026-10-17T04:53:52Z",
+      "sha256": "606cb2a627cc1dcf9bc99d4bb310e9e9ae00c05fcd4ef90b4dc951c0559663e1",
+      "bytes": 21474
+    },
+    "resources": {
+      "vcpus": 16,
+      "memoryGiB": 64,
+      "image": "monochromatic-trial-desktop-ready:20261016-v1"
+    },
+    "sourceInputsVerified": [
+      {
+        "path": "mise.lock",
+        "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+      },
+      {
+        "path": "package/cli/vmsync/src/lifecycle.expensive.unit.test.ts",
+        "sha256": "e1ab543bd6d494983f7bf04dbf151030dab7ba0c3a84225e58c361c7d7061471"
+      }
+    ],
+    "domainSource": [
+      {
+        "path": "package/cli/mvm/src/domain-xml.ts",
+        "sha256": "254a29dd5b2dccd45017fb9b122c8a79e32886b377221cc1535b9ae27764e02b",
+        "matches": [
+          {
+            "line": 262,
+            "text": "    attrs: { type: 'kvm', },"
+          }
+        ]
+      }
+    ],
+    "qemuDaemon": {
+      "member": "daemon-mvm-depot-preparation-ubuntu.log",
+      "bytes": 15071,
+      "sha256": "9f83cd068f5fd0253445c70adfb3989bfecd06de92f0430df167b35e5d6174cf",
+      "accelLines": [
+        "-accel kvm \\"
+      ]
+    },
+    "commands": [
+      {
+        "id": "prepare-ubuntu",
+        "startedAt": "2026-10-17T04:39:18.462Z",
+        "finishedAt": "2026-10-17T04:39:59.774Z",
+        "exitCode": 0,
+        "signal": null
+      },
+      {
+        "id": "destroy-preparation-ubuntu",
+        "startedAt": "2026-10-17T04:39:59.774Z",
+        "finishedAt": "2026-10-17T04:40:00.167Z",
+        "exitCode": 0,
+        "signal": null
+      },
+      {
+        "id": "prepare-windows",
+        "startedAt": "2026-10-17T04:40:00.167Z",
+        "finishedAt": "2026-10-17T04:53:51.603Z",
+        "exitCode": 1,
+        "signal": null
+      }
+    ],
+    "sourceFinalIdentity": {
+      "head": "ef01490f5e960f8ca0b424c12242caeb3c5a2b5e",
+      "trackedStatus": "",
+      "inputs": [
+        {
+          "path": "mise.lock",
+          "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+        },
+        {
+          "path": "package/cli/vmsync/src/lifecycle.expensive.unit.test.ts",
+          "sha256": "e1ab543bd6d494983f7bf04dbf151030dab7ba0c3a84225e58c361c7d7061471"
+        }
+      ]
+    },
+    "privateDomainListsEmpty": true,
+    "cleanupErrorsEmpty": true,
+    "logEvidence": [
+      {
+        "name": "prepare-ubuntu.stdout.log",
+        "sha256": "7a7f19cbca92cb2a0db24a2e58506219ba290167f77b15e4546b6178e9be5fbc",
+        "bytes": 2311,
+        "excerpts": [
+          "[info] [2026-10-17T04:39:59.768Z] [mvm] [waitForGuestAgent] guest agent on depot-preparation-ubuntu is ready"
+        ]
+      },
+      {
+        "name": "destroy-preparation-ubuntu.stdout.log",
+        "sha256": "8b749ebe9a631221643ad112afea0d0a2a4775f43f43192d7577bad4df828d1b",
+        "bytes": 177,
+        "excerpts": [
+          "[info] [2026-10-17T04:40:00.161Z] [mvm] [destroy] VM depot-preparation-ubuntu destroyed"
+        ]
+      },
+      {
+        "name": "daemon-mvm-depot-preparation-ubuntu-fs0-virtiofsd.log",
+        "sha256": "1c8cd8a17a226dbfe2874186c8d00b586c380412f34cf9a4eadf2b543f508d26",
+        "bytes": 483,
+        "excerpts": [
+          "[2026-10-17T04:39:48Z INFO  virtiofsd] Client connected, servicing requests",
+          "[2026-10-17T04:39:59Z INFO  virtiofsd] Client disconnected, shutting down"
+        ]
+      }
+    ],
+    "limits": [
+      "Historical authored vmsync lifecycle test bodies did not execute",
+      "Later Windows guest-agent prerequisite failed",
+      "Daemon termination requests lack retained PID-exit checks",
+      "Existing coherent Android APK consumer ran on a local emulator, not on Depot compute",
+      "Generic SDK default-image /dev/kvm observations are a different execution product"
+    ]
+  },
+  "metalInfrastructureSource": {
+    "url": "https://depot.dev/blog/announcing-depot-metal",
+    "fetchedAt": "2026-10-18T05:29:28.377Z",
+    "status": 200,
+    "sha256": "5ca6f02981e2e48aa37cf1f34ec88ae00caac165df7da4b2c9a29acca822c918",
+    "automaticForCiAndSandboxesDocumented": true,
+    "separatePoolOrOptInDocumented": false,
+    "performanceClaimsMeasuredOnRepository": false,
+    "githubRunnerAndBuilderMigrationCompletionProven": false
+  }
+}

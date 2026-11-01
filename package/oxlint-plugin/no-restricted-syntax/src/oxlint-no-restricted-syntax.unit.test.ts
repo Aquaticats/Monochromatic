@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -14,15 +14,13 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import spawn from 'nano-spawn';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   fixtureConfigPath,
   fixturePackageRoot,
   fixtureSourceRoot,
   type OxlintRuleDiagnostic as OxlintDiagnostic,
-  OXLINT_PLUGIN_TEST_ROOT as ROOT,
   resolveFixtureTarget,
   runOxlintFixture,
   uniqueRuleCodes as uniqueRules,
@@ -158,7 +156,7 @@ function createGeneratedSource(
   { fileName, source, }: { readonly fileName: string; readonly source: string; },
 ): GeneratedSource {
   const dirPath = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'oxlint-low-info-symbol-',
   ),);
   const filePath = resolve(
@@ -207,31 +205,13 @@ async function fixGeneratedSource(
     fileName: 'prefer-error-is-error.fix.ts',
     source,
   },);
-  /**
-   Fix flags passed to oxlint.
-   */
-  const fixFlags = fixSuggestions ? [
-    '--fix',
-    '--fix-suggestions',
-  ] : ['--fix',];
-  try {
-    await spawn(
-      'oxlint',
-      [
-        ...fixFlags,
-        '--format',
-        'json',
-        '-c',
-        FIXTURE_CONFIG,
-        fixture.filePath,
-      ],
-      { cwd: ROOT, },
-    );
-  }
-  catch (error: unknown) {
-    if ((!((typeof error) === 'object')) || (error === null) || (!('stdout' in error)))
-      throw error;
-  }
+  await runOxlintFixture({
+    codePrefix: 'no-restricted-syntax(',
+    configFlag: '-c',
+    fixtureConfig: FIXTURE_CONFIG,
+    target: fixture.filePath,
+    fix: fixSuggestions ? 'fixes-and-suggestions' : 'fixes',
+  },);
   return readFileSync(
     fixture.filePath,
     'utf8',
@@ -264,6 +244,7 @@ const SUBSTANTIVE_RULES = [
   'no-rest-params',
   'no-switch',
   'no-sync',
+  'no-system-tmpdir',
   'no-trim-left-right',
   'no-try-finally',
   'no-variable-function-expression',
@@ -331,6 +312,19 @@ await describe({
           },
         },);
       },),
+    },),
+    describe({
+      name: 'no-system-tmpdir forms',
+      children: [
+        it({
+          name: 'reports a tmpdir destructured from a dynamic import of node:os',
+          fn: async () => {
+            const diagnostics = await lint('invalid/no-system-tmpdir-dynamic.ts',);
+            const rules = uniqueRules(diagnostics,);
+            expect(rules,).toContain('no-restricted-syntax(no-system-tmpdir)',);
+          },
+        },),
+      ],
     },),
     describe({
       name: 'no-disable-prefer-readonly-parameter-types forms',
@@ -442,6 +436,230 @@ await describe({
               'valid/no-optional-escape.ts',
             );
             expect(diagnostics,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'no-arrow-function fix forms',
+      children: [
+        it({
+          name: 'converts bare-parameter arrow with expression body to a parseable function declaration',
+          fn: async () => {
+            const source = [
+              "const hoverText = label => repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n');",
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              "function hoverText(label) { return repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n') }",
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'converts bare-parameter arrow with block body to a parseable function declaration',
+          fn: async () => {
+            const source = [
+              'const note = entry => { record(entry); };',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function note(entry) { record(entry); }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'converts bare-parameter arrow with nested arrow body, keeping the nested arrow intact',
+          fn: async () => {
+            const source = [
+              'const flipInside = sourceFile => copy => copy;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function flipInside(sourceFile) { return copy => copy }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'converts exported bare-parameter arrow to an exported function declaration',
+          fn: async () => {
+            const source = [
+              'export const targets = label => repliesOf(label);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'export function targets(label) { return repliesOf(label) }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'converts async bare-parameter arrow to an async function declaration',
+          fn: async () => {
+            const source = [
+              'const load = async path => read(path);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'async function load(path) { return read(path) }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'converts glued async-arrow with parenthesized parameters without renaming the declaration',
+          fn: async () => {
+            const source = [
+              'const load = async(path) => read(path);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'async function load(path) { return read(path) }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps parenthesized parameters verbatim, including trailing comma',
+          fn: async () => {
+            const source = [
+              'const lastOf = (label, key,) => { return label; };',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function lastOf(label, key,) { return label; }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a closing paren that appears inside a comment of the parameter list',
+          fn: async () => {
+            const source = [
+              'const wrap = (value /* ) */) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function wrap(value /* ) */) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a paren inside a string literal of a bare-parameter body out of the parameter list',
+          fn: async () => {
+            const source = [
+              "const shout = message => concat(message, ')');",
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              "function shout(message) { return concat(message, ')') }",
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps the type annotation by swapping only the arrow for a named function expression',
+          fn: async () => {
+            const source = [
+              'const fetcher: Fetcher = async (url, init) => request(url, init);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'const fetcher: Fetcher = async function fetcher(url, init) { return request(url, init) };',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps the export and annotation of an exported typed arrow',
+          fn: async () => {
+            const source = [
+              'export const handler: Handler = event => handle(event);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'export const handler: Handler = function handler(event) { return handle(event) };',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'swaps only the arrow for a const in a for head, where a function declaration is invalid',
+          fn: async () => {
+            const source = [
+              'for (const step = () => 1; false;) { break; }',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'for (const step = function step() { return 1 }; false;) { break; }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'leaves arrows that read this, arguments, super, or new.target unfixed',
+          fn: async () => {
+            const source = [
+              'class Probe extends Base {',
+              '  method() {',
+              '    const readThis = () => this.value;',
+              '    const readArguments = () => arguments.length;',
+              '    const readSuper = () => super.value;',
+              '    const readNewTarget = () => new.target;',
+              '    const readThroughNestedArrow = () => () => this.value;',
+              '    const readInComputedClassKey = () => class { [this.key]() { return 1; } };',
+              '    return [readThis, readArguments, readSuper, readNewTarget, readThroughNestedArrow, readInComputedClassKey];',
+              '  }',
+              '}',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe(source,);
+          },
+        },),
+        it({
+          name: 'fixes an arrow whose this, arguments, and super reads sit in a nested function or class member',
+          fn: async () => {
+            const source = [
+              'const make = () => function inner() { return [this, arguments]; };',
+              'const build = () => class { value = this; method() { return super.value; } };',
+              'const named = () => ({ arguments: 1, }).arguments;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function make() { return function inner() { return [this, arguments]; } }',
+              'function build() { return class { value = this; method() { return super.value; } } }',
+              'function named() { return ({ arguments: 1, }).arguments }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'leaves let and var arrows unfixed because a named function expression changes reassigned calls',
+          fn: async () => {
+            const source = [
+              'let counter = () => 1;',
+              'var total = () => 2;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe(source,);
           },
         },),
       ],

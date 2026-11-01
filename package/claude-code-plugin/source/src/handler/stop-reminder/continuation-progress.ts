@@ -70,6 +70,34 @@ function hasRunningBackgroundTask(backgroundTasks: readonly BackgroundTask[] = [
 }
 
 /**
+ Task family label Claude Code gives a subagent in `background_tasks`.
+ */
+const SUBAGENT_TYPE = 'subagent' as const;
+
+/**
+ Reports whether a subagent is still running.
+ 
+ A session with a running subagent is waiting for its report, and Claude Code resumes the
+ turn when it arrives. The Luna check is skipped then: in the verdict log, 37 of 46 consulted
+ stops had one, and both blocks among them were wrong.
+ 
+ @param backgroundTasks - `background_tasks` from the `Stop` event
+ 
+ @returns whether any subagent task is still running
+ 
+ @example
+ ```ts
+ hasRunningSubagent([{ id: 'x', type: 'subagent', status: 'running' }]); // true
+ hasRunningSubagent([{ id: 'x', type: 'shell', status: 'running' }]); // false
+ ```
+ */
+function hasRunningSubagent(backgroundTasks: readonly BackgroundTask[] = [],): boolean {
+  return backgroundTasks.some(function runningSubagent(task,) {
+    return (task.type === SUBAGENT_TYPE) && isRunningTask(task,);
+  },);
+}
+
+/**
  Reports whether one background task has not finished.
  
  @param task - background task from the `Stop` event
@@ -206,9 +234,11 @@ function isToolUseBlock(block: unknown,): boolean {
 
 export {
   hasRunningBackgroundTask,
+  hasRunningSubagent,
   isRunningTask,
   isToolUseBlock,
   recordCarriesToolUse,
   RUNNING_STATUS,
+  SUBAGENT_TYPE,
   workedSinceLastForcedContinuation,
 };

@@ -1,0 +1,16 @@
+{
+  "jsPlugins": [
+    "file:///var/home/user/Monochromatic/package/config/oxlint/dist/final/node/plugin-no-restricted-syntax.mjs"
+  ],
+  "ignorePatterns": [],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "perf": "off",
+    "restriction": "off",
+    "style": "off"
+  },
+  "options": { "denyWarnings": false },
+  "rules": { "no-restricted-syntax/no-regex": "error" }
+}

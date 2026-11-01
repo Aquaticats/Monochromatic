@@ -4,7 +4,7 @@
  * Uses `<details>` elements for view switching. CSS `:has()` on the parent
  * hides non-open siblings so only one view is visible at a time.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Wraps three view sections into the dashboard layout.

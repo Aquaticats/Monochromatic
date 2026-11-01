@@ -1,5 +1,10 @@
 # Readonly parameter semantic bridge technology vet
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 Status:
  complete for technology selection.
 TypeScript 7's synchronous unstable API is selected;
@@ -196,6 +201,9 @@ It remains a baseline component for local effect syntax.
 
 ### TypeScript 7 `typescript/unstable/sync`
 
+(`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20.)
+
 Discovery source:
  repository root TypeScript 7.0.2 package,
 its installed declarations,
@@ -249,7 +257,8 @@ Lifecycle:
 Reason:
  Oxlint already supplies the Oxc AST and source spans.
 The real-boundary TypeScript 7 probe mapped semantic nodes to exact Oxlint diagnostics without another parse.
-`oxc-parser` adds no type objects or lifecycle capability and would introduce a third tree without a compensating benefit.
+`oxc-parser` adds no type objects or lifecycle capability
+and would introduce a third tree without a compensating benefit.
 
 ### Yuku parser and analyzer plus a custom type evaluator
 
@@ -457,7 +466,8 @@ host.
 This proves configured-project discovery for two repository packages,
 not every package topology.
 
-One Oxlint run reported `threads_count: 16` but all probe diagnostics carried one process ID and sequential snapshot IDs.
+One Oxlint run reported `threads_count: 16`
+but all probe diagnostics carried one process ID and sequential snapshot IDs.
 That run proves the tested embedded-JavaScript execution was serialized through one plugin process;
 it does not prove every Oxlint mode or future host lifecycle.
 A process search after Oxlint exited found no surviving native TypeScript API child for the fixture path.

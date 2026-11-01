@@ -1,0 +1,1040 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-10-18T05:11:10.936Z",
+  "cliVersion": "depot version 2.102.23 (2026-10-15)\nhttps://github.com/depot/cli/releases/tag/v2.102.23",
+  "dispatch": {
+    "state": "created",
+    "requestedAt": "2026-10-18T05:05:38.260Z",
+    "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+    "workflowSha256": "d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95",
+    "workflow": ".depot/workflows/depot-cache-disk-probe.yml",
+    "branch": "trial/depot-cache-disk-20261018T0503",
+    "org": "l4zncjjbj5",
+    "resources": {
+      "perJobCpus": 2,
+      "perJobMemoryGb": 8,
+      "maxJobs": 3,
+      "perJobTimeoutMinutes": 5
+    },
+    "runId": "vpp27ld5rx",
+    "createdAt": "2026-10-18T05:05:39.585Z",
+    "dispatchLog": "Repo: Aquaticats/Monochromatic\nJobs: (all) readers, seed\nHEAD: 1b311a76458c77b5f38cd0029e0573c4a6a92768\n\nOrg: l4zncjjbj5\nRun: vpp27ld5rx\n\nCheck status:  depot ci status vpp27ld5rx --org l4zncjjbj5\nView in Depot: https://depot.dev/orgs/l4zncjjbj5/workflows/vpp27ld5rx\n"
+  },
+  "status": {
+    "org_id": "l4zncjjbj5",
+    "run_id": "vpp27ld5rx",
+    "status": "finished",
+    "workflows": [
+      {
+        "workflow_id": "gq7wbtfz32",
+        "status": "finished",
+        "name": "depot-cache-disk-probe",
+        "jobs": [
+          {
+            "job_display_name": "readers (role=reader-a)",
+            "job_id": "5xfppgkcxd",
+            "job_key": "_inline_0.yaml:readers:matrix-0",
+            "status": "finished",
+            "attempts": [
+              {
+                "attempt_id": "ctspx3f81g",
+                "attempt": 1,
+                "status": "finished",
+                "sandbox_id": "9r80k329qsxjzmjgj3n6",
+                "session_id": "f9964bd1-c9a0-437a-bb82-b23d0bc2164a",
+                "logs_command": "depot ci logs ctspx3f81g --org l4zncjjbj5",
+                "download_available": true,
+                "download_command": "depot ci logs ctspx3f81g --output-file logs.txt --org l4zncjjbj5",
+                "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=5xfppgkcxd&attempt=ctspx3f81g",
+                "ssh_available": false
+              }
+            ]
+          },
+          {
+            "job_display_name": "readers (role=reader-b)",
+            "job_id": "n4m5q232f0",
+            "job_key": "_inline_0.yaml:readers:matrix-1",
+            "status": "finished",
+            "attempts": [
+              {
+                "attempt_id": "kw2ssfmkgq",
+                "attempt": 1,
+                "status": "finished",
+                "sandbox_id": "1cvczwzwf6s9dpmx315c",
+                "session_id": "2bf26d4d-f7e0-4a01-ab9f-37170ae4dfd4",
+                "logs_command": "depot ci logs kw2ssfmkgq --org l4zncjjbj5",
+                "download_available": true,
+                "download_command": "depot ci logs kw2ssfmkgq --output-file logs.txt --org l4zncjjbj5",
+                "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=n4m5q232f0&attempt=kw2ssfmkgq",
+                "ssh_available": false
+              }
+            ]
+          },
+          {
+            "job_display_name": "seed",
+            "job_id": "mqjt071lp7",
+            "job_key": "_inline_0.yaml:seed",
+            "status": "finished",
+            "attempts": [
+              {
+                "attempt_id": "0lldx2l826",
+                "attempt": 1,
+                "status": "finished",
+                "sandbox_id": "626bn016q28675c7459j",
+                "session_id": "d26a6e96-dc6b-47d8-ba8f-c32cd3fcc946",
+                "logs_command": "depot ci logs 0lldx2l826 --org l4zncjjbj5",
+                "download_available": true,
+                "download_command": "depot ci logs 0lldx2l826 --output-file logs.txt --org l4zncjjbj5",
+                "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=mqjt071lp7&attempt=0lldx2l826",
+                "ssh_available": false
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "workflow": {
+    "org_id": "l4zncjjbj5",
+    "run": {
+      "run_id": "vpp27ld5rx",
+      "repo": "Aquaticats/Monochromatic",
+      "ref": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "sha": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "head_sha": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "trigger": "api",
+      "status": "finished",
+      "created_at": "2026-10-18T05:05:39Z",
+      "started_at": "2026-10-18T05:05:39Z",
+      "finished_at": "2026-10-18T05:07:24Z"
+    },
+    "workflow": {
+      "workflow_id": "gq7wbtfz32",
+      "name": "depot-cache-disk-probe",
+      "workflow_path": "",
+      "status": "finished",
+      "error_message": "",
+      "created_at": "2026-10-18T05:05:55Z",
+      "started_at": "2026-10-18T05:05:55Z",
+      "finished_at": "2026-10-18T05:07:24Z"
+    },
+    "executions": [
+      {
+        "execution_id": "wcs5r1grd4",
+        "execution": 1,
+        "status": "finished",
+        "created_at": "2026-10-18T05:05:55Z",
+        "started_at": "2026-10-18T05:05:55Z",
+        "finished_at": "2026-10-18T05:07:24Z"
+      }
+    ],
+    "jobs": [
+      {
+        "job_display_name": "readers (role=reader-a)",
+        "job_id": "5xfppgkcxd",
+        "job_key": "_inline_0.yaml:readers:matrix-0",
+        "status": "finished",
+        "started_at": "2026-10-18T05:06:27Z",
+        "finished_at": "2026-10-18T05:07:23Z",
+        "attempts": [
+          {
+            "attempt_id": "ctspx3f81g",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "9r80k329qsxjzmjgj3n6",
+            "session_id": "f9964bd1-c9a0-437a-bb82-b23d0bc2164a",
+            "started_at": "2026-10-18T05:06:27Z",
+            "finished_at": "2026-10-18T05:07:23Z"
+          }
+        ]
+      },
+      {
+        "job_display_name": "seed",
+        "job_id": "mqjt071lp7",
+        "job_key": "_inline_0.yaml:seed",
+        "status": "finished",
+        "started_at": "2026-10-18T05:05:57Z",
+        "finished_at": "2026-10-18T05:06:25Z",
+        "attempts": [
+          {
+            "attempt_id": "0lldx2l826",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "626bn016q28675c7459j",
+            "session_id": "d26a6e96-dc6b-47d8-ba8f-c32cd3fcc946",
+            "started_at": "2026-10-18T05:05:57Z",
+            "finished_at": "2026-10-18T05:06:25Z"
+          }
+        ]
+      },
+      {
+        "job_display_name": "readers (role=reader-b)",
+        "job_id": "n4m5q232f0",
+        "job_key": "_inline_0.yaml:readers:matrix-1",
+        "status": "finished",
+        "started_at": "2026-10-18T05:06:26Z",
+        "finished_at": "2026-10-18T05:06:54Z",
+        "attempts": [
+          {
+            "attempt_id": "kw2ssfmkgq",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "1cvczwzwf6s9dpmx315c",
+            "session_id": "2bf26d4d-f7e0-4a01-ab9f-37170ae4dfd4",
+            "started_at": "2026-10-18T05:06:26Z",
+            "finished_at": "2026-10-18T05:06:54Z"
+          }
+        ]
+      }
+    ]
+  },
+  "metrics": {
+    "type": "run",
+    "snapshot_at": "2026-10-18T05:09:17.845Z",
+    "run": {
+      "run_id": "vpp27ld5rx",
+      "repo": "Aquaticats/Monochromatic",
+      "ref": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "sha": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "head_sha": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+      "trigger": "api",
+      "status": "finished",
+      "created_at": "2026-10-18T05:05:39.489Z",
+      "started_at": "2026-10-18T05:05:39.744Z",
+      "finished_at": "2026-10-18T05:07:24.613Z"
+    },
+    "workflows": [
+      {
+        "workflow": {
+          "workflow_id": "gq7wbtfz32",
+          "name": "depot-cache-disk-probe",
+          "status": "finished",
+          "created_at": "2026-10-18T05:05:55.203Z",
+          "started_at": "2026-10-18T05:05:55.200Z",
+          "finished_at": "2026-10-18T05:07:24.297Z"
+        },
+        "jobs": [
+          {
+            "job": {
+              "job_id": "5xfppgkcxd",
+              "job_key": "_inline_0.yaml:readers:matrix-0",
+              "status": "finished",
+              "conclusion": "success",
+              "current_attempt": 1,
+              "created_at": "2026-10-18T05:05:55.224Z",
+              "started_at": "2026-10-18T05:06:27.105Z",
+              "finished_at": "2026-10-18T05:07:23.976Z"
+            },
+            "attempts": [
+              {
+                "attempt": {
+                  "attempt_id": "ctspx3f81g",
+                  "attempt": 1,
+                  "status": "finished",
+                  "conclusion": "success",
+                  "sandbox_id": "9r80k329qsxjzmjgj3n6",
+                  "session_id": "f9964bd1-c9a0-437a-bb82-b23d0bc2164a",
+                  "created_at": "2026-10-18T05:06:25.500Z",
+                  "started_at": "2026-10-18T05:06:27.105Z",
+                  "finished_at": "2026-10-18T05:07:23.976Z"
+                },
+                "availability": {
+                  "code": "available",
+                  "reason": "available"
+                },
+                "stats": {
+                  "sample_count": 12,
+                  "cpu_sample_count": 11,
+                  "memory_sample_count": 12,
+                  "peak_cpu_utilization": 0.25173439048562934,
+                  "average_cpu_utilization": 0.06711698747579654,
+                  "peak_memory_utilization": 0.08898747890427515,
+                  "average_memory_utilization": 0.06986208042947252,
+                  "observed_started_at": "2026-10-18T05:06:28Z",
+                  "observed_finished_at": "2026-10-18T05:07:18Z"
+                },
+                "cap": {
+                  "raw_sample_count": 12,
+                  "returned_sample_count": 12,
+                  "max_returned_sample_count": 5000,
+                  "downsampled": false,
+                  "downsample_strategy": ""
+                }
+              }
+            ]
+          },
+          {
+            "job": {
+              "job_id": "n4m5q232f0",
+              "job_key": "_inline_0.yaml:readers:matrix-1",
+              "status": "finished",
+              "conclusion": "success",
+              "current_attempt": 1,
+              "created_at": "2026-10-18T05:05:55.224Z",
+              "started_at": "2026-10-18T05:06:26.939Z",
+              "finished_at": "2026-10-18T05:06:54.504Z"
+            },
+            "attempts": [
+              {
+                "attempt": {
+                  "attempt_id": "kw2ssfmkgq",
+                  "attempt": 1,
+                  "status": "finished",
+                  "conclusion": "success",
+                  "sandbox_id": "1cvczwzwf6s9dpmx315c",
+                  "session_id": "2bf26d4d-f7e0-4a01-ab9f-37170ae4dfd4",
+                  "created_at": "2026-10-18T05:06:25.500Z",
+                  "started_at": "2026-10-18T05:06:26.939Z",
+                  "finished_at": "2026-10-18T05:06:54.504Z"
+                },
+                "availability": {
+                  "code": "available",
+                  "reason": "available"
+                },
+                "stats": {
+                  "sample_count": 7,
+                  "cpu_sample_count": 6,
+                  "memory_sample_count": 7,
+                  "peak_cpu_utilization": 0.21747765640516387,
+                  "average_cpu_utilization": 0.11615006645856162,
+                  "peak_memory_utilization": 0.08454945427478609,
+                  "average_memory_utilization": 0.0629447649087861,
+                  "observed_started_at": "2026-10-18T05:06:28Z",
+                  "observed_finished_at": "2026-10-18T05:06:53Z"
+                },
+                "cap": {
+                  "raw_sample_count": 7,
+                  "returned_sample_count": 7,
+                  "max_returned_sample_count": 5000,
+                  "downsampled": false,
+                  "downsample_strategy": ""
+                }
+              }
+            ]
+          },
+          {
+            "job": {
+              "job_id": "mqjt071lp7",
+              "job_key": "_inline_0.yaml:seed",
+              "status": "finished",
+              "conclusion": "success",
+              "current_attempt": 1,
+              "created_at": "2026-10-18T05:05:55.224Z",
+              "started_at": "2026-10-18T05:05:57.840Z",
+              "finished_at": "2026-10-18T05:06:25.116Z"
+            },
+            "attempts": [
+              {
+                "attempt": {
+                  "attempt_id": "0lldx2l826",
+                  "attempt": 1,
+                  "status": "finished",
+                  "conclusion": "success",
+                  "sandbox_id": "626bn016q28675c7459j",
+                  "session_id": "d26a6e96-dc6b-47d8-ba8f-c32cd3fcc946",
+                  "created_at": "2026-10-18T05:05:56.314Z",
+                  "started_at": "2026-10-18T05:05:57.840Z",
+                  "finished_at": "2026-10-18T05:06:25.116Z"
+                },
+                "availability": {
+                  "code": "available",
+                  "reason": "available"
+                },
+                "stats": {
+                  "sample_count": 7,
+                  "cpu_sample_count": 6,
+                  "memory_sample_count": 7,
+                  "peak_cpu_utilization": 0.232,
+                  "average_cpu_utilization": 0.12442246082957291,
+                  "peak_memory_utilization": 0.08903317095459537,
+                  "average_memory_utilization": 0.06595440410652917,
+                  "observed_started_at": "2026-10-18T05:05:59Z",
+                  "observed_finished_at": "2026-10-18T05:06:24Z"
+                },
+                "cap": {
+                  "raw_sample_count": 7,
+                  "returned_sample_count": 7,
+                  "max_returned_sample_count": 5000,
+                  "downsampled": false,
+                  "downsample_strategy": ""
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sources": {
+    ".depot/workflows/depot-cache-disk-probe.yml": {
+      "bytes": 3071,
+      "sha256": "d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95",
+      "text": "name: depot-cache-disk-probe\non:\n  workflow_dispatch:\npermissions:\n  contents: read\nenv:\n  MISE_AUTO_INSTALL: 'false'\n  PROBE_COHORT: monochromatic-disk-20261018T0503-trusted-v1\njobs:\n  seed:\n    runs-on: depot-ubuntu-24.04\n    timeout-minutes: 5\n    env:\n      PROBE_ROLE: seed\n    steps:\n      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd\n        with:\n          persist-credentials: false\n      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c\n        with:\n          # Freeze the task bootstrap for this experiment and avoid release-discovery API calls.\n          version: 2026.10.9\n          install: false\n          cache: false\n      - run: mise install node\n      - name: Verify fresh sandbox and inspect preinstalled Archil\n        id: preflight\n        working-directory: .depot/probe/cache-disk\n        run: mise run //.depot/probe/cache-disk:preflight\n      - uses: depot/cache-mount@38d61fd25163e9ef3a3eff8a61676994d306e549\n        with:\n          path: ${{ steps.preflight.outputs.mount-path }}\n          name: ${{ env.PROBE_COHORT }}\n          debug: 'true'\n      - name: Publish bounded persistent fixture\n        working-directory: .depot/probe/cache-disk\n        run: mise run //.depot/probe/cache-disk:exercise\n      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02\n        if: always()\n        with:\n          name: depot-cache-disk-seed\n          path: ${{ steps.preflight.outputs.evidence-path }}\n          if-no-files-found: error\n          retention-days: 7\n  readers:\n    needs: seed\n    runs-on: depot-ubuntu-24.04\n    timeout-minutes: 5\n    strategy:\n      fail-fast: false\n      max-parallel: 2\n      matrix:\n        role: [reader-a, reader-b]\n    env:\n      PROBE_ROLE: ${{ matrix.role }}\n    steps:\n      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd\n        with:\n          persist-credentials: false\n      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c\n        with:\n          # Freeze the task bootstrap for this experiment and avoid release-discovery API calls.\n          version: 2026.10.9\n          install: false\n          cache: false\n      - run: mise install node\n      - name: Verify fresh sandbox and inspect preinstalled Archil\n        id: preflight\n        working-directory: .depot/probe/cache-disk\n        run: mise run //.depot/probe/cache-disk:preflight\n      - uses: depot/cache-mount@38d61fd25163e9ef3a3eff8a61676994d306e549\n        with:\n          path: ${{ steps.preflight.outputs.mount-path }}\n          name: ${{ env.PROBE_COHORT }}\n          debug: 'true'\n      - name: Read seed and verify disjoint concurrent writers\n        working-directory: .depot/probe/cache-disk\n        run: mise run //.depot/probe/cache-disk:exercise\n      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02\n        if: always()\n        with:\n          name: depot-cache-disk-${{ matrix.role }}\n          path: ${{ steps.preflight.outputs.evidence-path }}\n          if-no-files-found: error\n          retention-days: 7\n"
+    },
+    ".depot/probe/cache-disk/mise.toml": {
+      "bytes": 7291,
+      "sha256": "d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182",
+      "text": "[tasks.preflight]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync,mkdirSync,chmodSync,existsSync,appendFileSync}=await import('node:fs');const {homedir,hostname,totalmem,availableParallelism}=await import('node:os');const {join}=await import('node:path');const {execFileSync,spawnSync}=await import('node:child_process');const {createHash}=await import('node:crypto');const {strict:assert}=await import('node:assert');const sha=b=>createHash('sha256').update(b).digest('hex');const root=process.env.GITHUB_WORKSPACE;assert(root);const scratch=join(homedir(),'temp/agent');mkdirSync(scratch,{recursive:true,mode:0o700});chmodSync(scratch,0o700);const evidence=join(scratch,'depot-cache-disk-evidence');mkdirSync(evidence,{recursive:true,mode:0o700});const mount=join(scratch,'depot-cache-disk-mount');mkdirSync(mount,{recursive:true,mode:0o700});const isolation=join(scratch,'depot-cache-disk-private-job-marker.json');const absent=!existsSync(isolation);const head=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();const archil='/usr/bin/archil';const preinstalled=existsSync(archil);const version=preinstalled?spawnSync(archil,['--version'],{encoding:'utf8',timeout:10000}):null;const proof={schemaVersion:1,phase:'preflight',createdAt:new Date().toISOString(),cohort:process.env.PROBE_COHORT,role:process.env.PROBE_ROLE,sourceHead:head,inputs:{workflow:sha(readFileSync(join(root,'.depot/workflows/depot-cache-disk-probe.yml'))),tasks:sha(readFileSync('mise.toml'))},runner:{hostname:hostname(),bootId:readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),cpus:availableParallelism(),memoryBytes:totalmem(),node:process.version,job:process.env.GITHUB_JOB??null},privateMarkerAbsent:absent,mountWasAbsentFromMountinfo:!readFileSync('/proc/self/mountinfo','utf8').split('\\n').some(line=>line.split(' ')[4]===mount),archil:{preinstalled,sha256:preinstalled?sha(readFileSync(archil)):null,versionStatus:version?.status??null,versionStdout:version?.stdout??null,versionStderr:version?.stderr??null}};writeFileSync(join(evidence,'preflight.json'),JSON.stringify(proof,null,2)+'\\n');appendFileSync(process.env.GITHUB_OUTPUT,'mount-path='+mount+'\\nevidence-path='+evidence+'\\narchil-preinstalled='+preinstalled+'\\n');console.log('DISK_PROOF '+JSON.stringify(proof));assert(absent,'Private prior-job marker was present');assert(proof.mountWasAbsentFromMountinfo,'Mount existed before the action');writeFileSync(isolation,JSON.stringify({cohort:proof.cohort,role:proof.role,hostname:proof.runner.hostname}));assert(preinstalled,'Archil is not preinstalled; refusing the action floating installer before a pinned recovery is prepared');\n'''\n\n[tasks.exercise]\nquiet = true\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {readFileSync,writeFileSync,openSync,fsyncSync,closeSync,renameSync,existsSync,mkdirSync}=await import('node:fs');const {homedir,hostname}=await import('node:os');const {join}=await import('node:path');const {createHash}=await import('node:crypto');const {setTimeout:wait}=await import('node:timers/promises');const {strict:assert}=await import('node:assert');const sha=b=>createHash('sha256').update(b).digest('hex');const scratch=join(homedir(),'temp/agent');const evidence=join(scratch,'depot-cache-disk-evidence');const mount=join(scratch,'depot-cache-disk-mount');const before=JSON.parse(readFileSync(join(evidence,'preflight.json'),'utf8'));const role=process.env.PROBE_ROLE;const cohort=process.env.PROBE_COHORT;const entries=readFileSync('/proc/self/mountinfo','utf8').split('\\n').filter(Boolean).map(line=>{const parts=line.split(' ');const separator=parts.indexOf('-');return {mountId:parts[0],parentId:parts[1],device:parts[2],mountPoint:parts[4],options:parts[5],filesystemType:parts[separator+1]}}).filter(row=>row.mountPoint===mount);assert.equal(entries.length,1,'Expected exactly one real mount after the cache action');assert.equal(sha(readFileSync('/usr/bin/archil')),before.archil.sha256,'Archil changed after preflight');function atomic({path,value}){const temp=path+'.'+role+'.pending';const fd=openSync(temp,'wx',0o600);writeFileSync(fd,value);fsyncSync(fd);closeSync(fd);renameSync(temp,path)}const manifestPath=join(mount,'seed-manifest.json');const payloadPath=join(mount,'payload.bin');const start=new Date().toISOString();let seed;let writers=[];if(role==='seed'){assert(!existsSync(manifestPath),'Unique disk unexpectedly contains an existing manifest');assert(!existsSync(payloadPath),'Unique disk unexpectedly contains an existing payload');const payload=Buffer.alloc(1024*1024);const pattern=Buffer.from(cohort+'|'+before.sourceHead+'|cache persistence fixture\\n');for(let offset=0;offset<payload.length;offset+=pattern.length)pattern.copy(payload,offset,0,Math.min(pattern.length,payload.length-offset));seed={schemaVersion:1,cohort,sourceHead:before.sourceHead,payloadBytes:payload.length,payloadSha256:sha(payload),producerHostname:hostname(),producerBootId:before.runner.bootId,createdAt:new Date().toISOString()};atomic({path:payloadPath,value:payload});atomic({path:manifestPath,value:JSON.stringify(seed)+'\\n'});}else{assert(['reader-a','reader-b'].includes(role));seed=JSON.parse(readFileSync(manifestPath,'utf8'));assert.equal(seed.cohort,cohort);assert.equal(seed.sourceHead,before.sourceHead);const payload=readFileSync(payloadPath);assert.equal(payload.length,seed.payloadBytes);assert.equal(sha(payload),seed.payloadSha256);const own=join(mount,role);mkdirSync(own,{recursive:false,mode:0o700});const ownPayload=Buffer.from((cohort+'|'+role+'|').repeat(512));atomic({path:join(own,'payload.bin'),value:ownPayload});const record={cohort,role,sourceHead:before.sourceHead,hostname:hostname(),bootId:before.runner.bootId,bytes:ownPayload.length,sha256:sha(ownPayload),publishedAt:new Date().toISOString()};atomic({path:join(own,'manifest.json'),value:JSON.stringify(record)+'\\n'});const peer=role==='reader-a'?'reader-b':'reader-a';const peerManifest=join(mount,peer,'manifest.json');const deadline=Date.now()+45000;while(!existsSync(peerManifest)&&Date.now()<deadline)await wait(250);assert(existsSync(peerManifest),'Concurrent peer manifest did not become visible within the bounded probe');for(const writer of ['reader-a','reader-b']){const item=JSON.parse(readFileSync(join(mount,writer,'manifest.json'),'utf8'));assert.equal(item.cohort,cohort);assert.equal(item.sourceHead,before.sourceHead);const bytes=readFileSync(join(mount,writer,'payload.bin'));assert.equal(bytes.length,item.bytes);assert.equal(sha(bytes),item.sha256);writers.push(item)}}const proof={schemaVersion:1,phase:'consumer',startedAt:start,finishedAt:new Date().toISOString(),cohort,role,sourceHead:before.sourceHead,runner:before.runner,privateMarkerAbsent:before.privateMarkerAbsent,mounts:entries,archil:before.archil,seed,writers,assertions:{realMount:true,sourceHeadMatched:true,payloadHashMatched:true,privateJobIsolationMarkerAbsent:true,disjointWritesAndPeerReads:role==='seed'?null:true},bounds:{payloadBytes:1024*1024,peerVisibilityWaitMilliseconds:45000,requestedCpus:2,requestedMemoryGb:8,jobTimeoutMinutes:5}};writeFileSync(join(evidence,'consumer.json'),JSON.stringify(proof,null,2)+'\\n');console.log('DISK_PROOF '+JSON.stringify(proof));\n'''\n"
+    },
+    ".depot/probe/cache-disk/execution-manifest.json": {
+      "bytes": 2154,
+      "sha256": "34aea4ee7ef46b65a4f632f37b00a71570302ff2f255b8873e45ea2181e8d950",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"purpose\": \"Verify standalone Depot CI persistent disk, real mount, sequential source-bound persistence, fresh sandbox marker isolation, disjoint fan-out writers, peer reads and post cleanup\",\n  \"cohort\": \"monochromatic-disk-20261018T0503-trusted-v1\",\n  \"scope\": \"Isolated trial branch and uniquely named disk only\",\n  \"source\": \"Committed workflow, inline mise tasks and source checkout bound in per-job proof\",\n  \"actions\": {\n    \"cacheMount\": \"38d61fd25163e9ef3a3eff8a61676994d306e549\",\n    \"checkout\": \"de0fac2e4500dabe0009e67214ff5f5447ce83dd\",\n    \"mise\": \"c2a87611a18de5b3828c5652fe268e992400cb5c\",\n    \"uploadArtifact\": \"ea165f8d65b6e75b540449e92b4886f43607fa02\"\n  },\n  \"bounds\": {\n    \"jobs\": 3,\n    \"maximumConcurrentJobs\": 2,\n    \"perJobCpus\": 2,\n    \"perJobMemoryGb\": 8,\n    \"perJobTimeoutMinutes\": 5,\n    \"fixturePayloadBytes\": 1048576,\n    \"peerVisibilityWaitMilliseconds\": 45000\n  },\n  \"preconditions\": [\n    \"Push committed branch before Depot dispatch to prevent local patch injection\",\n    \"Verify no pre-existing private job marker and no pre-existing mount\",\n    \"Require preinstalled Archil, record version/hash and reject the floating installer path\",\n    \"Require the same Archil hash after mounting\",\n    \"Never read or mutate another disk name\"\n  ],\n  \"network\": \"Repository checkout, pinned action and Node bootstrap, scoped sandbox disk metadata, mounted Depot cache disk, artifact upload\",\n  \"credentials\": \"Existing repository read permission, sandbox-issued job disk token handled by the pinned action; no user/org secret created or exported\",\n  \"outputs\": \"Whitelisted preflight and consumer JSON, artifact metadata/digests, provider job/attempt metadata and full post-step logs\",\n  \"cleanup\": \"Pinned action unmount and token release; preserve both outcomes. Disk payload intentionally retained under its unique name for provider retention; no shared-cache deletion or retention-setting change.\",\n  \"excluded\": \"No dependency-cache speed estimate, no whole-repository build, no subscription/settings/account-wide/invoice access, no guarantee of arbitrary concurrent tool-cache mutation safety\"\n}\n"
+    }
+  },
+  "jobs": [
+    {
+      "provider": {
+        "job_display_name": "readers (role=reader-a)",
+        "job_id": "5xfppgkcxd",
+        "job_key": "_inline_0.yaml:readers:matrix-0",
+        "status": "finished",
+        "attempts": [
+          {
+            "attempt_id": "ctspx3f81g",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "9r80k329qsxjzmjgj3n6",
+            "session_id": "f9964bd1-c9a0-437a-bb82-b23d0bc2164a",
+            "logs_command": "depot ci logs ctspx3f81g --org l4zncjjbj5",
+            "download_available": true,
+            "download_command": "depot ci logs ctspx3f81g --output-file logs.txt --org l4zncjjbj5",
+            "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=5xfppgkcxd&attempt=ctspx3f81g",
+            "ssh_available": false
+          }
+        ]
+      },
+      "preciseProviderMetadata": {
+        "job": {
+          "job_id": "5xfppgkcxd",
+          "job_key": "_inline_0.yaml:readers:matrix-0",
+          "status": "finished",
+          "conclusion": "success",
+          "current_attempt": 1,
+          "created_at": "2026-10-18T05:05:55.224Z",
+          "started_at": "2026-10-18T05:06:27.105Z",
+          "finished_at": "2026-10-18T05:07:23.976Z"
+        },
+        "attempts": [
+          {
+            "attempt": {
+              "attempt_id": "ctspx3f81g",
+              "attempt": 1,
+              "status": "finished",
+              "conclusion": "success",
+              "sandbox_id": "9r80k329qsxjzmjgj3n6",
+              "session_id": "f9964bd1-c9a0-437a-bb82-b23d0bc2164a",
+              "created_at": "2026-10-18T05:06:25.500Z",
+              "started_at": "2026-10-18T05:06:27.105Z",
+              "finished_at": "2026-10-18T05:07:23.976Z"
+            },
+            "availability": {
+              "code": "available",
+              "reason": "available"
+            },
+            "stats": {
+              "sample_count": 12,
+              "cpu_sample_count": 11,
+              "memory_sample_count": 12,
+              "peak_cpu_utilization": 0.25173439048562934,
+              "average_cpu_utilization": 0.06711698747579654,
+              "peak_memory_utilization": 0.08898747890427515,
+              "average_memory_utilization": 0.06986208042947252,
+              "observed_started_at": "2026-10-18T05:06:28Z",
+              "observed_finished_at": "2026-10-18T05:07:18Z"
+            },
+            "cap": {
+              "raw_sample_count": 12,
+              "returned_sample_count": 12,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      },
+      "allocationMilliseconds": 56871,
+      "grossComputeTimestampEstimateUsd": 0.0056871000000000005,
+      "artifact": {
+        "artifact_id": "01a14d68-4d23-7695-94bc-d8186f4f65dc",
+        "run_id": "vpp27ld5rx",
+        "workflow_id": "gq7wbtfz32",
+        "workflow_path": "",
+        "job_id": "5xfppgkcxd",
+        "job_key": "_inline_0.yaml:readers:matrix-0",
+        "attempt_id": "ctspx3f81g",
+        "attempt": 1,
+        "name": "depot-cache-disk-reader-a",
+        "size_bytes": 2132,
+        "created_at": "2026-10-18T05:07:23Z",
+        "downloadedBytes": 2132,
+        "downloadedSha256": "6000c08da79c73ce46bd8bc293914e1a70743fe388e1e45bac02af96cc7a6482",
+        "uploadLogSha256": "6000c08da79c73ce46bd8bc293914e1a70743fe388e1e45bac02af96cc7a6482",
+        "members": [
+          "consumer.json",
+          "preflight.json"
+        ]
+      },
+      "preflight": {
+        "schemaVersion": 1,
+        "phase": "preflight",
+        "createdAt": "2026-10-18T05:06:47.527Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "reader-a",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "inputs": {
+          "workflow": "d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95",
+          "tasks": "d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182"
+        },
+        "runner": {
+          "hostname": "depot-worker-9r80k329qsxjzmjgj3n6",
+          "bootId": "085a974e-599f-4905-bcb3-70352847b376",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "readers"
+        },
+        "privateMarkerAbsent": true,
+        "mountWasAbsentFromMountinfo": true,
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        }
+      },
+      "consumer": {
+        "schemaVersion": 1,
+        "phase": "consumer",
+        "startedAt": "2026-10-18T05:06:52.543Z",
+        "finishedAt": "2026-10-18T05:07:22.804Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "reader-a",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "runner": {
+          "hostname": "depot-worker-9r80k329qsxjzmjgj3n6",
+          "bootId": "085a974e-599f-4905-bcb3-70352847b376",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "readers"
+        },
+        "privateMarkerAbsent": true,
+        "mounts": [
+          {
+            "mountId": "40",
+            "parentId": "28",
+            "device": "0:29",
+            "mountPoint": "/home/runner/temp/agent/depot-cache-disk-mount",
+            "options": "rw,relatime",
+            "filesystemType": "fuse.archil"
+          }
+        ],
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        },
+        "seed": {
+          "schemaVersion": 1,
+          "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+          "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+          "payloadBytes": 1048576,
+          "payloadSha256": "057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb",
+          "producerHostname": "depot-worker-626bn016q28675c7459j",
+          "producerBootId": "29eeb755-ef01-4210-a603-20e47474c162",
+          "createdAt": "2026-10-18T05:06:23.845Z"
+        },
+        "writers": [
+          {
+            "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+            "role": "reader-a",
+            "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+            "hostname": "depot-worker-9r80k329qsxjzmjgj3n6",
+            "bootId": "085a974e-599f-4905-bcb3-70352847b376",
+            "bytes": 27136,
+            "sha256": "fcc4f573f2a62a74c87be2f95e0ae04b942adbd4c83aff1facbc74ede9dee191",
+            "publishedAt": "2026-10-18T05:06:52.649Z"
+          },
+          {
+            "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+            "role": "reader-b",
+            "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+            "hostname": "depot-worker-1cvczwzwf6s9dpmx315c",
+            "bootId": "3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77",
+            "bytes": 27136,
+            "sha256": "6f53c19f5edda1d142ea72e6192ea4d6f3f7149639cb2e1d2e03c686dfcac6ee",
+            "publishedAt": "2026-10-18T05:06:53.413Z"
+          }
+        ],
+        "assertions": {
+          "realMount": true,
+          "sourceHeadMatched": true,
+          "payloadHashMatched": true,
+          "privateJobIsolationMarkerAbsent": true,
+          "disjointWritesAndPeerReads": true
+        },
+        "bounds": {
+          "payloadBytes": 1048576,
+          "peerVisibilityWaitMilliseconds": 45000,
+          "requestedCpus": 2,
+          "requestedMemoryGb": 8,
+          "jobTimeoutMinutes": 5
+        }
+      },
+      "consumerMilliseconds": 30261,
+      "cleanup": {
+        "sourceOrderedUnmountGroupCompletedBeforeTokenRelease": true,
+        "releaseHttpStatus": 200,
+        "releaseSucceeded": true,
+        "unmountCommandTraceExposed": false,
+        "postUnmountMountTableProbed": false
+      },
+      "logs": {
+        "sha256": "ebc3be1f8eeca47cbd75bdad666564f15568df8a35e21fccce34886a485c0aed",
+        "bytes": 40736,
+        "text": "2026-10-18T05:06:28.742Z Complete job name: readers (role=reader-a)\n2026-10-18T05:06:29.172Z Syncing repository: Aquaticats/Monochromatic\n2026-10-18T05:06:29.173Z ##[group]Getting Git version info\n2026-10-18T05:06:29.173Z Working directory is '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:06:29.179Z git version 2.55.0\n2026-10-18T05:06:29.180Z ##[endgroup]\n2026-10-18T05:06:29.181Z Temporarily overriding HOME='/home/runner/work/tmp/9f604791-f9a7-4932-82c3-b2a0ba1872c1' before making global git config changes\n2026-10-18T05:06:29.181Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:06:29.184Z Deleting the contents of '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:06:29.184Z ##[group]Initializing the repository\n2026-10-18T05:06:29.188Z hint: Using 'master' as the name for the initial branch. This default branch name\n2026-10-18T05:06:29.188Z hint: will change to \"main\" in Git 3.0. To configure the initial branch name\n2026-10-18T05:06:29.188Z hint: to use in all of your new repositories, which will suppress this warning,\n2026-10-18T05:06:29.188Z hint: call:\n2026-10-18T05:06:29.188Z hint:\n2026-10-18T05:06:29.188Z hint: \tgit config --global init.defaultBranch <name>\n2026-10-18T05:06:29.188Z hint:\n2026-10-18T05:06:29.188Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\n2026-10-18T05:06:29.188Z hint: 'development'. The just-created branch can be renamed via this command:\n2026-10-18T05:06:29.188Z hint:\n2026-10-18T05:06:29.188Z hint: \tgit branch -m <name>\n2026-10-18T05:06:29.188Z hint:\n2026-10-18T05:06:29.188Z hint: Disable this message with \"git config set advice.defaultBranchName false\"\n2026-10-18T05:06:29.188Z Initialized empty Git repository in /home/runner/work/Monochromatic/Monochromatic/.git/\n2026-10-18T05:06:29.190Z ##[endgroup]\n2026-10-18T05:06:29.190Z ##[group]Disabling automatic garbage collection\n2026-10-18T05:06:29.193Z ##[endgroup]\n2026-10-18T05:06:29.193Z ##[group]Setting up auth\n2026-10-18T05:06:29.193Z Removing SSH command configuration\n2026-10-18T05:06:29.209Z Removing HTTP extra header\n2026-10-18T05:06:29.222Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:06:29.246Z ##[endgroup]\n2026-10-18T05:06:29.246Z ##[group]Fetching the repository\n2026-10-18T05:06:42.966Z From https://github.com/Aquaticats/Monochromatic\n2026-10-18T05:06:42.966Z  * branch            1b311a76458c77b5f38cd0029e0573c4a6a92768 -> FETCH_HEAD\n2026-10-18T05:06:42.968Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:42.968Z ##[endgroup]\n2026-10-18T05:06:42.968Z ##[group]Determining the checkout info\n2026-10-18T05:06:42.968Z ##[endgroup]\n2026-10-18T05:06:42.971Z ##[group]Checking out the ref\n2026-10-18T05:06:44.166Z Updating files:  74% (10245/13834)\n2026-10-18T05:06:44.166Z Updating files:  75% (10376/13834)\n2026-10-18T05:06:44.166Z Updating files:  76% (10514/13834)\n2026-10-18T05:06:44.166Z Updating files:  77% (10653/13834)\n2026-10-18T05:06:44.166Z Updating files:  78% (10791/13834)\n2026-10-18T05:06:44.166Z Updating files:  79% (10929/13834)\n2026-10-18T05:06:44.166Z Updating files:  80% (11068/13834)\n2026-10-18T05:06:44.166Z Updating files:  81% (11206/13834)\n2026-10-18T05:06:44.166Z Updating files:  82% (11344/13834)\n2026-10-18T05:06:44.166Z Updating files:  83% (11483/13834)\n2026-10-18T05:06:44.166Z Updating files:  84% (11621/13834)\n2026-10-18T05:06:44.166Z Updating files:  85% (11759/13834)\n2026-10-18T05:06:44.166Z Updating files:  86% (11898/13834)\n2026-10-18T05:06:44.166Z Updating files:  87% (12036/13834)\n2026-10-18T05:06:44.166Z Updating files:  88% (12174/13834)\n2026-10-18T05:06:44.166Z Updating files:  89% (12313/13834)\n2026-10-18T05:06:44.166Z Updating files:  90% (12451/13834)\n2026-10-18T05:06:44.166Z Updating files:  91% (12589/13834)\n2026-10-18T05:06:44.166Z Updating files:  92% (12728/13834)\n2026-10-18T05:06:44.166Z Updating files:  93% (12866/13834)\n2026-10-18T05:06:44.166Z Updating files:  94% (13004/13834)\n2026-10-18T05:06:44.166Z Updating files:  95% (13143/13834)\n2026-10-18T05:06:44.166Z Updating files:  96% (13281/13834)\n2026-10-18T05:06:44.166Z Updating files:  97% (13419/13834)\n2026-10-18T05:06:44.166Z Updating files:  98% (13558/13834)\n2026-10-18T05:06:44.166Z Updating files:  99% (13696/13834)\n2026-10-18T05:06:44.166Z Updating files: 100% (13834/13834)\n2026-10-18T05:06:44.166Z Updating files: 100% (13834/13834), done.\n2026-10-18T05:06:44.175Z Note: switching to '1b311a76458c77b5f38cd0029e0573c4a6a92768'.\n2026-10-18T05:06:44.175Z \n2026-10-18T05:06:44.176Z You are in 'detached HEAD' state. You can look around, make experimental\n2026-10-18T05:06:44.176Z changes and commit them, and you can discard any commits you make in this\n2026-10-18T05:06:44.176Z state without impacting any branches by switching back to a branch.\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z If you want to create a new branch to retain commits you create, you may\n2026-10-18T05:06:44.176Z do so (now or later) by using -c with the switch command. Example:\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z   git switch -c <new-branch-name>\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z Or undo this operation with:\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z   git switch -\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z Turn off this advice by setting config variable advice.detachedHead to false\n2026-10-18T05:06:44.176Z \n2026-10-18T05:06:44.176Z HEAD is now at 1b311a7 test(depot): resolve probe tasks through measured monorepo names\n2026-10-18T05:06:44.212Z ##[endgroup]\n2026-10-18T05:06:44.216Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:44.217Z ##[group]Removing auth\n2026-10-18T05:06:44.217Z Removing SSH command configuration\n2026-10-18T05:06:44.228Z Removing HTTP extra header\n2026-10-18T05:06:44.240Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:06:44.241Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git.path\n2026-10-18T05:06:44.241Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git/worktrees/*.path\n2026-10-18T05:06:44.241Z includeif.gitdir:/github/workspace/.git.path\n2026-10-18T05:06:44.241Z includeif.gitdir:/github/workspace/.git/worktrees/*.path\n2026-10-18T05:06:44.244Z /home/runner/work/tmp/git-credentials-99a943ae-327f-49c8-a4db-ad4fa7dedf56.config\n2026-10-18T05:06:44.247Z /home/runner/work/tmp/git-credentials-99a943ae-327f-49c8-a4db-ad4fa7dedf56.config\n2026-10-18T05:06:44.251Z /github/runner_temp/git-credentials-99a943ae-327f-49c8-a4db-ad4fa7dedf56.config\n2026-10-18T05:06:44.253Z /github/runner_temp/git-credentials-99a943ae-327f-49c8-a4db-ad4fa7dedf56.config\n2026-10-18T05:06:44.269Z Removing credentials config '/home/runner/work/tmp/git-credentials-99a943ae-327f-49c8-a4db-ad4fa7dedf56.config'\n2026-10-18T05:06:44.270Z ##[endgroup]\n2026-10-18T05:06:44.728Z ##[group]Download mise@2026.10.9\n2026-10-18T05:06:44.734Z *** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***\n2026-10-18T05:06:44.738Z tar (GNU tar) 1.35\n2026-10-18T05:06:44.738Z Copyright (C) 2023 Free Software Foundation, Inc.\n2026-10-18T05:06:44.738Z License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\n2026-10-18T05:06:44.738Z This is free software: you are free to change and redistribute it.\n2026-10-18T05:06:44.738Z There is NO WARRANTY, to the extent permitted by law.\n2026-10-18T05:06:44.738Z \n2026-10-18T05:06:44.738Z Written by John Gilmore and Jay Fenlason.\n2026-10-18T05:06:44.740Z ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39\n2026-10-18T05:06:44.740Z Copyright (C) 2024 Free Software Foundation, Inc.\n2026-10-18T05:06:44.740Z This is free software; see the source for copying conditions.  There is NO\n2026-10-18T05:06:44.741Z warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n2026-10-18T05:06:44.741Z Written by Roland McGrath and Ulrich Drepper.\n2026-10-18T05:06:44.742Z Using curl to download mise\n2026-10-18T05:06:45.262Z Verified mise-v2026.10.9-linux-x64.tar.zst against signed checksums\n2026-10-18T05:06:45.442Z ##[group]Setting env vars\n2026-10-18T05:06:45.442Z Setting MISE_LOG_LEVEL=info\n2026-10-18T05:06:45.442Z Setting MISE_GITHUB_TOKEN=***\n2026-10-18T05:06:45.442Z Setting MISE_TRUSTED_CONFIG_PATHS=/home/runner/work/Monochromatic/Monochromatic\n2026-10-18T05:06:45.442Z Setting MISE_YES=1\n2026-10-18T05:06:45.442Z Adding /home/runner/.local/share/mise/shims to PATH\n2026-10-18T05:06:45.445Z ##[group]Running mise --version\n2026-10-18T05:06:45.449Z 2026.10.9 linux-x64 (2026-10-13)\n2026-10-18T05:06:45.451Z ##[endgroup]\n2026-10-18T05:06:45.451Z ##[group]Running mise ls\n2026-10-18T05:06:45.481Z age                                         1.3.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z android-sdk                                 23.0 (missing)                     ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z betterleaks                                 1.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z bun                                         1.3.14 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  1.3.14\n2026-10-18T05:06:45.482Z caddy                                       2.11.7 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo-binstall                              1.25.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:apple-codesign                        0.29.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:cargo-about                           0.9.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:cargo-fuzz                            0.13.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.13.2\n2026-10-18T05:06:45.482Z cargo:cargo-ndk                             4.1.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:cargo-nextest                         0.9.148 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:coreutils                             0.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:fastmod                               0.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:fd-find                               10.5.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:monochromatic-git-policy-cli          0.1.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:monochromatic-lint                    0.1.3 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:monochromatic-nested-wayland-session  0.6.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:slint-lsp                             1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:slint-viewer                          1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cargo:timeout-cli                           0.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z cmake                                       4.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z conda:bubblewrap                            0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z dprint                                      0.63.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z github:Feel-ix-343/markdown-oxide           0.25.12 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z github:docker/docker-language-server        0.20.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z harper-cli                                  2.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z hcloud                                      1.70.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z hyperfine                                   2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z java                                        temurin-21.0.12+8.0.LTS (missing)  ~/work/Monochromatic/Monochromatic/mise.toml  temurin-21\n2026-10-18T05:06:45.482Z llama.cpp                                   b9829 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  b9829\n2026-10-18T05:06:45.482Z marksman                                    2026-02-08 (missing)               ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z node                                        26.12.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:@actions/languageserver                 0.3.61 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:@ansible/ansible-language-server        26.6.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:@microsoft/compose-language-service     1.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:bash-language-server                    5.8.1 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:dockerfile-language-server-nodejs       0.15.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:pagefind                                1.5.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:socket                                  2.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:typescript-language-server              6.0.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:vscode-langservers-extracted            4.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:wrangler                                4.151.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z npm:yaml-language-server                    2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z opentofu                                    1.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z pipx:slopo                                  0.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z pnpm                                        12.14.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z ripgrep                                     15.2.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z rumdl                                       0.2.79 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z rust                                        nightly-2026-10-17 (missing)       ~/work/Monochromatic/Monochromatic/mise.toml  nightly\n2026-10-18T05:06:45.482Z sops                                        3.13.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.482Z superhtml                                   0.7.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z taplo                                       0.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z tombi                                       1.8.5 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z uv                                          0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z watchexec                                   2.8.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z zig                                         0.15.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.15.2\n2026-10-18T05:06:45.485Z zizmor                                      1.31.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:45.485Z ##[endgroup]\n2026-10-18T05:06:45.485Z ##[group]Exporting mise environment variables\n2026-10-18T05:06:45.543Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  missing: \u001b[34mbun\u001b[0m@1.3.14 \u001b[34mpnpm\u001b[0m@12.14.0 \u001b[34mcargo:fd-find\u001b[0m@10.5.0 \u001b[34mripgrep\u001b[0m@15.2.0 \u001b[34mcargo…\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\n2026-10-18T05:06:45.545Z {\n2026-10-18T05:06:45.545Z   \"FORBIDDEN_STRINGS_RULES\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/forbidden-strings.rules.txt\",\n2026-10-18T05:06:45.545Z   \"PATH\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin:/home/runner/work/Monochromatic/Monochromatic/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin:/home/runner/.local/share/mise/shims:/home/runner/.local/share/mise/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games\",\n2026-10-18T05:06:45.546Z   \"SLINT_EMIT_DEBUG_INFO\": \"1\",\n2026-10-18T05:06:45.548Z   \"SLINT_ENABLE_EXPERIMENTAL_FEATURES\": \"1\"\n2026-10-18T05:06:45.548Z }\n2026-10-18T05:06:45.549Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin to PATH\n2026-10-18T05:06:45.549Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin to PATH\n2026-10-18T05:06:45.550Z Adding /home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin to PATH\n2026-10-18T05:06:45.550Z Adding /home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin to PATH\n2026-10-18T05:06:45.550Z Adding /home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin to PATH\n2026-10-18T05:06:45.550Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin to PATH\n2026-10-18T05:06:45.550Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin to PATH\n2026-10-18T05:06:45.552Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin to PATH\n2026-10-18T05:06:45.553Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/node_modules/.bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin to PATH\n2026-10-18T05:06:45.554Z Adding /home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin to PATH\n2026-10-18T05:06:45.554Z ##[endgroup]\n2026-10-18T05:06:45.567Z ##[group]Run mise install node\n2026-10-18T05:06:45.568Z \u001b[36;1mmise install node\u001b[0m\n2026-10-18T05:06:45.568Z shell: bash -e {0}\n2026-10-18T05:06:45.568Z ##[endgroup]\n2026-10-18T05:06:46.470Z \u001b[2mmise\u001b[0m \u001b[2mby @jdx\u001b[0m – installing 1 tool\n2026-10-18T05:06:46.529Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 v26.12.0\n2026-10-18T05:06:46.534Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 11.20.0\n2026-10-18T05:06:46.535Z \u001b[2mmise\u001b[0m \u001b[38;5;10m✓\u001b[0m \u001b[34mnode\u001b[0m@26.12.0  885ms  \u001b[2mnode-v26.12.0-linux-x64.tar.gz\u001b[0m\n2026-10-18T05:06:46.589Z \u001b[2mmise\u001b[0m \u001b[36m████████████████\u001b[0m\u001b[31m\u001b[0m\u001b[2m\u001b[0m 1/1 · installed 1 tool in 885ms\n2026-10-18T05:06:46.594Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:46.698Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.698Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.698Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.699Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.805Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.805Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.805Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.805Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.903Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.903Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.903Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.904Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.992Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:47.049Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:47.056Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:47.058Z ##[group]Run mise run //.depot/probe/cache-disk:preflight\n2026-10-18T05:06:47.058Z \u001b[36;1mmise run //.depot/probe/cache-disk:preflight\u001b[0m\n2026-10-18T05:06:47.058Z shell: bash -e {0}\n2026-10-18T05:06:47.058Z ##[endgroup]\n2026-10-18T05:06:51.588Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"preflight\",\"createdAt\":\"2026-10-18T05:06:47.527Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-a\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"inputs\":{\"workflow\":\"d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95\",\"tasks\":\"d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182\"},\"runner\":{\"hostname\":\"depot-worker-9r80k329qsxjzmjgj3n6\",\"bootId\":\"085a974e-599f-4905-bcb3-70352847b376\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"readers\"},\"privateMarkerAbsent\":true,\"mountWasAbsentFromMountinfo\":true,\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"}}\n2026-10-18T05:06:51.870Z ##[group]Installing archil\n2026-10-18T05:06:51.873Z archil already installed\n2026-10-18T05:06:51.873Z ##[endgroup]\n2026-10-18T05:06:51.873Z ##[group]Acquiring disk token\n2026-10-18T05:06:51.873Z Requesting disk token: POST http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&disk_path=%2Fhome%2Frunner%2Ftemp%2Fagent%2Fdepot-cache-disk-mount (attempt 1/6)\n2026-10-18T05:06:51.954Z Acquired disk token for identifier: b0bd2d772784481bfe38758f56568d54\n2026-10-18T05:06:51.954Z ##[endgroup]\n2026-10-18T05:06:51.955Z ##[group]Mounting disk\n2026-10-18T05:06:51.955Z Creating directory: /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:51.962Z Mounting disk monochromatic-disk-20261018T0503-trusted-v1 to /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.018Z \n2026-10-18T05:06:52.018Z ⠋ Attaching Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 to mountpoint /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.018Z ✓ Successfully mounted Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 (dsk-00000000000e089b) at /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.020Z Setting disk ownership to 1001:1001\n2026-10-18T05:06:52.050Z ##[endgroup]\n2026-10-18T05:06:52.058Z ##[group]Run mise run //.depot/probe/cache-disk:exercise\n2026-10-18T05:06:52.058Z \u001b[36;1mmise run //.depot/probe/cache-disk:exercise\u001b[0m\n2026-10-18T05:06:52.058Z shell: bash -e {0}\n2026-10-18T05:06:52.058Z ##[endgroup]\n2026-10-18T05:07:22.805Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"consumer\",\"startedAt\":\"2026-10-18T05:06:52.543Z\",\"finishedAt\":\"2026-10-18T05:07:22.804Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-a\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"runner\":{\"hostname\":\"depot-worker-9r80k329qsxjzmjgj3n6\",\"bootId\":\"085a974e-599f-4905-bcb3-70352847b376\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"readers\"},\"privateMarkerAbsent\":true,\"mounts\":[{\"mountId\":\"40\",\"parentId\":\"28\",\"device\":\"0:29\",\"mountPoint\":\"/home/runner/temp/agent/depot-cache-disk-mount\",\"options\":\"rw,relatime\",\"filesystemType\":\"fuse.archil\"}],\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"},\"seed\":{\"schemaVersion\":1,\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"payloadBytes\":1048576,\"payloadSha256\":\"057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb\",\"producerHostname\":\"depot-worker-626bn016q28675c7459j\",\"producerBootId\":\"29eeb755-ef01-4210-a603-20e47474c162\",\"createdAt\":\"2026-10-18T05:06:23.845Z\"},\"writers\":[{\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-a\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"hostname\":\"depot-worker-9r80k329qsxjzmjgj3n6\",\"bootId\":\"085a974e-599f-4905-bcb3-70352847b376\",\"bytes\":27136,\"sha256\":\"fcc4f573f2a62a74c87be2f95e0ae04b942adbd4c83aff1facbc74ede9dee191\",\"publishedAt\":\"2026-10-18T05:06:52.649Z\"},{\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-b\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"hostname\":\"depot-worker-1cvczwzwf6s9dpmx315c\",\"bootId\":\"3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77\",\"bytes\":27136,\"sha256\":\"6f53c19f5edda1d142ea72e6192ea4d6f3f7149639cb2e1d2e03c686dfcac6ee\",\"publishedAt\":\"2026-10-18T05:06:53.413Z\"}],\"assertions\":{\"realMount\":true,\"sourceHeadMatched\":true,\"payloadHashMatched\":true,\"privateJobIsolationMarkerAbsent\":true,\"disjointWritesAndPeerReads\":true},\"bounds\":{\"payloadBytes\":1048576,\"peerVisibilityWaitMilliseconds\":45000,\"requestedCpus\":2,\"requestedMemoryGb\":8,\"jobTimeoutMinutes\":5}}\n2026-10-18T05:07:23.267Z With the provided path, there will be 2 files uploaded\n2026-10-18T05:07:23.267Z Artifact name is valid!\n2026-10-18T05:07:23.267Z Root directory input is valid!\n2026-10-18T05:07:23.341Z Beginning upload of artifact content to blob storage\n2026-10-18T05:07:23.411Z Uploaded bytes 2132\n2026-10-18T05:07:23.414Z Finished uploading artifact content to blob storage!\n2026-10-18T05:07:23.415Z SHA256 digest of uploaded artifact zip is 6000c08da79c73ce46bd8bc293914e1a70743fe388e1e45bac02af96cc7a6482\n2026-10-18T05:07:23.415Z Finalizing artifact upload\n2026-10-18T05:07:23.547Z Artifact depot-cache-disk-reader-a.zip successfully finalized. Artifact ID 8672783906931297\n2026-10-18T05:07:23.547Z Artifact depot-cache-disk-reader-a has been successfully uploaded! Final size is 2132 bytes. Artifact ID is 8672783906931297\n2026-10-18T05:07:23.547Z Artifact download URL: https://github.com/Aquaticats/Monochromatic/actions/runs/525997013009218/artifacts/8672783906931297\n2026-10-18T05:07:23.675Z ##[group]Unmounting disk\n2026-10-18T05:07:23.675Z Unounting disk monochromatic-disk-20261018T0503-trusted-v1 from /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:07:23.712Z ##[endgroup]\n2026-10-18T05:07:23.712Z ##[group]Releasing disk token\n2026-10-18T05:07:23.712Z Requesting: DELETE http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&identifier=b0bd2d772784481bfe38758f56568d54\n2026-10-18T05:07:23.731Z Delete response: status=200\n2026-10-18T05:07:23.731Z Released disk token for identifier: b0bd2d772784481bfe38758f56568d54\n2026-10-18T05:07:23.731Z ##[endgroup]\n2026-10-18T05:07:23.879Z git version 2.55.0\n2026-10-18T05:07:23.881Z Temporarily overriding HOME='/home/runner/work/tmp/cd60827b-2004-4eaf-b71c-747ef8bb480c' before making global git config changes\n2026-10-18T05:07:23.881Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:07:23.884Z Removing SSH command configuration\n2026-10-18T05:07:23.896Z Removing HTTP extra header\n2026-10-18T05:07:23.907Z Removing includeIf entries pointing to credentials config files\n"
+      }
+    },
+    {
+      "provider": {
+        "job_display_name": "readers (role=reader-b)",
+        "job_id": "n4m5q232f0",
+        "job_key": "_inline_0.yaml:readers:matrix-1",
+        "status": "finished",
+        "attempts": [
+          {
+            "attempt_id": "kw2ssfmkgq",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "1cvczwzwf6s9dpmx315c",
+            "session_id": "2bf26d4d-f7e0-4a01-ab9f-37170ae4dfd4",
+            "logs_command": "depot ci logs kw2ssfmkgq --org l4zncjjbj5",
+            "download_available": true,
+            "download_command": "depot ci logs kw2ssfmkgq --output-file logs.txt --org l4zncjjbj5",
+            "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=n4m5q232f0&attempt=kw2ssfmkgq",
+            "ssh_available": false
+          }
+        ]
+      },
+      "preciseProviderMetadata": {
+        "job": {
+          "job_id": "n4m5q232f0",
+          "job_key": "_inline_0.yaml:readers:matrix-1",
+          "status": "finished",
+          "conclusion": "success",
+          "current_attempt": 1,
+          "created_at": "2026-10-18T05:05:55.224Z",
+          "started_at": "2026-10-18T05:06:26.939Z",
+          "finished_at": "2026-10-18T05:06:54.504Z"
+        },
+        "attempts": [
+          {
+            "attempt": {
+              "attempt_id": "kw2ssfmkgq",
+              "attempt": 1,
+              "status": "finished",
+              "conclusion": "success",
+              "sandbox_id": "1cvczwzwf6s9dpmx315c",
+              "session_id": "2bf26d4d-f7e0-4a01-ab9f-37170ae4dfd4",
+              "created_at": "2026-10-18T05:06:25.500Z",
+              "started_at": "2026-10-18T05:06:26.939Z",
+              "finished_at": "2026-10-18T05:06:54.504Z"
+            },
+            "availability": {
+              "code": "available",
+              "reason": "available"
+            },
+            "stats": {
+              "sample_count": 7,
+              "cpu_sample_count": 6,
+              "memory_sample_count": 7,
+              "peak_cpu_utilization": 0.21747765640516387,
+              "average_cpu_utilization": 0.11615006645856162,
+              "peak_memory_utilization": 0.08454945427478609,
+              "average_memory_utilization": 0.0629447649087861,
+              "observed_started_at": "2026-10-18T05:06:28Z",
+              "observed_finished_at": "2026-10-18T05:06:53Z"
+            },
+            "cap": {
+              "raw_sample_count": 7,
+              "returned_sample_count": 7,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      },
+      "allocationMilliseconds": 27565,
+      "grossComputeTimestampEstimateUsd": 0.0027565000000000003,
+      "artifact": {
+        "artifact_id": "01a14d67-da1e-73e0-9c3e-231e55bf3563",
+        "run_id": "vpp27ld5rx",
+        "workflow_id": "gq7wbtfz32",
+        "workflow_path": "",
+        "job_id": "n4m5q232f0",
+        "job_key": "_inline_0.yaml:readers:matrix-1",
+        "attempt_id": "kw2ssfmkgq",
+        "attempt": 1,
+        "name": "depot-cache-disk-reader-b",
+        "size_bytes": 2135,
+        "created_at": "2026-10-18T05:06:54Z",
+        "downloadedBytes": 2135,
+        "downloadedSha256": "ca9e42afcd810c2379d3ecd5defc6e86e7c9e709d3b69bd51f238d61d07ba2c3",
+        "uploadLogSha256": "ca9e42afcd810c2379d3ecd5defc6e86e7c9e709d3b69bd51f238d61d07ba2c3",
+        "members": [
+          "consumer.json",
+          "preflight.json"
+        ]
+      },
+      "preflight": {
+        "schemaVersion": 1,
+        "phase": "preflight",
+        "createdAt": "2026-10-18T05:06:47.245Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "reader-b",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "inputs": {
+          "workflow": "d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95",
+          "tasks": "d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182"
+        },
+        "runner": {
+          "hostname": "depot-worker-1cvczwzwf6s9dpmx315c",
+          "bootId": "3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "readers"
+        },
+        "privateMarkerAbsent": true,
+        "mountWasAbsentFromMountinfo": true,
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        }
+      },
+      "consumer": {
+        "schemaVersion": 1,
+        "phase": "consumer",
+        "startedAt": "2026-10-18T05:06:53.301Z",
+        "finishedAt": "2026-10-18T05:06:53.440Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "reader-b",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "runner": {
+          "hostname": "depot-worker-1cvczwzwf6s9dpmx315c",
+          "bootId": "3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "readers"
+        },
+        "privateMarkerAbsent": true,
+        "mounts": [
+          {
+            "mountId": "40",
+            "parentId": "28",
+            "device": "0:29",
+            "mountPoint": "/home/runner/temp/agent/depot-cache-disk-mount",
+            "options": "rw,relatime",
+            "filesystemType": "fuse.archil"
+          }
+        ],
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        },
+        "seed": {
+          "schemaVersion": 1,
+          "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+          "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+          "payloadBytes": 1048576,
+          "payloadSha256": "057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb",
+          "producerHostname": "depot-worker-626bn016q28675c7459j",
+          "producerBootId": "29eeb755-ef01-4210-a603-20e47474c162",
+          "createdAt": "2026-10-18T05:06:23.845Z"
+        },
+        "writers": [
+          {
+            "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+            "role": "reader-a",
+            "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+            "hostname": "depot-worker-9r80k329qsxjzmjgj3n6",
+            "bootId": "085a974e-599f-4905-bcb3-70352847b376",
+            "bytes": 27136,
+            "sha256": "fcc4f573f2a62a74c87be2f95e0ae04b942adbd4c83aff1facbc74ede9dee191",
+            "publishedAt": "2026-10-18T05:06:52.649Z"
+          },
+          {
+            "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+            "role": "reader-b",
+            "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+            "hostname": "depot-worker-1cvczwzwf6s9dpmx315c",
+            "bootId": "3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77",
+            "bytes": 27136,
+            "sha256": "6f53c19f5edda1d142ea72e6192ea4d6f3f7149639cb2e1d2e03c686dfcac6ee",
+            "publishedAt": "2026-10-18T05:06:53.413Z"
+          }
+        ],
+        "assertions": {
+          "realMount": true,
+          "sourceHeadMatched": true,
+          "payloadHashMatched": true,
+          "privateJobIsolationMarkerAbsent": true,
+          "disjointWritesAndPeerReads": true
+        },
+        "bounds": {
+          "payloadBytes": 1048576,
+          "peerVisibilityWaitMilliseconds": 45000,
+          "requestedCpus": 2,
+          "requestedMemoryGb": 8,
+          "jobTimeoutMinutes": 5
+        }
+      },
+      "consumerMilliseconds": 139,
+      "cleanup": {
+        "sourceOrderedUnmountGroupCompletedBeforeTokenRelease": true,
+        "releaseHttpStatus": 200,
+        "releaseSucceeded": true,
+        "unmountCommandTraceExposed": false,
+        "postUnmountMountTableProbed": false
+      },
+      "logs": {
+        "sha256": "6ac3e6013a679924049d67360716292faa5418b5618c8accc71e097d1a7a1e0b",
+        "bytes": 42807,
+        "text": "2026-10-18T05:06:28.494Z Complete job name: readers (role=reader-b)\n2026-10-18T05:06:28.848Z Syncing repository: Aquaticats/Monochromatic\n2026-10-18T05:06:28.849Z ##[group]Getting Git version info\n2026-10-18T05:06:28.849Z Working directory is '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:06:28.854Z git version 2.55.0\n2026-10-18T05:06:28.855Z ##[endgroup]\n2026-10-18T05:06:28.856Z Temporarily overriding HOME='/home/runner/work/tmp/fb237b77-1ef5-4e27-8ba8-454b8445c3b1' before making global git config changes\n2026-10-18T05:06:28.856Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:06:28.858Z Deleting the contents of '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:06:28.858Z ##[group]Initializing the repository\n2026-10-18T05:06:28.861Z hint: Using 'master' as the name for the initial branch. This default branch name\n2026-10-18T05:06:28.861Z hint: will change to \"main\" in Git 3.0. To configure the initial branch name\n2026-10-18T05:06:28.861Z hint: to use in all of your new repositories, which will suppress this warning,\n2026-10-18T05:06:28.861Z hint: call:\n2026-10-18T05:06:28.861Z hint:\n2026-10-18T05:06:28.861Z hint: \tgit config --global init.defaultBranch <name>\n2026-10-18T05:06:28.861Z hint:\n2026-10-18T05:06:28.861Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\n2026-10-18T05:06:28.861Z hint: 'development'. The just-created branch can be renamed via this command:\n2026-10-18T05:06:28.861Z hint:\n2026-10-18T05:06:28.861Z hint: \tgit branch -m <name>\n2026-10-18T05:06:28.861Z hint:\n2026-10-18T05:06:28.861Z hint: Disable this message with \"git config set advice.defaultBranchName false\"\n2026-10-18T05:06:28.861Z Initialized empty Git repository in /home/runner/work/Monochromatic/Monochromatic/.git/\n2026-10-18T05:06:28.863Z ##[endgroup]\n2026-10-18T05:06:28.863Z ##[group]Disabling automatic garbage collection\n2026-10-18T05:06:28.864Z ##[endgroup]\n2026-10-18T05:06:28.864Z ##[group]Setting up auth\n2026-10-18T05:06:28.864Z Removing SSH command configuration\n2026-10-18T05:06:28.881Z Removing HTTP extra header\n2026-10-18T05:06:28.891Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:06:28.907Z ##[endgroup]\n2026-10-18T05:06:28.908Z ##[group]Fetching the repository\n2026-10-18T05:06:42.654Z From https://github.com/Aquaticats/Monochromatic\n2026-10-18T05:06:42.654Z  * branch            1b311a76458c77b5f38cd0029e0573c4a6a92768 -> FETCH_HEAD\n2026-10-18T05:06:42.656Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:42.657Z ##[endgroup]\n2026-10-18T05:06:42.657Z ##[group]Determining the checkout info\n2026-10-18T05:06:42.657Z ##[endgroup]\n2026-10-18T05:06:42.660Z ##[group]Checking out the ref\n2026-10-18T05:06:43.813Z Updating files:  74% (10245/13834)\n2026-10-18T05:06:43.813Z Updating files:  75% (10376/13834)\n2026-10-18T05:06:43.813Z Updating files:  76% (10514/13834)\n2026-10-18T05:06:43.813Z Updating files:  77% (10653/13834)\n2026-10-18T05:06:43.813Z Updating files:  78% (10791/13834)\n2026-10-18T05:06:43.813Z Updating files:  79% (10929/13834)\n2026-10-18T05:06:43.813Z Updating files:  80% (11068/13834)\n2026-10-18T05:06:43.813Z Updating files:  81% (11206/13834)\n2026-10-18T05:06:43.813Z Updating files:  82% (11344/13834)\n2026-10-18T05:06:43.813Z Updating files:  83% (11483/13834)\n2026-10-18T05:06:43.813Z Updating files:  84% (11621/13834)\n2026-10-18T05:06:43.813Z Updating files:  85% (11759/13834)\n2026-10-18T05:06:43.813Z Updating files:  86% (11898/13834)\n2026-10-18T05:06:43.813Z Updating files:  87% (12036/13834)\n2026-10-18T05:06:43.813Z Updating files:  88% (12174/13834)\n2026-10-18T05:06:43.813Z Updating files:  89% (12313/13834)\n2026-10-18T05:06:43.813Z Updating files:  90% (12451/13834)\n2026-10-18T05:06:43.813Z Updating files:  91% (12589/13834)\n2026-10-18T05:06:43.813Z Updating files:  92% (12728/13834)\n2026-10-18T05:06:43.813Z Updating files:  93% (12866/13834)\n2026-10-18T05:06:43.813Z Updating files:  94% (13004/13834)\n2026-10-18T05:06:43.813Z Updating files:  95% (13143/13834)\n2026-10-18T05:06:43.813Z Updating files:  96% (13281/13834)\n2026-10-18T05:06:43.813Z Updating files:  97% (13419/13834)\n2026-10-18T05:06:43.813Z Updating files:  98% (13558/13834)\n2026-10-18T05:06:43.813Z Updating files:  99% (13696/13834)\n2026-10-18T05:06:43.813Z Updating files: 100% (13834/13834)\n2026-10-18T05:06:43.813Z Updating files: 100% (13834/13834), done.\n2026-10-18T05:06:43.821Z Note: switching to '1b311a76458c77b5f38cd0029e0573c4a6a92768'.\n2026-10-18T05:06:43.821Z \n2026-10-18T05:06:43.821Z You are in 'detached HEAD' state. You can look around, make experimental\n2026-10-18T05:06:43.821Z changes and commit them, and you can discard any commits you make in this\n2026-10-18T05:06:43.821Z state without impacting any branches by switching back to a branch.\n2026-10-18T05:06:43.821Z \n2026-10-18T05:06:43.821Z If you want to create a new branch to retain commits you create, you may\n2026-10-18T05:06:43.822Z do so (now or later) by using -c with the switch command. Example:\n2026-10-18T05:06:43.822Z \n2026-10-18T05:06:43.822Z   git switch -c <new-branch-name>\n2026-10-18T05:06:43.822Z \n2026-10-18T05:06:43.822Z Or undo this operation with:\n2026-10-18T05:06:43.822Z \n2026-10-18T05:06:43.822Z   git switch -\n2026-10-18T05:06:43.823Z \n2026-10-18T05:06:43.823Z Turn off this advice by setting config variable advice.detachedHead to false\n2026-10-18T05:06:43.823Z \n2026-10-18T05:06:43.823Z HEAD is now at 1b311a7 test(depot): resolve probe tasks through measured monorepo names\n2026-10-18T05:06:43.855Z ##[endgroup]\n2026-10-18T05:06:43.858Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:43.859Z ##[group]Removing auth\n2026-10-18T05:06:43.859Z Removing SSH command configuration\n2026-10-18T05:06:43.869Z Removing HTTP extra header\n2026-10-18T05:06:43.880Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:06:43.881Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git.path\n2026-10-18T05:06:43.881Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git/worktrees/*.path\n2026-10-18T05:06:43.881Z includeif.gitdir:/github/workspace/.git.path\n2026-10-18T05:06:43.881Z includeif.gitdir:/github/workspace/.git/worktrees/*.path\n2026-10-18T05:06:43.883Z /home/runner/work/tmp/git-credentials-1af0b9f6-1e10-49db-9942-ce6b9d6fa36f.config\n2026-10-18T05:06:43.885Z /home/runner/work/tmp/git-credentials-1af0b9f6-1e10-49db-9942-ce6b9d6fa36f.config\n2026-10-18T05:06:43.889Z /github/runner_temp/git-credentials-1af0b9f6-1e10-49db-9942-ce6b9d6fa36f.config\n2026-10-18T05:06:43.892Z /github/runner_temp/git-credentials-1af0b9f6-1e10-49db-9942-ce6b9d6fa36f.config\n2026-10-18T05:06:43.905Z Removing credentials config '/home/runner/work/tmp/git-credentials-1af0b9f6-1e10-49db-9942-ce6b9d6fa36f.config'\n2026-10-18T05:06:43.906Z ##[endgroup]\n2026-10-18T05:06:44.332Z ##[group]Download mise@2026.10.9\n2026-10-18T05:06:44.339Z *** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***\n2026-10-18T05:06:44.342Z tar (GNU tar) 1.35\n2026-10-18T05:06:44.342Z Copyright (C) 2023 Free Software Foundation, Inc.\n2026-10-18T05:06:44.342Z License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\n2026-10-18T05:06:44.342Z This is free software: you are free to change and redistribute it.\n2026-10-18T05:06:44.342Z There is NO WARRANTY, to the extent permitted by law.\n2026-10-18T05:06:44.342Z \n2026-10-18T05:06:44.342Z Written by John Gilmore and Jay Fenlason.\n2026-10-18T05:06:44.344Z ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39\n2026-10-18T05:06:44.344Z Copyright (C) 2024 Free Software Foundation, Inc.\n2026-10-18T05:06:44.344Z This is free software; see the source for copying conditions.  There is NO\n2026-10-18T05:06:44.344Z warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n2026-10-18T05:06:44.344Z Written by Roland McGrath and Ulrich Drepper.\n2026-10-18T05:06:44.346Z Using curl to download mise\n2026-10-18T05:06:44.816Z Verified mise-v2026.10.9-linux-x64.tar.zst against signed checksums\n2026-10-18T05:06:44.946Z ##[group]Setting env vars\n2026-10-18T05:06:44.946Z Setting MISE_LOG_LEVEL=info\n2026-10-18T05:06:44.946Z Setting MISE_GITHUB_TOKEN=***\n2026-10-18T05:06:44.946Z Setting MISE_TRUSTED_CONFIG_PATHS=/home/runner/work/Monochromatic/Monochromatic\n2026-10-18T05:06:44.946Z Setting MISE_YES=1\n2026-10-18T05:06:44.947Z Adding /home/runner/.local/share/mise/shims to PATH\n2026-10-18T05:06:44.948Z ##[group]Running mise --version\n2026-10-18T05:06:44.953Z 2026.10.9 linux-x64 (2026-10-13)\n2026-10-18T05:06:44.954Z ##[endgroup]\n2026-10-18T05:06:44.954Z ##[group]Running mise ls\n2026-10-18T05:06:44.980Z age                                         1.3.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z android-sdk                                 23.0 (missing)                     ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z betterleaks                                 1.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z bun                                         1.3.14 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  1.3.14\n2026-10-18T05:06:44.980Z caddy                                       2.11.7 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo-binstall                              1.25.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:apple-codesign                        0.29.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:cargo-about                           0.9.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:cargo-fuzz                            0.13.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.13.2\n2026-10-18T05:06:44.980Z cargo:cargo-ndk                             4.1.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:cargo-nextest                         0.9.148 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:coreutils                             0.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:fastmod                               0.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:fd-find                               10.5.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:monochromatic-git-policy-cli          0.1.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:monochromatic-lint                    0.1.3 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:monochromatic-nested-wayland-session  0.6.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:slint-lsp                             1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:slint-viewer                          1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cargo:timeout-cli                           0.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z cmake                                       4.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z conda:bubblewrap                            0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z dprint                                      0.63.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z github:Feel-ix-343/markdown-oxide           0.25.12 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z github:docker/docker-language-server        0.20.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z harper-cli                                  2.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z hcloud                                      1.70.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z hyperfine                                   2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.980Z java                                        temurin-21.0.12+8.0.LTS (missing)  ~/work/Monochromatic/Monochromatic/mise.toml  temurin-21\n2026-10-18T05:06:44.980Z llama.cpp                                   b9829 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  b9829\n2026-10-18T05:06:44.981Z marksman                                    2026-02-08 (missing)               ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z node                                        26.12.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:@actions/languageserver                 0.3.61 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:@ansible/ansible-language-server        26.6.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:@microsoft/compose-language-service     1.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:bash-language-server                    5.8.1 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:dockerfile-language-server-nodejs       0.15.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:pagefind                                1.5.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:socket                                  2.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:typescript-language-server              6.0.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:vscode-langservers-extracted            4.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:wrangler                                4.151.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z npm:yaml-language-server                    2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z opentofu                                    1.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z pipx:slopo                                  0.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z pnpm                                        12.14.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z ripgrep                                     15.2.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z rumdl                                       0.2.79 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z rust                                        nightly-2026-10-17 (missing)       ~/work/Monochromatic/Monochromatic/mise.toml  nightly\n2026-10-18T05:06:44.981Z sops                                        3.13.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z superhtml                                   0.7.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z taplo                                       0.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z tombi                                       1.8.5 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z uv                                          0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z watchexec                                   2.8.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.981Z zig                                         0.15.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.15.2\n2026-10-18T05:06:44.981Z zizmor                                      1.31.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:44.982Z ##[endgroup]\n2026-10-18T05:06:44.982Z ##[group]Exporting mise environment variables\n2026-10-18T05:06:45.038Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  missing: \u001b[34mbun\u001b[0m@1.3.14 \u001b[34mpnpm\u001b[0m@12.14.0 \u001b[34mcargo:fd-find\u001b[0m@10.5.0 \u001b[34mripgrep\u001b[0m@15.2.0 \u001b[34mcargo…\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\n2026-10-18T05:06:45.038Z {\n2026-10-18T05:06:45.038Z   \"FORBIDDEN_STRINGS_RULES\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/forbidden-strings.rules.txt\",\n2026-10-18T05:06:45.038Z   \"PATH\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin:/home/runner/work/Monochromatic/Monochromatic/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin:/home/runner/.local/share/mise/shims:/home/runner/.local/share/mise/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games\",\n2026-10-18T05:06:45.038Z   \"SLINT_EMIT_DEBUG_INFO\": \"1\",\n2026-10-18T05:06:45.038Z   \"SLINT_ENABLE_EXPERIMENTAL_FEATURES\": \"1\"\n2026-10-18T05:06:45.038Z }\n2026-10-18T05:06:45.047Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin to PATH\n2026-10-18T05:06:45.047Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin to PATH\n2026-10-18T05:06:45.047Z Adding /home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin to PATH\n2026-10-18T05:06:45.047Z Adding /home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin to PATH\n2026-10-18T05:06:45.048Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/node_modules/.bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin to PATH\n2026-10-18T05:06:45.049Z Adding /home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin to PATH\n2026-10-18T05:06:45.049Z ##[endgroup]\n2026-10-18T05:06:45.065Z ##[group]Run mise install node\n2026-10-18T05:06:45.065Z \u001b[36;1mmise install node\u001b[0m\n2026-10-18T05:06:45.065Z shell: bash -e {0}\n2026-10-18T05:06:45.065Z ##[endgroup]\n2026-10-18T05:06:45.970Z \u001b[2mmise\u001b[0m \u001b[2mby @jdx\u001b[0m – installing 1 tool\n2026-10-18T05:06:46.031Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 v26.12.0\n2026-10-18T05:06:46.034Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 11.20.0\n2026-10-18T05:06:46.034Z \u001b[2mmise\u001b[0m \u001b[38;5;10m✓\u001b[0m \u001b[34mnode\u001b[0m@26.12.0  896ms  \u001b[2mnode-v26.12.0-linux-x64.tar.gz\u001b[0m\n2026-10-18T05:06:46.084Z \u001b[2mmise\u001b[0m \u001b[36m████████████████\u001b[0m\u001b[31m\u001b[0m\u001b[2m\u001b[0m 1/1 · installed 1 tool in 897ms\n2026-10-18T05:06:46.089Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:46.207Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.207Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.207Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.207Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.207Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.207Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  failed to load vfox plugin metadata deps for cmake: runtime error: crates/vfox/src/plugin.rs:357:2: module 'metadata' not found:\n2026-10-18T05:06:46.207Z \tno field package.preload['metadata']\n2026-10-18T05:06:46.207Z \tno file '/home/runner/.local/share/mise/plugins/cmake/metadata.lua'\n2026-10-18T05:06:46.207Z \tno file '/home/runner/.local/share/mise/plugins/cmake/hooks/metadata.lua'\n2026-10-18T05:06:46.207Z \tno file '/home/runner/.local/share/mise/plugins/cmake/lib/metadata.lua'\n2026-10-18T05:06:46.207Z \tcan't load C modules in safe mode\n2026-10-18T05:06:46.207Z stack traceback:\n2026-10-18T05:06:46.207Z \t[C]: in ?\n2026-10-18T05:06:46.207Z \t[C]: in function 'require'\n2026-10-18T05:06:46.302Z \tcrates/vfox/src/plugin.rs:357:2: in main chunk\n2026-10-18T05:06:46.302Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.302Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.302Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.396Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.396Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.396Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.396Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.482Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.483Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.483Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.488Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.585Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.585Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.585Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.586Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.680Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.680Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.680Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:46.680Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:46.781Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:46.837Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:46.843Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:46.846Z ##[group]Run mise run //.depot/probe/cache-disk:preflight\n2026-10-18T05:06:46.846Z \u001b[36;1mmise run //.depot/probe/cache-disk:preflight\u001b[0m\n2026-10-18T05:06:46.846Z shell: bash -e {0}\n2026-10-18T05:06:46.846Z ##[endgroup]\n2026-10-18T05:06:52.387Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"preflight\",\"createdAt\":\"2026-10-18T05:06:47.245Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-b\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"inputs\":{\"workflow\":\"d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95\",\"tasks\":\"d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182\"},\"runner\":{\"hostname\":\"depot-worker-1cvczwzwf6s9dpmx315c\",\"bootId\":\"3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"readers\"},\"privateMarkerAbsent\":true,\"mountWasAbsentFromMountinfo\":true,\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"}}\n2026-10-18T05:06:52.630Z ##[group]Installing archil\n2026-10-18T05:06:52.630Z archil already installed\n2026-10-18T05:06:52.630Z ##[endgroup]\n2026-10-18T05:06:52.630Z ##[group]Acquiring disk token\n2026-10-18T05:06:52.630Z Requesting disk token: POST http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&disk_path=%2Fhome%2Frunner%2Ftemp%2Fagent%2Fdepot-cache-disk-mount (attempt 1/6)\n2026-10-18T05:06:52.730Z Acquired disk token for identifier: 740bd50c8960b41c48e434d9e112fb3e\n2026-10-18T05:06:52.730Z ##[endgroup]\n2026-10-18T05:06:52.731Z ##[group]Mounting disk\n2026-10-18T05:06:52.731Z Creating directory: /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.738Z Mounting disk monochromatic-disk-20261018T0503-trusted-v1 to /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.788Z \n2026-10-18T05:06:52.789Z ⠋ Attaching Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 to mountpoint /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.789Z ✓ Successfully mounted Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 (dsk-00000000000e089b) at /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:52.789Z Setting disk ownership to 1001:1001\n2026-10-18T05:06:52.816Z ##[endgroup]\n2026-10-18T05:06:52.823Z ##[group]Run mise run //.depot/probe/cache-disk:exercise\n2026-10-18T05:06:52.823Z \u001b[36;1mmise run //.depot/probe/cache-disk:exercise\u001b[0m\n2026-10-18T05:06:52.823Z shell: bash -e {0}\n2026-10-18T05:06:52.823Z ##[endgroup]\n2026-10-18T05:06:53.441Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"consumer\",\"startedAt\":\"2026-10-18T05:06:53.301Z\",\"finishedAt\":\"2026-10-18T05:06:53.440Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-b\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"runner\":{\"hostname\":\"depot-worker-1cvczwzwf6s9dpmx315c\",\"bootId\":\"3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"readers\"},\"privateMarkerAbsent\":true,\"mounts\":[{\"mountId\":\"40\",\"parentId\":\"28\",\"device\":\"0:29\",\"mountPoint\":\"/home/runner/temp/agent/depot-cache-disk-mount\",\"options\":\"rw,relatime\",\"filesystemType\":\"fuse.archil\"}],\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"},\"seed\":{\"schemaVersion\":1,\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"payloadBytes\":1048576,\"payloadSha256\":\"057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb\",\"producerHostname\":\"depot-worker-626bn016q28675c7459j\",\"producerBootId\":\"29eeb755-ef01-4210-a603-20e47474c162\",\"createdAt\":\"2026-10-18T05:06:23.845Z\"},\"writers\":[{\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-a\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"hostname\":\"depot-worker-9r80k329qsxjzmjgj3n6\",\"bootId\":\"085a974e-599f-4905-bcb3-70352847b376\",\"bytes\":27136,\"sha256\":\"fcc4f573f2a62a74c87be2f95e0ae04b942adbd4c83aff1facbc74ede9dee191\",\"publishedAt\":\"2026-10-18T05:06:52.649Z\"},{\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"reader-b\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"hostname\":\"depot-worker-1cvczwzwf6s9dpmx315c\",\"bootId\":\"3ddab29f-47e6-4eb5-a0ad-e34e2a0f4d77\",\"bytes\":27136,\"sha256\":\"6f53c19f5edda1d142ea72e6192ea4d6f3f7149639cb2e1d2e03c686dfcac6ee\",\"publishedAt\":\"2026-10-18T05:06:53.413Z\"}],\"assertions\":{\"realMount\":true,\"sourceHeadMatched\":true,\"payloadHashMatched\":true,\"privateJobIsolationMarkerAbsent\":true,\"disjointWritesAndPeerReads\":true},\"bounds\":{\"payloadBytes\":1048576,\"peerVisibilityWaitMilliseconds\":45000,\"requestedCpus\":2,\"requestedMemoryGb\":8,\"jobTimeoutMinutes\":5}}\n2026-10-18T05:06:53.838Z With the provided path, there will be 2 files uploaded\n2026-10-18T05:06:53.839Z Artifact name is valid!\n2026-10-18T05:06:53.839Z Root directory input is valid!\n2026-10-18T05:06:53.914Z Beginning upload of artifact content to blob storage\n2026-10-18T05:06:53.979Z Uploaded bytes 2135\n2026-10-18T05:06:53.982Z Finished uploading artifact content to blob storage!\n2026-10-18T05:06:53.982Z SHA256 digest of uploaded artifact zip is ca9e42afcd810c2379d3ecd5defc6e86e7c9e709d3b69bd51f238d61d07ba2c3\n2026-10-18T05:06:53.982Z Finalizing artifact upload\n2026-10-18T05:06:54.110Z Artifact depot-cache-disk-reader-b.zip successfully finalized. Artifact ID 6114524891220333\n2026-10-18T05:06:54.110Z Artifact depot-cache-disk-reader-b has been successfully uploaded! Final size is 2135 bytes. Artifact ID is 6114524891220333\n2026-10-18T05:06:54.111Z Artifact download URL: https://github.com/Aquaticats/Monochromatic/actions/runs/525997013009218/artifacts/6114524891220333\n2026-10-18T05:06:54.229Z ##[group]Unmounting disk\n2026-10-18T05:06:54.229Z Unounting disk monochromatic-disk-20261018T0503-trusted-v1 from /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:54.263Z ##[endgroup]\n2026-10-18T05:06:54.263Z ##[group]Releasing disk token\n2026-10-18T05:06:54.263Z Requesting: DELETE http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&identifier=740bd50c8960b41c48e434d9e112fb3e\n2026-10-18T05:06:54.280Z Delete response: status=200\n2026-10-18T05:06:54.281Z Released disk token for identifier: 740bd50c8960b41c48e434d9e112fb3e\n2026-10-18T05:06:54.281Z ##[endgroup]\n2026-10-18T05:06:54.416Z git version 2.55.0\n2026-10-18T05:06:54.418Z Temporarily overriding HOME='/home/runner/work/tmp/8c9833e4-41ec-4044-80ac-db82eceec4c4' before making global git config changes\n2026-10-18T05:06:54.418Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:06:54.419Z Removing SSH command configuration\n2026-10-18T05:06:54.431Z Removing HTTP extra header\n2026-10-18T05:06:54.441Z Removing includeIf entries pointing to credentials config files\n"
+      }
+    },
+    {
+      "provider": {
+        "job_display_name": "seed",
+        "job_id": "mqjt071lp7",
+        "job_key": "_inline_0.yaml:seed",
+        "status": "finished",
+        "attempts": [
+          {
+            "attempt_id": "0lldx2l826",
+            "attempt": 1,
+            "status": "finished",
+            "sandbox_id": "626bn016q28675c7459j",
+            "session_id": "d26a6e96-dc6b-47d8-ba8f-c32cd3fcc946",
+            "logs_command": "depot ci logs 0lldx2l826 --org l4zncjjbj5",
+            "download_available": true,
+            "download_command": "depot ci logs 0lldx2l826 --output-file logs.txt --org l4zncjjbj5",
+            "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/gq7wbtfz32?job=mqjt071lp7&attempt=0lldx2l826",
+            "ssh_available": false
+          }
+        ]
+      },
+      "preciseProviderMetadata": {
+        "job": {
+          "job_id": "mqjt071lp7",
+          "job_key": "_inline_0.yaml:seed",
+          "status": "finished",
+          "conclusion": "success",
+          "current_attempt": 1,
+          "created_at": "2026-10-18T05:05:55.224Z",
+          "started_at": "2026-10-18T05:05:57.840Z",
+          "finished_at": "2026-10-18T05:06:25.116Z"
+        },
+        "attempts": [
+          {
+            "attempt": {
+              "attempt_id": "0lldx2l826",
+              "attempt": 1,
+              "status": "finished",
+              "conclusion": "success",
+              "sandbox_id": "626bn016q28675c7459j",
+              "session_id": "d26a6e96-dc6b-47d8-ba8f-c32cd3fcc946",
+              "created_at": "2026-10-18T05:05:56.314Z",
+              "started_at": "2026-10-18T05:05:57.840Z",
+              "finished_at": "2026-10-18T05:06:25.116Z"
+            },
+            "availability": {
+              "code": "available",
+              "reason": "available"
+            },
+            "stats": {
+              "sample_count": 7,
+              "cpu_sample_count": 6,
+              "memory_sample_count": 7,
+              "peak_cpu_utilization": 0.232,
+              "average_cpu_utilization": 0.12442246082957291,
+              "peak_memory_utilization": 0.08903317095459537,
+              "average_memory_utilization": 0.06595440410652917,
+              "observed_started_at": "2026-10-18T05:05:59Z",
+              "observed_finished_at": "2026-10-18T05:06:24Z"
+            },
+            "cap": {
+              "raw_sample_count": 7,
+              "returned_sample_count": 7,
+              "max_returned_sample_count": 5000,
+              "downsampled": false,
+              "downsample_strategy": ""
+            }
+          }
+        ]
+      },
+      "allocationMilliseconds": 27276,
+      "grossComputeTimestampEstimateUsd": 0.0027276,
+      "artifact": {
+        "artifact_id": "01a14d67-6735-7d8a-9558-d68fc5e0b55f",
+        "run_id": "vpp27ld5rx",
+        "workflow_id": "gq7wbtfz32",
+        "workflow_path": "",
+        "job_id": "mqjt071lp7",
+        "job_key": "_inline_0.yaml:seed",
+        "attempt_id": "0lldx2l826",
+        "attempt": 1,
+        "name": "depot-cache-disk-seed",
+        "size_bytes": 1884,
+        "created_at": "2026-10-18T05:06:24Z",
+        "downloadedBytes": 1884,
+        "downloadedSha256": "c19d9ec65a8e9e7d84111dd1b7092d2dfd94d43d3d437b495e5095ec958d057c",
+        "uploadLogSha256": "c19d9ec65a8e9e7d84111dd1b7092d2dfd94d43d3d437b495e5095ec958d057c",
+        "members": [
+          "consumer.json",
+          "preflight.json"
+        ]
+      },
+      "preflight": {
+        "schemaVersion": 1,
+        "phase": "preflight",
+        "createdAt": "2026-10-18T05:06:18.042Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "seed",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "inputs": {
+          "workflow": "d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95",
+          "tasks": "d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182"
+        },
+        "runner": {
+          "hostname": "depot-worker-626bn016q28675c7459j",
+          "bootId": "29eeb755-ef01-4210-a603-20e47474c162",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "seed"
+        },
+        "privateMarkerAbsent": true,
+        "mountWasAbsentFromMountinfo": true,
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        }
+      },
+      "consumer": {
+        "schemaVersion": 1,
+        "phase": "consumer",
+        "startedAt": "2026-10-18T05:06:23.841Z",
+        "finishedAt": "2026-10-18T05:06:23.967Z",
+        "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+        "role": "seed",
+        "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+        "runner": {
+          "hostname": "depot-worker-626bn016q28675c7459j",
+          "bootId": "29eeb755-ef01-4210-a603-20e47474c162",
+          "cpus": 2,
+          "memoryBytes": 8336855040,
+          "node": "v26.12.0",
+          "job": "seed"
+        },
+        "privateMarkerAbsent": true,
+        "mounts": [
+          {
+            "mountId": "40",
+            "parentId": "28",
+            "device": "0:29",
+            "mountPoint": "/home/runner/temp/agent/depot-cache-disk-mount",
+            "options": "rw,relatime",
+            "filesystemType": "fuse.archil"
+          }
+        ],
+        "archil": {
+          "preinstalled": true,
+          "sha256": "3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4",
+          "versionStatus": 0,
+          "versionStdout": "Archil Client: v0.9.2-1791935133, 902, proto=Version2\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\nLatest Available: v0.9.3-1792191555\n",
+          "versionStderr": ""
+        },
+        "seed": {
+          "schemaVersion": 1,
+          "cohort": "monochromatic-disk-20261018T0503-trusted-v1",
+          "sourceHead": "1b311a76458c77b5f38cd0029e0573c4a6a92768",
+          "payloadBytes": 1048576,
+          "payloadSha256": "057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb",
+          "producerHostname": "depot-worker-626bn016q28675c7459j",
+          "producerBootId": "29eeb755-ef01-4210-a603-20e47474c162",
+          "createdAt": "2026-10-18T05:06:23.845Z"
+        },
+        "writers": [],
+        "assertions": {
+          "realMount": true,
+          "sourceHeadMatched": true,
+          "payloadHashMatched": true,
+          "privateJobIsolationMarkerAbsent": true,
+          "disjointWritesAndPeerReads": null
+        },
+        "bounds": {
+          "payloadBytes": 1048576,
+          "peerVisibilityWaitMilliseconds": 45000,
+          "requestedCpus": 2,
+          "requestedMemoryGb": 8,
+          "jobTimeoutMinutes": 5
+        }
+      },
+      "consumerMilliseconds": 126,
+      "cleanup": {
+        "sourceOrderedUnmountGroupCompletedBeforeTokenRelease": true,
+        "releaseHttpStatus": 200,
+        "releaseSucceeded": true,
+        "unmountCommandTraceExposed": false,
+        "postUnmountMountTableProbed": false
+      },
+      "logs": {
+        "sha256": "46873b2758499628e500d9254e8ea662badae255cc4cdfedf72df012f645a23b",
+        "bytes": 40580,
+        "text": "2026-10-18T05:05:59.462Z Complete job name: seed\n2026-10-18T05:05:59.820Z Syncing repository: Aquaticats/Monochromatic\n2026-10-18T05:05:59.820Z ##[group]Getting Git version info\n2026-10-18T05:05:59.820Z Working directory is '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:05:59.826Z git version 2.55.0\n2026-10-18T05:05:59.827Z ##[endgroup]\n2026-10-18T05:05:59.828Z Temporarily overriding HOME='/home/runner/work/tmp/c8b3462a-b757-4e0e-aa3e-c23976de750a' before making global git config changes\n2026-10-18T05:05:59.828Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:05:59.831Z Deleting the contents of '/home/runner/work/Monochromatic/Monochromatic'\n2026-10-18T05:05:59.831Z ##[group]Initializing the repository\n2026-10-18T05:05:59.834Z hint: Using 'master' as the name for the initial branch. This default branch name\n2026-10-18T05:05:59.834Z hint: will change to \"main\" in Git 3.0. To configure the initial branch name\n2026-10-18T05:05:59.834Z hint: to use in all of your new repositories, which will suppress this warning,\n2026-10-18T05:05:59.834Z hint: call:\n2026-10-18T05:05:59.834Z hint:\n2026-10-18T05:05:59.834Z hint: \tgit config --global init.defaultBranch <name>\n2026-10-18T05:05:59.834Z hint:\n2026-10-18T05:05:59.834Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\n2026-10-18T05:05:59.834Z hint: 'development'. The just-created branch can be renamed via this command:\n2026-10-18T05:05:59.834Z hint:\n2026-10-18T05:05:59.834Z hint: \tgit branch -m <name>\n2026-10-18T05:05:59.834Z hint:\n2026-10-18T05:05:59.834Z hint: Disable this message with \"git config set advice.defaultBranchName false\"\n2026-10-18T05:05:59.834Z Initialized empty Git repository in /home/runner/work/Monochromatic/Monochromatic/.git/\n2026-10-18T05:05:59.836Z ##[endgroup]\n2026-10-18T05:05:59.836Z ##[group]Disabling automatic garbage collection\n2026-10-18T05:05:59.838Z ##[endgroup]\n2026-10-18T05:05:59.838Z ##[group]Setting up auth\n2026-10-18T05:05:59.838Z Removing SSH command configuration\n2026-10-18T05:05:59.857Z Removing HTTP extra header\n2026-10-18T05:05:59.868Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:05:59.888Z ##[endgroup]\n2026-10-18T05:05:59.888Z ##[group]Fetching the repository\n2026-10-18T05:06:13.610Z From https://github.com/Aquaticats/Monochromatic\n2026-10-18T05:06:13.610Z  * branch            1b311a76458c77b5f38cd0029e0573c4a6a92768 -> FETCH_HEAD\n2026-10-18T05:06:13.612Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:13.612Z ##[endgroup]\n2026-10-18T05:06:13.612Z ##[group]Determining the checkout info\n2026-10-18T05:06:13.612Z ##[endgroup]\n2026-10-18T05:06:13.616Z ##[group]Checking out the ref\n2026-10-18T05:06:14.792Z Updating files:  74% (10245/13834)\n2026-10-18T05:06:14.792Z Updating files:  75% (10376/13834)\n2026-10-18T05:06:14.792Z Updating files:  76% (10514/13834)\n2026-10-18T05:06:14.792Z Updating files:  77% (10653/13834)\n2026-10-18T05:06:14.792Z Updating files:  78% (10791/13834)\n2026-10-18T05:06:14.792Z Updating files:  79% (10929/13834)\n2026-10-18T05:06:14.792Z Updating files:  80% (11068/13834)\n2026-10-18T05:06:14.792Z Updating files:  81% (11206/13834)\n2026-10-18T05:06:14.792Z Updating files:  82% (11344/13834)\n2026-10-18T05:06:14.792Z Updating files:  83% (11483/13834)\n2026-10-18T05:06:14.792Z Updating files:  84% (11621/13834)\n2026-10-18T05:06:14.792Z Updating files:  85% (11759/13834)\n2026-10-18T05:06:14.792Z Updating files:  86% (11898/13834)\n2026-10-18T05:06:14.792Z Updating files:  87% (12036/13834)\n2026-10-18T05:06:14.792Z Updating files:  88% (12174/13834)\n2026-10-18T05:06:14.792Z Updating files:  89% (12313/13834)\n2026-10-18T05:06:14.792Z Updating files:  90% (12451/13834)\n2026-10-18T05:06:14.792Z Updating files:  91% (12589/13834)\n2026-10-18T05:06:14.792Z Updating files:  92% (12728/13834)\n2026-10-18T05:06:14.792Z Updating files:  93% (12866/13834)\n2026-10-18T05:06:14.792Z Updating files:  94% (13004/13834)\n2026-10-18T05:06:14.792Z Updating files:  95% (13143/13834)\n2026-10-18T05:06:14.792Z Updating files:  96% (13281/13834)\n2026-10-18T05:06:14.792Z Updating files:  97% (13419/13834)\n2026-10-18T05:06:14.792Z Updating files:  98% (13558/13834)\n2026-10-18T05:06:14.792Z Updating files:  99% (13696/13834)\n2026-10-18T05:06:14.792Z Updating files: 100% (13834/13834)\n2026-10-18T05:06:14.792Z Updating files: 100% (13834/13834), done.\n2026-10-18T05:06:14.800Z Note: switching to '1b311a76458c77b5f38cd0029e0573c4a6a92768'.\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z You are in 'detached HEAD' state. You can look around, make experimental\n2026-10-18T05:06:14.801Z changes and commit them, and you can discard any commits you make in this\n2026-10-18T05:06:14.801Z state without impacting any branches by switching back to a branch.\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z If you want to create a new branch to retain commits you create, you may\n2026-10-18T05:06:14.801Z do so (now or later) by using -c with the switch command. Example:\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z   git switch -c <new-branch-name>\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z Or undo this operation with:\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z   git switch -\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z Turn off this advice by setting config variable advice.detachedHead to false\n2026-10-18T05:06:14.801Z \n2026-10-18T05:06:14.801Z HEAD is now at 1b311a7 test(depot): resolve probe tasks through measured monorepo names\n2026-10-18T05:06:14.839Z ##[endgroup]\n2026-10-18T05:06:14.843Z 1b311a76458c77b5f38cd0029e0573c4a6a92768\n2026-10-18T05:06:14.844Z ##[group]Removing auth\n2026-10-18T05:06:14.844Z Removing SSH command configuration\n2026-10-18T05:06:14.855Z Removing HTTP extra header\n2026-10-18T05:06:14.866Z Removing includeIf entries pointing to credentials config files\n2026-10-18T05:06:14.867Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git.path\n2026-10-18T05:06:14.867Z includeif.gitdir:/home/runner/work/Monochromatic/Monochromatic/.git/worktrees/*.path\n2026-10-18T05:06:14.867Z includeif.gitdir:/github/workspace/.git.path\n2026-10-18T05:06:14.867Z includeif.gitdir:/github/workspace/.git/worktrees/*.path\n2026-10-18T05:06:14.869Z /home/runner/work/tmp/git-credentials-14272a2e-d5e4-46d7-a8bb-5d7e7f85834f.config\n2026-10-18T05:06:14.872Z /home/runner/work/tmp/git-credentials-14272a2e-d5e4-46d7-a8bb-5d7e7f85834f.config\n2026-10-18T05:06:14.876Z /github/runner_temp/git-credentials-14272a2e-d5e4-46d7-a8bb-5d7e7f85834f.config\n2026-10-18T05:06:14.879Z /github/runner_temp/git-credentials-14272a2e-d5e4-46d7-a8bb-5d7e7f85834f.config\n2026-10-18T05:06:14.894Z Removing credentials config '/home/runner/work/tmp/git-credentials-14272a2e-d5e4-46d7-a8bb-5d7e7f85834f.config'\n2026-10-18T05:06:14.894Z ##[endgroup]\n2026-10-18T05:06:15.306Z ##[group]Download mise@2026.10.9\n2026-10-18T05:06:15.311Z *** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***\n2026-10-18T05:06:15.314Z tar (GNU tar) 1.35\n2026-10-18T05:06:15.314Z Copyright (C) 2023 Free Software Foundation, Inc.\n2026-10-18T05:06:15.314Z License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\n2026-10-18T05:06:15.314Z This is free software: you are free to change and redistribute it.\n2026-10-18T05:06:15.314Z There is NO WARRANTY, to the extent permitted by law.\n2026-10-18T05:06:15.314Z \n2026-10-18T05:06:15.314Z Written by John Gilmore and Jay Fenlason.\n2026-10-18T05:06:15.316Z ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39\n2026-10-18T05:06:15.316Z Copyright (C) 2024 Free Software Foundation, Inc.\n2026-10-18T05:06:15.316Z This is free software; see the source for copying conditions.  There is NO\n2026-10-18T05:06:15.316Z warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n2026-10-18T05:06:15.316Z Written by Roland McGrath and Ulrich Drepper.\n2026-10-18T05:06:15.318Z Using curl to download mise\n2026-10-18T05:06:15.802Z Verified mise-v2026.10.9-linux-x64.tar.zst against signed checksums\n2026-10-18T05:06:15.936Z ##[group]Setting env vars\n2026-10-18T05:06:15.936Z Setting MISE_LOG_LEVEL=info\n2026-10-18T05:06:15.936Z Setting MISE_GITHUB_TOKEN=***\n2026-10-18T05:06:15.936Z Setting MISE_TRUSTED_CONFIG_PATHS=/home/runner/work/Monochromatic/Monochromatic\n2026-10-18T05:06:15.936Z Setting MISE_YES=1\n2026-10-18T05:06:15.936Z Adding /home/runner/.local/share/mise/shims to PATH\n2026-10-18T05:06:15.936Z ##[group]Running mise --version\n2026-10-18T05:06:15.943Z 2026.10.9 linux-x64 (2026-10-13)\n2026-10-18T05:06:15.944Z ##[endgroup]\n2026-10-18T05:06:15.944Z ##[group]Running mise ls\n2026-10-18T05:06:15.971Z age                                         1.3.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z android-sdk                                 23.0 (missing)                     ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z betterleaks                                 1.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z bun                                         1.3.14 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  1.3.14\n2026-10-18T05:06:15.971Z caddy                                       2.11.7 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo-binstall                              1.25.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:apple-codesign                        0.29.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:cargo-about                           0.9.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:cargo-fuzz                            0.13.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.13.2\n2026-10-18T05:06:15.971Z cargo:cargo-ndk                             4.1.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:cargo-nextest                         0.9.148 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:coreutils                             0.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:fastmod                               0.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:fd-find                               10.5.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:monochromatic-git-policy-cli          0.1.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:monochromatic-lint                    0.1.3 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:monochromatic-nested-wayland-session  0.6.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:slint-lsp                             1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:slint-viewer                          1.18.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cargo:timeout-cli                           0.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z cmake                                       4.4.4 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z conda:bubblewrap                            0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z dprint                                      0.63.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z github:Feel-ix-343/markdown-oxide           0.25.12 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z github:docker/docker-language-server        0.20.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z harper-cli                                  2.12.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z hcloud                                      1.70.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z hyperfine                                   2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z java                                        temurin-21.0.12+8.0.LTS (missing)  ~/work/Monochromatic/Monochromatic/mise.toml  temurin-21\n2026-10-18T05:06:15.971Z llama.cpp                                   b9829 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  b9829\n2026-10-18T05:06:15.971Z marksman                                    2026-02-08 (missing)               ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z node                                        26.12.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z npm:@actions/languageserver                 0.3.61 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.971Z npm:@ansible/ansible-language-server        26.6.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:@microsoft/compose-language-service     1.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:bash-language-server                    5.8.1 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:dockerfile-language-server-nodejs       0.15.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:pagefind                                1.5.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:socket                                  2.1.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:typescript-language-server              6.0.2 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:vscode-langservers-extracted            4.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:wrangler                                4.151.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z npm:yaml-language-server                    2.0.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z opentofu                                    1.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z pipx:slopo                                  0.9.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z pnpm                                        12.14.0 (missing)                  ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z ripgrep                                     15.2.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z rumdl                                       0.2.79 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z rust                                        nightly-2026-10-17 (missing)       ~/work/Monochromatic/Monochromatic/mise.toml  nightly\n2026-10-18T05:06:15.972Z sops                                        3.13.3 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z superhtml                                   0.7.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z taplo                                       0.10.0 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z tombi                                       1.8.5 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z uv                                          0.13.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z watchexec                                   2.8.0 (missing)                    ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.972Z zig                                         0.15.2 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  0.15.2\n2026-10-18T05:06:15.972Z zizmor                                      1.31.1 (missing)                   ~/work/Monochromatic/Monochromatic/mise.toml  latest\n2026-10-18T05:06:15.976Z ##[endgroup]\n2026-10-18T05:06:15.976Z ##[group]Exporting mise environment variables\n2026-10-18T05:06:16.029Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  missing: \u001b[34mbun\u001b[0m@1.3.14 \u001b[34mpnpm\u001b[0m@12.14.0 \u001b[34mcargo:fd-find\u001b[0m@10.5.0 \u001b[34mripgrep\u001b[0m@15.2.0 \u001b[34mcargo…\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\u001b[34m\u001b[0m\n2026-10-18T05:06:16.031Z {\n2026-10-18T05:06:16.031Z   \"FORBIDDEN_STRINGS_RULES\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/forbidden-strings.rules.txt\",\n2026-10-18T05:06:16.033Z   \"PATH\": \"/home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin:/home/runner/work/Monochromatic/Monochromatic/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin:/home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin:/home/runner/.local/share/mise/shims:/home/runner/.local/share/mise/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games\",\n2026-10-18T05:06:16.035Z   \"SLINT_EMIT_DEBUG_INFO\": \"1\",\n2026-10-18T05:06:16.035Z   \"SLINT_ENABLE_EXPERIMENTAL_FEATURES\": \"1\"\n2026-10-18T05:06:16.035Z }\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/wc/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/webapp-productivity/done-postcss/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/typeface/aquaticat/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/stub/throwing/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/ssg/aquati.cat/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-selection/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-shared/model-review/node_modules/.bin to PATH\n2026-10-18T05:06:16.036Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/thinking-default/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/statusline/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/spawn/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/openai-fast/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/morph-compact/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/model-retirement/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/goal/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/current-time-context/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/bash-poke/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/ask-user-question/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/agent-settled-notification/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/advisor/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/token-count/node_modules/.bin to PATH\n2026-10-18T05:06:16.038Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/pnpm-workspace-catalog/node_modules/.bin to PATH\n2026-10-18T05:06:16.039Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/css-edit.bench/node_modules/.bin to PATH\n2026-10-18T05:06:16.039Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork/node_modules/.bin to PATH\n2026-10-18T05:06:16.039Z Adding /home/runner/work/Monochromatic/Monochromatic/package/module/conf-fork.fuzz/node_modules/.bin to PATH\n2026-10-18T05:06:16.039Z Adding /home/runner/work/Monochromatic/Monochromatic/package/mcp/mvm/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/kwin/key-helper/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/file-enforcer/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/dev-script/deps-update/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/file-manager-electron/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-infra/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/desktop-app/electron-counter/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/config/pnpr/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/cli/unused-export/node_modules/.bin to PATH\n2026-10-18T05:06:16.040Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/terminal-title/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/stop-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/session-start-housekeeping/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/prompt-time/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/guardrail/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/correction-reminder/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/claude-spawn/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/claude-code-plugin/bash-output-filter/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/truncate/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/agent-harness-shared/search-fetch/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/node_modules/.bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/package/pi-plugin/auto-mode/bin to PATH\n2026-10-18T05:06:16.041Z Adding /home/runner/work/Monochromatic/Monochromatic/.cache/cli-git-bin to PATH\n2026-10-18T05:06:16.041Z ##[endgroup]\n2026-10-18T05:06:16.053Z ##[group]Run mise install node\n2026-10-18T05:06:16.053Z \u001b[36;1mmise install node\u001b[0m\n2026-10-18T05:06:16.053Z shell: bash -e {0}\n2026-10-18T05:06:16.053Z ##[endgroup]\n2026-10-18T05:06:16.902Z \u001b[2mmise\u001b[0m \u001b[2mby @jdx\u001b[0m – installing 1 tool\n2026-10-18T05:06:16.956Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 v26.12.0\n2026-10-18T05:06:16.966Z \u001b[2mmise\u001b[0m \u001b[34mnode\u001b[0m@26.12.0 11.20.0\n2026-10-18T05:06:16.967Z \u001b[2mmise\u001b[0m \u001b[38;5;10m✓\u001b[0m \u001b[34mnode\u001b[0m@26.12.0  837ms  \u001b[2mnode-v26.12.0-linux-x64.tar.gz\u001b[0m\n2026-10-18T05:06:17.017Z \u001b[2mmise\u001b[0m \u001b[36m████████████████\u001b[0m\u001b[31m\u001b[0m\u001b[2m\u001b[0m 1/1 · installed 1 tool in 838ms\n2026-10-18T05:06:17.022Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:17.116Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:17.119Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:17.119Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:17.119Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:17.210Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:17.211Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:17.211Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:17.214Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:17.298Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:17.298Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:17.298Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:17.298Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:17.386Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:17.386Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:17.386Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    uninstall\n2026-10-18T05:06:17.389Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    remove ~/.local/share/mise/plugins/cmake\n2026-10-18T05:06:17.472Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m    clone https://github.com/jdx/vfox-cmake.git\n2026-10-18T05:06:17.580Z \u001b[2mmise\u001b[0m plugin:\u001b[34mcmake\u001b[0m  \u001b[38;5;10m✓\u001b[0m https://github.com/jdx/vfox-cmake.git#\u001b[38;5;11m4ecc1f0\u001b[0m\n2026-10-18T05:06:17.587Z \u001b[33mmise\u001b[0m \u001b[33mWARN\u001b[0m  preserving unavailable dependency sidecar: dependency sidecar /home/runner/work/Monochromatic/Monochromatic/.mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it\n2026-10-18T05:06:17.589Z ##[group]Run mise run //.depot/probe/cache-disk:preflight\n2026-10-18T05:06:17.590Z \u001b[36;1mmise run //.depot/probe/cache-disk:preflight\u001b[0m\n2026-10-18T05:06:17.590Z shell: bash -e {0}\n2026-10-18T05:06:17.590Z ##[endgroup]\n2026-10-18T05:06:22.697Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"preflight\",\"createdAt\":\"2026-10-18T05:06:18.042Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"seed\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"inputs\":{\"workflow\":\"d1b86d0e5b8df5657f7c85762087644fcfd8522213415edf2c7062674c9e7d95\",\"tasks\":\"d57673116df504c8ea455b9790c8261a1ae843050749cd63f24f4367bb3a6182\"},\"runner\":{\"hostname\":\"depot-worker-626bn016q28675c7459j\",\"bootId\":\"29eeb755-ef01-4210-a603-20e47474c162\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"seed\"},\"privateMarkerAbsent\":true,\"mountWasAbsentFromMountinfo\":true,\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"}}\n2026-10-18T05:06:22.950Z ##[group]Installing archil\n2026-10-18T05:06:22.950Z archil already installed\n2026-10-18T05:06:22.950Z ##[endgroup]\n2026-10-18T05:06:22.950Z ##[group]Acquiring disk token\n2026-10-18T05:06:22.950Z Requesting disk token: POST http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&disk_path=%2Fhome%2Frunner%2Ftemp%2Fagent%2Fdepot-cache-disk-mount (attempt 1/6)\n2026-10-18T05:06:23.045Z Acquired disk token for identifier: db939d92d1782c7b825fb8d9cc76ec7e\n2026-10-18T05:06:23.045Z ##[endgroup]\n2026-10-18T05:06:23.047Z ##[group]Mounting disk\n2026-10-18T05:06:23.047Z Creating directory: /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:23.053Z Mounting disk monochromatic-disk-20261018T0503-trusted-v1 to /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:23.348Z \n2026-10-18T05:06:23.348Z ⠋ Attaching Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 to mountpoint /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:23.348Z ⠙ Attaching Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 to mountpoint /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:23.348Z ✓ Successfully mounted Archil volume depot/l4zncjjbj5-monochromatic-disk-20261018T0503-trusted-v1 (dsk-00000000000e089b) at /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:23.349Z Setting disk ownership to 1001:1001\n2026-10-18T05:06:23.387Z ##[endgroup]\n2026-10-18T05:06:23.395Z ##[group]Run mise run //.depot/probe/cache-disk:exercise\n2026-10-18T05:06:23.395Z \u001b[36;1mmise run //.depot/probe/cache-disk:exercise\u001b[0m\n2026-10-18T05:06:23.395Z shell: bash -e {0}\n2026-10-18T05:06:23.395Z ##[endgroup]\n2026-10-18T05:06:23.969Z DISK_PROOF {\"schemaVersion\":1,\"phase\":\"consumer\",\"startedAt\":\"2026-10-18T05:06:23.841Z\",\"finishedAt\":\"2026-10-18T05:06:23.967Z\",\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"role\":\"seed\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"runner\":{\"hostname\":\"depot-worker-626bn016q28675c7459j\",\"bootId\":\"29eeb755-ef01-4210-a603-20e47474c162\",\"cpus\":2,\"memoryBytes\":8336855040,\"node\":\"v26.12.0\",\"job\":\"seed\"},\"privateMarkerAbsent\":true,\"mounts\":[{\"mountId\":\"40\",\"parentId\":\"28\",\"device\":\"0:29\",\"mountPoint\":\"/home/runner/temp/agent/depot-cache-disk-mount\",\"options\":\"rw,relatime\",\"filesystemType\":\"fuse.archil\"}],\"archil\":{\"preinstalled\":true,\"sha256\":\"3bbf2fa696708c3ce4e8408ae557fc449db2692dee27fdb161281789d59d1bf4\",\"versionStatus\":0,\"versionStdout\":\"Archil Client: v0.9.2-1791935133, 902, proto=Version2\\nBuild: 2026-10-13 23:45:33 UTC (aabe187a)\\nUser Agent: rfp/Ubuntu 24.04.5 LTS/system=Linux,version=6.12.109+,machine=x86_64\\nLatest Available: v0.9.3-1792191555\\n\",\"versionStderr\":\"\"},\"seed\":{\"schemaVersion\":1,\"cohort\":\"monochromatic-disk-20261018T0503-trusted-v1\",\"sourceHead\":\"1b311a76458c77b5f38cd0029e0573c4a6a92768\",\"payloadBytes\":1048576,\"payloadSha256\":\"057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb\",\"producerHostname\":\"depot-worker-626bn016q28675c7459j\",\"producerBootId\":\"29eeb755-ef01-4210-a603-20e47474c162\",\"createdAt\":\"2026-10-18T05:06:23.845Z\"},\"writers\":[],\"assertions\":{\"realMount\":true,\"sourceHeadMatched\":true,\"payloadHashMatched\":true,\"privateJobIsolationMarkerAbsent\":true,\"disjointWritesAndPeerReads\":null},\"bounds\":{\"payloadBytes\":1048576,\"peerVisibilityWaitMilliseconds\":45000,\"requestedCpus\":2,\"requestedMemoryGb\":8,\"jobTimeoutMinutes\":5}}\n2026-10-18T05:06:24.388Z With the provided path, there will be 2 files uploaded\n2026-10-18T05:06:24.388Z Artifact name is valid!\n2026-10-18T05:06:24.389Z Root directory input is valid!\n2026-10-18T05:06:24.497Z Beginning upload of artifact content to blob storage\n2026-10-18T05:06:24.568Z Uploaded bytes 1884\n2026-10-18T05:06:24.570Z Finished uploading artifact content to blob storage!\n2026-10-18T05:06:24.571Z SHA256 digest of uploaded artifact zip is c19d9ec65a8e9e7d84111dd1b7092d2dfd94d43d3d437b495e5095ec958d057c\n2026-10-18T05:06:24.571Z Finalizing artifact upload\n2026-10-18T05:06:24.689Z Artifact depot-cache-disk-seed.zip successfully finalized. Artifact ID 2127495776778552\n2026-10-18T05:06:24.689Z Artifact depot-cache-disk-seed has been successfully uploaded! Final size is 1884 bytes. Artifact ID is 2127495776778552\n2026-10-18T05:06:24.690Z Artifact download URL: https://github.com/Aquaticats/Monochromatic/actions/runs/525997013009218/artifacts/2127495776778552\n2026-10-18T05:06:24.812Z ##[group]Unmounting disk\n2026-10-18T05:06:24.812Z Unounting disk monochromatic-disk-20261018T0503-trusted-v1 from /home/runner/temp/agent/depot-cache-disk-mount\n2026-10-18T05:06:24.845Z ##[endgroup]\n2026-10-18T05:06:24.846Z ##[group]Releasing disk token\n2026-10-18T05:06:24.846Z Requesting: DELETE http://169.254.169.253:80/archil/disk-token?disk=monochromatic-disk-20261018T0503-trusted-v1&identifier=db939d92d1782c7b825fb8d9cc76ec7e\n2026-10-18T05:06:24.864Z Delete response: status=200\n2026-10-18T05:06:24.864Z Released disk token for identifier: db939d92d1782c7b825fb8d9cc76ec7e\n2026-10-18T05:06:24.864Z ##[endgroup]\n2026-10-18T05:06:25.013Z git version 2.55.0\n2026-10-18T05:06:25.015Z Temporarily overriding HOME='/home/runner/work/tmp/fe11ee2a-d209-439a-b08a-e7eaa22b46e2' before making global git config changes\n2026-10-18T05:06:25.015Z Adding repository directory to the temporary git global config as a safe directory\n2026-10-18T05:06:25.018Z Removing SSH command configuration\n2026-10-18T05:06:25.030Z Removing HTTP extra header\n2026-10-18T05:06:25.043Z Removing includeIf entries pointing to credentials config files\n"
+      }
+    }
+  ],
+  "validation": {
+    "terminalJobs": 3,
+    "independentSandboxIds": 3,
+    "realMounts": 3,
+    "sourceAndWorkflowBindings": true,
+    "artifactUploadDigestMatches": 3,
+    "payloadBytes": 1048576,
+    "payloadSha256": "057b26a0c0e0d0b44b0f94eba478564922c4a18129a3bee0ab2c8075258864fb",
+    "disjointWriterPeerChecks": 2,
+    "sourceOrderedUnmountAndTokenReleaseChecks": 3
+  },
+  "accounting": {
+    "basis": "Provider precise attempt started_at to finished_at, priced at documented 2CPU8GB rate; timestamp estimate, not invoice",
+    "rateUsdPerSecond": 0.0001,
+    "totalAllocationMilliseconds": 111712,
+    "grossComputeTimestampEstimateUsd": 0.011171200000000001,
+    "runElapsedFromRequestToTerminalMilliseconds": 106353
+  },
+  "limits": [
+    "One seed and fan-out pair, not a throughput or dependency-cache speed estimate",
+    "Reader-a consumer took about30seconds while reader-b took under1second; cause not established by the probe",
+    "Only disjoint application writes checked; no shared Cargo target or Gradle user-home mutation claim",
+    "Post groups and token release verified; no mount-table probe after action post",
+    "Unique test disk retained for provider retention; no existing shared disk deleted",
+    "No account-wide storage or invoice reconciliation"
+  ]
+}

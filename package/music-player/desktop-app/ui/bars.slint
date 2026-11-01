@@ -1,0 +1,393 @@
+// Top bars for the player screens: the folded cover row, the unfolded Folders header, and the unfolded track header.
+// Ports PlayerTopBars.kt. Glyph path data is copied from PlayerIcons.kt on a 24 by 24 grid.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, PlayerStop, FocusRing, KeyBadge, Keys } from "focus.slint";
+import { TextSize } from "text_size.slint";
+
+// Magnifying glass glyph for the search action (PlayerIcons.kt SEARCH_PATH).
+component SearchGlyph inherits Path {
+    width: 24px;
+    height: 24px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: Theme.on-surface;
+    commands: "M15.5 14 h-0.79 l-0.28 -0.27 C15.41 12.59 16 11.11 16 9.5 C16 5.91 13.09 3 9.5 3 S3 5.91 3 9.5 S5.91 16 9.5 16 c1.61 0 3.09 -0.59 4.23 -1.57 l0.27 0.28 v0.79 l5 4.99 L20.49 19 l-4.99 -5 ZM9.5 14 C7.01 14 5 11.99 5 9.5 S7.01 5 9.5 5 S14 7.01 14 9.5 S11.99 14 9.5 14 Z";
+}
+
+// Gear glyph for the settings action (PlayerIcons.kt SETTINGS_PATH).
+component SettingsGlyph inherits Path {
+    width: 24px;
+    height: 24px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: Theme.on-surface;
+    commands: "M19.14 12.94 c0.04 -0.3 0.06 -0.61 0.06 -0.94 c0 -0.32 -0.02 -0.64 -0.07 -0.94 l2.03 -1.58 c0.18 -0.14 0.23 -0.41 0.12 -0.61 l-1.92 -3.32 c-0.12 -0.22 -0.37 -0.29 -0.59 -0.22 l-2.39 0.96 c-0.5 -0.38 -1.03 -0.7 -1.62 -0.94 L14.4 2.81 c-0.04 -0.24 -0.24 -0.41 -0.48 -0.41 h-3.84 c-0.24 0 -0.43 0.17 -0.47 0.41 L9.25 5.35 C8.66 5.59 8.12 5.92 7.63 6.29 L5.24 5.33 c-0.22 -0.08 -0.47 0 -0.59 0.22 L2.74 8.87 C2.62 9.08 2.66 9.34 2.86 9.48 l2.03 1.58 C4.84 11.36 4.8 11.69 4.8 12 s0.02 0.64 0.07 0.94 l-2.03 1.58 c-0.18 0.14 -0.23 0.41 -0.12 0.61 l1.92 3.32 c0.12 0.22 0.37 0.29 0.59 0.22 l2.39 -0.96 c0.5 0.38 1.03 0.7 1.62 0.94 l0.36 2.54 c0.05 0.24 0.24 0.41 0.48 0.41 h3.84 c0.24 0 0.44 -0.17 0.47 -0.41 l0.36 -2.54 c0.59 -0.24 1.13 -0.56 1.62 -0.94 l2.39 0.96 c0.22 0.08 0.47 0 0.59 -0.22 l1.92 -3.32 c0.12 -0.22 0.07 -0.47 -0.12 -0.61 L19.14 12.94 ZM12 15.6 c-1.98 0 -3.6 -1.62 -3.6 -3.6 s1.62 -3.6 3.6 -3.6 s3.6 1.62 3.6 3.6 S13.98 15.6 12 15.6 Z";
+}
+
+// Open folder glyph for the Open action (PlayerIcons.kt FOLDER_OPEN_PATH).
+component FolderOpenGlyph inherits Path {
+    width: 18px;
+    height: 18px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: Theme.on-secondary-container;
+    commands: "M20 6 h-8 l-2 -2 L4 4 c-1.1 0 -1.99 0.9 -1.99 2 L2 18 c0 1.1 0.9 2 2 2 h16 c1.1 0 2 -0.9 2 -2 L22 8 c0 -1.1 -0.9 -2 -2 -2 ZM20 18 L4 18 L4 8 h16 v10 Z";
+}
+
+// Downward caret shown beside the folder title while the picker is closed (PlayerIcons.kt ARROW_DROP_DOWN_PATH).
+component CaretDownGlyph inherits Path {
+    width: 24px;
+    height: 24px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: Theme.on-surface;
+    commands: "M7 10 l5 5 l5 -5 Z";
+}
+
+// Upward caret shown beside the folder title while the picker is open (PlayerIcons.kt ARROW_DROP_UP_PATH).
+component CaretUpGlyph inherits Path {
+    width: 24px;
+    height: 24px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: Theme.on-surface;
+    commands: "M7 14 l5 -5 l5 5 Z";
+}
+
+// One 48 px icon button with a 24 px glyph centered in it. The glyph is drawn by the caller. The button is a focus stop:
+// Enter and Space press it, the ring outside the circle shows the focus (and nothing else changes), and a badge names
+// its shortcut.
+component IconTarget inherits Rectangle {
+    // Spoken name of the button.
+    in property <string> label;
+    // Tooltip text with the shortcut, such as `Search music (Ctrl+F)`.
+    in property <string> tip;
+    // Key hint badge text; empty draws none.
+    in property <string> badge;
+    // Name the focus model reports while this button holds focus.
+    in property <string> stop-name;
+    // Invoked when the button is tapped or pressed from the keyboard.
+    callback clicked();
+
+    width: 48px;
+    height: 48px;
+    // Circular hover and pressed layer, 40 px centered in the 48 px target.
+    StateLayer {
+        x: 4px;
+        y: 4px;
+        width: 40px;
+        height: 40px;
+        radius: 20px;
+        tint: Theme.on-surface;
+        hovered: touch.has-hover;
+        pressed: touch.pressed;
+    }
+    touch := TouchArea {
+        accessible-role: button;
+        accessible-label: root.label;
+        mouse-cursor: pointer;
+        clicked => {
+            Focus.ring-visible = false;
+            root.clicked();
+        }
+        Tooltip {
+            text: @markdown("\{root.tip}");
+        }
+    }
+    stop := PlayerStop {
+        label: root.stop-name;
+        activated => {
+            root.clicked();
+        }
+    }
+    // The ring hugs the 40 px circle and reaches 3 px, so it stays inside the 48 px target.
+    FocusRing {
+        x: 4px;
+        y: 4px;
+        width: 40px;
+        height: 40px;
+        round: true;
+        active: stop.ring;
+    }
+    @children
+    KeyBadge {
+        x: root.width - self.width;
+        y: 0px;
+        text: root.badge;
+    }
+}
+
+// Tonal pill with the folder glyph and the Open folder label: 40 px tall visible inside a 48 px target.
+// Start padding 16 px, 18 px glyph, 8 px gap, 14 px label, and 24 px end padding, per the M3 tonal button with an icon.
+component OpenPill inherits Rectangle {
+    // Key hint badge text; empty draws none.
+    in property <string> badge;
+    // Invoked when the pill is tapped or pressed from the keyboard.
+    callback clicked();
+
+    height: 48px;
+    width: 42px + open-label.preferred-width + 24px;
+    pill := Rectangle {
+        y: 4px;
+        height: 40px;
+        width: parent.width;
+        border-radius: 20px;
+        background: Theme.secondary-container;
+        // Hover and pressed layer over the tonal pill, in the pill's own content color.
+        StateLayer {
+            radius: 20px;
+            tint: Theme.on-secondary-container;
+            hovered: open-touch.has-hover;
+            pressed: open-touch.pressed;
+        }
+        FolderOpenGlyph {
+            x: 16px;
+            y: 11px;
+        }
+        open-label := Text {
+            x: 42px;
+            y: 0px;
+            height: 40px;
+            text: "Open folder";
+            font-size: Theme.label-large;
+            font-weight: 500;
+            vertical-alignment: center;
+            color: Theme.on-secondary-container;
+        }
+        // The ring hugs the pill and reaches 3 px, so it stays inside the 48 px target above and below.
+        FocusRing {
+            round: true;
+            active: open-stop.ring;
+        }
+    }
+    open-touch := TouchArea {
+        accessible-role: button;
+        accessible-label: "Open folder";
+        mouse-cursor: pointer;
+        clicked => {
+            Focus.ring-visible = false;
+            root.clicked();
+        }
+        Tooltip {
+            text: @markdown("Open a folder (\{Keys.texts.open-folder})");
+        }
+    }
+    open-stop := PlayerStop {
+        label: "open-pill";
+        activated => {
+            root.clicked();
+        }
+    }
+    KeyBadge {
+        x: root.width - self.width;
+        y: 0px;
+        text: root.badge;
+    }
+}
+
+// Cover top row: the folder title trigger with its caret and the Open pill. The search and settings buttons are
+// `HeaderActions`, declared after the track list and the deck so the Tab order runs folder picker, track list, deck,
+// search, settings; this row only keeps the room for them.
+// The row is 56 px tall, with 16 px start and 8 px end padding, and the trigger has no container around its title.
+export component CoverTopRow inherits Rectangle {
+    // Name of the current folder, shown as the trigger label.
+    in property <string> folder-title;
+    // True while the folder picker is open; the caret points up, and false points it down.
+    in property <bool> picker-open;
+    // True when the search button takes room before the Open pill.
+    in property <bool> show-search;
+    // Invoked when the title trigger is tapped.
+    callback toggle-picker();
+    // Invoked when the Open pill is tapped.
+    callback open();
+    // Left edge of the search button: 8 px left of the Open pill, whose width follows its label.
+    out property <length> search-x: open-pill.x - 8px - 48px;
+
+    height: 56px;
+    // Trigger: title then caret, as one button-role target. Its title elides before the caret.
+    trigger := Rectangle {
+        x: 16px;
+        y: 4px;
+        height: 48px;
+        width: max(0px, (root.show-search ? open-pill.x - 56px : open-pill.x) - 8px - 16px);
+        // Pill-shaped hover and pressed layer over the whole trigger, 40 px tall in the 48 px target.
+        StateLayer {
+            y: 4px;
+            width: parent.width;
+            height: 40px;
+            radius: 20px;
+            tint: Theme.on-surface;
+            hovered: trigger-touch.has-hover;
+            pressed: trigger-touch.pressed;
+        }
+        title := Text {
+            x: 0px;
+            y: 0px;
+            height: 48px;
+            width: min(self.preferred-width, parent.width - 24px);
+            text: root.folder-title;
+            font-size: Theme.title-medium;
+            font-weight: 500;
+            color: Theme.on-surface;
+            vertical-alignment: center;
+            overflow: elide;
+            wrap: no-wrap;
+        }
+        if root.picker-open: CaretUpGlyph {
+            x: title.width;
+            y: 12px;
+        }
+        if !root.picker-open: CaretDownGlyph {
+            x: title.width;
+            y: 12px;
+        }
+        trigger-touch := TouchArea {
+            accessible-role: button;
+            accessible-label: "Folder: " + root.folder-title;
+            accessible-expandable: true;
+            accessible-expanded: root.picker-open;
+            accessible-action-default => {
+                root.toggle-picker();
+            }
+            mouse-cursor: pointer;
+            clicked => {
+                Focus.ring-visible = false;
+                root.toggle-picker();
+            }
+            Tooltip {
+                text: @markdown("Folders (\{Keys.texts.folder-trigger})");
+            }
+        }
+        trigger-stop := PlayerStop {
+            label: "folder-trigger";
+            activated => {
+                root.toggle-picker();
+            }
+        }
+        FocusRing {
+            y: 4px;
+            height: 40px;
+            round: true;
+            active: trigger-stop.ring;
+        }
+        KeyBadge {
+            x: parent.width - self.width;
+            y: 0px;
+            text: Keys.badges.folder-trigger;
+        }
+    }
+    // Open pill sits left of the search and settings buttons, with 8 px between neighbors, so the trigger ends before it.
+    open-pill := OpenPill {
+        x: root.width - 8px - 48px - 8px - self.width;
+        y: 4px;
+        badge: Keys.badges.open-folder;
+        clicked => {
+            root.open();
+        }
+    }
+}
+
+// Search and settings buttons of the player page, at the right end of the top band in both layouts. They are declared
+// after the lists and the deck so Tab reaches them last (D106), and they stay where the headers always drew them.
+export component HeaderActions inherits Rectangle {
+    // True to show the search button before settings.
+    in property <bool> show-search;
+    // True on the unfolded layout, where the search glyph is drawn in the quieter outline role.
+    in property <bool> unfolded;
+    // Left edge of the search button: beside settings on the unfolded layout, and left of the Open pill on the cover.
+    in property <length> search-x;
+    // Invoked when the settings button is pressed.
+    callback settings();
+    // Invoked when the search button is pressed.
+    callback search();
+
+    height: 56px;
+    if root.show-search: IconTarget {
+        x: root.search-x;
+        y: 4px;
+        label: "Search music";
+        stop-name: "search";
+        tip: "Search music (" + Keys.texts.search + ")";
+        badge: Keys.badges.search;
+        clicked => {
+            root.search();
+        }
+        SearchGlyph {
+            x: 12px;
+            y: 12px;
+            fill: root.unfolded ? Theme.outline : Theme.on-surface;
+        }
+    }
+    IconTarget {
+        x: root.width - 8px - 48px;
+        y: 4px;
+        label: "Settings";
+        stop-name: "settings";
+        tip: "Settings (" + Keys.texts.settings + ")";
+        badge: Keys.badges.settings;
+        clicked => {
+            root.settings();
+        }
+        SettingsGlyph {
+            x: 12px;
+            y: 12px;
+        }
+    }
+}
+
+// Unfolded left pane header: the opened folder's name on the left and the Open pill on the right.
+export component UnfoldedFoldersHeader inherits Rectangle {
+    // Name of the opened folder; elided before it would run under the Open pill.
+    in property <string> title: "Folders";
+    // Invoked when the Open pill is tapped.
+    callback open();
+
+    height: 56px;
+    Text {
+        x: 16px;
+        y: 0px;
+        width: max(0px, root.width - 16px - 8px - open-pill.width - 8px);
+        height: parent.height;
+        text: root.title;
+        // 20 px by default: the human asked for 2 px under Android's 22 px, which looked wrong on desktop at 22 px. The size
+        // is the Text size setting of the pane titles, shared with the right pane header.
+        font-size: TextSize.pane-title;
+        color: Theme.on-surface;
+        vertical-alignment: center;
+        wrap: no-wrap;
+        overflow: elide;
+        accessible-role: text;
+    }
+    open-pill := OpenPill {
+        x: root.width - 8px - self.width;
+        y: 4px;
+        badge: Keys.badges.open-folder;
+        clicked => {
+            root.open();
+        }
+    }
+}
+
+// Unfolded right pane header: the folder title. The search and settings buttons are `HeaderActions`.
+export component UnfoldedTrackHeader inherits Rectangle {
+    // Name of the folder whose tracks the pane lists.
+    in property <string> folder-title;
+    // True when the search button takes room before settings.
+    in property <bool> show-search;
+
+    height: 56px;
+    Text {
+        x: 16px;
+        y: 0px;
+        height: parent.height;
+        width: max(0px, root.width - 16px - 8px - 48px - (root.show-search ? 56px : 0px));
+        text: root.folder-title;
+        // The same size as the left pane header: the pane titles of the Text size setting.
+        font-size: TextSize.pane-title;
+        color: Theme.on-surface;
+        vertical-alignment: center;
+        overflow: elide;
+        wrap: no-wrap;
+    }
+}

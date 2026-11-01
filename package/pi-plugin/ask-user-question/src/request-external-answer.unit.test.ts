@@ -6,7 +6,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   createRequestRegistry,
@@ -94,6 +94,8 @@ function respondingLauncher(
       socket,
       'connect',
     );
+    // Drain the requester's acknowledgement while sending fixture completion.
+    socket.resume();
     /**
      Helper close subscribed before ending stream.
      */
@@ -278,6 +280,33 @@ await describe({
         }
         expect(caught.value,)
           .toBeInstanceOf(Error,);
+      },
+    },),
+    it({
+      name: 'session shutdown during terminal resolution prevents a later launch',
+      fn: async () => {
+        const registry = createRequestRegistry();
+        const state = { launched: false, };
+        let caught: unknown;
+        try {
+          await requestExternalAnswer({
+            cwd: process.cwd(),
+            registry,
+            resolveTerminalEntryId: async () => {
+              registry.abortAll();
+              return 'fixture-terminal';
+            },
+            launch: async () => {
+              state.launched = true;
+              throw new Error('An already-cancelled request launched a terminal.',);
+            },
+          },);
+        }
+        catch (error: unknown) {
+          caught = error;
+        }
+        expect(caught,).toBeInstanceOf(Error,);
+        expect(state.launched,).toBe(false,);
       },
     },),
     it({

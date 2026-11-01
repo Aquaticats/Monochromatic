@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
  Container entry point of the concurrent-commit end-to-end suite.
- Run only through `mise run //package/git-policy/cli:test:e2e:concurrent`,
+ Run only through `mise run //package/git-policy/cli:test:e2e:concurrent:native`,
  which starts it inside a bounded,
- network-isolated Podman container.
+ network-isolated Podman container with the native executable.
 
  Environment:
+ `E2E_WRAPPER` names the wrapper whose `git` shadows the real Git:
+ `native` (the default and the only value);
  `E2E_SEED` replays a seed;
  `E2E_SCENARIOS` and `E2E_GIT_VERSIONS` are comma-separated filters.
  Output is terminal report text (AGENTS.md TLG exception):
@@ -21,6 +23,7 @@ import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import { assertCommitShapeTrace, } from './commit-shape-trace-fixture.ts';
+import { WRAPPER_BIN, } from './repository-fixture.ts';
 import {
   formatResult,
   runPassed,
@@ -35,19 +38,19 @@ import {
   parseSeed,
   SEED_MODULUS,
 } from './seeded-random-fixture.ts';
+import {
+  verifyWrapperExecutable,
+  WRAPPER_KIND,
+} from './wrapper-selection-fixture.ts';
 
 //region Configuration
 
 /**
  Git versions built into the image:
- Debian bookworm's 2.39.5,
- whose `merge-tree` lacks `--merge-base` and so proves replay degrades to fail-fast,
- the first release with `merge-tree --merge-base`,
- and the current release.
+ only 2.55.0,
+ the oldest Git the native wrapper accepts.
  */
 const GIT_VERSIONS: readonly string[] = [
-  '2.39.5',
-  '2.40.0',
   '2.55.0',
 ];
 
@@ -72,11 +75,11 @@ const WORK_ROOT = '/work';
 function splitFilter(text: string,): readonly string[] {
   return text.split(',',)
     .map(function trim(entry,) {
-    return entry.trim();
-  },)
+      return entry.trim();
+    },)
     .filter(function nonEmpty(entry,) {
-    return entry !== '';
-  },);
+      return entry !== '';
+    },);
 }
 
 //endregion Configuration
@@ -143,8 +146,12 @@ async function runSuite(): Promise<void> {
   const versionFilter = splitFilter(process.env
     .E2E_GIT_VERSIONS
     ?? '',);
+  console.log(await verifyWrapperExecutable({
+    kind: WRAPPER_KIND,
+    bin: WRAPPER_BIN,
+  },),);
   console.log(`seed=${String(seed,)}${generated ? ' (generated)' : ''}`,);
-  console.log(`replay: mise run //package/git-policy/cli:test:e2e:concurrent --seed ${String(seed,)}`,);
+  console.log(`replay: mise run //package/git-policy/cli:test:e2e:concurrent:native --seed ${String(seed,)}`,);
   /**
    Committed trace.
    */
@@ -181,35 +188,35 @@ async function runSuite(): Promise<void> {
     },);
   },)
     .reduce<Promise<readonly ScenarioResult[]>>(
-      async function next(
-        previous,
-        {
-          gitVersion,
-          definition,
-        },
-      ) {
+    async function next(
+      previous,
+      {
+        gitVersion,
+        definition,
+      },
+    ) {
     /**
      Results so far.
      */
-    const done = await previous;
+      const done = await previous;
     /**
      This run's result.
      */
-    const result = await runScenario({
-      definition,
-      gitVersion,
-      seed,
-      workRoot: WORK_ROOT,
-      trace,
-    },);
-    console.log(formatResult(result,)
-      .join('\n',),);
-    return [
-      ...done,
-      result,
-    ];
-  },
-      Promise.resolve([],),
+      const result = await runScenario({
+        definition,
+        gitVersion,
+        seed,
+        workRoot: WORK_ROOT,
+        trace,
+      },);
+      console.log(formatResult(result,)
+        .join('\n',),);
+      return [
+        ...done,
+        result,
+      ];
+    },
+    Promise.resolve([],),
     );
   console.log(summarize(results,)
     .join('\n',),);

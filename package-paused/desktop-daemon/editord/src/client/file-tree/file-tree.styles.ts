@@ -12,7 +12,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { ENTRY_STYLES, } from './entry.styles.ts';
 

@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   classifyImport,
@@ -127,7 +127,7 @@ await describe({
     it({
       name: 'leaves another package\'s source subpath alone, the sanctioned cross-package channel',
       fn: async () => {
-        expect(verdictFor('@monochromatic-dev/module-test/ts',),).toBe('unchecked',);
+        expect(verdictFor('@monochromatic-dev/test-harness-core/ts',),).toBe('unchecked',);
       },
     },),
     it({

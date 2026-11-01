@@ -5,6 +5,7 @@
  */
 
 import { clearEffectSummaryCache, } from './effect-summary-cache.ts';
+import { clearReportedExternalOmissions, } from './effect-summary-omission.ts';
 import { clearFinalEffectIndexCache, } from './effect-final-index-cache.ts';
 import { clearExternalCallableEffectCache, } from './external-callable-effect.ts';
 import { closeExternalImplementationProjects, } from './external-implementation-project.ts';
@@ -24,4 +25,5 @@ export function resetSemanticEffectCaches(): void {
   clearLockfilePackageEligibilityCache();
   clearEffectSummaryCache();
   clearFinalEffectIndexCache();
+  clearReportedExternalOmissions();
 }

@@ -252,6 +252,9 @@ function fakePiApi(): {
     registerEntryRenderer(customType: string,) {
       registrations.push(`entry-renderer:${customType}`,);
     },
+    registerToolRenderer() {
+      registrations.push('tool-renderer:registered',);
+    },
     sendMessage(message: { readonly customType: string; },) {
       registrations.push(`message:${message.customType}`,);
     },
@@ -293,6 +296,9 @@ function fakePiApi(): {
     getAllTools() {
       return [];
     },
+    getSettings() {
+      return {};
+    },
     setActiveTools(toolNames: readonly string[],) {
       void toolNames;
     },
@@ -312,6 +318,24 @@ function fakePiApi(): {
     registerProvider,
     unregisterProvider(name: string,) {
       registrations.push(`unprovider:${name}`,);
+    },
+    registerMcpServer(name: string,) {
+      registrations.push(`mcp-server:${name}`,);
+    },
+    unregisterMcpServer(name: string,) {
+      registrations.push(`unmcp-server:${name}`,);
+    },
+    getMcpServers() {
+      return [];
+    },
+    registerVirtualModel() {
+      registrations.push('virtual-model:registered',);
+    },
+    unregisterVirtualModel(
+      provider: string,
+      id: string,
+    ) {
+      registrations.push(`unvirtual-model:${provider}/${id}`,);
     },
     events: createEventBus(),
   };

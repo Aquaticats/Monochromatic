@@ -1,5 +1,11 @@
 # Vet exact JSON number storage for the Rust jsonc-edit port
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:
@@ -85,12 +91,14 @@ The literal numeric query schedule was frozen in `doc/planning/jsonc-edit-rust-p
    first result page only;
    registry saturation is **blocked until a paginable enumeration route is proven**.
 - Repository host:
-   `gh search repos 'rust arbitrary precision decimal json' --limit 100 --json fullName,url,description,updatedAt` returned no matches;
+   `gh search repos 'rust arbitrary precision decimal json' --limit 100 --json fullName,url,description,updatedAt`
+   returned no matches;
    `gh search repos 'rust bigint' --limit 100 --json fullName,url,description,updatedAt` returned five.
    No negative filter or explicit sort.
    These queries are not proof that comparable projects are absent.
 - Web:
-   searches for `Rust exact JSON number decimal exponent arbitrary precision source crate` and `Rust JSON number lexeme exact comparison library` returned primary project documentation for `json-number`,
+   searches for `Rust exact JSON number decimal exponent arbitrary precision source crate`
+   and `Rust JSON number lexeme exact comparison library` returned primary project documentation for `json-number`,
    `bigdecimal`,
    `serde_json`,
    and `jstrict`.
@@ -192,7 +200,8 @@ The literal numeric query schedule was frozen in `doc/planning/jsonc-edit-rust-p
 ### `rust_decimal` 1.43.0
 
 - Discovery:
-   `cargo search 'arbitrary precision json' --limit 100` and [upstream docs](https://docs.rs/rust_decimal/latest/rust_decimal/).
+   `cargo search 'arbitrary precision json' --limit 100`
+   and [upstream docs](https://docs.rs/rust_decimal/latest/rust_decimal/).
 - Category:
    inspectable open-source local crate,
    native and multi-platform overlays.
@@ -224,18 +233,21 @@ None has yet passed the full vet gates.
    matches the generated scratch Cargo.lock checksum.
   Published `src/lib.rs` and private clone `283af83` both hash to
    `467186254f8695eba06e5065759056c48b6b832c89dbe39d43d52b73981deff0`.
-  Its selected normal/build graph contains the `lexical` family but no regex-named package or build script in the inspected crate roots.
+  Its selected normal/build graph contains the `lexical` family but no regex-named package
+  or build script in the inspected crate roots.
   The checked `Number::new` path calls `new_unchecked` and transmutes `&[u8]` to `&Number`
    (`src/lib.rs:188-210`),
    while `Number` has no `#[repr(transparent)]` (`:110-120`).
   The [Rust Reference](https://doc.rust-lang.org/reference/type-layout.html#the-rust-representation)
    gives no field-offset guarantee for default Rust representation;
    a successful build or consumer test cannot supply that missing cross-platform safety proof.
-  The detailed [source audit](../troubleshooting/json-number-unsized-layout.md) does **not** claim observed undefined behavior.
+  The detailed [source audit](../troubleshooting/json-number-unsized-layout.md) does **not** claim observed undefined
+  behavior.
   The proposed checked-token plus owned-identity composition was deliberately not executed
    because even its safe API reaches the unproved conversion.
   Exclude the published component as-is on the mandatory portable safety-proof gate.
-  A fork with a documented transparent layout and pointer conversion would be a distinct candidate requiring its own safety and consumer validation.
+  A fork with a documented transparent layout
+  and pointer conversion would be a distinct candidate requiring its own safety and consumer validation.
 - `serde_json` 1.0.151 at `afdf6fc`,
    `src/number.rs:20-25,72-73` derives equality on `Number` and sets its arbitrary-precision inner type to `String`:
 
@@ -314,7 +326,8 @@ Notable new leads include `fpdec`,
  `ordecimal`,
  and `decimal-bytes`.
 No saturation conclusion follows until each page's candidates are screened and the two-page condition holds.
- The [crates.io data-access policy](https://crates.io/data-access) documents an identifying user-agent and no more than one API request per second.
+ The [crates.io data-access policy](https://crates.io/data-access) documents an identifying user-agent
+ and no more than one API request per second.
  The delegated query `exact decimal` reached alphabetical page 11 with 100 records,
  `meta.total=1239` and a next-page link;
  the earlier `cargo search` cap is not an API pagination limit.
@@ -324,7 +337,8 @@ No saturation conclusion follows until each page's candidates are screened and t
  serial delay,
  page ceiling,
  and private storage for **unfiltered** complete responses before requesting them.
- The identified API run stored unfiltered complete alphabetical pages for `exact decimal` (1240 records through page 13),
+ The identified API run stored unfiltered complete alphabetical pages for `exact decimal`
+ (1240 records through page 13),
  `bigint` (1034 through page 11),
  and `arbitrary precision json` (509 through page 6),
  each ending with `next_page=null`.
@@ -534,7 +548,8 @@ It retains the raw spelling separately in its call site.
    leading zero,
    invalid sign and Unicode digit.
 - Positive control:
-   `mise run test:number:control` deliberately dropped the exponent from identity and failed on huge positive versus negative exponents (`true !== false`,
+   `mise run test:number:control` deliberately dropped the exponent from identity
+   and failed on huge positive versus negative exponents (`true !== false`,
    exit 1).
    The unmodified task passed again afterward.
    Thus an unchanged test result from the prototype is not an unproven null.
@@ -554,9 +569,12 @@ Further source screening:
  `~/temp/agent/fpdec-2026-09-24` at `b9ac6e5`,
  `src/lib.rs:98-131` stores `coeff: i128` and restricts fractional digits to `MAX_N_FRAC_DIGITS`;
  it cannot be the only representation for arbitrary JSON numbers.
- Its `LICENSE.TXT:1-3` identifies BSD 3-Clause despite registry `cargo info` reporting `license: unknown` (manifest uses `license-file`,
+ Its `LICENSE.TXT:1-3` identifies BSD 3-Clause despite registry `cargo info` reporting `license: unknown`
+ (manifest uses `license-file`,
  not a license identifier).
- `fraction` 0.17.0 at `~/temp/agent/fraction-2026-09-24` uses `BigInt`-backed rationals but does not by itself preserve a raw JSON number token or provide unbounded exponents without magnitude-sized denominator/numerator expansion;
+ `fraction` 0.17.0 at `~/temp/agent/fraction-2026-09-24` uses `BigInt`-backed rationals
+ but does not by itself preserve a raw JSON number token
+ or provide unbounded exponents without magnitude-sized denominator/numerator expansion;
  a custom exponent layer would still be needed.
  The latter is an architectural inference,
  not a verified execution result.
@@ -566,7 +584,8 @@ Further source screening:
 The user requested early regex culling.
  Our operational screening interprets this as production parsing or lexing and required normal/build dependencies,
  not upstream dev-only usage.
- The inspected direct source and manifest for `json-number` 0.4.10 at `~/temp/agent/json-number-2026-09-24` contains no `regex::`,
+ The inspected direct source and manifest for `json-number` 0.4.10 at `~/temp/agent/json-number-2026-09-24` contains no
+ `regex::`,
  `Regex::`,
  `#[regex]`,
  `logos`,
@@ -620,7 +639,8 @@ The crates.io API was paged through `web_fetch` for pages 2 and 3 of `json numbe
  not a lossless JSON number token and exact decimal-exponent identity on its own.
  These are category readings,
  not execution results.
- The full page records must be inspected before two-page saturation is claimed because filtering could hide a less obvious candidate.
+ The full page records must be inspected before two-page saturation is claimed
+ because filtering could hide a less obvious candidate.
 
 Page 2 and page 3 of the initial `exact decimal`,
  `bigint`,
@@ -672,7 +692,8 @@ New source leads include [`aequa`](https://github.com/Xqhare/aequa),
 ## Rust owned-number prototype, not an adopted foundation
 
 A disposable,
- dependency-free Rust library at `~/temp/agent/jsonc-exact-number-probe/` validates JSON number grammar and computes numeric identity from sign,
+ dependency-free Rust library at `~/temp/agent/jsonc-exact-number-probe/` validates JSON number grammar
+ and computes numeric identity from sign,
  normalized nonzero coefficient digits,
  and a signed decimal exponent stored as text.
  It uses direct byte scans and decimal column addition/subtraction,
@@ -693,15 +714,19 @@ A disposable,
    invalid grammar,
    and a generated bounded-domain comparison with an independently computed `i128` rational oracle.
 - Positive control:
-   replacing only the adjusted-exponent calculation with `String::from("0")` caused `unequal_values` and `generated_against_rational_oracle` to fail.
+   replacing only the adjusted-exponent calculation with `String::from("0")` caused `unequal_values`
+   and `generated_against_rational_oracle` to fail.
    The original expression was restored,
    a SHA-256 comparison to the saved pre-mutation source matched,
    and `mise run test` passed again.
    Later additional equivalent/unequal cases passed.
-- `mise run lint:clippy` passed with warnings denied after changing the scratch source's digit check to `is_ascii_digit` and its nonzero-start branch to a named local.
-   The scratch manifest mirrors the repository Rust convention allowing `needless_return` while denying implicit returns.
+- `mise run lint:clippy` passed with warnings denied
+   after changing the scratch source's digit check to `is_ascii_digit` and its nonzero-start branch to a named local.
+   The scratch manifest mirrors the repository Rust convention allowing `needless_return`
+   while denying implicit returns.
    This is not a claim that the final crate passes its own linter.
-- A separate disposable consumer at `~/temp/agent/jsonc-exact-number-consumer/` imported the library by a local path and ran `mise run test`,
+- A separate disposable consumer at `~/temp/agent/jsonc-exact-number-consumer/` imported the library by a local path
+   and ran `mise run test`,
    printing `consumer exact-number equality passed`.
    Its first run failed because the hand-written fixture compared exponents with different digit counts;
    that test input was measured and corrected before the passing run.
@@ -718,7 +743,8 @@ The core operates on ASCII tokens of finite in-memory length,
 
 ## Prototype review correction and expanded verification
 
-An independent review found that the first Rust prototype exposed mutable-invariant `Identity` fields and compared `Result` values directly,
+An independent review found that the first Rust prototype exposed mutable-invariant `Identity` fields
+and compared `Result` values directly,
  so some purportedly valid fixtures could have passed through matching parse errors.
  The scratch `Identity` fields are now private.
  Equality and inequality tests unwrap each valid input before comparing,

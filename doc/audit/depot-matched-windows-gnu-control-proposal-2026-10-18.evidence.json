@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-10-18T19:03:48.922Z",
+  "state": "committed exact-source proposal; no allocation authorized or created",
+  "harnessSha": "28f3167d8f0e731d13378d072dd5f23a7e392554",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "branch": "research/depot-matched-windows-gnu-20261018",
+  "workflowPath": ".github/workflows/music-player-windows.yml",
+  "workflowSha256": "1345a86d04477ee83e10c7f3d4ffddf15ec9178c054e59df040567c76107aa1e",
+  "generatedTasksSha256": "5b6c3ae63aa1b82bb0095b7c43d9b7be56335f69038b30d128639184dd83d046",
+  "originalPublicHarnessSha": "b76aab1964bfe9ac21aec3e9c5d24de443ec4992",
+  "originalArchivedFunctionSha256": "3e8e10592f8499813bba70c2d91e6b969e4eed5c29aae6a63546781e3dc085b0",
+  "originalSerializedFunctionSha256": "3e8e10592f8499813bba70c2d91e6b969e4eed5c29aae6a63546781e3dc085b0",
+  "newFunctionSha256": "439ec6345eea390824d180d9bc256695cb72af14abb52ab2ded9425f8a1c05b8",
+  "onlyFunctionChange": "Add os.version/release/type, logical CPU count and unique CPU-model observations to the existing runtime metadata object",
+  "allOtherFunctionBytesIdentical": true,
+  "allOwningCommandsAndToolSetupIdentical": true,
+  "workflowAllowedDifferences": [
+    "provider label",
+    "job key and workflow/concurrency names",
+    "20min job and17min inner caps",
+    "provider metadata",
+    "new runtime metadata"
+  ],
+  "maximumPrimaryJobs": 1,
+  "maximumConditionalHarnessCorrections": 1,
+  "shape": {
+    "label": "depot-windows-2025-4",
+    "cpu": 4,
+    "documentedMemoryGB": 16,
+    "documentedDiskGB": 130,
+    "listRateUsdPerMinute": 0.016,
+    "jobMinutes": 20,
+    "innerMinutes": 17
+  },
+  "primaryReservationUsd": 0.32,
+  "conditionalHarnessCorrectionReservationUsd": 0.32,
+  "separateNominalGuardUsd": 0.64,
+  "existingManagedHostCampaignTerminalProxyUsd": 0.6584,
+  "existingManagedHostGuardUsd": 2,
+  "sourceAssertionsChanged": false,
+  "materialCampaignImmutableInputShaUnchanged": "e270285361b526793ff1db3af9f8224630c28e70",
+  "yamlParser": {
+    "version": "2.9.1",
+    "apiTypesSha256": "810f0d14ce416a343dcdd0d3074c38c094505e664c90636b113d048471c292e2"
+  },
+  "preflight": {
+    "harnessSha": "28f3167d8f0e731d13378d072dd5f23a7e392554",
+    "checkedAt": "2026-10-18T19:02:32.759Z",
+    "actualImmutablePublicSourceMatchesArchivedInput": true,
+    "actualCommonJsBootstrapExecuted": true,
+    "generatedMiseBytesEqual": true,
+    "actualMiseSourceTaskDryRunParsed": true,
+    "actualNodeModuleSyntaxChecked": true,
+    "owningCommandsAndToolSetupUnchanged": true,
+    "allSourceAssertionsUnchanged": true,
+    "actualLocalMetadataExpressionExecuted": true,
+    "localProbePlatform": "linux",
+    "localProbeIsNotFutureWindowsMetadata": true,
+    "newObservedFields": [
+      "osVersion",
+      "osRelease",
+      "osType",
+      "logicalCpuCount",
+      "cpuModels"
+    ],
+    "comparison": {
+      "originalGitWorkflowSha256": "0cf49870e9bfb00a69d229848167d7e6beff3e58ae4783a653816d7181dffe5c",
+      "privateArchivedWorkflowSha256": "0cf49870e9bfb00a69d229848167d7e6beff3e58ae4783a653816d7181dffe5c",
+      "decodedWorkflowObjectsEqual": true,
+      "actualOriginalBootstrapSha256": "0b93afc20074a47ebc0ec769bac96b9f2f8322b567b42ad2dfe87339f145f306",
+      "privateArchivedBootstrapSha256": "0b93afc20074a47ebc0ec769bac96b9f2f8322b567b42ad2dfe87339f145f306"
+    },
+    "primaryAndConditionalNominalReservedUsd": 0.64,
+    "cloudAllocationCreated": false
+  },
+  "owningRuntime": {
+    "path": "package/music-player/desktop-app",
+    "task": "test:windows-gnu",
+    "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "target": "x86_64-pc-windows-gnu",
+    "nextestVersion": "0.9.148",
+    "rust": "nightly-2026-10-17",
+    "node": "26.12.0",
+    "actualPublicBaselineRun": 39152147229,
+    "baselineDistinctBinaryCaseIdentities": 1494,
+    "baselinePassed": 1492,
+    "baselineFailed": 2,
+    "baselineSummaryOnlySkipped": 1,
+    "baselineFailedIdentities": [
+      "music-player::session::tests::an_unreadable_session_path_loads_as_defaults_and_is_logged_with_the_read_error",
+      "music-player::watch::tests::a_burst_of_changes_requests_one_rescan"
+    ],
+    "baselineReceipt": "doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz",
+    "futureOutcomeOrParityClaim": false,
+    "preparedSourceByteBoundary": "Same original public GNU source/tasks/tool setup; checkout lfs:false is retained, with no materialized-media equivalence claim"
+  },
+  "conditionalCorrection": {
+    "maximumJobs": 1,
+    "admittedOnlyAfterObservedHarnessFailure": true,
+    "sameSourceAssertionsAndOwningArgv": true,
+    "sameShapeAndTimeout": true,
+    "sourceFailureAssertionEditsAllowed": false,
+    "retryToEstimateFlakeRateAllowed": false
+  },
+  "metadataBoundary": {
+    "newJobMustCapture": [
+      "os.version",
+      "os.release",
+      "os.type",
+      "availableParallelism",
+      "totalmem",
+      "logical CPU count",
+      "CPU models"
+    ],
+    "cannotBackfillOriginalMacOrMsvcMetadata": true,
+    "requestedShapeIsNotObservedShape": true
+  },
+  "resourceAdmission": {
+    "separateNominalGuardUsd": 0.64,
+    "completedUsd": 0,
+    "primaryReservationUsd": 0.32,
+    "conditionalHarnessCorrectionReservationUsd": 0.32,
+    "totalCompletedPlusReservedUsd": 0.64,
+    "storageAndArtifactChargesNotMeasured": true,
+    "invoiceOrAccountWideUsageClaim": false,
+    "currentGlobalMaximumJobs": 2,
+    "materialCampaignHasPriority": true,
+    "doNotDispatchUntilParentExactSourceAdmissionAndCoordinatedFreeSlot": true
+  },
+  "eligibility": {
+    "windowsSupportedOnDeveloper": true,
+    "macStartupTrialEntitlementNotUsedForThisControl": true,
+    "sources": [
+      "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "doc/planning/depot-included-allowance-reconciliation.md"
+    ]
+  },
+  "publication": {
+    "newImagesGeneratedOrPublished": false,
+    "originalProviderArtifactArchivesRemainPrivate": true,
+    "publicReceiptWillUseVerifiedMetadataAndNormalizedTextViews": true
+  }
+}

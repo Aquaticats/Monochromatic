@@ -1,5 +1,5 @@
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   type AskUserQuestionConfig,
@@ -135,6 +135,10 @@ export {
   EditorCommandError,
   type EditorEnvironment,
 } from './editor-command.ts';
+export {
+  AnswerLaunchError,
+  resolveAnswerRuntime,
+} from './helper-launch.ts';
 export {
   readHelperRequest,
   type HelperRequest,

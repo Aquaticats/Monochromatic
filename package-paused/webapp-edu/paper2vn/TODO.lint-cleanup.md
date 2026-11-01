@@ -5,7 +5,13 @@ The build, the type check, and the seeded-save lecture flow all pass.
 
 ## Resolved in this round
 
-- 22 `typescript-eslint(no-unsafe-type-assertion)` errors; refactored `screens/settings.ts` to capture typed element refs and `addEventListener` post-creation; added `coerceLocale`/`coerceProviderId` helpers; changed `lecture.ts` timer type to `ReturnType<typeof setTimeout>`. The remaining JSON-parse / pdfjs casts have `oxlint-disable-next-line` directives with justification per AGENTS.md.
+- 22 `typescript-eslint(no-unsafe-type-assertion)` errors;
+  refactored `screens/settings.ts` to capture typed element refs
+  and `addEventListener` post-creation;
+  added `coerceLocale`/`coerceProviderId` helpers;
+  changed `lecture.ts` timer type to `ReturnType<typeof setTimeout>`.
+  The remaining JSON-parse / pdfjs casts have `oxlint-disable-next-line` directives
+  with justification per AGENTS.md.
 
 ## Remaining counts
 
@@ -20,7 +26,9 @@ non-null assertions, max-lines, new-cap, init-declarations, and no-magic-numbers
 
 ### tsdoc(require-example, require-param, require-returns, require-tsdoc)
 
-Add missing `@example`, `@param`, `@returns` tags and TSDoc blocks. The screen modules and `dom.ts` have most of the gaps. AGENTS.md mandates these on every declaration.
+Add missing `@example`, `@param`, `@returns` tags and TSDoc blocks.
+The screen modules and `dom.ts` have most of the gaps.
+AGENTS.md mandates these on every declaration.
 
 ### eslint(no-magic-numbers)
 
@@ -35,7 +43,10 @@ Lift literals to named constants. Hot spots:
 
 ### eslint(new-cap)
 
-`LL()`, `i18nObject(...)`, `initI18n(...)` factory calls flagged because their names start with uppercase. Either rename in the wrapper or configure `new-cap` to allow these specific identifiers.
+`LL()`, `i18nObject(...)`, `initI18n(...)` factory calls flagged
+because their names start with uppercase.
+Either rename in the wrapper or configure `new-cap`
+to allow these specific identifiers.
 
 ### eslint(init-declarations)
 

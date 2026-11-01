@@ -19,7 +19,7 @@
 
 **Status**:
  Deprecated;
- superseded by `package/dev-script/file-enforcer`
+ superseded by `package/file-enforcer/core`
 
 ### `increase-version`
 
@@ -107,7 +107,7 @@ endif
 
 **Status**:
  Done;
- shipped as `task-append` in `package/dev-script/task-util/src/append.ts`,
+ shipped as `task-append` in `package/monorepo-task/core-exec/src/append.ts`,
  with bin entry,
  README section,
  and unit tests covering create/append/multiline/permission-error cases.

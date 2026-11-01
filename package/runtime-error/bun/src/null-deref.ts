@@ -5,10 +5,11 @@
  */
 export {};
 
+/* oxlint-disable no-unsafe-type-assertion -- intentional unsafe cast to provoke a runtime TypeError */
 /**
  Null value cast to an object type to bypass static null checks.
  */
-// oxlint-disable-next-line no-unsafe-type-assertion -- intentional unsafe cast to provoke a runtime TypeError
 const value = null as unknown as Record<string, unknown>;
+/* oxlint-enable no-unsafe-type-assertion */
 
 console.log(value.property,);

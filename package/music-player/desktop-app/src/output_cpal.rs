@@ -1,39 +1,72 @@
-//! cpal output (macOS CoreAudio / Windows WASAPI): the thin cross-platform-audio
-//! boundary, the non-Linux counterpart to `output_pipewire.rs`. It exposes the
+//! cpal output (macOS CoreAudio / Windows WASAPI):
+//!  the thin cross-platform-audio
+//! boundary,
+//!  the non-Linux counterpart to `output_pipewire.rs`.
+//!  It exposes the
 //! SAME `Output` surface the engine already drives (`Output::new`,
-//! `Output::reconfigure`, `Output::set_playing`), so nothing outside this file
+//! `Output::reconfigure`,
+//!  `Output::set_playing`),
+//!  so nothing outside this file
 //! changes between platforms.
 //!
-//! Mental model for a TypeScript reader: cpal is a small Rust library that
-//! talks to the operating system's audio engine (CoreAudio on macOS, WASAPI on
-//! Windows, both reached through one cpal API). We pick the default output
-//! device, and per track we open an
-//! output "stream" at that track's sample rate. cpal calls a callback on a
-//! realtime thread whenever the speakers need more samples; that callback
+//! Mental model for a TypeScript reader:
+//!  cpal is a small Rust library that
+//! talks to the operating system's audio engine (CoreAudio on macOS,
+//!  WASAPI on
+//! Windows,
+//!  both reached through one cpal API).
+//!  We pick the default output
+//! device,
+//!  and per track we open an
+//! output "stream" at that track's sample rate.
+//!  cpal calls a callback on a
+//! realtime thread whenever the speakers need more samples;
+//!  that callback
 //! copies samples out of a lock-free queue (the ring buffer) into the buffer
-//! cpal hands us. We give the WRITE end of that queue back to the engine, just
+//! cpal hands us.
+//!  We give the WRITE end of that queue back to the engine,
+//!  just
 //! like the PipeWire backend does.
 //!
-//! Unlike the PipeWire path, the bytes cpal hands us are ALREADY `f32` (it asks
-//! us for the sample type), so there is no little-endian byte conversion and no
-//! scratch buffer: we pop straight into cpal's buffer.
+//! Unlike the PipeWire path,
+//!  the bytes cpal hands us are ALREADY `f32` (it asks
+//! us for the sample type),
+//!  so there is no little-endian byte conversion and no
+//! scratch buffer:
+//!  we pop straight into cpal's buffer.
 //!
 //! `cpal::Stream` is `!Send` on both macOS and Windows (it keeps a
-//! non-thread-safe handle), so
-//! `Output` is created, used, and dropped entirely on the engine's controller
-//! thread; only the realtime callback runs elsewhere, and it touches only the
-//! ring-buffer consumer it was given. Stopping is automatic: dropping the
-//! `Stream` (on reconfigure, or when `Output` drops) stops and disposes it, so
+//! non-thread-safe handle),
+//!  so
+//! `Output` is created,
+//!  used,
+//!  and dropped entirely on the engine's controller
+//! thread;
+//!  only the realtime callback runs elsewhere,
+//!  and it touches only the
+//! ring-buffer consumer it was given.
+//!  Stopping is automatic:
+//!  dropping the
+//! `Stream` (on reconfigure,
+//!  or when `Output` drops) stops and disposes it,
+//!  so
 //! no manual `Drop` impl is needed (the PipeWire path needed one only to order
 //! its background-loop teardown).
 
-/// What:     `use std::sync::atomic::{AtomicBool, Ordering};`. `AtomicBool` is a `bool`
+/// What:
+///      `use std::sync::atomic::{AtomicBool, Ordering};`.
+///  `AtomicBool` is a `bool`
 ///           that can be read/written from multiple threads WITHOUT a lock (the hardware
-///           makes the access indivisible). `Ordering` says how strictly the access is
-///           ordered against other memory operations; siblings range from `Relaxed`
+///           makes the access indivisible).
+///  `Ordering` says how strictly the access is
+///           ordered against other memory operations;
+///  siblings range from `Relaxed`
 ///           (loosest) to `SeqCst` (strictest).
-/// Why:      The engine thread flips a "playing" flag and the realtime audio callback
-///           reads it; a plain `bool` shared across threads is undefined behaviour, so it
+/// Why:
+///       The engine thread flips a "playing" flag and the realtime audio callback
+///           reads it;
+///  a plain `bool` shared across threads is undefined behaviour,
+///  so it
 ///           must be atomic.
 ///
 /// In TS you'd write (pseudocode):
@@ -42,13 +75,23 @@
 /// ```
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// What:     `use std::sync::Arc;`. `Arc<T>` is an ATOMICALLY reference-counted shared
-///           pointer: cloning bumps a thread-safe counter, and the inner `T` is freed
-///           when the last clone drops. Sibling: `Rc<T>`, the same idea but NOT
+/// What:
+///      `use std::sync::Arc;`.
+///  `Arc<T>` is an ATOMICALLY reference-counted shared
+///           pointer:
+///  cloning bumps a thread-safe counter,
+///  and the inner `T` is freed
+///           when the last clone drops.
+///  Sibling:
+///  `Rc<T>`,
+///  the same idea but NOT
 ///           thread-safe (single-thread only).
-/// Why:      One `AtomicBool` must live in two places at once (the `Output` on the engine
-///           thread and the realtime callback on cpal's thread); `Arc` lets both hold a
-///           clone of one shared cell. `Rc` would not compile because the cell crosses a
+/// Why:
+///       One `AtomicBool` must live in two places at once (the `Output` on the engine
+///           thread and the realtime callback on cpal's thread);
+///  `Arc` lets both hold a
+///           clone of one shared cell.
+///  `Rc` would not compile because the cell crosses a
 ///           thread boundary.
 ///
 /// In TS you'd write (pseudocode):
@@ -57,12 +100,22 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// ```
 use std::sync::Arc;
 
-/// What:     `use std::thread::Thread;`. `Thread` is a cheap, cloneable HANDLE to a
-///           running thread (it wraps an internal `Arc`). We only ever call `.unpark()`
-///           on it. Sibling you might expect: `JoinHandle`, which OWNS the thread and can
-///           wait for it; `Thread` is just a wake-able handle.
-/// Why:      The realtime audio callback holds one so it can wake (`unpark`) the engine
-///           worker after it drains the ring buffer, telling it to decode more.
+/// What:
+///      `use std::thread::Thread;`.
+///  `Thread` is a cheap,
+///  cloneable HANDLE to a
+///           running thread (it wraps an internal `Arc`).
+///  We only ever call `.unpark()`
+///           on it.
+///  Sibling you might expect:
+///  `JoinHandle`,
+///  which OWNS the thread and can
+///           wait for it;
+///  `Thread` is just a wake-able handle.
+/// Why:
+///       The realtime audio callback holds one so it can wake (`unpark`) the engine
+///           worker after it drains the ring buffer,
+///  telling it to decode more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,12 +123,20 @@ use std::sync::Arc;
 /// ```
 use std::thread::Thread;
 
-/// What:     `use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};`. These are TRAITS
-///           (interfaces): importing them brings their methods into scope. `HostTrait`
-///           gives `default_output_device`; `DeviceTrait` gives `build_output_stream`;
-///           `StreamTrait` gives `play`. In Rust a trait's methods are callable only when
+/// What:
+///      `use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};`.
+///  These are TRAITS
+///           (interfaces):
+///  importing them brings their methods into scope.
+///  `HostTrait`
+///           gives `default_output_device`;
+///  `DeviceTrait` gives `build_output_stream`;
+///           `StreamTrait` gives `play`.
+///  In Rust a trait's methods are callable only when
 ///           the trait is in scope.
-/// Why:      We call all three method families below, so all three traits must be imported
+/// Why:
+///       We call all three method families below,
+///  so all three traits must be imported
 ///           even though we never name the trait types directly.
 ///
 /// In TS you'd write (pseudocode):
@@ -84,13 +145,23 @@ use std::thread::Thread;
 /// ```
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
-/// What:     `use cpal::{BufferSize, StreamConfig};`. `StreamConfig` is the struct
-///           describing a stream (channel count, sample rate, buffer size). `BufferSize`
-///           is an enum: `Default` (let the OS audio engine pick) or `Fixed(n)`. The
-///           sample rate is a plain `u32`: cpal 0.18 made `SampleRate` a `u32` TYPE ALIAS
-///           (cpal 0.15 had a `SampleRate(u32)` newtype), so it is neither imported nor
+/// What:
+///      `use cpal::{BufferSize, StreamConfig};`.
+///  `StreamConfig` is the struct
+///           describing a stream (channel count,
+///  sample rate,
+///  buffer size).
+///  `BufferSize`
+///           is an enum:
+///  `Default` (let the OS audio engine pick) or `Fixed(n)`.
+///  The
+///           sample rate is a plain `u32`:
+///  cpal 0.18 made `SampleRate` a `u32` TYPE ALIAS
+///           (cpal 0.15 had a `SampleRate(u32)` newtype),
+///  so it is neither imported nor
 ///           wrapped anymore.
-/// Why:      We build one `StreamConfig` per track to open the output stream at that
+/// Why:
+///       We build one `StreamConfig` per track to open the output stream at that
 ///           track's native rate and channel count.
 ///
 /// In TS you'd write (pseudocode):
@@ -99,10 +170,14 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 /// ```
 use cpal::{BufferSize, StreamConfig};
 
-/// What:     `use ringbuf::traits::{Consumer, Split};`. These TRAITS bring methods into
-///           scope: `Split::split` (cut a ring buffer into a producer and a consumer half)
+/// What:
+///      `use ringbuf::traits::{Consumer, Split};`.
+///  These TRAITS bring methods into
+///           scope:
+///  `Split::split` (cut a ring buffer into a producer and a consumer half)
 ///           and `Consumer::pop_slice` (drain samples out).
-/// Why:      We split the buffer and the callback pops from the consumer half.
+/// Why:
+///       We split the buffer and the callback pops from the consumer half.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,12 +185,20 @@ use cpal::{BufferSize, StreamConfig};
 /// ```
 use ringbuf::traits::{Consumer, Split};
 
-/// What:     `use ringbuf::{HeapProd, HeapRb};`. `HeapRb<T>` is a heap-allocated ring
-///           buffer; `.split()` yields a `HeapProd<T>` (write end) and a `HeapCons<T>`
-///           (read end). We only NAME the producer and the buffer here (the consumer is
-///           inferred), so the consumer type is not imported. Both halves can live on
-///           different threads (single-producer, single-consumer).
-/// Why:      A lock-free hand-off of samples from the decode thread to the realtime audio
+/// What:
+///      `use ringbuf::{HeapProd, HeapRb};`.
+///  `HeapRb<T>` is a heap-allocated ring
+///           buffer;
+///  `.split()` yields a `HeapProd<T>` (write end) and a `HeapCons<T>`
+///           (read end).
+///  We only NAME the producer and the buffer here (the consumer is
+///           inferred),
+///  so the consumer type is not imported.
+///  Both halves can live on
+///           different threads (single-producer,
+///  single-consumer).
+/// Why:
+///       A lock-free hand-off of samples from the decode thread to the realtime audio
 ///           thread.
 ///
 /// In TS you'd write (pseudocode):
@@ -124,27 +207,62 @@ use ringbuf::traits::{Consumer, Split};
 /// ```
 use ringbuf::{HeapProd, HeapRb};
 
-/// What:     `use crate::error::PlayerError;`. Our one app-wide error type.
-/// Why:      Fallible methods here return `PlayerError`.
+/// What:
+///      `use crate::error::PlayerError;`.
+///  Our one app-wide error type.
+/// Why:
+///       Fallible methods here return `PlayerError`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { PlayerError } from "./error";
 /// ```
+use crate::audio_meter::MeterSnapshot;
 use crate::error::PlayerError;
 
-/// What:     `pub struct Output { ... }`. Owns the cpal output. Fields:
-///           - `device: cpal::Device`. The default output device, OWNED and kept so each
+/// What:
+///      `pub const FILL_FRAMES_FLOOR: usize = 2_048;`.
+///  An upper bound, in frames, of the audio that can still be on its way to the speakers after the ring ran empty
+///           (about 43 ms at 48 kHz).
+///  The PipeWire backend uses the same number as the smallest buffer it hands over per callback.
+/// Why:
+///       The controller waits this long before it rebuilds the stream at the end of a track whose successor needs
+///  another sample rate, so the last frames are not cut off.
+///  The device buffer here is smaller, so the wait is conservative.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const FILL_FRAMES_FLOOR = 2048;
+/// ```
+pub const FILL_FRAMES_FLOOR: usize = 2_048;
+
+/// What:
+///      `pub struct Output { ... }`.
+///  Owns the cpal output.
+///  Fields:
+///           - `device: cpal::Device`.
+///  The default output device,
+///  OWNED and kept so each
 ///             `reconfigure` can build a fresh stream on it.
-///           - `stream: Option<cpal::Stream>`. The current output stream, or `None`
-///             before the first track. `Option<T>` is Rust's "value or nothing" (it has
-///             no `null`); sibling `Some(x)` carries a value.
-///           - `playing: Arc<AtomicBool>`. The MASTER play/pause flag, cloned into each
+///           - `stream: Option<cpal::Stream>`.
+///  The current output stream,
+///  or `None`
+///             before the first track.
+///  `Option<T>` is Rust's "value or nothing" (it has
+///             no `null`);
+///  sibling `Some(x)` carries a value.
+///           - `playing: Arc<AtomicBool>`.
+///  The MASTER play/pause flag,
+///  cloned into each
 ///             new stream's callback so the flag survives track changes.
-///           - `worker: Thread`. The engine worker's thread handle, cloned into each
+///           - `worker: Thread`.
+///  The engine worker's thread handle,
+///  cloned into each
 ///             callback so it can `unpark()` the worker on drain.
-/// Why:      Mirrors the PipeWire `Output` field-for-field in PURPOSE so the engine sees
-///           one identical type. `cpal::Device`/`Stream` replace the PipeWire
+/// Why:
+///       Mirrors the PipeWire `Output` field-for-field in PURPOSE so the engine sees
+///           one identical type.
+///  `cpal::Device`/`Stream` replace the PipeWire
 ///           core/context/loop because cpal manages those internally.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,10 +270,18 @@ use crate::error::PlayerError;
 /// class Output { device: AudioDevice; stream: AudioStream | null; playing: { value: boolean }; worker: WorkerRef; }
 /// ```
 pub struct Output {
-    /// What:     `device: cpal::Device`. The chosen output device (speakers/DAC), owned by
-    ///           this struct. Sibling you might expect: a borrowed `&Device`, but we OWN
+    /// What:
+    ///      `device: cpal::Device`.
+    ///  The chosen output device (speakers/DAC),
+    ///  owned by
+    ///           this struct.
+    ///  Sibling you might expect:
+    ///  a borrowed `&Device`,
+    ///  but we OWN
     ///           it so it outlives every stream we build.
-    /// Why:      `build_output_stream` is a method on the device; keeping it lets per-track
+    /// Why:
+    ///       `build_output_stream` is a method on the device;
+    ///  keeping it lets per-track
     ///           `reconfigure` reopen a stream without re-querying.
     ///
     /// In TS you'd write (pseudocode):
@@ -163,29 +289,43 @@ pub struct Output {
     /// device: AudioDevice;
     /// ```
     device: cpal::Device,
-    /// What:     `stream: Option<cpal::Stream>`. The live stream, or `None`. Dropping the
-    ///           `Stream` stops audio, so replacing this field is how we tear a track's
+    /// What:
+    ///      `stream: Option<cpal::Stream>`.
+    ///  The live stream,
+    ///  or `None`.
+    ///  Dropping the
+    ///           `Stream` stops audio,
+    ///  so replacing this field is how we tear a track's
     ///           stream down.
-    /// Why:      Recreated per track at that track's native rate/channels.
+    /// Why:
+    ///       Recreated per track at that track's native rate/channels.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// stream: AudioStream | null;
     /// ```
     stream: Option<cpal::Stream>,
-    /// What:     `playing: Arc<AtomicBool>`. The shared play/pause flag (master copy).
-    ///           `set_playing` writes it from the engine thread; each callback reads a
+    /// What:
+    ///      `playing: Arc<AtomicBool>`.
+    ///  The shared play/pause flag (master copy).
+    ///           `set_playing` writes it from the engine thread;
+    ///  each callback reads a
     ///           clone.
-    /// Why:      One shared cell keeps engine and audio thread in sync across track changes.
+    /// Why:
+    ///       One shared cell keeps engine and audio thread in sync across track changes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// playing: { value: boolean };
     /// ```
     playing: Arc<AtomicBool>,
-    /// What:     `worker: Thread`. The engine worker's thread handle, kept so each new
+    /// What:
+    ///      `worker: Thread`.
+    ///  The engine worker's thread handle,
+    ///  kept so each new
     ///           stream's callback (built in `reconfigure`) gets a clone.
-    /// Why:      The callback uses it to `unpark()` the worker when the ring buffer drains,
+    /// Why:
+    ///       The callback uses it to `unpark()` the worker when the ring buffer drains,
     ///           so the worker refills the freed space.
     ///
     /// In TS you'd write (pseudocode):
@@ -195,21 +335,34 @@ pub struct Output {
     worker: Thread,
 }
 
-/// What:     `impl Output { ... }`. The methods for the cpal output.
-/// Why:      Construction and per-track reconfiguration, same surface as PipeWire.
+/// What:
+///      `impl Output { ... }`.
+///  The methods for the cpal output.
+/// Why:
+///       Construction and per-track reconfiguration,
+///  same surface as PipeWire.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Output { /* new, reconfigure, set_playing */ }
 /// ```
 impl Output {
-    /// What:     `pub fn new(worker: Thread) -> Result<Output, PlayerError>`. Pick the
-    ///           default output device and build a silent (stream-less) `Output`. `worker`
-    ///           is the engine worker's thread handle, taken by value (the caller hands us
-    ///           its own clone). `Result<T, E>` is Rust's typed success-or-failure (no
-    ///           exceptions); siblings `Ok(T)` and `Err(E)`.
-    /// Why:      One-time setup; we keep `worker` so per-track callbacks can wake the
-    ///           worker on drain. Matches the PipeWire `new` signature exactly.
+    /// What:
+    ///      `pub fn new(worker: Thread) -> Result<Output, PlayerError>`.
+    ///  Pick the
+    ///           default output device and build a silent (stream-less) `Output`.
+    ///  `worker`
+    ///           is the engine worker's thread handle,
+    ///  taken by value (the caller hands us
+    ///           its own clone).
+    ///  `Result<T, E>` is Rust's typed success-or-failure (no
+    ///           exceptions);
+    ///  siblings `Ok(T)` and `Err(E)`.
+    /// Why:
+    ///       One-time setup;
+    ///  we keep `worker` so per-track callbacks can wake the
+    ///           worker on drain.
+    ///  Matches the PipeWire `new` signature exactly.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -244,7 +397,7 @@ impl Output {
         // ```
         let device = host
             .default_output_device()
-            .ok_or_else(|| PlayerError::Audio("no default output device".to_string()))?;
+            .ok_or_else(|| return PlayerError::Audio("no default output device".to_string()))?;
 
         // What:     `let playing = Arc::new(AtomicBool::new(false));`. Build the shared
         //           play/pause flag, initially `false` (paused). `Arc::new` heap-allocates
@@ -269,7 +422,7 @@ impl Output {
         // ```ts
         // return new Output(device, null, playing, worker);
         // ```
-        Ok(Output {
+        return Ok(Output {
             device,
             stream: None,
             playing,
@@ -277,15 +430,23 @@ impl Output {
         })
     }
 
-    /// What:     `pub fn reconfigure(&mut self, rate: u32, channels: u16, capacity_frames: usize) -> Result<HeapProd<f32>, PlayerError>`.
-    ///           `&mut self` is an exclusive borrow (we mutate the stream field). Tear down
+    /// What:
+    ///      `pub fn reconfigure(&mut self, rate: u32, channels: u16, capacity_frames: usize) -> Result<HeapProd<f32>, PlayerError>`.
+    ///           `&mut self` is an exclusive borrow (we mutate the stream field).
+    ///  Tear down
     ///           any existing stream and open a fresh one at the given native
-    ///           `rate`/`channels`, with a ring buffer holding `capacity_frames` frames.
-    ///           Returns the WRITE half of that buffer. `usize` is the pointer-wide
-    ///           unsigned integer used for sizes/counts (siblings `u32`/`u64`); `u16` is
+    ///           `rate`/`channels`,
+    ///  with a ring buffer holding `capacity_frames` frames.
+    ///           Returns the WRITE half of that buffer.
+    ///  `usize` is the pointer-wide
+    ///           unsigned integer used for sizes/counts (siblings `u32`/`u64`);
+    ///  `u16` is
     ///           the small channel count the decoder reports.
-    /// Why:      Per-track native rate: each track gets its own stream and a fresh empty
-    ///           buffer so no stale audio leaks across. Identical signature to the PipeWire
+    /// Why:
+    ///       Per-track native rate:
+    ///  each track gets its own stream and a fresh empty
+    ///           buffer so no stale audio leaks across.
+    ///  Identical signature to the PipeWire
     ///           backend.
     ///
     /// In TS you'd write (pseudocode):
@@ -543,7 +704,7 @@ impl Output {
             // ```ts
             // // throws new PlayerError(`build stream: ${e}`) on failure
             // ```
-            .map_err(|e| PlayerError::Audio(format!("build stream: {e:?}")))?;
+            .map_err(|e| return PlayerError::Audio(format!("build stream: {e:?}")))?;
 
         // What:     `stream.play().map_err(|e| ...)?;`. `play()` starts the stream (cpal
         //           streams are created paused). It returns `Result<(), PlayError>`;
@@ -557,7 +718,7 @@ impl Output {
         // ```
         stream
             .play()
-            .map_err(|e| PlayerError::Audio(format!("stream play: {e:?}")))?;
+            .map_err(|e| return PlayerError::Audio(format!("stream play: {e:?}")))?;
 
         // What:     `self.stream = Some(stream);`. Store the new stream in the field,
         //           wrapping it in `Some` (the "has a value" case of `Option`). Moving it
@@ -570,23 +731,27 @@ impl Output {
         // ```
         self.stream = Some(stream);
 
-        // What:     `Ok(producer)`. Wrap the WRITE half of the ring buffer in the success
-        //           variant. No trailing `;`, so this is the tail expression the function
-        //           returns.
+        // What:     `return Ok(producer)`. Wrap the WRITE half of the ring buffer in the success
+        //           variant and return it from the function.
         // Why:      The engine pushes decoded samples into it.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return producer;
         // ```
-        Ok(producer)
+        return Ok(producer)
     }
 
-    /// What:     `pub fn set_playing(&self, on: bool)`. Flip the shared pause/play flag.
+    /// What:
+    ///      `pub fn set_playing(&self, on: bool)`.
+    ///  Flip the shared pause/play flag.
     ///           Takes `&self` (read-only borrow) because writing an atomic does NOT need
-    ///           exclusive access; the cell handles concurrent writes.
-    /// Why:      The engine calls this on pause/play so the realtime callback reacts
-    ///           immediately. Identical to the PipeWire backend's method.
+    ///           exclusive access;
+    ///  the cell handles concurrent writes.
+    /// Why:
+    ///       The engine calls this on pause/play so the realtime callback reacts
+    ///           immediately.
+    ///  Identical to the PipeWire backend's method.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -603,5 +768,34 @@ impl Output {
         // Atomics.store(playingFlag, 0, on ? 1 : 0);
         // ```
         self.playing.store(on, Ordering::Relaxed);
+    }
+
+    /// What:
+    ///      `pub fn set_draining(&self, _on: bool)`.
+    ///  Accepts the end-of-track hint and ignores it.
+    /// Why:
+    ///       The PipeWire backend uses the hint to keep the end of a track out of its underrun count;
+    ///  this backend counts no underruns, so there is nothing to silence.
+    ///  The method keeps the engine's call compiling on macOS and Windows.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// setDraining(_on: boolean): void {}
+    /// ```
+    pub fn set_draining(&self, _on: bool) {}
+
+    /// What:
+    ///      `pub fn meter_snapshot(&self) -> MeterSnapshot`.
+    ///  Returns zeroed counters: this output does not count underruns yet.
+    /// Why:
+    ///       Keeps the engine's report call compiling on macOS and Windows without
+    ///           claiming a measurement this platform does not make.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// meterSnapshot(): MeterSnapshot { return emptyMeterSnapshot(); }
+    /// ```
+    pub fn meter_snapshot(&self) -> MeterSnapshot {
+        return MeterSnapshot::default();
     }
 }

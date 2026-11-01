@@ -1,0 +1,104 @@
+{
+  "measuredAt": "2026-10-18T04:22:33.068Z",
+  "pathEncoding": "ASCII fixture names; JavaScript string length equals Windows UTF-16 code-unit length for these paths.",
+  "rows": [
+    {
+      "cohortId": "native-runners-20261018T034256508Z",
+      "routeId": "native.hosts",
+      "jobId": 117578770519,
+      "runner": "depot-vgpqjdcpgm",
+      "step": "Checkout trial harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 243,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-runners-20261018T034256508Z",
+      "routeId": "desktop.windows",
+      "jobId": 117578793896,
+      "runner": "depot-zvjv808wsn",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "failure",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 260,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-runners-20261018T034256508Z",
+      "routeId": "desktop.windows",
+      "jobId": 117578794032,
+      "runner": "depot-8lk9jtp866",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "failure",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 260,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-runners-20261018T034256508Z",
+      "routeId": "desktop.windows",
+      "jobId": 117578794097,
+      "runner": "GitHub Actions 1000001435",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\a\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 247,
+      "absoluteFixturePath": "C:\\a\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-recovery-20261018T035939491Z",
+      "routeId": "native.hosts",
+      "jobId": 117581376058,
+      "runner": "depot-mk7h8j022l",
+      "step": "Checkout trial harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 243,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-recovery-20261018T035939491Z",
+      "routeId": "desktop.windows",
+      "jobId": 117581406598,
+      "runner": "depot-7vm03ngxw5",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 260,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-recovery-20261018T035939491Z",
+      "routeId": "desktop.windows",
+      "jobId": 117581406754,
+      "runner": "GitHub Actions 1000001472",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\a\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 247,
+      "absoluteFixturePath": "C:\\a\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    },
+    {
+      "cohortId": "native-recovery-20261018T035939491Z",
+      "routeId": "desktop.windows",
+      "jobId": 117581406755,
+      "runner": "depot-85n9wp92tt",
+      "step": "Checkout frozen trial provenance harness",
+      "conclusion": "success",
+      "checkoutRoot": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness",
+      "relativeFixturePath": "package/git-policy/cli/native-interop/fixture/phase-objects-migrated/repository/dot-git/cli-git/shadow/9b64a1dc-57b0-4552-ab9f-7efd29ae4477/objects/24/c34f943da5d883b979e2013cfc2408aeb7fbf3",
+      "absoluteFixturePathCharacters": 260,
+      "absoluteFixturePath": "C:\\actions-runner\\Monochromatic\\Monochromatic\\trial-provenance-harness\\package\\git-policy\\cli\\native-interop\\fixture\\phase-objects-migrated\\repository\\dot-git\\cli-git\\shadow\\9b64a1dc-57b0-4552-ab9f-7efd29ae4477\\objects\\24\\c34f943da5d883b979e2013cfc2408aeb7fbf3"
+    }
+  ],
+  "recoveryEnabledLongPathsBeforeCheckout": true,
+  "priorFailedRunnerConfigurationNotProbed": true
+}

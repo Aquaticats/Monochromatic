@@ -9,7 +9,7 @@ import {
   TypeFlags,
   type Checker,
   type Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { TYPED_ARRAY_NAMES, } from './typed-array-names.ts';
 

@@ -7,13 +7,13 @@ export type HelperCompletion =
   | {
     readonly status: 'submitted';
   }
-  | {
-    readonly status: 'cancelled';
-  }
-  | {
-    readonly status: 'error';
-    readonly message: string;
-  };
+    | {
+      readonly status: 'cancelled';
+    }
+    | {
+      readonly status: 'error';
+      readonly message: string;
+    };
 
 //endregion Protocol types
 

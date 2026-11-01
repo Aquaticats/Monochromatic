@@ -1,0 +1,1446 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T14:15:40.301Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harness": "1373e624739fbc93502b0c8ca502820c6ff99b45",
+  "sourceGuard": "Every lifecycle preserves frozen application hashes and separate immutable harness identity",
+  "observations": [
+    {
+      "provider": "native-depot",
+      "run": "25jpltfpkq",
+      "artifact": {
+        "id": "01a14f4e-6310-7f1e-91cb-fcb7d9ee8044",
+        "name": "research-mvm-guest-files-native",
+        "advertisedBytes": 28100
+      },
+      "archive": {
+        "bytes": 28100,
+        "sha256": "69ed6130890d93099012c66b6b3d7c179b2272485b2a9a66e710ae04fae52a3e",
+        "members": [
+          {
+            "path": "apt-install.stderr.log",
+            "bytes": 180,
+            "sha256": "75c98e21bdd473787e9332e15b320038afeb3e103b2bab8b03b395da94618f0d"
+          },
+          {
+            "path": "admission.json",
+            "bytes": 1568,
+            "sha256": "2e62e55640f03976bba9c32fc1b17d50fb00e2384f6403818bcf07b88bdf6fde"
+          },
+          {
+            "path": "apt-install.stdout.log",
+            "bytes": 10431,
+            "sha256": "73e6115364cd2a2487bd88613b862a45071073965525109c8fe49bd1009fc013"
+          },
+          {
+            "path": "apt-update.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "apt-update.stdout.log",
+            "bytes": 1051,
+            "sha256": "56ef47b60ba1e0ca84ecfc34ec18a7dc162b6152434e6e75355ca716448d829c"
+          },
+          {
+            "path": "cli-help.stdout.log",
+            "bytes": 1220,
+            "sha256": "b4c0073ce80e8f5f0cd30c86143dbe364bdb9cb27ddd8eebfcd46fce8b6620bd"
+          },
+          {
+            "path": "cli-help.stderr.log",
+            "bytes": 89,
+            "sha256": "191f3860052dadde0b713fe67686dc8290784255cb5355adf9bbbcf20ec67bb5"
+          },
+          {
+            "path": "commands.json",
+            "bytes": 11034,
+            "sha256": "5b5f381ce5b23eab2b99c0bb85cb277991af48fd6afc7824bfc191163f82ae1b"
+          },
+          {
+            "path": "create.stderr.log",
+            "bytes": 118,
+            "sha256": "1840180c22dea793d31f8c240e281e69bce9f673f946deb34accf7c2ff4d6bde"
+          },
+          {
+            "path": "create.stdout.log",
+            "bytes": 2055,
+            "sha256": "49360e6b1db3a7ea155d09b8bbd2af1ae2ecc95abff97fb119ce1f28045f31ce"
+          },
+          {
+            "path": "daemon-0-libvirtd.log",
+            "bytes": 6495,
+            "sha256": "8ea56fa674b6d5a437bfd66224563879c3b06660d3d4545bb9966445045ddf0d"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current-fs0-virtiofsd.log",
+            "bytes": 483,
+            "sha256": "292686654e08f527c609f2bea0415bccc1283097fe71b03816f5c74dd8639eca"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current.log",
+            "bytes": 9523,
+            "sha256": "328d6c41b437a85f7aa2c39636d023ea156acef3068bb93d427ced36d39bb3b8"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-template-setup.log",
+            "bytes": 8900,
+            "sha256": "ce5ffbf10d1899c088b61961c4d8523a6137dc7c28c830183ce93c8639be8666"
+          },
+          {
+            "path": "daemon-0-virtlogd.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "daemon-log-inventory.json",
+            "bytes": 1472,
+            "sha256": "6574da3bf062bab9946faba59a94516c3478329b7f2607279690976c9c08d995"
+          },
+          {
+            "path": "destroy.stderr.log",
+            "bytes": 104,
+            "sha256": "f2564b8c584c3c91281056f711e2fd8f32d5d18c619d9d8566dc8020886e1621"
+          },
+          {
+            "path": "destroy.stdout.log",
+            "bytes": 155,
+            "sha256": "d6364edc698209203cf473f950fd19351bc18750aabde6a5babb7725471a8366"
+          },
+          {
+            "path": "domains-after.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-after.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-before.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-before.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-cleanup.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-cleanup.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "guest-boot-id.stderr.log",
+            "bytes": 142,
+            "sha256": "6c0a1e38b66f830ce0a4bf4c8e448538921206f0098163178fa013465417ebac"
+          },
+          {
+            "path": "guest-boot-id.stdout.log",
+            "bytes": 37,
+            "sha256": "e7554c28096c54df4a1d54e227bde36bb5a1908fae03d2cd5a1417de227e4abc"
+          },
+          {
+            "path": "guest-copy-output.stderr.log",
+            "bytes": 229,
+            "sha256": "0fd16f20b6c9fe14f50287af88e9db6e88b4050d5ee4be2046cda972265c2dd7"
+          },
+          {
+            "path": "guest-copy-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-home.stderr.log",
+            "bytes": 122,
+            "sha256": "bb115ca08a67ff3f2533af5753c8bd2a2426c1ea6942859f192c177af2ea3e8c"
+          },
+          {
+            "path": "guest-home.stdout.log",
+            "bytes": 32,
+            "sha256": "e787b373a74594b33b77892a903647d7a6cf519d427a0b0790e11be4482696e0"
+          },
+          {
+            "path": "guest-output-absent.stderr.log",
+            "bytes": 178,
+            "sha256": "45b77394aa9144077f04283eb1525e27044ea24654375ab81cba85d54b3dfd99"
+          },
+          {
+            "path": "guest-output-absent.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-output-sha256.stderr.log",
+            "bytes": 181,
+            "sha256": "62980fe3065f56f5473adf2c0052a318e07d59623465c60dfa6765ad1a4d4edc"
+          },
+          {
+            "path": "guest-output-sha256.stdout.log",
+            "bytes": 128,
+            "sha256": "b3732decc7194e84dfed88d6da90df7417df59b338b276ca8597e73b2b0f4ca0"
+          },
+          {
+            "path": "guest-owned-directory.stderr.log",
+            "bytes": 139,
+            "sha256": "33a1c16dac903d96acab9fa885445effb8a5eb5b6eb5bdd648ce8fea59078bda"
+          },
+          {
+            "path": "guest-owned-directory.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-pushed-sha256.stderr.log",
+            "bytes": 174,
+            "sha256": "dd2088956c0efb1c54e181d97ae751143bf375c40dc43fba47845aece5649e56"
+          },
+          {
+            "path": "guest-pushed-sha256.stdout.log",
+            "bytes": 121,
+            "sha256": "e40ddc14e558a607e625a60bf07712c11a59a43199d39837c7370b6accd60aac"
+          },
+          {
+            "path": "guest-stderr-exit.stderr.log",
+            "bytes": 313,
+            "sha256": "23e9a8b2eff784f89c93e50d62b88f73d627d7890aec73637bdca3f57e076823"
+          },
+          {
+            "path": "guest-stderr-exit.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-stdout.stderr.log",
+            "bytes": 146,
+            "sha256": "5829fbe1d1fcb8997f169357d6fb6713d8adf84570211e4a006020de1d58d323"
+          },
+          {
+            "path": "guest-stdout.stdout.log",
+            "bytes": 32,
+            "sha256": "3d7e206bd1369d4e5934b278f1cd9d438fafff40b2c639081e7b22ccd467395c"
+          },
+          {
+            "path": "guest-transform-output.stderr.log",
+            "bytes": 196,
+            "sha256": "31ff4f5c4b195cca06b0a21f01ecf42db5723eab8317b22252e49b68312e3380"
+          },
+          {
+            "path": "guest-transform-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "identity-initial.json",
+            "bytes": 106,
+            "sha256": "dc3126a80c96e2f4c54abd1ab27a59e108d8404e24e18aae64134a5fed8f2262"
+          },
+          {
+            "path": "identity-normalized.json",
+            "bytes": 95,
+            "sha256": "7f2736d77bc02b90a35caaee080429f5eb5d33721128a6c59e17b62f4bdb95d7"
+          },
+          {
+            "path": "libvirtd-help.stderr.log",
+            "bytes": 914,
+            "sha256": "c51a20345857c7d79090db6ae899309ea15b45ab5974837f36578a5dc31345d2"
+          },
+          {
+            "path": "libvirtd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "lifecycle.json",
+            "bytes": 15289,
+            "sha256": "05234c098b26297825ff73a5eae76b09ab6ddc19b414e1ecb499792f69daa238"
+          },
+          {
+            "path": "monitor-help.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "monitor-help.stdout.log",
+            "bytes": 600,
+            "sha256": "9dfbbc5fe76944796fbae6ec978480a01ccffdb64763f55efa0c825f1ae02be2"
+          },
+          {
+            "path": "package-versions.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "package-versions.stdout.log",
+            "bytes": 261,
+            "sha256": "0ccef94f2c71e57dc1bd1a79e574494ad87d51fa0a528c05641f3281b0445b4f"
+          },
+          {
+            "path": "pull.stderr.log",
+            "bytes": 229,
+            "sha256": "5b5bc6f74877fb241cc1336b5c580521ef78f0bb1445dcb2f3edfff45e421b52"
+          },
+          {
+            "path": "pull.stdout.log",
+            "bytes": 644,
+            "sha256": "6232ff5a4670f67dec8489339319dc7e4f3b178443d7b9fee8673da987f99a74"
+          },
+          {
+            "path": "push.stderr.log",
+            "bytes": 221,
+            "sha256": "734edcb7c51fa1d72a47ba061ce9cad95b69212db9428ffc9e9eb77b6d3ae852"
+          },
+          {
+            "path": "push.stdout.log",
+            "bytes": 732,
+            "sha256": "3f2b7670bbbc21d50ccd288b9af0a93d732afcdeb933694025ec1dc799911bd9"
+          },
+          {
+            "path": "qmp-kvm.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-kvm.stdout.log",
+            "bytes": 63,
+            "sha256": "81f350b676ec48582614d0e2c7d0f2ed4a0cf4caf598ad02f124fb81238cff43"
+          },
+          {
+            "path": "qmp-status.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-status.stdout.log",
+            "bytes": 86,
+            "sha256": "a9935405bd61f0cb2b1b0dbb5414bd98826b9377a8e2f5a4c712c011f77ab83f"
+          },
+          {
+            "path": "runtime-root.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "runtime-root.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-help.stderr.log",
+            "bytes": 664,
+            "sha256": "21fe50153bdcdfa592e389382df51b1fbd46639cb27565aa41e4086648b43014"
+          },
+          {
+            "path": "virtlogd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      },
+      "lifecycleMember": "lifecycle.json",
+      "lifecycleSha256": "05234c098b26297825ff73a5eae76b09ab6ddc19b414e1ecb499792f69daa238",
+      "consumer": {
+        "passed": true,
+        "running": true,
+        "kvm": {
+          "enabled": true,
+          "present": true
+        },
+        "stdoutNoncePresent": true,
+        "nonzeroStatus": 2,
+        "stderrMissingPathPresent": true,
+        "roundtripBytes": 57,
+        "roundtripSha256": "2066fd2e7cbd86ab65d13ebdf6f70c6c60e719bb0563451c34c9282ca61bf6b2",
+        "guestFileConsumer": {
+          "inputBytes": 51,
+          "inputSha256": "531755d477ba3479fde82e2de63b147acd2b825ba7702aa6c9d3780c4f38db88",
+          "outputBytes": 57,
+          "outputSha256": "2066fd2e7cbd86ab65d13ebdf6f70c6c60e719bb0563451c34c9282ca61bf6b2",
+          "hostBootId": "9f77e578-121a-4526-aba9-a178dd6a1ff8",
+          "guestBootId": "74979d7f-11fd-45f4-aec9-f38259d76483",
+          "distinctGuestBoot": true,
+          "guestReadExactInput": true,
+          "outputAbsentBeforeGuestCopy": true,
+          "guestCreatedAndTransformedDistinctOutput": true,
+          "exactTransformedPull": true,
+          "sharedMount": "/mnt/shared"
+        },
+        "meta": {
+          "createdAt": "2026-10-18T13:58:02.269Z",
+          "defaultUser": "ubuntu",
+          "fileTransfer": "virtiofs",
+          "image": "ubuntu",
+          "osFamily": "linux",
+          "shell": "/bin/bash"
+        }
+      },
+      "cleanup": {
+        "domains": "",
+        "daemonExit": [
+          {
+            "name": "libvirtd",
+            "pid": 2117,
+            "exited": true
+          },
+          {
+            "name": "virtlogd",
+            "pid": 2113,
+            "exited": true
+          }
+        ],
+        "errors": []
+      }
+    },
+    {
+      "provider": "github-standard",
+      "run": "39134227406",
+      "artifact": {
+        "id": 12138942229,
+        "name": "research-mvm-guest-files-github-39134227406-1",
+        "advertisedBytes": 26762,
+        "digest": "sha256:12281ec070b511ac7be7d8032be53101496b476e464fcc6b5aeb18e5f6f3311b"
+      },
+      "archive": {
+        "bytes": 26762,
+        "sha256": "12281ec070b511ac7be7d8032be53101496b476e464fcc6b5aeb18e5f6f3311b",
+        "members": [
+          {
+            "path": "admission.json",
+            "bytes": 1618,
+            "sha256": "b8ebbb9d84c6cabe522ab8b1b2371fdda62ec3371ec97a43d17f256bfb99cb20"
+          },
+          {
+            "path": "apt-install.stdout.log",
+            "bytes": 10125,
+            "sha256": "e8d39fa60e5e5c5d37a3dcfc8c714fbcbd5bd0babeccd498b9b4bab5c1f49634"
+          },
+          {
+            "path": "apt-install.stderr.log",
+            "bytes": 237,
+            "sha256": "3b419c69ff321ee6851fa5489a2bb0c9a2ef093815a709dbd05391f89767267f"
+          },
+          {
+            "path": "apt-update.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "apt-update.stdout.log",
+            "bytes": 1883,
+            "sha256": "6d7315294a6aabd6fad1ed26e451dc468939fa8e5899d676d02a6ce1aa26bc06"
+          },
+          {
+            "path": "cli-help.stderr.log",
+            "bytes": 89,
+            "sha256": "191f3860052dadde0b713fe67686dc8290784255cb5355adf9bbbcf20ec67bb5"
+          },
+          {
+            "path": "cli-help.stdout.log",
+            "bytes": 1220,
+            "sha256": "b4c0073ce80e8f5f0cd30c86143dbe364bdb9cb27ddd8eebfcd46fce8b6620bd"
+          },
+          {
+            "path": "commands.json",
+            "bytes": 10664,
+            "sha256": "90d381780fee02c3ac6df1c245fb46eb4321a72d7deee332b8be08b23e0c729b"
+          },
+          {
+            "path": "create.stderr.log",
+            "bytes": 118,
+            "sha256": "1840180c22dea793d31f8c240e281e69bce9f673f946deb34accf7c2ff4d6bde"
+          },
+          {
+            "path": "create.stdout.log",
+            "bytes": 2055,
+            "sha256": "42ffe6ea79cbbbc71b354520633464b4912f1a6e9b5e6e24b134e6ef638f52a3"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current-fs0-virtiofsd.log",
+            "bytes": 572,
+            "sha256": "f5ae2b085878473611245a7df29fdcb31f5d2c17de3db3ad0647b9da1adefbea"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current.log",
+            "bytes": 9591,
+            "sha256": "7fa73d66192287ef279dfaa982a346c490d7a88c03208fea6f1772deb99c8fcc"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-template-setup.log",
+            "bytes": 8940,
+            "sha256": "193eb83393fdaa84810d6a3e0bacedfd5f80d28d4efec12979435dcba3f8d871"
+          },
+          {
+            "path": "daemon-log-inventory.json",
+            "bytes": 1017,
+            "sha256": "676b5b5670f5f838f22bdbe0d63a9b42daee910bde3b1b0fd0280422300f8114"
+          },
+          {
+            "path": "destroy.stderr.log",
+            "bytes": 104,
+            "sha256": "f2564b8c584c3c91281056f711e2fd8f32d5d18c619d9d8566dc8020886e1621"
+          },
+          {
+            "path": "destroy.stdout.log",
+            "bytes": 155,
+            "sha256": "c3dac2d6e6567dc63728ce1786133bd9c9dc9bac7523c90e19193c23e8c8743c"
+          },
+          {
+            "path": "domains-after.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-after.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-before.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-before.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-cleanup.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-cleanup.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "guest-boot-id.stderr.log",
+            "bytes": 142,
+            "sha256": "6c0a1e38b66f830ce0a4bf4c8e448538921206f0098163178fa013465417ebac"
+          },
+          {
+            "path": "guest-boot-id.stdout.log",
+            "bytes": 37,
+            "sha256": "1239ccb3df0ed9d6ce7331ff6b410ead2982a8294f3175370160b22593698c5b"
+          },
+          {
+            "path": "guest-copy-output.stderr.log",
+            "bytes": 229,
+            "sha256": "2b9228525447c79267cea64262ec8c6d4c38e0b52697f383dd455554e3d0b503"
+          },
+          {
+            "path": "guest-copy-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-home.stderr.log",
+            "bytes": 122,
+            "sha256": "bb115ca08a67ff3f2533af5753c8bd2a2426c1ea6942859f192c177af2ea3e8c"
+          },
+          {
+            "path": "guest-home.stdout.log",
+            "bytes": 32,
+            "sha256": "e787b373a74594b33b77892a903647d7a6cf519d427a0b0790e11be4482696e0"
+          },
+          {
+            "path": "guest-output-absent.stderr.log",
+            "bytes": 178,
+            "sha256": "7172451e627827d327f07ec4ea5fc4320e29e5e941be6de3938231199af119cc"
+          },
+          {
+            "path": "guest-output-absent.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-output-sha256.stderr.log",
+            "bytes": 181,
+            "sha256": "4e334ddcb3ce8400feedbdef8a621952ff0e45a7c005112b146c0615661996b1"
+          },
+          {
+            "path": "guest-output-sha256.stdout.log",
+            "bytes": 128,
+            "sha256": "4e68174a2f36e38809885b28fe652851cda1aa5d333060b853d2d6afdd474450"
+          },
+          {
+            "path": "guest-owned-directory.stderr.log",
+            "bytes": 139,
+            "sha256": "33a1c16dac903d96acab9fa885445effb8a5eb5b6eb5bdd648ce8fea59078bda"
+          },
+          {
+            "path": "guest-owned-directory.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-pushed-sha256.stderr.log",
+            "bytes": 174,
+            "sha256": "e4ff7090b2b50ee9869e26ad50501317e2798989c13615acc1c4b19ed27ec8f8"
+          },
+          {
+            "path": "guest-pushed-sha256.stdout.log",
+            "bytes": 121,
+            "sha256": "93d67b4dd7e7c8db601c31bfc288bc4530d7897c21f9fc41b93420b59e532a99"
+          },
+          {
+            "path": "guest-stderr-exit.stderr.log",
+            "bytes": 313,
+            "sha256": "335f31bed622c4b055e2588c6130af21a6319b74825592c3072534324b27ba4b"
+          },
+          {
+            "path": "guest-stderr-exit.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-stdout.stderr.log",
+            "bytes": 146,
+            "sha256": "36d5706d11f8e6bf56d2196a1ac57ce5d3cba1de9595ba374c7bf303b089024b"
+          },
+          {
+            "path": "guest-stdout.stdout.log",
+            "bytes": 32,
+            "sha256": "de65a26742a1e1ec61134725e7ec69964459269dfd8e755ead6f8fefccbbe94a"
+          },
+          {
+            "path": "guest-transform-output.stderr.log",
+            "bytes": 196,
+            "sha256": "721df9fcf93fc4f7b0eab8686d5733c13d8fcf68ea4499ffec1c557e5706abb6"
+          },
+          {
+            "path": "guest-transform-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "identity-initial.json",
+            "bytes": 116,
+            "sha256": "4627612c38b42d824567479f67e2afb0f83923f466f80985891997e690ab7651"
+          },
+          {
+            "path": "identity-kvm-supplemental.json",
+            "bytes": 125,
+            "sha256": "d7d41528cadb069f26e24f6c4f3fab49cb904b10e57fe4eb20da52d57db6ddf3"
+          },
+          {
+            "path": "libvirtd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-help.stderr.log",
+            "bytes": 914,
+            "sha256": "c51a20345857c7d79090db6ae899309ea15b45ab5974837f36578a5dc31345d2"
+          },
+          {
+            "path": "libvirtd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "lifecycle.json",
+            "bytes": 14932,
+            "sha256": "36ea23aa6baade4d0752f999838aa3de78325e24b6818f7b5fbf8a88e09ae2d7"
+          },
+          {
+            "path": "monitor-help.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "monitor-help.stdout.log",
+            "bytes": 600,
+            "sha256": "9dfbbc5fe76944796fbae6ec978480a01ccffdb64763f55efa0c825f1ae02be2"
+          },
+          {
+            "path": "package-versions.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "package-versions.stdout.log",
+            "bytes": 261,
+            "sha256": "0ccef94f2c71e57dc1bd1a79e574494ad87d51fa0a528c05641f3281b0445b4f"
+          },
+          {
+            "path": "pull.stderr.log",
+            "bytes": 229,
+            "sha256": "34ac3b22309a762baf6530f52942ccb872651513808439bf47977ce29a1da56b"
+          },
+          {
+            "path": "pull.stdout.log",
+            "bytes": 644,
+            "sha256": "7bbb88bdfce23f86c577cc37d29feffae19e9585d5211eec805bb253763fa742"
+          },
+          {
+            "path": "push.stdout.log",
+            "bytes": 732,
+            "sha256": "8c715749421ac71adc3bc227517bc8a8c69f215033aeb4783ba0f74a9ca82c3c"
+          },
+          {
+            "path": "push.stderr.log",
+            "bytes": 221,
+            "sha256": "307c003bfce57785d48e4c2c7a99e7118f5fcf46c839fc67458e7bf9afc4bbf6"
+          },
+          {
+            "path": "qmp-kvm.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-kvm.stdout.log",
+            "bytes": 63,
+            "sha256": "81f350b676ec48582614d0e2c7d0f2ed4a0cf4caf598ad02f124fb81238cff43"
+          },
+          {
+            "path": "qmp-status.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-status.stdout.log",
+            "bytes": 86,
+            "sha256": "a9935405bd61f0cb2b1b0dbb5414bd98826b9377a8e2f5a4c712c011f77ab83f"
+          },
+          {
+            "path": "virtlogd-help.stderr.log",
+            "bytes": 664,
+            "sha256": "21fe50153bdcdfa592e389382df51b1fbd46639cb27565aa41e4086648b43014"
+          },
+          {
+            "path": "virtlogd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      },
+      "lifecycleMember": "lifecycle.json",
+      "lifecycleSha256": "36ea23aa6baade4d0752f999838aa3de78325e24b6818f7b5fbf8a88e09ae2d7",
+      "consumer": {
+        "passed": true,
+        "running": true,
+        "kvm": {
+          "enabled": true,
+          "present": true
+        },
+        "stdoutNoncePresent": true,
+        "nonzeroStatus": 2,
+        "stderrMissingPathPresent": true,
+        "roundtripBytes": 57,
+        "roundtripSha256": "e675cb8717a2c1e11c42c1089e495f0810976ed3dc916791adc1b7ea1b9f2591",
+        "guestFileConsumer": {
+          "inputBytes": 51,
+          "inputSha256": "2c943c4522f4e6f63e30325f65525e30388a6b2e926f777e3a698626f1209ce7",
+          "outputBytes": 57,
+          "outputSha256": "e675cb8717a2c1e11c42c1089e495f0810976ed3dc916791adc1b7ea1b9f2591",
+          "hostBootId": "d528a9ca-46a9-46b2-b359-7b277141768d",
+          "guestBootId": "d5c788ba-d2a8-4911-a925-6543423795b8",
+          "distinctGuestBoot": true,
+          "guestReadExactInput": true,
+          "outputAbsentBeforeGuestCopy": true,
+          "guestCreatedAndTransformedDistinctOutput": true,
+          "exactTransformedPull": true,
+          "sharedMount": "/mnt/shared"
+        },
+        "meta": {
+          "createdAt": "2026-10-18T14:04:33.049Z",
+          "defaultUser": "ubuntu",
+          "fileTransfer": "virtiofs",
+          "image": "ubuntu",
+          "osFamily": "linux",
+          "shell": "/bin/bash"
+        }
+      },
+      "cleanup": {
+        "domains": "",
+        "daemonExit": [
+          {
+            "name": "libvirtd",
+            "pid": 3571,
+            "exited": true
+          },
+          {
+            "name": "virtlogd",
+            "pid": 3567,
+            "exited": true
+          }
+        ],
+        "errors": []
+      }
+    },
+    {
+      "provider": "github-depot",
+      "run": "39134227406",
+      "artifact": {
+        "id": 12138469236,
+        "name": "research-mvm-guest-files-depot-39134227406-1",
+        "advertisedBytes": 26259,
+        "digest": "sha256:cfd061ba1eae4bc30df427b086202f5c00096ddc75b57f0971b9c0b3cd669d66"
+      },
+      "archive": {
+        "bytes": 26259,
+        "sha256": "cfd061ba1eae4bc30df427b086202f5c00096ddc75b57f0971b9c0b3cd669d66",
+        "members": [
+          {
+            "path": "apt-install.stdout.log",
+            "bytes": 10431,
+            "sha256": "11d5d9e5f487a65e6585bb649adbbd688a2a0164cf3a0bea3a08756b86cea2bb"
+          },
+          {
+            "path": "apt-install.stderr.log",
+            "bytes": 180,
+            "sha256": "75c98e21bdd473787e9332e15b320038afeb3e103b2bab8b03b395da94618f0d"
+          },
+          {
+            "path": "apt-update.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "admission.json",
+            "bytes": 1568,
+            "sha256": "44abf57ff52b1b45e22388040e634fe5c25706d23ed9b95a05d43654b49d2964"
+          },
+          {
+            "path": "apt-update.stdout.log",
+            "bytes": 1697,
+            "sha256": "f03bd88c8ee3777f42ce010a373c2c1634362dfb9d1aa2dbf9ec524b933edc99"
+          },
+          {
+            "path": "cli-help.stderr.log",
+            "bytes": 89,
+            "sha256": "191f3860052dadde0b713fe67686dc8290784255cb5355adf9bbbcf20ec67bb5"
+          },
+          {
+            "path": "cli-help.stdout.log",
+            "bytes": 1220,
+            "sha256": "b4c0073ce80e8f5f0cd30c86143dbe364bdb9cb27ddd8eebfcd46fce8b6620bd"
+          },
+          {
+            "path": "commands.json",
+            "bytes": 10664,
+            "sha256": "58cba91c40596d28e9217ebe9785eaeb36f7ead30acea078956bfc5b338261b2"
+          },
+          {
+            "path": "create.stderr.log",
+            "bytes": 118,
+            "sha256": "1840180c22dea793d31f8c240e281e69bce9f673f946deb34accf7c2ff4d6bde"
+          },
+          {
+            "path": "create.stdout.log",
+            "bytes": 2055,
+            "sha256": "610e89c3ab6d6573b89a2912bfc8519ba787d6d6f946628a0ff4af85eb25477f"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current-fs0-virtiofsd.log",
+            "bytes": 644,
+            "sha256": "da4df12ce565e048059df11e1ec05774f82baee79a8b360530b6cd59d369a0f5"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-depot-current.log",
+            "bytes": 9503,
+            "sha256": "1465bbde9128789bb4483b37dfee2d0bf78e64f19b7585c784c676337ace629c"
+          },
+          {
+            "path": "daemon-0-qemu-log-mvm-template-setup.log",
+            "bytes": 8880,
+            "sha256": "20e170deb4b35ecb957ea4b45d4d3cc1c89c03663449faf29c5cc544bebae954"
+          },
+          {
+            "path": "daemon-log-inventory.json",
+            "bytes": 1017,
+            "sha256": "118330d03f859496a80f914029029243dae317adf34ca0655a9349e7e1662fd7"
+          },
+          {
+            "path": "destroy.stderr.log",
+            "bytes": 104,
+            "sha256": "f2564b8c584c3c91281056f711e2fd8f32d5d18c619d9d8566dc8020886e1621"
+          },
+          {
+            "path": "destroy.stdout.log",
+            "bytes": 155,
+            "sha256": "670b83e8f535061e91a0107b2f2ee95e102733283b05d61642b3599b46f76a76"
+          },
+          {
+            "path": "domains-after.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-after.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-before.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-before.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "domains-cleanup.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "domains-cleanup.stdout.log",
+            "bytes": 1,
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+          },
+          {
+            "path": "guest-boot-id.stderr.log",
+            "bytes": 142,
+            "sha256": "6c0a1e38b66f830ce0a4bf4c8e448538921206f0098163178fa013465417ebac"
+          },
+          {
+            "path": "guest-boot-id.stdout.log",
+            "bytes": 37,
+            "sha256": "11497385b03fc1a44f740995f397efde045c373561102dc16c96d67677448402"
+          },
+          {
+            "path": "guest-copy-output.stderr.log",
+            "bytes": 229,
+            "sha256": "ca04b91f73484a31a9f48de10678644a4d1aa2c643b5b68c16c289f49fa97aba"
+          },
+          {
+            "path": "guest-copy-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-home.stderr.log",
+            "bytes": 122,
+            "sha256": "bb115ca08a67ff3f2533af5753c8bd2a2426c1ea6942859f192c177af2ea3e8c"
+          },
+          {
+            "path": "guest-home.stdout.log",
+            "bytes": 32,
+            "sha256": "e787b373a74594b33b77892a903647d7a6cf519d427a0b0790e11be4482696e0"
+          },
+          {
+            "path": "guest-output-absent.stderr.log",
+            "bytes": 178,
+            "sha256": "eca351da4639993d89810b7e2e14005f63f73de63c0a911f3a6b9fdf65baa598"
+          },
+          {
+            "path": "guest-output-absent.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-output-sha256.stderr.log",
+            "bytes": 181,
+            "sha256": "c37e29af9de7dff118774bbfea4d94d09253134ff539d0c95fac0f946f7e5a16"
+          },
+          {
+            "path": "guest-output-sha256.stdout.log",
+            "bytes": 128,
+            "sha256": "23c705a19fb393896d66cb7ed0252f1f1a4e5c72abdaacca68182e40423dd5cc"
+          },
+          {
+            "path": "guest-owned-directory.stderr.log",
+            "bytes": 139,
+            "sha256": "33a1c16dac903d96acab9fa885445effb8a5eb5b6eb5bdd648ce8fea59078bda"
+          },
+          {
+            "path": "guest-owned-directory.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-pushed-sha256.stderr.log",
+            "bytes": 174,
+            "sha256": "240747a0c4b22dee740cbd99f41192cccc5dd3c2cb86643ef003481152262b5e"
+          },
+          {
+            "path": "guest-pushed-sha256.stdout.log",
+            "bytes": 121,
+            "sha256": "051f6a3c555e9ec10903366a29fd078b247032f87908414d1933f61bb030e420"
+          },
+          {
+            "path": "guest-stderr-exit.stderr.log",
+            "bytes": 313,
+            "sha256": "e49d7a94416d8b48ab4ae26fa1f027fc8dd7391e20e99b45ca0a742123ccc241"
+          },
+          {
+            "path": "guest-stderr-exit.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "guest-stdout.stderr.log",
+            "bytes": 146,
+            "sha256": "dbfc8823f8dd5ab9d33814892a52c0853effc27899ef9468ee458a00b46fca5e"
+          },
+          {
+            "path": "guest-stdout.stdout.log",
+            "bytes": 32,
+            "sha256": "59ca1a9f078ebf6735b6f49a6b31f5228f0c8da8dc96c22f2554757053f30ac8"
+          },
+          {
+            "path": "guest-transform-output.stderr.log",
+            "bytes": 196,
+            "sha256": "2740779c1dd492774503f442278a96c65e89522c7a6df896e77bc62c3da3bbdc"
+          },
+          {
+            "path": "identity-initial.json",
+            "bytes": 95,
+            "sha256": "7f2736d77bc02b90a35caaee080429f5eb5d33721128a6c59e17b62f4bdb95d7"
+          },
+          {
+            "path": "guest-transform-output.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-help.stderr.log",
+            "bytes": 914,
+            "sha256": "c51a20345857c7d79090db6ae899309ea15b45ab5974837f36578a5dc31345d2"
+          },
+          {
+            "path": "libvirtd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "libvirtd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "lifecycle.json",
+            "bytes": 14883,
+            "sha256": "c676e84cc163c8a9c135b52ed6691e3d670da4b9dc2f2c44f349aef678603539"
+          },
+          {
+            "path": "monitor-help.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "monitor-help.stdout.log",
+            "bytes": 600,
+            "sha256": "9dfbbc5fe76944796fbae6ec978480a01ccffdb64763f55efa0c825f1ae02be2"
+          },
+          {
+            "path": "package-versions.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "package-versions.stdout.log",
+            "bytes": 261,
+            "sha256": "0ccef94f2c71e57dc1bd1a79e574494ad87d51fa0a528c05641f3281b0445b4f"
+          },
+          {
+            "path": "pull.stderr.log",
+            "bytes": 229,
+            "sha256": "ed1a06d76a0aeab83e3956c77d5042dee46f80f1fb58342e4d210122e729d278"
+          },
+          {
+            "path": "pull.stdout.log",
+            "bytes": 644,
+            "sha256": "4222f3093aae89c50c66f60e8564dddf6aee690906aceb8a87a6cc0d6eaec60c"
+          },
+          {
+            "path": "push.stderr.log",
+            "bytes": 221,
+            "sha256": "5a5a74239c8a28e4caa0f24c09d11b30a98fb471c31b29916131913ae75a8aba"
+          },
+          {
+            "path": "push.stdout.log",
+            "bytes": 732,
+            "sha256": "bb04f198bd3e4afd42f22aa972c26f44145fe7a77c0a66dee62d45400bdb870d"
+          },
+          {
+            "path": "qmp-kvm.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-kvm.stdout.log",
+            "bytes": 63,
+            "sha256": "81f350b676ec48582614d0e2c7d0f2ed4a0cf4caf598ad02f124fb81238cff43"
+          },
+          {
+            "path": "qmp-status.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "qmp-status.stdout.log",
+            "bytes": 86,
+            "sha256": "a9935405bd61f0cb2b1b0dbb5414bd98826b9377a8e2f5a4c712c011f77ab83f"
+          },
+          {
+            "path": "virtlogd-help.stderr.log",
+            "bytes": 664,
+            "sha256": "21fe50153bdcdfa592e389382df51b1fbd46639cb27565aa41e4086648b43014"
+          },
+          {
+            "path": "virtlogd-help.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "virtlogd-start.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      },
+      "lifecycleMember": "lifecycle.json",
+      "lifecycleSha256": "c676e84cc163c8a9c135b52ed6691e3d670da4b9dc2f2c44f349aef678603539",
+      "consumer": {
+        "passed": true,
+        "running": true,
+        "kvm": {
+          "enabled": true,
+          "present": true
+        },
+        "stdoutNoncePresent": true,
+        "nonzeroStatus": 2,
+        "stderrMissingPathPresent": true,
+        "roundtripBytes": 57,
+        "roundtripSha256": "1594f359e26f36f7a7544d9f3dcc90a440c6834e2f6644148d14826ff2b1aac1",
+        "guestFileConsumer": {
+          "inputBytes": 51,
+          "inputSha256": "f0c7d5d66240e14321fff6da64914f9b76b3364de377c11fd4b03dff00e350d7",
+          "outputBytes": 57,
+          "outputSha256": "1594f359e26f36f7a7544d9f3dcc90a440c6834e2f6644148d14826ff2b1aac1",
+          "hostBootId": "afb096a7-7882-4d38-b818-5eeb8db19ae2",
+          "guestBootId": "7e6d2a26-da98-454b-990a-aeb878d2cc05",
+          "distinctGuestBoot": true,
+          "guestReadExactInput": true,
+          "outputAbsentBeforeGuestCopy": true,
+          "guestCreatedAndTransformedDistinctOutput": true,
+          "exactTransformedPull": true,
+          "sharedMount": "/mnt/shared"
+        },
+        "meta": {
+          "createdAt": "2026-10-18T14:06:05.979Z",
+          "defaultUser": "ubuntu",
+          "fileTransfer": "virtiofs",
+          "image": "ubuntu",
+          "osFamily": "linux",
+          "shell": "/bin/bash"
+        }
+      },
+      "cleanup": {
+        "domains": "",
+        "daemonExit": [
+          {
+            "name": "libvirtd",
+            "pid": 3918,
+            "exited": true
+          },
+          {
+            "name": "virtlogd",
+            "pid": 3914,
+            "exited": true
+          }
+        ],
+        "errors": []
+      }
+    }
+  ],
+  "githubJobs": [
+    {
+      "id": 117695356468,
+      "name": "guestFiles (github, ubuntu-24.04, github-hosted-ubuntu-24.04, device)",
+      "conclusion": "success",
+      "runner": "GitHub Actions 1000002593",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "startedAt": "2026-10-18T14:02:51Z",
+      "completedAt": "2026-10-18T14:05:03Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:02:51Z",
+          "completedAt": "2026-10-18T14:02:53Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:02:53Z",
+          "completedAt": "2026-10-18T14:03:11Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:03:11Z",
+          "completedAt": "2026-10-18T14:03:12Z"
+        },
+        {
+          "name": "Run mise install node pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:03:12Z",
+          "completedAt": "2026-10-18T14:03:14Z"
+        },
+        {
+          "name": "Run mise run prepare:pnpm:install -- --frozen-lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:03:14Z",
+          "completedAt": "2026-10-18T14:03:24Z"
+        },
+        {
+          "name": "Guest read, distinct output, transformation and pull",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:03:24Z",
+          "completedAt": "2026-10-18T14:05:00Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:00Z",
+          "completedAt": "2026-10-18T14:05:01Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:01Z",
+          "completedAt": "2026-10-18T14:05:01Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:01Z",
+          "completedAt": "2026-10-18T14:05:01Z"
+        }
+      ]
+    },
+    {
+      "id": 117695356640,
+      "name": "guestFiles (depot, depot-ubuntu-24.04-4, github-depot-ubuntu-24.04-4)",
+      "conclusion": "success",
+      "runner": "depot-x4315204m9",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "startedAt": "2026-10-18T14:05:03Z",
+      "completedAt": "2026-10-18T14:06:24Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:07Z",
+          "completedAt": "2026-10-18T14:05:08Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:08Z",
+          "completedAt": "2026-10-18T14:05:23Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:23Z",
+          "completedAt": "2026-10-18T14:05:24Z"
+        },
+        {
+          "name": "Run mise install node pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:24Z",
+          "completedAt": "2026-10-18T14:05:25Z"
+        },
+        {
+          "name": "Run mise run prepare:pnpm:install -- --frozen-lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:25Z",
+          "completedAt": "2026-10-18T14:05:28Z"
+        },
+        {
+          "name": "Guest read, distinct output, transformation and pull",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:05:28Z",
+          "completedAt": "2026-10-18T14:06:22Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:06:22Z",
+          "completedAt": "2026-10-18T14:06:23Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:06:23Z",
+          "completedAt": "2026-10-18T14:06:23Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:06:23Z",
+          "completedAt": "2026-10-18T14:06:23Z"
+        }
+      ]
+    }
+  ],
+  "previousQueuedGeneratorFailure": {
+    "run": 39132577785,
+    "source": "3829831039cc43aa717c6c927f835b867e9313b6",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "observation": {
+      "recordedAt": "2026-10-18T13:54:26.155Z",
+      "run": 39132577785,
+      "head": "3829831039cc43aa717c6c927f835b867e9313b6",
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 117690582754,
+          "name": "guestFiles (github, ubuntu-24.04, github-hosted-ubuntu-24.04, device)",
+          "status": "queued",
+          "conclusion": null,
+          "labels": [
+            "$ + value +"
+          ],
+          "runner": "",
+          "startedAt": "2026-10-18T13:40:29Z",
+          "completedAt": null
+        },
+        {
+          "id": 117690582968,
+          "name": "guestFiles (depot, depot-ubuntu-24.04-4, github-depot-ubuntu-24.04-4)",
+          "status": "queued",
+          "conclusion": null,
+          "labels": [
+            "$ + value +"
+          ],
+          "runner": null,
+          "startedAt": "2026-10-18T13:40:29Z",
+          "completedAt": null
+        }
+      ]
+    },
+    "allocatedComputeFromQueuedStartedAtNotInferred": true
+  },
+  "guardControls": [
+    {
+      "label": "allowed_generated_workflow",
+      "status": 0
+    },
+    {
+      "label": "rejected_original_corrupt_runner_label",
+      "status": 1
+    },
+    {
+      "label": "same_bad_workflow_passes_when_guard_removed",
+      "status": 0
+    },
+    {
+      "label": "same_bad_workflow_rejected_after_guard_restored",
+      "status": 1
+    },
+    {
+      "label": "allowed_workflow_after_restoration",
+      "status": 0
+    }
+  ],
+  "admission": {
+    "jobMinutes": 20,
+    "cpus": 4,
+    "memoryGiB": 16,
+    "actualExecutionJobs": 3,
+    "maximumConcurrentOwnJobs": 1,
+    "previousEightAllProviderProxyUsd": 0.1238,
+    "newMaximumAllProviderProxyUsd": 0.72,
+    "combinedAllProviderUpperProxyUsd": 0.8438,
+    "campaignGuardUsd": 1,
+    "invoiceOrBillingReleaseMeasured": false
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz",
+    "bytes": 63665,
+    "sha256": "6f0bf7c1ea1891b24d8702b373fc9c30b8eb885a0827e6e056cb483cac0183d9"
+  },
+  "scope": [
+    "Actual guest kernel boot identity differs from host",
+    "Guest SHA256 proves exact51-byte input visibility through documented shared mount",
+    "Initially absent distinct path is created and transformed inside guest; exact57-byte result is pulled to host",
+    "Original source51-byte host shared-directory CLI check remains separately qualified in earlier receipt",
+    "Frozen package source unchanged; research harness and final workflow-expression controls differ from earlier probes",
+    "Terminal workflow and private-domain/daemon cleanup do not measure provider billing release"
+  ]
+}

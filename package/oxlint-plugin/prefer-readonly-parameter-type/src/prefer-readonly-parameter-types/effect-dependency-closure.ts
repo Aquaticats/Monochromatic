@@ -4,7 +4,7 @@
  @module
  */
 
-import type { Project, } from 'typescript/unstable/sync';
+import type { Project, } from 'typescript/sync';
 
 import {
   directModuleDependencies,

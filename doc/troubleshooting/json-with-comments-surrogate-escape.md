@@ -192,7 +192,8 @@ No matching exemption exists under this repository's `.out-of-scope/` entries.
 3. **Supported use case:** yes for parsing JSONC strings and valid escaped pairs,
    per the README's JSONC parser examples and `from_str` escaped-string documentation (`src/de.rs:41-59`).
    The README does not promise retaining unpaired surrogates as Rust strings.
-4. **Contribution welcome:** no explicit restriction or AI-report ban was found in the inspected README and `.github/` workflows;
+4. **Contribution welcome:** no explicit restriction or AI-report ban was found in the inspected README
+   and `.github/` workflows;
    the repository has merged outside pull requests,
    but there is no `CONTRIBUTING.md` or issue template in the checked clone.
 5. **Maintainer disposition:** no source policy or searched issue/PR explicitly declines such a safety fix.

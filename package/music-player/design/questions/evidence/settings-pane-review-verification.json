@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "scope": "Freshly inspected authored native Settings switch states and their offline viewer, not a new ballot, a stored preference or native accessibility acceptance.",
+  "browserCliVersion": "0.38.1",
+  "browserContainerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94",
+  "firefoxESR140Exercised": false,
+  "resourceBounds": {
+    "memoryGiB": 2,
+    "cpu": 2
+  },
+  "imagesDecodedAndOpened": 24,
+  "contexts": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "fitNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "fitNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "fitNotesMatchWitnessState": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "dark",
+      "axeCounts": {
+        "inapplicable": 40,
+        "incomplete": 0,
+        "passes": 22,
+        "violations": 0
+      },
+      "systemThemeFollowed": true,
+      "optionalObservations": true,
+      "inertNotes": true,
+      "staleReplyInvalidation": true,
+      "modalZoomPanResetFocus": true,
+      "availabilityCombinationsExercised": true,
+      "fitNotesMatchWitnessState": true,
+      "overflow": false
+    }
+  ],
+  "offline": true,
+  "browserEngine": "Chromium",
+  "noPolicyVotes": true,
+  "consoleErrors": 0,
+  "renderedFindingsChecked": true,
+  "renderedProvenanceChecked": true,
+  "limits": "All distinct previews opened in the first desktop/light interaction pass; availability, fit notes, observations and representative modal/zoom/pan controls exercised in all four contexts. Axe audits are closed-page only, not native acceptance.",
+  "browsersClosed": true,
+  "ownedRuntimeAbsenceVerified": true,
+  "productionSourceAndAcceptedSearchReviewUnchanged": true,
+  "guardRemovalProofs": {
+    "rulesDeclared": 100,
+    "rulesDeletedAndNoticed": 100,
+    "positiveAndRestored": "Settings-pane consumer: 99 rules, 135 rejected inputs, script encoding and positive controls passed.",
+    "outcomes": {
+      "accepted": 54,
+      "caughtByAnotherCheck": 46
+    }
+  },
+  "publicationPreflight": {
+    "fixtures": [
+      {
+        "name": "positive",
+        "intendedOutcome": true,
+        "exitStatus": 0,
+        "diagnostic": "ALL_PUBLICATION_PREFLIGHTS_PASSED",
+        "publicWrites": 0
+      },
+      {
+        "name": "inspection-hash",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Current inspection hash binding differs.",
+        "publicWrites": 0
+      },
+      {
+        "name": "authored-state",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Current cohort context or native assertions differ",
+        "publicWrites": 0
+      },
+      {
+        "name": "restoration",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Exact recorded fields not restored.",
+        "publicWrites": 0
+      },
+      {
+        "name": "owner-exit",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Owner exit record differs.",
+        "publicWrites": 0
+      },
+      {
+        "name": "late-action-context",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Exact current-artifact action evidence incomplete.",
+        "publicWrites": 0
+      },
+      {
+        "name": "replay-manifest-binding",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Offline action replay differs from the live manifest.",
+        "publicWrites": 0
+      },
+      {
+        "name": "unlisted-settings-output",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Published Settings output outside the withdrawn study exists.",
+        "publicWrites": 0
+      },
+      {
+        "name": "lint-commit",
+        "intendedOutcome": true,
+        "exitStatus": 1,
+        "diagnostic": "Retained lint report differs from the stated limitation.",
+        "publicWrites": 0
+      }
+    ]
+  },
+  "rendererScreenshotsInspected": [
+    {
+      "file": "review-1440-light.png",
+      "sha256": "f4b50b48c2fe46126784ced961bf01e02f28321f7e99f48f6b1e8a1029d14f30"
+    },
+    {
+      "file": "review-1440-dark.png",
+      "sha256": "9663c27ad9a0f2e54270ce44b68152e164e88bd54eff408a8c25b1a6c95d768f"
+    },
+    {
+      "file": "review-390-light.png",
+      "sha256": "1031b1834649e0d6441485e36ee84c2aaaccee250daf1d377e43209adebb6ed3"
+    },
+    {
+      "file": "review-390-dark.png",
+      "sha256": "fb0ee76d6f00e642977f55790cc279ab858f8cc282b8098b0aa270a2725f4e21"
+    },
+    {
+      "file": "gallery-1440-light.png",
+      "sha256": "30d8a78f2edd478500d5f2c1d64934658ad9dec62cb177397a6629ee993af188"
+    },
+    {
+      "file": "gallery-1440-dark.png",
+      "sha256": "2b18498c74a87264bdf24a4d98aee3b7b94aea859a236531e9d76dfc917857f5"
+    },
+    {
+      "file": "gallery-390-light.png",
+      "sha256": "049db61ab623bda3b6244c56c2dd8942ce8b520e8a390ae860a7c4e5083031ce"
+    },
+    {
+      "file": "gallery-390-dark.png",
+      "sha256": "bb3f5ca7a9e3a784bcf61a2e9380be26c15fe8a9685388907f692b37007a83f6"
+    },
+    {
+      "file": "boundary-1440-light.png",
+      "sha256": "ae3f0c11d09a99d56eff352c2a3b5a54daef8b442e725de6737dbf1aa3422448"
+    },
+    {
+      "file": "boundary-1440-dark.png",
+      "sha256": "27207e4c191834f5f4aab17d3924ad86f312abd0eca103de3997a971023c6b15"
+    },
+    {
+      "file": "boundary-390-light.png",
+      "sha256": "e31af8f86806963984742bd59d5cac929a43e675e21c56ad716d4b0ac00b1800"
+    },
+    {
+      "file": "boundary-390-dark.png",
+      "sha256": "8dc330ade3582115b9dbbc99e134c3259c5c9ba5ce0fca800f3e6ed49c86e9ea"
+    },
+    {
+      "file": "modal-1440-light.png",
+      "sha256": "c0b7072ac11e654b0326f12a1405e2a9a9bf22cb0fa6d73e38999da090455a2f"
+    },
+    {
+      "file": "modal-1440-dark.png",
+      "sha256": "5532a1a459510a082872cf2ca288839b58be570243bb0e56c2d54c38875dda60"
+    },
+    {
+      "file": "modal-390-light.png",
+      "sha256": "3d784df8659a17fcc273ab5d8f5c5ab7d888879656240e40c33974828c6ad115"
+    },
+    {
+      "file": "modal-390-dark.png",
+      "sha256": "10ebe7c566e18b49922870928b2084a51840eb35b22c55c563944b406f6002be"
+    }
+  ],
+  "verificationLimits": [
+    "Closed-page axe checks only; no open-dialog, Firefox ESR140 or native accessibility acceptance.",
+    "Every switch position is authored debug state; no preference is stored, no prefix is stripped, no session is restored and no analysis runs.",
+    "Rectangles and line counts are device layout reports, not glyph metrics; switch positions, header contrast, the empty page after the rows and the retained left half are re-measured from the embedded pixels.",
+    "The Fold placement follows D50, D51 and the existing Settings behaviour; it was adopted, not separately chosen.",
+    "Synthetic changed-inset and changed-witness fixtures are validation controls, not extra Android captures.",
+    "Full Android lint retains five inherited errors; no finding names a Settings study file."
+  ],
+  "pageDigestsRemoved": "Digests of the page, template, builder, test, manifest, native result, preflight and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it.",
+  "recheckOf20261005": {
+    "why": "D86 withdrew the two-row pane and the page gained a withdrawal notice; D88 then removed the builder's digest rules. Everything else in this record describes the check made at publication.",
+    "build": "Rebuilt and validated; the built page equals the committed page.",
+    "consumerTest": "Settings-pane consumer: 94 rules, 130 rejected inputs, script encoding and positive controls passed.",
+    "guardRemovalProof": "With the required-statement rule deleted, the test failed with: Expected Settings-pane rejection absent: required-statement; got acceptance.",
+    "browser": "Offline Chromium in a container bounded to 2 GiB and 2 CPUs: 24 images decoded and opened, four contexts (desktop and phone width, light and dark), zero axe violations or incomplete checks, no console errors. The dark desktop screenshot was looked at and shows the withdrawal notice.",
+    "ownedBrowserContainerAbsent": true
+  }
+}

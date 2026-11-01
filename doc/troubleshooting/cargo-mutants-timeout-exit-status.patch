@@ -1,0 +1,367 @@
+diff --git a/NEWS.md b/NEWS.md
+index a764c7d..1ef9a9f 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -1,5 +1,9 @@
+ # cargo-mutants changelog
+ 
++## Unreleased
++
++- New: `--accept=timeout`, `--accept=missed`, or both, and the corresponding `accept` configuration key, name outcomes that should not cause a failing exit code. For example, with `--accept=timeout` a run in which some mutants time out and none are missed exits with code 0. The outcomes are still printed and recorded.
++
+ ## 27.1.0
+ 
+ Released 2026-06-02.
+diff --git a/book/src/exit-codes.md b/book/src/exit-codes.md
+index 3f5f94a..efaf845 100644
+--- a/book/src/exit-codes.md
++++ b/book/src/exit-codes.md
+@@ -20,3 +20,24 @@ cargo-mutants returns an exit code that can be used by scripts or CI.
+ * **70**: Some internal error occurred.
+ 
+ For more detailed machine-readable information, use the [`mutants.out` directory](mutants-out.md).
++
++## Accepting timeouts or missed mutants
++
++By default, any mutant that times out causes exit code 3, and any missed mutant causes exit code 2.
++
++The `--accept` command line option, and the `accept` configuration key, name outcomes that should not cause a failing exit code. The values are `timeout` and `missed`, and they can be combined:
++
++```shell
++cargo mutants --accept=timeout
++cargo mutants --accept=timeout,missed
++```
++
++```toml
++accept = ["timeout"]
++```
++
++Values from the command line are combined with values from the configuration file.
++
++For example, with `--accept=timeout` a mutant that makes the tests hang is treated like a caught mutant when the exit code is chosen: if no mutants are missed, cargo-mutants exits with code 0. Missed mutants still cause exit code 2 unless `missed` is also accepted.
++
++Accepted outcomes are still printed, still counted in the summary line, and still written to `mutants.out`. The other exit codes are not affected.
+diff --git a/book/src/timeouts.md b/book/src/timeouts.md
+index bff2325..52e0393 100644
+--- a/book/src/timeouts.md
++++ b/book/src/timeouts.md
+@@ -14,6 +14,10 @@ In general you will want to skip functions which cause a hang when mutated,
+ either by [marking them with an attribute](skip.md) or in the [configuration
+ file](filter_mutants.md).
+ 
++Alternatively, if a hang under mutation is good enough evidence that the mutant
++would be noticed, [`--accept=timeout`](exit-codes.md#accepting-timeouts-or-missed-mutants)
++stops timeouts from causing a failing exit code.
++
+ ## Timeouts
+ 
+ To avoid hangs, cargo-mutants will kill the build or test after a timeout and
+diff --git a/src/config.rs b/src/config.rs
+index 7271192..74ea077 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -20,7 +20,7 @@ use serde::Deserialize;
+ use tracing::debug;
+ 
+ use crate::Result;
+-use crate::options::Common;
++use crate::options::{Accept, Common};
+ 
+ // NOTE: Docstrings on this struct and its members turn into descriptions in the JSON schema,
+ // so keep them focused on the externally-visible behavior.
+@@ -33,6 +33,8 @@ use crate::options::Common;
+     description = "cargo-mutants configuration, read by default from `.cargo/mutants.toml`. See <https://mutants.rs/>."
+ )]
+ pub struct Config {
++    /// Outcomes that should not cause a failing exit code: `timeout`, `missed`, or both.
++    pub accept: Vec<Accept>,
+     /// Pass extra args to every cargo invocation.
+     pub additional_cargo_args: Vec<String>,
+     /// Pass extra args to cargo test.
+diff --git a/src/main.rs b/src/main.rs
+index 42cdfd6..efcb09f 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -70,7 +70,7 @@ use crate::{
+     lab::test_mutants,
+     list::{list_files, list_mutants},
+     mutant::{Genre, Mutant},
+-    options::{Colors, Common, Options},
++    options::{Accept, Colors, Common, Options},
+     outcome::{Phase, ScenarioOutcome},
+     output::{OutputDir, load_previously_caught},
+     package::Package,
+@@ -225,6 +225,10 @@ pub struct Args {
+     mutate_file: Option<PathBuf>,
+ 
+     // Execution ==========
++    /// Outcomes that should not cause a failing exit code, separated by commas.
++    #[arg(long, value_enum, value_delimiter = ',', help_heading = "Execution")]
++    accept: Vec<Accept>,
++
+     /// Baseline strategy: check that tests pass in an unmutated tree before testing mutants.
+     #[arg(long, value_enum, default_value_t = BaselineStrategy::Run, help_heading = "Execution")]
+     baseline: BaselineStrategy,
+@@ -619,7 +623,7 @@ fn main() -> Result<ExitCode> {
+         }
+         console.set_debug_log(output_dir.open_debug_log()?);
+         let lab_outcome = test_mutants(mutants, &workspace, output_dir, &options, &console)?;
+-        Ok(lab_outcome.exit_code())
++        Ok(lab_outcome.exit_code(&options))
+     }
+ }
+ 
+diff --git a/src/options.rs b/src/options.rs
+index b983fb9..654ab77 100644
+--- a/src/options.rs
++++ b/src/options.rs
+@@ -35,6 +35,9 @@ use crate::{Args, BaselineStrategy, Phase, Result, ValueEnum};
+ #[derive(Default, Debug, Clone)]
+ #[allow(clippy::struct_excessive_bools)]
+ pub struct Options {
++    /// Outcomes that do not cause a failing exit code.
++    pub accept: Vec<Accept>,
++
+     /// Emit annotations?
+     pub annotations: ResolvedAnnotation,
+ 
+@@ -217,6 +220,17 @@ pub enum TestPackages {
+     Named(Vec<String>),
+ }
+ 
++/// An outcome that can be accepted, so that it does not cause a failing exit code.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema, ValueEnum)]
++#[serde(rename_all = "snake_case")]
++pub enum Accept {
++    /// Mutants that made the build or tests time out.
++    Timeout,
++
++    /// Mutants that were not caught by any test.
++    Missed,
++}
++
+ /// Choice of tool to use to run tests.
+ #[derive(
+     Debug, Default, Clone, Copy, PartialEq, Eq, EnumString, Display, Deserialize, JsonSchema,
+@@ -325,6 +339,7 @@ impl Options {
+         }
+ 
+         let options = Options {
++            accept: args.accept.iter().chain(&config.accept).copied().collect(),
+             additional_cargo_args: join_slices(&args.cargo_arg, &config.additional_cargo_args),
+             additional_cargo_test_args: args
+                 .cargo_test_arg
+@@ -528,6 +543,60 @@ mod test {
+         assert_eq!(options.test_tool(), TestTool::Nextest);
+     }
+ 
++    #[test]
++    fn accept_is_empty_by_default() {
++        let args = Args::parse_from(["mutants"]);
++        let config = Config::default();
++        let options = Options::new(&args, &config).unwrap();
++        assert!(options.accept.is_empty());
++    }
++
++    #[test]
++    fn accept_arg_takes_comma_separated_and_repeated_values() {
++        let args = Args::parse_from(["mutants", "--accept=timeout,missed"]);
++        let options = Options::new(&args, &Config::default()).unwrap();
++        assert_eq!(options.accept, [Accept::Timeout, Accept::Missed]);
++
++        let args = Args::parse_from(["mutants", "--accept", "missed", "--accept", "timeout"]);
++        let options = Options::new(&args, &Config::default()).unwrap();
++        assert_eq!(options.accept, [Accept::Missed, Accept::Timeout]);
++    }
++
++    #[test]
++    fn accept_arg_rejects_outcomes_that_cannot_be_accepted() {
++        let err = Args::try_parse_from(["mutants", "--accept=caught"])
++            .expect_err("--accept=caught should be rejected");
++        let rendered = format!("{}", err.render());
++        assert!(rendered.contains("invalid value 'caught' for '--accept <ACCEPT>'"));
++        assert!(rendered.contains("[possible values: timeout, missed]"));
++    }
++
++    #[test]
++    fn accept_from_config_is_combined_with_accept_arg() {
++        let config = indoc! { r#"
++            accept = ["missed"]
++        "#};
++        let mut config_file = NamedTempFile::new().unwrap();
++        config_file.write_all(config.as_bytes()).unwrap();
++        let config = Config::read_file(config_file.path()).unwrap();
++
++        let args = Args::try_parse_from(["mutants"]).unwrap();
++        let options = Options::new(&args, &config).unwrap();
++        assert_eq!(options.accept, [Accept::Missed]);
++
++        let args = Args::try_parse_from(["mutants", "--accept=timeout"]).unwrap();
++        let options = Options::new(&args, &config).unwrap();
++        assert_eq!(options.accept, [Accept::Timeout, Accept::Missed]);
++    }
++
++    #[test]
++    fn accept_in_config_rejects_outcomes_that_cannot_be_accepted() {
++        let mut config_file = NamedTempFile::new().unwrap();
++        config_file.write_all(b"accept = [\"unviable\"]\n").unwrap();
++        Config::read_file(config_file.path())
++            .expect_err("accept = [\"unviable\"] should be rejected");
++    }
++
+     #[test]
+     fn options_from_baseline_arg() {
+         let args = Args::parse_from(["mutants", "--baseline", "skip"]);
+diff --git a/src/outcome.rs b/src/outcome.rs
+index ec5b786..1041b51 100644
+--- a/src/outcome.rs
++++ b/src/outcome.rs
+@@ -17,6 +17,7 @@ use tracing::warn;
+ 
+ use crate::console::{format_duration, plural};
+ use crate::exit_code::ExitCode;
++use crate::options::Accept;
+ use crate::process::Exit;
+ use crate::{Options, Result, Scenario, output};
+ 
+@@ -107,7 +108,9 @@ impl LabOutcome {
+     }
+ 
+     /// Return the overall program exit code reflecting this outcome.
+-    pub fn exit_code(&self) -> ExitCode {
++    ///
++    /// Outcomes listed in `options.accept` do not cause a failing exit code.
++    pub fn exit_code(&self, options: &Options) -> ExitCode {
+         // TODO: Maybe move this into an error returned from experiment()?
+         if self
+             .outcomes
+@@ -115,9 +118,9 @@ impl LabOutcome {
+             .any(|o| !o.scenario.is_mutant() && !o.success())
+         {
+             ExitCode::BaselineFailed
+-        } else if self.timeout > 0 {
++        } else if self.timeout > 0 && !options.accept.contains(&Accept::Timeout) {
+             ExitCode::Timeout
+-        } else if self.missed > 0 {
++        } else if self.missed > 0 && !options.accept.contains(&Accept::Missed) {
+             ExitCode::FoundProblems
+         } else {
+             ExitCode::Success
+@@ -341,9 +344,84 @@ pub enum SummaryOutcome {
+ mod test {
+     use std::time::Duration;
+ 
++    use jiff::Timestamp;
++
++    use crate::Options;
++    use crate::exit_code::ExitCode;
++    use crate::options::Accept;
+     use crate::process::Exit;
+ 
+-    use super::{Phase, PhaseResult, Scenario, ScenarioOutcome};
++    use super::{LabOutcome, Phase, PhaseResult, Scenario, ScenarioOutcome};
++
++    fn lab_outcome_with_missed_and_timeout(missed: usize, timeout: usize) -> LabOutcome {
++        let mut lab_outcome = LabOutcome::new(Timestamp::now());
++        lab_outcome.missed = missed;
++        lab_outcome.timeout = timeout;
++        lab_outcome
++    }
++
++    fn options_accepting(accept: &[Accept]) -> Options {
++        Options {
++            accept: accept.to_vec(),
++            ..Options::default()
++        }
++    }
++
++    #[test]
++    fn exit_code_reports_timeouts_before_missed_mutants_when_nothing_is_accepted() {
++        let options = options_accepting(&[]);
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(0, 0).exit_code(&options),
++            ExitCode::Success
++        );
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 0).exit_code(&options),
++            ExitCode::FoundProblems
++        );
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(0, 1).exit_code(&options),
++            ExitCode::Timeout
++        );
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 1).exit_code(&options),
++            ExitCode::Timeout
++        );
++    }
++
++    #[test]
++    fn exit_code_with_accept_timeout_ignores_timeouts_but_reports_missed_mutants() {
++        let options = options_accepting(&[Accept::Timeout]);
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(0, 1).exit_code(&options),
++            ExitCode::Success
++        );
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 1).exit_code(&options),
++            ExitCode::FoundProblems
++        );
++    }
++
++    #[test]
++    fn exit_code_with_accept_missed_ignores_missed_mutants_but_reports_timeouts() {
++        let options = options_accepting(&[Accept::Missed]);
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 0).exit_code(&options),
++            ExitCode::Success
++        );
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 1).exit_code(&options),
++            ExitCode::Timeout
++        );
++    }
++
++    #[test]
++    fn exit_code_with_accept_timeout_and_missed_is_success() {
++        let options = options_accepting(&[Accept::Timeout, Accept::Missed]);
++        assert_eq!(
++            lab_outcome_with_missed_and_timeout(1, 1).exit_code(&options),
++            ExitCode::Success
++        );
++    }
+ 
+     #[test]
+     fn find_phase_result() {
+diff --git a/tests/main.rs b/tests/main.rs
+index 376ba10..192e35f 100644
+--- a/tests/main.rs
++++ b/tests/main.rs
+@@ -342,6 +342,27 @@ fn integration_test_source_is_not_mutated() {
+     check_text_list_output(tmp_src_dir.path(), "integration_test_source_is_not_mutated");
+ }
+ 
++/// `--accept=missed` still reports the missed mutant in the factorial tree, but exits successfully.
++#[test]
++fn accept_missed_exits_successfully_with_uncaught_mutant_in_factorial() {
++    let tmp_src_dir = copy_of_testdata("factorial");
++
++    run()
++        .arg("mutants")
++        .arg("--no-shuffle")
++        .arg("--no-times")
++        .arg("--accept=missed")
++        .arg("-d")
++        .arg(tmp_src_dir.path())
++        .assert()
++        .code(0)
++        .stderr("")
++        .stdout(contains(
++            "MISSED   src/bin/factorial.rs:2:5: replace main with ()",
++        ))
++        .stdout(contains("5 mutants tested: 1 missed, 4 caught"));
++}
++
+ #[test]
+ fn uncaught_mutant_in_factorial() {
+     let tmp_src_dir = copy_of_testdata("factorial");

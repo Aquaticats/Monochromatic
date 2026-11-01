@@ -1,0 +1,133 @@
+{
+  "revision": "67f7340dd5b79ce793a30901a5fc4606e0f718e4",
+  "observations": [
+    {
+      "round": 1,
+      "phase": "cold",
+      "elapsedSeconds": 268.557767541,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "5s3508wm66",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "phase": "unchanged-1",
+      "elapsedSeconds": 37.65373905799998,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "hlj7bscmr6",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "phase": "unchanged-2",
+      "elapsedSeconds": 25.013275594999957,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "8mb5xl9mzt",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "phase": "cold",
+      "elapsedSeconds": 265.416590303,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "8m5xhj3pb9",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "phase": "unchanged-1",
+      "elapsedSeconds": 22.297395546999994,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "6llb9ttm7j",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "phase": "unchanged-2",
+      "elapsedSeconds": 25.700683108000085,
+      "version": "music-player 0.1.4",
+      "metadata": {
+        "depot.build": {
+          "buildID": "493045tdmz",
+          "projectID": "72lp3rlfvw",
+          "targets": [
+            "artifact"
+          ]
+        }
+      }
+    }
+  ],
+  "collectedAt": "2026-10-15T23:37:57.207Z",
+  "buildJobs": 16,
+  "builderCpus": 16,
+  "builderMemoryGb": 32,
+  "summaries": [
+    {
+      "phase": "cold",
+      "samples": [
+        268.557767541,
+        265.416590303
+      ],
+      "meanSeconds": 266.987178922,
+      "minSeconds": 265.416590303,
+      "maxSeconds": 268.557767541,
+      "spreadSeconds": 3.1411772379999547,
+      "grossComputeUsdUsingClientElapsed": 0.17799145261466667
+    },
+    {
+      "phase": "unchanged",
+      "samples": [
+        37.65373905799998,
+        25.013275594999957,
+        22.297395546999994,
+        25.700683108000085
+      ],
+      "meanSeconds": 27.666273327000006,
+      "minSeconds": 22.297395546999994,
+      "maxSeconds": 37.65373905799998,
+      "spreadSeconds": 15.356343510999984,
+      "grossComputeUsdUsingClientElapsed": 0.018444182218000007
+    }
+  ],
+  "limitations": [
+    "Client elapsed includes local artifact download; this is not the provider billing interval.",
+    "Two cold observations, with a warm base image and fresh Cargo caches.",
+    "The original four-job container baseline has only one cold observation and predates the source-content cache fix.",
+    "This default-builder probe exercises cold and unchanged inputs; source round trips are tested separately by the GitHub runner matrix."
+  ]
+}

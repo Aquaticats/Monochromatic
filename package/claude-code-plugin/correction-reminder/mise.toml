@@ -1,7 +1,7 @@
 [tasks.lint]
 extends = "lint"
 
-[tasks.'lint:types']
+[tasks."lint:types"]
 extends = "lint:types"
 
 [tasks."lint:oxlint"]
@@ -16,7 +16,7 @@ extends = "build"
 [tasks."build:js"]
 extends = "build:js"
 
-[tasks.'build:js:node']
+[tasks."build:js:node"]
 extends = "build:js:node"
 
 [tasks."watch:build"]

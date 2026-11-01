@@ -1,0 +1,1128 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-10-18",
+  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+  "sourceBranch": "research/depot-runtime-orchestration-20261018",
+  "purpose": "Fresh runtime prerequisite observation, not guest/application execution or invoice measurement",
+  "github": {
+    "runId": 39104064329,
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39104064329",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 117606073238,
+        "name": "platform (ubuntu-24.04)",
+        "conclusion": "success",
+        "startedAt": "2026-10-18T06:26:57Z",
+        "completedAt": "2026-10-18T06:27:25Z",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T06:27:00Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T06:26:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:16Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 2,
+            "startedAt": "2026-10-18T06:27:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:18Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 3,
+            "startedAt": "2026-10-18T06:27:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:20Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 4,
+            "startedAt": "2026-10-18T06:27:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/runtime:platform",
+            "number": 5,
+            "startedAt": "2026-10-18T06:27:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 6,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 12,
+            "startedAt": "2026-10-18T06:27:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:23Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-10-18T06:27:23Z",
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "id": 117606073359,
+        "name": "platform (depot-ubuntu-24.04)",
+        "conclusion": "success",
+        "startedAt": "2026-10-18T06:26:58Z",
+        "completedAt": "2026-10-18T06:27:23Z",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T06:27:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T06:27:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:18Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 2,
+            "startedAt": "2026-10-18T06:27:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:19Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 3,
+            "startedAt": "2026-10-18T06:27:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:20Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 4,
+            "startedAt": "2026-10-18T06:27:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/runtime:platform",
+            "number": 5,
+            "startedAt": "2026-10-18T06:27:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 6,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 12,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T06:27:21Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-10-18T06:27:21Z",
+            "status": "completed"
+          }
+        ]
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12127692965,
+        "name": "runtime-prerequisites-ubuntu-24.04",
+        "sizeInBytes": 1883,
+        "archiveDigest": "sha256:f751c023664149d432cffe2c3a64903c70f3ea66b1ac466679c33efd95900733",
+        "apiDigest": "sha256:f751c023664149d432cffe2c3a64903c70f3ea66b1ac466679c33efd95900733",
+        "member": "platform-gha-ubuntu-24.04-x64.json",
+        "memberSha256": "5da4d7f36a58ca5416b226d2387f65cc4bc418d3640239ae6ce6968957643646",
+        "observation": {
+          "schemaVersion": 1,
+          "observedAt": "2026-10-18T06:27:21.736Z",
+          "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+          "provider": "gha-ubuntu-24.04",
+          "platform": "linux",
+          "architecture": "x64",
+          "kernel": "6.17.0-1022-azure",
+          "cpuCount": 4,
+          "cpuModels": [
+            "AMD EPYC 7763 64-Core Processor"
+          ],
+          "systemMemoryBytes": 16766414848,
+          "freeMemoryBytes": 15369904128,
+          "node": "v26.12.0",
+          "sourceContext": {
+            "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+            "GITHUB_REF": "refs/heads/research/depot-runtime-orchestration-20261018",
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_RUN_ID": "39104064329",
+            "GITHUB_JOB": "platform",
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "X64",
+            "ImageVersion": "20261012.334.1"
+          },
+          "display": {
+            "DISPLAY": null,
+            "WAYLAND_DISPLAY": null,
+            "XDG_RUNTIME_DIR": "/run/user/1001",
+            "DBUS_SESSION_BUS_ADDRESS": null
+          },
+          "controls": {
+            "positiveControl": {
+              "path": "/dev/null",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            },
+            "negativeControl": {
+              "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+              "exists": false,
+              "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+              "errorCode": "ENOENT"
+            }
+          },
+          "devices": [
+            {
+              "path": "/dev/kvm",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": false,
+              "accessError": "Error: EACCES: permission denied, access '/dev/kvm'"
+            },
+            {
+              "path": "/dev/dri/card1",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": false,
+              "accessError": "Error: EACCES: permission denied, access '/dev/dri/card1'"
+            }
+          ],
+          "graphicsDevices": [
+            {
+              "name": "card1",
+              "vendor": {
+                "value": "0x1414"
+              },
+              "device": {
+                "value": "0x6"
+              },
+              "driver": "../../../../../../bus/vmbus/drivers/hyperv_drm"
+            }
+          ],
+          "cgroupObservations": [
+            {
+              "path": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "values": {
+                "memory.max": {
+                  "value": "max"
+                },
+                "memory.current": {
+                  "value": "1638375424"
+                },
+                "cpu.max": {
+                  "value": "max 100000"
+                },
+                "pids.max": {
+                  "value": "19151"
+                }
+              }
+            },
+            {
+              "path": "/sys/fs/cgroup",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            }
+          ],
+          "sdk": {
+            "path": "/usr/local/lib/android/sdk",
+            "emulatorPresent": false,
+            "adbPresent": true
+          },
+          "commands": [
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "is-system-running"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "running\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "show",
+                "--property=Version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Version=255.4-1ubuntu8.17\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "docker",
+                "version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:16 2025\n OS/Arch:           linux/amd64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:16 2025\n  OS/Arch:          linux/amd64\n  Experimental:     false\n containerd:\n  Version:          v2.4.1\n  GitCommit:        f2551031d7276a770f65f98c9b52e57e7dad07e8\n runc:\n  Version:          1.5.2\n  GitCommit:        v1.5.2-0-g29dd3dc2\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "podman",
+                "--version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "podman version 4.9.3\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "qemu-system-x86_64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-x86_64 ENOENT"
+            },
+            {
+              "command": [
+                "qemu-system-aarch64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-aarch64 ENOENT"
+            }
+          ],
+          "unexercised": [
+            "KVM guest execution",
+            "GPU rendering context",
+            "emulator launch",
+            "application runtime consumer",
+            "billable allocation lifetime"
+          ]
+        }
+      },
+      {
+        "id": 12127347945,
+        "name": "runtime-prerequisites-depot-ubuntu-24.04",
+        "sizeInBytes": 1766,
+        "archiveDigest": "sha256:072835bb30e6acfa35086b4cab6d24d43edd7766d545a4784493840e91b2980c",
+        "apiDigest": "sha256:072835bb30e6acfa35086b4cab6d24d43edd7766d545a4784493840e91b2980c",
+        "member": "platform-gha-depot-ubuntu-24.04-x64.json",
+        "memberSha256": "757512686d242910ce074c0699ae35ec335a705f19bfde4400fc29e58da8883d",
+        "observation": {
+          "schemaVersion": 1,
+          "observedAt": "2026-10-18T06:27:21.073Z",
+          "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+          "provider": "gha-depot-ubuntu-24.04",
+          "platform": "linux",
+          "architecture": "x64",
+          "kernel": "6.12.109+",
+          "cpuCount": 2,
+          "cpuModels": [
+            "AMD EPYC 9R45 96-Core Processor"
+          ],
+          "systemMemoryBytes": 8336855040,
+          "freeMemoryBytes": 7474737152,
+          "node": "v26.12.0",
+          "sourceContext": {
+            "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+            "GITHUB_REF": "refs/heads/research/depot-runtime-orchestration-20261018",
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_RUN_ID": "39104064329",
+            "GITHUB_JOB": "platform",
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "X64",
+            "ImageVersion": "dev"
+          },
+          "display": {
+            "DISPLAY": null,
+            "WAYLAND_DISPLAY": null,
+            "XDG_RUNTIME_DIR": "/run/user/1001",
+            "DBUS_SESSION_BUS_ADDRESS": null
+          },
+          "controls": {
+            "positiveControl": {
+              "path": "/dev/null",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            },
+            "negativeControl": {
+              "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+              "exists": false,
+              "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+              "errorCode": "ENOENT"
+            }
+          },
+          "devices": [
+            {
+              "path": "/dev/kvm",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            }
+          ],
+          "graphicsDevices": [],
+          "cgroupObservations": [
+            {
+              "path": "/sys/fs/cgroup/system.slice/actions-runner.service",
+              "values": {
+                "memory.max": {
+                  "value": "max"
+                },
+                "memory.current": {
+                  "value": "1610092544"
+                },
+                "cpu.max": {
+                  "value": "max 100000"
+                },
+                "pids.max": {
+                  "value": "39321"
+                }
+              }
+            },
+            {
+              "path": "/sys/fs/cgroup",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            }
+          ],
+          "sdk": {
+            "path": "/usr/local/lib/android/sdk",
+            "emulatorPresent": false,
+            "adbPresent": true
+          },
+          "commands": [
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "is-system-running"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "running\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "show",
+                "--property=Version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Version=255.4-1ubuntu8.17\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "docker",
+                "version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:16 2025\n OS/Arch:           linux/amd64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:16 2025\n  OS/Arch:          linux/amd64\n  Experimental:     false\n containerd:\n  Version:          v2.3.3\n  GitCommit:        aad11006b869517fcd3009450b6f82da282e1a9b\n runc:\n  Version:          1.4.3\n  GitCommit:        v1.4.3-0-gbb14dab\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "podman",
+                "--version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "podman version 5.8.4\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "qemu-system-x86_64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-x86_64 ENOENT"
+            },
+            {
+              "command": [
+                "qemu-system-aarch64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-aarch64 ENOENT"
+            }
+          ],
+          "unexercised": [
+            "KVM guest execution",
+            "GPU rendering context",
+            "emulator launch",
+            "application runtime consumer",
+            "billable allocation lifetime"
+          ]
+        }
+      }
+    ]
+  },
+  "native": {
+    "runId": "hgk7c0wl2p",
+    "status": {
+      "org_id": "l4zncjjbj5",
+      "run_id": "hgk7c0wl2p",
+      "status": "finished",
+      "workflows": [
+        {
+          "workflow_id": "3ltf51c5vs",
+          "status": "finished",
+          "name": "research native runtime prerequisites",
+          "jobs": [
+            {
+              "job_display_name": "platform (runner=depot-ubuntu-24.04)",
+              "job_id": "7qtjd83fg7",
+              "job_key": "_inline_0.yaml:platform:matrix-0",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "zhv2d0t6p7",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "9064fb1nv5g84wgh1qv4",
+                  "session_id": "a4833484-0a4e-47da-99b2-e69f5b1414bf",
+                  "logs_command": "depot ci logs zhv2d0t6p7 --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs zhv2d0t6p7 --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/3ltf51c5vs?job=7qtjd83fg7&attempt=zhv2d0t6p7",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "platform (runner=depot-ubuntu-24.04-arm)",
+              "job_id": "6qdbdcg42t",
+              "job_key": "_inline_0.yaml:platform:matrix-1",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "zk2j32qzgj",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "fhm7w9ngkqzj156gdrtw",
+                  "session_id": "0e344052-2ed1-4cc4-abda-71c83094e1cc",
+                  "logs_command": "depot ci logs zk2j32qzgj --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs zk2j32qzgj --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/3ltf51c5vs?job=6qdbdcg42t&attempt=zk2j32qzgj",
+                  "ssh_available": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "run": {
+      "org_id": "l4zncjjbj5",
+      "run_id": "hgk7c0wl2p",
+      "repo": "Aquaticats/Monochromatic",
+      "ref": "15ee06968996212b97111accc2013c2780ed1944",
+      "sha": "15ee06968996212b97111accc2013c2780ed1944",
+      "head_sha": "15ee06968996212b97111accc2013c2780ed1944",
+      "trigger": "api",
+      "status": "finished",
+      "created_at": "2026-10-18T06:29:31Z",
+      "started_at": "2026-10-18T06:29:31Z",
+      "finished_at": "2026-10-18T06:30:09Z"
+    },
+    "artifacts": [
+      {
+        "metadata": {
+          "artifact_id": "01a14db4-0622-7808-852b-4723bb8b8164",
+          "run_id": "hgk7c0wl2p",
+          "workflow_id": "3ltf51c5vs",
+          "workflow_path": "",
+          "job_id": "7qtjd83fg7",
+          "job_key": "_inline_0.yaml:platform:matrix-0",
+          "attempt_id": "zhv2d0t6p7",
+          "attempt": 1,
+          "name": "native-runtime-prerequisites-depot-ubuntu-24.04",
+          "size_bytes": 1693,
+          "created_at": "2026-10-18T06:30:06Z"
+        },
+        "archiveSha256": "5db809dd59ed5899e97f6e3b95b1e28df6847264e07c0400181cd0868243de07",
+        "member": "platform-native-depot-ubuntu-24.04-x64.json",
+        "memberSha256": "31f515565b1b04bbc6e3753af5e1a054c0d4132619db77bfdce43d8f0db6aba2",
+        "observation": {
+          "schemaVersion": 1,
+          "observedAt": "2026-10-18T06:30:05.415Z",
+          "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+          "provider": "native-depot-ubuntu-24.04",
+          "platform": "linux",
+          "architecture": "x64",
+          "kernel": "6.12.109+",
+          "cpuCount": 2,
+          "cpuModels": [
+            "AMD EPYC 9R45 96-Core Processor"
+          ],
+          "systemMemoryBytes": 8336855040,
+          "freeMemoryBytes": 7721639936,
+          "node": "v26.12.0",
+          "sourceContext": {
+            "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+            "GITHUB_REF": "",
+            "GITHUB_EVENT_NAME": "api",
+            "GITHUB_RUN_ID": "304807561045281",
+            "GITHUB_JOB": "platform",
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "X64",
+            "ImageVersion": null
+          },
+          "display": {
+            "DISPLAY": null,
+            "WAYLAND_DISPLAY": null,
+            "XDG_RUNTIME_DIR": null,
+            "DBUS_SESSION_BUS_ADDRESS": null
+          },
+          "controls": {
+            "positiveControl": {
+              "path": "/dev/null",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            },
+            "negativeControl": {
+              "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+              "exists": false,
+              "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+              "errorCode": "ENOENT"
+            }
+          },
+          "devices": [
+            {
+              "path": "/dev/kvm",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            }
+          ],
+          "graphicsDevices": [],
+          "cgroupObservations": [
+            {
+              "path": "/sys/fs/cgroup/",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            },
+            {
+              "path": "/sys/fs/cgroup",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            }
+          ],
+          "sdk": {
+            "path": "/home/runner/Android/Sdk",
+            "emulatorPresent": false,
+            "adbPresent": false
+          },
+          "commands": [
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "is-system-running"
+              ],
+              "status": 1,
+              "signal": null,
+              "stdout": "offline\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "show",
+                "--property=Version"
+              ],
+              "status": 1,
+              "signal": null,
+              "stdout": "",
+              "stderr": "Failed to connect to bus: No medium found\n",
+              "error": null
+            },
+            {
+              "command": [
+                "docker",
+                "version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:16 2025\n OS/Arch:           linux/amd64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:16 2025\n  OS/Arch:          linux/amd64\n  Experimental:     false\n containerd:\n  Version:          v2.3.3\n  GitCommit:        aad11006b869517fcd3009450b6f82da282e1a9b\n runc:\n  Version:          1.4.3\n  GitCommit:        v1.4.3-0-gbb14dabe\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "podman",
+                "--version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "podman version 5.8.4\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "qemu-system-x86_64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-x86_64 ENOENT"
+            },
+            {
+              "command": [
+                "qemu-system-aarch64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-aarch64 ENOENT"
+            }
+          ],
+          "unexercised": [
+            "KVM guest execution",
+            "GPU rendering context",
+            "emulator launch",
+            "application runtime consumer",
+            "billable allocation lifetime"
+          ]
+        }
+      },
+      {
+        "metadata": {
+          "artifact_id": "01a14db4-1155-778d-b574-5e33e197a91b",
+          "run_id": "hgk7c0wl2p",
+          "workflow_id": "3ltf51c5vs",
+          "workflow_path": "",
+          "job_id": "6qdbdcg42t",
+          "job_key": "_inline_0.yaml:platform:matrix-1",
+          "attempt_id": "zk2j32qzgj",
+          "attempt": 1,
+          "name": "native-runtime-prerequisites-depot-ubuntu-24.04-arm",
+          "size_bytes": 1698,
+          "created_at": "2026-10-18T06:30:08Z"
+        },
+        "archiveSha256": "b14bfcee7e56c5ec4933cc0f8e216b6e45b8c6ea3e260d025dc6910e611ae054",
+        "member": "platform-native-depot-ubuntu-24.04-arm-arm64.json",
+        "memberSha256": "7cdb48acbcb21b7c01243a695a7a0db75041efc24712b1fafbd8796835f77ea4",
+        "observation": {
+          "schemaVersion": 1,
+          "observedAt": "2026-10-18T06:30:08.652Z",
+          "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "harnessCommit": "15ee06968996212b97111accc2013c2780ed1944",
+          "provider": "native-depot-ubuntu-24.04-arm",
+          "platform": "linux",
+          "architecture": "arm64",
+          "kernel": "6.12.109+",
+          "cpuCount": 2,
+          "cpuModels": [
+            "Neoverse-V2"
+          ],
+          "systemMemoryBytes": 8327942144,
+          "freeMemoryBytes": 7768293376,
+          "node": "v26.12.0",
+          "sourceContext": {
+            "GITHUB_SHA": "15ee06968996212b97111accc2013c2780ed1944",
+            "GITHUB_REF": "",
+            "GITHUB_EVENT_NAME": "api",
+            "GITHUB_RUN_ID": "304807561045281",
+            "GITHUB_JOB": "platform",
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "ARM64",
+            "ImageVersion": null
+          },
+          "display": {
+            "DISPLAY": null,
+            "WAYLAND_DISPLAY": null,
+            "XDG_RUNTIME_DIR": null,
+            "DBUS_SESSION_BUS_ADDRESS": null
+          },
+          "controls": {
+            "positiveControl": {
+              "path": "/dev/null",
+              "exists": true,
+              "characterDevice": true,
+              "readableWritable": true,
+              "accessError": null
+            },
+            "negativeControl": {
+              "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+              "exists": false,
+              "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+              "errorCode": "ENOENT"
+            }
+          },
+          "devices": [
+            {
+              "path": "/dev/kvm",
+              "exists": false,
+              "error": "Error: ENOENT: no such file or directory, stat '/dev/kvm'",
+              "errorCode": "ENOENT"
+            }
+          ],
+          "graphicsDevices": [],
+          "cgroupObservations": [
+            {
+              "path": "/sys/fs/cgroup/",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            },
+            {
+              "path": "/sys/fs/cgroup",
+              "values": {
+                "memory.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.max'"
+                },
+                "memory.current": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/memory.current'"
+                },
+                "cpu.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/cpu.max'"
+                },
+                "pids.max": {
+                  "error": "Error: ENOENT: no such file or directory, open '/sys/fs/cgroup/pids.max'"
+                }
+              }
+            }
+          ],
+          "sdk": {
+            "path": "/home/runner/Android/Sdk",
+            "emulatorPresent": false,
+            "adbPresent": false
+          },
+          "commands": [
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "is-system-running"
+              ],
+              "status": 1,
+              "signal": null,
+              "stdout": "offline\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "systemctl",
+                "--user",
+                "show",
+                "--property=Version"
+              ],
+              "status": 1,
+              "signal": null,
+              "stdout": "",
+              "stderr": "Failed to connect to bus: No medium found\n",
+              "error": null
+            },
+            {
+              "command": [
+                "docker",
+                "version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "Client: Docker Engine - Community\n Version:           28.0.4\n API version:       1.48\n Go version:        go1.23.7\n Git commit:        b8034c0\n Built:             Tue Mar 25 15:07:55 2025\n OS/Arch:           linux/arm64\n Context:           default\n\nServer: Docker Engine - Community\n Engine:\n  Version:          28.0.4\n  API version:      1.48 (minimum version 1.24)\n  Go version:       go1.23.7\n  Git commit:       6430e49\n  Built:            Tue Mar 25 15:07:55 2025\n  OS/Arch:          linux/arm64\n  Experimental:     false\n containerd:\n  Version:          v2.3.3\n  GitCommit:        aad11006b869517fcd3009450b6f82da282e1a9b\n runc:\n  Version:          1.4.3\n  GitCommit:        v1.4.3-0-gbb14dabe\n docker-init:\n  Version:          0.19.0\n  GitCommit:        de40ad0\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "podman",
+                "--version"
+              ],
+              "status": 0,
+              "signal": null,
+              "stdout": "podman version 5.8.4\n",
+              "stderr": "",
+              "error": null
+            },
+            {
+              "command": [
+                "qemu-system-x86_64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-x86_64 ENOENT"
+            },
+            {
+              "command": [
+                "qemu-system-aarch64",
+                "--version"
+              ],
+              "status": null,
+              "signal": null,
+              "stdout": "",
+              "stderr": "",
+              "error": "spawnSync qemu-system-aarch64 ENOENT"
+            }
+          ],
+          "unexercised": [
+            "KVM guest execution",
+            "GPU rendering context",
+            "emulator launch",
+            "application runtime consumer",
+            "billable allocation lifetime"
+          ]
+        }
+      }
+    ]
+  },
+  "localControl": {
+    "observedAt": "2026-10-18T06:26:10.259Z",
+    "architecture": "x64",
+    "devices": [
+      {
+        "path": "/dev/kvm",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      },
+      {
+        "path": "/dev/dri/card0",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      },
+      {
+        "path": "/dev/dri/card1",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      },
+      {
+        "path": "/dev/dri/renderD128",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      },
+      {
+        "path": "/dev/dri/renderD129",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      }
+    ],
+    "graphicsDevices": [
+      {
+        "name": "card0",
+        "vendor": {
+          "value": "0x1002"
+        },
+        "device": {
+          "value": "0x164e"
+        },
+        "driver": "../../../../bus/pci/drivers/amdgpu"
+      },
+      {
+        "name": "card1",
+        "vendor": {
+          "value": "0x1002"
+        },
+        "device": {
+          "value": "0x7480"
+        },
+        "driver": "../../../../../../bus/pci/drivers/amdgpu"
+      },
+      {
+        "name": "renderD128",
+        "vendor": {
+          "value": "0x1002"
+        },
+        "device": {
+          "value": "0x7480"
+        },
+        "driver": "../../../../../../bus/pci/drivers/amdgpu"
+      },
+      {
+        "name": "renderD129",
+        "vendor": {
+          "value": "0x1002"
+        },
+        "device": {
+          "value": "0x164e"
+        },
+        "driver": "../../../../bus/pci/drivers/amdgpu"
+      }
+    ],
+    "displayPresent": true,
+    "discoveryControls": {
+      "positiveControl": {
+        "path": "/dev/null",
+        "exists": true,
+        "characterDevice": true,
+        "readableWritable": true,
+        "accessError": null
+      },
+      "negativeControl": {
+        "path": "/dev/nonexistent-monochromatic-runtime-20261018",
+        "exists": false,
+        "error": "Error: ENOENT: no such file or directory, stat '/dev/nonexistent-monochromatic-runtime-20261018'",
+        "errorCode": "ENOENT"
+      }
+    }
+  },
+  "findings": [
+    "Depot GitHub Actions default x64 exposed readable/writable KVM, contrary to current generic troubleshooting text; successful guest execution remains untested in this cohort",
+    "Native Depot CI default x64 exposed readable/writable KVM; default Arm64 returned ENOENT",
+    "Standard GitHub default Ubuntu KVM and Hyper-V DRM character devices existed but were not readable/writable by the default user; no permission remediation was attempted",
+    "Both Depot families had no DRM graphics device, and all cloud profiles had no DISPLAY or WAYLAND_DISPLAY",
+    "Native CI user service manager was offline; GitHub-hosted and Depot GitHub Actions user managers answered running"
+  ],
+  "unexercised": [
+    "KVM initialization and guest execution",
+    "GPU rendering and emulator launch",
+    "Application runtime qualification",
+    "Other runner images, sizes, regions and repeated allocation spread",
+    "Permissions remediation and display/service setup",
+    "Billable lifetime, metered usage and invoice"
+  ]
+}

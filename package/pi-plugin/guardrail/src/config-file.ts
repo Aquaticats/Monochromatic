@@ -6,7 +6,7 @@
 
 import { readFile, } from 'node:fs/promises';
 import { basename, } from 'node:path';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { FILE_NOT_FOUND_CODE, } from './constants.ts';
 
@@ -22,16 +22,16 @@ type ConfigReadResult =
      */
     readonly loaded: false;
   }
-  | {
+    | {
     /**
      Whether config file existed.
      */
-    readonly loaded: true;
+      readonly loaded: true;
     /**
      Parsed JSON value.
      */
-    readonly value: unknown;
-  };
+      readonly value: unknown;
+    };
 
 /**
  Error shape with optional Node filesystem code.

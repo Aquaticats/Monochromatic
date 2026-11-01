@@ -3,49 +3,58 @@
 # work happens inside this container (see mise.toml tasks). The image also
 # carries the GUI/audio runtime libraries so the `run` task can drive the
 # Slint UI against the host's Wayland + PipeWire sockets (passed through).
-FROM registry.fedoraproject.org/fedora:41
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
 # Build toolchain:
-#   rustup-installed stable  Rust compiler + cargo + clippy. NOT Fedora's `rust`
-#                          package: Slint 1.17.0 declares rust-version 1.92,
-#                          while Fedora 41 ships 1.91.1. rustup gives the
-#                          current stable toolchain (see the rustup RUN below).
+#   rustup-installed nightly Rust compiler + cargo + clippy. NOT the distro's `rust`
+#                          package: the repository builds with the nightly
+#                          toolchain.lock.json pins (see the rustup RUN below).
 #   gcc                    cc for building C dependencies (libopus is compiled
 #                          from source by opusic-sys, the opus crate's -sys
 #                          backend; see the opus pin in Cargo.toml)
-#   cmake, ninja-build     opusic-sys builds vendored libopus 1.6.1 via CMake
+#   cmake, ninja           opusic-sys builds vendored libopus 1.6.1 via CMake
 #                          (Ninja generator); the host gets cmake from mise, but
 #                          the container does not see host mise tools, so install
 #                          it here. See
 #                          doc/troubleshooting/audiopus-cmake4-libopus-min-version.md
-#   clang, clang-devel     libclang for bindgen used by pipewire's libspa-sys
-#   pkgconf-pkg-config     pkg-config used to locate libpipewire (no longer opus:
+#   clang                  libclang for bindgen used by pipewire's libspa-sys (Arch has no
+#                          separate clang-devel: the one package carries headers and libclang)
+#   pkgconf                pkg-config used to locate libpipewire (no longer opus:
 #                          opusic-sys vendors and statically links libopus)
-#   *-devel                headers for the native audio dependencies
+#   Arch packages carry their headers, so no separate *-devel packages exist.
+#   pipewire               libpipewire and its headers for the native audio dependencies
 # Runtime (for `run`):
-#   mesa-*                 OpenGL/EGL for the femtovg renderer + DRI drivers
+#   mesa, libglvnd         OpenGL/EGL for the femtovg renderer + DRI drivers + libgbm
 #   libxkbcommon, wayland  winit Wayland backend
-#   fontconfig, freetype   Slint font loading
-#   google-noto-sans-cjk-fonts  CJK glyph coverage. Slint 1.16's femtovg
+#   fontconfig, freetype2  Slint font loading
+#   noto-fonts-cjk         CJK glyph coverage. Slint 1.16's femtovg
 #                          renderer lays text out with parley + fontique
 #                          (system_fonts enabled), which falls back per script
 #                          to a system font. Without a CJK font installed,
 #                          Japanese/Chinese/Korean filenames render as blanks.
 #   xdg-desktop-portal     rfd file picker over the portal (when D-Bus passed)
-RUN dnf install -y \
+#   dbus                   the notification tests (D122, D107) start a private
+#                          session bus of their own; they never use a host bus
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
       gcc \
-      cmake ninja-build \
-      clang clang-devel \
-      pkgconf-pkg-config \
-      pipewire-devel \
-      mesa-dri-drivers mesa-libgbm libglvnd-glx libglvnd-egl \
-      libwayland-client libwayland-cursor libwayland-egl libxkbcommon \
-      fontconfig fontconfig-devel freetype freetype-devel \
-      google-noto-sans-cjk-fonts \
-    && dnf clean all
+      cmake ninja \
+      clang \
+      pkgconf \
+      pipewire \
+      mesa libglvnd \
+      wayland libxkbcommon \
+      fontconfig freetype2 \
+      noto-fonts-cjk \
+      dbus \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
-# Rust toolchain via rustup, not Fedora's `rust` package (1.91.1), because
-# Slint 1.17.0 declares rust-version 1.92. RUSTUP_HOME holds the toolchain and
+# Rust toolchain via rustup, not the distro's `rust` package, because the
+# repository builds with the pinned nightly. RUSTUP_HOME holds the toolchain and
 # persists in the image. The install uses a throwaway
 # CARGO_HOME=/usr/local so the cargo/rustc/clippy proxy shims land in
 # /usr/local/bin (already on PATH, persistent in the image); the real CARGO_HOME
@@ -53,17 +62,21 @@ RUN dnf install -y \
 # at run time. If CARGO_HOME were /cargo here, the run-time volume mount would
 # shadow the proxies. `--profile minimal` plus the clippy component keeps the
 # layer small while still providing `cargo clippy`.
+# The toolchain is the nightly toolchain.lock.json pins (`.tools.rust.version`), as in Containerfile.windows-gnu;
+# the build context is this package directory, so this default is kept in sync with that key, and
+# `--build-arg RUST_TOOLCHAIN=` overrides it.
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
-          --default-toolchain stable --component clippy
+          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
 
 # cargo-nextest is the test runner the `test` mise task invokes
 # (`cargo nextest run`). Install the prebuilt binary from get.nexte.st into
 # /usr/local/bin (already on PATH, persistent in the image) rather than
 # `cargo install cargo-nextest`, which would add a multi-minute source compile
 # to every image rebuild. Arch-aware: get.nexte.st serves separate x86_64 and
-# aarch64 builds. The standard Fedora image already ships `tar`/`gzip` for the
+# aarch64 builds. The CachyOS image already ships `tar`/`gzip` for the
 # `tar zxf` extraction.
 RUN arch="$(uname -m)" \
     && case "$arch" in \
@@ -73,6 +86,31 @@ RUN arch="$(uname -m)" \
     esac \
     && curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail "$nextest_url" \
       | tar zxf - -C /usr/local/bin
+
+# The `run` mise task builds in this image and starts the binary on the host. CachyOS ships the newest glibc, and a binary built
+# against it needs symbols (GLIBC_2.44 `sinh` and `cosh` on 2026-10-29) that an older host lacks. cargo-zigbuild links with
+# Zig's bundled glibc stubs for a chosen version, so `cargo zigbuild --target x86_64-unknown-linux-gnu.2.39` makes a binary that
+# needs nothing newer than glibc 2.39 (Ubuntu 24.04's, the repository's release floor). Zig is a stopgap used only for this
+# one build path; issue #1814 tracks replacing it.
+# Zig 0.15.2 is the version toolchain.lock.json pins (`.tools.zig`); it is downloaded the way package/terminal/app/Containerfile
+# does, with the same checksums. cargo-zigbuild comes from the distro repository; --assume-installed stops pacman from also
+# installing the distro's own newer zig package, which would be a second Zig beside this one.
+ENV ZIG_VERSION=0.15.2
+RUN arch="$(uname -m)" \
+    && case "$arch" in \
+      x86_64) zig_arch="x86_64"; zig_sha="02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239" ;; \
+      aarch64) zig_arch="aarch64"; zig_sha="958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac \
+    && curl --fail --location --show-error \
+      "https://ziglang.org/download/${ZIG_VERSION}/zig-${zig_arch}-linux-${ZIG_VERSION}.tar.xz" \
+      --output /tmp/zig.tar.xz \
+    && echo "${zig_sha}  /tmp/zig.tar.xz" | sha256sum --check --strict \
+    && tar --extract --file /tmp/zig.tar.xz --directory /opt \
+    && ln --symbolic "/opt/zig-${zig_arch}-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
+    && rm /tmp/zig.tar.xz
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed --assume-installed "zig=${ZIG_VERSION}" cargo-zigbuild \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
 ENV CARGO_HOME=/cargo
 # Enable Slint's experimental builtins so `FlexboxLayout` (used for the wrapping,

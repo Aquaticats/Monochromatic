@@ -15,8 +15,8 @@ import {
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(
   undefined,
   {
-  granularity: 'grapheme',
-},
+    granularity: 'grapheme',
+  },
 );
 
 /**

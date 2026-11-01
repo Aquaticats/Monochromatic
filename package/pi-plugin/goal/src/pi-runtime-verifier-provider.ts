@@ -450,35 +450,35 @@ function registerInterruptionProvider(
   modelRuntime.registerProvider(
     PROVIDER_ID,
     {
-    name: 'Pi goal runtime verifier',
-    baseUrl: 'https://pi-goal-verifier.invalid',
-    apiKey: 'disposable-verifier-key',
-    api: PROVIDER_ID,
-    models: [{
-      id: MODEL_ID,
-      name: 'Interruption sequence',
-      reasoning: false,
-      input: ['text',],
-      cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
+      name: 'Pi goal runtime verifier',
+      baseUrl: 'https://pi-goal-verifier.invalid',
+      apiKey: 'disposable-verifier-key',
+      api: PROVIDER_ID,
+      models: [{
+        id: MODEL_ID,
+        name: 'Interruption sequence',
+        reasoning: false,
+        input: ['text',],
+        cost: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: 16_384,
+        maxTokens: 4_096,
+      },],
+      streamSimple(
+        model: ForeignBorrowed<Model<Api>>,
+        _context: ForeignBorrowed<Context>,
+        options?: ForeignBorrowed<SimpleStreamOptions>,
+      ): AssistantMessageEventStream {
+        return scriptedResponse({
+          model,
+          ...(options === undefined ? {} : { options, }),
+        },);
       },
-      contextWindow: 16_384,
-      maxTokens: 4_096,
-    },],
-    streamSimple(
-      model: ForeignBorrowed<Model<Api>>,
-      _context: ForeignBorrowed<Context>,
-      options?: ForeignBorrowed<SimpleStreamOptions>,
-    ): AssistantMessageEventStream {
-      return scriptedResponse({
-        model,
-        ...(options === undefined ? {} : { options, }),
-      },);
     },
-  },
   );
   /**
    Registered scripted model selected without credential discovery.

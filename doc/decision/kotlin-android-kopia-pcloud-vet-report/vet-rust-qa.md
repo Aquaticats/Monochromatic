@@ -317,7 +317,7 @@ invariant violation.
  well within the 6 GB cap.
  Confirms the
 parser is panic-free on arbitrary bytes and that cargo-fuzz 0.13.1 runs cleanly in the
-container context the repo already uses (`package/cli/forbidden-strings.fuzz`,
+container context the repo already uses (`package/forbidden-strings/cli.fuzz`,
  7 targets,
 corpus + dictionaries).
 

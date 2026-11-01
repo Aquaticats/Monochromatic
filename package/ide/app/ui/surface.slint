@@ -1,0 +1,9 @@
+// The large surfaces of the window: the editor, the minimap, the sidebar and the panels over them.
+// In the dark scheme they are pure black, so the minimap's picture, which is the exact average of the window's own
+// pixels, is as bright as the text it stands for and needs no gain; the light scheme keeps the toolkit's palette.
+import { Palette } from "std-widgets.slint";
+
+export global Surface {
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> background: Surface.dark ? #000000 : Palette.background;
+}

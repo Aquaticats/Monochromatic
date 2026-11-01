@@ -44,8 +44,8 @@ export function renderPng({ size, }: { readonly size: number; },): Promise<Buffe
     { density: RENDER_DENSITY, },
   )
     .resize(
-      size,
-      size,
+    size,
+    size,
     )
     .png()
     .toBuffer();

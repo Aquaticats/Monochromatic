@@ -254,8 +254,10 @@ not package implementation.
 - T-Doku,
   [`src/grid_lib.cc`](https://github.com/t-dillon/tdoku/blob/af426180dc53aef89b82868e7b3fdfcf42165654/src/grid_lib.cc).
 - T-Doku,
-  [`src/grid_tools.cc`](https://github.com/t-dillon/tdoku/blob/af426180dc53aef89b82868e7b3fdfcf42165654/src/grid_tools.cc).
+  [`src/grid_tools.cc`][grid-tools-src].
 - T-Doku,
   [`tables` release](https://github.com/t-dillon/tdoku/releases/tag/tables).
 - Ben Lynn,
   [Sudoku ZDD notes](https://crypto.stanford.edu/pbc/notes/zdd/sudoku.html).
+
+[grid-tools-src]: https://github.com/t-dillon/tdoku/blob/af426180dc53aef89b82868e7b3fdfcf42165654/src/grid_tools.cc

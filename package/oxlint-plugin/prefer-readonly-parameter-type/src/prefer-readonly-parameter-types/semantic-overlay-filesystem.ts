@@ -4,26 +4,21 @@
  @module
  */
 
+import {
+  serverFS,
+  type FileSystemCallbacks,
+} from 'typescript/fs';
+
 import { normalizeSemanticFileName, } from './semantic-file-name.ts';
-
-/* oxlint-disable no-restricted-syntax/no-nullish-union -- TypeScript FileSystem callbacks require undefined fallback sentinels. */
-/**
- Overlay file text or TypeScript's real-filesystem delegation sentinel.
- */
-type OverlayFileTextOrRealFileSystemFallback = string | undefined;
-
-/**
- Positive overlay presence or TypeScript's real-filesystem delegation sentinel.
- */
-type OverlayPresenceOrRealFileSystemFallback = true | undefined;
 
 /**
  TypeScript filesystem callbacks answering from kept overlay text.
+ 
+ Every operation the overlay cannot answer delegates to the server's operating-system filesystem through
+ `serverFS.useOS`, the 7.1 spelling of the 7.0 `undefined` fallback. `readFile` returning `undefined` now means
+ "absent", so a missed overlay lookup must send the delegation sentinel instead of `undefined`.
  */
-export type SemanticOverlayFileSystem = {
-  readonly readFile: (fileName: string,) => OverlayFileTextOrRealFileSystemFallback;
-  readonly fileExists: (fileName: string,) => OverlayPresenceOrRealFileSystemFallback;
-};
+export type SemanticOverlayFileSystem = FileSystemCallbacks;
 
 /**
  Builds filesystem callbacks answering from overlay text, delegating everything else.
@@ -34,11 +29,11 @@ export type SemanticOverlayFileSystem = {
  
  @param overlays - Live overlay text keyed by normalized source path.
  
- @returns callbacks for `readFile` and `fileExists` over overlay text.
+ @returns callbacks for overlay reads and presence, each falling back to the real filesystem.
  
  @example
  ```ts
- new API({ cwd: process.cwd(), fs: overlayFileSystem({ overlays }) });
+ new API({ cwd: process.cwd(), fs: overlayFileSystem({ overlays },), });
  ```
  */
 export function overlayFileSystem({
@@ -48,29 +43,57 @@ export function overlayFileSystem({
 },): SemanticOverlayFileSystem {
   return {
     /**
+     Delegates directory listing wholesale; this overlay only ever holds file text.
+     */
+    directoryExists: serverFS.useOS,
+    /**
+     Delegates directory enumeration wholesale; this overlay only ever holds file text.
+     */
+    getAccessibleEntries: serverFS.useOS,
+    /**
+     Delegates path resolution wholesale; overlay paths are already canonical bridge identity.
+     */
+    realpath: serverFS.useOS,
+    /**
+     Delegates metadata wholesale; the bridge reads text through `readFile`, never stats.
+     */
+    stat: serverFS.useOS,
+    /**
+     Delegates writes wholesale; bridge overlay text is managed through the map, and 7.0 wrote through to the
+     operating system the same way.
+     */
+    writeFile: serverFS.useOS,
+    /**
+     Delegates removals wholesale for the same reason writes do.
+     */
+    removeFile: serverFS.useOS,
+    /**
      Reads virtual current-file content or delegates to TypeScript real filesystem.
      
      @param fileName - Path requested by native TypeScript process.
      
-     @returns overlay content or undefined for real-filesystem fallback.
+     @returns overlay content (including empty string) or real-filesystem delegation sentinel.
      */
     readFile: function readFileFromOverlayOrDelegate(
       fileName: string,
-    ): OverlayFileTextOrRealFileSystemFallback {
-      return overlays.get(normalizeSemanticFileName(fileName,),);
+    ): string | typeof serverFS.useOS {
+      /**
+       Overlay text for the path, absent when the overlay does not hold it.
+       */
+      const overlayText = overlays.get(normalizeSemanticFileName(fileName,),);
+      return overlayText ?? serverFS.useOS;
     },
     /**
      Reports positive overlay presence or delegates unknown paths to real filesystem.
      
      @param fileName - Path requested by native TypeScript process.
      
-     @returns true for overlay file or delegation sentinel for every other path.
+     @returns true for overlay file or real-filesystem delegation sentinel.
      */
     fileExists: function reportOverlayPresenceOrDelegate(
       fileName: string,
-    ): OverlayPresenceOrRealFileSystemFallback {
-      return overlays.has(normalizeSemanticFileName(fileName,),) ? true : undefined;
+    ): true | typeof serverFS.useOS {
+      return overlays.has(normalizeSemanticFileName(fileName,),) ? true : serverFS.useOS;
     },
   };
 }
-/* oxlint-enable no-restricted-syntax/no-nullish-union */

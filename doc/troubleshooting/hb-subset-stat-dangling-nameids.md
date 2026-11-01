@@ -234,7 +234,7 @@ Versions under test:
    from the pnpm catalog
 - Inter variable woff2 `Version 4.001;git-9221beed3`,
   sha256 `693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3`
-  (`package/webapp-productivity/wc/fonts-source/inter.woff2`)
+  (`package/wc/app/fonts-source/inter.woff2`)
 - Firefox 151.0 / Chromium 149.0.7827.55 (playwright 1.61.1's bundled
   browsers,
    run in the `monochromatic-playwright` podman image)
@@ -242,7 +242,7 @@ Versions under test:
 ### Harness: dump retained vs referenced name IDs
 
 Save as `stat-nameid-repro.tmp.mjs` inside
-`package/webapp-productivity/wc` (module resolution follows the
+`package/wc/app` (module resolution follows the
 script's location) and run `node stat-nameid-repro.tmp.mjs`:
 
 ```js
@@ -372,10 +372,10 @@ Two catalogs fall out of the output:
 
 ### Harness: browser-level check
 
-`package/webapp-productivity/wc/src/page.browser.test.ts` collects
+`package/wc/app/src/page.browser.test.ts` collects
 every error-level console message and asserts the list is empty;
  run
-`mise run test:browser:firefox -- webapp-productivity/wc` from the
+`mise run test:browser:firefox -- wc/app` from the
 repo root.
  With the defect present it fails with both messages quoted
 under Symptom;
@@ -402,7 +402,7 @@ messages;
  so CSS
 `font-weight: 100 900` keeps working.
  This is what
-`package/webapp-productivity/wc/src/subset-fonts.ts` ships.
+`package/wc/app/src/subset-fonts.ts` ships.
 
 Tradeoffs:
  the subset is no longer a spec-conformant variable font

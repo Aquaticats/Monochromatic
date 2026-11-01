@@ -10,8 +10,8 @@
  * run starts with a clean libSQL.
  */
 
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 import { writeFileSync, } from 'node:fs';
 
 import { getFlag, } from './scenarios/shared.ts';

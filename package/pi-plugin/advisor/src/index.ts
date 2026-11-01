@@ -15,30 +15,29 @@ import type {
   Theme,
 } from '@earendil-works/pi-coding-agent';
 import type { ReadonlyDeep, } from 'type-fest';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ForeignBorrowed,
   ForeignHostCapability,
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import { buildAdvisorSystemPrompt, } from './advisor-client.ts';
+import {
+  ADVISOR_MESSAGE_TYPE,
+  buildAdvisorSystemPrompt,
+  createAdvisorProjectContextState,
+  loadMergedConfig,
+  MAIN_MODEL_GUIDANCE_PREFIX,
+  selectAdvisorModel,
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+import { resolveEffectiveScope, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 import {
   createAdvisorSessionState,
   registerAdvisorCommands,
   syncAdvisorActiveTool,
 } from './commands.ts';
-import { loadMergedConfig, } from './config.ts';
-import {
-  ADVISOR_MESSAGE_TYPE,
-  MAIN_MODEL_GUIDANCE_PREFIX,
-} from './constants.ts';
-import { resolveEffectiveScope, } from '@monochromatic-dev/pi-shared-model-selection/ts';
-import { filterAdvisorScopeByOutputCapacity, } from './output-eligibility.ts';
-import { selectAdvisorModel, } from './advisor-selection.ts';
-import { createAdvisorProjectContextState, } from './project-context.ts';
+import { registerAdvisorFailureAccounting, } from './operation-failure-accounting.ts';
 import { renderAdvisorMessage, } from './rendering.ts';
 import { createAdvisorTool, } from './tool.ts';
-import { registerAdvisorFailureAccounting, } from './operation-failure-accounting.ts';
 
 /**
  Logger root for pi-advisor after removing the package log shim.
@@ -239,21 +238,14 @@ async function buildMainModelGuidance(
     errorPrefix: 'advisor',
   },);
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = filterAdvisorScopeByOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
-  /**
    Default model for empty Advisor params.
    */
-  const defaultSelection = eligibleScope.entries
+  const defaultSelection = scope.entries
     .length
     === 0
     ? undefined
     : selectAdvisorModel({
-      scope: eligibleScope,
+      scope,
       config,
       estimatedInputTokens: 0,
       modelRegistry: ctx.modelRegistry,
@@ -264,12 +256,12 @@ async function buildMainModelGuidance(
   /**
    Canonical slugs available to Advisor.
    */
-  const scopedSlugs = eligibleScope.entries
+  const scopedSlugs = scope.entries
     .map(function mapEntry(
-      entry: ReadonlyDeep<(typeof eligibleScope.entries)[number]>,
+      entry: ReadonlyDeep<(typeof scope.entries)[number]>,
     ) {
-    return entry.canonicalSlug;
-  },);
+      return entry.canonicalSlug;
+    },);
 
   return [
     MAIN_MODEL_GUIDANCE_PREFIX,
@@ -291,43 +283,43 @@ async function buildMainModelGuidance(
 /**
  Operation internals exported for built-artifact verification. @internal
  */
-export { createAdvisorOperationLedger, } from './operation-ledger.ts';
-export { runAdvisorOperation, } from './operation.ts';
-export { formatAdvisorProgress, } from './operation-progress.ts';
+export { createAdvisorOperationLedger, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export { runAdvisorOperation, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export { formatAdvisorProgress, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export {
   renderAdvisorOperationSummary,
   NO_ADVISOR_OPERATION_SUMMARY,
-} from './rendering-operation.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export { createAdvisorTool, } from './tool.ts';
 export { registerAdvisorFailureAccounting, } from './operation-failure-accounting.ts';
-export { AdvisorOperationError, } from './operation-error.ts';
-export { AdvisorCompletionError, } from './advisor-completion-error.ts';
-export type { AdvisorOperationOptions, } from './operation.ts';
+export { AdvisorOperationError, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export { AdvisorCompletionError, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export type { AdvisorOperationOptions, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export type {
   AdvisorDispatch,
   AdvisorOperationCandidate,
-} from './operation-attempt.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export {
   NO_ADVISOR_CANDIDATE,
   nextAdvisorCandidate,
-} from './operation-candidates.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export {
   assertAdvisorProviderAvailable,
   isAdvisorCreditExhaustion,
-} from './provider-credit.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export {
   ADVISOR_CLOCK_BOUNDARY,
   createAdvisorCancellation,
   waitForAdvisorEvent,
-} from './operation-clock.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export {
   aggregateAdvisorUsage,
   copyAdvisorUsage,
-} from './operation-usage.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 export type {
   AdvisorAttemptRecord,
   AdvisorOperationSnapshot,
-} from './operation-types.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 export { buildAdvisorStatus, } from './status.ts';
 export { buildMainModelGuidance, };
@@ -340,7 +332,7 @@ export { buildMainModelGuidance, };
 export {
   createAdvisorProjectContextState,
   serializeAdvisorProjectContext,
-} from './project-context.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal provider-call behavior exported for built-artifact verification.
@@ -350,15 +342,15 @@ export {
 export {
   buildAdvisorSystemPromptForProject,
   type CompleteAdvisorModel,
-} from './advisor-client.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal request formatter exported for built-artifact verification.
  
  @internal
  */
-export { buildAdvisorUserMessageText, } from './advisor-request.ts';
-export { completeAdvisor, } from './advisor-completion-client.ts';
+export { buildAdvisorUserMessageText, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export { completeAdvisor, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal config helpers exported for built-artifact verification.
@@ -368,7 +360,7 @@ export { completeAdvisor, } from './advisor-completion-client.ts';
 export {
   DEFAULT_CONFIG,
   loadMergedConfig,
-} from './config.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal extension constants exported for built-artifact verification.
@@ -378,7 +370,7 @@ export {
 export {
   ADVISOR_MESSAGE_TYPE,
   ADVISOR_TOOL_NAME,
-} from './constants.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal context helpers exported for built-artifact verification.
@@ -389,7 +381,7 @@ export {
   buildAdvisorContext,
   maxContextCharsForAdvisorModel,
   truncateContext,
-} from './context.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal rendering helper exported for built-artifact verification.
@@ -397,22 +389,22 @@ export {
  @internal
  */
 export { renderAdvisorResult, } from './rendering.ts';
-export { firstAdvisoryLine, } from './rendering-summary.ts';
+export { firstAdvisoryLine, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal selection helpers exported for built-artifact verification.
  
  @internal
  */
-export { selectAdvisorModel, } from './advisor-selection.ts';
-export { selectAdvisorRunContext, } from './tool-context-selection.ts';
+export { selectAdvisorModel, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+export { selectAdvisorRunContext, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal tool argument adapter exported for built-artifact verification.
  
  @internal
  */
-export { prepareAdvisorArguments, } from './tool-params.ts';
+export { prepareAdvisorArguments, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 /**
  Internal Advisor execution exported for built-artifact verification.

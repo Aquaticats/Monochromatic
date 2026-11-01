@@ -5,13 +5,14 @@
  */
 
 import type { ExtensionCommandContext, } from '@earendil-works/pi-coding-agent';
-import type { ReadonlyDeep, } from 'type-fest';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { buildAdvisorSystemPrompt, } from './advisor-client.ts';
-import { maxContextCharsForAdvisorModel, } from './context.ts';
-import { resolveEffectiveScope, } from '@monochromatic-dev/pi-shared-model-selection/ts';
-import { filterAdvisorScopeByOutputCapacity, } from './output-eligibility.ts';
-import { selectAdvisorModel, } from './advisor-selection.ts';
+import {
+  buildAdvisorSystemPrompt,
+  maxContextCharsForAdvisorModel,
+  selectAdvisorModel,
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+import { resolveEffectiveScope, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
+import { piAdvisorTranscriptSerialization, } from './run-context.ts';
 import type { AdvisorConfig, } from './types.ts';
 
 /**
@@ -51,21 +52,14 @@ export async function buildAdvisorStatus(
     errorPrefix: 'advisor',
   },);
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = filterAdvisorScopeByOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
-  /**
    Empty-context default ranking for status display.
    */
-  const defaultSelection = eligibleScope.entries
+  const defaultSelection = scope.entries
     .length
     === 0
     ? undefined
     : selectAdvisorModel({
-      scope: eligibleScope,
+      scope,
       config,
       estimatedInputTokens: 0,
       modelRegistry: ctx.modelRegistry,
@@ -83,6 +77,7 @@ export async function buildAdvisorStatus(
   const defaultContextBudget = defaultSelection === undefined
     ? undefined
     : maxContextCharsForAdvisorModel({
+      transcript: piAdvisorTranscriptSerialization,
       config,
       model: defaultSelection.selected
         .model,
@@ -113,29 +108,12 @@ export async function buildAdvisorStatus(
     `Scoped models: ${
       scope.entries
         .length
-        === 0 ? 'none' : scope
-        .entries
-          .map(function mapEntry(
-            entry: ReadonlyDeep<(typeof scope.entries)[number]>,
-          ) {
-          return entry.canonicalSlug;
-        },)
-          .join(', ',)
+        === 0 ? 'none' : String(scope.entries
+          .length,)
     }`,
-    `Eligible Advisor models (>=${
+    `Advisor request budget: ${
       String(config.maxAdvisorOutputTokens,)
-    } output tokens): ${
-      eligibleScope.entries
-        .length
-        === 0 ? 'none' : eligibleScope
-        .entries
-          .map(function mapEligibleEntry(
-            entry: ReadonlyDeep<(typeof eligibleScope.entries)[number]>,
-          ) {
-          return entry.canonicalSlug;
-        },)
-          .join(', ',)
-    }`,
+    } output tokens, clamped to each route's advertised maximum`,
     `Default model: ${defaultSelection?.selected
       .canonicalSlug
       ?? 'none'}`,

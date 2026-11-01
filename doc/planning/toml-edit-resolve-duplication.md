@@ -7,17 +7,17 @@ Status:
 Slopo cluster 385 (hash `482b1cf964fb`,
  score 0.92-0.95) flags four units:
 
-- `package/module/toml-edit/src/resolve-block.ts` `locateBlock`
-- `package/module/toml-edit/src/resolve-document.ts` `matchTables`
-- `package/module/toml-edit/src/resolve-document.ts` `descendValue`
-- `package/module/toml-edit/src/resolve-document.ts` `locateValueNode`
+- `package/toml-edit/core/src/resolve-block.ts` `locateBlock`
+- `package/toml-edit/core/src/resolve-document.ts` `matchTables`
+- `package/toml-edit/core/src/resolve-document.ts` `descendValue`
+- `package/toml-edit/core/src/resolve-document.ts` `locateValueNode`
 
 ## Finding
 
 The cluster is a true positive,
  and it sits on top of a package-wide pattern.
 
-`package/module/toml-edit/src/path-prefix.ts` exports `isPrefix`,
+`package/toml-edit/core/src/path-prefix.ts` exports `isPrefix`,
 `isStrictPrefix` and `segmentsEqual`
 as the shared home for segment predicates.
 `resolve-block.ts` imports from it.
@@ -74,7 +74,7 @@ that each caller replays against its own entry point.
 - Type check:
    no errors in any source file.
 - Tests:
-  `//package/module/toml-edit:test:unit` passes in full,
+  `//package/toml-edit/core:test:unit` passes in full,
    all test groups green.
 - Lint:
    see the lint section.
@@ -101,11 +101,11 @@ collapsing each caller's tail to a single return statement.
 
 ### Lint
 
-`//package/module/toml-edit:lint:oxlint` with type-aware rules,
+`//package/toml-edit/core:lint:oxlint` with type-aware rules,
 comparing unmodified `HEAD` against variant A in the same worktree.
 
 Absolute totals are polluted by test-file noise:
-the worktree cannot resolve the package's own name (`@monochromatic-dev/module-toml-edit`),
+the worktree cannot resolve the package's own name (`@monochromatic-dev/toml-edit-core`),
 so type-aware rules see `error` types throughout the test files.
 Only the delta and the per-file findings are meaningful.
 

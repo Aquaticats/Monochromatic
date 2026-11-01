@@ -12,7 +12,7 @@ import type {
   ExtensionContext,
   ToolCallEvent,
 } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { evaluateBashGuard, } from './bash-guard.ts';
@@ -146,8 +146,8 @@ async function registerGuardrail(
       if (ctx.hasUI) {
         ctx.ui
           .notify(
-            decision.reason,
-            'warning',
+          decision.reason,
+          'warning',
           );
       }
       return decision;

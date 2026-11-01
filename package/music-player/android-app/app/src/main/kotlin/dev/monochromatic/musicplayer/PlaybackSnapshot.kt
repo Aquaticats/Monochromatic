@@ -93,9 +93,10 @@ data class SnapshotItem(
     //           `Int` (not `Long`) because a load-order position over a
     //           folder of tracks fits easily in 32 bits, and `Int` is the
     //           default integer the Android/Kotlin APIs expect for indices.
-    // Why:      The stable load-order index of this track. It doubles as the
-    //           timeline-window uid, so the UI can map the system's "current
-    //           media item" back to the row it came from.
+    // Why:      The stable load-order index of this track, so the UI can map the
+    //           system's "current media item" back to the row it came from. It is
+    //           NOT unique among the items: a shuffle history repeats a track, and
+    //           [entryId] is the timeline-window uid.
     // Gotcha:   `Int` is NOT TS's `number`. It is a fixed-width 32-bit signed
     //           integer; arithmetic wraps around on overflow rather than
     //           silently widening, and there is no fractional part.
@@ -105,6 +106,23 @@ data class SnapshotItem(
     // readonly loadIndex: number;
     // ```
     val loadIndex: Int,
+    // What:     `val entryId: Long` is a read-only 64-bit id.
+    // Why:      The timeline-window uid: unique among the items even when the same
+    //           track appears twice in a shuffle history (see `playbackEntryIds`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // readonly entryId: bigint;
+    // ```
+    val entryId: Long,
+    // What:     `val artist: String? = null` is the artist tag of the track when it has been read, else null.
+    // Why:      The media notification shows an artist line under the title when tags exist.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // readonly artist: string | null;
+    // ```
+    val artist: String? = null,
 )
 
 // What:     `data class PlaybackSnapshot( ... )` declares another immutable

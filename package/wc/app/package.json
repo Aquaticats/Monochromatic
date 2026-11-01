@@ -1,0 +1,31 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/wc-app",
+  "private": true,
+  "description": "Text statistics tool that generates a single self-contained HTML file: paste text to see byte/char/line/word/sentence/paragraph counts, max lengths, and word frequency, computed live in the browser",
+  "type": "module",
+  "main": "src/build.ts",
+  "version": "0.0.1",
+  "dependencies": {
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "hb-subset-wasm": "catalog:",
+    "sharp": "catalog:",
+    "tiny-readdir-glob": "catalog:",
+    "wawoff2": "catalog:",
+    "woff2-encode-wasm": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/wc/app"
+  },
+  "sideEffects": true
+}

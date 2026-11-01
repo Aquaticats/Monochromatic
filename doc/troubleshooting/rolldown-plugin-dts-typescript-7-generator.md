@@ -317,7 +317,7 @@ hyperfine --warmup 1 --runs 5 --parameter-list gen off,oxc,tsgo \
 
 Process wall-time means over five runs:
 
-- `module/or-throw` (31 source files,
+- `or-throw/core` (31 source files,
    zero runtime deps,
    neutral flavor):
   `off` 170.1 ms ± 4.7,
@@ -326,7 +326,7 @@ Process wall-time means over five runs:
   Declaration increment over the `off` control:
   25.0 ms for `oxc`,
   105.4 ms for `tsgo` (roughly four times `oxc`).
-- `module/toml-edit` (75 source files,
+- `toml-edit/core` (75 source files,
    four inlined workspace deps,
    neutral flavor):
   `off` 150.9 ms ± 5.6,
@@ -351,7 +351,7 @@ Error: tsgo did not generate dts file for
 please check your tsconfig.
 ```
 
-Output quality on the one cell where both backends built (`module/or-throw`):
+Output quality on the one cell where both backends built (`or-throw/core`):
 the `oxc` and `tsgo` `index.d.mts` differ by 46 diff lines,
 all either string-literal quote style (`""` versus `''`)
 or file-level `@module` TSDoc blocks that `tsgo` preserves and `oxc` drops.
@@ -405,7 +405,7 @@ matching those three groups.
 - rolldown-plugin-dts 0.27.9 with explicit `generator: 'tsgo'` on raw rolldown 1.1.5:
   any build inlining workspace source from outside the entry package's tsconfig project fails with the same
   `tsgo did not generate dts file` error
-  (verified 2026-07-15 on `module/toml-edit` and `config/oxlint`;
+  (verified 2026-07-15 on `toml-edit/core` and `config/oxlint`;
   a zero-dependency single-package build passes).
 
 ## Verified workarounds

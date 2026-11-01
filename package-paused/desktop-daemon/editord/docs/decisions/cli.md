@@ -193,7 +193,8 @@ Rejected alternatives:
 
 - Replace `connectedPeers: Set<{ send }>` with `peers: Map<string, PeerEntry>` in `src/server/index.ts:109`.
 - `PeerEntry = { send: (data: string) => void; lastActiveMs: number; connectedAtMs: number; focusedPath?: string }`.
-- Peer ID: `crypto.randomUUID().slice(0, 8)` (32 bits of entropy; collision risk negligible for single-digit peer counts).
+- Peer ID: `crypto.randomUUID().slice(0, 8)`
+  (32 bits of entropy; collision risk negligible for single-digit peer counts).
 - Existing iterations (e.g. `for (const peer of connectedPeers)` in `handleDiagnostics` at `index.ts:134`
   and `handleFsChange` at `index.ts:163`) become `for (const entry of peers.values()) entry.send(...)`.
 - Callers in `src/server/ws.ts` that receive `connectedPeers` via `createWsHandler` need the same Map migration.

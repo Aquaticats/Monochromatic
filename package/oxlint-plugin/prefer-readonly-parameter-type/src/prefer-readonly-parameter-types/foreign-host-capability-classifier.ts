@@ -4,12 +4,12 @@
  @module
  */
 
-import type { BindingName, } from 'typescript/unstable/ast';
+import type { BindingName, } from 'typescript/ast';
 import {
   isBindingElement,
   isIdentifier,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { isForeignHostCapabilityType, } from './foreign-host-capability-identity.ts';
 

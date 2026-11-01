@@ -3,7 +3,7 @@ import {
   mkdtempSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -12,7 +12,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 /**
  Built plugin entry this suite drives.
@@ -30,7 +30,7 @@ const BUNDLE = resolve(
 /**
  Scratch directory holding one transcript per case.
  */
-const SCRATCH = mkdtempSync(join(tmpdir(), 'stop-reminder-release-',),);
+const SCRATCH = mkdtempSync(join(scratchRoot(), 'stop-reminder-release-',),);
 
 /**
  Transcript line for a turn the user typed, which closes the counting window.
@@ -136,6 +136,10 @@ function blocksFor(
   const env = {
     ...Object.fromEntries(Object.entries(process.env,)
       .filter(([key,],) => key !== 'MONOCHROMATIC_STOP_AUTO_CONTINUE'),),
+    // These cases pin the state-based releases, which are what remains when the Luna
+    // check is off or unavailable; the Luna path has its own suite and must never reach
+    // the gateway from here, whatever credential the ambient environment holds.
+    MONOCHROMATIC_STOP_LUNA: 'off',
     ...(optedIn
       ? { MONOCHROMATIC_STOP_AUTO_CONTINUE: 'on', }
       : {}),
@@ -164,9 +168,62 @@ function blocksFor(
   return raw.includes('"block"',);
 }
 
+/**
+ Runs the built hook with the Luna check on but no way to reach the gateway.
+
+ The credential is removed from the environment and the session directory has
+ no mise project, so the check is unavailable; the output shows what a user
+ sees when the judge is down.
+
+ @returns parsed hook output
+
+ @example
+ ```ts
+ unavailableLunaOutput();
+ ```
+ */
+function unavailableLunaOutput(): { readonly decision?: string; readonly systemMessage?: string } {
+  /**
+   Transcript with a tool call after the human turn, so state allows continuation.
+   */
+  const transcript = join(SCRATCH, 'luna-unavailable.jsonl',);
+
+  writeFileSync(transcript, `${[HUMAN, TOOL,].join('\n',)}\n`,);
+
+  return JSON.parse(execFileSync('node', [BUNDLE,], {
+    input: JSON.stringify({
+      session_id: 's',
+      transcript_path: transcript,
+      cwd: SCRATCH,
+      permission_mode: 'default',
+      hook_event_name: 'Stop',
+      stop_hook_active: true,
+      last_assistant_message: 'Next: run the tests.',
+      background_tasks: [],
+    },),
+    encoding: 'utf8',
+    env: {
+      ...Object.fromEntries(Object.entries(process.env,)
+        .filter(([key,],) => (key !== 'STOP_REMINDER_LLMGATEWAY_API_KEY') && (key !== 'MONOCHROMATIC_STOP_LUNA'),),),
+      MONOCHROMATIC_STOP_AUTO_CONTINUE: 'on',
+      MONOCHROMATIC_STOP_VERDICT_LOG: join(SCRATCH, 'verdicts.jsonl',),
+    },
+  },),) as { readonly decision?: string; readonly systemMessage?: string };
+}
+
 await describe({
   name: 'stop-reminder release conditions, against the built bundle',
   children: [
+    it({
+      name: 'falls back to the state-based block and warns when the Luna check is unavailable',
+      fn: async () => {
+        const output = unavailableLunaOutput();
+
+        expect(output.decision,).toBe('block',);
+        expect(output.systemMessage,).toContain('Luna check was unavailable',);
+      },
+      timeout: 30_000,
+    },),
     it({
       name: 'never forces continuation unless opted in',
       fn: async () => {

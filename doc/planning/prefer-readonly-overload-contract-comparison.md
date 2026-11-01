@@ -1,4 +1,4 @@
-# Overload contract disagreement in `package/module/pipe`
+# Overload contract disagreement in `package/pipe/core`
 
 Working notes for task #17.
 Read before the confirming measurement,
@@ -39,7 +39,7 @@ unless an author writes a contract that means something narrower than what made 
 
 ## Why `runPipe` started differing
 
-`package/module/pipe/src/run.ts:51` widens the argument object:
+`package/pipe/core/src/run.ts:51` widens the argument object:
 
 -   `const callableArgs = args as RunCallableArgs;`
 
@@ -92,7 +92,7 @@ to be measured rather than assumed:
     Its overload claims `@mutates controller` while the implementation transitions nothing,
     so the referent sets still differ.
 
--   The four `package/module/pipe` findings stop,
+-   The four `package/pipe/core` findings stop,
     because the implementations referent-mutate nothing and the overloads claim nothing.
 
 -   Nothing else is lost.
@@ -153,7 +153,7 @@ Measured after:
 
 -   `invokedStepOverload` stops reporting.
 
--   `package/module/pipe` goes from thirteen findings to nine,
+-   `package/pipe/core` goes from thirteen findings to nine,
     and the four that left are exactly the overload ones.
     The other nine are pre-existing opacity reports naming `steps.slice` and supplied callbacks.
 

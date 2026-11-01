@@ -76,7 +76,9 @@ run,
   h:
   52,
    React-jsi dependency) that links and calls a Go/Rust staticlib directly,
-   which means BOTH kopia (linked c-archive/staticlib) and the music-player's symphonia+cpal Rust core (cpal already has a CoreAudio backend) are reusable behind RN via FFI without an AVAudioEngine rewrite.
+   which means BOTH kopia (linked c-archive/staticlib)
+   and the music-player's symphonia+cpal Rust core (cpal already has a CoreAudio backend) are reusable behind RN via
+   FFI without an AVAudioEngine rewrite.
    The hard part is not RN;
    it is the shared iOS reality of no long-running background,
    forcing the multi-hour kopia snapshot onto background URLSession + BGProcessingTask.
@@ -108,7 +110,8 @@ com/facebook/hermes doc/`Design.md`,
  'deserialize the bytecode ... and interpret it');
  hermes-engine.
 podspec vendored hermesvm.
-framework + hermesc bytecode build (/tmp/agent/react-native-audit-20260612/packages/react-native/sdks/hermes-engine/hermes-engine.
+framework + hermesc bytecode build
+(/tmp/agent/react-native-audit-20260612/packages/react-native/sdks/hermes-engine/hermes-engine.
 podspec lines 50-80,127-165);
  reactnative.
 dev/docs/hermes (Hermes default,
@@ -136,7 +139,8 @@ h:
  public jsi:
 :
 HostObject'),
- and on iOS the concrete bridge is ObjCTurboModule (a C++ class subclassing TurboModule) plus the RCTTurboModule ObjC protocol,
+ and on iOS the concrete bridge is ObjCTurboModule (a C++ class subclassing TurboModule) plus the RCTTurboModule ObjC
+ protocol,
  compiled as ObjC++ .
 mm (React-NativeModulesApple.
 podspec source_files 'ReactCommon/**/*.
@@ -159,13 +163,15 @@ ffi use,
  exposed here as JSI/TurboModule.
 
 Source:
- /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/ReactCommon/TurboModule.
+ /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/
+ ReactCommon/TurboModule.
 h:
 46 (TurboModule :
  jsi:
 :
 HostObject);
- ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.
+ ReactCommon/react/nativemodule/core/platform/ios/
+ ReactCommon/RCTTurboModule.
 h:
 52 (ObjCTurboModule :
  public TurboModule) and :
@@ -181,7 +187,8 @@ cpp,
 Same iOS constraints every candidate inherits;
  no foreground-service equivalent.
  RN core exposes no long-running background primitive,
- so a multi-hour kopia snapshot must be restructured around iOS background URLSession (resumable background uploads survive app suspension) and BGProcessingTask (short,
+ so a multi-hour kopia snapshot must be restructured around iOS background URLSession
+ (resumable background uploads survive app suspension) and BGProcessingTask (short,
  idle/charging windows,
  ~30s practical execution).
  These are reached through a native (TurboModule) wrapper since core RN does not bind them;
@@ -220,7 +227,8 @@ Mechanism:
  Loopback servers are permitted in-app on iOS.
 
 Source:
- /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.
+ /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/
+ ReactCommon/RCTTurboModule.
 h (ObjCTurboModule bridge for native server module);
  same JSI link mechanism as wall1 (TurboModule.
 h:
@@ -240,7 +248,8 @@ Mechanism:
  keeping streaming/backpressure inside native code.
  (2) For transfers that must survive backgrounding,
  hand the upload to iOS background URLSession via a thin TurboModule wrapper.
- RN's own JS fetch (whatwg-fetch polyfill over the native networking module) is fine for control-plane calls but is not the right tool for multi-GB streaming;
+ RN's own JS fetch (whatwg-fetch polyfill over the native networking module) is fine for control-plane calls
+ but is not the right tool for multi-GB streaming;
  the streaming body belongs in the linked native client or background URLSession.
 
 Source:
@@ -286,7 +295,8 @@ HostObject) exactly as in wall 1;
 
 Source:
  Audio absence in core:
- rg over /tmp/agent/react-native-audit-20260612/packages/react-native/React and Libraries (only Libraries/Vibration/RCTVibration.
+ rg over /tmp/agent/react-native-audit-20260612/packages/react-native/React
+ and Libraries (only Libraries/Vibration/RCTVibration.
 mm).
  FFI path:
  TurboModule.
@@ -303,7 +313,8 @@ h:
 
 Minimal app:
  `npx @react-native-community/cli init GateProbe` (New Architecture + Hermes default),
- add ONE C++ TurboModule that links a tiny Rust staticlib exporting `extern "C" int rust_add(int,int)` (built for aarch64-apple-ios via cargo + lipo/xcframework),
+ add ONE C++ TurboModule that links a tiny Rust staticlib exporting `extern "C" int rust_add(int,int)`
+ (built for aarch64-apple-ios via cargo + lipo/xcframework),
  call it from a button,
  and render the returned value.
  Build for a real iPhone (Release,
@@ -311,8 +322,10 @@ Minimal app:
  Exact on-device signals confirming viability:
  (1) the app launches and `global.HermesInternal` is truthy (proves Hermes AOT-bytecode interpreter is the live engine,
  wall-2 pass);
- (2) tapping the button shows the value computed by the linked Rust staticlib (proves wall-1 static-lib link + JSI/TurboModule FFI works on device);
- (3) no dynamic-codesigning/JIT entitlement is present and no EXC_BAD_ACCESS/codesign-kill occurs (proves no executable memory is needed).
+ (2) tapping the button shows the value computed by the linked Rust staticlib
+ (proves wall-1 static-lib link + JSI/TurboModule FFI works on device);
+ (3) no dynamic-codesigning/JIT entitlement is present
+ and no EXC_BAD_ACCESS/codesign-kill occurs (proves no executable memory is needed).
  Refutes viability if the Rust symbol fails to link/codesign,
  or if the app is killed for an execmem/JIT violation.
 
@@ -322,7 +335,8 @@ Toolchain:
 js + npm/yarn and the React Native community CLI;
  CocoaPods (Ruby) for pod install;
  Watchman (recommended) and Metro bundler;
- the Rust toolchain with the aarch64-apple-ios target (`rustup target add aarch64-apple-ios`) plus cargo + cbindgen and lipo/xcodebuild -create-xcframework to package the staticlib (or Go + gomobile for a c-archive .
+ the Rust toolchain with the aarch64-apple-ios target (`rustup target add aarch64-apple-ios`) plus cargo + cbindgen
+ and lipo/xcodebuild -create-xcframework to package the staticlib (or Go + gomobile for a c-archive .
 xcframework).
  hermesc runs on the Mac at build time (no extra install;
  bundled via hermes-engine pod / hermes-compiler npm).
@@ -397,12 +411,14 @@ xcframework).
   :
   HostObjects exposed over JSI (a pure C++ interface),
    giving a direct FFI path to linked native static libs:
-   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/ReactCommon/TurboModule.
+   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/
+   ReactCommon/TurboModule.
   h:
   46
 - On iOS the concrete native-module bridge is ObjCTurboModule (C++ subclass) + RCTTurboModule protocol,
    compiled as ObjC++ and depending on React-jsi:
-   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.
+   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/
+   ReactCommon/RCTTurboModule.
   h:
   52,191 and React-NativeModulesApple.
   podspec (source_files .
@@ -444,7 +460,9 @@ xcframework).
     attribution off):
     The audit's wall-2 attributes "compile JavaScript to Hermes Bytecode during build time" to "hermes.
    dev docs".
-    The verbatim sentence ("This will compile JavaScript to Hermes Bytecode during build time which will improve your app's startup speed on device") actually lives on reactnative.
+    The verbatim sentence
+    ("This will compile JavaScript to Hermes Bytecode during build time
+which will improve your app's startup speed on device") actually lives on reactnative.
    dev/docs/hermes,
     which the audit also separately cites.
     The quote is accurate;
@@ -453,7 +471,8 @@ xcframework).
 2) SCOPE OF `Design.md` (not a contradiction):
     The audit's iosRuntimeModel implies Hermes `Design.md` covers the full build-then-interpret pipeline.
     `Design.md` confirms verbatim "At runtime,
-    the VM will deserialize the bytecode from the file and interpret it" but does NOT itself name hermesc or describe build-time compilation;
+    the VM will deserialize the bytecode from the file and interpret it" but does NOT itself name hermesc
+    or describe build-time compilation;
     that half ("hermesc compiles JS to .
    hbc at build time") is supported by reactnative.
    dev/docs/hermes and the hermes-engine.
@@ -469,7 +488,8 @@ xcframework).
    com/blog/2020/02/23/jailed-just-in-time-compilation-on-ios/.
     Content confirms the load-bearing claim:
     "Just-in-time compilation on iOS normally requires applications to possess the dynamic-codesigning entitlement,
-    a privilege that Apple uniquely awards to system processes" and third-party apps "cannot use mmap's MAP_JIT without this entitlement",
+    a privilege that Apple uniquely awards to system processes"
+    and third-party apps "cannot use mmap's MAP_JIT without this entitlement",
     so in-app JSC runs JIT-disabled.
 
 4) SHORTHAND (substantively correct):
@@ -480,7 +500,8 @@ xcframework).
     not a fabrication.
 
 NOTE:
- The RN repo itself contains NO JIT-entitlement handling code (grep for useJIT/MAP_JIT/allow-jit/dynamic-codesigning returned zero hits in package/react-native).
+ The RN repo itself contains NO JIT-entitlement handling code
+ (grep for useJIT/MAP_JIT/allow-jit/dynamic-codesigning returned zero hits in package/react-native).
  That is expected (it is OS-level behavior),
  and the audit correctly sources that sub-claim to external Apple/saagarjha references rather than the repo.
 
@@ -488,19 +509,22 @@ The HN corroborating citation (id 40726948) could not be fetched (HTTP 429 rate-
  but it is secondary;
  the primary saagarjha source and Apple entitlement docs already confirm the JSC-JIT-gating claim.
 - Sources checked:
-   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/ReactCommon/TurboModule.
+   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/
+   ReactCommon/TurboModule.
   h (line 46:
    class JSI_EXPORT TurboModule :
    public jsi:
   :
   HostObject - CONFIRMED verbatim);
-   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.
+   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/
+   ReactCommon/RCTTurboModule.
   h (line 52:
    class JSI_EXPORT ObjCTurboModule :
    public TurboModule;
    line 191:
    @protocol RCTTurboModule <RCTModuleProvider> - both CONFIRMED verbatim);
-   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/React-NativeModulesApple.
+   /tmp/agent/react-native-audit-20260612/packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/
+   React-NativeModulesApple.
   podspec (line 37:
    source_files ReactCommon/**/*.
   {mm,
@@ -527,7 +551,8 @@ The HN corroborating citation (id 40726948) could not be fetched (HTTP 429 rate-
    public jsi:
   :
   Runtime - CONFIRMED engine path);
-   rg over package/react-native for useJIT|MAP_JIT|dynamic-codesigning|allow-jit - ZERO hits (JIT-gating is correctly sourced externally,
+   rg over package/react-native for useJIT|MAP_JIT|dynamic-codesigning|allow-jit - ZERO hits
+   (JIT-gating is correctly sourced externally,
    not from repo);
    <https://reactnative.dev/docs/hermes> (CONFIRMED verbatim:
    'Hermes is used by default by React Native and no additional configuration is required to enable it.

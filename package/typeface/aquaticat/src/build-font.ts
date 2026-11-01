@@ -150,25 +150,25 @@ const letterGlyphs = cells.flatMap(
       /**
        Tokenised commands for one SVG path, dispatched into stroked or filled tracing.
        */
-      const commands = parseSvgPathD(cellPath.d,);
-      if (cellPath.isStroked) {
-        addStrokedPath({
-          otPath: path,
-          commands,
-          strokeWidth: cellPath.strokeWidth,
-          cellX: cell.xOffset,
-          xShift,
-        },);
-      }
-      else {
-        addFilledPath({
-          otPath: path,
-          commands,
-          cellX: cell.xOffset,
-          xShift,
-        },);
-      }
-    },);
+        const commands = parseSvgPathD(cellPath.d,);
+        if (cellPath.isStroked) {
+          addStrokedPath({
+            otPath: path,
+            commands,
+            strokeWidth: cellPath.strokeWidth,
+            cellX: cell.xOffset,
+            xShift,
+          },);
+        }
+        else {
+          addFilledPath({
+            otPath: path,
+            commands,
+            cellX: cell.xOffset,
+            xShift,
+          },);
+        }
+      },);
 
     console.log(
       `  ${letterName}: advance=${Math.round(advanceWidth,)}, paths=${cell.paths

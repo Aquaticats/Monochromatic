@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "cohortId": "native-runners-20261018T034256508Z",
+  "preparedAt": "2026-10-18T03:45:41.940Z",
+  "originalCohortId": "complete-20261017T111555806Z",
+  "supplementalOnly": true,
+  "cases": {
+    "toml": {
+      "sourceRevision": "525d2e09f8168a3bdd7e513e26d4c80b363123e5",
+      "baseRevision": "cf9fcb48047d86e0af01ac9c73c1c7bf26fb277f",
+      "manifestSha256": "e43e84682a895efc0ab4a1eb664ddd147f10e14add7686ecec6f617f85c90185"
+    },
+    "logger": {
+      "sourceRevision": "ef01490f5e960f8ca0b424c12242caeb3c5a2b5e",
+      "baseRevision": "20dbaca6c2bb39d5d7e51fac447d76393c21a32e",
+      "manifestSha256": "c7adf82827d17abb798e0af917e6237fe876160411ba72ce3364ebbc7c2c347e"
+    },
+    "native": {
+      "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+      "baseRevision": "45795584ff2dcf830dc505e121f0cc92c77860e5",
+      "manifestSha256": "7ae6ca9ed89b7de913b2a5e80b85bc343893892223e98a5bc91d1d2cfc7092bf"
+    },
+    "desktop": {
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "baseRevision": "a9b4a681d21907ecc5eb208a754e7b9a0f6e9168",
+      "manifestSha256": "6cf9154e4fd73174e6b8677bdf700908852ffab027fe04b6c6bf2ca9ffea3363"
+    }
+  },
+  "routes": {
+    "native.hosts": {
+      "caseId": "native",
+      "harnessRevision": "3e51a06848ba363a90d4ce30816760042153f349",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions",
+      "compute": "Depot native runners except the unchanged Windows ARM row",
+      "intendedInputs": {
+        "source_head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+        "hosts": "both"
+      }
+    },
+    "desktop.macos": {
+      "caseId": "desktop",
+      "harnessRevision": "3e51a06848ba363a90d4ce30816760042153f349",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions",
+      "compute": "Depot native runners except the unchanged Windows ARM row",
+      "intendedInputs": {
+        "source_head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "hosts": "macos"
+      }
+    },
+    "desktop.windows": {
+      "caseId": "desktop",
+      "harnessRevision": "46dbdaf5dcb44961e738496da40f44ed17f4d6a6",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions",
+      "compute": "Depot native runners except the unchanged Windows ARM row",
+      "intendedInputs": {}
+    }
+  },
+  "registration": {
+    "purpose": "Provider-specific native follow-up; all historical source-case manifests remain byte-identical.",
+    "originalPrimaryChecks": 770,
+    "originalExternalChecks": 33,
+    "supplementalRoutes": 3
+  },
+  "policy": {
+    "sourceChanges": "No application source fixes or changes to original consumer command bodies.",
+    "architecture": "Depot macOS is Apple Silicon; record as additional architecture rather than Intel performance parity.",
+    "windowsArm": "Preserve the original GitHub Windows ARM row; no documented Depot ARM Windows label is substituted.",
+    "accountAccess": "No account-wide access or subscription changes."
+  }
+}

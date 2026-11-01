@@ -1,4 +1,12 @@
-# mise npm backend keeps a stale lockfile-pinned "latest" version (npm:socket@2.1.0, a deprecated bad build) after the npm dist-tag rolls back
+# mise npm backend keeps a stale lockfile-pinned "latest" version
+(npm:socket@2.1.0, a deprecated bad build) after the npm dist-tag rolls back
+
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 mise 2026.6.9,
  npm backend,
@@ -181,6 +189,15 @@ Fails:
 
 Correct the lockfile pin,
  then reinstall:
+
+Current pin source:
+ the recipe below edits `mise.lock`,
+ which the toolchain migration retires.
+ A stale repository tool version now fixes at the typed tool plan in
+ `package/file-enforcer/core/src/toolchain/`,
+ which regenerates `toolchain.lock.json`;
+ rerun `mise run toolchain:install` to converge
+ (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 ```bash
 # 1. In mise.lock, change the socket entry version:

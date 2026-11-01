@@ -7,8 +7,8 @@
 import type {
   AssignmentPrefix as UnbashAssignmentPrefix,
   Command as UnbashCommand,
-  Redirect as UnbashRedirect,
-  RedirectOperator as UnbashRedirectOperator,
+  CommandArgument as UnbashCommandArgument,
+  Redirection as UnbashRedirect,
   Word as UnbashWord,
 } from 'unbash';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
@@ -21,7 +21,17 @@ import type {
   ShellWordSource,
 } from './types.ts';
 
+import {
+  assignmentSource,
+  assignmentValue,
+} from './assignment.ts';
+
 //region Redirect conversion
+
+/**
+ Operators include file redirects, here-documents and here-strings.
+ */
+type UnbashRedirectOperator = UnbashRedirect['operator'];
 
 /**
  Operators that write output to file-like targets.
@@ -189,13 +199,27 @@ function redirectToInfo(redirect: ForeignBorrowed<UnbashRedirect>,): ShellRedire
   /**
    Parsed target text, when `unbash` produced one.
    */
-  const target = redirect.target
-    ?.value;
+  const targetWord = redirect.type === 'HereDoc' ? redirect.delimiter : redirect.target;
+  /**
+   Parsed delimiter or target, never a here-document body interpreted as a path.
+   */
+  const target = targetWord?.value;
   /**
    Original source spelling paired with parsed target value.
    */
-  const targetSourceText = redirect.target
-    ?.text;
+  const targetSourceText = targetWord?.text;
+  /**
+   Descriptor nodes distinguish numeric descriptors from allocated descriptor variables.
+   */
+  const {descriptor} = redirect;
+  /**
+   Numeric descriptor, when explicitly supplied.
+   */
+  const fileDescriptor = descriptor?.type === 'FileDescriptor' ? descriptor.value : undefined;
+  /**
+   Allocated descriptor variable, when explicitly supplied.
+   */
+  const fileDescriptorVariable = descriptor?.type === 'FileDescriptorVariable' ? descriptor.name : undefined;
   /**
    Target classification.
    */
@@ -208,7 +232,8 @@ function redirectToInfo(redirect: ForeignBorrowed<UnbashRedirect>,): ShellRedire
     operator: redirect.operator,
     ...(target === undefined ? {} : { target, }),
     ...(targetSourceText === undefined ? {} : { targetSourceText, }),
-    ...(redirect.fileDescriptor === undefined ? {} : { fileDescriptor: redirect.fileDescriptor, }),
+    ...(fileDescriptor === undefined ? {} : { fileDescriptor, }),
+    ...(fileDescriptorVariable === undefined ? {} : { fileDescriptorVariable, }),
     kind,
     writesFile: redirectWritesFile({
       operator: redirect.operator,
@@ -284,7 +309,9 @@ function redirectTargetSources(redirects: readonly ShellRedirect[],): ShellWordS
  wordToSource(word);
  ```
  */
-function wordToSource(word: ForeignBorrowed<UnbashWord>,): ShellWordSource[] {
+function wordToSource(word: ForeignBorrowed<UnbashCommandArgument>,): ShellWordSource[] {
+  if (word.type === 'Assignment')
+    return [assignmentSource(word,),];
   if ((word.parts ?? [])
     .some(function isProcessSubstitution(
       part: ForeignBorrowed<NonNullable<UnbashWord['parts']>[number]>,
@@ -297,32 +324,6 @@ function wordToSource(word: ForeignBorrowed<UnbashWord>,): ShellWordSource[] {
     value: word.value,
     sourceText: word.text,
   },];
-}
-
-/**
- Render assignment value text.
- 
- @param assignment - assignment prefix from `unbash`
- 
- @returns scalar, array, or empty value text
- 
- @example
- ```ts
- assignmentValue(assignment);
- ```
- */
-function assignmentValue(assignment: ForeignBorrowed<UnbashAssignmentPrefix>,): string {
-  if (assignment.value !== undefined)
-    return assignment.value
-      .value;
-  if (assignment.array !== undefined) {
-    return assignment.array
-      .map(function wordValue(word: ForeignBorrowed<UnbashWord>,): string {
-        return word.value;
-      },)
-      .join(' ',);
-  }
-  return '';
 }
 
 /**
@@ -392,7 +393,7 @@ function commandToInfo(
   /**
    Suffix argument values paired with exact shell source spelling.
    */
-  const argSources = command.suffix
+  const argSources = command.args
     .flatMap(wordToSource,);
 
   return {
@@ -400,6 +401,9 @@ function commandToInfo(
       ?.value
       ?? '',
     envAssignments: command.prefix
+      .filter(function isAssignment(prefix,) {
+        return prefix.type === 'Assignment';
+      },)
       .flatMap(assignmentToEnvAssignment,),
     args: argSources.map(function sourceValue(source,): string {
       return source.value;

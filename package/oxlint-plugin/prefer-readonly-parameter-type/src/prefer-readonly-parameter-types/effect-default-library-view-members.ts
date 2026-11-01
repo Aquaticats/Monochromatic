@@ -9,11 +9,11 @@ import {
   isInterfaceDeclaration,
   isMethodSignatureDeclaration,
   isPropertySignatureDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import type {
   Program,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Prefix TypeScript gives every default-library read-only collection view.
@@ -36,7 +36,7 @@ const LIBRARY_FILE_SUFFIX = '.d.ts';
 const viewMembersByProgram = new WeakMap<
   Program,
   ReadonlyMap<string, ReadonlySet<string>>
->();
+  >();
 
 /**
  Collects member names declared on each default-library read-only view.

@@ -1,0 +1,53 @@
+# cargo-about configuration for the license notices of the Android app's native library (libmusicplayer_native.so).
+# The android-app `notices` task (../mise.toml) runs ../../desktop-app/bin/third-party-notices.mjs from this folder;
+# it checks every crate against this file with `cargo-about generate --frozen --fail` and writes the APK's
+# THIRD-PARTY-LICENSES.txt. Decision: ../../../../doc/decision/music-player-third-party-licenses.md.
+
+# Licenses the crates may be used under, in order of preference: for a crate offered under `A OR B`, the first listed
+# one is chosen. The app is licensed LGPL-3.0-or-later and contains no Slint, so every entry here must be combinable
+# with the LGPL version 3 (which is the GPL version 3 plus extra permissions):
+# - MIT, ISC, BSD-2-Clause, BSD-3-Clause, Zlib, Unicode-3.0, BSL-1.0, CC0-1.0, Unlicense: permissive licenses the
+#   Free Software Foundation lists as GPL-compatible; most ask only that the notice travels with the binary.
+# - Apache-2.0: compatible with version 3 of the GPL and LGPL; it asks for the license text and any NOTICE file.
+# - MPL-2.0: compatible through its section 3.3 unless a file is marked "Incompatible With Secondary Licenses".
+# No GPL-only license is accepted: a GPL dependency would turn the whole APK into a GPL work, which needs a decision.
+# MIT comes first because the crates' own MIT files carry the copyright lines that license asks to reproduce.
+# A dependency under any other license, or one whose license cannot be determined, stops the task and so the release.
+accepted = [
+  "MIT",
+  "Apache-2.0",
+  "ISC",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "Zlib",
+  "Unicode-3.0",
+  "BSL-1.0",
+  "MPL-2.0",
+  "CC0-1.0",
+  "Unlicense",
+]
+
+# The two ABIs the APK ships (arm64-v8a for devices, x86_64 for emulators).
+targets = [
+  "aarch64-linux-android",
+  "x86_64-linux-android",
+]
+
+# Build scripts and tests run while building; they are not part of the library.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# The unpublished crates of this repository (musicplayer-native and truepeak-core) carry the project's own license,
+# which the notices print first from the repository's LICENSE and LICENSES/ files.
+private = { ignore = true }
+
+# cfg_block (through turso_core) names no SPDX expression, only `license-file = "LICENSE"`, and that file is the
+# Apache License 2.0 short notice with the copyright line "Copyright 2022 Trevor Gross". The checksum is the SHA-256 of
+# that file in cfg_block 0.1.1; if a later release changes the file, cargo-about stops until this is reviewed again.
+[cfg_block.clarify]
+license = "Apache-2.0"
+
+[[cfg_block.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "408bbc4d10bdf74d8c9b74b64ea4910603257e24133da18edc4d16198e3b4010"

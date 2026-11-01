@@ -1,0 +1,144 @@
+[package]
+name = "monochromatic-lint"
+version = "0.4.0"
+edition = "2024"
+description = "Repository-owned Rust, Markdown and MDX linter."
+license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
+include = ["src/**/*.rs", "fixtures/*.json", "Cargo.toml", "Cargo.lock", "README.md", "LICENSES/*.txt"]
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/linter/monochromatic-lint"
+
+# cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
+# but this repository tags each crate's release monochromatic-lint-v<version> and names the archive
+# monochromatic-lint-<version>-<target>, so without this table mise falls back to compiling from source.
+# doc/troubleshooting/mise-cargo-binstall-falls-back-to-compiling.md has the evidence.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[package.metadata.binstall.overrides.aarch64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+[lib]
+name = "monochromatic_lint"
+path = "src/lib.rs"
+
+[[bin]]
+name = "monochromatic-lint"
+path = "src/main.rs"
+
+# Black-box tests that run the built executable; kept beside the source so the container
+# snapshot, which copies only src and fixtures, includes them.
+[[test]]
+name = "binary"
+path = "src/binary_tests.rs"
+
+# Black-box tests of the closure check against a stub cargo, plus one ignored host-only run of the real tools.
+[[test]]
+name = "closure_binary"
+path = "src/closure_binary_tests.rs"
+
+[dependencies]
+# Reuse the repository's comment-preserving parser and exact-number value model.
+# 0.1.1 is the first release with the fuzz-found fixes for bare-CR comment bodies and scalar root
+# replacement; a crates.io build against 0.1.0 would compile the unfixed code.
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+# Reuse the incumbent native CLI parser for operating-system paths and generated usage validation.
+clap = { workspace = true, features = ["derive"] }
+# Same glob compiler and gitignore-aware walker family as the incumbent Rust linter.
+globset = { workspace = true }
+ignore = { workspace = true }
+# Reuse the incumbent typed JSONL encoder; messages are never manually escaped.
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+# Semantic checking was explicitly authorized; all rust-analyzer APIs must share one exact release.
+# HIR 0.0.335 was not published. The 0.0.336 consumer probes resolved generic receivers and the user example.
+ra_ap_syntax = { workspace = true }
+ra_ap_hir = { workspace = true }
+ra_ap_hir_ty = { workspace = true }
+ra_ap_ide_db = { workspace = true }
+ra_ap_load-cargo = { workspace = true }
+ra_ap_project_model = { workspace = true }
+ra_ap_proc_macro_api = { workspace = true }
+ra_ap_vfs = { workspace = true }
+# Match the backend's tested input-storage API; named query functions read typed per-database requests.
+salsa = { workspace = true, default-features = false, features = ["macros", "inventory"] }
+# ra-ap-rustc_lexer 0.165.0 asserts that both crates use the same Unicode tables.
+# 1.0.25+ of unicode-ident uses Unicode 18; the approved parser stack uses Unicode 17.
+# Pin the same matching pair already locked by the incumbent Rust linter.
+unicode-ident = { workspace = true }
+unicode-properties = { workspace = true }
+# The approved Markdown/MDX parser crates are upgraded together behind the parity suite.
+satteri-pulldown-cmark = { workspace = true }
+satteri-arena = { workspace = true }
+satteri-ast = { workspace = true }
+
+# Published release binaries keep the optimized profile the incumbent Rust linter shipped with;
+# development builds use the default dev profile, so they skip fat LTO and one codegen unit
+# (doc/planning/unified-linter.md, `Package layout`). Enforced by file-enforcer.
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
+
+# Standalone package, matching the repository's Cargo ownership convention.
+[workspace]
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]
+
+# Named catalogs this crate selects from rust-catalog.toml (doc/decision/rust-dependency-catalog.md).
+[package.metadata.rust-catalog.catalogs]
+ra_ap_hir = "pinned"
+ra_ap_hir_ty = "pinned"
+ra_ap_ide_db = "pinned"
+ra_ap_load-cargo = "pinned"
+ra_ap_proc_macro_api = "pinned"
+ra_ap_project_model = "pinned"
+ra_ap_syntax = "pinned"
+ra_ap_vfs = "pinned"
+salsa = "pinned"
+satteri-arena = "pinned"
+satteri-ast = "pinned"
+satteri-pulldown-cmark = "pinned"
+unicode-ident = "pinned"
+unicode-properties = "pinned"
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+clap = ">=4.6.7"
+globset = ">=0.4.20"
+ignore = ">=0.4.33"
+ra_ap_hir = "=0.0.336"
+ra_ap_hir_ty = "=0.0.336"
+ra_ap_ide_db = "=0.0.336"
+ra_ap_load-cargo = "=0.0.336"
+ra_ap_proc_macro_api = "=0.0.336"
+ra_ap_project_model = "=0.0.336"
+ra_ap_syntax = "=0.0.336"
+ra_ap_vfs = "=0.0.336"
+salsa = { version = "=0.27.2", default-features = false }
+satteri-arena = "=0.3.1"
+satteri-ast = "=0.5.3"
+satteri-pulldown-cmark = "=0.6.3"
+serde = ">=1.0.229"
+serde_json = ">=1.0.154"
+unicode-ident = "=1.0.24"
+unicode-properties = "=0.1.4"

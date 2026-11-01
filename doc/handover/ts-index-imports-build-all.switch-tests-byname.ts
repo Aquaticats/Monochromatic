@@ -1,27 +1,27 @@
 /**
- * Throwaway Phase-C helper: switch a package's `*.unit.test.ts` imports of its
- * OWN sibling source modules from relative (`./foo.ts`) to by-name
- * (`@monochromatic-dev/<pkg>`), so the tests exercise the BUILT dist after the
- * package's `.` export is flipped from src to dist.
- *
- * Scope guard (deliberate): only rewrites a file that imports EXACTLY ONE own
- * non-test sibling source module. Files with two or more such imports would
- * collapse to duplicate by-name statements (an `eslint/no-duplicate-imports`
- * violation needing a manual merge), so they are reported and SKIPPED for hand
- * handling. Files with zero own-source imports (aggregators, already-by-name,
- * node-builtin-only) are left untouched.
- *
- * Internal-symbol detection is delegated to the build oracle: if a switched
- * symbol is not re-exported from the package index, `buildAndTest` fails loudly
- * naming it, and that one import is reverted to source by hand.
- *
- * No regex: pure string scanning of each line's `from '...'` / `import '...'`
- * specifier. Idempotent (a by-name specifier is not relative, so it is skipped).
- *
- * Usage: `bun mise.switch-tests-byname.ts <pkgDir> <pkgName> [--dry]`
- *   e.g. `bun mise.switch-tests-byname.ts package/module/or-throw @monochromatic-dev/module-or-throw`
- *
- * @module
+ Throwaway Phase-C helper: switch a package's `*.unit.test.ts` imports of its
+ OWN sibling source modules from relative (`./foo.ts`) to by-name
+ (`@monochromatic-dev/<pkg>`), so the tests exercise the BUILT dist after the
+ package's `.` export is flipped from src to dist.
+ 
+ Scope guard (deliberate): only rewrites a file that imports EXACTLY ONE own
+ non-test sibling source module. Files with two or more such imports would
+ collapse to duplicate by-name statements (an `eslint/no-duplicate-imports`
+ violation needing a manual merge), so they are reported and SKIPPED for hand
+ handling. Files with zero own-source imports (aggregators, already-by-name,
+ node-builtin-only) are left untouched.
+ 
+ Internal-symbol detection is delegated to the build oracle: if a switched
+ symbol is not re-exported from the package index, `buildAndTest` fails loudly
+ naming it, and that one import is reverted to source by hand.
+ 
+ No regex: pure string scanning of each line's `from '...'` / `import '...'`
+ specifier. Idempotent (a by-name specifier is not relative, so it is skipped).
+ 
+ Usage: `bun mise.switch-tests-byname.ts <pkgDir> <pkgName> [--dry]`
+   e.g. `bun mise.switch-tests-byname.ts package/or-throw/core @monochromatic-dev/or-throw-core`
+ 
+ @module
  */
 
 import { Glob, } from 'bun';
@@ -41,15 +41,15 @@ if ((!pkgDir) || (!pkgName)) {
 const dry = dryFlag === '--dry';
 
 /**
- * Extract the quoted module specifier from one import/export line.
- *
- * Returns the specifier text plus the byte offsets of the surrounding quotes,
- * so the caller can splice a replacement without disturbing the rest of the line.
- *
- * @param line - One source line to inspect
- *
- * @returns Specifier and quote offsets, or null when the line has no `from '...'`
- *   / `import '...'` clause
+ Extract the quoted module specifier from one import/export line.
+ 
+ Returns the specifier text plus the byte offsets of the surrounding quotes,
+ so the caller can splice a replacement without disturbing the rest of the line.
+ 
+ @param line - One source line to inspect
+ 
+ @returns Specifier and quote offsets, or null when the line has no `from '...'`
+   / `import '...'` clause
  */
 function extractSpecifier(line: string,): {
   spec: string;
@@ -98,14 +98,14 @@ function extractSpecifier(line: string,): {
 }
 
 /**
- * Decide whether a specifier targets an own non-test sibling source module.
- *
- * @param spec - Module specifier text
- *
- * @param fileDir - Directory of the importing test file (for relative resolution)
- *
- * @returns True when spec is a relative `.ts` (not `.unit.test.ts`) resolving to
- *   an existing file
+ Decide whether a specifier targets an own non-test sibling source module.
+ 
+ @param spec - Module specifier text
+ 
+ @param fileDir - Directory of the importing test file (for relative resolution)
+ 
+ @returns True when spec is a relative `.ts` (not `.unit.test.ts`) resolving to
+   an existing file
  */
 function isOwnSourceImport({
   spec,

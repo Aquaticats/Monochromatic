@@ -1,5 +1,11 @@
 # Prisma ORM for all Turso needs: vet report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/webapp-productivity/done` is now `package/done/app`.
+
 ## Report metadata
 
 - Status:

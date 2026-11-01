@@ -70,12 +70,14 @@ run,
   4;
    dotnet/runtime confirms 'iphone prohibit JITted code'),
    clearing the no-JIT wall,
-   and it links+calls native static libs from C# via [DllImport(\"__Internal\")] (proven in-repo by Uno's own ICU static linking at UnicodeText.
+   and it links+calls native static libs from C# via [DllImport(\"__Internal\")] (proven in-repo
+    by Uno's own ICU static linking at UnicodeText.
   ICU.
   skia.
   cs:
   448).
-   That single FFI mechanism satisfies BOTH the kopia-as-static-lib requirement AND lets the existing symphonia+cpal Rust audio core be reused behind Uno's Skia/Metal UI rather than rewritten on AVAudioEngine.
+   That single FFI mechanism satisfies BOTH the kopia-as-static-lib requirement AND lets the existing symphonia+cpal
+    Rust audio core be reused behind Uno's Skia/Metal UI rather than rewritten on AVAudioEngine.
 
 ## Wall 2: JIT / executable memory
 
@@ -197,7 +199,8 @@ TcpListener / Socket,
  or ASP.
 NET Core Kestrel hosted in-process on 127.0.0.1) runs as ordinary AOT-compiled managed code with no JIT,
  so kopia's local S3/HTTP target endpoint can be hosted in-app.
- This must be vetted as a supporting-stack item (build a tiny AOT iOS app that binds a localhost TcpListener and serves a request) since it is not exercised by Uno's own source.
+ This must be vetted as a supporting-stack item (build a tiny AOT iOS app that binds a localhost TcpListener
+  and serves a request) since it is not exercised by Uno's own source.
  Verdict 'yes' on mechanism;
  exact in-process socket binding to be confirmed on device.
 
@@ -266,7 +269,8 @@ Output:
 Rust core reuse:
  REUSE via FFI,
  not rewrite on AVAudioEngine.
- The symphonia+cpal Rust core links as a static library and is called from Uno's C# app code by the same P/Invoke __Internal static-link path that satisfies wall 1 for kopia;
+ The symphonia+cpal Rust core links as a static library and is called from Uno's C# app code
+  by the same P/Invoke __Internal static-link path that satisfies wall 1 for kopia;
  cpal's existing iOS/CoreAudio backend drives output.
  Consistency check:
  if a Go/Rust kopia staticlib links (wall 1 = yes),
@@ -299,7 +303,9 @@ Build ONE minimal Uno AppleUIKit-head app in Release (full AOT) that exercises b
 a / c-archive .
 xcframework added as <NativeReference Kind=\"Static\"> and called via [DllImport(\"__Internal\")]).
  On-device signal on the iPhone X:
- the app launches at all (proves the Mono AOT image runs with no execmem/JIT fault) AND the label shows the exact value returned by the native FFI function (proves wall 1 static linking,
+ the app launches at all (proves the Mono AOT image runs
+  with no execmem/JIT fault) AND the label shows the exact value returned
+  by the native FFI function (proves wall 1 static linking,
  and therefore that symphonia+cpal reuse is mechanically real).
  iPhone X (arm64,
  max iOS 16.7) clears Uno's 14.2 minimum deployment target,
@@ -432,7 +438,8 @@ xcframework.
    [DllImport(Constants.
   ObjectiveCLibrary,
    EntryPoint = "objc_msgSendSuper")].
-   Minor and corroborating-only (it is still a valid P/Invoke into the Objective-C runtime and does not affect the wall-1 conclusion).
+   Minor and corroborating-only (it is still a valid P/Invoke into the Objective-C runtime
+    and does not affect the wall-1 conclusion).
    Source:
    /tmp/agent/uno-audit-20260612/src/Uno.
   UI.
@@ -452,7 +459,8 @@ xcframework.
    not that release uses full AOT;
    "release/device uses full AOT" is a sound inference from that gate plus the Microsoft.
   iOS workload default plus Apple's JIT ban,
-   and it is independently confirmed by Uno's own docs at /tmp/agent/uno-audit-20260612/doc/articles/`api-differences.md`:
+   and it is independently confirmed by Uno's own docs
+    at /tmp/agent/uno-audit-20260612/doc/articles/`api-differences.md`:
   31 ("iOS is AOT-only ... .
   NET code must be Ahead-Of-Time (AOT) compiled to run on iOS,
    as a fundamental platform limitation").
@@ -523,5 +531,6 @@ xcframework.
   79,182 (UnoICUVersion 77.2.1,
    PackageReference Uno.
   icu-ios) -- corroborates ICU static-link wiring for wall-1;
-   repo-wide rg 'UseInterpreter' across /tmp/agent/uno-audit-20260612 -- confirmed no iOS Release/device force-enable of interpreter;
+   repo-wide rg 'UseInterpreter' across /tmp/agent/uno-audit-20260612 -- confirmed no iOS Release/device force-enable
+    of interpreter;
    only debug-gated SDK default plus sample-app/TestFlight-conditioned and test-script occurrences

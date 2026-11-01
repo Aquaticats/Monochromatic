@@ -4,13 +4,13 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isIdentifier,
   isInterfaceDeclaration,
   isMethodSignatureDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 /**
  TypeScript default-library interface owning `Array.isArray`.

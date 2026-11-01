@@ -7,16 +7,21 @@ import {
   type Server,
 } from 'node:net';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { HelperProtocolError, } from './helper-protocol.ts';
 
 //region Constants
 
 /**
- Milliseconds allowed for detached helper to authenticate after terminal launch.
+ Milliseconds before logging delayed startup, without expiring a pending question.
  */
-const HELPER_CONNECT_TIMEOUT_MS = 30_000;
+const HELPER_START_NOTICE_MS = 30_000;
+
+/**
+ Connected candidates must send authentication promptly; desktop launch has no deadline.
+ */
+const AUTHENTICATION_TIMEOUT_MS = 5_000;
 
 /**
  Bytes in one kibibyte.
@@ -74,7 +79,8 @@ export type AuthenticatedSocket = {
 //region Authentication
 
 /**
- Accepts connections until one presents expected token before startup deadline.
+ Accepts connections until a helper authenticates or the caller cancels.
+ Desktop startup can legitimately wait for an unlocked or visible surface.
  
  @param server - loopback listener
  
@@ -84,7 +90,7 @@ export type AuthenticatedSocket = {
  
  @returns authenticated socket positioned after token line
  
- @throws when startup deadline or tool cancellation aborts waiting
+ @throws when caller cancellation aborts waiting or the listener yields an invalid connection
  
  @example
  ```ts
@@ -103,33 +109,32 @@ export async function acceptAuthenticatedSocket(
   },
 ): Promise<AuthenticatedSocket> {
   /**
-   Startup-only deadline;
-   authenticated editing has no timeout.
+   Slow startup is observable, not evidence that the user cancelled the question.
    */
-  const deadlineSignal = AbortSignal.timeout(HELPER_CONNECT_TIMEOUT_MS,);
+  using notice = setTimeout(
+    function reportPendingStartup(): void {
+      l.warn('The answer terminal has not connected yet. The question remains active; unlock or reveal the desktop, inspect the terminal, or cancel the tool in Pi.',);
+    },
+    HELPER_START_NOTICE_MS,
+  );
   /**
-   Combined startup cancellation source.
+   Only caller cancellation ends a pending desktop launch.
    */
-  const startupSignal = signal === undefined
-    ? deadlineSignal
-    : AbortSignal.any([
-      signal,
-      deadlineSignal,
-    ],);
+  const startupSignal = signal ?? new AbortController().signal;
   for await (const connection of on(
     server,
     'connection',
     { signal: startupSignal, },
   )) {
-    /**
-     Runtime value narrowed to Node socket.
-     */
+      /**
+       Runtime value narrowed to Node socket.
+       */
     const socketValue: unknown = connection[0];
     if (!(socketValue instanceof Socket))
       throw new HelperProtocolError('Answer channel emitted a non-socket connection.',);
-    /**
-     Authentication outcome for candidate socket.
-     */
+      /**
+       Authentication outcome for candidate socket.
+       */
     const authenticated = await authenticateSocket({
       socket: socketValue,
       token,
@@ -167,6 +172,64 @@ async function authenticateSocket(
     readonly signal: AbortSignal;
   },
 ): Promise<AuthenticatedSocket | typeof AUTHENTICATION_REJECTED> {
+  /**
+   Only this candidate's authentication is bounded, not terminal startup.
+   */
+  const deadline = AbortSignal.timeout(AUTHENTICATION_TIMEOUT_MS,);
+  /**
+   Either cancellation source closes the candidate's pending read.
+   */
+  const candidateSignal = AbortSignal.any([
+    signal,
+    deadline,
+  ],);
+  /**
+   Destroy a stalled candidate without ending the listener or question.
+   */
+  using abortSubscription = addAbortListener(
+    candidateSignal,
+    function abortAuthentication(): void {
+      socket.destroy();
+    },
+  );
+  try {
+    return await readAuthentication({
+      socket,
+      token,
+      signal: candidateSignal,
+    },);
+  }
+  catch (error: unknown) {
+    signal.throwIfAborted();
+    /**
+     Candidate-specific failure never revokes another helper's pending question.
+     */
+    const reason = deadline.aborted ? 'timed out' : 'failed before authentication';
+    l.warn(`answer helper connection ${reason}: ${String(error,)}`,);
+    return AUTHENTICATION_REJECTED;
+  }
+}
+
+/**
+ Reads a bounded authentication line while retaining any completion bytes.
+
+ @param socket - connected candidate
+
+ @param token - expected private credential
+
+ @param signal - candidate-specific cancellation
+
+ @returns accepted channel or wrong-token sentinel
+ */
+async function readAuthentication({
+  socket,
+  token,
+  signal,
+}: {
+  readonly socket: Socket;
+  readonly token: string;
+  readonly signal: AbortSignal;
+},): Promise<AuthenticatedSocket | typeof AUTHENTICATION_REJECTED> {
   socket.setEncoding('utf8',);
   /**
    Stream iterator retained for completion frame after authentication.
@@ -179,15 +242,6 @@ async function authenticateSocket(
     text: '',
     reading: true,
   };
-  /**
-   Subscription closing candidate socket when startup aborts.
-   */
-  using abortSubscription = addAbortListener(
-    signal,
-    function abortAuthentication(): void {
-      socket.destroy();
-    },
-  );
   while (state.reading) {
     /**
      Next decoded socket chunk.
@@ -218,8 +272,8 @@ async function authenticateSocket(
      */
     const candidate = state.text
       .slice(
-        0,
-        newlineIndex,
+      0,
+      newlineIndex,
       );
     if (candidate !== token)
       return AUTHENTICATION_REJECTED;

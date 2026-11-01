@@ -1,4 +1,5 @@
-//! Integration tests for the policy resolver, driven by a fake decoded source.
+//! Integration tests for the policy resolver,
+//!  driven by a fake decoded source.
 
 use super::*;
 use crate::bucketpolicy::{BucketProbe, BucketTable};

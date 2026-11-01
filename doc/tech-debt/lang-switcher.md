@@ -1,7 +1,9 @@
 # Tech debt: ssg-test language switcher dropdown
 
 Created 2026-05-12.
- The language switcher shipped in commit `68c3930d` (rewritten same day to `<details>` / `<summary>` after the original Popover API attempt did not register clicks reliably) got the feature out the door under the same same-day deadline as the Catalan translations (see `TECH-DEBT.catalan-translations.md`).
+ The language switcher shipped in commit `68c3930d` (rewritten same day to `<details>` / `<summary>`
+  after the original Popover API attempt did not register clicks reliably) got the feature out the door
+  under the same same-day deadline as the Catalan translations (see `TECH-DEBT.catalan-translations.md`).
  The visible shape is right and the build is clean,
  but the code,
  UI,
@@ -10,9 +12,11 @@ Created 2026-05-12.
 ## Code dirt
 
 - **Generic layout types polluted with feature concerns**:
-   `pageLayout()` in `src/templates/layout.ts` and `html()` in `src/components/site-header.ts` now take `currentName` and `availableInLangs` so the switcher can compute same-post links.
+   `pageLayout()` in `src/templates/layout.ts` and `html()` in `src/components/site-header.ts` now take `currentName`
+    and `availableInLangs` so the switcher can compute same-post links.
    These are lang-switcher concerns that have no business in a generic layout signature;
-   every future page-context need will accrete here unless this is refactored into a single opaque `pageContext` object (or the switcher pulls from a context rather than receiving props).
+   every future page-context need will accrete here unless this is refactored
+    into a single opaque `pageContext` object (or the switcher pulls from a context rather than receiving props).
 - **`?: T | undefined` shortcut over conditional spread**:
    `currentName?: string | undefined` was the path of least resistance under `exactOptionalPropertyTypes`.
    The codebase's idiomatic alternative is conditional-spread at the call site,
@@ -25,9 +29,11 @@ Created 2026-05-12.
    the lang-switcher has no client-side class registering it.
    The marker should either be removed or paired with a registration even if the body is empty for forward-compat.
 - **`availableLangsByName` precomputed for one consumer**:
-   built once at the top of `generatePages` in `src/build/pages.ts` but only consumed inside the per-locale post-write map.
+   built once at the top of `generatePages` in `src/build/pages.ts`
+    but only consumed inside the per-locale post-write map.
    Could be inlined as `byName[name].map(p => p.lang)` at the call site for a smaller diff and no surprise prefetch.
-- **Magic value `font-weight: 600`** on the current-locale anchor in `lang-switcher.ts` should be a named constant alongside `MENU_MIN_INLINE_REM`.
+- **Magic value `font-weight: 600`** on the current-locale anchor
+ in `lang-switcher.ts` should be a named constant alongside `MENU_MIN_INLINE_REM`.
 - **Check-glyph hardcoded in CSS content**:
    `&::before { content: "\2713\00a0" }` puts a Unicode check plus nbsp directly in CSS.
    Inflexible,
@@ -68,7 +74,8 @@ Created 2026-05-12.
    `中文`).
    Not tested against locales with longer autonyms.
 - **CJK vs Latin script baseline mismatch**:
-   `中文` sits at a different optical baseline and weight than `English`/`Català` because the Material/Inter stack falls back to the system CJK font.
+   `中文` sits at a different optical baseline and weight than `English`/`Català`
+    because the Material/Inter stack falls back to the system CJK font.
    Visual rhythm in the menu looks uneven.
 - **No focus ring on the menu container**:
    only individual links have `:focus-visible` rings.
@@ -85,7 +92,8 @@ Created 2026-05-12.
 - **Silent fallback to landing**:
    when a post does not exist in the target locale,
    the item links to `/{lang}` instead of `/{lang}/{name}` with no visual cue.
-   A user clicking `中文` on a post they expect translated lands on the Chinese landing and may not realise the post itself is missing.
+   A user clicking `中文` on a post they expect translated lands on the Chinese landing
+    and may not realise the post itself is missing.
    A strikethrough,
    "(not translated)" suffix,
    or `aria-describedby` hint would surface this.
@@ -120,7 +128,8 @@ Created 2026-05-12.
 - **Check glyph in current-locale anchor reads aloud**:
    `\2713` is rendered as text content via `::before`,
    so screen readers may announce "check mark Català".
-   Using `aria-current="page"` as the sole semantic signal and the glyph purely decorative (via `::marker` or `aria-hidden` sibling,
+   Using `aria-current="page"` as the sole semantic signal and the glyph purely decorative (via `::marker`
+    or `aria-hidden` sibling,
    both with caveats) would be cleaner.
 
 ## Out of scope for the look-back

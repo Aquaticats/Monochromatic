@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T13:16:17.943Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "checkoutSource": {
+    "repository": "actions/checkout",
+    "commit": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+    "cloneMatchedAllCapturedFiles": true,
+    "files": [
+      {
+        "path": "src/git-source-provider.ts",
+        "source": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "gitBlob": "ec871784f1d6fd9dcc4ea006f6378b381f3f6639",
+        "bytes": 12093,
+        "sha256": "3e71adf079121196f4fefc7be40851fa4d30905df9a378d50031ccb73d496a79"
+      },
+      {
+        "path": "src/git-command-manager.ts",
+        "source": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "gitBlob": "f5ba40e9fdf9726d37c8d47920f2e3265be7d83a",
+        "bytes": 21181,
+        "sha256": "f27f6fad6051d7ad905e1c221eb9fc7fa1f4de561987bdd6384797244ba89541"
+      },
+      {
+        "path": "package.json",
+        "source": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "gitBlob": "4b2b58a513e87e86888596fa0581f43b5a0cc55c",
+        "bytes": 1498,
+        "sha256": "6f9a9f3ae7d8047d049b011c42373e2d97bd5c2fb4633317f44796809661cf87"
+      }
+    ]
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
+    "bytes": 15117,
+    "sha256": "f713b99f1f6842cdf206ca2f447af351d6d05ff2ba638633c7a90f7ebadf8a76"
+  },
+  "failures": [
+    {
+      "id": "39108872769",
+      "path": ".github/workflows/readonly-semantic-bridge.yml",
+      "source": "6b3c75517e798161e79ddb7e496b78cf1ffc4240",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": "39109462308",
+      "path": ".github/workflows/readonly-semantic-bridge.yml",
+      "source": "1438ecde4b643a606e0a75f85067e3d0153e9bb5",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "fullLogSha256": "86eb89c587e21612f0cf9cb7acf41e4a13e353daceaadd505e07a9210f5d624c",
+      "selected": [
+        "research-service-container-github-hosted-x64\tUNKNOWN STEP\t2026-10-18T07:57:45.0721753Z The repository will be downloaded using the GitHub REST API",
+        "research-service-container-github-hosted-x64\tUNKNOWN STEP\t2026-10-18T07:57:45.0722143Z To create a local Git repository instead, add Git 2.18 or higher to the PATH",
+        "research-service-container-github-depot-x64\tUNKNOWN STEP\t2026-10-18T08:02:39.6039670Z The repository will be downloaded using the GitHub REST API",
+        "research-service-container-github-depot-x64\tUNKNOWN STEP\t2026-10-18T08:02:39.6039961Z To create a local Git repository instead, add Git 2.18 or higher to the PATH",
+        "research-service-container-github-depot-arm64\tUNKNOWN STEP\t2026-10-18T08:07:46.4555201Z The repository will be downloaded using the GitHub REST API",
+        "research-service-container-github-depot-arm64\tUNKNOWN STEP\t2026-10-18T08:07:46.4555854Z To create a local Git repository instead, add Git 2.18 or higher to the PATH"
+      ]
+    },
+    {
+      "id": "39112162357",
+      "path": ".github/workflows/readonly-semantic-bridge.yml",
+      "source": "9779cb896b92969b84f45e2737117231638aa700",
+      "status": "completed",
+      "conclusion": "failure",
+      "fullLogSha256": "9835e455bd2a8f5d8af9a167038b39aabff8ac874db0e6f9c89713e790c58ed7",
+      "selected": [
+        "research-service-container-github-hosted-x64\tRun mise install node\t2026-10-18T08:39:55.0792517Z ^[[2mmise^[[0m ^[[34mnode^[[0m@26.12.0 /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-hosted-x64\tRun mise install node\t2026-10-18T08:39:55.2817646Z ^[[2mmise^[[0m ^[[38;5;9m✗^[[0m ^[[34mnode^[[0m@26.12.0  4.5s · failed: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-hosted-x64\tRun mise install node\t2026-10-18T08:39:55.3278306Z ^[[31mmise^[[0m ^[[31mERROR^[[0m Failed to install core:node@latest: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-arm64\tRun mise install node\t2026-10-18T08:41:12.3996890Z ^[[2mmise^[[0m ^[[34mnode^[[0m@26.12.0 /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-arm64\tRun mise install node\t2026-10-18T08:41:12.4628574Z ^[[2mmise^[[0m ^[[38;5;9m✗^[[0m ^[[34mnode^[[0m@26.12.0  2.0s · failed: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-arm64\tRun mise install node\t2026-10-18T08:41:12.4934632Z ^[[31mmise^[[0m ^[[31mERROR^[[0m Failed to install core:node@latest: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-x64\tRun mise install node\t2026-10-18T08:40:32.4465108Z ^[[2mmise^[[0m ^[[34mnode^[[0m@26.12.0 /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-x64\tRun mise install node\t2026-10-18T08:40:32.5284837Z ^[[2mmise^[[0m ^[[38;5;9m✗^[[0m ^[[34mnode^[[0m@26.12.0  1.8s · failed: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory",
+        "research-service-container-github-depot-x64\tRun mise install node\t2026-10-18T08:40:32.5474686Z ^[[31mmise^[[0m ^[[31mERROR^[[0m Failed to install core:node@latest: ~/.local/share/mise/installs/node/26.12.0/bin/node exited with non-zero status: exit code 127; last stderr: /github/home/.local/share/mise/installs/node/26.12.0/bin/node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory"
+      ]
+    }
+  ],
+  "workflowContextControls": [
+    {
+      "run": "39108872769",
+      "totalCount": 0,
+      "jobs": []
+    },
+    {
+      "run": "39113547458",
+      "totalCount": 6,
+      "jobs": [
+        {
+          "id": 117634565797,
+          "name": "research-service-host-github-hosted-x64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T08:59:15Z",
+          "completedAt": "2026-10-18T08:59:54Z"
+        },
+        {
+          "id": 117634565946,
+          "name": "research-service-host-github-depot-x64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T08:59:55Z",
+          "completedAt": "2026-10-18T09:00:34Z"
+        },
+        {
+          "id": 117634566029,
+          "name": "research-service-host-github-depot-arm64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T09:00:35Z",
+          "completedAt": "2026-10-18T09:01:14Z"
+        },
+        {
+          "id": 117634974435,
+          "name": "research-service-container-github-depot-arm64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T09:02:45Z",
+          "completedAt": "2026-10-18T09:03:27Z"
+        },
+        {
+          "id": 117634974461,
+          "name": "research-service-container-github-hosted-x64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T09:01:16Z",
+          "completedAt": "2026-10-18T09:02:07Z"
+        },
+        {
+          "id": 117634974593,
+          "name": "research-service-container-github-depot-x64",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T09:02:07Z",
+          "completedAt": "2026-10-18T09:02:44Z"
+        }
+      ]
+    }
+  ],
+  "originalImageGitControl": {
+    "receipt": "doc/audit/depot-original-service-git-2026-10-18.evidence.json",
+    "scope": "AMD64 original image default PATH; exact historical job environment and ARM absence not separately measured",
+    "result": "git ENOENT, every default PATH candidate absent; valid Node spawn and deliberately absent-command controls pass"
+  },
+  "qualifiedFinalConsumers": {
+    "receipt": "doc/audit/depot-service-containers-2026-10-18.evidence.json",
+    "nativePassed": 4,
+    "githubPassed": 6,
+    "actualNodeVersion": "26.12.0",
+    "baseImageNodeVersion": "24.22.0",
+    "gitVersion": "2.39.5",
+    "addedRuntimePackage": "libatomic1=12.2.0-14+deb12u1",
+    "imageDigest": "sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31"
+  },
+  "limits": [
+    "Checkout REST fallback selection does not by itself identify which Git initialization failure occurred",
+    "Cause of the original REST download stall remains unresolved",
+    "Context-rejected workflow has failure and zero jobs; raw hosted parser diagnostic was not recovered by the retained run/check APIs",
+    "Final Git2.39.5 checkout qualification does not satisfy Git-policy exact2.56 fixture",
+    "Base Node24 health does not qualify locked Node26 runtime",
+    "Original successful service artifact bundle remains unchanged"
+  ]
+}

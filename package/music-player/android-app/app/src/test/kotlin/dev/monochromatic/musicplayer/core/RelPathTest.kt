@@ -175,23 +175,23 @@ class RelPathTest {
     }
 
     // What:     `@Test` annotation marking the next method as a JUnit test (metadata only).
-    // Why:      Registers `singleFolderYieldsBareFilenames` with the runner.
+    // Why:      Registers `withoutARootTheSharedDirectoryIsStripped` with the runner.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // test("single folder yields bare filenames", () => {
+    // test("without a root the shared directory is stripped", () => {
     // ```
     @Test
-    // What:     `fun singleFolderYieldsBareFilenames() { ... }` declares a no-arg `Unit`-returning
+    // What:     `fun withoutARootTheSharedDirectoryIsStripped() { ... }` declares a no-arg `Unit`-returning
     //           test method, block body.
-    // Why:      Pins that when ALL tracks share the same folder (`/m/A/Alb/`), the whole folder is
-    //           the common prefix, so only the filenames remain.
+    // Why:      Pins that without a library root (D86) the whole shared folder (`/m/A/Alb/`) is the common
+    //           prefix, so only the filenames remain. With a root the folder keeps its name; see DisplayRootTest.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // () => { /* ...assertion below... *\/ }
     // ```
-    fun singleFolderYieldsBareFilenames() {
+    fun withoutARootTheSharedDirectoryIsStripped() {
         // What:     `assertEquals(listOf("01.flac", "02.flac"), relativeDisplayPaths(listOf("/m/A/Alb/01.flac", "/m/A/Alb/02.flac")))`
         //           is `assertEquals(expected, actual)`. EXPECTED is an immutable `List<String>`;
         //           ACTUAL strips the fully-shared `/m/A/Alb/` folder, leaving bare filenames.

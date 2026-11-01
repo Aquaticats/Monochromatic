@@ -1,0 +1,16 @@
+# cargo-nextest reads this file from the package directory: the package is its own workspace root ([workspace] in
+# Cargo.toml), and the tasks run nextest with that directory as the working directory.
+# bin/check-nextest-config.ts (mise run test:nextest-config) proves it inside the build container.
+
+# A test that hangs is killed instead of running for hours.
+# The cap is 1800 seconds (a 120 second period, 15 periods), far above the slowest legitimate test measured:
+# the slowest test now is a native one (annotation_stability_tests::scrolling_across_annotated_lines_is_rigid,
+# 83 to 109 seconds), and before 2026-10-18 the one real-source wrap test took 720 to 750.
+# The task output prints a SLOW line for every period a test overruns, so a slow test is visible long before the kill.
+[profile.default]
+slow-timeout = { period = "120s", terminate-after = 15 }
+
+# The profile that bin/check-nextest-config.ts selects to see the file take effect within seconds.
+# It exists in no other way: a nextest that did not read this file reports the profile as missing.
+[profile.config-probe]
+slow-timeout = { period = "2s", terminate-after = 1 }

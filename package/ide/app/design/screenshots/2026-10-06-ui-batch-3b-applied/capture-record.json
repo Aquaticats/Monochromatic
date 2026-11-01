@@ -1,0 +1,299 @@
+{
+  "produced": "2026-10-06T21:19:50.941Z",
+  "crops": {
+    "query-selection-ink": {
+      "find-selected": {
+        "x": 257,
+        "y": 604,
+        "width": 843,
+        "height": 56,
+        "scale": 2
+      },
+      "search-selected": {
+        "x": 150,
+        "y": 50,
+        "width": 800,
+        "height": 110,
+        "scale": 2
+      }
+    },
+    "divider-focus": {
+      "x": 216,
+      "y": 200,
+      "width": 80,
+      "height": 260,
+      "scale": 4
+    },
+    "clear-plate": {
+      "x": 940,
+      "y": 600,
+      "width": 160,
+      "height": 60,
+      "scale": 4
+    }
+  },
+  "sessions": [
+    {
+      "question": "clear-plate",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-dark-rest.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-dark-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 20,
+          "pressedSamples": 19
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "clear-plate",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-light-rest.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-light-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 22,
+          "pressedSamples": 21
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "dividerFocus": {
+          "absolutePosition": {
+            "x": 256
+          },
+          "accessibleLabel": "Sidebar width",
+          "accessibleRole": "Slider",
+          "accessibleValue": "256",
+          "accessibleValueMaximum": 859,
+          "accessibleValueMinimum": 160,
+          "accessibleValueStep": 16,
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "37"
+          },
+          "size": {
+            "height": 660,
+            "width": 1
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "AppWindow::sidebar-divider",
+              "typeName": "SidebarDivider"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-dark-focused.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-dark-focused-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "dividerFocus": {
+          "absolutePosition": {
+            "x": 256
+          },
+          "accessibleLabel": "Sidebar width",
+          "accessibleRole": "Slider",
+          "accessibleValue": "256",
+          "accessibleValueMaximum": 859,
+          "accessibleValueMinimum": 160,
+          "accessibleValueStep": 16,
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "37"
+          },
+          "size": {
+            "height": 660,
+            "width": 1
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "AppWindow::sidebar-divider",
+              "typeName": "SidebarDivider"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-light-focused.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-light-focused-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-dark-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-dark-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "applied",
+      "commit": "3ca955f7c",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-light-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-light-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    }
+  ]
+}

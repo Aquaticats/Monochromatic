@@ -1,0 +1,513 @@
+{
+  "observedAt": "2026-10-16T01:50:34.474Z",
+  "repository": "Aquaticats/Monochromatic",
+  "trialBranch": "trial/depot-tests-20261016",
+  "finalCodeCommit": "b1d360002d08b38eeddedaec1bd8b235dc296c83",
+  "localCli": "depot 2.102.22",
+  "reportAction": "2ad5779840a9c63e884fa26f11d019768a27a941",
+  "computePerJob": {
+    "vcpus": 2,
+    "memoryGb": 8
+  },
+  "attempts": [
+    {
+      "runId": "lw9hrglt00",
+      "sha": "46effff65ab4193b4311d7675e301c97007176d1",
+      "jobId": "0f24j4sp81",
+      "attemptId": "cp6tk4gdh6",
+      "attempt": 1,
+      "status": "failed",
+      "startedAt": "2026-10-16T01:34:15Z",
+      "finishedAt": "2026-10-16T01:35:13Z",
+      "elapsedSeconds": 58,
+      "rows": 116,
+      "uniqueIdentities": 58,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 114,
+        "TEST_RESULT_STATUS_FAILED": 2
+      },
+      "pages": [
+        {
+          "count": 116,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core"
+      ],
+      "reportSha256": "070d5ef7fda1e1118319b526acfc4c82cb0da5b41aec49b36c1c2cf04cc85c97",
+      "logSha256": "329214fa9782ef97fc6373ddc3bb5c2b0124b897e8ef2087bd28d99d10dd2442"
+    },
+    {
+      "runId": "lw9hrglt00",
+      "sha": "46effff65ab4193b4311d7675e301c97007176d1",
+      "jobId": "0f24j4sp81",
+      "attemptId": "5smprtc89c",
+      "attempt": 2,
+      "status": "failed",
+      "startedAt": "2026-10-16T01:35:47Z",
+      "finishedAt": "2026-10-16T01:36:33Z",
+      "elapsedSeconds": 46,
+      "rows": 116,
+      "uniqueIdentities": 58,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 114,
+        "TEST_RESULT_STATUS_FAILED": 2
+      },
+      "pages": [
+        {
+          "count": 116,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core"
+      ],
+      "reportSha256": "0a88c89b49b77721c506cd48043e7d975f3b31d3caa4a70ca72109220c9af4b2",
+      "logSha256": "4717649bd3a0f99c29959178264e5b6204283fe2a24f034fabde58df591d8c07"
+    },
+    {
+      "runId": "qlmb7szd5v",
+      "sha": "edc7269534f85cae6cc314650490a061b906710e",
+      "jobId": "hz1grtgmvf",
+      "attemptId": "n3236mwkmj",
+      "attempt": 1,
+      "status": "failed",
+      "startedAt": "2026-10-16T01:38:16Z",
+      "finishedAt": "2026-10-16T01:39:03Z",
+      "elapsedSeconds": 47,
+      "rows": 58,
+      "uniqueIdentities": 58,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 56,
+        "TEST_RESULT_STATUS_SKIPPED": 1,
+        "TEST_RESULT_STATUS_FAILED": 1
+      },
+      "pages": [
+        {
+          "count": 58,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core"
+      ],
+      "reportSha256": "38aeeb3f4462024b9ea442ad59fa36503bf809a4730f0902c17f8add99c4ad34",
+      "logSha256": "dd5ee7d3ea2558b6fc4bd8ee7b1710586079eb2fd7e7ac49d834482214eba0ad"
+    },
+    {
+      "runId": "qlmb7szd5v",
+      "sha": "edc7269534f85cae6cc314650490a061b906710e",
+      "jobId": "hz1grtgmvf",
+      "attemptId": "m02sjlh616",
+      "attempt": 2,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:40:51Z",
+      "finishedAt": "2026-10-16T01:41:36Z",
+      "elapsedSeconds": 45,
+      "rows": 58,
+      "uniqueIdentities": 58,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 57,
+        "TEST_RESULT_STATUS_SKIPPED": 1
+      },
+      "pages": [
+        {
+          "count": 58,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core"
+      ],
+      "reportSha256": "f312dd792fc62ea2c5bddaf0843d919fed8ddb1edd4023dd5f3b38b7428ef852",
+      "logSha256": "c26d7faa916ddd8505652423a3c9af3c7f082a3d91552bacf7978a445d1c21d5"
+    },
+    {
+      "runId": "knrdxgnqpn",
+      "sha": "f23707b7235fcc8b26670775a6ebc5dec10b4fb8",
+      "jobId": "br3tzbg4fc",
+      "attemptId": "93tg67nfn8",
+      "attempt": 1,
+      "status": "failed",
+      "startedAt": "2026-10-16T01:37:21Z",
+      "finishedAt": "2026-10-16T01:38:01Z",
+      "elapsedSeconds": 40,
+      "rows": 0,
+      "uniqueIdentities": 0,
+      "statuses": {},
+      "pages": [],
+      "suites": []
+    },
+    {
+      "runId": "knrdxgnqpn",
+      "sha": "f23707b7235fcc8b26670775a6ebc5dec10b4fb8",
+      "jobId": "nb836c16gm",
+      "attemptId": "f0d188v0wb",
+      "attempt": 1,
+      "status": "failed",
+      "startedAt": "2026-10-16T01:37:21Z",
+      "finishedAt": "2026-10-16T01:38:03Z",
+      "elapsedSeconds": 42,
+      "rows": 0,
+      "uniqueIdentities": 0,
+      "statuses": {},
+      "pages": [],
+      "suites": []
+    },
+    {
+      "runId": "hn8scrvkf1",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "2lmck7xjwj",
+      "attemptId": "0vwt02221f",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:40:45Z",
+      "finishedAt": "2026-10-16T01:41:42Z",
+      "elapsedSeconds": 57,
+      "rows": 294,
+      "uniqueIdentities": 294,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 292,
+        "TEST_RESULT_STATUS_SKIPPED": 2
+      },
+      "pages": [
+        {
+          "count": 294,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "forbidden-regex",
+        "truepeak-core",
+        "forbidden-regex::integration"
+      ],
+      "assignment": {
+        "candidates": [
+          "truepeak-core",
+          "forbidden-regex"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 2,
+        "candidates_with_timings": 1,
+        "shard_index": 0,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "20f9cf4fd7741ddb88379e9163908732e710c27cc5fb453a7ff9775f37ddaec9",
+      "logSha256": "7b50e1225774fc08c28f09d4deb565b3d6acd69b9c32a18c8142cfb863cf294b"
+    },
+    {
+      "runId": "hn8scrvkf1",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "2lmck7xjwj",
+      "attemptId": "np0224cnqj",
+      "attempt": 2,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:42:21Z",
+      "finishedAt": "2026-10-16T01:43:19Z",
+      "elapsedSeconds": 58,
+      "rows": 294,
+      "uniqueIdentities": 294,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 292,
+        "TEST_RESULT_STATUS_SKIPPED": 2
+      },
+      "pages": [
+        {
+          "count": 294,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "forbidden-regex",
+        "truepeak-core",
+        "forbidden-regex::integration"
+      ],
+      "assignment": {
+        "candidates": [
+          "truepeak-core",
+          "forbidden-regex"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 2,
+        "candidates_with_timings": 1,
+        "shard_index": 0,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "2e30fda281041c6308e862fd8d8e2311a6580697904c94b8962e1ab75fd62a66",
+      "logSha256": "d62e2249e3ce8a31aec5b7c149b1f9d4e4cae571f4b74f6b72e6f1164acd12c1"
+    },
+    {
+      "runId": "hn8scrvkf1",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "hxhq21d2qs",
+      "attemptId": "6g7rptp8l9",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:40:44Z",
+      "finishedAt": "2026-10-16T01:41:30Z",
+      "elapsedSeconds": 46,
+      "rows": 81,
+      "uniqueIdentities": 81,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 81
+      },
+      "pages": [
+        {
+          "count": 81,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "monochromatic-jsonc-edit"
+      ],
+      "assignment": {
+        "candidates": [
+          "monochromatic-jsonc-edit"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 1,
+        "candidates_with_timings": 1,
+        "shard_index": 1,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "eb4208a7a45810121a37e163169bc3df974aac3da7f341f29e5eb9688dc5027f",
+      "logSha256": "5031d605c8be2c0843788f42ecaceb6363aef3e80dc99433e42f6c3cab5ce7be"
+    },
+    {
+      "runId": "hn8scrvkf1",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "hxhq21d2qs",
+      "attemptId": "926pbchxwr",
+      "attempt": 2,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:42:20Z",
+      "finishedAt": "2026-10-16T01:43:02Z",
+      "elapsedSeconds": 42,
+      "rows": 81,
+      "uniqueIdentities": 81,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 81
+      },
+      "pages": [
+        {
+          "count": 81,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "monochromatic-jsonc-edit"
+      ],
+      "assignment": {
+        "candidates": [
+          "monochromatic-jsonc-edit"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 1,
+        "candidates_with_timings": 1,
+        "shard_index": 1,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "ed1d2fb0f8a6851a9b6990f1a6f32227de2aa54158bacda91a264cfab9dae884",
+      "logSha256": "66740c95bd86f735463bd1744686a775cd19f28904c41c4d3f7b6ffc973e379e"
+    },
+    {
+      "runId": "b8k8plzdsk",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "9nk82v9gv4",
+      "attemptId": "dk40zwzj4j",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:45:04Z",
+      "finishedAt": "2026-10-16T01:45:52Z",
+      "elapsedSeconds": 48,
+      "rows": 139,
+      "uniqueIdentities": 139,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 138,
+        "TEST_RESULT_STATUS_SKIPPED": 1
+      },
+      "pages": [
+        {
+          "count": 139,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core",
+        "monochromatic-jsonc-edit"
+      ],
+      "assignment": {
+        "candidates": [
+          "truepeak-core",
+          "monochromatic-jsonc-edit"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 2,
+        "candidates_with_timings": 3,
+        "shard_index": 1,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "fa193ede7c4267cbd109fb2830bf8fb1b00508013cbf22c6e450709506cc8e46",
+      "logSha256": "d9f869ae3e8147df6bb53b709661855922c634721c1a756bda09804f12f6e666"
+    },
+    {
+      "runId": "b8k8plzdsk",
+      "sha": "0822456eb74f708491ec60c7c7508d5e974d2551",
+      "jobId": "j8xbp1h8ds",
+      "attemptId": "kr9w5qfsrp",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:45:04Z",
+      "finishedAt": "2026-10-16T01:45:55Z",
+      "elapsedSeconds": 51,
+      "rows": 236,
+      "uniqueIdentities": 236,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 235,
+        "TEST_RESULT_STATUS_SKIPPED": 1
+      },
+      "pages": [
+        {
+          "count": 236,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "forbidden-regex",
+        "forbidden-regex::integration"
+      ],
+      "assignment": {
+        "candidates": [
+          "forbidden-regex"
+        ],
+        "candidates_requested": 3,
+        "candidates_selected": 1,
+        "candidates_with_timings": 3,
+        "shard_index": 0,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "75a1f64b210772bc0fb80de5ddbd87a8e1d8c67e508393d724aeeb4953b106ae",
+      "logSha256": "56a476b00a95bdd17134ff0a8feefc992e72b0954132751b5b47f7fe2377ddd3"
+    },
+    {
+      "runId": "wf9xzbwfph",
+      "sha": "b1d360002d08b38eeddedaec1bd8b235dc296c83",
+      "jobId": "2bp65ww5t3",
+      "attemptId": "0lz28tpjxp",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:46:41Z",
+      "finishedAt": "2026-10-16T01:47:30Z",
+      "elapsedSeconds": 49,
+      "rows": 211,
+      "uniqueIdentities": 211,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 211
+      },
+      "pages": [
+        {
+          "count": 211,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "forbidden-regex"
+      ],
+      "assignment": {
+        "candidates": [
+          "forbidden-regex"
+        ],
+        "candidates_requested": 4,
+        "candidates_selected": 1,
+        "candidates_with_timings": 4,
+        "shard_index": 0,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "a00f5746e7f96d9e8869369510e1a3b7837fa86967b3bef1343d568c240f7435",
+      "logSha256": "880b062a040fea2dfaa50fb0d6504a4d9e36c84d7b717e131e23fa72fc44a9f8"
+    },
+    {
+      "runId": "wf9xzbwfph",
+      "sha": "b1d360002d08b38eeddedaec1bd8b235dc296c83",
+      "jobId": "s5nfgm9nrk",
+      "attemptId": "v89w2hw070",
+      "attempt": 1,
+      "status": "finished",
+      "startedAt": "2026-10-16T01:46:41Z",
+      "finishedAt": "2026-10-16T01:47:34Z",
+      "elapsedSeconds": 53,
+      "rows": 164,
+      "uniqueIdentities": 164,
+      "statuses": {
+        "TEST_RESULT_STATUS_PASSED": 163,
+        "TEST_RESULT_STATUS_SKIPPED": 1
+      },
+      "pages": [
+        {
+          "count": 164,
+          "hasNext": false
+        }
+      ],
+      "suites": [
+        "truepeak-core",
+        "monochromatic-jsonc-edit",
+        "forbidden-regex::integration"
+      ],
+      "assignment": {
+        "candidates": [
+          "truepeak-core",
+          "monochromatic-jsonc-edit",
+          "forbidden-regex::integration"
+        ],
+        "candidates_requested": 4,
+        "candidates_selected": 3,
+        "candidates_with_timings": 4,
+        "shard_index": 1,
+        "shard_total": 2,
+        "split_by": "timings"
+      },
+      "reportSha256": "b717802b463a1932deaf778069d9518987af063d0ba0ead38cd0f666ceb7714c",
+      "logSha256": "0cf9b7bbc754dc138015266251d99d388ae41ee8f89c1f4faff73a0d5a247acf"
+    }
+  ],
+  "checks": {
+    "fullPageRetrieval": true,
+    "duplicateUploadRows": 116,
+    "duplicateUploadUniqueIdentities": 58,
+    "finalRows": 375,
+    "finalUniqueIdentities": 375,
+    "finalPassed": 374,
+    "finalSkipped": 1,
+    "finalCandidateCoverage": 4,
+    "finalCandidatesWithTimingHistory": 4,
+    "sameCommitRetryPassed": true,
+    "statusFiltersVerified": true,
+    "analyticsMixedOutcomePairVerified": true,
+    "branchFilteredAnalyticsVerified": true
+  },
+  "totals": {
+    "attemptCount": 14,
+    "totalRows": 1848,
+    "passingRows": 1834,
+    "elapsedJobSeconds": 682,
+    "vcpuSeconds": 1364,
+    "estimatedComputeUsdAtPublicOverageRate": 0.0682,
+    "theoreticalTestOverageUsdIfNoAllowanceRemained": 0.001834
+  },
+  "billingLimit": "Rates applied to observed rows and job timestamps are illustrative overage arithmetic, not an invoice or account-usage result. Startup and Developer include 1 million passing results monthly. Failed, errored, and skipped results are free. Duplicate ingestion may change the ledger; authenticated usage was unavailable.",
+  "pricingUrl": "https://depot.dev/pricing",
+  "issues": {
+    "duplicateIngestion": 1046,
+    "correctedSkipFilter": 1048,
+    "correctedSplitFlag": 1049,
+    "correctedBinaryIdentity": 1050
+  }
+}

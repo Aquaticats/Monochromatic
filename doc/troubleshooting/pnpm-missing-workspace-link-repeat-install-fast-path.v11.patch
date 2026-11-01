@@ -1,0 +1,160 @@
+diff --git a/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts b/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts
+index a7e1fe4..3129fe9 100644
+--- a/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts
++++ b/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts
+@@ -5,7 +5,7 @@ import { type Config, type ConfigContext, createProjectModulesDirResolver } from
+ import { isError } from '@pnpm/error'
+ import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+ 
+-export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
++export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'dedupeDirectDeps' | 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
+ & Pick<ConfigContext, 'allProjects' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+ & {
+   include?: IncludedDependencies
+@@ -18,16 +18,23 @@ export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir'
+  * install relinks it
+  * (https://github.com/pnpm/pnpm/issues/9758). A missing entry is not a
+  * broken link: skipped optional and excluded dependencies have none, and a
+- * healthy entry costs one `stat`. The hoisted linker places a project's
++ * healthy entry costs one `stat`. The exception is a non-optional
++ * `workspace:` dependency under the isolated linker: it is always linked,
++ * so its missing entry means the install has to run again. The hoisted linker places a project's
+  * dependencies in the root modules directory too, so both are probed there.
+  */
+ export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {
+   const entries = listDirectDependencyEntries(opts)
+-  const dangling = await Promise.all(entries.map(isDanglingLink))
+-  return entries.find((_, index) => dangling[index])
++  const stale = await Promise.all(entries.map(({ entry, mustExist }) => isStaleLink(entry, mustExist)))
++  return entries.find((_, index) => stale[index])?.entry
+ }
+ 
+-function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOptions): string[] {
++interface DirectDependencyEntry {
++  entry: string
++  mustExist: boolean
++}
++
++function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOptions): DirectDependencyEntry[] {
+   const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = [...(opts.allProjects ?? [])]
+   if (opts.rootProjectManifest != null && !projects.some(({ rootDir }) => rootDir === opts.rootProjectManifestDir)) {
+     projects.push({ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest })
+@@ -35,17 +42,20 @@ function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOpti
+   const modulesDirOf = createProjectModulesDirResolver(opts)
+   const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
+   const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
++  const isolatedLinker = opts.nodeLinker !== 'hoisted' && opts.nodeLinker !== 'pnp' && opts.dedupeDirectDeps !== true
+   return projects.flatMap(({ rootDir, manifest }) => {
+     const modulesDirs = [path.resolve(rootDir, modulesDirOf(manifest.name) ?? 'node_modules')]
+     if (opts.nodeLinker === 'hoisted' && modulesDirs[0] !== rootModulesDir) {
+       modulesDirs.push(rootModulesDir)
+     }
+-    const aliases = fields.flatMap((field) => Object.keys(manifest[field] ?? {}))
+-    return aliases.flatMap((alias) => modulesDirs.map((modulesDir) => path.join(modulesDir, alias)))
++    return fields.flatMap((field) => Object.entries(manifest[field] ?? {}).flatMap(([alias, spec]) => {
++      const mustExist = isolatedLinker && field !== 'optionalDependencies' && spec.startsWith('workspace:')
++      return modulesDirs.map((modulesDir) => ({ entry: path.join(modulesDir, alias), mustExist }))
++    }))
+   })
+ }
+ 
+-async function isDanglingLink (entry: string): Promise<boolean> {
++async function isStaleLink (entry: string, mustExist: boolean): Promise<boolean> {
+   try {
+     await fs.promises.stat(entry)
+     return false
+@@ -56,7 +66,7 @@ async function isDanglingLink (entry: string): Promise<boolean> {
+     await fs.promises.lstat(entry)
+     return true
+   } catch (error) {
+-    if (hasErrorCode(error, 'ENOENT', 'ENOTDIR')) return false
++    if (hasErrorCode(error, 'ENOENT', 'ENOTDIR')) return mustExist
+     throw error
+   }
+ }
+diff --git a/pnpm11/deps/status/test/findDanglingDirectDependencyLink.test.ts b/pnpm11/deps/status/test/findDanglingDirectDependencyLink.test.ts
+new file mode 100644
+index 0000000..ca4d109
+--- /dev/null
++++ b/pnpm11/deps/status/test/findDanglingDirectDependencyLink.test.ts
+@@ -0,0 +1,80 @@
++import fs from 'node:fs'
++import path from 'node:path'
++
++import { expect, test } from '@jest/globals'
++import { prepareEmpty } from '@pnpm/prepare'
++
++import {
++  findDanglingDirectDependencyLink,
++  type FindDanglingDirectDependencyLinkOptions,
++} from '../src/findDanglingDirectDependencyLink.js'
++
++type ModulesEntry = 'link' | 'absent' | 'dangling'
++
++async function findStaleEntry (
++  manifest: Record<string, unknown>,
++  entry: ModulesEntry,
++  options: Partial<FindDanglingDirectDependencyLinkOptions> = {}
++): Promise<string | undefined> {
++  prepareEmpty()
++  const rootDir = process.cwd()
++  const projectDir = path.join(rootDir, 'app')
++  fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
++  fs.mkdirSync(path.join(rootDir, 'lib'))
++  if (entry === 'link') {
++    fs.symlinkSync(path.join(rootDir, 'lib'), path.join(projectDir, 'node_modules', 'lib'), 'junction')
++  } else if (entry === 'dangling') {
++    fs.symlinkSync(path.join(rootDir, 'gone'), path.join(projectDir, 'node_modules', 'lib'), 'junction')
++  }
++  const found = await findDanglingDirectDependencyLink({
++    lockfileDir: rootDir,
++    modulesDir: 'node_modules',
++    packageConfigs: {},
++    rootProjectManifestDir: rootDir,
++    rootProjectManifest: { name: 'ws-root' },
++    allProjects: [{ rootDir: projectDir, manifest: { name: 'app', ...manifest } }],
++    ...options,
++  } as FindDanglingDirectDependencyLinkOptions)
++  return found == null ? undefined : path.relative(rootDir, found)
++}
++
++const libEntry = path.join('app', 'node_modules', 'lib')
++
++test('a link that is present is not stale', async () => {
++  expect(await findStaleEntry({ dependencies: { lib: 'workspace:*' } }, 'link')).toBeUndefined()
++})
++
++test('a link that points nowhere is stale', async () => {
++  expect(await findStaleEntry({ dependencies: { lib: 'workspace:*' } }, 'dangling')).toBe(libEntry)
++})
++
++test.each([
++  ['dependencies', 'workspace:*'],
++  ['devDependencies', 'workspace:^'],
++])('a missing entry for a workspace dependency in %s is stale', async (field, spec) => {
++  expect(await findStaleEntry({ [field]: { lib: spec } }, 'absent')).toBe(libEntry)
++})
++
++test('a missing entry for a registry dependency is not stale', async () => {
++  expect(await findStaleEntry({ dependencies: { lib: '^1.0.0' } }, 'absent')).toBeUndefined()
++})
++
++test('a missing entry for an optional workspace dependency is not stale', async () => {
++  expect(await findStaleEntry({ optionalDependencies: { lib: 'workspace:*' } }, 'absent')).toBeUndefined()
++})
++
++test('a missing entry is not stale under the hoisted linker', async () => {
++  expect(await findStaleEntry({ dependencies: { lib: 'workspace:*' } }, 'absent', { nodeLinker: 'hoisted' })).toBeUndefined()
++})
++
++test('a missing entry is not stale when direct dependencies are deduped', async () => {
++  expect(await findStaleEntry({ dependencies: { lib: 'workspace:*' } }, 'absent', { dedupeDirectDeps: true })).toBeUndefined()
++})
++
++test('a missing entry for an excluded dependency field is not stale', async () => {
++  expect(await findStaleEntry(
++    { devDependencies: { lib: 'workspace:*' } },
++    'absent',
++    { include: { dependencies: true, devDependencies: false, optionalDependencies: true } }
++  )).toBeUndefined()
++})

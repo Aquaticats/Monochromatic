@@ -1,6 +1,6 @@
 # Electron 43 under nested-wayland-session: quit prints a Fatal Wayland broken-pipe error and a Failed-to-shutdown FATAL; benign in passing runs, with one unreproduced nonzero-exit flake
 
-When the nested compositor (`package/cli/nested-wayland-session`) exits on the control
+When the nested compositor (`package/nested-wayland-session/cli`) exits on the control
 socket's `quit` while hosting an Electron app,
  the app's Wayland connection dies under it and
 Chromium logs a fatal-looking pair of lines during teardown.
@@ -44,7 +44,7 @@ socket;
 (`wayland_event_watcher.cc:78` in the Chromium tree bundled by electron 43.1.0) and Electron's
 browser main parts then abort with `Failed to shutdown`
 (`electron_browser_main_parts.cc:527`).
-The boundary harness (`package/desktop-app/electron-infra/src/wayland-process.ts`,
+The boundary harness (`package/electron-infra/core/src/wayland-process.ts`,
 `waitForSuccessfulExit`) judges only the COMPOSITOR's exit code;
  in passing runs that code is
 0 despite the app's noisy death.
@@ -64,11 +64,11 @@ Environment:
  electron 43.1.0,
  nested-wayland-session 0.1.1,
  boundary test
-`package/desktop-app/file-manager-electron/src/wayland-boundary-test.ts`.
+`package/file-manager/variant-electron/src/wayland-boundary-test.ts`.
 
 - The stderr pair appears on EVERY run,
    passing or failing:
-  `mise run //package/desktop-app/file-manager-electron:test:wayland 2>&1 | grep -E 'Broken pipe|Failed to shutdown'`
+  `mise run //package/file-manager/variant-electron:test:wayland 2>&1 | grep -E 'Broken pipe|Failed to shutdown'`
   prints both lines while the task exits 0.
 - Flake reproduction attempts:
    five consecutive runs immediately after the one failure,

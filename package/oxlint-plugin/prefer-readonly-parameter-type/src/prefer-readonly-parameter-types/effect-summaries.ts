@@ -4,8 +4,8 @@
  @module
  */
 
-import type { SourceFile, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { SourceFile, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import { isDeclarationFileName, } from './declaration-file-name.ts';
 import { createEffectAnalysisBudget, } from './effect-analysis-budget.ts';
@@ -65,7 +65,7 @@ type InclusionScope = {
 const inclusionScopeByProject = new WeakMap<
   Project,
   Map<string, InclusionScope>
->();
+  >();
 
 /**
  Selects exact non-declaration source scope admitted by ownership policy.

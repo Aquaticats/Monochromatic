@@ -66,7 +66,7 @@ rather than fanning out to an existing Node package manager.
 
 Stated by the user on 2026-09-16:
 
-- Whatever monorepo manager is chosen must provide every functionality of `@monochromatic-dev/dev-script-file-enforcer`.
+- Whatever monorepo manager is chosen must provide every functionality of `@monochromatic-dev/file-enforcer-core`.
   Cargo manifest enforcement and JetBrains LSP4IJ settings management are pluggable by definition.
   OS package provisioning and its Repology-derived package index may be replaced by Meta Package Manager.
 - It must provide the watch plus RPC pattern:
@@ -137,7 +137,7 @@ Measurements used tracked files plus `mise tasks --all --hidden --json` from the
 
 ## Existing TypeScript configuration compiler
 
-`file-enforcer.config.ts` and `@monochromatic-dev/dev-script-file-enforcer` already provide the canonical TypeScript
+`file-enforcer.config.ts` and `@monochromatic-dev/file-enforcer-core` already provide the canonical TypeScript
 configuration layer proposed by this plan.
 The package executes direct async TypeScript,
 tracks source and destination files,
@@ -196,13 +196,35 @@ affected selection,
 caching,
 and aggregate failure reporting.
 
-This repository still resolves pnpm 12.3.4,
-so none of the 12.4 additions is locally established.
+Update 2026-10-28:
+ the session resolves pnpm 12.14.0 from a Mise-managed install,
+and `toolchain.lock.json` records 12.16.1 for its `pnpm` entry with `track: latest`,
+so the 12.4 additions are locally established.
+`pnpm pipeline --help`,
+`pnpm tasks --help`,
+and `pnpm run --help` on 12.14.0 show pipeline runs,
+concurrency-group status,
+`--dry-run --json`,
+`--stream`,
+`--aggregate-output`,
+`--reverse`,
+`--sort`,
+and the `[since]` affected-selection filters.
 Cargo support installs and vendors dependencies but does not install Rust or compile crates.
 Python support requires an existing interpreter.
 Pipeline commands execute scripts selected from project manifests,
 not TypeScript declarations directly.
+`https://pnpm.io/cli/pipeline`,
+fetched 2026-10-28,
+still warns "pnpm pipeline is experimental.
+Its configuration and output may change.";
+12.5.0 added `concurrencyGroups`,
+12.6.0 added task `priority` and `pnpm tasks status`,
+and 12.12.0 added signed remote-cache result sharing.
+Both 12.14.0 and 12.16.1 accept `--no-bail` and `--resume-from` while `pnpm run --help` lists neither,
+because `pnpm/crates/cli/src/cli_args/cli_command.rs:321-337` marks the flags `hide = true`.
 `doc/troubleshooting/pnpm-12-4-polyglot-workspace.md` records the source trace and current limitations.
+`doc/troubleshooting/pnpm-recursive-no-bail-semantics.md` records the task-orchestration documentation trace.
 
 ## Meta Package Manager candidate surface
 
@@ -264,7 +286,8 @@ backends,
 shims,
 `mise.lock`,
 `mise install`,
-and `mise upgrade`.
+and `mise upgrade` until the cutover in `doc/planning/mpm-toolchain-migration.md` removes them;
+the `Owner, selected 2026-10-26` field describes the owner after cutover.
 
 Evidence:
  `mise.toml:27-211`,
@@ -278,39 +301,84 @@ Rust components,
 JDK and Android tooling,
 and platform-specific binaries.
 
-Proposed owner:
- file-enforcer owns canonical TypeScript toolchain policy,
-provider selection,
+Owner,
+selected 2026-10-26
+ ([`doc/decision/mpm-toolchain-adoption.md`](../decision/mpm-toolchain-adoption.md)):
+ Meta Package Manager owns the restore manifest (`mpm.packages.toml`),
+machine inventory (`mpm installed`),
+outdated detection (`mpm outdated`),
+upgrade coordination (`mpm upgrade`),
+the release-age cooldown,
+and SBOM export (`mpm sbom`).
+file-enforcer's typed tool plan
+(`package/file-enforcer/core/src/toolchain/`) owns policy,
 convergence order,
 and drift reporting.
-pnpm 12.4+ is the primary surface provider candidate for Node,
-Deno,
-and Bun runtimes;
-package-manager pins;
-npm,
-Cargo,
-and Python dependencies;
-and npm-distributed CLIs.
-File-enforcer's existing OS package dispatch remains the provider for system packages.
-Rust toolchains and components,
-JDK,
-Android SDK and NDK,
-Zig,
-and remaining standalone binaries still require focused providers.
-One manually installed bootstrap prerequisite must provision Node before file-enforcer can execute;
-a committed generated manifest must carry that bootstrap state on a fresh clone.
+The maintainer confirmed the install route per tool family
+(`doc/planning/mpm-toolchain-migration.md`,
+section `Routing (user-confirmed 2026-10-26)`):
+single-binary payloads install with the upstream `bin` CLI
+(`bin install <source spec>`,
+GitHub shorthand,
+release-tag URLs,
+host sources),
+and MPM's `bin` manager owns their inventory and upgrades afterwards
+(the manager declares no `install` operation by design);
+multi-binary or whole-tree payloads (`age`,
+`cmake`,
+`llama.cpp`,
+`uv`,
+`taplo`,
+the JDK,
+Node,
+`zig`,
+`bubblewrap`) and sources `bin` cannot fetch
+go through the checksummed `archive` provider.
+npm CLI tools route through MPM's `pnpm` manager id
+and `pipx:slopo` through MPM's `uvx` manager id
+(the one wrapping `uv tool install`).
+`cargo:` tools stay a repository provider over `cargo-binstall`.
+Rust stays MPM's `rustup` manager
+(toolchain ids carry the exact channel)
+plus direct `rustup component add` and `rustup target add` calls.
+Android SDK components stay a repository provider
+running the Android CLI shipped in cmdline-tools
+(`android sdk install <package>[@<version>]...`).
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what `toolchain:sync` installs
+(the `mise install` against `mise.lock` semantics),
+so the explicit pins still install exactly.
+The sync installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`,
+and re-resolving versions is a separate update action
+(the `pnpm update` analogue).
+`mpm.managers.toml` entries are inventory and pin descriptions
+for the `cargo:` family only;
+no install depends on `mpm restore` except the `rustup` slice.
+`toolchain.lock.json` replaces `mise.lock` as the pinned version record.
+The sync entry point is `mise run toolchain:sync`
+(also `node package/file-enforcer/core/src/toolchain/sync.ts`),
+`mise run toolchain:status` reports drift,
+and `node package/file-enforcer/core/src/toolchain/bin-paths.ts` reports the exposure directory.
+One manually installed bootstrap prerequisite remains:
+Node executes the sync entry and Mise wraps it as a task;
+the sync then stages `bin` (a standalone release binary,
+SHA-256 checked against the release `checksums.txt` values),
+`uv`,
+and `mpm` (the PyPI wheel `meta-package-manager` 8.2.0,
+SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`) before the other tools.
 
 Selection status:
- pnpm's expanded surface is verified from 12.4.1 documentation and source but not adopted or runtime-validated here.
-Meta Package Manager 7.6.1 is a serious orchestration candidate,
-not a selected provisioning owner.
-One restore detects backends before package operations,
-and several relevant default adapters do not preserve recorded versions.
-A staged outer workflow and direct provider commands may cover both constraints,
-but that composition remains unverified.
-Remaining providers are unselected and require a choosing-technology audit.
-Do not assume pnpm's experimental ecosystem support or several native installers already compose into the required
-cross-platform contract.
+ selected 2026-10-26 on the maintainer's direct instruction,
+with the disposable provisioning verification in `doc/planning/mpm-toolchain-migration.md` as the adoption pilot.
+The maintainer confirmed the per-family routes on 2026-10-26
+(`doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`).
+`mpm restore` covers only the managers whose adapters honor the recorded version;
+the sync installs the rest from `toolchain.lock.json`
+(`doc/troubleshooting/mpm-manager-extensibility.md`).
+macOS and Windows provisioning parity stays unverified.
 
 Parity gate:
  a disposable clean home on every supported operating system installs the committed versions,
@@ -321,7 +389,10 @@ and performs explicit updates without unrelated installations.
 
 Intentionally retired behavior:
  none selected.
-Floating `latest` requests require an explicit reproducibility decision.
+Floating `latest` requests keep today's semantics
+(floating requests with committed resolutions),
+confirmed 2026-10-26 in `doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`.
 
 ### Task discovery and execution
 
@@ -396,9 +467,138 @@ also exited at the documentation gate:
 while `https://nadle.dev/docs/guides/file-operation-tasks/` uses `into`.
 See `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`.
 
-Parity gate:
- preserve package namespaces,
-partial invocation,
+Update 2026-10-28:
+ the failure-semantics question that update left open is now measured,
+and `doc/troubleshooting/pnpm-recursive-no-bail-semantics.md` holds the probe and source trace.
+Both pnpm 12.14.0 and 12.16.1 skip a failed task's dependents under `--no-bail`,
+continue independent ready tasks,
+and exit non-zero
+(`pnpm/crates/workspace-task-scheduler/src/tests.rs:880`),
+so the `workspace-task-orchestration` sentence is correct
+and the `cli/recursive` sentence "all tasks will finish" is false as written.
+Parity-gate items "intentional failure tolerance",
+"tests continuing after build failure where required",
+"retained failure causes",
+and "correct aggregate exit status" hold across independent projects,
+but a dependent of a failure never runs under any `--no-bail` spelling.
+
+Task edges and package edges also disagree today.
+`rg -n '^\s*depends\b' -g 'mise*.toml' package/` matches 178 lines on 2026-10-28,
+and edges name other packages and the root project directly:
+`package/translation-repair/translate-stage/mise.toml:10`
+depends on 13 `//package/translation-repair/*:build:js:node` tasks
+while `package/translation-repair/translate-stage/package.json` omits
+`@monochromatic-dev/translation-repair-glossary` from `dependencies`.
+pnpm `dependsOn` entries take only `name` for the same project
+and `^name` for the same-named task in each workspace dependency
+(`https://pnpm.io/workspace-task-orchestration`,
+fetched 2026-10-28),
+so exact task-edge parity needs package-graph reshaping or repository-owned scheduling.
+Missing scripts pass through as skipped tasks,
+and `pnpm -r run --dry-run --json test` prints the resolved graph with `missingScript` flags,
+which covers "missing optional package builds" and machine-readable listing at the graph level.
+No disposable pnpm pilot is recorded in `doc/`;
+every gap recorded here is documentation,
+configuration,
+or probe evidence.
+
+Update 2026-10-29:
+ the disposable pilot is now recorded in
+[`pnpm-task-execution-pilot.md`](pnpm-task-execution-pilot.md),
+covering graph reshaping,
+declaration compilation,
+paths with spaces,
+missing scripts,
+and pipeline failure tolerance.
+It closes the "no pilot" gap with a conditional ranking,
+and the remaining open item is whether the user accepts three semantic shifts
+for a pnpm-owned task slice.
+
+Update 2026-10-29 (Nadle):
+ [`nadle-task-execution-pilot.md`](nadle-task-execution-pilot.md)
+pilots Nadle 0.6.1 against the same gates and compares both with meow.
+Nadle covers exact task edges,
+typed in-process bodies,
+caching,
+and machine-readable output,
+but its name grammar bans the colon task vocabulary,
+so the contract choice is now a three-way flagged decision.
+
+Update 2026-10-29 (task-slice comparison):
+ [`task-slice-comparison.md`](task-slice-comparison.md)
+joins the measured Poe the Poet 0.49.0,
+Buck2 2026-10-14,
+Pants 2.33.1,
+projen 0.104.19,
+Please 17.34.0,
+and Tilt 0.37.8 pilots
+with pnpm 12.16,
+Nadle 0.6.1,
+meow,
+and keeping Mise.
+Only Poe the Poet,
+projen,
+and Tilt keep the colon task names;
+Tilt fails the failure-tolerance gate outright in batch mode;
+the documented-drift class that culled Nadle reproduces in every candidate
+and now weighs as a scored deduction
+(unacknowledged upstream acknowledgement deducts points,
+acknowledged drift like Poe's open PR #438 does not),
+never a cull.
+Each candidate carries a trust score from the upstream acknowledgement audit
+in [`task-slice-comparison.md`](task-slice-comparison.md),
+where the Buck2 sandbox footnote is also corrected:
+ probes confirm it,
+ and the contradiction belongs to a third-party write-up.
+The ranking is refrozen with per-pair justifications and flip conditions;
+the contract question follows over every candidate.
+
+Update 2026-10-29 (scoring axis correction):
+ the user rejected parity with the current status quo
+ as the scoring axis
+ ("Parity with the current status quo is poor scoring axis.
+Assume we're fine with huge huge refactors and everything."),
+ so [`task-slice-comparison.md`](task-slice-comparison.md)
+ is rescored on intrinsic capability for the slice job.
+Migration and shape cost
+ (renames,
+ label grammar,
+ body syntax,
+ adapters,
+ codegen,
+ stubs)
+ score nothing
+ and are recorded as implementation notes.
+The task-slice gate below is reframed
+ from "preserve X"
+ to the capability the runner must deliver.
+The acceptance-boundary behaviors
+ in `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
+ stay requirements.
+This reframe is scoped to the task slice;
+ the other slices in this document keep their own gates.
+
+Update 2026-10-29 (contract answer):
+ the user chose Pants 2.33.1
+ as the task-slice owner,
+ and chose the `OPT` tightening
+ ("Score capability for the target workload,
+ never fidelity to incumbents."),
+ commit `3b928a1db5`.
+The reopened vet for Pants
+ opens at
+ [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md);
+ adoption waits on that vet
+ and on explicit acceptance,
+ which unlocks the `doc/decision/` record
+ and the migration of 1,811 task names,
+ 603 edges,
+ and the `//package/<path>:<task>` call sites.
+
+Capability catalog:
+ address one task of one package,
+exact dependency edges,
+safe task bodies,
 paths containing spaces,
 sequential and parallel groups,
 missing optional package builds,
@@ -407,11 +607,27 @@ tests continuing after build failure where required,
 retained failure causes,
 machine-readable task listing,
 and correct aggregate exit status.
-`package/dev-script/task-util/src/build-and-test.unit.test.ts` is part of the acceptance boundary.
+`package/monorepo-task/core-exec/src/build-and-test.unit.test.ts` is part of the acceptance boundary.
 
 Intentionally retired behavior:
  no task feature is selected for retirement.
 Unused Mise task features do not need replacement unless a current caller outside task metadata is found.
+
+Update 2026-10-29 (plan revision):
+ the user corrected two premises of the migration plan
+ recorded in [`task-slice-pants-migration.md`](task-slice-pants-migration.md).
+ "We don't care about how much work hop 2 would take",
+ so the later meow hop is not a design input,
+ and "`task-run` (task CLI) is an extremely ugly hack we did because Mise was bugging out",
+ so `@monochromatic-dev/monorepo-task-cli` and its 21 `task.ts` mirrors
+ are a stopgap to retire,
+ not an owner to extend.
+ CI already runs that stopgap instead of Mise,
+ so the slice has two representations today
+ (`mise.toml` and the `task.ts` mirror);
+ only `mise.toml` is source of truth.
+ The replacement owner is still Pants 2.33.1,
+ vetted in [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
 
 ### Watching and process lifecycle
 
@@ -424,7 +640,7 @@ and file-enforcer owns its own `--watch` mode.
 Evidence:
  `package/kwin/key-helper/mise.toml`,
 `package/ssg/aquati.cat/mise.toml`,
-`package/webapp-productivity/done/mise.toml`,
+`package/done/app/mise.toml`,
 and root watch templates.
 
 Proposed owner:
@@ -491,21 +707,43 @@ Current owner:
  Mise loads optional encrypted `.env.local.json` through its rops integration,
 marks values for output redaction,
 and injects them into commands.
+`@monochromatic-dev/env-local-json-core` reads the same store directly for
+consumers launched outside mise and owns decryption,
+discovery,
+and the identity chain.
 SOPS and age own editing and cryptographic primitives.
 
 Evidence:
- `mise.toml:1241-1248` and the `secrets:edit` task.
+ `mise.no-env.toml:1212-1233` for the `secrets:edit` and `secrets:migrate`
+tasks,
+`file-enforcer.config.ts:652-668` for the generated `[env]` `_.file` loader,
+and `package/env-local-json/core/src/` for the direct reader,
+identity resolver,
+atomic writer,
+and edit CLI.
 
 Proposed owner:
  retain SOPS and age as primitives;
-select or build a narrow child-environment launcher for decryption and injection.
-Output redaction,
-command echoing,
-and interactive terminal passthrough are separate responsibilities.
+`@monochromatic-dev/env-local-json-core` owns file reading,
+decryption,
+identity resolution,
+and the write and edit subcommands.
+A narrow child-environment launcher for mise-run command injection,
+output redaction,
+and command echoing is still unselected.
+Interactive terminal passthrough is owned by the edit CLI.
 
 Selection status:
- launcher unselected and behavior unverified.
-Identity provisioning currently references `~/.config/mise/age.txt` and needs a Mise-independent location decision.
+ reading,
+decryption,
+identity resolution,
+and interactive editing are selected and implemented in the module
+(2026-10-18).
+Child-only injection and output redaction for task commands remain in Mise and
+are unselected.
+The identity location is decided:
+it stays at `~/.config/mise/age.txt`,
+and the shared chain also honors `MISE_CONFIG_DIR` and `XDG_CONFIG_HOME`.
 
 Parity gate:
  disposable canary secrets prove optional-file absence,
@@ -517,6 +755,15 @@ error redaction,
 interactive editor access,
 signal handling,
 and absence of plaintext files.
+For the direct reader specifically:
+requested keys only,
+no `process.env` mutation,
+explicit-path hard failure,
+repository-root and bounded-walk discovery,
+plaintext rejection before identity lookup,
+and no value in any log or error.
+The reader tests generate fixtures with real `sops` and `age` and run in an
+Ubuntu container as root and as a non-root user.
 Never use real credentials for this gate.
 
 Intentionally retired behavior:
@@ -543,6 +790,17 @@ CI should request only each job's tools.
 Selection status:
  blocked by those selections.
 
+Pin source:
+ `toolchain.lock.json`
+ (generated by file-enforcer from the typed tool plan)
+ replaces `mise.lock` as the pinned-version record every workflow and container build reads.
+ The cutover repoints `.github/actions/task-cli-setup/action.yml`,
+ the `awk` Rust scrapers in `.github/workflows/music-player-release.yml`,
+ `.github/workflows/kotlin-linter-publish.yml`,
+ and `package/music-player/desktop-app/Containerfile.windows-gnu`
+ (`doc/planning/mpm-toolchain-migration.md`,
+ section `Cutover`).
+
 Parity gate:
  all nine workflows preserve cache keys,
 release-age policy,
@@ -558,10 +816,10 @@ Intentionally retired behavior:
 ### Repository-root discovery
 
 Current owner:
- `MISE_MONOREPO` in `@monochromatic-dev/module-fs-path` and its consumers.
+ `MISE_MONOREPO` in `@monochromatic-dev/fs-path-core` and its consumers.
 
 Evidence:
- `package/module/fs-path/src/root-marker.ts` plus consumers in application,
+ `package/fs-path/core/src/root-marker.ts` plus consumers in application,
 CLI,
 build,
 test,
@@ -599,8 +857,8 @@ Evidence:
 `.idea/opentofu_settings.xml`,
 `.idea/misc.xml`,
 `package/config/dotfiles/`,
-`package/dev-script/vm-builder/Containerfile`,
-and `package/cli/mutation-test/runtime/Containerfile`.
+`package/vm-builder/cli/Containerfile`,
+and `package/mutation-test/cli/runtime/Containerfile`.
 
 Proposed owner:
  selected tool provisioner paths or stable project-local wrappers.
@@ -608,7 +866,18 @@ Existing Containerfiles and VM-builder code remain machine-setup owners,
 not a new task runner.
 
 Selection status:
- blocked by tool-provider selection.
+ the tool provider is selected:
+ the toolchain system of `doc/decision/mpm-toolchain-adoption.md` (2026-10-26),
+ which installs into manager-native homes plus the toolchain root and exposes
+ executables through `.cache/toolchain-bin`.
+ The `.idea/` path repoints and the Containerfile pin repoints land with the
+ consumer migration in `doc/planning/mpm-toolchain-migration.md`,
+ section `Consumers`.
+ The user-global `~/.config/mise/config.toml` `[tools]` slice moved to the same
+ system on 2026-10-28
+ (`doc/planning/mpm-global-toolchain-migration.md`);
+ the VM-builder and Containerfile seeding of a global Mise config still needs
+ to follow that shape.
 
 Parity gate:
  editor linting,
@@ -630,13 +899,13 @@ and excludes Mise-installable tools from other package-manager provisioning path
 
 Evidence:
  `file-enforcer.config.ts`,
-`package/dev-script/file-enforcer/src/package/manager-defs.ts`,
+`package/file-enforcer/core/src/package/manager-defs.ts`,
 and
-`package/dev-script/file-enforcer/src/package/mise.generate-index.ts`.
+`package/file-enforcer/core/src/package/mise.generate-index.ts`.
 
 Proposed owner:
- file-enforcer is the canonical TypeScript configuration compiler and toolchain-convergence orchestrator for the replacement
-architecture.
+ file-enforcer is the canonical TypeScript configuration compiler
+and toolchain-convergence orchestrator for the replacement architecture.
 It should generate the selected provisioning,
 workspace-task,
 manifest,
@@ -661,7 +930,17 @@ required system packages are not filtered out accidentally,
 and no tool is omitted because a retired registry formerly claimed ownership.
 
 Intentionally retired behavior:
- Mise-registry filtering retires only with a replacement classification rule.
+ Mise-registry filtering retires with the `[tools]` cutover.
+ The replacement classification rule is the `route` field of `toolchain.lock.json`
+ (`bin-sourced`,
+ `archive`,
+ `cargo-binstall`,
+ `mpm-pnpm`,
+ `mpm-uvx`,
+ `rustup-toolchain`,
+ `rustup-components`,
+ `android-sdk`),
+ selected in `doc/decision/mpm-toolchain-adoption.md` (2026-10-26).
 
 ### Agent policy, guardrails, filters, tests, and documentation
 
@@ -712,7 +991,9 @@ Proposed owner:
 Unused upstream capabilities require no replacement.
 
 Parity gate:
- repeat the search across the final tracked tree and inspect user-global configuration separately before claiming machine-wide removal.
+ repeat the search across the final tracked tree
+and inspect user-global configuration separately
+before claiming machine-wide removal.
 
 Intentionally retired behavior:
  these unconsumed project capabilities may remain absent.
@@ -781,7 +1062,9 @@ runtime,
 shim,
 and pipeline breadth as one workspace boundary,
 or treat it as the same scope-concentration problem motivating Mise removal.
-- Prefer one focused cross-language tool manager or several ecosystem-native installers for capabilities pnpm does not cover.
+- Prefer one focused cross-language tool manager
+  or several ecosystem-native installers
+  for capabilities pnpm does not cover.
 - Accept generated TOML,
   YAML,
   JSON,

@@ -1,0 +1,50 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/mvm-cli",
+  "description": "CLI tool for creating and managing ephemeral KVM virtual machines.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "module": "dist/final/node/index.mjs",
+  "bin": {
+    "mvm": "dist/final/node/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/numeric-format-core": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "nano-spawn": "catalog:",
+    "@optique/core": "catalog:",
+    "@optique/run": "catalog:",
+    "type-fest": "catalog:"
+  },
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/mvm/cli"
+  },
+  "sideEffects": true
+}

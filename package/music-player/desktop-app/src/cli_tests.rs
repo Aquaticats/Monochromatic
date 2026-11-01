@@ -44,6 +44,7 @@ fn no_args_yields_no_path_and_paused() {
         parse(&[]),
         Cli {
             start_playing: false,
+            licenses: false,
             path: None,
         }
     );
@@ -59,6 +60,7 @@ fn single_folder_loads_paused() {
         parse(&["/music/folder"]),
         Cli {
             start_playing: false,
+            licenses: false,
             path: Some(PathBuf::from("/music/folder")),
         }
     );
@@ -75,6 +77,7 @@ fn single_file_is_accepted() {
         parse(&["/music/a.flac"]),
         Cli {
             start_playing: false,
+            licenses: false,
             path: Some(PathBuf::from("/music/a.flac")),
         }
     );
@@ -91,6 +94,7 @@ fn flag_with_path_enables_start_playing() {
         parse(&["--start-playing", "/music/a.flac"]),
         Cli {
             start_playing: true,
+            licenses: false,
             path: Some(PathBuf::from("/music/a.flac")),
         }
     );
@@ -107,6 +111,7 @@ fn flag_only_with_no_path_is_noop() {
         parse(&["--start-playing"]),
         Cli {
             start_playing: true,
+            licenses: false,
             path: None,
         }
     );
@@ -122,4 +127,44 @@ fn second_path_is_rejected() {
     // Why:      Confirm clap rejects a second positional rather than silently dropping it.
     let result = Cli::try_parse_from(["music-player", "/music/a.flac", "/music/b.opus"]);
     assert!(result.is_err());
+}
+
+// What:     `#[test] fn licenses_flag_is_parsed()`. The `--licenses` flag alone.
+// Why:      `--licenses` is how a user of the single Windows executable reaches the license notices; it must parse
+//           as the flag, open no path and not auto-play.
+#[test]
+fn licenses_flag_is_parsed() {
+    assert_eq!(
+        parse(&["--licenses"]),
+        Cli {
+            start_playing: false,
+            licenses: true,
+            path: None,
+        }
+    );
+}
+
+// What:     the color-setting parser reads the same arguments as `Cli::parse`.
+// Why:      The Windows build parses through `try_parse_from_with_color`; it must give the same `Cli`.
+#[test]
+fn the_color_setting_parser_reads_the_same_arguments() {
+    let parsed = try_parse_from_with_color(["music-player", "--start-playing", "/music"], clap::ColorChoice::Never);
+    assert!(matches!(parsed, Ok(cli) if cli == parse(&["--start-playing", "/music"])));
+}
+
+// What:     the command the color-setting parser builds carries the color setting it was given.
+// Why:      clap applies that setting when it prints help and errors (`Error::print` through `anstream`); `render()`
+//           always keeps the styles, so the setting is read from the command.
+#[test]
+fn the_command_carries_the_color_setting() {
+    assert_eq!(command_with_color(clap::ColorChoice::Never).get_color(), clap::ColorChoice::Never);
+    assert_eq!(command_with_color(clap::ColorChoice::Auto).get_color(), clap::ColorChoice::Auto);
+}
+
+// What:     a bad argument is still an error through the color-setting parser.
+// Why:      `parse_with_color` exits on it the way `Cli::parse` does.
+#[test]
+fn the_color_setting_parser_rejects_a_bad_argument() {
+    let result = try_parse_from_with_color(["music-player", "--no-such-option"], clap::ColorChoice::Never);
+    assert!(matches!(result, Err(error) if error.kind() == clap::error::ErrorKind::UnknownArgument));
 }

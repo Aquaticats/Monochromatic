@@ -12,6 +12,26 @@ speakers that the window renders,
  Run it
 from a terminal in your logged-in Windows desktop session (not the SSH session).
 
+## Update 2026-10-14: the linker changed
+
+The `lld-link.exe` pin was removed on 2026-10-14
+(the maintainer found lld unreliable on Windows,
+and a release probe showed it leaves the dynamic C runtime
+in an `+crt-static` x86_64 exe).
+`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` now link
+with Visual Studio's own `link.exe`, which rustc finds through vswhere,
+so **LLVM's `bin` no longer has to be on PATH**
+and the Visual Studio C++ build tools are the only linker requirement.
+The build and check results below were recorded with `lld-link.exe`;
+re-run `mise run //package/music-player/desktop-app:build`
+on the Windows machine to confirm the `link.exe` build there
+(the GitHub Windows runners already build and test it, in the `test-windows` job of
+`.github/workflows/music-player-release.yml`).
+A GNU-toolchain build (`x86_64-pc-windows-gnu`, MSYS2 MinGW-w64, GNU ld, no Visual Studio) is available through
+`mise run //package/music-player/desktop-app:build:windows-gnu`; the perceptual check below applies to either binary
+(`target\x86_64-pc-windows-gnu\release\music-player.exe` for the GNU one).
+Decision record: `doc/decision/music-player-windows-linkers.md`.
+
 ## What this proves
 
 That `src/output_cpal.rs` plays sound through WASAPI,
@@ -42,7 +62,7 @@ taskbar bar can only be confirmed on the real logged-in desktop.
   opusic-sys 0.7.3,
    libopus 1.6.1) all compiled;
    the binary linked with LLVM
-  `lld-link.exe` and embedded the icon via `winresource`.
+  `lld-link.exe` (the linker then pinned in `.cargo/config.toml`) and embedded the icon via `winresource`.
    No
   `CMAKE_POLICY_VERSION_MINIMUM` override was needed (libopus 1.6.1's
   `cmake_minimum_required` is 3.16).

@@ -23,11 +23,11 @@ import type {
   Model,
   Provider,
 } from '@earendil-works/pi-ai';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   planProviderFilters,
@@ -53,7 +53,7 @@ import {
  Logger surface this extension writes to.
 
  Structural rather than imported so a test can fake it without a sink, while the default
- stays a tagged logger from `@monochromatic-dev/module-logger`.
+ stays a tagged logger from `@monochromatic-dev/logger-core`.
  */
 export type RetirementLog = {
   /**

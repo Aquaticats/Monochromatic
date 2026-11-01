@@ -47,13 +47,13 @@ for (const [index, item,] of items.entries()) {
 ```
 
 Representative cases:
- `package/cli/git-clone-size/src/async-queue.ts:51`,
-`package/module/toml-edit/src/fuzz/arb-combinators.ts:33`,
- `package/module/kv-store/src/consensus.ts:53`,
+ `package/git-clone-size/cli/src/async-queue.ts:51`,
+`package/toml-edit/core/src/fuzz/arb-combinators.ts:33`,
+ `package/kv-store/core/src/consensus.ts:53`,
 `package/pi-plugin/goal/src/pi-runtime-verifier-provider.ts:174`.
 
-The `values` pair is `package/module/zip-writer/src/serialize.ts:218` and
-`package/desktop-app/file-manager-electron/src/session.ts:75`.
+The `values` pair is `package/zip-writer/core/src/serialize.ts:218` and
+`package/file-manager/variant-electron/src/session.ts:75`.
 
 ## Why `values` is the easy one and `entries` is not
 
@@ -294,7 +294,7 @@ say.
    the failure mode.
    Four findings cleared outright,
    including the `tasks.entries()` idiom in
-   `package/cli/git-clone-size/src/async-queue.ts`.
+   `package/git-clone-size/cli/src/async-queue.ts`.
    Several more kept reporting while their cause changed
    from the iterator to the real one:
    `blocks.entries` became `blocks.slice` and `blocks.with`,

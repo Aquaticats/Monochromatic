@@ -194,7 +194,7 @@ export function respondInitializeRemoved(
     code: JSON_RPC_METHOD_NOT_FOUND,
     message:
       `Method not found: initialize. This server implements MCP revision `
-      + `${SUPPORTED_PROTOCOL_VERSIONS.join(', ',)}, which removed the initialize handshake: `
+        + `${SUPPORTED_PROTOCOL_VERSIONS.join(', ',)}, which removed the initialize handshake: `
         + `call server/discover and declare the revision in each request's params._meta instead`,
     data: { supported: SUPPORTED_PROTOCOL_VERSIONS, },
   },);

@@ -5,11 +5,11 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@monochromatic-dev/build-tool-css": "workspace:*",
-    "@monochromatic-dev/module-async-time": "workspace:*",
-    "@monochromatic-dev/module-hyperscript": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*",
+    "@monochromatic-dev/css-cli": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
     "@tursodatabase/database": "catalog:",
     "h3": "catalog:",
     "micromark": "catalog:"
@@ -17,7 +17,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-tsdown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/rolldown-plugin-import-attributes": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

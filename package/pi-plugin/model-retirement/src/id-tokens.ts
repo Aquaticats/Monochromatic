@@ -6,7 +6,7 @@
  of a model's name.
  Every scan is one forward pass over characters with no regular expressions, matching
  the style of `splitModelIdTokens` in
- `package/pi-shared/model-selection/src/version.ts`.
+ `package/agent-harness-shared/model-selection/src/version.ts`.
 
  @module
  */

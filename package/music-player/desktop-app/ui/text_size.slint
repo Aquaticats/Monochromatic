@@ -1,0 +1,25 @@
+// The Text size setting: one size in pixels for each of four texts. The Rust side writes the four sizes from the session
+// at startup and after every stepper press in Settings (src/ui_settings.rs, src/text_size.rs); the values below are the
+// sizes the player drew before the setting existed, so a viewer or preview that runs no Rust still renders them, and a
+// test keeps them equal to `TextElement::default_px`. They are plain pixel lengths on purpose: Slint's theme tokens
+// (Theme.title-large and the like) do not carry these four sizes, so the texts read this global and nothing else.
+// The limits are the stepper's ends; the Rust side writes them from `MIN_TEXT_SIZE_PX` and `MAX_TEXT_SIZE_PX`.
+export global TextSize {
+    // The title of the left pane and of the right pane (the unfolded headers in bars.slint).
+    in-out property <length> pane-title: 20px;
+    // The letter that heads a group of folder names (the folder picker in folders.slint).
+    in-out property <length> group-heading: 20px;
+    // The folder names of the picker, and the hidden copy that measures them (folders.slint).
+    in-out property <length> folder-name: 14px;
+    // The title of a track row (tracks.slint).
+    in-out property <length> track-title: 14px;
+    // The smallest and the largest size a stepper reaches.
+    in-out property <length> min-size: 10px;
+    in-out property <length> max-size: 32px;
+
+    // Height of a line of text at `size`: the 24 px line the player always gave its titles, or a line that grows with a
+    // larger size, so a bigger title takes the room it needs instead of running into the line below it.
+    public pure function line-height(size: length) -> length {
+        return max(24px, size * 1.3);
+    }
+}

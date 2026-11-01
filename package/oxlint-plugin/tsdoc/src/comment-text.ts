@@ -180,8 +180,8 @@ export function stripInlineCodeSpans(s: string,): string {
 export function stripInlineCodeAndEscapes(line: string,): string {
   return stripInlineCodeSpans(line,)
     .replaceAll(
-      ESCAPED_AT,
-      '',
+    ESCAPED_AT,
+    '',
     );
 }
 

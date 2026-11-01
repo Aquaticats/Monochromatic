@@ -196,13 +196,13 @@ function annotateCodeBlock({
         /**
          Newly allocated pair list inserted into the shared map.
          */
-        const fresh: string[] = [];
-        pairsByGroup.set(
-          classes,
-          fresh,
-        );
-        return fresh;
-      })();
+          const fresh: string[] = [];
+          pairsByGroup.set(
+            classes,
+            fresh,
+          );
+          return fresh;
+        })();
       pairs.push(`${from}-${to}`,);
     },
   );
@@ -237,8 +237,8 @@ function visitNode(node: ForeignBorrowed<Root | Element>,): void {
       const [firstChild,] = child.children;
       if (
         (firstChild !== undefined)
-        && (firstChild.type
-          === 'element')
+          && (firstChild.type
+            === 'element')
           && (firstChild.tagName
             === 'code')
       ) {

@@ -1,0 +1,73 @@
+# libFuzzer dictionary for the forbidden-strings scanner fuzz targets.
+# Format: one entry per line as `name="value"` or just `"value"`.
+# Only THREE escape sequences are accepted inside the quotes:
+#   - `\\`     -> single backslash byte
+#   - `\"`     -> double-quote byte
+#   - `\xHH`   -> hex byte
+#
+# Tokens cover the two-form rule file (`compile_from_text` in rule/frx) and the
+# always-verbose escaper: rule delimiters and flag runs, the escapable
+# metacharacters, comment/whitespace boundaries, and line terminators.
+
+# Two-form rule delimiters and flag runs
+"/"
+"//"
+"/m"
+"/x"
+"/mx"
+"/i"
+"/s"
+"/g"
+
+# Comment and blank-line boundaries
+"#"
+"# comment"
+
+# Whitespace the verbose dialect swallows unless escaped
+" "
+"\x09"
+"\x0a"
+"\x0d\x0a"
+
+# Escapable metacharacters (each must round-trip to a literal byte)
+"."
+"*"
+"+"
+"?"
+"|"
+"("
+")"
+"["
+"]"
+"{"
+"}"
+"^"
+"$"
+"\\"
+"&"
+"~"
+"-"
+
+# Backslash escape-sequence lookalikes (two literal bytes, not an escape)
+"\\n"
+"\\t"
+"\\x50"
+"\\d"
+"\\w"
+
+# Rules-list grammar: separator, optional marker, doubled marker, empty entries, path lookalikes
+","
+",,"
+"?"
+"??"
+",?"
+"a.txt,b.txt?"
+"%2C"
+
+# Literal-shaped fragments and multi-byte boundaries
+"abc"
+"key=\"value\""
+"caf\xc3\xa9"
+"a.b.c"
+"{2,5}"
+"\x00"

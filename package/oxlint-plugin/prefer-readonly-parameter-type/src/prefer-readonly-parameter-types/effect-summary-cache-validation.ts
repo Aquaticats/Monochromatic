@@ -145,13 +145,13 @@ function isCallEdge({
       .length
       === slotArity)
     && value.directForeignByFormal
-    .every(function booleanFlag(flag,): boolean {
-      return (typeof flag) === 'boolean';
-    },)
+      .every(function booleanFlag(flag,): boolean {
+        return (typeof flag) === 'boolean';
+      },)
     && value.callbackKeysByCalleeSlot
-    .every(isCallbackKey,)
+      .every(isCallbackKey,)
     && value.callbackFileNamesByCalleeSlot
-    .every(isCallbackKey,);
+      .every(isCallbackKey,);
 }
 
 /**
@@ -361,10 +361,10 @@ function isEffectSummary(value: unknown,): value is SerializedEffectSummary {
     },))
     || parameterOfSlot
       .slice(
-        0,
-        parameterCount,
+      0,
+      parameterCount,
       )
-    .some(function outOfOrderWholeSlot(
+      .some(function outOfOrderWholeSlot(
         owner,
         slot,
       ): boolean {
@@ -412,23 +412,23 @@ function isEffectSummary(value: unknown,): value is SerializedEffectSummary {
       .length
       <= MAX_CALLABLE_ARITY)
     && value.relations
-    .every(function validRelation(relation,): boolean {
-      return isCallbackRelation({
-        value: relation,
-        slotCount,
-      },);
-    },)
+      .every(function validRelation(relation,): boolean {
+        return isCallbackRelation({
+          value: relation,
+          slotCount,
+        },);
+      },)
     && Array.isArray(value.elementApplications,)
     && (value.elementApplications
       .length
       <= MAX_CALLABLE_ARITY)
     && value.elementApplications
-    .every(function validApplication(application,): boolean {
-      return isElementApplication({
-        value: application,
-        slotCount,
-      },);
-    },)
+      .every(function validApplication(application,): boolean {
+        return isElementApplication({
+          value: application,
+          slotCount,
+        },);
+      },)
     && Array.isArray(value.resultApplications,)
     /* Bounded like `calls` and `elementApplications` beside it. The cap is a sanity limit
      * rather than a real arity, and one body can defer more result uses than a callable
@@ -438,21 +438,21 @@ function isEffectSummary(value: unknown,): value is SerializedEffectSummary {
       .length
       <= MAX_CALLABLE_ARITY)
     && value.resultApplications
-    .every(function validResultApplication(application,): boolean {
-      return isResultApplication(application,);
-    },)
+      .every(function validResultApplication(application,): boolean {
+        return isResultApplication(application,);
+      },)
     && Array.isArray(value.calls,)
     && (value.calls
       .length
       <= MAX_CALLABLE_ARITY)
     && value.calls
-    .every(function validCall(call,): boolean {
-      return isCallEdge({
-        value: call,
-        parameterCount,
-        slotCount,
+      .every(function validCall(call,): boolean {
+        return isCallEdge({
+          value: call,
+          parameterCount,
+          slotCount,
+        },);
       },);
-    },);
 }
 
 /**

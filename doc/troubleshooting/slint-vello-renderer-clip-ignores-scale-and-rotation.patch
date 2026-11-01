@@ -1,0 +1,54 @@
+diff --git a/internal/renderers/anyrender/itemrenderer.rs b/internal/renderers/anyrender/itemrenderer.rs
+index ef3c6dc..c09fe30 100644
+--- a/internal/renderers/anyrender/itemrenderer.rs
++++ b/internal/renderers/anyrender/itemrenderer.rs
+@@ -36,6 +36,18 @@
+ /// on the versions we build against only the cost remains.
+ const UNCLIPPED: kurbo::Rect = kurbo::Rect::new(0., 0., 1e9, 1e9);
+ 
++/// The smallest rectangle that holds all of `points`.
++fn bounding_rect(points: &[LogicalPoint]) -> LogicalRect {
++    let x_min = points.iter().fold(f32::MAX, |a, p| a.min(p.x));
++    let y_min = points.iter().fold(f32::MAX, |a, p| a.min(p.y));
++    let x_max = points.iter().fold(f32::MIN, |a, p| a.max(p.x));
++    let y_max = points.iter().fold(f32::MIN, |a, p| a.max(p.y));
++    LogicalRect::new(
++        LogicalPoint::new(x_min, y_min),
++        LogicalSize::new(x_max - x_min, y_max - y_min),
++    )
++}
++
+ #[derive(Clone, Copy)]
+ struct RenderState {
+     clip_rect: LogicalRect,
+@@ -693,11 +705,29 @@ fn translate(&mut self, distance: LogicalVector) {
+     fn rotate(&mut self, angle_in_degrees: f32) {
+         self.current_state.transform =
+             self.current_state.transform.pre_rotate(angle_in_degrees.to_radians().into());
++        // The clip is in the transformed coordinates (`ItemRenderer::get_current_clip`),
++        // so it turns the other way.
++        let (sin, cos) = (-angle_in_degrees.to_radians()).sin_cos();
++        let clip = self.current_state.clip_rect;
++        let corners = [
++            clip.origin,
++            clip.origin + euclid::vec2(clip.width(), 0.),
++            clip.origin + euclid::vec2(0., clip.height()),
++            clip.origin + clip.size,
++        ]
++        .map(|p| LogicalPoint::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos));
++        self.current_state.clip_rect = bounding_rect(&corners);
+     }
+ 
+     fn scale(&mut self, x_factor: f32, y_factor: f32) {
+         self.current_state.transform =
+-            self.current_state.transform.pre_scale_non_uniform(x_factor as f64, y_factor as f64)
++            self.current_state.transform.pre_scale_non_uniform(x_factor as f64, y_factor as f64);
++        // The clip is in the transformed coordinates (`ItemRenderer::get_current_clip`),
++        // so it shrinks or grows by the inverse factors.
++        let clip = self.current_state.clip_rect;
++        let corners =
++            [clip.min(), clip.max()].map(|p| LogicalPoint::new(p.x / x_factor, p.y / y_factor));
++        self.current_state.clip_rect = bounding_rect(&corners);
+     }
+ 
+     fn apply_opacity(&mut self, opacity: f32) {

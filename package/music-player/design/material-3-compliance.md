@@ -968,7 +968,7 @@ is a separate interactive design artifact,
 verification.
  D21's former global command hotkey and Settings row are not copied
 to Search;
- D25's Ctrl+F reservation awaits its separate keyboard-map round.
+ D25's Ctrl+F reservation is part of the keyboard map D102 accepted.
 
 ## D49: native Fold geometry replaces desktop-size Search evidence
 

@@ -54,10 +54,10 @@ function deliverPendingGoalKickoff(controller: GoalControllerState,): GoalContro
     };
   if ((pendingKickoff.runId
     !== controller.goal
-    .runId)
+      .runId)
     || (pendingKickoff.generationId
       !== controller.goal
-      .generationId)
+        .generationId)
     || (pendingKickoff.runtimeEpoch !== controller.runtimeEpoch)) {
     return {
       controller: {

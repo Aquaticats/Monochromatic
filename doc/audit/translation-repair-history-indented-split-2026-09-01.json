@@ -1,0 +1,21 @@
+{
+  "format": "translation-repair-indented-history-split-v1",
+  "sourceName": "translation-repair-history-01-early-foundation-segment-02.md",
+  "sourceDigest": "d043121952bed72191a4c51f1f9ad3abca22c5fefae6fb71a1250609657fbb12",
+  "rawPartReassemblyDigest": "d043121952bed72191a4c51f1f9ad3abca22c5fefae6fb71a1250609657fbb12",
+  "rawPartReassemblyMatches": true,
+  "independentReconstruction": {
+    "preSplitHistorySourceDigest": "56bdbdf2a0d5b7198b0ff75b428d7b00a2e9218ae28e25f9421895f5ce51aa8d",
+    "firstGroupDigest": "f7b579e691a5ae64fac49adac261707868b7bfeb4fe6b1ee821aa6e649c15c6e",
+    "groupSegmentCount": 3,
+    "beforeFormatDigest": "53fdd105c24d15fa3de656cf05981d40cf9cf43507650869d1c53fec4f22df4f",
+    "afterFormatDigest": "d043121952bed72191a4c51f1f9ad3abca22c5fefae6fb71a1250609657fbb12",
+    "matchesCapturedSourceDigest": true
+  },
+  "partNames": [
+    "translation-repair-history-01-early-foundation-segment-02-subpart-01.md",
+    "translation-repair-history-01-early-foundation-segment-02-subpart-02.md",
+    "translation-repair-history-01-early-foundation-segment-02-subpart-03.md",
+    "translation-repair-history-01-early-foundation-segment-02-subpart-04.md"
+  ]
+}

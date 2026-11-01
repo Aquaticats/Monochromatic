@@ -11,7 +11,7 @@ git commit --message "scoped change" -- <file>
 ```
 
 This occurred in commit `d28eb9155`.
-Only the new `package/module/array-at` importer was staged in `pnpm-lock.yaml`,
+Only the new `package/array-at/core` importer was staged in `pnpm-lock.yaml`,
  but the pathspec commit also recorded pre-existing catalog-upgrade changes from the working file.
 The commit therefore reported 940 insertions and 768 deletions rather than only the importer block.
 A corrective commit comment records that understated scope.
@@ -192,7 +192,8 @@ Use it only when a pathspec cannot express intended staged hunks,
 
 ### Use wrapper escape hatch when native opt-out cannot be expressed
 
-`git commit --no-enforce-only --message "<message>"` makes `cli-git` strip its wrapper flag and forward a pathless commit.
+`git commit --no-enforce-only --message "<message>"` makes `cli-git` strip its wrapper flag
+and forward a pathless commit.
 `package/git-policy/cli/src/rule/commit-only.ts:177-180` defines this behavior.
 
 Tradeoff:
@@ -262,4 +263,5 @@ Searches of open and closed `git/git` issues and pull requests for commit,
    The verified consumer-side workaround selects existing staged-index behavior.
 
 Nothing should be filed upstream.
-There is no issue or comment draft because the behavior matches documented Git semantics and repository-local tooling already exposes a verified opt-out.
+There is no issue or comment draft because the behavior matches documented Git semantics
+and repository-local tooling already exposes a verified opt-out.

@@ -1,0 +1,2430 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-10-18T17:10:20.677Z",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "guardUsd": 5,
+  "pricingSource": {
+    "url": "https://depot.dev/docs/github-actions/runner-types",
+    "status": 200,
+    "bytes": 277217,
+    "sha256": "8d653ed55a4c176d6df23b1dfba5aacdfbea78123de8af5eba6fcf33d215ae36",
+    "ratesUsdPerMinute": {
+      "depotUbuntu8": 0.024,
+      "depotUbuntu4": 0.012,
+      "depotUbuntu2": 0.006
+    }
+  },
+  "githubPublicStandardRunner": {
+    "repoVisibility": "PUBLIC",
+    "pricingSource": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+    "rateUsdPerMinute": 0
+  },
+  "rows": [
+    {
+      "id": 117701044029,
+      "name": "Restored frozen packed consumers (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-m8494kgsc0",
+      "startedAt": "2026-10-18T14:28:59Z",
+      "completedAt": "2026-10-18T14:29:31Z",
+      "seconds": 32,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0064,
+      "conservativeRoundedMinuteUsd": 0.012,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39136177894:attempt:1:job:117701044029",
+      "provider": "depot-github-runner",
+      "run": 39136177894,
+      "attempt": 1,
+      "workflowSha": "1aab4fb2eb81e8288cea56e800a0ae15fb179dfb",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117698793431,
+      "name": "Restored frozen packed consumers (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-wbfcq01c6r",
+      "startedAt": "2026-10-18T14:18:35Z",
+      "completedAt": "2026-10-18T14:20:20Z",
+      "seconds": 105,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.021,
+      "conservativeRoundedMinuteUsd": 0.024,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39135404757:attempt:1:job:117698793431",
+      "provider": "depot-github-runner",
+      "run": 39135404757,
+      "attempt": 1,
+      "workflowSha": "cf498cc94be2dbaaf4634ab862d76c46aea49520",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117694897143,
+      "name": "Restored frozen packed consumers (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-4z22l51qpn",
+      "startedAt": "2026-10-18T14:00:46Z",
+      "completedAt": "2026-10-18T14:01:20Z",
+      "seconds": 34,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0068,
+      "conservativeRoundedMinuteUsd": 0.012,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39134064943:attempt:1:job:117694897143",
+      "provider": "depot-github-runner",
+      "run": 39134064943,
+      "attempt": 1,
+      "workflowSha": "c4c0d6fa8d3714849dc952f412102902eaf4d181",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117684884874,
+      "name": "Actual frozen packing and consumers (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-wmq83hfjxg",
+      "startedAt": "2026-10-18T13:13:54Z",
+      "completedAt": "2026-10-18T13:15:20Z",
+      "seconds": 86,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0344,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39130630504:attempt:1:job:117684884874",
+      "provider": "depot-github-runner",
+      "run": 39130630504,
+      "attempt": 1,
+      "workflowSha": "d7447847d5d7c38e6d08164bba6f9fadd841564e",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117682601781,
+      "name": "Actual frozen packing and consumers (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-h4j6smfg0n",
+      "startedAt": "2026-10-18T13:03:03Z",
+      "completedAt": "2026-10-18T13:06:01Z",
+      "seconds": 178,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0712,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39129851779:attempt:1:job:117682601781",
+      "provider": "depot-github-runner",
+      "run": 39129851779,
+      "attempt": 1,
+      "workflowSha": "0ef69d6b90dcf7ba948bdaa10aa26fbbf3c7f12f",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117675260634,
+      "name": "Actual finite compiler conformance and mutation fixture (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-hd7dpn8lzv",
+      "startedAt": "2026-10-18T12:27:57Z",
+      "completedAt": "2026-10-18T12:30:33Z",
+      "seconds": 156,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.062400000000000004,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39127382413:attempt:1:job:117675260634",
+      "provider": "depot-github-runner",
+      "run": 39127382413,
+      "attempt": 1,
+      "workflowSha": "775d735adbc34c4caea7c626a43f27cd27d0d971",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117673897828,
+      "name": "Explicit active source specs after retained inactive-root discovery failure (a)",
+      "status": "completed",
+      "conclusion": "success",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-3qgh7spz1l",
+      "startedAt": "2026-10-18T12:21:19Z",
+      "completedAt": "2026-10-18T12:23:01Z",
+      "seconds": 102,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0408,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39126926119:attempt:1:job:117673897828",
+      "provider": "depot-github-runner",
+      "run": 39126926119,
+      "attempt": 1,
+      "workflowSha": "26d238d84acb484d50bbf2e35c6fba42f2300338",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117672542729,
+      "name": "Matching image with unchanged browser and E2E specifications (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-g4jvrx8107",
+      "startedAt": "2026-10-18T12:14:34Z",
+      "completedAt": "2026-10-18T12:16:28Z",
+      "seconds": 114,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0456,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39126466632:attempt:1:job:117672542729",
+      "provider": "depot-github-runner",
+      "run": 39126466632,
+      "attempt": 1,
+      "workflowSha": "552831830ef2f059b7efa5149fe20f053428c220",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117672051562,
+      "name": "Preserved flattened failure versus original source-owned topology (b)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-dgx59h0twc",
+      "startedAt": "2026-10-18T12:12:10Z",
+      "completedAt": "2026-10-18T12:12:53Z",
+      "seconds": 43,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0086,
+      "conservativeRoundedMinuteUsd": 0.012,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39126304854:attempt:1:job:117672051562",
+      "provider": "depot-github-runner",
+      "run": 39126304854,
+      "attempt": 1,
+      "workflowSha": "bb659f0f7fea71de9a2ba850bd04c5d0919fcb8e",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117671409669,
+      "name": "Same artifact flattened versus source-owned activation topology (b)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-js7f2ndg2z",
+      "startedAt": "2026-10-18T12:08:59Z",
+      "completedAt": "2026-10-18T12:09:38Z",
+      "seconds": 39,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0078000000000000005,
+      "conservativeRoundedMinuteUsd": 0.012,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39126088565:attempt:1:job:117671409669",
+      "provider": "depot-github-runner",
+      "run": 39126088565,
+      "attempt": 1,
+      "workflowSha": "0d8123ea327f5beddedcf3ba99d698288ea6d979",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117665996621,
+      "name": "Frozen native compiled producer with hidden resources (b)",
+      "status": "completed",
+      "conclusion": "success",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-slcgx40zc7",
+      "startedAt": "2026-10-18T11:41:42Z",
+      "completedAt": "2026-10-18T11:42:55Z",
+      "seconds": 73,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.029199999999999997,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39124269347:attempt:1:job:117665996621",
+      "provider": "depot-github-runner",
+      "run": 39124269347,
+      "attempt": 1,
+      "workflowSha": "28bf38b0281f3bcace40b70d8b989d6e0ef7f875",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117666235951,
+      "name": "Fresh restored compiled native host consumer (b)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-7xp2lc5lk3",
+      "startedAt": "2026-10-18T11:42:56Z",
+      "completedAt": "2026-10-18T11:43:33Z",
+      "seconds": 37,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0074,
+      "conservativeRoundedMinuteUsd": 0.012,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39124269347:attempt:1:job:117666235951",
+      "provider": "depot-github-runner",
+      "run": 39124269347,
+      "attempt": 1,
+      "workflowSha": "28bf38b0281f3bcace40b70d8b989d6e0ef7f875",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117663647044,
+      "name": "Frozen actual browser owner baseline (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-1cbmths5zh",
+      "startedAt": "2026-10-18T11:29:50Z",
+      "completedAt": "2026-10-18T11:31:12Z",
+      "seconds": 82,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0328,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39123458425:attempt:1:job:117663647044",
+      "provider": "depot-github-runner",
+      "run": 39123458425,
+      "attempt": 1,
+      "workflowSha": "6328647d8b7113a920d777044944612f3bc47a58",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117656212570,
+      "name": "Frozen bounded TypeScript properties (a)",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-qfqx9pm2kt",
+      "startedAt": "2026-10-18T10:51:54Z",
+      "completedAt": "2026-10-18T10:53:37Z",
+      "seconds": 103,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0412,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39120929405:attempt:1:job:117656212570",
+      "provider": "depot-github-runner",
+      "run": 39120929405,
+      "attempt": 1,
+      "workflowSha": "7e1b030e7e6898a7d1e7876cd0723dd61292c65a",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117653441049,
+      "name": "Frozen guarded host b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-g6p67d222x",
+      "startedAt": "2026-10-18T10:37:28Z",
+      "completedAt": "2026-10-18T10:39:40Z",
+      "seconds": 132,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.05280000000000001,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39119985290:attempt:1:job:117653441049",
+      "provider": "depot-github-runner",
+      "run": 39119985290,
+      "attempt": 1,
+      "workflowSha": "47aef8d403e4151593725943456fa3b0a8bce626",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117653441968,
+      "name": "Frozen Rust companion consumer",
+      "status": "completed",
+      "conclusion": "skipped",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": null,
+      "startedAt": "2026-10-18T10:37:27Z",
+      "completedAt": "2026-10-18T10:37:27Z",
+      "seconds": 0,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39119985290:attempt:1:job:117653441968",
+      "provider": "depot-github-runner",
+      "run": 39119985290,
+      "attempt": 1,
+      "workflowSha": "47aef8d403e4151593725943456fa3b0a8bce626",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117649471534,
+      "name": "Frozen Rust companion consumer (wg)",
+      "status": "completed",
+      "conclusion": "success",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-9v3g2pss58",
+      "startedAt": "2026-10-18T10:16:59Z",
+      "completedAt": "2026-10-18T10:18:11Z",
+      "seconds": 72,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0288,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39118628603:attempt:1:job:117649471534",
+      "provider": "depot-github-runner",
+      "run": 39118628603,
+      "attempt": 1,
+      "workflowSha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117649472595,
+      "name": "Frozen guarded host ${{ matrix.shard }}",
+      "status": "completed",
+      "conclusion": "skipped",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": null,
+      "startedAt": "2026-10-18T10:16:59Z",
+      "completedAt": "2026-10-18T10:16:59Z",
+      "seconds": 0,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39118628603:attempt:1:job:117649472595",
+      "provider": "depot-github-runner",
+      "run": 39118628603,
+      "attempt": 1,
+      "workflowSha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117647934181,
+      "name": "Frozen guarded host b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-745xq1qcn5",
+      "startedAt": "2026-10-18T10:11:58Z",
+      "completedAt": "2026-10-18T10:12:25Z",
+      "seconds": 27,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0108,
+      "conservativeRoundedMinuteUsd": 0.024,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39118106788:attempt:1:job:117647934181",
+      "provider": "depot-github-runner",
+      "run": 39118106788,
+      "attempt": 1,
+      "workflowSha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117647934410,
+      "name": "Frozen guarded host a",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-bf8qfr6lz8",
+      "startedAt": "2026-10-18T10:08:59Z",
+      "completedAt": "2026-10-18T10:11:57Z",
+      "seconds": 178,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0712,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39118106788:attempt:1:job:117647934410",
+      "provider": "depot-github-runner",
+      "run": 39118106788,
+      "attempt": 1,
+      "workflowSha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117647934933,
+      "name": "Frozen Rust companion consumer",
+      "status": "completed",
+      "conclusion": "skipped",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": null,
+      "startedAt": "2026-10-18T10:08:58Z",
+      "completedAt": "2026-10-18T10:08:58Z",
+      "seconds": 0,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39118106788:attempt:1:job:117647934933",
+      "provider": "depot-github-runner",
+      "run": 39118106788,
+      "attempt": 1,
+      "workflowSha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117637563495,
+      "name": "Frozen process Node a",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-1v8f043g75",
+      "startedAt": "2026-10-18T09:14:31Z",
+      "completedAt": "2026-10-18T09:16:10Z",
+      "seconds": 99,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.039599999999999996,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39114552347:attempt:1:job:117637563495",
+      "provider": "depot-github-runner",
+      "run": 39114552347,
+      "attempt": 1,
+      "workflowSha": "8fa5b508c061e9caec82847037a40a5ef414aa7b",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117637563610,
+      "name": "Frozen process Node b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-0ct9tnl5hk",
+      "startedAt": "2026-10-18T09:16:11Z",
+      "completedAt": "2026-10-18T09:17:43Z",
+      "seconds": 92,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.036800000000000006,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39114552347:attempt:1:job:117637563610",
+      "provider": "depot-github-runner",
+      "run": 39114552347,
+      "attempt": 1,
+      "workflowSha": "8fa5b508c061e9caec82847037a40a5ef414aa7b",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117630367037,
+      "name": "Frozen default Node b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-w17mbb064z",
+      "startedAt": "2026-10-18T08:38:29Z",
+      "completedAt": "2026-10-18T08:39:44Z",
+      "seconds": 75,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.03,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39112145763:attempt:1:job:117630367037",
+      "provider": "depot-github-runner",
+      "run": 39112145763,
+      "attempt": 1,
+      "workflowSha": "588275a55c7efefef93dbbc529078d31fdcfafd8",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117630367258,
+      "name": "Frozen default Node a",
+      "status": "completed",
+      "conclusion": "success",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-sc7z94h09z",
+      "startedAt": "2026-10-18T08:37:14Z",
+      "completedAt": "2026-10-18T08:38:29Z",
+      "seconds": 75,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.03,
+      "conservativeRoundedMinuteUsd": 0.048,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39112145763:attempt:1:job:117630367258",
+      "provider": "depot-github-runner",
+      "run": 39112145763,
+      "attempt": 1,
+      "workflowSha": "588275a55c7efefef93dbbc529078d31fdcfafd8",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623689371,
+      "name": "Frozen Node quality d",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-mj8flzsb51",
+      "startedAt": "2026-10-18T08:10:17Z",
+      "completedAt": "2026-10-18T08:12:53Z",
+      "seconds": 156,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.062400000000000004,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109937957:attempt:1:job:117623689371",
+      "provider": "depot-github-runner",
+      "run": 39109937957,
+      "attempt": 1,
+      "workflowSha": "82ea6108c57c9ef9cf6880e6d4506679812a6776",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623689501,
+      "name": "Frozen Node quality b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-s5qw7b411p",
+      "startedAt": "2026-10-18T08:05:35Z",
+      "completedAt": "2026-10-18T08:08:11Z",
+      "seconds": 156,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.062400000000000004,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109937957:attempt:1:job:117623689501",
+      "provider": "depot-github-runner",
+      "run": 39109937957,
+      "attempt": 1,
+      "workflowSha": "82ea6108c57c9ef9cf6880e6d4506679812a6776",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623689527,
+      "name": "Frozen Node quality a",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-nrfjhx4f2s",
+      "startedAt": "2026-10-18T08:02:47Z",
+      "completedAt": "2026-10-18T08:05:35Z",
+      "seconds": 168,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0672,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109937957:attempt:1:job:117623689527",
+      "provider": "depot-github-runner",
+      "run": 39109937957,
+      "attempt": 1,
+      "workflowSha": "82ea6108c57c9ef9cf6880e6d4506679812a6776",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623689533,
+      "name": "Frozen Node quality c",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-xm1r3wxxm0",
+      "startedAt": "2026-10-18T08:08:12Z",
+      "completedAt": "2026-10-18T08:10:17Z",
+      "seconds": 125,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.05,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109937957:attempt:1:job:117623689533",
+      "provider": "depot-github-runner",
+      "run": 39109937957,
+      "attempt": 1,
+      "workflowSha": "82ea6108c57c9ef9cf6880e6d4506679812a6776",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623128449,
+      "name": "Matched Linux assertions depot",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-1gn9ghgg34",
+      "startedAt": "2026-10-18T08:00:05Z",
+      "completedAt": "2026-10-18T08:01:12Z",
+      "seconds": 67,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0134,
+      "conservativeRoundedMinuteUsd": 0.024,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109746777:attempt:1:job:117623128449",
+      "provider": "depot-github-runner",
+      "run": 39109746777,
+      "attempt": 1,
+      "workflowSha": "8256d8bb9dd20b8c9b373c2c08b0a73560d93564",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117623128625,
+      "name": "Matched Linux assertions github",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner": "GitHub Actions 1000002063",
+      "startedAt": "2026-10-18T08:00:06Z",
+      "completedAt": "2026-10-18T08:01:14Z",
+      "seconds": 68,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39109746777:attempt:1:job:117623128625",
+      "provider": "github-public-standard",
+      "run": 39109746777,
+      "attempt": 1,
+      "workflowSha": "8256d8bb9dd20b8c9b373c2c08b0a73560d93564",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "ubuntu-24.04"
+        ],
+        "vcpu": null,
+        "memoryGiB": null
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117614246955,
+      "name": "Matched Linux assertions depot",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-4"
+      ],
+      "runner": "depot-69lzzr396x",
+      "startedAt": "2026-10-18T07:12:18Z",
+      "completedAt": "2026-10-18T07:14:24Z",
+      "seconds": 126,
+      "rateUsdPerMinute": 0.012,
+      "nominalElapsedUsd": 0.0252,
+      "conservativeRoundedMinuteUsd": 0.036000000000000004,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39106784923:attempt:1:job:117614246955",
+      "provider": "depot-github-runner",
+      "run": 39106784923,
+      "attempt": 1,
+      "workflowSha": "a6292671a136a9552f9deeca6b005c2a826731c9",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-4"
+        ],
+        "vcpu": 4,
+        "memoryGiB": 16
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117614247096,
+      "name": "Matched Linux assertions github",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner": "GitHub Actions 1000001960",
+      "startedAt": "2026-10-18T07:12:19Z",
+      "completedAt": "2026-10-18T07:15:57Z",
+      "seconds": 218,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39106784923:attempt:1:job:117614247096",
+      "provider": "github-public-standard",
+      "run": 39106784923,
+      "attempt": 1,
+      "workflowSha": "a6292671a136a9552f9deeca6b005c2a826731c9",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "ubuntu-24.04"
+        ],
+        "vcpu": null,
+        "memoryGiB": null
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117610604310,
+      "name": "Frozen module graph b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-4qm0pw3vdg",
+      "startedAt": "2026-10-18T06:52:34Z",
+      "completedAt": "2026-10-18T06:55:30Z",
+      "seconds": 176,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.07039999999999999,
+      "conservativeRoundedMinuteUsd": 0.07200000000000001,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39105587003:attempt:1:job:117610604310",
+      "provider": "depot-github-runner",
+      "run": 39105587003,
+      "attempt": 1,
+      "workflowSha": "b9c84e42b72f7e0abfa942a98a61029e4f3f252c",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117610604493,
+      "name": "Frozen module graph a",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-bxtrljhl64",
+      "startedAt": "2026-10-18T06:52:34Z",
+      "completedAt": "2026-10-18T06:56:07Z",
+      "seconds": 213,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.0852,
+      "conservativeRoundedMinuteUsd": 0.096,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39105587003:attempt:1:job:117610604493",
+      "provider": "depot-github-runner",
+      "run": 39105587003,
+      "attempt": 1,
+      "workflowSha": "b9c84e42b72f7e0abfa942a98a61029e4f3f252c",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117606440214,
+      "name": "Frozen libraries b",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-p5pprdj9hk",
+      "startedAt": "2026-10-18T06:29:05Z",
+      "completedAt": "2026-10-18T06:29:50Z",
+      "seconds": 45,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.018000000000000002,
+      "conservativeRoundedMinuteUsd": 0.024,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39104186007:attempt:1:job:117606440214",
+      "provider": "depot-github-runner",
+      "run": 39104186007,
+      "attempt": 1,
+      "workflowSha": "7a3b8dd2ca31110565ab1f05b913b4943d9f9dd3",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "id": 117606440401,
+      "name": "Frozen libraries a",
+      "status": "completed",
+      "conclusion": "failure",
+      "labels": [
+        "depot-ubuntu-24.04-8"
+      ],
+      "runner": "depot-6qbz6jrq7z",
+      "startedAt": "2026-10-18T06:29:05Z",
+      "completedAt": "2026-10-18T06:29:55Z",
+      "seconds": 50,
+      "rateUsdPerMinute": 0.024,
+      "nominalElapsedUsd": 0.02,
+      "conservativeRoundedMinuteUsd": 0.024,
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39104186007:attempt:1:job:117606440401",
+      "provider": "depot-github-runner",
+      "run": 39104186007,
+      "attempt": 1,
+      "workflowSha": "7a3b8dd2ca31110565ab1f05b913b4943d9f9dd3",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabel": [
+          "depot-ubuntu-24.04-8"
+        ],
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:qvsjm5hmdp:job:hw6nwqqdzk:attempt:1j224009jn",
+      "provider": "depot-ci",
+      "run": "qvsjm5hmdp",
+      "job": "hw6nwqqdzk",
+      "attempt": "1j224009jn",
+      "workflowSha": "941caae67e4013757b97e310bf5043791747dac5",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "startedAt": "2026-10-18T07:33:45Z",
+      "completedAt": "2026-10-18T07:39:40Z",
+      "intervalScope": "single-job run interval from provider API, not sampled worker interval",
+      "seconds": 355,
+      "listRateUsdPerMinute": null,
+      "guardRateUsdPerMinute": 0.024,
+      "guardRateBasis": "Existing reviewed android-plan.json nominalMaximumComputeUsd0.72 divided by timeoutMinutes30; not an independently normalized invoice",
+      "spentUpperBoundUsd": 0.72,
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:1jxc80q7q7:job:hb7l8h6qzt:attempt:4w046p2szb",
+      "provider": "depot-ci",
+      "run": "1jxc80q7q7",
+      "job": "hb7l8h6qzt",
+      "attempt": "4w046p2szb",
+      "workflowSha": "8256d8bb9dd20b8c9b373c2c08b0a73560d93564",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "startedAt": "2026-10-18T07:54:05Z",
+      "completedAt": "2026-10-18T08:00:45Z",
+      "intervalScope": "single-job run interval from provider API, not sampled worker interval",
+      "seconds": 400,
+      "listRateUsdPerMinute": null,
+      "guardRateUsdPerMinute": 0.024,
+      "guardRateBasis": "Existing reviewed android-plan.json nominalMaximumComputeUsd0.72 divided by timeoutMinutes30; not an independently normalized invoice",
+      "spentUpperBoundUsd": 0.72,
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:9zvpr3t592:job:2mkshtfs6m:attempt:sjm3wrr50d",
+      "provider": "depot-ci",
+      "run": "9zvpr3t592",
+      "job": "2mkshtfs6m",
+      "attempt": "sjm3wrr50d",
+      "workflowSha": "799b35f63ffaaa869996dc34800fd2ef05ca5995",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32
+      },
+      "startedAt": "2026-10-18T12:41:03Z",
+      "completedAt": "2026-10-18T12:50:38Z",
+      "intervalScope": "provider run interval, not independently sampled worker interval",
+      "seconds": 575,
+      "listRateUsdPerMinute": 0.024,
+      "listRateBasis": "8 vCPU times Depot CI published0.00005USD per vCPU-second times60; source-bound planning rate, no invoice",
+      "nominalRunIntervalProxyUsd": 0.23,
+      "spentUpperBoundUsd": 0.72,
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:vg66k9ck9k:job:t3zwj3whn8:attempt:gzxpn8416k",
+      "provider": "depot-ci",
+      "run": "vg66k9ck9k",
+      "job": "t3zwj3whn8",
+      "attempt": "gzxpn8416k",
+      "workflowSha": "9d39515de6cdf01261746637626ab263c1d6a287",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32,
+        "jobMinutes": 15,
+        "campaignMinutes": 12,
+        "maximumParallelJobs": 1,
+        "consumerContainer": {
+          "vcpu": 2,
+          "memoryGiB": 2,
+          "pids": 512,
+          "timeoutSeconds": 600,
+          "network": false
+        }
+      },
+      "intervalScope": "provider run interval, not independently sampled worker interval",
+      "seconds": 140,
+      "listRateUsdPerMinute": 0.024,
+      "listRateBasis": "8 vCPU times published0.00005USD per vCPU-second times60; source-bound planning, not invoice",
+      "nominalRunIntervalProxyUsd": 0.056,
+      "spentUpperBoundUsd": 0.36,
+      "reservationUsd": 0,
+      "invoice": false,
+      "startedAt": "2026-10-18T13:31:51Z",
+      "completedAt": "2026-10-18T13:34:11Z"
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:3125s62dwd:job:nzkhw0wsbp:attempt:htd1mcqk6t",
+      "provider": "depot-ci",
+      "run": "3125s62dwd",
+      "job": "nzkhw0wsbp",
+      "attempt": "htd1mcqk6t",
+      "workflowSha": "8070a3c83ec41a63ae8614ffe93dfcdbcd3ae435",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32,
+        "jobMinutes": 15,
+        "campaignMinutes": 12,
+        "maximumParallelJobs": 1,
+        "consumerContainer": {
+          "vcpu": 2,
+          "memoryGiB": 2,
+          "pids": 512,
+          "timeoutSeconds": 600,
+          "network": false
+        }
+      },
+      "intervalScope": "provider run interval, not independently sampled worker interval",
+      "seconds": 212,
+      "listRateUsdPerMinute": 0.024,
+      "listRateBasis": "8 vCPU times published0.00005USD per vCPU-second times60; source-bound planning, not invoice",
+      "nominalRunIntervalProxyUsd": 0.0848,
+      "spentUpperBoundUsd": 0.36,
+      "reservationUsd": 0,
+      "invoice": false,
+      "startedAt": "2026-10-18T13:42:35Z",
+      "completedAt": "2026-10-18T13:46:07Z"
+    },
+    {
+      "dedupeKey": "depot-ci:l4zncjjbj5:run:0jpk5bwpvs:job:scrrj4czcl:attempt:9tx3p5369r",
+      "provider": "depot-ci",
+      "run": "0jpk5bwpvs",
+      "job": "scrrj4czcl",
+      "attempt": "9tx3p5369r",
+      "workflowSha": "1aab4fb2eb81e8288cea56e800a0ae15fb179dfb",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "size": "8x32",
+        "vcpu": 8,
+        "memoryGiB": 32,
+        "jobMinutes": 15,
+        "campaignMinutes": 12,
+        "maximumParallelJobs": 1,
+        "consumerContainer": {
+          "vcpu": 2,
+          "memoryGiB": 2,
+          "pids": 512,
+          "timeoutSeconds": 600,
+          "network": false
+        }
+      },
+      "startedAt": "2026-10-18T14:59:56Z",
+      "completedAt": "2026-10-18T15:04:35Z",
+      "intervalScope": "provider run interval, not independently sampled worker interval",
+      "seconds": 279,
+      "listRateUsdPerMinute": 0.024,
+      "listRateBasis": "8 vCPU times published0.00005USD per vCPU-second times60; source-bound planning, not invoice",
+      "nominalRunIntervalProxyUsd": 0.1116,
+      "spentUpperBoundUsd": 0.36,
+      "reservationUsd": 0,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39141147245:attempt:1:job:117715668169",
+      "provider": "github-public-standard",
+      "run": 39141147245,
+      "attempt": 1,
+      "id": 117715668169,
+      "name": "Current e02 host (macos15-arm-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "c50ed764237d45d5fc7aa123e86b3dc43891e9da",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "macos-15"
+        ],
+        "documentedVcpu": 3,
+        "actualCpuAndMemoryReceiptNotUploaded": true,
+        "jobMinutes": 30,
+        "maxParallel": 1,
+        "documentedMemoryGB": 7
+      },
+      "runner": "GitHub Actions 1000002712",
+      "startedAt": "2026-10-18T15:35:17Z",
+      "completedAt": "2026-10-18T15:42:20Z",
+      "seconds": 423,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39141147245:attempt:1:job:117715668344",
+      "provider": "github-public-standard",
+      "run": 39141147245,
+      "attempt": 1,
+      "id": 117715668344,
+      "name": "Current e02 host (windows2025-gnu-ucrt64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "c50ed764237d45d5fc7aa123e86b3dc43891e9da",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-2025"
+        ],
+        "documentedVcpu": 4,
+        "actualCpuAndMemoryReceiptNotUploaded": true,
+        "jobMinutes": 30,
+        "maxParallel": 1,
+        "documentedMemoryGB": 16
+      },
+      "runner": "GitHub Actions 1000002796",
+      "startedAt": "2026-10-18T16:04:16Z",
+      "completedAt": "2026-10-18T16:06:40Z",
+      "seconds": 144,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39141147245:attempt:1:job:117715668360",
+      "provider": "github-public-standard",
+      "run": 39141147245,
+      "attempt": 1,
+      "id": 117715668360,
+      "name": "Current e02 host (macos-latest-authored-fsid)",
+      "status": "completed",
+      "conclusion": "success",
+      "workflowSha": "c50ed764237d45d5fc7aa123e86b3dc43891e9da",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "macos-latest"
+        ],
+        "documentedVcpu": 3,
+        "actualCpuAndMemoryReceiptNotUploaded": true,
+        "jobMinutes": 30,
+        "maxParallel": 1,
+        "documentedMemoryGB": 7
+      },
+      "runner": "GitHub Actions 1000002767",
+      "startedAt": "2026-10-18T15:54:05Z",
+      "completedAt": "2026-10-18T15:55:10Z",
+      "seconds": 65,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39141147245:attempt:1:job:117715668380",
+      "provider": "github-public-standard",
+      "run": 39141147245,
+      "attempt": 1,
+      "id": 117715668380,
+      "name": "Current e02 host (windows2025-msvc-x64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "c50ed764237d45d5fc7aa123e86b3dc43891e9da",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-2025"
+        ],
+        "documentedVcpu": 4,
+        "actualCpuAndMemoryReceiptNotUploaded": true,
+        "jobMinutes": 30,
+        "maxParallel": 1,
+        "documentedMemoryGB": 16
+      },
+      "runner": "GitHub Actions 1000002725",
+      "startedAt": "2026-10-18T15:42:23Z",
+      "completedAt": "2026-10-18T15:53:58Z",
+      "seconds": 695,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39141147245:attempt:1:job:117715668408",
+      "provider": "github-public-standard",
+      "run": 39141147245,
+      "attempt": 1,
+      "id": 117715668408,
+      "name": "Current e02 host (windows11-msvc-arm64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "c50ed764237d45d5fc7aa123e86b3dc43891e9da",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-11-arm"
+        ],
+        "documentedVcpu": 4,
+        "actualCpuAndMemoryReceiptNotUploaded": true,
+        "jobMinutes": 30,
+        "maxParallel": 1,
+        "documentedMemoryGB": 16
+      },
+      "runner": "GitHub Actions 1000002772",
+      "startedAt": "2026-10-18T15:55:12Z",
+      "completedAt": "2026-10-18T16:04:15Z",
+      "seconds": 543,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725488825",
+      "provider": "github-public-standard",
+      "run": 39144499822,
+      "attempt": 1,
+      "id": 117725488825,
+      "name": "Current e02 host (windows2025-gnu-ucrt64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-2025"
+        ],
+        "documentedVcpu": 4,
+        "documentedMemoryGB": 16,
+        "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+        "jobMinutes": 30,
+        "maxParallel": 1
+      },
+      "runner": "GitHub Actions 1000002892",
+      "startedAt": "2026-10-18T16:59:02Z",
+      "completedAt": "2026-10-18T17:01:23Z",
+      "seconds": 141,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725488995",
+      "provider": "github-public-standard",
+      "run": 39144499822,
+      "attempt": 1,
+      "id": 117725488995,
+      "name": "Current e02 host (windows11-msvc-arm64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-11-arm"
+        ],
+        "documentedVcpu": 4,
+        "documentedMemoryGB": 16,
+        "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+        "jobMinutes": 30,
+        "maxParallel": 1
+      },
+      "runner": "GitHub Actions 1000002875",
+      "startedAt": "2026-10-18T16:49:59Z",
+      "completedAt": "2026-10-18T16:59:01Z",
+      "seconds": 542,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489035",
+      "provider": "github-public-standard",
+      "run": 39144499822,
+      "attempt": 1,
+      "id": 117725489035,
+      "name": "Current e02 host (macos15-arm-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "macos-15"
+        ],
+        "documentedVcpu": 3,
+        "documentedMemoryGB": 7,
+        "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+        "jobMinutes": 30,
+        "maxParallel": 1
+      },
+      "runner": "GitHub Actions 1000002823",
+      "startedAt": "2026-10-18T16:20:02Z",
+      "completedAt": "2026-10-18T16:29:26Z",
+      "seconds": 564,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489078",
+      "provider": "github-public-standard",
+      "run": 39144499822,
+      "attempt": 1,
+      "id": 117725489078,
+      "name": "Current e02 host (macos-latest-authored-fsid)",
+      "status": "completed",
+      "conclusion": "success",
+      "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "macos-latest"
+        ],
+        "documentedVcpu": 3,
+        "documentedMemoryGB": 7,
+        "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+        "jobMinutes": 30,
+        "maxParallel": 1
+      },
+      "runner": "GitHub Actions 1000002872",
+      "startedAt": "2026-10-18T16:48:48Z",
+      "completedAt": "2026-10-18T16:49:57Z",
+      "seconds": 69,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    },
+    {
+      "dedupeKey": "github:Aquaticats/Monochromatic:run:39144499822:attempt:1:job:117725489146",
+      "provider": "github-public-standard",
+      "run": 39144499822,
+      "attempt": 1,
+      "id": 117725489146,
+      "name": "Current e02 host (windows2025-msvc-x64-current)",
+      "status": "completed",
+      "conclusion": "failure",
+      "workflowSha": "aa501f4a5c0e74a0a993b668c98b00fe3be2da19",
+      "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+      "resourceShape": {
+        "requestedLabels": [
+          "windows-2025"
+        ],
+        "documentedVcpu": 4,
+        "documentedMemoryGB": 16,
+        "actualCpuAndMemoryInQualifiedOwnerReceipts": true,
+        "jobMinutes": 30,
+        "maxParallel": 1
+      },
+      "runner": "GitHub Actions 1000002844",
+      "startedAt": "2026-10-18T16:29:27Z",
+      "completedAt": "2026-10-18T16:48:42Z",
+      "seconds": 1155,
+      "rateUsdPerMinute": 0,
+      "nominalElapsedUsd": 0,
+      "conservativeRoundedMinuteUsd": 0,
+      "reservationUsd": 0,
+      "publicComputeOnly": true,
+      "artifactStorageCostUnmeasured": true,
+      "invoice": false
+    }
+  ],
+  "activeReservation": null,
+  "nominalMeasuredGithubElapsedUsd": 1.1898000000000002,
+  "conservativeCompletedGithubRoundedMinuteUsd": 1.4880000000000009,
+  "conservativeCompletedNativeReservedUpperBoundUsd": 3.2399999999999998,
+  "guardCommittedAndReservedUsd": 4.728000000000001,
+  "limits": [
+    "Source-bound campaign compute only",
+    "No account usage or invoice inspected",
+    "Native completed job maxima retained as conservative upper bounds until parent normalizes exact worker intervals/rates",
+    "Storage, transfers and subscriptions are outside this compute bound"
+  ],
+  "githubCompletedBudgetSnapshot": {
+    "measuredAt": "2026-10-18T12:38:05.655Z",
+    "scope": {
+      "repo": "Aquaticats/Monochromatic",
+      "branch": "research/depot-complete-coverage-20261018",
+      "accountUsageInspected": false,
+      "billingInvoiceInspected": false,
+      "allListedRunsCaptured": true,
+      "historicalAttemptsComplete": true
+    },
+    "pricingSource": {
+      "url": "https://depot.dev/docs/github-actions/runner-types",
+      "status": 200,
+      "bytes": 277217,
+      "sha256": "1664abf377bf260a5ef03eb0cea0fef750609b764c93067c68fecf0a8213536c",
+      "ratesUsdPerMinute": {
+        "depotUbuntu8": 0.024,
+        "depotUbuntu4": 0.012,
+        "depotUbuntu2": 0.006
+      }
+    },
+    "runs": [
+      {
+        "run": 39127382413,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "775d735adbc34c4caea7c626a43f27cd27d0d971",
+        "workflow": "Research finite compiler conformance and mutation owners",
+        "jobs": [
+          {
+            "id": 117675260634,
+            "name": "Actual finite compiler conformance and mutation fixture (a)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-hd7dpn8lzv",
+            "startedAt": "2026-10-18T12:27:57Z",
+            "completedAt": "2026-10-18T12:30:33Z",
+            "seconds": 156,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.062400000000000004,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          }
+        ]
+      },
+      {
+        "run": 39126952499,
+        "event": "push",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "1e44c2d4d834cf9f798b8bbb68d5c4afcae1cc84",
+        "workflow": ".github/workflows/music-player-windows.yml",
+        "jobs": []
+      },
+      {
+        "run": 39126926119,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "26d238d84acb484d50bbf2e35c6fba42f2300338",
+        "workflow": "Research active DOM E2E source owners",
+        "jobs": [
+          {
+            "id": 117673897828,
+            "name": "Explicit active source specs after retained inactive-root discovery failure (a)",
+            "status": "completed",
+            "conclusion": "success",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-3qgh7spz1l",
+            "startedAt": "2026-10-18T12:21:19Z",
+            "completedAt": "2026-10-18T12:23:01Z",
+            "seconds": 102,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0408,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39126466632,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "552831830ef2f059b7efa5149fe20f053428c220",
+        "workflow": "Research all frozen browser and E2E owners",
+        "jobs": [
+          {
+            "id": 117672542729,
+            "name": "Matching image with unchanged browser and E2E specifications (a)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-g4jvrx8107",
+            "startedAt": "2026-10-18T12:14:34Z",
+            "completedAt": "2026-10-18T12:16:28Z",
+            "seconds": 114,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0456,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39126304854,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "bb659f0f7fea71de9a2ba850bd04c5d0919fcb8e",
+        "workflow": "Research artifact activation and dependency topology",
+        "jobs": [
+          {
+            "id": 117672051562,
+            "name": "Preserved flattened failure versus original source-owned topology (b)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-4"
+            ],
+            "runner": "depot-dgx59h0twc",
+            "startedAt": "2026-10-18T12:12:10Z",
+            "completedAt": "2026-10-18T12:12:53Z",
+            "seconds": 43,
+            "rateUsdPerMinute": 0.012,
+            "nominalElapsedUsd": 0.0086,
+            "conservativeRoundedMinuteUsd": 0.012
+          }
+        ]
+      },
+      {
+        "run": 39126088565,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "0d8123ea327f5beddedcf3ba99d698288ea6d979",
+        "workflow": "Research source-owned activation topology control",
+        "jobs": [
+          {
+            "id": 117671409669,
+            "name": "Same artifact flattened versus source-owned activation topology (b)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-4"
+            ],
+            "runner": "depot-js7f2ndg2z",
+            "startedAt": "2026-10-18T12:08:59Z",
+            "completedAt": "2026-10-18T12:09:38Z",
+            "seconds": 39,
+            "rateUsdPerMinute": 0.012,
+            "nominalElapsedUsd": 0.0078000000000000005,
+            "conservativeRoundedMinuteUsd": 0.012
+          }
+        ]
+      },
+      {
+        "run": 39124269347,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "28bf38b0281f3bcace40b70d8b989d6e0ef7f875",
+        "workflow": "Research compiled host hidden-resource restoration",
+        "jobs": [
+          {
+            "id": 117665996621,
+            "name": "Frozen native compiled producer with hidden resources (b)",
+            "status": "completed",
+            "conclusion": "success",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-slcgx40zc7",
+            "startedAt": "2026-10-18T11:41:42Z",
+            "completedAt": "2026-10-18T11:42:55Z",
+            "seconds": 73,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.029199999999999997,
+            "conservativeRoundedMinuteUsd": 0.048
+          },
+          {
+            "id": 117666235951,
+            "name": "Fresh restored compiled native host consumer (b)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-4"
+            ],
+            "runner": "depot-7xp2lc5lk3",
+            "startedAt": "2026-10-18T11:42:56Z",
+            "completedAt": "2026-10-18T11:43:33Z",
+            "seconds": 37,
+            "rateUsdPerMinute": 0.012,
+            "nominalElapsedUsd": 0.0074,
+            "conservativeRoundedMinuteUsd": 0.012
+          }
+        ]
+      },
+      {
+        "run": 39123458425,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "6328647d8b7113a920d777044944612f3bc47a58",
+        "workflow": "Research actual browser owner baseline",
+        "jobs": [
+          {
+            "id": 117663647044,
+            "name": "Frozen actual browser owner baseline (a)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-1cbmths5zh",
+            "startedAt": "2026-10-18T11:29:50Z",
+            "completedAt": "2026-10-18T11:31:12Z",
+            "seconds": 82,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0328,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39120929405,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "7e1b030e7e6898a7d1e7876cd0723dd61292c65a",
+        "workflow": "Research bounded TypeScript properties and conformance",
+        "jobs": [
+          {
+            "id": 117656212570,
+            "name": "Frozen bounded TypeScript properties (a)",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-qfqx9pm2kt",
+            "startedAt": "2026-10-18T10:51:54Z",
+            "completedAt": "2026-10-18T10:53:37Z",
+            "seconds": 103,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0412,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39119985290,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "47aef8d403e4151593725943456fa3b0a8bce626",
+        "workflow": "Research corrected installed SDK dependency admission",
+        "jobs": [
+          {
+            "id": 117653441049,
+            "name": "Frozen guarded host b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-g6p67d222x",
+            "startedAt": "2026-10-18T10:37:28Z",
+            "completedAt": "2026-10-18T10:39:40Z",
+            "seconds": 132,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.05280000000000001,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117653441968,
+            "name": "Frozen Rust companion consumer",
+            "status": "completed",
+            "conclusion": "skipped",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": null,
+            "startedAt": "2026-10-18T10:37:27Z",
+            "completedAt": "2026-10-18T10:37:27Z",
+            "seconds": 0,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0,
+            "conservativeRoundedMinuteUsd": 0
+          }
+        ]
+      },
+      {
+        "run": 39118628603,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+        "workflow": "Research bounded guarded host and remaining Node consumers",
+        "jobs": [
+          {
+            "id": 117649471534,
+            "name": "Frozen Rust companion consumer (wg)",
+            "status": "completed",
+            "conclusion": "success",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-9v3g2pss58",
+            "startedAt": "2026-10-18T10:16:59Z",
+            "completedAt": "2026-10-18T10:18:11Z",
+            "seconds": 72,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0288,
+            "conservativeRoundedMinuteUsd": 0.048
+          },
+          {
+            "id": 117649472595,
+            "name": "Frozen guarded host ${{ matrix.shard }}",
+            "status": "completed",
+            "conclusion": "skipped",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": null,
+            "startedAt": "2026-10-18T10:16:59Z",
+            "completedAt": "2026-10-18T10:16:59Z",
+            "seconds": 0,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0,
+            "conservativeRoundedMinuteUsd": 0
+          }
+        ]
+      },
+      {
+        "run": 39118106788,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2",
+        "workflow": "Research bounded guarded host and remaining Node consumers",
+        "jobs": [
+          {
+            "id": 117647934181,
+            "name": "Frozen guarded host b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-745xq1qcn5",
+            "startedAt": "2026-10-18T10:11:58Z",
+            "completedAt": "2026-10-18T10:12:25Z",
+            "seconds": 27,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0108,
+            "conservativeRoundedMinuteUsd": 0.024
+          },
+          {
+            "id": 117647934410,
+            "name": "Frozen guarded host a",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-bf8qfr6lz8",
+            "startedAt": "2026-10-18T10:08:59Z",
+            "completedAt": "2026-10-18T10:11:57Z",
+            "seconds": 178,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0712,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117647934933,
+            "name": "Frozen Rust companion consumer",
+            "status": "completed",
+            "conclusion": "skipped",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": null,
+            "startedAt": "2026-10-18T10:08:58Z",
+            "completedAt": "2026-10-18T10:08:58Z",
+            "seconds": 0,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0,
+            "conservativeRoundedMinuteUsd": 0
+          }
+        ]
+      },
+      {
+        "run": 39114552347,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "8fa5b508c061e9caec82847037a40a5ef414aa7b",
+        "workflow": "Research bounded process and transport Node consumers",
+        "jobs": [
+          {
+            "id": 117637563495,
+            "name": "Frozen process Node a",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-1v8f043g75",
+            "startedAt": "2026-10-18T09:14:31Z",
+            "completedAt": "2026-10-18T09:16:10Z",
+            "seconds": 99,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.039599999999999996,
+            "conservativeRoundedMinuteUsd": 0.048
+          },
+          {
+            "id": 117637563610,
+            "name": "Frozen process Node b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-0ct9tnl5hk",
+            "startedAt": "2026-10-18T09:16:11Z",
+            "completedAt": "2026-10-18T09:17:43Z",
+            "seconds": 92,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.036800000000000006,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39112145763,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "588275a55c7efefef93dbbc529078d31fdcfafd8",
+        "workflow": "Research process-free default Node consumers",
+        "jobs": [
+          {
+            "id": 117630367037,
+            "name": "Frozen default Node b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-w17mbb064z",
+            "startedAt": "2026-10-18T08:38:29Z",
+            "completedAt": "2026-10-18T08:39:44Z",
+            "seconds": 75,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.03,
+            "conservativeRoundedMinuteUsd": 0.048
+          },
+          {
+            "id": 117630367258,
+            "name": "Frozen default Node a",
+            "status": "completed",
+            "conclusion": "success",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-sc7z94h09z",
+            "startedAt": "2026-10-18T08:37:14Z",
+            "completedAt": "2026-10-18T08:38:29Z",
+            "seconds": 75,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.03,
+            "conservativeRoundedMinuteUsd": 0.048
+          }
+        ]
+      },
+      {
+        "run": 39109937957,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "82ea6108c57c9ef9cf6880e6d4506679812a6776",
+        "workflow": "Research remaining Linux Node quality and build graph",
+        "jobs": [
+          {
+            "id": 117623689371,
+            "name": "Frozen Node quality d",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-mj8flzsb51",
+            "startedAt": "2026-10-18T08:10:17Z",
+            "completedAt": "2026-10-18T08:12:53Z",
+            "seconds": 156,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.062400000000000004,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117623689501,
+            "name": "Frozen Node quality b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-s5qw7b411p",
+            "startedAt": "2026-10-18T08:05:35Z",
+            "completedAt": "2026-10-18T08:08:11Z",
+            "seconds": 156,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.062400000000000004,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117623689527,
+            "name": "Frozen Node quality a",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-nrfjhx4f2s",
+            "startedAt": "2026-10-18T08:02:47Z",
+            "completedAt": "2026-10-18T08:05:35Z",
+            "seconds": 168,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0672,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117623689533,
+            "name": "Frozen Node quality c",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-xm1r3wxxm0",
+            "startedAt": "2026-10-18T08:08:12Z",
+            "completedAt": "2026-10-18T08:10:17Z",
+            "seconds": 125,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.05,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          }
+        ]
+      },
+      {
+        "run": 39109746777,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "8256d8bb9dd20b8c9b373c2c08b0a73560d93564",
+        "workflow": "Research matched Linux assertion controls",
+        "jobs": [
+          {
+            "id": 117623128449,
+            "name": "Matched Linux assertions depot",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "labels": [
+              "depot-ubuntu-24.04-4"
+            ],
+            "runner": "depot-1gn9ghgg34",
+            "startedAt": "2026-10-18T08:00:05Z",
+            "completedAt": "2026-10-18T08:01:12Z",
+            "seconds": 67,
+            "rateUsdPerMinute": 0.012,
+            "nominalElapsedUsd": 0.0134,
+            "conservativeRoundedMinuteUsd": 0.024
+          },
+          {
+            "id": 117623128625,
+            "name": "Matched Linux assertions github",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner": "GitHub Actions 1000002063",
+            "startedAt": "2026-10-18T08:00:06Z",
+            "completedAt": "2026-10-18T08:01:14Z",
+            "seconds": 68,
+            "rateUsdPerMinute": 0,
+            "nominalElapsedUsd": 0,
+            "conservativeRoundedMinuteUsd": 0
+          }
+        ]
+      },
+      {
+        "run": 39106784923,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "a6292671a136a9552f9deeca6b005c2a826731c9",
+        "workflow": "Research matched Linux assertion controls",
+        "jobs": [
+          {
+            "id": 117614246955,
+            "name": "Matched Linux assertions depot",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-4"
+            ],
+            "runner": "depot-69lzzr396x",
+            "startedAt": "2026-10-18T07:12:18Z",
+            "completedAt": "2026-10-18T07:14:24Z",
+            "seconds": 126,
+            "rateUsdPerMinute": 0.012,
+            "nominalElapsedUsd": 0.0252,
+            "conservativeRoundedMinuteUsd": 0.036000000000000004
+          },
+          {
+            "id": 117614247096,
+            "name": "Matched Linux assertions github",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner": "GitHub Actions 1000001960",
+            "startedAt": "2026-10-18T07:12:19Z",
+            "completedAt": "2026-10-18T07:15:57Z",
+            "seconds": 218,
+            "rateUsdPerMinute": 0,
+            "nominalElapsedUsd": 0,
+            "conservativeRoundedMinuteUsd": 0
+          }
+        ]
+      },
+      {
+        "run": 39105587003,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "b9c84e42b72f7e0abfa942a98a61029e4f3f252c",
+        "workflow": "Research complete Linux module coverage",
+        "jobs": [
+          {
+            "id": 117610604310,
+            "name": "Frozen module graph b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-4qm0pw3vdg",
+            "startedAt": "2026-10-18T06:52:34Z",
+            "completedAt": "2026-10-18T06:55:30Z",
+            "seconds": 176,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.07039999999999999,
+            "conservativeRoundedMinuteUsd": 0.07200000000000001
+          },
+          {
+            "id": 117610604493,
+            "name": "Frozen module graph a",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-bxtrljhl64",
+            "startedAt": "2026-10-18T06:52:34Z",
+            "completedAt": "2026-10-18T06:56:07Z",
+            "seconds": 213,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.0852,
+            "conservativeRoundedMinuteUsd": 0.096
+          }
+        ]
+      },
+      {
+        "run": 39104186007,
+        "event": "workflow_dispatch",
+        "attempt": 1,
+        "status": "completed",
+        "sha": "7a3b8dd2ca31110565ab1f05b913b4943d9f9dd3",
+        "workflow": "Research complete Linux coverage",
+        "jobs": [
+          {
+            "id": 117606440214,
+            "name": "Frozen libraries b",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-p5pprdj9hk",
+            "startedAt": "2026-10-18T06:29:05Z",
+            "completedAt": "2026-10-18T06:29:50Z",
+            "seconds": 45,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.018000000000000002,
+            "conservativeRoundedMinuteUsd": 0.024
+          },
+          {
+            "id": 117606440401,
+            "name": "Frozen libraries a",
+            "status": "completed",
+            "conclusion": "failure",
+            "labels": [
+              "depot-ubuntu-24.04-8"
+            ],
+            "runner": "depot-6qbz6jrq7z",
+            "startedAt": "2026-10-18T06:29:05Z",
+            "completedAt": "2026-10-18T06:29:55Z",
+            "seconds": 50,
+            "rateUsdPerMinute": 0.024,
+            "nominalElapsedUsd": 0.02,
+            "conservativeRoundedMinuteUsd": 0.024
+          }
+        ]
+      }
+    ],
+    "measuredTerminalJobs": 32,
+    "nominalElapsedUsd": 1.0500000000000003,
+    "conservativeRoundedMinuteUsd": 1.3200000000000007,
+    "nonterminalRuns": [],
+    "nextReservation": {
+      "profile": "finite-conformance",
+      "jobs": 1,
+      "vcpu": 8,
+      "memoryGiB": 32,
+      "jobMinutes": 15,
+      "maximumNominalUsd": 0.36
+    },
+    "excluded": "Depot CI native Android profiles and all other lanes: parent aggregate ledger owns those",
+    "claim": "Nominal published-rate estimate and rounded-minute upper estimate, not an invoice or account spend",
+    "githubPublicStandardRunner": {
+      "repoVisibility": "PUBLIC",
+      "pricingSource": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+      "rateUsdPerMinute": 0
+    }
+  }
+}

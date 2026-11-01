@@ -9,7 +9,7 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 
 /**
  Repository-relative marker locating package sources.

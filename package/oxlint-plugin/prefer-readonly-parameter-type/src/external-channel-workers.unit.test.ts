@@ -58,7 +58,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
@@ -68,7 +68,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 /**
  Authored dependency name, which must not name anything installed.
@@ -158,7 +158,7 @@ function workerFixture(): WorkerFixture {
    Consumer root, outside every repository lockfile's reach.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'readonly-external-workers-',
   ),);
   /**

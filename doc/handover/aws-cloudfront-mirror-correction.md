@@ -13,6 +13,12 @@ Do not change pricing plans or billing to overcome a restriction.
 
 ## Saved state
 
+Account-scoped identifiers in this file were redacted on 2026-10-09
+because this repository is public.
+Each placeholder names the read-only call that recovers it.
+AWS-published managed policy IDs are kept:
+they are the same constants in every account.
+
 Private task artifacts:
 `~/temp/agent/cloudfront-146-20260907.ctYFOkY1/`.
 `live-before.json` contains the complete original distribution configuration and ETag.
@@ -20,9 +26,10 @@ Private task artifacts:
 The task scripts save immutable JSON evidence alongside their input files.
 
 - Live distribution:
-  `EYK5GXXEGWEYZ` at `aws.aquati.cat`.
+  `<distribution-id>` at `aws.aquati.cat`
+  (`aws cloudfront list-distributions`).
 - Original ETag:
-  `E13V1IB3VIYZZH`.
+  `<original-etag>`.
 - Original cache policy:
   `4cc15a8a-d715-48a4-82b8-cc0b614638fe`.
 - Original origin-request policy:
@@ -33,7 +40,7 @@ The task scripts save immutable JSON evidence alongside their input files.
 ## Resources created by this task
 
 Disposable distribution:
-`E35CZ02308UXVB` at `d1na6uytzcnwt9.cloudfront.net`.
+`<fixture-distribution-id>` at `<fixture-distribution-domain>`.
 The original-policy failure control returned HTTP 502.
 The corrected policy pair passed content verification,
 but the live Free-plan update was rejected.
@@ -51,7 +58,7 @@ the independent function test changed only the function association.
 Cleanup is complete.
 
 Task-created custom cache policy:
-`bb6179b5-8f0c-443f-af07-15822be803fd`,
+`<custom-cache-policy-id>`,
 `AquatiCat-OriginCacheControl-NoViewerHost`.
 Its payload is the original managed policy minus `host`,
 with descriptive name/comment changes.
@@ -80,7 +87,7 @@ An independent advisor reviewed the implementation substitution and validation b
 Created and published function:
 `AquatiCat-OriginHost`.
 LIVE ETag:
-`ETVPDKIKX0DER`.
+`<function-etag>`.
 Exact source,
 SHA-256,
 ARN,
@@ -129,7 +136,8 @@ viewer certificate,
 and WAF were preserved.
 
 The active subscription was re-read and required to remain:
-`sub_3DTSjxYPTfECao1AdspkkEBB8cY`,
+`<pricing-plan-subscription-id>`
+(`aws pricing-plan-manager list-subscriptions --region us-east-1`),
 `FREE`,
 `ACTIVE`.
 No subscription mutation was submitted.
@@ -144,7 +152,7 @@ It does not restore the old full config over unrelated changes.
 
 `verify-live-state.ts` passed at `2026-09-07T21:41:59Z`.
 The live distribution was `Deployed`,
-ETag `E1VC38T7YXB528`.
+ETag `<etag>`.
 Its full configuration matched the submitted input;
 removing only the new association reconstructed the original snapshot exactly.
 The subscription remained `FREE`,
@@ -269,7 +277,8 @@ or walkthrough modification remains pending from this follow-up.
 
 Proposed addition to `AGENTS.md` under `Command execution conventions`:
 
-> Silent deployment waits: run bounded status observations in a managed process,
+> Silent deployment waits:
+>  run bounded status observations in a managed process,
 > report pending checkpoints,
 > and require the service's ready state before dependent actions.
 

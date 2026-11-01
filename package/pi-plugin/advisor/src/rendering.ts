@@ -17,9 +17,9 @@ import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker
 import {
   fallbackDetails,
   isAdvisorDetails,
+  renderAdvisorOperationSummary,
   renderAdvisorSummary,
-} from './rendering-summary.ts';
-import { renderAdvisorOperationSummary, } from './rendering-operation.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 import type {
   AdvisorDetails,
   AdvisorToolParams,
@@ -272,6 +272,6 @@ export function renderAdvisorMessage(
 export {
   firstAdvisoryLine,
   renderAdvisorSummary,
-} from './rendering-summary.ts';
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 
 //endregion Public renderers

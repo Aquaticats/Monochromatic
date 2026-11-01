@@ -6,18 +6,18 @@
 
 import { mkdtemp, rm, } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   createEventBus,
   discoverAndLoadExtensions,
 } from '@earendil-works/pi-coding-agent';
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { constants, } from '../dist/final/node/index.mjs';
 
@@ -68,7 +68,7 @@ await describe({
         /**
          Empty agent directory isolating discovery from global extensions.
          */
-        const agentDir = await mkdtemp(join(tmpdir(), 'bash-poke-agent-', ), );
+        const agentDir = await mkdtemp(join(scratchRoot(), 'bash-poke-agent-', ), );
         await using cleanup = {
           async [Symbol.asyncDispose](): Promise<void> {
             await rm(agentDir, { recursive: true, force: true, }, );
@@ -89,7 +89,7 @@ await describe({
         /**
          Empty agent directory isolating discovery from global extensions.
          */
-        const agentDir = await mkdtemp(join(tmpdir(), 'bash-poke-agent-', ), );
+        const agentDir = await mkdtemp(join(scratchRoot(), 'bash-poke-agent-', ), );
         await using cleanup = {
           async [Symbol.asyncDispose](): Promise<void> {
             await rm(agentDir, { recursive: true, force: true, }, );
@@ -118,7 +118,7 @@ await describe({
         /**
          Empty agent directory isolating discovery from global extensions.
          */
-        const agentDir = await mkdtemp(join(tmpdir(), 'bash-poke-agent-', ), );
+        const agentDir = await mkdtemp(join(scratchRoot(), 'bash-poke-agent-', ), );
         await using cleanup = {
           async [Symbol.asyncDispose](): Promise<void> {
             await rm(agentDir, { recursive: true, force: true, }, );
@@ -163,7 +163,7 @@ await describe({
         /**
          Empty agent directory isolating discovery from global extensions.
          */
-        const agentDir = await mkdtemp(join(tmpdir(), 'bash-poke-agent-', ), );
+        const agentDir = await mkdtemp(join(scratchRoot(), 'bash-poke-agent-', ), );
         await using cleanup = {
           async [Symbol.asyncDispose](): Promise<void> {
             await rm(agentDir, { recursive: true, force: true, }, );

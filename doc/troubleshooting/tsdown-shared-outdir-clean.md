@@ -16,11 +16,11 @@ The repo's existing convention of one `dist/` subdir per bundling config
  `dist/final` in the electron packages) exists precisely to keep each
 config's clean scope disjoint;
  the collision happened because
-`package/desktop-app/file-manager-electron`'s preload config was pointed at `dist/app`,
+`package/file-manager/variant-electron`'s preload config was pointed at `dist/app`,
 which the main-process config already owns,
  instead of getting its own subdir.
 
-Found while building `package/desktop-app/file-manager-electron`:
+Found while building `package/file-manager/variant-electron`:
  the preload build printed
 `Cleaning 1 files` and deleted `dist/app/main.mjs` produced seconds earlier.
 
@@ -97,7 +97,7 @@ Environment:
    running main then preload leaves only `preload.cjs`;
   `dist/app/main.mjs` is gone (the symptom log above).
 - Preload config on its own `outDir: 'dist/preload'` with default clean (the shipped fix):
-   `mise run //package/desktop-app/file-manager-electron:build:js:preload` alone prints
+   `mise run //package/file-manager/variant-electron:build:js:preload` alone prints
   `Cleaning 1 files` scoped to `dist/preload` and `dist/app/main.mjs` survives;
    the full package `test` task (unit suites plus the nested-Wayland boundary test) exits 0.
 

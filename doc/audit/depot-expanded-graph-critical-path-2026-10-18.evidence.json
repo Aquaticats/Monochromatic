@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T16:43:42.870Z",
+  "rows": [
+    {
+      "sample": "github-2",
+      "provider": "github",
+      "graphMilliseconds": 1074584,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-b"
+      ],
+      "pathNodeIntervalsMilliseconds": 1072071,
+      "controlAndDependencyGapMilliseconds": 2513,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    },
+    {
+      "sample": "github-1",
+      "provider": "github",
+      "graphMilliseconds": 1074147,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-b"
+      ],
+      "pathNodeIntervalsMilliseconds": 1071808,
+      "controlAndDependencyGapMilliseconds": 2339,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    },
+    {
+      "sample": "depot-1",
+      "provider": "github-depot",
+      "graphMilliseconds": 359566,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-b"
+      ],
+      "pathNodeIntervalsMilliseconds": 356930,
+      "controlAndDependencyGapMilliseconds": 2636,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    },
+    {
+      "sample": "depot-2",
+      "provider": "github-depot",
+      "graphMilliseconds": 372064,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-b"
+      ],
+      "pathNodeIntervalsMilliseconds": 369999,
+      "controlAndDependencyGapMilliseconds": 2065,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    },
+    {
+      "sample": "native-corrected-2",
+      "provider": "native-depot",
+      "graphMilliseconds": 352175,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-a"
+      ],
+      "pathNodeIntervalsMilliseconds": 350930,
+      "controlAndDependencyGapMilliseconds": 1245,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    },
+    {
+      "sample": "native-corrected-1",
+      "provider": "native-depot",
+      "graphMilliseconds": 354405,
+      "longestDependencyPath": [
+        "shared-node-producer",
+        "modules-a"
+      ],
+      "pathNodeIntervalsMilliseconds": 353253,
+      "controlAndDependencyGapMilliseconds": 1152,
+      "rustOnLongestPath": false,
+      "sameCompletedWholeGraphAcrossProviders": false
+    }
+  ],
+  "method": "Sum observed node intervals along declared needs; report parent wall-clock remainder separately, never sum overlapping sibling branches as user wait.",
+  "limitation": "Unsuccessful/budget-limited graphs; identifies observed path within each profile, not an equal-completion whole-CI speed comparison.",
+  "sourceReceipts": [
+    {
+      "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.evidence.json",
+      "bytes": 15408,
+      "sha256": "f3f62865ce323d30279fb3099f6dc46a029bb6946d4704ae6cb2c9b6d8243451",
+      "originalGraphSourceArchive": {
+        "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
+        "bytes": 154139,
+        "sha256": "f3fb9967cba82508ccf37968ea772c97e2363d39a61df7d2d69ee66d9b9e0a9b",
+        "records": 20
+      }
+    },
+    {
+      "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.evidence.json",
+      "bytes": 10818,
+      "sha256": "142df7b31c3cdee97decbf4ac5e84581c50937388bd663a974e2ba96cb35fa59",
+      "originalGraphSourceArchive": {
+        "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
+        "bytes": 173906,
+        "sha256": "86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9",
+        "records": 24
+      }
+    }
+  ],
+  "waitingValueCalculated": false,
+  "wholeCiSpeedMultiplierCalculated": false
+}

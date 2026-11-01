@@ -37,7 +37,8 @@ reflog_msg = getenv("GIT_REFLOG_ACTION");
 if (!current_head) {
 ```
 
-`builtin/commit.c:1938` to `builtin/commit.c:1948` first creates the commit object and only then passes its resulting OID
+`builtin/commit.c:1938` to `builtin/commit.c:1948` first creates the commit object
+and only then passes its resulting OID
 and the action into the ref update:
 
 ```c
@@ -160,7 +161,8 @@ and author/committer identity behavior.
 No `.out-of-scope/` entry covers Git reflog behavior.
 Open and closed GitHub issues and pull requests were searched for `GIT_REFLOG_ACTION commit reflog action`;
 no duplicate appeared.
-Git's `.github/CONTRIBUTING.md:3` to `.github/CONTRIBUTING.md:6` directs bug reports and patches to the mailing list rather
+Git's `.github/CONTRIBUTING.md:3` to `.github/CONTRIBUTING.md:6`
+directs bug reports and patches to the mailing list rather
 than GitHub.
 
 The six constraints do not justify filing:

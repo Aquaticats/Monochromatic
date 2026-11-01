@@ -9,19 +9,25 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 import type { ReadonlyDeep, } from 'type-fest';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { ADVISOR_TOOL_NAME, } from './constants.ts';
-import { AdvisorOperationError, } from './operation-error.ts';
-import { formatAdvisorProgress, } from './operation-progress.ts';
-import type { AdvisorOperationSnapshot, } from './operation-types.ts';
+import {
+  ADVISOR_TOOL_NAME,
+  AdvisorOperationError,
+  AdvisorToolParametersSchema,
+  formatAdvisorProgress,
+  prepareAdvisorArguments,
+  runAdvisor as runAdvisorCore,
+  type AdvisorOperationSnapshot,
+  type AdvisorRunOptions,
+  type AdvisorRunResult,
+} from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 import {
   renderAdvisorCall,
   renderAdvisorResult,
 } from './rendering.ts';
-import { runAdvisor, } from './run-advisor.ts';
 import {
-  AdvisorToolParametersSchema,
-  prepareAdvisorArguments,
-} from './tool-params.ts';
+  toAdvisorRunContext,
+  type PiAdvisorRunContextSource,
+} from './run-context.ts';
 import type {
   AdvisorConfig,
   AdvisorDetails,
@@ -30,7 +36,41 @@ import type {
   AdvisorToolResult,
 } from './types.ts';
 
-export { runAdvisor, } from './run-advisor.ts';
+//region Host run adapter
+
+/**
+ Pi-flavored Advisor run options: the extension context stands in for the
+ shared run-context ports.
+ */
+export type PiAdvisorRunOptions = Omit<AdvisorRunOptions, 'ctx'> & {
+  /**
+   Pi extension context carrying registry, session, and scope facts.
+   */
+  readonly ctx: PiAdvisorRunContextSource;
+};
+
+/**
+ Run Advisor from a pi extension context.
+ 
+ @param options - pi-flavored run options
+ 
+ @returns collected reviews and complete available accounting
+ 
+ @example
+ ```ts
+ const result = await runAdvisor({ ctx, config });
+ ```
+ */
+export async function runAdvisor(
+  options: PiAdvisorRunOptions,
+): Promise<AdvisorRunResult> {
+  return await runAdvisorCore({
+    ...options,
+    ctx: toAdvisorRunContext(options.ctx,),
+  },);
+}
+
+//endregion Host run adapter
 
 /**
  Runtime state and persistence boundaries supplied by the extension.

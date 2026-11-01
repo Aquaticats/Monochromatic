@@ -4,12 +4,12 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   type Checker,
   type Type,
   TypeFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Tests whether semantic type can expose caller-owned mutable state.

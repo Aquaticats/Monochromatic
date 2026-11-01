@@ -217,7 +217,7 @@ export function transformImportAttributes({
   ) {
     return b.start
       - a
-      .start;
+        .start;
   },);
 
   /**
@@ -233,9 +233,9 @@ export function transformImportAttributes({
         r.start,
       )
         + r
-        .text
+          .text
         + acc
-        .slice(r.end,);
+          .slice(r.end,);
     },
     code,
   );

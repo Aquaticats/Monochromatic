@@ -5,7 +5,7 @@
  * the `data-selected` attribute for keyboard navigation.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { CompletionItem, } from '../../../protocol.ts';
 

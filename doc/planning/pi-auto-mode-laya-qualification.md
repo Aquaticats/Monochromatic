@@ -788,7 +788,8 @@ and the `flatbuffers` 25.12.19 pure-Python wheel.
 `proc_d7e6` subsequently downloaded those additional wheels as inert inspection artifacts,
 with matching primary hashes.
 ML dtypes publication attribution verified in `proc_51be`;
-paired original/changed-signature/original controls passed in `proc_9927` after correcting a harness diagnostic assumption.
+paired original/changed-signature/original controls passed in `proc_9927`
+after correcting a harness diagnostic assumption.
 That publication predicate is not SLSA build provenance.
 Those metadata/signature checks installed or imported no candidate package.
 Tag matching does not prove imports,

@@ -92,7 +92,7 @@ function shuffleChildren(): void {
       ) {
         return left.rank
           - right
-          .rank;
+            .rank;
       },)
       .map(function dropRank({ child, },) {
         return child;

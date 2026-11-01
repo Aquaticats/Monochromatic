@@ -1,0 +1,86 @@
+diff --git a/pkg/commands/domain/create.go b/pkg/commands/domain/create.go
+index a209748..5c5d093 100644
+--- a/pkg/commands/domain/create.go
++++ b/pkg/commands/domain/create.go
+@@ -10,6 +10,7 @@ import (
+ 	"github.com/fastly/go-fastly/v17/fastly/domainmanagement/v1/domains"
+ 
+ 	"github.com/fastly/cli/pkg/argparser"
++	fsterr "github.com/fastly/cli/pkg/errors"
+ 	"github.com/fastly/cli/pkg/global"
+ 	"github.com/fastly/cli/pkg/text"
+ )
+@@ -17,6 +18,7 @@ import (
+ // CreateCommand calls the Fastly API to create domains.
+ type CreateCommand struct {
+ 	argparser.Base
++	argparser.JSONOutput
+ 
+ 	// Required.
+ 	fqdn      string
+@@ -44,11 +46,16 @@ func NewCreateCommand(parent argparser.Registerer, g *global.Data) *CreateComman
+ 		Dst:         &c.serviceID,
+ 		Short:       's',
+ 	})
++	c.RegisterFlagBool(c.JSONFlag()) // --json
+ 	return &c
+ }
+ 
+ // Exec invokes the application logic for the command.
+ func (c *CreateCommand) Exec(_ io.Reader, out io.Writer) error {
++	if c.Globals.Verbose() && c.JSONOutput.Enabled {
++		return fsterr.ErrInvalidVerboseJSONCombo
++	}
++
+ 	input := &domains.CreateInput{
+ 		FQDN: &c.fqdn,
+ 	}
+@@ -79,6 +86,9 @@ func (c *CreateCommand) Exec(_ io.Reader, out io.Writer) error {
+ 		serviceOutput = fmt.Sprintf(", service-id: %s", *d.ServiceID)
+ 	}
+ 
++	if ok, err := c.WriteJSON(out, d); ok {
++		return err
++	}
+ 	text.Success(out, "Created domain '%s' (domain-id: %s%s)", d.FQDN, d.DomainID, serviceOutput)
+ 	return nil
+ }
+diff --git a/pkg/commands/domain/domain_test.go b/pkg/commands/domain/domain_test.go
+index 7d2b2d6..99eb386 100644
+--- a/pkg/commands/domain/domain_test.go
++++ b/pkg/commands/domain/domain_test.go
+@@ -57,6 +57,34 @@ func TestDomainCreate(t *testing.T) {
+ 			},
+ 			WantOutput: fmt.Sprintf("SUCCESS: Created domain '%s' (domain-id: %s)", fqdn, did),
+ 		},
++		{
++			Args: fmt.Sprintf("--fqdn %s --service-id %s --json", fqdn, sid),
++			Client: &http.Client{
++				Transport: &testutil.MockRoundTripper{
++					Response: &http.Response{
++						StatusCode: http.StatusOK,
++						Status:     http.StatusText(http.StatusOK),
++						Body: io.NopCloser(bytes.NewReader(testutil.GenJSON(domains.Data{
++							DomainID:  did,
++							FQDN:      fqdn,
++							ServiceID: &sid,
++						}))),
++					},
++				},
++			},
++			WantOutputs: []string{
++				fmt.Sprintf(`"id": "%s"`, did),
++				fmt.Sprintf(`"fqdn": "%s"`, fqdn),
++				fmt.Sprintf(`"service_id": "%s"`, sid),
++			},
++			DontWantOutputs: []string{
++				"SUCCESS: Created domain",
++			},
++		},
++		{
++			Args:      fmt.Sprintf("--fqdn %s --verbose --json", fqdn),
++			WantError: "invalid flag combination, --verbose and --json",
++		},
+ 		{
+ 			Args: fmt.Sprintf("--fqdn %s", fqdn),
+ 			Client: &http.Client{

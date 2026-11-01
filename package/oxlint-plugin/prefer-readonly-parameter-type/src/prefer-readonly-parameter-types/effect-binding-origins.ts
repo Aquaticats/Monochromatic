@@ -18,15 +18,15 @@ import type {
   Node,
   ParameterDeclaration,
   VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isArrayBindingPattern,
   isBindingElement,
   isIdentifier,
   isObjectBindingPattern,
   isVariableDeclarationList,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { expressionElementOrigins, } from './effect-element-origin.ts';
 import { expressionValueOrigins, } from './effect-expression-provenance.ts';
@@ -252,18 +252,18 @@ function registerBindingOrigins({
    * shared empty constant, so the copy is no longer what makes this safe. */
   return [...parameterOrigins,]
     .reduce(
-      function registerOne(
-        changed,
+    function registerOne(
+      changed,
+      slot,
+    ): boolean {
+      return registerBindingOrigin({
+        project,
+        name,
         slot,
-      ): boolean {
-        return registerBindingOrigin({
-          project,
-          name,
-          slot,
-          bindingOriginBySymbolId,
-        },) || changed;
-      },
-      false,
+        bindingOriginBySymbolId,
+      },) || changed;
+    },
+    false,
     );
 }
 
@@ -428,12 +428,12 @@ export function discoverAliasOrigins({
          */
         const { declarations, } = statement.initializer;
         declarations.forEach(function registerIterationDeclaration(declaration,): void {
-            state.changed = registerBindingOrigins({
-              project,
-              name: declaration.name,
-              parameterOrigins,
-              bindingOriginBySymbolId,
-            },) || state.changed;
+          state.changed = registerBindingOrigins({
+            project,
+            name: declaration.name,
+            parameterOrigins,
+            bindingOriginBySymbolId,
+          },) || state.changed;
         },);
         return;
       }

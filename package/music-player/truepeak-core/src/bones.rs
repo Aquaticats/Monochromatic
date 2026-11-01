@@ -1,28 +1,46 @@
-//! FLAC frame-size profiling without decoding: the lossless "encoding bones" channel.
+//! FLAC frame-size profiling without decoding:
+//!  the lossless "encoding bones" channel.
 //!
-//! Lossless bits track residual entropy, which tracks signal level, so a FLAC file's
+//! Lossless bits track residual entropy,
+//!  which tracks signal level,
+//!  so a FLAC file's
 //! per-time compressed byte-rate points at its loud passages (the crest's slot ranks at
-//! the 8th byte-rank percentile at the median on the corpus). Perceptual codecs were
-//! measured useless for this (bits follow busyness, not height), so this module is
-//! FLAC-only. The walk reads only container framing: every frame start is confirmed by
+//! the 8th byte-rank percentile at the median on the corpus).
+//!  Perceptual codecs were
+//! measured useless for this (bits follow busyness,
+//!  not height),
+//!  so this module is
+//! FLAC-only.
+//!  The walk reads only container framing:
+//!  every frame start is confirmed by
 //! header field validation against STREAMINFO plus the header CRC-8 plus the coded
-//! frame/sample number matching the previous frame's expectation, so false syncs inside
-//! compressed payloads are rejected. Frames last ~0.095 s, nearly one whole 0.1 s slot,
+//! frame/sample number matching the previous frame's expectation,
+//!  so false syncs inside
+//! compressed payloads are rejected.
+//!  Frames last ~0.095 s,
+//!  nearly one whole 0.1 s slot,
 //! so frame bytes are spread overlap-proportionally across the slots they cover;
 //! start-time binning aliases into a 2x sawtooth and halves the correlation.
 
-/// Slot length in seconds; matches the shipped probe window so hot slots map to probe bins.
+/// Slot length in seconds;
+///  matches the shipped probe window so hot slots map to probe bins.
 const SLOT_SECS: f64 = 0.1;
-/// Smallest plausible frame byte span; the walk skips ahead by this after each frame.
+/// Smallest plausible frame byte span;
+///  the walk skips ahead by this after each frame.
 const MIN_FRAME_BYTES: usize = 9;
-/// Frame-header block sizes by the 4 block-size bits; 0 reserved, 6/7 coded at end.
+/// Frame-header block sizes by the 4 block-size bits;
+///  0 reserved,
+///  6/7 coded at end.
 const FRAME_BLOCK_SIZES: [u32; 16] =
     [0, 192, 576, 1152, 2304, 4608, 0, 0, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
-/// Frame-header sample rates by the 4 rate bits; 0 = STREAMINFO, 12 to 14 coded at end.
+/// Frame-header sample rates by the 4 rate bits;
+///  0 = STREAMINFO,
+///  12 to 14 coded at end.
 const FRAME_RATES: [u32; 16] =
     [0, 88200, 176400, 192000, 8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000, 0, 0, 0, 0];
 
-/// CRC-8 table for polynomial 0x07, init 0 (the FLAC frame-header CRC).
+/// CRC-8 table for polynomial 0x07,
+///  init 0 (the FLAC frame-header CRC).
 const CRC8_TABLE: [u8; 256] = build_crc8_table();
 
 /// Build the CRC-8 (poly 0x07) lookup table at compile time.
@@ -43,10 +61,13 @@ const fn build_crc8_table() -> [u8; 256] {
     return table
 }
 
-/// A bones failure: the bytes are not a walkable FLAC stream.
+/// A bones failure:
+///  the bytes are not a walkable FLAC stream.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BonesError {
-    /// What went wrong, for logs; bones are optional so callers degrade to plain probing.
+    /// What went wrong,
+    ///  for logs;
+    ///  bones are optional so callers degrade to plain probing.
     pub message: String,
 }
 
@@ -54,11 +75,15 @@ pub struct BonesError {
 struct StreamInfo {
     /// Largest block size a frame may claim (0 when the header leaves it unset).
     max_block_size: u32,
-    /// The stream's sample rate; every frame must agree.
+    /// The stream's sample rate;
+    ///  every frame must agree.
     sample_rate: u32,
 }
 
-/// One confirmed frame: where it starts in samples, how long it plays, how many bytes.
+/// One confirmed frame:
+///  where it starts in samples,
+///  how long it plays,
+///  how many bytes.
 struct WalkedFrame {
     /// First sample of the frame.
     start_sample: u64,
@@ -70,8 +95,13 @@ struct WalkedFrame {
 
 /// FLAC's UTF-8-style coded number (frame number or sample number) at `offset`.
 ///
-/// What: returns the value and its byte length, or None when malformed. Why: the walk
-/// chains frames by expecting the next coded number, killing false syncs.
+/// What:
+///  returns the value and its byte length,
+///  or None when malformed.
+///  Why:
+///  the walk
+/// chains frames by expecting the next coded number,
+///  killing false syncs.
 fn decode_coded_number(buf: &[u8], offset: usize, max_length: usize) -> Option<(u64, usize)> {
     let first = *buf.get(offset)?;
     if first & 0x80 == 0 {
@@ -93,9 +123,14 @@ fn decode_coded_number(buf: &[u8], offset: usize, max_length: usize) -> Option<(
     return Some((value, length))
 }
 
-/// A parsed frame header: blocking strategy, block size, coded number, header length.
+/// A parsed frame header:
+///  blocking strategy,
+///  block size,
+///  coded number,
+///  header length.
 struct FrameHeader {
-    /// 1 = variable blocking (sample-number coded), 0 = fixed (frame-number coded).
+    /// 1 = variable blocking (sample-number coded),
+    ///  0 = fixed (frame-number coded).
     blocking_strategy: u8,
     /// Samples this frame carries.
     block_size: u32,
@@ -103,10 +138,17 @@ struct FrameHeader {
     coded_number: u64,
 }
 
-/// Try to parse a frame header at `offset`; None on any mismatch.
+/// Try to parse a frame header at `offset`;
+///  None on any mismatch.
 ///
-/// What: 14-bit sync, reserved-field checks, STREAMINFO cross-checks, then CRC-8 over
-/// the header bytes. Why: every check that fails here is a false sync avoided.
+/// What:
+///  14-bit sync,
+///  reserved-field checks,
+///  STREAMINFO cross-checks,
+///  then CRC-8 over
+/// the header bytes.
+///  Why:
+///  every check that fails here is a false sync avoided.
 fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<FrameHeader> {
     if offset + 6 > buf.len() {
         return None;
@@ -164,10 +206,16 @@ fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<Fr
     return Some(FrameHeader { blocking_strategy, block_size, coded_number })
 }
 
-/// Parse the metadata blocks: STREAMINFO plus the first audio-frame offset.
+/// Parse the metadata blocks:
+///  STREAMINFO plus the first audio-frame offset.
 ///
-/// What: skips a nonstandard leading ID3v2 tag, requires the fLaC magic, walks blocks
-/// to the last-block flag. Why: the frame walk needs the stream's ground truth and its
+/// What:
+///  skips a nonstandard leading ID3v2 tag,
+///  requires the fLaC magic,
+///  walks blocks
+/// to the last-block flag.
+///  Why:
+///  the frame walk needs the stream's ground truth and its
 /// starting offset.
 fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
     let mut offset = 0usize;
@@ -212,17 +260,24 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
             break;
         }
     }
-    let info = info.ok_or_else(|| return BonesError { message: "flac: no STREAMINFO block".to_owned() })?;
-    if info.sample_rate == 0 {
+    // The confirmed STREAMINFO gets its own name so it does not shadow the
+    // accumulator `Option` above.
+    let stream_info = info.ok_or_else(|| return BonesError { message: "flac: no STREAMINFO block".to_owned() })?;
+    if stream_info.sample_rate == 0 {
         return Err(BonesError { message: "flac: zero sample rate".to_owned() });
     }
-    return Ok((info, offset))
+    return Ok((stream_info, offset))
 }
 
-/// Walk audio frames from the first frame to EOF, confirming each start.
+/// Walk audio frames from the first frame to EOF,
+///  confirming each start.
 ///
-/// What: chains confirmed headers by the expected coded number; frame byte size is the
-/// distance between consecutive confirmed starts. Why: the byte spans are the profile.
+/// What:
+///  chains confirmed headers by the expected coded number;
+///  frame byte size is the
+/// distance between consecutive confirmed starts.
+///  Why:
+///  the byte spans are the profile.
 fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Result<(Vec<WalkedFrame>, f64), BonesError> {
     let first = parse_frame_header(buf, first_frame_offset, info)
         .ok_or_else(|| return BonesError { message: "flac: no frame at first-frame offset".to_owned() })?;
@@ -278,11 +333,19 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
     return Ok((frames, duration_secs))
 }
 
-/// Build the per-slot byte profile from a FLAC file's raw bytes, without decoding.
+/// Build the per-slot byte profile from a FLAC file's raw bytes,
+///  without decoding.
 ///
-/// What: parses metadata, walks every frame, and spreads each frame's bytes across the
-/// 0.1 s slots it overlaps, proportionally to time overlap. Why: the profile's hot
-/// slots seed the probe; spreading avoids the start-bin sawtooth artifact.
+/// What:
+///  parses metadata,
+///  walks every frame,
+///  and spreads each frame's bytes across the
+/// 0.1 s slots it overlaps,
+///  proportionally to time overlap.
+///  Why:
+///  the profile's hot
+/// slots seed the probe;
+///  spreading avoids the start-bin sawtooth artifact.
 pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
     let (info, first_frame_offset) = parse_metadata(buf)?;
     let (frames, duration_secs) = walk_frames(buf, first_frame_offset, &info)?;
@@ -312,9 +375,12 @@ pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
     return Ok(slots)
 }
 
-/// The indices of the `top` hottest byte slots, the probe's bones seeds.
+/// The indices of the `top` hottest byte slots,
+///  the probe's bones seeds.
 ///
-/// What: sorts slot indices by byte weight descending and keeps the first `top`. Why:
+/// What:
+///  sorts slot indices by byte weight descending and keeps the first `top`.
+///  Why:
 /// the resolver decodes these slots (each with its neighbors) before the even pass.
 pub fn bones_hot_bins(profile: &[f64], top: usize) -> Vec<usize> {
     // Sort indices by descending byte weight, then truncate.
@@ -324,9 +390,14 @@ pub fn bones_hot_bins(profile: &[f64], top: usize) -> Vec<usize> {
     return order
 }
 
-/// What:     `#[cfg(test)] #[path = "bones_tests.rs"] mod tests;`. Test-only submodule in
-///           the sibling file, gated to test builds.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "bones_tests.rs"] mod tests;`.
+///  Test-only submodule in
+///           the sibling file,
+///  gated to test builds.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 #[cfg(test)]
 #[path = "bones_tests.rs"]
 mod tests;

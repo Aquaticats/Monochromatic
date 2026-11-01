@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   createMcpServer,
@@ -561,7 +561,7 @@ await describe({
                   (response.result as { tools: readonly { name: string; }[]; })
                     .tools
                     .map(
-                      tool => tool.name,
+                    tool => tool.name,
                     );
                 expect(names,).toEqual(['alpha', 'beta',],);
               },

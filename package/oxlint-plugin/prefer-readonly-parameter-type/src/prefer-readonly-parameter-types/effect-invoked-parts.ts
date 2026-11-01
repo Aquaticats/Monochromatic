@@ -29,14 +29,14 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isCallExpression,
   isDecorator,
   isNewExpression,
   isTaggedTemplateExpression,
   isTemplateExpression,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Sentinel for a node that invokes nothing.
@@ -75,8 +75,8 @@ export function invokedParts({ node, }: { readonly node: Node; },):
     readonly callee: Node;
     readonly actuals: readonly Node[];
   }
-  | typeof INVOKES_NOTHING
-{
+    | typeof INVOKES_NOTHING
+  {
   if (isCallExpression(node,))
     return {
       callee: node.expression,

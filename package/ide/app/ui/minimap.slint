@@ -1,0 +1,105 @@
+// The minimap beside the source text: the picture of the whole file, which is the window's own shaped text drawn small
+// by the GPU, and the viewport box over it that is the scroll control. Native code draws the picture and decides what
+// a press or a drag scrolls to; this file only places the picture and the box and reports the pointer. The box follows
+// CodeGlance Pro's defaults: it is the palette's foreground at 0.15 opacity, 0.25 under the pointer, and 0.35 while it
+// is dragged, and a hand cursor shows outside the box where a press jumps.
+import { Surface } from "surface.slint";
+import { Palette } from "std-widgets.slint";
+
+// One texture of the picture: the image, the row of the whole picture its first row is, and its height, in physical
+// pixels. A picture taller than the device's texture limit is several of these, each below the one before it.
+export struct MinimapSlice {
+    image: image,
+    top: float,
+    height: float,
+}
+
+export component Minimap inherits Rectangle {
+    // The picture is the window's own shaped lines of the bands of the text near the visible part, drawn at the minimap's
+    // resolution into GPU textures that stack without a gap, each shown at exactly its size in physical pixels, so
+    // nothing is resampled, and no pixel of it is repeated or blended with a neighbour. Its width is the textures' width.
+    in property <[MinimapSlice]> slices;
+    in property <float> picture-width;
+    // How far the whole picture has slid up past the track, which is the picture's offset in a text taller than the
+    // track.
+    in property <length> slide;
+    // Height of the track the picture covers, and the box over it: its height and its distance from the top.
+    in property <length> track;
+    in property <length> box-height;
+    in property <length> box-top;
+    // The view's scroll offset and its range, for assistive tools.
+    in property <float> offset;
+    in property <float> range;
+    out property <bool> pressed: touch.pressed;
+    out property <bool> hovered: touch.has-hover;
+    // The pointer is over the box itself: CodeGlance Pro marks the box (`ScrollBar.updateAlpha`: `isInRect`) only then.
+    out property <bool> over-box: touch.has-hover && touch.mouse-y >= root.box-top
+        && touch.mouse-y <= root.box-top + root.box-height;
+    // A press: its distance from the top and from the left edge, whether Shift is held, and whether it is on the box.
+    callback press(length, length, bool, bool);
+    // The pointer moved with the left button down.
+    callback drag(length);
+    // The left button was released.
+    callback release;
+    // One page, up (-1) or down (1), from an assistive tool.
+    callback step(int);
+    // The minimap's own size changed.
+    callback resized(length, length);
+
+    clip: true;
+    background: Surface.background;
+    accessible-role: slider;
+    accessible-label: "Source minimap";
+    accessible-value: "\{round(root.offset)}";
+    accessible-value-minimum: 0;
+    accessible-value-maximum: root.range;
+    accessible-action-increment => { root.step(1); }
+    accessible-action-decrement => { root.step(-1); }
+    changed width => { root.resized(self.width, self.height); }
+    changed height => { root.resized(self.width, self.height); }
+
+    for slice in root.slices : Image {
+        x: 0px;
+        // Whole physical pixels, so the picture slides without being resampled, and each texture starts on the row
+        // where the one above it ends.
+        y: (slice.top - round(root.slide / 1phx)) * 1phx;
+        width: root.picture-width * 1phx;
+        height: slice.height * 1phx;
+        source: slice.image;
+        image-fit: fill;
+    }
+
+    // The viewport box, an outline without a fill so the picture under it stays unchanged. Two channels tell its
+    // state: the border's width (1 px, 2 px when hovered or dragged) and its opacity (0.5, 0.75 hovered, 0.9
+    // dragged), besides the cursor.
+    Rectangle {
+        x: 0px;
+        y: root.box-top;
+        width: parent.width;
+        height: root.box-height;
+        border-width: touch.pressed || root.over-box ? 2px : 1px;
+        border-color: Palette.foreground.with-alpha(touch.pressed ? 0.9 : root.over-box ? 0.75 : 0.5);
+        border-radius: self.height > 20px ? 5px : 0px;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        // A hand over the picture where a press jumps, the plain arrow over the box, while it is dragged, and below the
+        // end of the picture (CodeGlance Pro's `ScrollBar.updateAlpha`: `y < drawHeight`).
+        mouse-cursor: self.pressed || root.over-box || self.mouse-y >= root.track
+            ? MouseCursor.default : MouseCursor.pointer;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.press(self.mouse-y, self.mouse-x, event.modifiers.shift,
+                    self.mouse-y >= root.box-top && self.mouse-y <= root.box-top + root.box-height);
+            } else if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                root.release();
+            }
+        }
+        moved => {
+            if !self.pressed { return; }
+            root.drag(self.mouse-y);
+        }
+    }
+}

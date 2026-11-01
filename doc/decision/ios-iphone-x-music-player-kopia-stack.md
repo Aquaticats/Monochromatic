@@ -162,7 +162,7 @@ the very end,
   iOS-17 `UITrait` API (panic `class UITraitUserInterfaceStyle could not be found`).
    The iPhone X never
   gets iOS 17.
-   Evidence in `ios-iphone-x-vet-reports/device-gate-results.md`.
+   Evidence in `ios-iphone-x-vet-report/device-gate-results.md`.
 - Capacitor (rank 2,
    covers Capacitor,
    Cordova,
@@ -205,7 +205,7 @@ the very end,
   NET Core Kestrel in-process) remains the stage-2 unknown,
    as for every
   substrate.
-   Evidence in `ios-iphone-x-vet-reports/device-gate-results.md`.
+   Evidence in `ios-iphone-x-vet-report/device-gate-results.md`.
 - Compose Multiplatform (rank 5):
    pending,
    expected-pass.
@@ -228,7 +228,7 @@ the very end,
   no-hand-written-C++ rule).
    The other "pending" entries in this snapshot are all now FULL PASS;
    see
-  `ios-iphone-x-vet-reports/device-gate-results.md` for current status.
+  `ios-iphone-x-vet-report/device-gate-results.md` for current status.
 - Appended (owner,
    gate after the above and before the deferred web block):
    Dioxus (Rust UI,
@@ -259,7 +259,7 @@ vet keychain,
  The signing proof and the render-vs-launch
 verification method (`idevicedebug -d run` plus `idevicescreenshot`,
  since `ios-deploy --justlaunch`
-reports success before any UI draws) are in `ios-iphone-x-vet-reports/device-gate-results.md`.
+reports success before any UI draws) are in `ios-iphone-x-vet-report/device-gate-results.md`.
 
 ## Candidate frameworks
 
@@ -419,7 +419,7 @@ arm64 plus simulator x86_64 only,
 simulator,
  and the only arm64-sim path (a from-source build) independently breaks the no-hand-written-C++
 rule.
- Full reasoning in `ios-iphone-x-vet-reports/device-gate-results.md`.
+ Full reasoning in `ios-iphone-x-vet-report/device-gate-results.md`.
  The assessment below is retained
 as the pre-cull analysis;
  Qt's positions in the capability ranking are void (see the ranking note).
@@ -500,7 +500,7 @@ Dioxus in particular is the top pick on the separate language-minimization axis 
 below),
  and the pure-Swift trio is baseline-only there.
  The whole funnel's current device status lives in
-`ios-iphone-x-vet-reports/device-gate-results.md`;
+`ios-iphone-x-vet-report/device-gate-results.md`;
  treat that and the language-axis section as authoritative
 where they differ from the capability order here.
 
@@ -1087,7 +1087,7 @@ disqualified on this device),
    now run to Android depth,
    not just enumerated,
    in two reports.
-  `ios-iphone-x-vet-reports/vet-ui-automation.md`:
+  `ios-iphone-x-vet-report/vet-ui-automation.md`:
    black-box e2e is XCUITest/WebDriverAgent (the iOS
   primitive,
    the UiAutomator analog) wrapped by Appium 3.5.0 and Maestro 2.6.1;
@@ -1096,7 +1096,7 @@ disqualified on this device),
    and per-rendering-model accessibility-tree dumps were captured (WebView,
   native UIKit,
    self-drawn Skia).
-   `ios-iphone-x-vet-reports/vet-test-frameworks.md`:
+   `ios-iphone-x-vet-report/vet-test-frameworks.md`:
    Rust unit plus proptest
   pass on the `aarch64-apple-ios-sim` target,
    cargo-fuzz ran 34M executions clean,
@@ -1158,7 +1158,7 @@ disqualified on this device),
    the
   vet reuses one provisioned bundle id so gates need no `-allowProvisioningUpdates`.
    See
-  `ios-iphone-x-vet-reports/device-gate-results.md` and `../runbook/ios-iphone-x-codesign-setup.md`.
+  `ios-iphone-x-vet-report/device-gate-results.md` and `../runbook/ios-iphone-x-codesign-setup.md`.
 
 ## Accessibility (VoiceOver) posture and the owner-owed on-device sweep
 
@@ -1243,7 +1243,7 @@ Posture by survivor,
    For Uno,
    re-verify with its native-UIKit renderer,
    which is the a11y-safe config.
-  Partial on-device-tree evidence now exists (`ios-iphone-x-vet-reports/vet-ui-automation.md`):
+  Partial on-device-tree evidence now exists (`ios-iphone-x-vet-report/vet-ui-automation.md`):
    the Appium
   element dump shows Flutter's self-drawn bridge already projects real roles (a title with `traits=Header`,
   an action as an `XCUIElementTypeButton` with `traits=Button`),
@@ -1275,7 +1275,7 @@ autonomously;
 device-confirmed.
  The headless half is also now captured:
  the UI-automation vet
-(`ios-iphone-x-vet-reports/vet-ui-automation.md`) dumped each representative's accessibility tree,
+(`ios-iphone-x-vet-report/vet-ui-automation.md`) dumped each representative's accessibility tree,
  which
 records what VoiceOver would read (labels,
  roles,
@@ -1374,7 +1374,7 @@ de-risks the kopia and music-player apps on every track at once.
    now RUN to Android depth,
    not just
   enumerated,
-   in `ios-iphone-x-vet-reports/vet-test-frameworks.md` and `vet-ui-automation.md`.
+   in `ios-iphone-x-vet-report/vet-test-frameworks.md` and `vet-ui-automation.md`.
    Black-box e2e
   (Appium plus Maestro on WebDriverAgent),
    Rust unit/proptest on the iOS-sim target,
@@ -1415,9 +1415,14 @@ Sixteen per-framework source audits were run on 2026-06-12 by a parallel fan-out
 its load-bearing wall claims against a concrete source,
  followed by an adversarial cite-check and a
 synthesis.
+
+The evidence paths spelled `ios-iphone-x-vet-reports/` when this record was updated on 2026-06-12.
+The folder became `ios-iphone-x-vet-report/` on 2026-07-15 (`bd19d57e20`),
+so the `ios-iphone-x-vet-reports/` spelling no longer resolves.
+
  The raw per-framework reports (verbatim structured output,
  not lint-conformed) and the
-on-device gate results are persisted alongside this doc under `ios-iphone-x-vet-reports/`:
+on-device gate results are persisted alongside this doc under `ios-iphone-x-vet-report/`:
 
 - On-device gates:
    `device-gate-results.md` (the signing mechanism,

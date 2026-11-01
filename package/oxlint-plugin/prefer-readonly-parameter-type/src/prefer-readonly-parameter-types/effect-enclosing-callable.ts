@@ -4,7 +4,7 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 
 import { isPresentNode, } from './effect-value-consumer.ts';
 import { isEffectCallableDeclaration, } from './effect-summary-model.ts';

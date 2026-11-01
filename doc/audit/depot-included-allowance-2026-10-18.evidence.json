@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T12:37:04.610Z",
+  "accountAccess": false,
+  "billingLedgerObserved": false,
+  "publicPricingUrl": "https://depot.dev/pricing",
+  "publicPricingObservedAt": "2026-10-18T12:23:28.074Z",
+  "sourceArchive": {
+    "path": "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+    "bytes": 112370,
+    "sha256": "197dac272cc047780d092b6b3740c61091805a0aa7b87211cd4406ec1ba784c0",
+    "uncompressedBytes": 651963
+  },
+  "liveCapture": {
+    "path": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+    "bytes": 8976,
+    "sha256": "c52a7c7cbbbae7719035a881194bdda8a07e1810f3743b83893cef6323095825",
+    "observedAt": "2026-10-18T09:35:35.469Z",
+    "plans": [
+      "Developer",
+      "Startup",
+      "Business"
+    ],
+    "featureRowCount": 48,
+    "faqCount": 12,
+    "computeTabCount": 3
+  },
+  "selectors": {
+    "feeCards": {
+      "artifactPath": "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+      "member": "currentPricing.plain",
+      "content": "Developer $20/month; Startup $200/month"
+    },
+    "namedEntitlements": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "featureRows",
+      "label": "cells[0].text",
+      "Developer": "cells[1].text",
+      "Startup": "cells[2].text",
+      "labels": [
+        "Docker build minutes included",
+        "GitHub Actions minutes included",
+        "Depot CI minutes included",
+        "Cache and registry storage included",
+        "Included passing test results"
+      ]
+    },
+    "planFaq": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "faq",
+      "match": {
+        "question": "Which plan is right for me?"
+      },
+      "value": "answer"
+    },
+    "native": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "compute",
+      "match": {
+        "name": "Depot CI"
+      },
+      "values": [
+        "text",
+        "html"
+      ]
+    },
+    "github": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "compute",
+      "match": {
+        "name": "GitHub Actions Runners"
+      },
+      "values": [
+        "text",
+        "html"
+      ]
+    },
+    "builder": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "compute",
+      "match": {
+        "name": "Container Builds"
+      },
+      "values": [
+        "text",
+        "html"
+      ]
+    },
+    "storage": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "faq",
+      "match": {
+        "question": "Am I charged for build usage and storage?"
+      },
+      "value": "answer"
+    },
+    "tests": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "faq",
+      "match": {
+        "question": "How are test results billed?"
+      },
+      "value": "answer"
+    },
+    "caps": {
+      "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+      "member": "faq",
+      "match": {
+        "question": "Can I cap my usage so my bill doesn't run over?"
+      },
+      "value": "answer"
+    }
+  },
+  "plans": {
+    "Developer": {
+      "monthlyFeeUsd": 20,
+      "dockerBuildMinutes": 500,
+      "depotCiBaseMinutes": 2000,
+      "githubActionsNormalizedMinutes": 2000,
+      "combinedStorageGb": 25,
+      "passingTestResults": 1000000
+    },
+    "Startup": {
+      "monthlyFeeUsd": 200,
+      "dockerBuildMinutes": 5000,
+      "depotCiBaseMinutes": 20000,
+      "githubActionsNormalizedMinutes": 20000,
+      "combinedStorageGb": 250,
+      "passingTestResults": 1000000
+    }
+  },
+  "nativeCi": {
+    "includedBase": {
+      "cpus": 2,
+      "memoryGb": 8
+    },
+    "defaultUsdPerSecond": 0.0001,
+    "usdPerVcpuSecond": 0.00005,
+    "eightCpuUsdPerSecond": 0.0004,
+    "eightCpuAllowanceMultiplier": 4,
+    "sourceUrl": "https://depot.dev/docs/ci/overview.md",
+    "decidingLines": [
+      245,
+      250,
+      257,
+      263
+    ]
+  },
+  "githubActions": {
+    "defaultLinux": {
+      "elapsedMinuteUsd": 0.006,
+      "allowanceMultiplier": 1
+    },
+    "defaultWindows": {
+      "elapsedMinuteUsd": 0.008,
+      "allowanceMultiplier": 2
+    },
+    "fourCpuWindows": {
+      "elapsedMinuteUsd": 0.016,
+      "allowanceMultiplier": 4
+    },
+    "mixedOperatingSystemCreditAllocation": "undocumented",
+    "macos": {
+      "elapsedMinuteUsd": 0.08,
+      "DeveloperEligible": false,
+      "StartupEligible": true,
+      "normalizedMultiplier": "undocumented",
+      "includedCreditTreatment": "unresolved",
+      "categoricalExclusionWithdrawn": true
+    },
+    "sourceUrl": "https://depot.dev/docs/github-actions/runner-types.md"
+  },
+  "builder": {
+    "defaultCpus": 16,
+    "defaultMemoryGb": 32,
+    "elapsedMinuteUsd": 0.04,
+    "multiplier": 1,
+    "originalCampaignSource": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
+    "originalTimestampComputeModel": {
+      "observedNativeRequestMilliseconds": 403938,
+      "maximumArchitectureBuilders": 2,
+      "cpusPerBuilder": 16,
+      "memoryGiBPerBuilder": 32,
+      "publicRateUsdPerBuilderMinute": 0.04,
+      "nominalWindowEstimateUsd": 0.5385840000000001,
+      "ceilingUsd": 2,
+      "invoiceOrAccountCapProven": false,
+      "initialExpiredWallClockRetained": true
+    },
+    "reservationInterpretation": "403938 milliseconds are summed request windows, multiplied by maximum two simultaneous builders at USD0.04 per builder-minute; architecture-specific billable intervals were not observed",
+    "withdrawnInterpretation": {
+      "publishedIn": "17e2aeb0f3",
+      "mistakenSingleBuilderRateUsd": 0.08,
+      "mistakenSingleBuilderRepricingUsd": 0.269292,
+      "retracted": true
+    },
+    "actualInvoiceClaimed": false,
+    "multiplatformMeterBoundary": {
+      "dedicatedParallelArchitectureBuildersDocumented": true,
+      "regularScaledBuilderRateDocumented": true,
+      "explicitMultiArchitectureDebitEquationFound": false,
+      "cliListedDurationIsCreatedToFinishedEnvelope": true,
+      "architectureSpecificBilledIntervalsObserved": false,
+      "privateBillingAlgorithmObserved": false,
+      "reservationAssumption": "Sum admitted per-builder interval bounds; if only a request window is retained, multiply it by maximum admitted builder count",
+      "sourceArchiveMember": "multiplatformMeter"
+    }
+  },
+  "storage": {
+    "combinedProducts": [
+      "container build cache",
+      "Depot Cache",
+      "Depot Registry"
+    ],
+    "extraGbMonthUsd": 0.2,
+    "aggregation": "monthly average sampled hourly",
+    "standardRegistryTransferUsd": 0,
+    "fastRegistryTransferGbUsd": 0.1
+  },
+  "tests": {
+    "passingAllowancePerMonth": 1000000,
+    "additionalPassingResultUsd": 0.000001,
+    "failedErroredSkippedUsd": 0,
+    "adapterStoredPassingRows": 136,
+    "adapterResultListRateProxyUsd": 0.000136,
+    "invoiceClaimed": false
+  },
+  "sdkSandbox": {
+    "documentedRate": "Depot CI compute rate per vCPU-second",
+    "includedCiCreditEligibility": "unresolved"
+  },
+  "remoteAiAgent": {
+    "elapsedMinuteUsd": 0.01,
+    "includedUsage": 0
+  },
+  "limits": {
+    "separateNamedEntitlementsDocumented": true,
+    "creditTransferabilityDocumented": false,
+    "mixedOsCreditAllocationObserved": false,
+    "aggregateAllProductDollarCapProven": false,
+    "globalDeveloperDominanceClaimed": false,
+    "developerBaselineReopened": false,
+    "usageOrOrganizationServiceCalled": false
+  },
+  "capControlReconciliation": {
+    "at": "2026-10-18T15:55:44.925Z",
+    "retractedClaim": "Only container builds have a documented minute usage cap",
+    "currentDecidingSources": [
+      "https://depot.dev/docs/container-builds/quickstart.md",
+      "https://depot.dev/docs/github-actions/troubleshooting.md"
+    ],
+    "qualifiedConclusion": "Separate documented Container Build Minutes and GitHub Actions minute controls; no current setting inspection, configured values, runtime cap test or aggregate all-product USD enforcement",
+    "noAccountUsageOrSettingsInspected": true,
+    "sourceRows": [
+      {
+        "url": "https://depot.dev/docs/container-builds/quickstart.md",
+        "sha256": "55eab55f9780197e99d61c49ee21cdd1f0d728f419d93efd016f01e53a400ac7",
+        "bytes": 3013
+      },
+      {
+        "url": "https://depot.dev/docs/github-actions/troubleshooting.md",
+        "sha256": "f41fd5a82ee977f2bcc8ba9184d6734ffbd52b18f65c7a441b9c8802749d7f61",
+        "bytes": 19760
+      }
+    ],
+    "retainedSourceArchive": {
+      "path": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+      "bytes": 3883626,
+      "sha256": "d3d907ba12236df20900f65ef7109ac2b90c9a9a1ad71a03f1ae3b1bad2ca890",
+      "pinnedRepositories": 28,
+      "retrievedSourceFiles": 542,
+      "supplementalRepositoryRootFiles": 142,
+      "publicDocumentationMdxFiles": 117
+    }
+  }
+}

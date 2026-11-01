@@ -1,0 +1,195 @@
+{
+  "install_specifiers": {
+    "accepted": [
+      "catalog:",
+      "catalog:team",
+      "catalog:a.b_c-d",
+      "catalog:Team1",
+      "workspace:*"
+    ],
+    "rejected": [
+      "",
+      "*",
+      "^4.6.7",
+      "4.6.7",
+      ">=4.6.7",
+      "1.0.0-beta.1",
+      "latest",
+      "workspace:^",
+      "workspace:~",
+      "workspace:^1.0.0",
+      "workspace:*.0",
+      "workspace:",
+      "workspace:**",
+      "link:../x",
+      "file:../x",
+      "git+https://github.com/a/b.git",
+      "github:a/b",
+      "https://example.com/x.tgz",
+      "npm:other@^1.0.0",
+      "catalog: ",
+      " catalog:",
+      "catalog:team ",
+      "catalog:team:other",
+      "catalog:te am",
+      "catalog:te\tam",
+      "catalog:*",
+      "catalog:\u00e9",
+      "Catalog:",
+      "CATALOG:",
+      "workspace:*\n"
+    ]
+  },
+  "peer_specifiers": {
+    "accepted": [
+      "*",
+      "catalog:",
+      "catalog:team"
+    ],
+    "rejected": [
+      "",
+      "workspace:*",
+      "^1.0.0",
+      "*.0",
+      "* ",
+      "**",
+      ">=1",
+      "x",
+      "catalog: ",
+      "catalog:a:b"
+    ]
+  },
+  "paths": {
+    "unsupported": [
+      "package.json5",
+      "package/a/package.yaml",
+      "x/y/z/package.yml"
+    ],
+    "supported": [
+      "package.json",
+      "package/a/package.json",
+      "my-package.yaml",
+      "package.yaml.bak",
+      "package.JSON5",
+      "Package.yml",
+      "package.yaml/package.json"
+    ]
+  },
+  "manifests": [
+    {
+      "name": "clean manifest with every section",
+      "text": "{\"name\":\"x\",\"dependencies\":{\"a\":\"catalog:\",\"b\":\"workspace:*\"},\"devDependencies\":{\"c\":\"catalog:team\"},\"optionalDependencies\":{\"d\":\"catalog:\"},\"peerDependencies\":{\"e\":\"*\"}}",
+      "kinds": []
+    },
+    {
+      "name": "no checked sections",
+      "text": "{\"name\":\"x\"}",
+      "kinds": []
+    },
+    {
+      "name": "empty sections",
+      "text": "{\"dependencies\":{},\"devDependencies\":{},\"optionalDependencies\":{},\"peerDependencies\":{}}",
+      "kinds": []
+    },
+    {
+      "name": "ignored members may hold literals",
+      "text": "{\"resolutions\":{\"a\":\"1.0.0\"},\"overrides\":{\"a\":\"1.0.0\"},\"peerDependenciesMeta\":{\"a\":{\"optional\":true}},\"pnpm\":{\"overrides\":{\"a\":\"1\"}}}",
+      "kinds": []
+    },
+    {
+      "name": "byte order mark is removed",
+      "text": "\ufeff{\"dependencies\":{\"a\":\"catalog:\"}}",
+      "kinds": []
+    },
+    {
+      "name": "literal range in dependencies",
+      "text": "{\"dependencies\":{\"zod\":\"^4.6.7\"}}",
+      "kinds": ["disallowed-specifier"]
+    },
+    {
+      "name": "literal range in each install section and in peers",
+      "text": "{\"dependencies\":{\"a\":\"1\"},\"devDependencies\":{\"b\":\"1\"},\"optionalDependencies\":{\"c\":\"1\"},\"peerDependencies\":{\"d\":\"1\"}}",
+      "kinds": ["disallowed-specifier", "disallowed-specifier", "disallowed-specifier", "disallowed-specifier"]
+    },
+    {
+      "name": "workspace star is refused in peers",
+      "text": "{\"peerDependencies\":{\"a\":\"workspace:*\"}}",
+      "kinds": ["disallowed-specifier"]
+    },
+    {
+      "name": "duplicate dependency name, both valid",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\",\"a\":\"catalog:\"}}",
+      "kinds": ["duplicate-key"]
+    },
+    {
+      "name": "duplicate dependency name, the first is the literal",
+      "text": "{\"dependencies\":{\"a\":\"1.0.0\",\"a\":\"catalog:\"}}",
+      "kinds": ["disallowed-specifier", "duplicate-key"]
+    },
+    {
+      "name": "duplicate dependency name, the last is the literal",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\",\"a\":\"1.0.0\"}}",
+      "kinds": ["duplicate-key", "disallowed-specifier"]
+    },
+    {
+      "name": "duplicate section holds a literal in the second copy",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\"},\"dependencies\":{\"b\":\"1\"}}",
+      "kinds": ["duplicate-key", "disallowed-specifier"]
+    },
+    {
+      "name": "array holding a catalog reference",
+      "text": "{\"dependencies\":{\"a\":[\"catalog:team\"]}}",
+      "kinds": ["non-string-specifier"]
+    },
+    {
+      "name": "non-string specifiers",
+      "text": "{\"dependencies\":{\"a\":1,\"b\":true,\"c\":null,\"d\":{},\"e\":[]}}",
+      "kinds": ["non-string-specifier", "non-string-specifier", "non-string-specifier", "non-string-specifier", "non-string-specifier"]
+    },
+    {
+      "name": "null section",
+      "text": "{\"dependencies\":null}",
+      "kinds": ["malformed-section"]
+    },
+    {
+      "name": "array, string, number and boolean sections",
+      "text": "{\"dependencies\":[],\"devDependencies\":\"x\",\"optionalDependencies\":1,\"peerDependencies\":true}",
+      "kinds": ["malformed-section", "malformed-section", "malformed-section", "malformed-section"]
+    },
+    {
+      "name": "root is an array",
+      "text": "[]",
+      "kinds": ["invalid-manifest"]
+    },
+    {
+      "name": "root is a string",
+      "text": "\"x\"",
+      "kinds": ["invalid-manifest"]
+    },
+    {
+      "name": "empty text",
+      "text": "",
+      "kinds": ["invalid-manifest"]
+    },
+    {
+      "name": "truncated json",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\"",
+      "kinds": ["invalid-manifest"]
+    },
+    {
+      "name": "comments and trailing commas are read as data",
+      "text": "{ // note\n \"dependencies\": { \"a\": \"1.0.0\", }, }",
+      "kinds": ["disallowed-specifier"]
+    },
+    {
+      "name": "lone surrogate escape in a specifier",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\\ud800\"}}",
+      "kinds": ["disallowed-specifier"]
+    },
+    {
+      "name": "escaped specifier text is decoded before the check",
+      "text": "{\"dependencies\":{\"a\":\"\\u0063atalog:\"}}",
+      "kinds": []
+    }
+  ]
+}

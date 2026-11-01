@@ -67,10 +67,10 @@ fn temp_cache(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `std::env::temp_dir().join(format!(...))`. Join a formatted filename
+    // What:     `crate::test_scratch::scratch_root().join(format!(...))`. Join a formatted filename
     //           under the system temp directory. Tail expression returns it.
     // Why:      Keep disposable cache state out of the repo and real config dir.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "mp-controller-{}-{}-{}.json",
         std::process::id(),
         nanos,
@@ -80,8 +80,19 @@ fn temp_cache(tag: &str) -> PathBuf {
 
 // What:     `#[test]` marks the next function as a Rust unit test.
 // Why:      The test runner discovers and runs this case.
+/// What: `fn test_decision(gain: f32) -> Decision` builds a placeholder decision for the pending-peak results.
+/// Why: the result carries the decision, and these tests only check the gain.
+fn test_decision(gain: f32) -> truepeak_core::Decision {
+    return truepeak_core::Decision {
+        gain,
+        kind: truepeak_core::DecisionKind::ShortFullScan,
+        measured_peak: 0.5,
+        duration_secs: 1.0,
+    };
+}
+
 #[test]
-fn timeout_keeps_fallback_then_later_result_swaps_gain() {
+fn unfinished_measurement_keeps_fallback_then_later_result_swaps_gain() {
     // What:     `let mut controller = test_controller();`. Build mutable test state.
     // Why:      The wait and poll helpers mutate peak fields.
     let mut controller = test_controller();
@@ -103,10 +114,10 @@ fn timeout_keeps_fallback_then_later_result_swaps_gain() {
     // Why:      Simulate an in-flight current-track measurement.
     controller.pending_peak = Some(PendingPeakMeasurement::from_receiver(receiver));
 
-    // What:     `controller.wait_for_pending_peak(Duration::from_millis(1));`. Wait a
-    //           tiny test timeout with no value sent yet.
-    // Why:      Exercise the timeout branch without paying the production one second.
-    controller.wait_for_pending_peak(Duration::from_millis(1));
+    // What:     `assert!(!controller.poll_pending_peak());`. Poll with no value sent yet.
+    // Why:      A measurement that has not landed must leave the fallback gain and the pending handle alone.
+    assert!(!controller.poll_pending_peak());
+    assert!(controller.pending_peak.is_some());
 
     // What:     `assert!(approx_eq(controller.track_gain, fallback));`. Gain stayed fallback.
     // Why:      Timeout must not invent or clear a measured gain.
@@ -121,6 +132,8 @@ fn timeout_keeps_fallback_then_later_result_swaps_gain() {
         .send(PeakGainResult {
             generation: 1,
             gain: 0.5,
+            path: PathBuf::from("/music/current.flac"),
+            decision: test_decision(0.5),
         })
         .expect("pending peak receiver should remain connected");
     // What:     `assert!(controller.poll_pending_peak());`. Poll and expect a live
@@ -164,6 +177,8 @@ fn stale_generation_result_is_ignored() {
         .send(PeakGainResult {
             generation: 1,
             gain: 0.5,
+            path: PathBuf::from("/music/current.flac"),
+            decision: test_decision(0.5),
         })
         .expect("pending peak receiver should remain connected");
 
@@ -183,49 +198,67 @@ fn stale_generation_result_is_ignored() {
 // What:     `#[test]` marks the next function as a Rust unit test.
 // Why:      The test runner discovers and runs this case.
 #[test]
-fn play_start_waits_for_pending_peak_result() {
+fn play_start_does_not_wait_for_pending_peak() {
     // What:     `let mut controller = test_controller();`. Build mutable test state.
     // Why:      `set_playing` mutates gain and playing fields.
     let mut controller = test_controller();
-    // What:     `controller.peak_generation = 3;`. Seed current track generation.
-    // Why:      The manual peak result must match this generation.
+    // What:     `controller.peak_generation = 3;`. Seed the current track generation.
+    // Why:      The later manual result must match this generation to be applied.
     controller.peak_generation = 3;
-    // What:     `controller.track_gain = fallback_track_gain();`. Seed fallback gain.
-    // Why:      Starting playback should replace it if the result is ready.
+    // What:     `controller.track_gain = fallback_track_gain();`. Seed the fallback gain.
+    // Why:      This is the state of a track whose measurement is still in flight.
     controller.track_gain = fallback_track_gain();
-    // What:     `let (sender, receiver) = mpsc::channel();`. Create a manual channel.
-    // Why:      Send a ready result before calling `set_playing(true)`.
+    // What:     `let (sender, receiver) = mpsc::channel();`. Create a manual channel and keep the sender open.
+    // Why:      The measurement stays pending when playback starts. The old start path blocked on it for one second.
     let (sender, receiver) = mpsc::channel();
     // What:     `controller.pending_peak = Some(PendingPeakMeasurement::from_receiver(receiver));`.
-    //           Store a pending receiver on the controller.
-    // Why:      `set_playing(true)` should consume it before setting playback on.
+    //           Store the pending receiver on the controller.
+    // Why:      Simulate a cache miss at the moment of a Play command.
     controller.pending_peak = Some(PendingPeakMeasurement::from_receiver(receiver));
-    // What:     Send the matching result.
-    // Why:      The start wait should apply this measured gain.
+
+    // What:     `let started = std::time::Instant::now();`. Start a stopwatch around the call.
+    // Why:      The assertion below bounds how long the start path may take.
+    let started = std::time::Instant::now();
+    // What:     `controller.set_playing(true);`. Start playback while the measurement is pending.
+    // Why:      This is the path that used to wait up to the one-second swap window.
+    controller.set_playing(true);
+    // What:     `let blocked_for = started.elapsed();`. Read the elapsed time once.
+    // Why:      Compare it with the bound without reading the clock twice.
+    let blocked_for = started.elapsed();
+
+    // What:     `assert!(controller.playing);`. Playback is on.
+    // Why:      Starting must not be refused because the gain is not known yet.
+    assert!(controller.playing);
+    // What:     `assert!(blocked_for < Duration::from_millis(500));`. The start returned well inside the old one-second wait.
+    // Why:      A timing bound is the only way to tell a blocking start from a non-blocking one, since both leave the same state.
+    assert!(
+        blocked_for < Duration::from_millis(500),
+        "set_playing blocked for {blocked_for:?}"
+    );
+    // What:     `assert!(approx_eq(controller.track_gain, fallback_track_gain()));`. Fallback gain stays in place.
+    // Why:      Playback starts with the safe ceiling until the exact gain arrives.
+    assert!(approx_eq(controller.track_gain, fallback_track_gain()));
+    // What:     `assert!(controller.pending_peak.is_some());`. The measurement is still pending.
+    // Why:      Nothing has been dropped; the engine loop will poll it.
+    assert!(controller.pending_peak.is_some());
+
+    // What:     `sender.send(PeakGainResult { ... })`. The measurement lands after playback started.
+    // Why:      The exact gain must replace the fallback on the next poll.
     sender
         .send(PeakGainResult {
             generation: 3,
             gain: 0.5,
+            path: PathBuf::from("/music/current.flac"),
+            decision: test_decision(0.5),
         })
         .expect("pending peak receiver should remain connected");
-
-    // What:     `controller.set_playing(true);`. Start playback through the real helper.
-    // Why:      Covers the Play/CLI start boundary.
-    controller.set_playing(true);
-
-    // What:     `assert!(controller.playing);`. Playback flag is on.
-    // Why:      Start command should still start playback.
-    assert!(controller.playing);
-    // What:     `assert!(approx_eq(controller.track_gain, 0.5));`. Gain was applied.
-    // Why:      Ready peak results should win before output starts.
+    // What:     `assert!(controller.poll_pending_peak());`. The engine loop's poll applies it.
+    // Why:      The swap happens after start, not during it.
+    assert!(controller.poll_pending_peak());
     assert!(approx_eq(controller.track_gain, 0.5));
-    // What:     `assert!(controller.pending_peak.is_none());`. Pending handle cleared.
-    // Why:      The result was consumed.
     assert!(controller.pending_peak.is_none());
 }
 
-// What:     `#[test]` marks the next function as a Rust unit test.
-// Why:      The test runner discovers and runs this case.
 #[test]
 fn background_sweep_skips_current_track() {
     // What:     `let cache_path = temp_cache("skip-current");`. Disposable cache file path.
@@ -303,10 +336,10 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `let dir = std::env::temp_dir().join(format!("mp_rescan_{nanos}"));`. The
+    // What:     `let dir = crate::test_scratch::scratch_root().join(format!("mp_rescan_{nanos}"));`. The
     //           disposable Source Root.
     // Why:      A real directory so `expand_paths` actually scans it.
-    let dir = std::env::temp_dir().join(format!("mp_rescan_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_rescan_{nanos}"));
     // What:     Create the disposable source root.
     // Why:      The root must exist before scanning.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");
@@ -358,4 +391,39 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
     // What:     `std::fs::remove_dir_all(&dir).ok();`. Best-effort cleanup of the scratch dir.
     // Why:      Leave no test droppings.
     std::fs::remove_dir_all(&dir).ok();
+}
+
+// What:     `fn a_plain_open_measures_the_first_track_too()`. Open a folder with no preselected file and wait for the sweep.
+// Why:      LS9: `set_tracks` leaves the cursor on the first track until the open clears it, and a sweep started before
+//           the clear skipped that track as "current". A plain open selects nothing, so every track must be measured.
+#[test]
+fn a_plain_open_measures_the_first_track_too() {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).expect("system clock should be after Unix epoch").as_nanos();
+    let root = crate::test_scratch::scratch_root().join(format!("mp-open-sweep-{}-{nanos}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("the scratch library is created");
+    let first = root.join("a.flac");
+    let second = root.join("b.mp3");
+    std::fs::copy("fixture/tone.flac", &first).expect("the first fixture is copied");
+    std::fs::copy("fixture/tone.mp3", &second).expect("the second fixture is copied");
+    let cache_path = temp_cache("open-sweep");
+    let mut controller = test_controller();
+    controller.peaks = CacheHandle::open_at(cache_path.clone());
+
+    controller.handle_command(Command::OpenRoot { root: root.clone(), select: None, play: false });
+    assert_eq!(controller.queue.current_path(), None, "a plain open selects nothing");
+
+    let first_key = peakcache::fingerprint(&first).expect("the first fixture has a fingerprint");
+    let second_key = peakcache::fingerprint(&second).expect("the second fixture has a fingerprint");
+    let mut both_found = false;
+    for _ in 0..200 {
+        if controller.peaks.get(first_key).is_some() && controller.peaks.get(second_key).is_some() {
+            both_found = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(both_found, "the sweep measured the first track as well as the second");
+
+    let _ = std::fs::remove_file(&cache_path);
+    std::fs::remove_dir_all(&root).ok();
 }

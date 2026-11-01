@@ -169,7 +169,7 @@ Every sweep aborts one program with the same upstream panic,
 raised inside `typescript-go`'s API while serializing a type response.
 It predates all of this work,
  appears in the baseline sweep as well,
-and costs the analysis of `package/module/test`.
+and costs the analysis of `package/test-harness/core`.
 Because it is identical across every sweep,
  the comparisons above still hold.
 
@@ -196,7 +196,7 @@ Those withdrawals,
  and the added findings,
 are the price of index-level granularity rather than of the removal itself.
 Most of the added findings trace to one unresolved call.
-`Object.entries` inside `@monochromatic-dev/module-toml-edit` and in
+`Object.entries` inside `@monochromatic-dev/toml-edit-core` and in
 `package/pi-plugin/statusline/src/rate-limit-parse-helpers.ts` is not derived,
 so those callees carry unproven reachability on the parameter they package it into,
 and every caller-owned value in the argument literal now inherits it.

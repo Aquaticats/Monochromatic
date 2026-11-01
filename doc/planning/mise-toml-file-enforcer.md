@@ -51,7 +51,7 @@ The boilerplate is structural to mise,
 
 ## file-enforcer capabilities surveyed
 
-Current API (`package/dev-script/file-enforcer/src/index.ts`):
+Current API (`package/file-enforcer/core/src/index.ts`):
 
 - `cat`,
    `overwrite`,
@@ -76,7 +76,7 @@ Recently added (`src/pipeline/toml.ts`,
    splice the rest byte-identically
 - `overwriteTomlKey({ dest, path, value })` -- same but persisted via `overwrite`
 
-Backed by `@monochromatic-dev/module-toml-edit`,
+Backed by `@monochromatic-dev/toml-edit-core`,
  which preserves comments and
 unmutated whitespace byte-identically in splice mode and supports path-create,
 inline-table extension,
@@ -187,11 +187,11 @@ Kind detection from filesystem signals is ambiguous in real cases:
   Kind `ts-cli` is not "no extends";
    it's "extends some + adds run.
   "
-- `package/cli/forbidden-strings` is Rust (cargo-based),
+- `package/forbidden-strings/cli` is Rust (cargo-based),
    extends nothing from
   root,
    has its own `build`/`lint`/`test` shapes.
-- `package/module/test` is `ts-library-browser` and defines a standalone `test`
+- `package/test-harness/core` is `ts-library-browser` and defines a standalone `test`
   task with `depends = ["build"]`.
    The kind cannot emit `[tasks.test]` here
   because the package owns it.
@@ -210,23 +210,29 @@ A workable kind set is roughly seven to nine:
 `empty-fixture`,
  `special` (escape hatch for `file-enforcer` itself,
 `forbidden-strings`,
- `module/test`).
+ `test-harness/core`).
  The escape hatch is unavoidable.
 
 ### 7. Quoting normalization is constrained by splice mode
 
 `tomlSet` in splice mode preserves existing key quoting.
  Current mix
-(`[tasks.'build:js']` in `module/es` vs `[tasks."build:js"]` in `module/dom`)
+(`[tasks.'build:js']` in `module/es` vs `[tasks."build:js"]` in `dom/core`)
 will not normalize via D's incremental edits.
 
 Resolution:
- a separate one-time pass via `emptyTomlEdit + tomlSet` reparses each
-`mise.toml` and emits canonical output.
- After that one pass,
- splice mode keeps the
-canonical form stable for subsequent edits.
- Document this as a setup step.
+ a dedicated byte-preserving normalizer in `@monochromatic-dev/toml-edit-core`
+ (`normalizeTableHeaderKeyQuoting`) rewrites only literal-quoted table-header
+ key segments to basic strings.
+ `file-enforcer` calls it through `manageMiseManifests` for the hand-authored
+ manifests, and `mise.no-env.toml` is normalized before `generateMiseToml`
+ regenerates the root `mise.toml`.
+ The `emptyTomlEdit + tomlSet` canonical reparse was rejected because it
+ reformats the whole document (comments, spacing, ordering), while the header
+ normalizer touches nothing else.
+ The one-time workspace pass landed in `e72b7076`
+ (62 manifests, 248 headers), so splice mode now starts from the canonical
+ form and keeps it stable.
 
 ### 9. Managed-task tracking on kind shrinkage
 
@@ -298,15 +304,10 @@ Generator must explicitly never touch `*/mise.local.toml`.
 2. **Dragon 9:
     defer or track?
    ** Pick before v1 implementation.
-3. **Quoting normalization:
-    do the one-time pass on landing,
-    or skip?
-   ** If
-   skipped,
-    the mixed quoting persists forever (splice mode preserves it).
-    If
-   done,
-    all 92 files get one structural rewrite commit.
+3. **Quoting normalization:**
+   resolved by doing the one-time pass on landing.
+   `e72b7076` normalized 62 manifests (248 headers), and `manageMiseManifests`
+   keeps them canonical on every `file-enforcer` run.
 4. **First kind to implement?
    ** Smallest blast radius is probably `ts-library`
    (modules with no build,
@@ -331,10 +332,10 @@ Generator must explicitly never touch `*/mise.local.toml`.
   dry did not weigh.
 - `AUDIT.consistency.md` -- "`mise.toml` task naming" section listing the quoting
   drift and four empty `mise.toml` files.
-- `package/dev-script/file-enforcer/README.md` -- API reference;
+- `package/file-enforcer/core/README.md` -- API reference;
    the TOML
   section is the load-bearing change.
-- `package/module/toml-edit/README.md` -- splice vs canonical mode semantics,
+- `package/toml-edit/core/README.md` -- splice vs canonical mode semantics,
   v1 limitation on canonical-from-parsed-source.
 - `file-enforcer.config.ts` -- existing root config;
    D adds a fourth top-level
@@ -355,6 +356,19 @@ Generator must explicitly never touch `*/mise.local.toml`.
   should re-read `src/pipeline/toml.ts` and `src/io/write-toml.ts` before
   designing,
    since the API surface may have grown.
+- Quoting normalization (#61) shipped before the kind system:
+   `e72b7076` is the
+  one-time pass,
+   and `manageMiseManifests` in
+  `package/file-enforcer/core/src/mise/manage-mise-manifests.ts` is the
+  standing enforcer.
+  Measured after the pass: `git grep -n "\[tasks\.'" -- '*.toml'` returns zero
+  matches, and a second `mise run sync:files` writes nothing.
+- Normalization is byte-preserving by design:
+   a dprint TOML rule cannot do it
+  (the TOML plugin's `quote_style` only affects string values, not key
+  quoting),
+   and the canonical reparse reformats unrelated whitespace.
 - This document captures investigation state;
-   decisions on the five open
-  questions above are required before implementation begins.
+   open questions 1, 2, 4, and 5
+  still need decisions before the kind system lands.

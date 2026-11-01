@@ -1,0 +1,142 @@
+// Preview windows for the Search page, drawn from the Camellia cover and inner captures. Each window fixes the
+// scheme through Theme.scheme-override so that dark and light cases render separately.
+import { Theme } from "../theme.slint";
+import { SearchPage, SearchRow, SearchSegment } from "../search.slint";
+
+// Shared result rows for the query `cam`: four matching tracks and folders with the match emphasized (D59).
+component CamResults inherits SearchPage {
+    rows: [
+        { kind: 1, title-segments: [{ text: "Cam", emphasized: true }], parent-segments: [{ text: "Cult of Luna", emphasized: false }], has-parent: true, current: false, playing: false, index: 0 },
+        { kind: 1, title-segments: [{ text: "Cam", emphasized: true }, { text: "ellia Waltz", emphasized: false }], parent-segments: [{ text: "Cam", emphasized: true }, { text: "ellia", emphasized: false }], has-parent: true, current: false, playing: false, index: 1 },
+        { kind: 1, title-segments: [{ text: "Cam", emphasized: true }, { text: "ellia Waltz", emphasized: false }], parent-segments: [{ text: "Cult of Luna", emphasized: false }], has-parent: true, current: false, playing: false, index: 2 },
+        { kind: 1, title-segments: [{ text: "Live at ", emphasized: false }, { text: "Cam", emphasized: true }, { text: "ellia", emphasized: false }], parent-segments: [{ text: "Cult of Luna", emphasized: false }], has-parent: true, current: false, playing: false, index: 3 },
+        { kind: 0, title-segments: [{ text: "Cam", emphasized: true }, { text: "ellia", emphasized: false }], parent-segments: [], has-parent: false, current: false, playing: false, index: 4 },
+        { kind: 0, title-segments: [{ text: "Cam", emphasized: true }, { text: "era Obscura", emphasized: false }], parent-segments: [], has-parent: false, current: false, playing: false, index: 5 },
+    ];
+    query: "cam";
+    compact: true;
+    content-start-x: 16px;
+}
+
+// Cover results in dark, 443 px wide with the 62 px status bar gap above the header.
+export component SearchCoverResultsDark inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 2; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 62px;
+        background: Theme.canvas;
+    }
+    CamResults {
+        y: 62px;
+        width: parent.width;
+        height: parent.height - 62px;
+    }
+}
+
+// Cover results in light.
+export component SearchCoverResultsLight inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 1; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 62px;
+        background: Theme.canvas;
+    }
+    CamResults {
+        y: 62px;
+        width: parent.width;
+        height: parent.height - 62px;
+    }
+}
+
+// Inner right pane results in dark, with the content inset that clears half the crease (39 px).
+export component SearchInnerResultsDark inherits Window {
+    width: 446px;
+    height: 882px;
+    init => { Theme.scheme-override = 2; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 55px;
+        background: Theme.canvas;
+    }
+    CamResults {
+        y: 55px;
+        width: parent.width;
+        height: parent.height - 55px;
+        compact: false;
+        content-start-x: 39px;
+    }
+}
+
+// Shared cover page for the status cases, with the same gap above the header.
+component CoverStatus inherits SearchPage {
+    compact: true;
+    content-start-x: 16px;
+}
+
+// Unqueried prompt in dark on the cover.
+export component SearchCoverEmptyDark inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 2; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 62px;
+        background: Theme.canvas;
+    }
+    CoverStatus {
+        y: 62px;
+        width: parent.width;
+        height: parent.height - 62px;
+        status-title: "Search your music";
+        status-detail: "Type a name to explore your library.";
+    }
+}
+
+// Completed no-match state in dark on the cover, naming the entered text.
+export component SearchCoverNoneDark inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 2; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 62px;
+        background: Theme.canvas;
+    }
+    CoverStatus {
+        y: 62px;
+        width: parent.width;
+        height: parent.height - 62px;
+        query: "zzq";
+        status-title: "No results for “zzq”";
+        status-detail: "Try another name.";
+    }
+}
+
+// Known source failure in dark on the cover.
+export component SearchCoverUnavailableDark inherits Window {
+    width: 443px;
+    height: 994px;
+    init => { Theme.scheme-override = 2; }
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: 62px;
+        background: Theme.canvas;
+    }
+    CoverStatus {
+        y: 62px;
+        width: parent.width;
+        height: parent.height - 62px;
+        status-title: "Search is unavailable";
+        status-detail: "The current library can't be searched right now.";
+    }
+}

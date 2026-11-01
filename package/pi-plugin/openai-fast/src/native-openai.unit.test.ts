@@ -5,7 +5,7 @@
  */
 import { writeFile, } from 'node:fs/promises';
 import type { Api, Model, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   CODEX_PROVIDER,
@@ -138,29 +138,29 @@ await describe({ name: '', children: [
     }, },),
   ], },),
   describe({ name: 'direct native OpenAI priority streams', children: [streamPriority, streamSimplePriority,].map(function nativeEntryPoint(entryPoint,) {
-      return it({ name: `${entryPoint.name} uses native OpenAI preparation before caller cancellation`, fn: async function nativePreparation(ctx) {
+    return it({ name: `${entryPoint.name} uses native OpenAI preparation before caller cancellation`, fn: async function nativePreparation(ctx) {
         /** Original native identity is required for ChatGPT-specific request preparation. */
-        const model = { ...fixtureModel(), provider: OPENAI_PROVIDER, api: OPENAI_API,
-          baseUrl: 'https://api.openai.com/v1', } satisfies Model<typeof OPENAI_API>;
+      const model = { ...fixtureModel(), provider: OPENAI_PROVIDER, api: OPENAI_API,
+        baseUrl: 'https://api.openai.com/v1', } satisfies Model<typeof OPENAI_API>;
         /** Transport observation proves payload cancellation prevents networking. */
-        const fetch = ctx.sinon.spy(stopStreamFixtureTransport,);
+      const fetch = ctx.sinon.spy(stopStreamFixtureTransport,);
         /** Native error formatting must preserve the caller's explicit stop reason. */
-        const stop = new StreamFixtureStopError();
+      const stop = new StreamFixtureStopError();
         /** Both public wrappers must choose the new native adapter when no dispatch is injected. */
-        const result = await entryPoint({ model, context: fixtureContext(), options: {
-          apiKey: HOST_TOKEN, fetch, maxTokens: 123, temperature: 0.5,
-          onPayload: function stopPayload(payload,) {
-            expect(payload,).toMatchObject({ model: model.id, service_tier: 'priority', },);
-            expect(payload,).not.toHaveProperty('max_output_tokens',);
-            expect(payload,).not.toHaveProperty('temperature',);
-            throw stop;
-          },
-        }, },).result();
-        expect(result.stopReason,).toBe('error',);
-        expect(result.errorMessage,).toContain(stop.message,);
-        expect(fetch,).not.toHaveBeenCalled();
-      }, },);
-    },), },),
+      const result = await entryPoint({ model, context: fixtureContext(), options: {
+        apiKey: HOST_TOKEN, fetch, maxTokens: 123, temperature: 0.5,
+        onPayload: function stopPayload(payload,) {
+          expect(payload,).toMatchObject({ model: model.id, service_tier: 'priority', },);
+          expect(payload,).not.toHaveProperty('max_output_tokens',);
+          expect(payload,).not.toHaveProperty('temperature',);
+          throw stop;
+        },
+      }, },).result();
+      expect(result.stopReason,).toBe('error',);
+      expect(result.errorMessage,).toContain(stop.message,);
+      expect(fetch,).not.toHaveBeenCalled();
+    }, },);
+  },), },),
 ], },);
 
 //endregion Native provider bootstrap and actual host dispatch.

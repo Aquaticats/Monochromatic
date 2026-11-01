@@ -1,5 +1,11 @@
 # Dependency Security Report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/shim/ungap-structured-clone` is now `package/pnpm-override/shim-ungap-structured-clone`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`.
+
 ## Socket CLI scan (2026-04-05)
 
 Scanned with Socket CLI v1.1.78 via `socket scan create --report`.
@@ -451,7 +457,8 @@ Remaining dependencies to audit,
        cross-platform recursion via FSEvents/inotify/ReadDirectoryChangesW)
 - [x] ignore (kaelzhang/node-ignore):
        evaluated 2026-05;
-       adopted by `package/dev-script/watch-restart/src/filters/gitignore.ts` for `--gitignore` / `--ignore-file` parsing (zero runtime deps,
+       adopted by `package/dev-script/watch-restart/src/filters/gitignore.ts`
+       for `--gitignore` / `--ignore-file` parsing (zero runtime deps,
        mirrors git's own semantics including negation `!`,
        anchored leading `/`,
        directory-only trailing `/`,
@@ -467,10 +474,12 @@ Remaining dependencies to audit,
 - [ ] @total-typescript/ts-reset
 - [x] @ungap/structured-clone;
        evaluated 2026-05-17;
-       replaced via workspace shim `package/shim/ungap-structured-clone/` that re-exports `globalThis.structuredClone` (native on Node 17+,
+       replaced via workspace shim `package/shim/ungap-structured-clone/`
+       that re-exports `globalThis.structuredClone` (native on Node 17+,
        Bun,
        and every browser at the Firefox ESR 140 baseline).
-       Reached transitively from `package/ssg/aquati.cat/` through `mdast-util-to-hast` (4 default-export call sites in `lib/state.js`,
+       Reached transitively from `package/ssg/aquati.cat/` through `mdast-util-to-hast`
+       (4 default-export call sites in `lib/state.js`,
        `lib/footer.js`) and `rehype-autolink-headings` (1 call site in `lib/index.js`);
        both use `structuredClone(value)` with one argument,
        so re-exporting native is API-equivalent.

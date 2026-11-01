@@ -1,6 +1,6 @@
 /** Failed-tool accounting is attached once and cleared at session teardown. @module */
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { createAdvisorOperationLedger, registerAdvisorFailureAccounting, } from '../dist/final/node/index.mjs';
 
 await describe({ name: '', children: [

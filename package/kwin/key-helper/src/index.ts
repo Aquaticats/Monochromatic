@@ -16,7 +16,7 @@
 import { promisify } from 'node:util';
 
 import { sessionBus } from '@homebridge/dbus-native';
-import { caughtValueStack, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   DBUS_PATH,

@@ -1,0 +1,461 @@
+// Track list pane for one folder's flat list (D5, D6, D42). Track rows and subfolder headers share one
+// scrolling list, and the playing row can be scrolled into view as playback moves.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, PlayerStop, FocusRing, KeyBadge, Keys } from "focus.slint";
+import { Scrollbar, LastInput } from "scrollbar.slint";
+import { FullNameTip } from "name_tip.slint";
+import { TextSize } from "text_size.slint";
+
+// One entry of the flat list. A track row (kind 0) selects on tap (and starts at once with Auto-play on select on, D129), and toggles play and
+// pause when it is already selected (D124); a subfolder header (kind 1) only labels the tracks below it, with its name in `title` and its
+// count text in `supporting`.
+export struct TrackListRow {
+    // 0 for a playable track row, 1 for a subfolder header.
+    kind: int,
+    // File name without its extension for a track, or the subfolder name for a header.
+    title: string,
+    // Second line of a track, such as a duration and peak line, or empty for none. For a header, the count text such as "3 tracks".
+    supporting: string,
+    // Whether this track is the playing track. Ignored for headers.
+    current: bool,
+    // Library index that `play` and `open-menu` report back. Ignored for headers.
+    index: int,
+}
+
+// What the Rust side knows about the whole list and the panes share: where every row starts, how tall the content is, and
+// where the list is scrolled to. A pane builds only the rows that are on screen (ten thousand rows built at once made the
+// wheel stutter, and a hundred thousand froze it), so it asks here which row sits at a scroll offset and where a row starts.
+export global TrackLayout {
+    // Height of the whole content, the sum of every row's height. Written by the Rust side with each new list.
+    in property <length> total-height: 0px;
+    // Changes with each new list. The two callbacks below take it as an argument so a pane asks again after the rows changed.
+    in property <int> generation: 0;
+    // Index of the row that contains the given offset from the top of the list (0 for an empty list). The Rust side does a
+    // binary search over the row tops, so a scroll step costs a few comparisons however long the list is.
+    pure callback row-at(length, int) -> int;
+    // Distance from the top of the list to the top of the row with the given index.
+    pure callback top-of(int, int) -> length;
+    // Set once by the Rust side when it has installed the two callbacks above.
+    in-out property <bool> wired: false;
+    // Content offset of the pane that is on screen, 0 at the top and negative below. The pane that is not on screen follows
+    // it, so a list keeps its position across the 600 px breakpoint (LS7), and the Rust side reads it for the logs and tests.
+    in-out property <length> scroll-y: 0px;
+    // How many rows the pane on screen has built, which is one screenful and a little more however long the list is.
+    in-out property <int> built-rows: 0;
+    // The last scroll request the pane on screen has applied. A pane that is created later (the folded layout builds its
+    // list again when the picker closes) applies a request it has not seen, and otherwise restores `scroll-y`.
+    in-out property <int> applied-tick: 0;
+}
+
+// Draws the rows of one folder's flat list. Rows are laid out with fixed heights so the pane can compute the
+// scroll offset of any row without waiting for the layout pass. Only the rows that are on screen exist as elements.
+export component TrackListPane inherits Rectangle {
+    background: Theme.canvas;
+    clip: true;
+
+    // Entries to draw, in list order.
+    in property <[TrackListRow]> rows: [];
+    // Y offset from the top of the list of the row to bring to the top of the pane, or 0 for the top of the list. The pane
+    // reads it only when scroll-tick changes, so a change of the playing track or of the rows never moves the list.
+    in property <length> scroll-offset: 0px;
+    // Counts scroll requests. Each change scrolls the pane to scroll-offset, so a repeated request scrolls again.
+    in property <int> scroll-tick: 0;
+    // Fires with the library index of a track row when the row is tapped without a long press.
+    callback play(int);
+    // Fires with the library index of a track row and the pointer position in window coordinates, on a right
+    // click or a 500 ms long press. The caller places the menu with it as is; a position relative to this pane put
+    // the menu one pane width to the left of the pointer in the two-pane layout.
+    callback open-menu(int, length, length);
+    // Library index of the track row the keyboard ring is on; -1 for none. The Rust side moves it with the list keys.
+    in property <int> ring-index: -1;
+    // Changes each time the ring moves; the list then scrolls the row at `ring-offset` into view.
+    in property <int> ring-tick: 0;
+    // Distance from the top of the list to the top of the ringed row.
+    in property <length> ring-offset: 0px;
+    // Height of the ringed row.
+    in property <length> ring-height: 48px;
+    // Changes when the Menu key or Alt+Enter asks for the ringed row's menu; the list then reports `open-menu` for
+    // the row `menu-index` at `menu-offset`, as a right click does.
+    in property <int> menu-tick: 0;
+    // Library index of the row whose menu the keyboard asked for.
+    in property <int> menu-index: -1;
+    // Distance from the top of the list to the top of that row.
+    in property <length> menu-offset: 0px;
+    // False for the copy of the list that sits in the layout the window is not showing. The window builds both layouts, and
+    // a request for focus, for a menu or for the page size is meant for the layout that is on screen.
+    in property <bool> active: true;
+    // True when the list should take keyboard focus: when it is created and each time `focus-tick` changes.
+    in property <bool> wants-focus: false;
+    // Changes when the Rust side asks for focus (Alt+2).
+    in property <int> focus-tick: 0;
+    // Number of 48 px rows that fit the pane, for the page keys.
+    callback page-rows(int);
+    // Fired when the list gains keyboard focus, so the ring can start on a row.
+    callback focused();
+
+    // Height of a track row without a second line, which is the 48 px touch target.
+    property <length> row-min-height: 48px;
+    // Height of a track row with a second line.
+    property <length> row-two-line-height: 72px;
+    // Height of a subfolder header, which holds its 16 px top gap, name line and count line.
+    property <length> header-height: 54px;
+    // Horizontal inset of the row text from the pane edges, which keeps text clear of the current-row highlight.
+    property <length> text-inset: 16px;
+    // Hold time before a press opens the track menu.
+    property <duration> long-press-time: 500ms;
+    // Width of the scrollbar's grab zone (D22). Row text already stays 16 px from the pane edge, so it never reaches the bar.
+    property <length> bar-width: 12px;
+
+    // Index of the first row that is on screen, from the scroll offset. The Rust side answers with a binary search over the
+    // row tops, and the argument `TrackLayout.generation` makes this binding run again when the rows change.
+    property <int> first-row: TrackLayout.row-at(-flick.content-y, TrackLayout.generation);
+    // Rows built at once: enough 48 px rows to cover the pane plus one partly shown at each end.
+    property <int> pool-size: Math.ceil(root.height / root.row-min-height) + 2;
+    // Rows built now: the pool, or what is left of the list below the first row.
+    property <int> built-count: max(0, min(root.rows.length - root.first-row, root.pool-size));
+
+    // The pane on screen reports how many rows it has built, for the logs and the tests: it must stay near a screenful however
+    // long the list is.
+    changed built-count => {
+        if (root.active) {
+            TrackLayout.built-rows = root.built-count;
+        }
+    }
+
+    // Height of one entry from its kind and whether it has a second line.
+    pure function height-of(row: TrackListRow) -> length {
+        row.kind == 1 ? header-height : (row.supporting == "" ? row-min-height : row-two-line-height)
+    }
+
+    // Moves the list so the entry whose top is at the given offset sits at the top, clamped to the scrollable range.
+    function reveal(top: length) {
+        flick.content-y = max(min(0px, flick.height - flick.content-height), min(0px, -top));
+    }
+
+    // Scrolls just enough to bring a row inside the viewport; the list keys use it so the ringed row stays visible.
+    function ensure-visible(top: length, height: length) {
+        if (top < -flick.content-y) {
+            flick.content-y = min(0px, -top);
+        } else if (top + height > -flick.content-y + flick.height) {
+            flick.content-y = max(flick.height - flick.content-height, flick.height - (top + height));
+        }
+    }
+
+    changed ring-tick => {
+        root.ensure-visible(root.ring-offset, root.ring-height);
+    }
+    changed menu-tick => {
+        // The menu opens under the row's top, 32 px in from the left, kept inside the pane.
+        if (root.active) {
+            root.open-menu(
+                root.menu-index,
+                root.absolute-position.x + 32px,
+                root.absolute-position.y + max(8px, min(root.height - 8px, root.menu-offset + flick.content-y + 40px)),
+            );
+        }
+    }
+    changed focus-tick => {
+        if (root.wants-focus && root.active) {
+            list-stop.focus();
+        }
+    }
+    changed height => {
+        if (root.active) {
+            root.page-rows(max(1, Math.floor(root.height / 48px)));
+        }
+    }
+
+    // Scrolls to the requested offset each time the Rust side bumps scroll-tick. The pane on screen records that it saw the
+    // request, so a pane created later does not apply it again.
+    changed scroll-tick => {
+        root.reveal(root.scroll-offset);
+        if (root.active) {
+            TrackLayout.applied-tick = root.scroll-tick;
+        }
+    }
+    // When the pane is created, such as when the folder picker closes and the pane is drawn again, it applies a request that
+    // no pane on screen has seen (a folder chosen in the picker), and otherwise returns to where the list was scrolled to, so
+    // the list shows the same position as before the pane went away.
+    init => {
+        if (root.active) {
+            TrackLayout.built-rows = root.built-count;
+        }
+        if (TrackLayout.applied-tick != root.scroll-tick) {
+            root.reveal(root.scroll-offset);
+            if (root.active) {
+                TrackLayout.applied-tick = root.scroll-tick;
+            }
+        } else {
+            root.reveal(-TrackLayout.scroll-y);
+        }
+    }
+    // The pane that is not on screen keeps no position of its own: when the window crosses the 600 px breakpoint (LS7) the
+    // pane that becomes the one on screen takes the position the other one published, limited to its own height.
+    // True from the moment this pane becomes the one on screen until the carried-over position has been applied once the
+    // layout has run, and the position it carries.
+    property <bool> restoring: false;
+    property <length> restore-y: 0px;
+    changed active => {
+        if (root.active) {
+            root.restore-y = TrackLayout.scroll-y;
+            root.restoring = true;
+            root.reveal(-root.restore-y);
+            restore-timer.running = true;
+        }
+    }
+    // A pane that has just become visible has not been laid out yet, so its height is stale and the limit of the scroll range
+    // computed from it is wrong. One frame later the height is real, so the position is applied again and published.
+    restore-timer := Timer {
+        interval: 48ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.reveal(-root.restore-y);
+            root.restoring = false;
+            TrackLayout.scroll-y = flick.content-y;
+        }
+    }
+    // Takes keyboard focus when the list is created for a request (the folded layout creates it when the picker closes).
+    // A pane that has just been created is not laid out yet, and focusing it then loses the keyboard focus altogether, so
+    // the timer waits one frame.
+    focus-timer := Timer {
+        interval: 16ms;
+        running: root.wants-focus && root.active;
+        triggered => {
+            self.running = false;
+            list-stop.focus();
+        }
+    }
+
+    // The list's keyboard stop. Up, Down, the page keys, Home, End, Enter and the row chords reach the Rust side through
+    // the window's key scope; this element only holds focus and reports the zone.
+    list-stop := PlayerStop {
+        label: "track-list";
+        zone: 2;
+        activates: false;
+        gained => {
+            root.focused();
+        }
+    }
+
+    flick := Flickable {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        content-width: root.width;
+        // The content is as tall as every row together although only the rows on screen exist, so the scroll range and the
+        // scrollbar are those of the whole list.
+        content-height: TrackLayout.total-height;
+
+        // The pane on screen publishes where the list is, for the pane that is not on screen and for the logs and tests.
+        changed content-y => {
+            if (root.active && !root.restoring) {
+                TrackLayout.scroll-y = self.content-y;
+            }
+        }
+
+        // The rows that are on screen, stacked from the top of the first one, which sits at its place in the whole list.
+        VerticalLayout {
+            y: TrackLayout.top-of(root.first-row, TrackLayout.generation);
+            width: root.width;
+
+            for k in root.built-count: item := Rectangle {
+                // The entry this slot shows. A slot is reused as the list scrolls, so it shows a different entry over time.
+                property <TrackListRow> entry: root.rows[root.first-row + k];
+                height: root.height-of(self.entry);
+                background: entry.kind == 0 && entry.current ? Theme.current-row : transparent;
+
+                // Whole-row tap target and its hover and pressed layer. The layer sits above the row fill and below
+                // the text rows, which take no pointer input, so the tap target covers the whole entry.
+                if entry.kind == 0 : Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+
+                    StateLayer {
+                        width: parent.width;
+                        height: parent.height;
+                        hovered: row-touch.has-hover;
+                        pressed: row-touch.pressed;
+                        tint: Theme.on-surface;
+                    }
+
+                    // Tap, right click and long press for track rows. Headers have no touch area.
+                    row-touch := TouchArea {
+                        // Set when a right click or long press has opened the menu, so the release does not also play.
+                        property <bool> suppress: false;
+                        width: parent.width;
+                        height: parent.height;
+                        mouse-cursor: pointer;
+                        // A track row is a button that plays it; the label is the visible title and second line, and the
+                        // playing track reads as checked, so a screen reader announces the row, its state and its action.
+                        accessible-role: button;
+                        accessible-label: entry.supporting == "" ? entry.title : entry.title + ", " + entry.supporting;
+                        accessible-checkable: true;
+                        accessible-checked: entry.current;
+                        accessible-action-default => { root.play(entry.index); }
+
+                        // Milliseconds between the press and the menu request.
+                        hold := Timer {
+                            interval: root.long-press-time;
+                            running: false;
+                            triggered => {
+                                self.stop();
+                                row-touch.suppress = true;
+                                root.open-menu(
+                                    entry.index,
+                                    row-touch.absolute-position.x + row-touch.mouse-x,
+                                    row-touch.absolute-position.y + row-touch.mouse-y,
+                                );
+                            }
+                        }
+
+                        pointer-event(event) => {
+                            // The scrollbars follow the kind of input the rows saw last (D22).
+                            LastInput.touch = event.touch-finger-id != 0;
+                            // A right button press opens the menu immediately.
+                            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+                                self.suppress = true;
+                                root.open-menu(
+                                    entry.index,
+                                    self.absolute-position.x + self.mouse-x,
+                                    self.absolute-position.y + self.mouse-y,
+                                );
+                            }
+                            // A left press starts the hold timer; releasing or losing the press (a drag scrolls the list) stops it.
+                            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                                self.suppress = false;
+                                hold.start();
+                            }
+                            if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                                hold.stop();
+                            }
+                        }
+
+                        clicked => {
+                            Focus.ring-visible = false;
+                            list-stop.focus();
+                            if (!self.suppress) {
+                                root.play(entry.index);
+                            }
+                        }
+                    }
+                }
+
+                // Playing-track marker (D36, VD6): a 4 px bar in the primary role on the row's left edge, inside the text inset so
+                // it takes no title width. The bold title and the soft row fill are the other two channels, but bold shows only
+                // in the scripts whose font has a bold face and the fill is faint on black, so a title in kana, Hangul or Han
+                // would otherwise read as nearly plain. Position and color do not depend on the script of the title.
+                if entry.kind == 0 && entry.current : current-bar := Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: 4px;
+                    height: parent.height;
+                    background: Theme.primary;
+                }
+
+                // Keyboard ring around the row under the ring. A track row is as wide as the pane, and the pane ends at the
+                // window's edge (the folded pane is as wide as the window, the unfolded one ends at its right edge), so there
+                // is no room outside the row for the 3 px of the two rings: this is the one ring drawn on the element's
+                // own edge, inside it. Focus adds no fill to the row.
+                FocusRing {
+                    inside: true;
+                    active: entry.kind == 0 && entry.index == root.ring-index && list-stop.ring;
+                }
+
+                // Track rows: title and optional second line, both inset by the row padding.
+                if entry.kind == 0 : VerticalLayout {
+                    padding-left: root.text-inset;
+                    padding-right: root.text-inset;
+                    // A row with a second line is 72 px and starts its title 12 px down, which holds a title line up to 42 px
+                    // (12 + 42 + 2 + 16 = 72). A row without one is the 48 px target, and the title is centered in it.
+                    padding-top: entry.supporting == "" ? max(0px, (root.row-min-height - TextSize.line-height(TextSize.track-title)) / 2) : 12px;
+                    spacing: 2px;
+
+                    // One line that ends in an ellipsis when the title is wider than the pane (OV1); the full title is the tooltip
+                    // and the row's accessible label. The tooltip exists only while the title is cut.
+                    title-text := Text {
+                        text: entry.title;
+                        // 24 px at the default size, and a line that grows with a larger title size (Text size setting).
+                        height: TextSize.line-height(TextSize.track-title);
+                        // 14 px by default (2 px under Android's 16 px).
+                        font-size: TextSize.track-title;
+                        font-weight: entry.current ? 700 : 400;
+                        color: Theme.on-surface;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        overflow: elide;
+                        if title-text.preferred-width > title-text.width : Tooltip {
+                            FullNameTip {
+                                text: entry.title;
+                            }
+                        }
+                    }
+                    if entry.supporting != "" : supporting-text := Text {
+                        text: entry.supporting;
+                        height: 16px;
+                        font-size: Theme.body-small;
+                        color: Theme.on-surface-variant;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        overflow: elide;
+                    }
+                }
+
+                // Subfolder headers: primary name over a count line, with a 16 px gap above.
+                if entry.kind == 1 : VerticalLayout {
+                    padding-left: root.text-inset;
+                    padding-right: root.text-inset;
+                    padding-top: 16px;
+                    spacing: 2px;
+
+                    header-text := Text {
+                        text: entry.title;
+                        height: 20px;
+                        font-size: Theme.label-large;
+                        font-weight: 500;
+                        color: Theme.primary;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        overflow: elide;
+                        if header-text.preferred-width > header-text.width : Tooltip {
+                            FullNameTip {
+                                text: entry.title;
+                            }
+                        }
+                    }
+                    Text {
+                        text: entry.supporting;
+                        height: 16px;
+                        font-size: Theme.body-small;
+                        color: Theme.on-surface-variant;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+
+    // Scrollbar at the right edge (D22): always visible and draggable for the pointer, a fading non-interactive bar for touch.
+    // It is above the rows, so the wheel still reaches the list below it (a touch area ignores the wheel).
+    Scrollbar {
+        x: root.width - self.width;
+        y: 0px;
+        height: root.height;
+        content-y: flick.content-y;
+        content-height: flick.content-height;
+        scroll-to(y) => {
+            flick.content-y = y;
+        }
+    }
+
+    // Key hint badge of the Alt+2 shortcut that focuses this list, over the top right corner. It takes no pointer input.
+    KeyBadge {
+        x: root.width - self.width - 4px;
+        y: 4px;
+        text: Keys.badges.track-list;
+    }
+}

@@ -191,7 +191,8 @@ manual-push checks consume cli-git's Git-native authoritative push updates and c
 All internal Git subprocesses reuse `package/git-policy/cli/src/resolve-git.ts` and a sanitized environment,
 so verification cannot recurse into cli-git.
 
-A linked-worktree and clean-clone fixture must prove the built shadow `git` resolves from the active package installation
+A linked-worktree
+and clean-clone fixture must prove the built shadow `git` resolves from the active package installation
 without falling back to a main-checkout artifact or another worktree.
 
 ### Trusted identity source

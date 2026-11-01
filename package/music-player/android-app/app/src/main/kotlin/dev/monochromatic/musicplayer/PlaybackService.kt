@@ -84,7 +84,13 @@ import android.os.IBinder
 // ```ts
 // import { Looper } from "android/os";
 // ```
+import android.database.ContentObserver
+import dev.monochromatic.musicplayer.core.RescanPlan
+import dev.monochromatic.musicplayer.core.UnplayableReport
+import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 
 // What:     `import android.util.Log` pulls in `Log`, Android's logger
 //           (`Log.i(tag, msg)`).
@@ -334,6 +340,67 @@ class PlaybackService : MediaSessionService() {
      */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    /** Main-thread handler that debounces change signals into one rescan. */
+    private val handler: Handler = Handler(Looper.getMainLooper())
+
+    /** Latest report of the files the player passed in its current walk, read when the delayed post runs. */
+    private var latestUnplayableReport: UnplayableReport? = null
+
+    /**
+     * Posts the unplayable-files notification once for a burst of failures, so a walk past many files makes one
+     * notification and the system's limit on notification updates cannot drop the last one (D122, D123).
+     */
+    private val unplayableNoticeTrigger: CoalescedTrigger = CoalescedTrigger(
+        schedule = { task -> handler.postDelayed({ task() }, UNPLAYABLE_NOTICE_DELAY_MS) },
+        action = {
+            latestUnplayableReport?.let { report -> postUnplayableFilesNotification(this, report) }
+        },
+    )
+
+    /** Remembers change signals that arrive while a library load runs, so no rescan is lost (D113). */
+    private val rescanPlan: RescanPlan = RescanPlan()
+
+    /** Runs the debounced rescan, or leaves it owed to the running load. */
+    private val rescanRunnable: Runnable = Runnable {
+        if (rescanPlan.signal()) {
+            rescanNow()
+        }
+    }
+
+    /** Tree URI of the held folder grant, read off the main thread, or null while the library is the system one. */
+    @Volatile
+    private var grantedTree: Uri? = null
+
+    /** URI of the granted folder's children that [treeObserver] watches now, or null when it watches nothing. */
+    private var watchedChildren: Uri? = null
+
+    /**
+     * Follows the system audio index: any change to it asks for a rescan, so the library follows the disk. With a
+     * granted folder the index still moves when a file lands in it, so the same signal asks for a rescan of the grant.
+     */
+    private val mediaObserver: ContentObserver = object : ContentObserver(handler) {
+        /** A row of the system audio index was added, changed or removed. */
+        override fun onChange(selfChange: Boolean) {
+            Log.i(LOG_TAG, "system audio index changed; a rescan follows folder=${grantedTree != null}")
+            rescan()
+        }
+    }
+
+    /** Follows the granted folder's own document tree, which a document provider may notify when a file arrives. */
+    private val treeObserver: ContentObserver = object : ContentObserver(handler) {
+        /** The provider reported a change under the granted folder. */
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            Log.i(LOG_TAG, "granted folder changed uri=$uri; a rescan follows")
+            rescan()
+        }
+    }
+
+    /** The process's Search service and its answers, which every library change feeds. */
+    private val searchHost: SearchHost = SearchHost()
+
+    /** Runs scans through the ingest; created with the controller. */
+    private lateinit var scanner: LibraryScanner
+
     // What:     `private var loadJob: Job? = null` declares a private, reassignable field
     //           of the NULLABLE handle type `Job?` (a running coroutine, or null),
     //           initialised `null`.
@@ -469,6 +536,9 @@ class PlaybackService : MediaSessionService() {
          */
         fun rescan() = this@PlaybackService.rescan()
 
+        /** Asks for a rescan because the app returned to the front. */
+        fun rescanOnForeground() = this@PlaybackService.rescanOnForeground()
+
         // What:     `fun saveSession() = this@PlaybackService.saveSession()` declares an
         //           expression-body method forwarding to the outer service's `saveSession()`.
         // Why:      The activity calls this in `onStop` (before unbinding) so the live resume
@@ -544,6 +614,13 @@ class PlaybackService : MediaSessionService() {
         // ```ts
         // this.brainPlayer = new BrainPlayer(this.controller, Looper.getMainLooper());
         // ```
+        controller.onTrackLoaded = { uri -> readArtistTag(uri) }
+        controller.onUnplayableFiles = { report ->
+            latestUnplayableReport = report
+            unplayableNoticeTrigger.request()
+        }
+        contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaObserver)
+        watchGrantedTree()
         brainPlayer = BrainPlayer(controller, Looper.getMainLooper())
         // What:     `controller.onPersist = { saveSession() }` wires the controller's persist
         //           callback to this service's `saveSession`. The lambda is invoked at the end
@@ -557,21 +634,28 @@ class PlaybackService : MediaSessionService() {
         // this.controller.onPersist = () => this.saveSession();
         // ```
         controller.onPersist = { saveSession() }
-        // What:     `val built: MediaSession = MediaSession.Builder(this, brainPlayer).build()`
+        controller.searchHost = searchHost
+        scanner = LibraryScanner(controller, searchHost)
+        // What:     `val built: MediaSession = MediaSession.Builder(this, brainPlayer).setCallback(...).build()`
         //           declares a read-only `MediaSession` local `built`. `MediaSession.Builder(this, brainPlayer)`
         //           constructs a builder seeded with the service context and the projected
-        //           player; `.build()` finalises it into the immutable `MediaSession`.
-        // Why:      Create the session that exposes the brain to the system.
+        //           player; `.setCallback(PlatformSessionCallback())` installs the connection policy;
+        //           `.build()` finalises it into the immutable `MediaSession`.
+        // Why:      Create the session that exposes the brain to the system. The callback keeps the playing queue
+        //           out of the platform session, so a track change does not copy a 10 000-track queue.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const built: MediaSession = new MediaSession.Builder(this, this.brainPlayer).build();
+        // const built: MediaSession = new MediaSession.Builder(this, this.brainPlayer)
+        //   .setCallback(new PlatformSessionCallback()).build();
         // ```
         /**
          * Defines built value for this music-player component; the TypeScript-oriented notes above explain its
          * source and use.
          */
-        val built: MediaSession = MediaSession.Builder(this, brainPlayer).build()
+        val built: MediaSession = MediaSession.Builder(this, brainPlayer)
+            .setCallback(PlatformSessionCallback())
+            .build()
         // What:     `session = built` stores the freshly built session into the nullable
         //           `session` field.
         // Why:      Keep the session so `onGetSession`/`onDestroy` can use it.
@@ -611,16 +695,22 @@ class PlaybackService : MediaSessionService() {
         //   this.ensureLibraryLoaded();
         // }
         // ```
-        if (LibraryRoot.heldRoot(this) != null || hasAudioPermission(this)) {
-            // What:     `ensureLibraryLoaded()` calls this service's own load method
-            //           (implicit `this`).
-            // Why:      Kick off the headless self-load.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // this.ensureLibraryLoaded();
-            // ```
-            ensureLibraryLoaded()
+        // The grant is read on the I/O dispatcher, because its preference file and permission list are disk reads that
+        // StrictMode flagged on the main thread; the load starts as soon as the answer is in.
+        scope.launch {
+            /** Whether a persisted grant or the audio permission lets the service load a library by itself. */
+            val canLoad: Boolean = hasAudioPermission(this@PlaybackService) ||
+                withContext(Dispatchers.IO) { LibraryRoot.heldRoot(this@PlaybackService) != null }
+            if (canLoad) {
+                // What:     `ensureLibraryLoaded()` calls this service's own load method (implicit `this`).
+                // Why:      Kick off the headless self-load.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // this.ensureLibraryLoaded();
+                // ```
+                ensureLibraryLoaded()
+            }
         }
     }
 
@@ -788,37 +878,41 @@ class PlaybackService : MediaSessionService() {
         //   console.info(`[${LOG_TAG}] PlaybackService loaded ${tracks.length} tracks`);
         // });
         // ```
-        loadJob = scope.launch {
-            // What:     `val tracks = LibrarySource.load(this@PlaybackService) { batch -> withContext(Dispatchers.Main)
-            //           { controller.reconcileLibrary(batch) } }`
-            //           declares a read-only local `tracks` (type INFERRED as `List<Track>`) from
-            //           the `suspend` `load`, NOW passing a STREAMING callback. The trailing lambda
-            //           `{ batch -> ... }` is the `onBatch`: the scan calls it on its background
-            //           thread for each growing, sorted batch, and `withContext(Dispatchers.Main) { ... }`
-            //           hops to the main thread before `controller.reconcileLibrary(batch)` touches
-            //           the Compose state. `this@PlaybackService` is QUALIFIED `this` (the service,
-            //           not the coroutine receiver), passed as the context.
-            // Why:      Stream the cold-start load: each batch makes the queue non-empty and grows
-            //           the on-screen list, so the user sees music almost immediately. Reusing
-            //           `reconcileLibrary` adopts each batch, re-points a tapped track by URI, and
-            //           leaves settings and the loading flag alone.
+        loadJob = launchLoad {
+            // What:     `val outcome = scanner.scan(source = { onBatch -> LibrarySource.load(this, onBatch) },
+            //           publish = { built -> controller.reconcileBuilt(built, feedSearch = false) })`
+            //           declares a read-only local `outcome` (a `ScanOutcome`) from the `suspend` `scan`.
+            //           The `source` lambda runs the scan with `onBatch`, which receives the tracks found
+            //           since the previous batch, in the order found and not sorted. The `publish` lambda
+            //           is called on the main thread with a finished `BuiltLibrary`.
+            // Why:      Stream the cold-start load without blocking the screen (D111): the scanner's
+            //           ingest sorts, derives the pages and builds the Search index on its own thread,
+            //           and the main thread only swaps in the finished library, so the user sees music
+            //           almost immediately and a batch never costs a frame. Search is fed after the
+            //           player shows each batch. `feedSearch = false` because the scanner feeds it.
             // Gotcha:   The callback is a SUSPENSION POINT on the scan thread; cancelling this load
             //           (a newer load supersedes it) surfaces there as a `CancellationException`,
             //           which the SAF source re-throws so the superseded scan stops emitting.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // const tracks = await LibrarySource.load(this, async (batch) => {
-            //   await withContext(Dispatchers.Main, () => this.controller.reconcileLibrary(batch));
+            // const outcome = await scanner.scan({
+            //   source: (onBatch) => LibrarySource.load(this, onBatch),
+            //   publish: (built) => this.controller.reconcileBuilt(built, false),
             // });
             // ```
             /**
              * Defines tracks value for this music-player component; the TypeScript-oriented notes above explain
              * its source and use.
              */
-            val tracks = LibrarySource.load(this@PlaybackService) { batch ->
-                withContext(Dispatchers.Main) { controller.reconcileLibrary(batch) }
-            }
+            val outcome: ScanOutcome = scanner.scan(
+                source = { onBatch -> LibrarySource.load(this@PlaybackService, onBatch) },
+                publish = { built -> controller.reconcileBuilt(built, feedSearch = false) },
+            )
+            /** The complete library built by the ingest, or null when the source and the ingest disagreed. */
+            val final = outcome.final
+            /** The source's own sorted list, used when the ingest could not be trusted. */
+            val tracks: List<Track> = outcome.returned
             // What:     `val result = controller.finishLoad(tracks, session)` declares a read-only
             //           `FinishLoadResult` local. `finishLoad` runs the terminal step: it keeps a
             //           mid-load tap if one happened, otherwise reselects the saved track at the
@@ -835,7 +929,11 @@ class PlaybackService : MediaSessionService() {
              * Defines result value for this music-player component; the TypeScript-oriented notes above explain
              * its source and use.
              */
-            val result = controller.finishLoad(tracks, session)
+            val result = if (final != null) {
+                controller.finishBuilt(final.built, session, feedSearch = false).also { outcome.ingest.complete(final) }
+            } else {
+                controller.finishLoad(tracks, session)
+            }
             // What:     `sessionRestored = true` flips the save gate AFTER `finishLoad` returns.
             // Why:      Until now `saveSession` was a no-op (protecting the saved session). On the
             //           no-tap path the engine has NOT yet applied the async seek, so saving right
@@ -848,6 +946,7 @@ class PlaybackService : MediaSessionService() {
             // this.sessionRestored = true;
             // ```
             sessionRestored = true
+            analyzeNewTracks()
             // What:     `if (result == FinishLoadResult.KeptUserSelectionDuringLoad) { saveSession() }`
             //           saves immediately ONLY on the kept-tap path. `==` is value equality on the
             //           enum tag; `FinishLoadResult.KeptUserSelectionDuringLoad` reads the named
@@ -901,6 +1000,7 @@ class PlaybackService : MediaSessionService() {
         // this.libraryLoaded = true;
         // ```
         libraryLoaded = true
+        watchGrantedTree()
         // What:     `PeakSweepScheduler.enqueue(this)` schedules the background peak sweep
         //           (idempotent).
         // Why:      A new library exists, so re-ensure the sweep is queued.
@@ -939,7 +1039,7 @@ class PlaybackService : MediaSessionService() {
         //   console.info(`[${LOG_TAG}] PlaybackService loaded ${tracks.length} tracks from picked folder`);
         // });
         // ```
-        loadJob = scope.launch {
+        loadJob = launchLoad {
             // What:     `val tracks = LibrarySource.scanRoot(this@PlaybackService, treeUri)`
             //           declares `tracks` (inferred `List<Track>`) from the `suspend` call
             //           `scanRoot`, scanning the picked tree. `this@PlaybackService` is
@@ -954,7 +1054,12 @@ class PlaybackService : MediaSessionService() {
              * Defines tracks value for this music-player component; the TypeScript-oriented notes above explain
              * its source and use.
              */
-            val tracks = LibrarySource.scanRoot(this@PlaybackService, treeUri)
+            val outcome: ScanOutcome = scanner.scan(
+                source = { onBatch -> LibrarySource.scanRoot(this@PlaybackService, treeUri, onBatch) },
+                publish = { built -> controller.openBuilt(built, feedSearch = false) },
+            )
+            /** The source's own sorted list of the picked folder. */
+            val tracks: List<Track> = outcome.returned
             // What:     `sessionRestored = true` flips the save gate just BEFORE delivering the
             //           picked folder.
             // Why:      A folder pick has no saved-position restore, so there is no async-seek
@@ -978,7 +1083,14 @@ class PlaybackService : MediaSessionService() {
             // ```ts
             // this.controller.openLibrary(tracks);
             // ```
-            controller.openLibrary(tracks)
+            /** The complete library built by the ingest, or null when the source and the ingest disagreed. */
+            val final = outcome.final
+            if (final != null) {
+                controller.openBuilt(final.built, feedSearch = false)
+                outcome.ingest.complete(final)
+            } else {
+                controller.openLibrary(tracks)
+            }
             // What:     `Log.i(LOG_TAG, "PlaybackService loaded ${tracks.size} tracks from picked folder")`
             //           logs the picked-folder load count.
             // Why:      Record the re-pick load for verification.
@@ -988,6 +1100,7 @@ class PlaybackService : MediaSessionService() {
             // console.info(`[${LOG_TAG}] PlaybackService loaded ${tracks.length} tracks from picked folder`);
             // ```
             Log.i(LOG_TAG, "PlaybackService loaded ${tracks.size} tracks from picked folder")
+            analyzeNewTracks()
         }
     }
 
@@ -1013,7 +1126,7 @@ class PlaybackService : MediaSessionService() {
      * Defines rescan behavior for this music-player component; the TypeScript-oriented notes above explain its
      * call shape and effects.
      */
-    fun rescan() {
+    private fun rescanNow() {
         // What:     `if (!libraryLoaded) return` bails before the first load.
         // Why:      Nothing to reconcile until a library has been loaded; the first load is
         //           `ensureLibraryLoaded`'s job, not a rescan's.
@@ -1045,7 +1158,7 @@ class PlaybackService : MediaSessionService() {
         // ```ts
         // this.loadJob = launch(this.scope, async () => { ... });
         // ```
-        loadJob = scope.launch {
+        loadJob = launchLoad {
             // What:     `val tracks = LibrarySource.load(this@PlaybackService)` re-resolves the
             //           CURRENT source (held SAF root, else MediaStore) and scans it.
             // Why:      The live state of the source on this foreground.
@@ -1068,7 +1181,7 @@ class PlaybackService : MediaSessionService() {
             // ```ts
             // this.controller.reconcileLibrary(tracks);
             // ```
-            controller.reconcileLibrary(tracks)
+            controller.reconcileFromScan(tracks)
             // What:     `Log.i(...)` records the reconcile count for verification.
             // Why:      Trace the live-update path.
             //
@@ -1077,6 +1190,119 @@ class PlaybackService : MediaSessionService() {
             // console.info(`[${LOG_TAG}] PlaybackService reconciled ${tracks.length} tracks (live update)`);
             // ```
             Log.i(LOG_TAG, "PlaybackService reconciled ${tracks.size} tracks (live update)")
+            analyzeNewTracks()
+        }
+    }
+
+    // What:     `fun rescan()` asks for a rescan of the current source, debounced.
+    // Why:      D113: the library follows the disk without a user action. The app returning to the front, a change of
+    //           the
+    //           system audio index and the service connecting all call this; a burst of signals becomes one rescan a
+    //           moment after the last one, and a signal during a load is remembered and answered when the load ends.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // rescan(): void { clearTimeout(this.timer); this.timer = setTimeout(() => { if (plan.signal()) this.rescanNow();
+    // }, 1500); }
+    // ```
+    /**
+     * Reads the held folder grant off the main thread and moves the folder observer to its children, or removes the
+     * observer when no folder is granted.
+     */
+    fun watchGrantedTree() {
+        scope.launch {
+            /** The held grant, read where disk access is allowed. */
+            val root: Uri? = withContext(Dispatchers.IO) { LibraryRoot.heldRoot(this@PlaybackService) }
+            grantedTree = root
+            /** Children of the granted folder's root document, or null without a grant. */
+            val children: Uri? = root?.let { tree ->
+                DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            }
+            if (children == watchedChildren) {
+                return@launch
+            }
+            contentResolver.unregisterContentObserver(treeObserver)
+            watchedChildren = children
+            if (children != null) {
+                contentResolver.registerContentObserver(children, true, treeObserver)
+                Log.i(LOG_TAG, "watching the granted folder $children")
+            }
+        }
+    }
+
+    /** Asks for a rescan because the app returned to the front or the activity bound again (D113). */
+    fun rescanOnForeground() {
+        if (rescanPlan.foreground(libraryLoaded = libraryLoaded)) {
+            Log.i(LOG_TAG, "the app is in front; a rescan follows")
+            rescan()
+        }
+    }
+
+    /** Schedules one rescan after the signals of the last moment have settled. */
+    fun rescan() {
+        handler.removeCallbacks(rescanRunnable)
+        handler.postDelayed(rescanRunnable, RESCAN_DEBOUNCE_MS)
+    }
+
+    // What:     `private fun launchLoad(block)` starts a library load or rescan and tells the rescan plan when it ends.
+    // Why:      Every load goes through here, so a change signal that arrived during any of them is answered once the
+    //           load finishes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private launchLoad(block: () => Promise<void>): Job { plan.loadStarted(); const job = run(block);
+    // job.finally(...); return job; }
+    // ```
+    /** Launches [block] as the current load and, when it ends, rescans once more if a signal was owed. */
+    private fun launchLoad(block: suspend CoroutineScope.() -> Unit): Job {
+        rescanPlan.loadStarted()
+        /** The load or rescan that runs [block]. */
+        val job: Job = scope.launch(block = block)
+        job.invokeOnCompletion {
+            handler.post {
+                if (rescanPlan.loadFinished()) {
+                    Log.i(LOG_TAG, "a change arrived during the load; rescanning once more")
+                    rescan()
+                }
+            }
+        }
+        return job
+    }
+
+    // What:     `private fun readArtistTag(uri: String)` reads the artist tag of a loaded track off the main thread and
+    //           hands it to the controller, which republishes the media session.
+    // Why:      The media notification shows an artist line when tags exist; reading a tag opens the file, which must
+    //           not block the main thread.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private async readArtistTag(uri: string) { controller.setTrackArtist(uri, await TrackTags.artistOf(this, uri)); }
+    // ```
+    /** Reads the artist tag of [uri] on the I/O dispatcher and gives it to the controller on the main thread. */
+    private fun readArtistTag(uri: String) {
+        scope.launch {
+            /** The artist tag, or null when the file has none. */
+            val artist: String? = withContext(Dispatchers.IO) { TrackTags.artistOf(this@PlaybackService, uri) }
+            controller.setTrackArtist(uri, artist)
+        }
+    }
+
+    // What:     `private fun analyzeNewTracks()` starts the true-peak analysis when the library holds tracks it has not
+    //           looked at.
+    // Why:      M9: the analysis used to start once, for the first full index; files added later never got a peak.
+    //           Every
+    //           completed load or rescan asks now, and the analysis service starts only for tracks it has not seen.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // private analyzeNewTracks(): void { void PeakSweepService.startIfNeeded(this, this.controller.urisSnapshot()); }
+    // ```
+    /** Asks the analysis service to run for the library's new tracks; the ledger check runs off the main thread. */
+    private fun analyzeNewTracks() {
+        /** URIs of the library as the controller holds it now. */
+        val uris: List<String> = controller.urisSnapshot()
+        scope.launch(Dispatchers.Default) {
+            PeakSweepService.startIfNeeded(this@PlaybackService, uris)
         }
     }
 
@@ -1139,6 +1365,9 @@ class PlaybackService : MediaSessionService() {
      * its call shape and effects.
      */
     override fun onDestroy() {
+        contentResolver.unregisterContentObserver(mediaObserver)
+        contentResolver.unregisterContentObserver(treeObserver)
+        handler.removeCallbacks(rescanRunnable)
         // What:     `saveSession()` persists the final session BEFORE anything is released.
         // Why:      Capture the latest selection/settings/position while the controller and
         //           engine are still alive (`currentSession()` reads `engine.positionSec()`);
@@ -1168,6 +1397,8 @@ class PlaybackService : MediaSessionService() {
         //   this.session.release();
         // }
         // ```
+        scanner.supersede()
+        searchHost.close()
         session?.run {
             // What:     `player.release()` releases the session's underlying player (frees
             //           audio focus, buffers, file handles). `player` resolves against the
@@ -1244,6 +1475,12 @@ class PlaybackService : MediaSessionService() {
         // ```ts
         // static readonly ACTION_LOCAL_BIND = "dev.monochromatic.musicplayer.LOCAL_BIND";
         // ```
+        /** Quiet time after the last change signal before the library is rescanned. */
+        private const val RESCAN_DEBOUNCE_MS: Long = 1_500L
+
+        /** Time the player gathers files it passes into one notification before posting it. */
+        private const val UNPLAYABLE_NOTICE_DELAY_MS: Long = 400L
+
         /**
          * Defines action local bind value for this music-player component; the TypeScript-oriented notes above
          * explain its source and use.

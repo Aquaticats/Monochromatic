@@ -7,7 +7,7 @@ then a trusted publisher pointing at `.github/workflows/npm-release.yml`,
 so every later version publishes from CI with provenance and no stored token.
 Decision:
 `doc/decision/npm-publishing.md`.
-Written for `@monochromatic-dev/module-logger` 0.1.0;
+Written for `@monochromatic-dev/logger-core` 0.1.0;
 substitute another package name and version for the next first release.
 
 Bridges tried before writing this runbook:
@@ -35,7 +35,8 @@ Prerequisites:
 
 - An npm account that owns the `@monochromatic-dev` scope,
    with two-factor authentication enabled and the authenticator app at hand.
-- A clone of `https://github.com/Aquaticat/Monochromatic` with `mise` installed and activated,
+- A clone of `https://github.com/Aquaticats/Monochromatic` with `mise` installed and activated
+   and the toolchain provisioned (`mise run toolchain:install`),
    so `mise exec -- npm --version` prints `11.19.0` or newer (`npm trust` needs 11.15.0 or newer)
    and `pnpm --version` prints `11.21.0` or newer.
 - `gh` signed in to GitHub with access to the repository:
@@ -44,7 +45,8 @@ Prerequisites:
    titled `chore(*): version packages`,
    still open.
    Land the changeset in the same push as the manifest change that drops `private`:
-   a public manifest reaching `main` without a pending changeset makes the workflow try to publish the pre-release version through trusted publishing,
+   a public manifest reaching `main` without a pending changeset makes the workflow try to publish the pre-release
+   version through trusted publishing,
    which fails with `E404` because no trusted publisher exists yet
    (harmless,
    seen for `module-fs-path` on 2026-09-07).
@@ -80,7 +82,7 @@ TODO
      remove it with `git worktree remove` at the end).
      Done that way for `module-fs-path` on 2026-09-07.
 3.   Confirm the version:
-     `jq -r .version package/module/logger/package.json`.
+     `jq -r .version package/logger/core/package.json`.
      Expected:
      `0.1.0`.
 4.   Install the workspace:
@@ -90,21 +92,21 @@ TODO
 5.   Link every direct dependency into the package
      (workaround for pnpm issue 9566,
      see `doc/troubleshooting/pnpm-pack-dedupe-direct-deps.md`):
-     `env pnpm_config_dedupe_direct_deps=false pnpm install --force --filter @monochromatic-dev/module-logger`.
+     `env pnpm_config_dedupe_direct_deps=false pnpm install --force --filter @monochromatic-dev/logger-core`.
      pnpm 12.3.4 ignores the `--config.dedupe-direct-deps=false` form.
      Expected:
-     `ls package/module/logger/node_modules/@monochromatic-dev` lists `config-typescript`.
+     `ls package/logger/core/node_modules/@monochromatic-dev` lists `config-typescript`.
 6.   Build the package:
-     `mise run //package/module/logger:build`.
+     `mise run //package/logger/core:build`.
      Expected:
-     two lines ending in `Finished in` and `package/module/logger/dist/final/node/index.mjs` exists.
+     two lines ending in `Finished in` and `package/logger/core/dist/final/node/index.mjs` exists.
 7.   Remove any stale compiler cache left from before `tsBuildInfoFile` was redirected:
-     `rm -f package/module/logger/dist/final/types/tsconfig.tsbuildinfo`.
+     `rm -f package/logger/core/dist/final/types/tsconfig.tsbuildinfo`.
      Expected:
      no output.
 8.   Pack:
      `mkdir --parents "${HOME}/temp/agent/npm-publish"` then
-     `pnpm --filter @monochromatic-dev/module-logger pack --pack-destination "${HOME}/temp/agent/npm-publish"`.
+     `pnpm --filter @monochromatic-dev/logger-core pack --pack-destination "${HOME}/temp/agent/npm-publish"`.
      Expected:
      the output ends with a path ending in `monochromatic-dev-module-logger-0.1.0.tgz`.
 9.   Inspect the packed manifest:
@@ -123,28 +125,36 @@ TODO
      Expected:
      a prompt `This operation requires a one-time password.`;
      type the six digits from the authenticator app and press **Enter**;
-     the output ends with `+ @monochromatic-dev/module-logger@0.1.0`.
+     the output ends with `+ @monochromatic-dev/logger-core@0.1.0`.
      From a shell without a terminal (an agent's command tool),
      pass the code instead:
      `--otp=<six digits>`;
      the code is good for about 30 seconds,
      so run the command right after reading it.
 12.  Register the release workflow as the trusted publisher:
-     `mise exec -- npm trust github @monochromatic-dev/module-logger --repo Aquaticat/Monochromatic --file npm-release.yml --allow-publish`.
+     `mise exec -- npm trust github @monochromatic-dev/logger-core --repo Aquaticats/Monochromatic --file npm-release.yml --allow-publish`.
      Expected:
      a confirmation prompt,
      answer **y** (or pass `--yes`),
-     then a line confirming the trusted publisher for `Aquaticat/Monochromatic` and `npm-release.yml`.
+     then a line confirming the trusted publisher for `Aquaticats/Monochromatic` and `npm-release.yml`.
+     Since 2026-10-29 the owner releases through `.github/workflows/npm-publish.yml` instead
+     (one package per manual dispatch, input `package`, for example `logger/core`);
+     `logger-core` and `fs-path-core` trust that workflow,
+     registered with the same command and `--file npm-publish.yml`.
+     A package can list up to 10 trusted publishers
+     (<https://docs.npmjs.com/trusted-publishers>),
+     so registering both workflows is allowed.
      This command and `npm trust list` open a browser for npm's web authentication every time,
      even with a logged-in token,
      so they must run from your own terminal;
      an agent's command tool only prints
      `Open this URL in your browser to authenticate`.
 13.  Wait for the registry index to replicate:
-     `npm view @monochromatic-dev/module-logger version` until it prints `0.1.0`.
+     `npm view @monochromatic-dev/logger-core version` until it prints `0.1.0`.
      Expected:
      a brand-new package's version document appears at once,
-     but the package index (`https://registry.npmjs.org/@monochromatic-dev%2fmodule-logger`) can answer 404 for several minutes.
+     but the package index (`https://registry.npmjs.org/@monochromatic-dev%2fmodule-logger`) can answer 404 for several
+     minutes.
 14.  Merge the version pull request:
      `gh pr merge <number> --squash`.
      Expected:
@@ -164,43 +174,43 @@ TODO
      in the shape the publish job uses for later versions
      (a plain `git push` of the tag fails in the cli-git wrapper,
      see `doc/troubleshooting/cli-git-tag-push-eagain.md`):
-     `gh release create '@monochromatic-dev/module-logger@0.1.0' --target "$(git rev-parse <merge commit of the version pull request>)" --title '@monochromatic-dev/module-logger@0.1.0' --notes-file <file holding the 0.1.0 section of package/module/logger/CHANGELOG.md>`.
+     `gh release create '@monochromatic-dev/logger-core@0.1.0' --target "$(git rev-parse <merge commit of the version pull request>)" --title '@monochromatic-dev/logger-core@0.1.0' --notes-file <file holding the 0.1.0 section of package/logger/core/CHANGELOG.md>`.
      Expected:
      the release URL is printed,
-     and `gh release view '@monochromatic-dev/module-logger@0.1.0' --json tagName --jq .tagName` prints the tag name.
+     and `gh release view '@monochromatic-dev/logger-core@0.1.0' --json tagName --jq .tagName` prints the tag name.
 17.  Fetch the tag GitHub created:
      `git fetch --tags origin`.
      Expected:
-     `git tag --list '@monochromatic-dev/module-logger@*'` prints `@monochromatic-dev/module-logger@0.1.0`.
+     `git tag --list '@monochromatic-dev/logger-core@*'` prints `@monochromatic-dev/logger-core@0.1.0`.
 
 ## What to check
 
 Status:
 TODO
 
-- `npm view @monochromatic-dev/module-logger version` prints `0.1.0`.
-- `npm view @monochromatic-dev/module-logger dist.tarball` prints a `registry.npmjs.org` URL.
-- `mise exec -- npm trust list @monochromatic-dev/module-logger` lists one GitHub entry with
-   `Aquaticat/Monochromatic` and `npm-release.yml`.
-- `gh release view '@monochromatic-dev/module-logger@0.1.0' --json tagName --jq .tagName`
-   prints `@monochromatic-dev/module-logger@0.1.0`.
+- `npm view @monochromatic-dev/logger-core version` prints `0.1.0`.
+- `npm view @monochromatic-dev/logger-core dist.tarball` prints a `registry.npmjs.org` URL.
+- `mise exec -- npm trust list @monochromatic-dev/logger-core` lists one GitHub entry with
+   `Aquaticats/Monochromatic` and the workflow registered in step 12.
+- `gh release view '@monochromatic-dev/logger-core@0.1.0' --json tagName --jq .tagName`
+   prints `@monochromatic-dev/logger-core@0.1.0`.
 - In a disposable directory:
-   `mkdir -p /tmp/logger-consumer && cd /tmp/logger-consumer && npm init -y >/dev/null && npm install @monochromatic-dev/module-logger`
+   `mkdir -p /tmp/logger-consumer && cd /tmp/logger-consumer && npm init -y >/dev/null && npm install @monochromatic-dev/logger-core`
    ends with `added 1 package`,
    and
-   `node --input-type=module -e "import { logger } from '@monochromatic-dev/module-logger'; logger.info('hello from the registry'); await logger.flush();"`
+   `node --input-type=module -e "import { logger } from '@monochromatic-dev/logger-core'; logger.info('hello from the registry'); await logger.flush();"`
    prints a line ending in `hello from the registry`.
 - The next version publishes from CI:
    add a changeset (`mise run changeset:add`),
    merge it,
    merge the resulting version pull request,
-   and the `publish` job log for that run contains `+ @monochromatic-dev/module-logger@0.1.1`
+   and the `publish` job log for that run contains `+ @monochromatic-dev/logger-core@0.1.1`
    (or whatever version the changeset produced) with a provenance attestation shown by
-   `npm view @monochromatic-dev/module-logger dist.attestations.url`.
+   `npm view @monochromatic-dev/logger-core dist.attestations.url`.
    Verified on 2026-09-06 with 0.2.0:
    the `publish` job succeeded,
-   `npm view @monochromatic-dev/module-logger@0.2.0 dist.attestations.url` printed the attestation URL,
-   and the workflow itself created the tag and GitHub release `@monochromatic-dev/module-logger@0.2.0`,
+   `npm view @monochromatic-dev/logger-core@0.2.0 dist.attestations.url` printed the attestation URL,
+   and the workflow itself created the tag and GitHub release `@monochromatic-dev/logger-core@0.2.0`,
    so the manual tag step in the steps section is bootstrap-only.
 
 ## Restore

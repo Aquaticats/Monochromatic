@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T02:40:00Z",
+  "purpose": "Record the current-source static, unit and build baseline before the rollout plan is revised, so existing failures are dispositions rather than assumed passing checks.",
+  "repo": "Aquaticats/Monochromatic",
+  "revision": "4f3d5a65a776355f55d32e1334109c05debfaa09",
+  "worktree": "/home/user/temp/agent/depot-grill/failure-baseline-20261019",
+  "static": {
+    "command": "mise run lint:monochromatic-lint",
+    "exitCode": 1,
+    "rawLog": "doc/audit/depot-current-baseline-static-2026-10-18.log.gz",
+    "summary": {
+      "outputLines": 85719,
+      "affectedFiles": 1046,
+      "findingsByCode": {
+        "markdown/semantic-line-breaks": 81700,
+        "rust/require-rustdoc": 2077,
+        "markdown/no-bare-urls": 1894,
+        "rust/max-lines": 27,
+        "markdown/heading-increment": 5,
+        "markdown/no-trailing-punctuation": 4,
+        "markdown/link-image-style": 3,
+        "markdown/link-image-reference-definitions": 2,
+        "markdown/fenced-code-language": 2,
+        "markdown/single-h1": 1
+      }
+    },
+    "result": "The whole-tree static profile is not known-good. A whole-tree static gate would fail immediately; a changed-path profile or an explicit advisory baseline is required."
+  },
+  "unit": {
+    "command": "mise run test:unit",
+    "exitCode": 1,
+    "rawLog": "doc/audit/depot-current-baseline-unit-2026-10-18.log.gz",
+    "summary": {
+      "failedTestFileMentions": 751,
+      "unexpectedTokenJsonErrors": 354,
+      "aggregateErrors": 94,
+      "moduleNotFoundErrors": 1979,
+      "cannotFindErrors": 987,
+      "firstNamedFailures": [
+        "package/pi-shared/model-selection/src/budget-override.unit.test.ts",
+        "package/pi-shared/model-selection/src/budget-report.unit.test.ts"
+      ],
+      "prerequisiteState": "No build artifacts were present. The first failures reference missing dist/final/node/index.mjs, and the run is dominated by module-resolution errors."
+    },
+    "result": "The unit run is invalid as a product baseline. It executed without built prerequisites; 1,979 ERR_MODULE_NOT_FOUND and 987 Cannot find errors dominate, and the 751 named files are a missing-prerequisite cascade rather than product failures. The JSON-parse and Aggregate classes remain separate harness signals. The unit baseline must be rerun after a successful build."
+  },
+  "build": {
+    "command": "mise run build",
+    "exitCode": 1,
+    "rawLog": "doc/audit/depot-current-baseline-build-2026-10-18.log.gz",
+    "summary": {
+      "failedTasks": [
+        "//package/config/lfs-r2-worker:build:js:browser",
+        "//package/cli/wg-allowedips:build:js",
+        "//package/dev-script/file-enforcer:build:js",
+        "//package/dev-script/task-util:build:js"
+      ],
+      "observedErrors": [
+        "rolldown exited with non-zero status: killed by SIGABRT",
+        "node exited with non-zero status: killed by SIGABRT",
+        "Assertion failed: (0) == (uv_thread_create(t.get(), start_thread, this))"
+      ]
+    },
+    "result": "The build profile is not known-good in this capture. The failures include SIGABRT and a thread-creation assertion under parallel fanout, which may be host-resource or concurrency induced rather than a product defect; a bounded rebuild with reduced fanout is required before attributing failures."
+  },
+  "ciBaseline": {
+    "runs": [
+      {
+        "runId": 39196063655,
+        "result": "failed in tool installation on the missing pipx:slopo dependency sidecar before build or unit"
+      },
+      {
+        "runId": 39196377166,
+        "result": "build failed after 13 minutes 18 seconds; unit skipped; continue-on-error made the run conclusion success"
+      },
+      {
+        "runId": 39197594870,
+        "result": "prepared glib, Qt6, Podman and workflow token; build failed after 14 minutes 26 seconds; unit skipped"
+      },
+      {
+        "runId": 39199930641,
+        "result": "fast subset build and unit both succeeded in 10 minutes 17 seconds; only the tolerated tool-install annotation failed"
+      }
+    ],
+    "fastSubset": {
+      "buildTasks": [
+        "//package/module/logger:build",
+        "//package/module/p-map-fork:build",
+        "//package/module/toml-edit:build",
+        "//package/cli/forbidden-strings:build",
+        "//package/linter/monochromatic-lint:build"
+      ],
+      "unitTasks": [
+        "//package/module/logger:test:unit",
+        "//package/module/p-map-fork:test:unit",
+        "//package/module/toml-edit:test:unit",
+        "//package/cli/forbidden-strings:test",
+        "//package/linter/monochromatic-lint:test"
+      ],
+      "rawLog": "doc/audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz",
+      "result": "Known-good build and unit baseline for the five-owner fast subset. This is not a whole-repository baseline, not a complete-profile baseline, and not a gate."
+    },
+    "rawLog": "doc/audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz",
+    "failureClasses": [
+      "pipx:slopo and vfox:cmake tool installation",
+      "glib-sys, gdk-pixbuf-sys and cairo-sys-rs system build scripts",
+      "Podman image build",
+      "cargo vendor downloads for anstyle-wincon and serde_json",
+      "unresolved workspace imports of module-logger and module-async-time",
+      "Android and design builds",
+      "unresolved canvg import in jspdf"
+    ],
+    "result": "A generic Depot GitHub runner is insufficient for this build profile. The observed failures are environment, toolchain, build-order and dependency failures, not product attribution. The build needs the prepared environment described by the evaluation or a documented prerequisite image; the unit baseline remains invalid until that build succeeds."
+  },
+  "limits": [
+    "Counts are linter findings or named test files, not distinct product defects.",
+    "The unit run lacked built prerequisites; it is not a product baseline and must be rerun after a successful build.",
+    "The build failures include a resource assertion; they are not yet attributed to source.",
+    "The raw logs are retained compressed; per-finding and per-case identities can be re-derived from them.",
+    "The baseline revision moved after the capture; later commits require a fresh baseline."
+  ]
+}

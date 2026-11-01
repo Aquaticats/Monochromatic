@@ -9,9 +9,11 @@
  */
 
 import {
+  isWordChar,
   stripBetweenDelims,
   stripLinesStartingWith,
 } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+import { RIGHT_SINGLE_QUOTE, } from './uncertainty-phrases.ts';
 
 /**
  Strips fenced code blocks (triple-backtick) so uncertainty scans don't
@@ -82,6 +84,77 @@ function stripBlockquotes(text: string,): string {
 }
 
 /**
+ Reports whether the character at an index is an apostrophe between two word characters.
+
+ `charAt` answers an empty string past either end, which is not a word character, so an
+ apostrophe at the start or end of the text is never a contraction.
+
+ @param text - text being scanned
+
+ @param index - position of the character to test
+
+ @returns whether it is an in-word apostrophe
+
+ @example
+ ```ts
+ isContractionApostrophe({ text: "it's", index: 2 }); // true
+ isContractionApostrophe({ text: "'it", index: 0 }); // false
+ ```
+ */
+function isContractionApostrophe(
+  {
+    text,
+    index,
+  }: {
+    readonly text: string;
+    readonly index: number;
+  },
+): boolean {
+  if (text.charAt(index,) !== "'") {
+    return false;
+  }
+  if (!isWordChar(text.charAt(index - 1,),)) {
+    return false;
+  }
+  return isWordChar(text.charAt(index + 1,),);
+}
+
+/**
+ Replaces apostrophes inside a word with a curly apostrophe so they cannot open a quote.
+
+ Without this, `the workflow's comments say I didn't check` reads as a quoted string from
+ `'s` to `'t`, and everything between the two contractions, hedges included, is removed
+ before the scan. Only an apostrophe with a word character on both sides is folded, so a
+ quote mark after a space or punctuation still opens a quoted string.
+
+ @param text - text that may contain contractions or possessives
+
+ @returns text with in-word apostrophes replaced by `U+2019`
+
+ @example
+ ```ts
+ foldContractionApostrophes("it's 'maybe'"); // => 'it’s \'maybe\''
+ ```
+ */
+function foldContractionApostrophes(text: string,): string {
+  return Array.from(
+    { length: text.length, },
+    function foldAt(
+      _slot,
+      index,
+    ) {
+      return isContractionApostrophe({
+        text,
+        index,
+      },)
+        ? RIGHT_SINGLE_QUOTE
+        : text.charAt(index,);
+    },
+  )
+    .join('',);
+}
+
+/**
  Strips inline quoted strings (double and single quotes) so uncertainty
  scans don't match words Claude is quoting verbatim. Mirrors the legacy
  regex pipeline that stripped one quote shape after the other; here it
@@ -101,7 +174,7 @@ function stripBlockquotes(text: string,): string {
 function stripQuotedStrings(text: string,): string {
   return stripBetweenDelims({
     text: stripBetweenDelims({
-      text,
+      text: foldContractionApostrophes(text,),
       openDelim: '"',
       closeDelim: '"',
       disallowedInside: '\n',

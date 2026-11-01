@@ -74,9 +74,9 @@ type WidgetCall =
     readonly kind: 'draw';
     readonly lines: readonly string[];
   }
-  | {
-    readonly kind: 'clear';
-  };
+    | {
+      readonly kind: 'clear';
+    };
 
 /**
  Fake interactive context plus everything it recorded.

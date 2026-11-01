@@ -210,7 +210,8 @@ objc2 0.6 / objc2-app-kit 0.3.2 gotchas (each cost a compile iteration):
 - Windows:
    inbound works (stock `GtkDropTarget`);
    outbound needs a native Win32 OLE shim (built and
-  verified) -- see `gtk4-windows-outbound-file-drag.md`.
+  verified).
+  See `gtk4-windows-outbound-file-drag.md`.
 - macOS:
    inbound works with an in-app URI-unescape;
    outbound works via a native `objc2` AppKit drag

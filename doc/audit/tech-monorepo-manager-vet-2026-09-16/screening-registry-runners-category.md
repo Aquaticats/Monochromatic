@@ -1,52 +1,82 @@
 # Category fit screening: registry runners group
 
 Input: `screening-registry-runners.json`, 102 npm and crates.io entries.
-Verdicts: 0 monorepo manager, 2 component (both borderline), 100 category mismatch (24 of them marked ambiguous and quoted).
+Verdicts: 0 monorepo manager, 2 component (both borderline), 100 category mismatch (24 of them marked ambiguous and
+quoted).
 Entries keep input order.
 
 ## Promoted (monorepo manager or component)
 
 - `@sohaha/zzz`
   - URL: https://github.com/sohaha/zzz
-  - verdict: component (borderline: Go "daily development aids" toolbox whose `zzz watch` subcommand is a persistent file watcher that reruns commands; its HTTP side is an optional live-reload static server, off by default (`type: none`), and the websocket only broadcasts changed-file JSON; no command or control API and no project model)
-  - decisive quote: `Short: "文件变更监控"` ("file change monitoring") (`cmd/watch.go`); default watch config `# 本地静态服务器` ("local static server") with `http:` / `type: none` / `port: 0` (`app/root/config.go`); `service.GET("/", ...)` hands websocket requests to `ws.HandleRequest`, and `sendChang` sends `json.Marshal(data)` for each changed file through `ws.Broadcast` (`app/watch/http.go`)
-  - evidence source: npm README says only "日常开发辅助工具" (daily development aids), so the verdict rests on GitHub source read through `gh api`
+  - verdict: component (borderline: Go "daily development aids" toolbox whose `zzz watch` subcommand is a persistent
+  - file watcher that reruns commands; its HTTP side is an optional live-reload static server, off by default
+  - (`type: none`), and the websocket only broadcasts changed-file JSON; no command or control API and no project model)
+  - decisive quote: `Short: "文件变更监控"` ("file change monitoring") (`cmd/watch.go`); default watch config `# 本地静态服务器`
+  - ("local static server") with `http:` / `type: none` / `port: 0` (`app/root/config.go`); `service.GET("/", ...)`
+  - hands websocket requests to `ws.HandleRequest`, and `sendChang` sends `json.Marshal(data)` for each changed file
+  - through `ws.Broadcast` (`app/watch/http.go`)
+  - evidence source: npm README says only "日常开发辅助工具" (daily development aids), so the verdict rests on GitHub source
+  - read through `gh api`
 - `rnme` (runme.rs)
   - URL: https://github.com/dgrijalva/runme
-  - verdict: component (borderline: agent-facing task runtime; `rnme --mcp` is a long-lived MCP supervisor on stdio that watches `RUNME.rs` files and rebuilds, and it drives `rnme --engine` children over a loopback TCP JSONL RPC; tasks can hold file watches; the README says it has no dependency graph and discovers `RUNME.rs` files by directory, with no relationships between projects)
-  - decisive quote: "Can also be used as an MCP for direct agent access via runme --mcp." and "There's currently no in-built dependency graph." and "`ctx.watch()` returns a debounced stream of changed paths." (crates.io README); "Give an agent a stable interface for driving rnme over the lifetime of a session: list tasks, run them (foreground or backgrounded), monitor their state, query their output." and "`--engine` — engine + TCP JSONL server bound to `127.0.0.1:0`" and "`--mcp` — MCP server on stdio ... Watches RUNME.rs files; on change, spawns a new engine and routes new top-level spawns there." (`docs/mcp_design.md`)
+  - verdict: component (borderline: agent-facing task runtime; `rnme --mcp` is a long-lived MCP supervisor on stdio
+  - that watches `RUNME.rs` files and rebuilds, and it drives `rnme --engine` children over a loopback TCP JSONL RPC;
+  - tasks can hold file watches; the README says it has no dependency graph and discovers `RUNME.rs` files by
+  - directory, with no relationships between projects)
+  - decisive quote: "Can also be used as an MCP for direct agent access via runme --mcp." and "There's currently no
+  - in-built dependency graph." and "`ctx.watch()` returns a debounced stream of changed paths." (crates.io README);
+  - "Give an agent a stable interface for driving rnme over the lifetime of a session: list tasks, run them (foreground
+  - or backgrounded), monitor their state, query their output." and "`--engine` — engine + TCP JSONL server bound to
+  - `127.0.0.1:0`" and "`--mcp` — MCP server on stdio ... Watches RUNME.rs files; on change, spawns a new engine and
+  - routes new top-level spawns there." (`docs/mcp_design.md`)
 
 ## Category mismatch
 
-- `just`: justfile command runner ("🤖 Just a command runner"), no workspace model; `@indiekitai/just` TS port only adds an MCP recipe server with no watching (ambiguous: "MCP Server — expose justfile recipes to AI agents").
+- `just`: justfile command runner ("🤖 Just a command runner"), no workspace model; `@indiekitai/just` TS port only
+- adds an MCP recipe server with no watching (ambiguous: "MCP Server — expose justfile recipes to AI agents").
 - `bunosh`: JS functions as CLI commands ("Task runner that turns JavaScript functions into CLI commands").
-- `@jonacem/do-file`: single YAML task file with task-level dependencies ("A small YAML task runner with dependencies, arguments, and env-file interpolation").
+- `@jonacem/do-file`: single YAML task file with task-level dependencies ("A small YAML task runner with dependencies,
+- arguments, and env-file interpolation").
 - `mxflow`: YAML workflow runner, no project model.
-- `task-pipeliner`: YAML/JSON pipeline runner; its daemon is a cron scheduler, not a watcher with an API (ambiguous: "tp schedule start -d  # Start scheduler daemon in background").
-- `@madinco/smith`: Artisan-style command runner ("Artisan-style command runner for Node projects and personal workflows"); npm README empty.
-- `zet-x`: per-project command registry found by walking up to `x.config.mjs` ("A project-level task runner for teams. Define dev commands in a config file, run them with `x <command>`.").
+- `task-pipeliner`: YAML/JSON pipeline runner; its daemon is a cron scheduler, not a watcher with an API (ambiguous:
+- "tp schedule start -d  # Start scheduler daemon in background").
+- `@madinco/smith`: Artisan-style command runner ("Artisan-style command runner for Node projects and personal
+- workflows"); npm README empty.
+- `zet-x`: per-project command registry found by walking up to `x.config.mjs` ("A project-level task runner for teams.
+- Define dev commands in a config file, run them with `x <command>`.").
 - `@glyphtek/scriptit`: script runner with env management and TUI.
 - `bask.sh`: Bash mini-framework for command scripts.
 - `swig-cli`: gulp-style series/parallel task composition.
-- `@xenoverseup/trane`: parallel fan-out of configured commands with per-command `cwd`, no ordering between projects (ambiguous: "Think Concurrently, but with a better interface").
+- `@xenoverseup/trane`: parallel fan-out of configured commands with per-command `cwd`, no ordering between projects
+- (ambiguous: "Think Concurrently, but with a better interface").
 - `invokej`: Python Invoke-style task runner.
 - `invoket`: Bun task runner with typed CLI args.
 - `oh`: tiny task runner library.
 - `run-task`: minimal task runner.
-- `helm-ctrl`: interactive menu of configured commands; "workspace" means the editor workspace (ambiguous: "reads `helm.config.js` or `helm.config.json` from the workspace root").
-- `boot-stacker`: runs a set of processes and daemons, no project model or API (ambiguous: "stacker is a utility to run a bunch of processes at once").
+- `helm-ctrl`: interactive menu of configured commands; "workspace" means the editor workspace (ambiguous: "reads
+- `helm.config.js` or `helm.config.json` from the workspace root").
+- `boot-stacker`: runs a set of processes and daemons, no project model or API (ambiguous: "stacker is a utility to run
+- a bunch of processes at once").
 - `master-roshi`: simple project task runner ("simple task runner for your project").
 - `noxedo`: nox-style session runner for one project's test matrix.
 - `jido` (with `jido-kit`): named-flow runner plus its helper library.
 - `clii`: turns JS functions into CLI commands.
 - `@devx-cli/devx`: single-project `.devx` scripts and tasks ("Manage project metadata and settings in a `.devx` file").
-- `@yampp/yampp`: Make-style task DAG with file watching but no project model or interface; the "pnpm monorepo workspace" is its own source repo (ambiguous: "DAG-based dependency resolution with cycle detection").
+- `@yampp/yampp`: Make-style task DAG with file watching but no project model or interface; the "pnpm monorepo
+- workspace" is its own source repo (ambiguous: "DAG-based dependency resolution with cycle detection").
 - `metcalf`: runs tasks over parameter sets from JSON.
 - `shellforge`: personal terminal workflow scripts.
-- Ease task manager (via `ease-task-sass`): the package is a SASS plugin (add-on) for Ease, itself a scheduled job runner (ambiguous: "This is a plugin for the Ease task runner"; Ease: "A minimal task runner with scheduling capabilities").
+- Ease task manager (via `ease-task-sass`): the package is a SASS plugin (add-on) for Ease, itself a scheduled job
+- runner (ambiguous: "This is a plugin for the Ease task runner"; Ease: "A minimal task runner with scheduling
+- capabilities").
 - `npm-tasks`: npm-scripts enhancer.
-- `run-project-commands`: "RPC" is the command name, not an RPC interface; shows package info for one project (ambiguous: "When you run `rpc` in a project directory, it will display the package name and version from the package.json file.").
-- Flow (`@nikivdev/flow`): per-project `flow.toml` task picker; long-running watchers belong to a separate private `lin` hub (ambiguous: "Flow itself no longer tries to manage servers, watchers, or tracing—that all belongs to `lin`.").
+- `run-project-commands`: "RPC" is the command name, not an RPC interface; shows package info for one project
+- (ambiguous: "When you run `rpc` in a project directory, it will display the package name and version from the
+- package.json file.").
+- Flow (`@nikivdev/flow`): per-project `flow.toml` task picker; long-running watchers belong to a separate private
+- `lin` hub (ambiguous: "Flow itself no longer tries to manage servers, watchers, or tracing—that all belongs to
+- `lin`.").
 - buildfile (`@dev-kas/buildfile`): Makefile-alternative DSL.
 - mdrun (`@leyohli/mdrun`): Markdown-defined task runner.
 - `pylp`: streamlined task runner.
@@ -55,11 +85,16 @@ Entries keep input order.
 - `violet.ts`: simple TypeScript task runner; npm README empty.
 - `i-do`: placeholder package (GitHub README: "in progress").
 - `zolo`: YAML/JSON task runner.
-- `vibe-queue`: task queue and AI execution engine with a web dashboard; no watch mode, no documented API, no repository (ambiguous: "Dashboard available at http://localhost:3000" and "Live Monitoring: Real-time process tracking and log streaming.").
-- bs (`@jaandrle/bs`): executable scripts as the build system, explicitly without a task graph (ambiguous: "deliberately avoids introducing its own build language, implicit rules, or a global task graph").
-- `cargo-auto` (with `cargo-rssc`): tasks written as a Rust helper sub-project; the "sub-project" is the task code, not a workspace model (ambiguous: "will create a new Rust sub-project `automation_tasks_rs` inside your Rust project").
+- `vibe-queue`: task queue and AI execution engine with a web dashboard; no watch mode, no documented API, no
+- repository (ambiguous: "Dashboard available at http://localhost:3000" and "Live Monitoring: Real-time process
+- tracking and log streaming.").
+- bs (`@jaandrle/bs`): executable scripts as the build system, explicitly without a task graph (ambiguous:
+- "deliberately avoids introducing its own build language, implicit rules, or a global task graph").
+- `cargo-auto` (with `cargo-rssc`): tasks written as a Rust helper sub-project; the "sub-project" is the task code, not
+- a workspace model (ambiguous: "will create a new Rust sub-project `automation_tasks_rs` inside your Rust project").
 - `rmake`: make-like task runner.
-- `cargo-task`: tasks as Rust crates; the Cargo workspace only builds the task crates (ambiguous: "you want to keep the task crates in a separate workspace").
+- `cargo-task`: tasks as Rust crates; the Cargo workspace only builds the task crates (ambiguous: "you want to keep the
+- task crates in a separate workspace").
 - `mk`: single `tasks.yaml` runner with watch mode but no project model or control interface.
 - `checkexec`: conditional command execution like Make.
 - `mom` (`mom-task`): YAML task runner with file and task inheritance (`extend`).
@@ -72,16 +107,21 @@ Entries keep input order.
 - `jog`: task runner without string substitution.
 - `sate`: simple CLI task runner.
 - `xf`: file-aware dynamic command runner.
-- faster (`faster-build`): one root `faster.yaml` of hashed tasks; the graph is between tasks, not projects (ambiguous: "Faster is a language-agnostic task runner for repositories with many moving parts" and "faster run all will build a dependency graph and build all targets").
+- faster (`faster-build`): one root `faster.yaml` of hashed tasks; the graph is between tasks, not projects (ambiguous:
+- "Faster is a language-agnostic task runner for repositories with many moving parts" and "faster run all will build a
+- dependency graph and build all targets").
 - `cb2`: nested command sequences; no README or repository.
 - `hoi`: `.hoi.yml` command runner.
 - `tasksitter`: library for runtime task graphs ("Graph-based workflow engine for Rust").
-- `cargo-task-wasm`: WASI task runner for Cargo; workspace support is an unchecked roadmap item (ambiguous: "Support workspaces and [workspace.metadata]" appears as a disabled checkbox).
-- `rushon`: launches several local binaries with env vars (fan-out) (ambiguous: "It's common to launch multiple components with different environment variables.").
+- `cargo-task-wasm`: WASI task runner for Cargo; workspace support is an unchecked roadmap item (ambiguous: "Support
+- workspaces and [workspace.metadata]" appears as a disabled checkbox).
+- `rushon`: launches several local binaries with env vars (fan-out) (ambiguous: "It's common to launch multiple
+- components with different environment variables.").
 - voluntary (rtask, Lua): Lua-configured task runner.
 - `umm`: tiny task runner; empty README.
 - `rumake`: YAML shell task runner.
-- hulk family (`breakingbad`, `brown_script`, `jest`, `spiderman`, `wiz`, `prince`, `impact`): unreleased placeholders ("please stay tuned").
+- hulk family (`breakingbad`, `brown_script`, `jest`, `spiderman`, `wiz`, `prince`, `impact`): unreleased placeholders
+- ("please stay tuned").
 - `cmd-runner`: simple command runner; no README.
 - `rxe`: customizable command runner.
 - digtask (Dig): YAML task executor.
@@ -91,19 +131,26 @@ Entries keep input order.
 - `trix`: "Task runner for multiple environments"; README is a title only, no repository.
 - `plzplz`: `plz.toml` tasks with an optional per-task `dir`, no project model (ambiguous: `dir = "packages/web"`).
 - `tazk`: task file with topological task ordering and file watching, no project model or interface.
-- `xeq`: TOML command sequences; its monorepo template is parallel scripts (ambiguous: "Multi-package frontend workspace" / "parallel, variables, nested scripts").
+- `xeq`: TOML command sequences; its monorepo template is parallel scripts (ambiguous: "Multi-package frontend
+- workspace" / "parallel, variables, nested scripts").
 - `madoru`: Markdown task runner.
 - `only`: staged-language task runner with a task graph.
 - `oxdock`: Dockerfile-style build DSL; "workspace" is an ephemeral temp directory.
 - `mmz`: memoized command runner.
 - `machfile` (with `machfile-cli`): simple task system library and CLI.
-- `yarli`: AI-agent plan orchestrator; "workspace" means per-task git worktrees; HTTP API but no watch process (ambiguous: "REST API crate (yarli-api) with health, status, control, webhook, and websocket event routes.").
-- `mdtask` (with `mdtask-core`): Markdown task runner library plus CLI; MCP server has no watch (ambiguous: "`mdtask --mcp` serves the working set to an MCP client (Claude Desktop or Code) over stdio").
-- `jao`: script discovery with directory-based command namespaces, no relationships between projects (ambiguous: "Use this when multiple projects have the same script names and you want commands to get shorter as you move deeper into the repo.").
+- `yarli`: AI-agent plan orchestrator; "workspace" means per-task git worktrees; HTTP API but no watch process
+- (ambiguous: "REST API crate (yarli-api) with health, status, control, webhook, and websocket event routes.").
+- `mdtask` (with `mdtask-core`): Markdown task runner library plus CLI; MCP server has no watch (ambiguous:
+- "`mdtask --mcp` serves the working set to an MCP client (Claude Desktop or Code) over stdio").
+- `jao`: script discovery with directory-based command namespaces, no relationships between projects (ambiguous: "Use
+- this when multiple projects have the same script names and you want commands to get shorter as you move deeper into
+- the repo.").
 - grim (grimoire): workflow runner with TUI.
-- `meriadoc`: multi-directory spec-file task catalog with web UI, HTTP API and MCP; no relationships between projects and no watching (ambiguous: "Discovery: Automatically find projects across configured directories").
+- `meriadoc`: multi-directory spec-file task catalog with web UI, HTTP API and MCP; no relationships between projects
+- and no watching (ambiguous: "Discovery: Automatically find projects across configured directories").
 - `rusk-task`: async "simpler Make".
-- `devrunner`: TUI picker for one project's scripts (ambiguous: "Auto-discovery: Automatically finds package.json scripts and Cargo.toml targets.").
+- `devrunner`: TUI picker for one project's scripts (ambiguous: "Auto-discovery: Automatically finds package.json
+- scripts and Cargo.toml targets.").
 - `besaz`: user-defined workflow runner.
 - `jobfile`: job runner.
 - otto (`otto-cli`): task runner with retries, timeouts, history, notifications.
@@ -116,17 +163,35 @@ Entries keep input order.
 - patmat (`drevo-patmat`): Makefile-like GUI with a target graph.
 - `forger-runner`: task runner with topological task ordering.
 - `phenotype-forge`: Rust-defined tasks with deps and hot reload, no interface.
-- `steward`: Rust library of task and process building blocks ("It provides base building blocks for defining and running various kinds of tasks.").
-- `emergent-engine`: general pub-sub pipeline engine for CLI and AI automations; Unix-socket IPC but no file watching or build role (ambiguous: "Emergent primitives are processes connected by Unix sockets").
+- `steward`: Rust library of task and process building blocks ("It provides base building blocks for defining and
+- running various kinds of tasks.").
+- `emergent-engine`: general pub-sub pipeline engine for CLI and AI automations; Unix-socket IPC but no file watching
+- or build role (ambiguous: "Emergent primitives are processes connected by Unix sockets").
 
 ## Method notes
 
-- Registry names: 69 entries came with GitHub, GitLab, Codeberg, Gitee, Bitbucket or other non-registry URLs; each was matched to its npm or crates.io name by repository URL against the discovery pass's saved search pages (`data/npm-*.json`, `data/crates-*.json`). `@indiekitai/just`, `pub-just`, `cargo-rssc`, `jido-kit`, `machfile-cli`, `mdtask-core`, `party-run` and the hulk family members were fetched alongside their main entries.
-- npm: `https://registry.npmjs.org/<pkg>` full documents (description, keywords, repository, latest version date, top-level or latest-version README).
-- crates.io: `https://crates.io/api/v1/crates/<name>` plus `/api/v1/crates/<name>/<version>/readme`, with `--user-agent 'monochromatic-vet-discovery'` and a 1.1 s delay between requests. `cb2`, `cmd-runner` and `runtask` returned 403 for the README (no README uploaded); npm READMEs were empty for `@madinco/smith`, `zet-x` and `violet.ts`.
-- Every README was scanned for workspace, monorepo, subproject, filter, graph, watch, daemon, server, RPC, IPC, socket and MCP terms, and flagged ones were read in context. Descriptions alone decided the rest.
-- READMEs outside the registry, read only where registry text could not decide: GitHub READMEs for `zet-x` and `i-do`, the `yampp` repository root README, npm `@chisel/ease` (the tool behind `ease-task-sass`), and, through `gh api`, the source of `sohaha/zzz` (`cmd/watch.go`, `app/watch/http.go`, `app/root/config.go`) and `dgrijalva/runme` `docs/mcp_design.md`.
-- Component bar used: a long-running process that watches files and also exposes a network, stdio RPC or IPC surface. Tools with a server or MCP but no watching (`meriadoc`, `mdtask`, `@indiekitai/just`, `yarli`, `vibe-queue`, `task-pipeliner`, `emergent-engine`) and tools with watch mode but no interface (`mk`, `tazk`, `flux-core`, `phenotype-forge`, `rsbuild`, `@yampp/yampp`) were counted as mismatches.
-- Words that looked like signals but weren't: "workspace" in `helm-ctrl` (editor), `oxdock` (temp dir), `yarli` (git worktrees) and `cargo-task` (task crates); "RPC" in `run-project-commands` (binary name); "graph" in `faster-build`, `tazk`, `only`, `forger-runner`, `drevo-patmat` and `flux-core` (task graphs, not project graphs).
+- Registry names: 69 entries came with GitHub, GitLab, Codeberg, Gitee, Bitbucket or other non-registry URLs; each was
+- matched to its npm or crates.io name by repository URL against the discovery pass's saved search pages
+- (`data/npm-*.json`, `data/crates-*.json`). `@indiekitai/just`, `pub-just`, `cargo-rssc`, `jido-kit`, `machfile-cli`,
+- `mdtask-core`, `party-run` and the hulk family members were fetched alongside their main entries.
+- npm: `https://registry.npmjs.org/<pkg>` full documents (description, keywords, repository, latest version date,
+- top-level or latest-version README).
+- crates.io: `https://crates.io/api/v1/crates/<name>` plus `/api/v1/crates/<name>/<version>/readme`, with
+- `--user-agent 'monochromatic-vet-discovery'` and a 1.1 s delay between requests. `cb2`, `cmd-runner` and `runtask`
+- returned 403 for the README (no README uploaded); npm READMEs were empty for `@madinco/smith`, `zet-x` and
+- `violet.ts`.
+- Every README was scanned for workspace, monorepo, subproject, filter, graph, watch, daemon, server, RPC, IPC, socket
+- and MCP terms, and flagged ones were read in context. Descriptions alone decided the rest.
+- READMEs outside the registry, read only where registry text could not decide: GitHub READMEs for `zet-x` and `i-do`,
+- the `yampp` repository root README, npm `@chisel/ease` (the tool behind `ease-task-sass`), and, through `gh api`, the
+- source of `sohaha/zzz` (`cmd/watch.go`, `app/watch/http.go`, `app/root/config.go`) and `dgrijalva/runme`
+- `docs/mcp_design.md`.
+- Component bar used: a long-running process that watches files and also exposes a network, stdio RPC or IPC surface.
+- Tools with a server or MCP but no watching (`meriadoc`, `mdtask`, `@indiekitai/just`, `yarli`, `vibe-queue`,
+- `task-pipeliner`, `emergent-engine`) and tools with watch mode but no interface (`mk`, `tazk`, `flux-core`,
+- `phenotype-forge`, `rsbuild`, `@yampp/yampp`) were counted as mismatches.
+- Words that looked like signals but weren't: "workspace" in `helm-ctrl` (editor), `oxdock` (temp dir), `yarli` (git
+- worktrees) and `cargo-task` (task crates); "RPC" in `run-project-commands` (binary name); "graph" in `faster-build`,
+- `tazk`, `only`, `forger-runner`, `drevo-patmat` and `flux-core` (task graphs, not project graphs).
 - No candidate was installed or run, and no browser was used.
 - Scratch scripts and raw fetches: `registry-runners/` (`resolve.ts`, `fetch.ts`, `print.ts`, `show.ts`, `raw/`).

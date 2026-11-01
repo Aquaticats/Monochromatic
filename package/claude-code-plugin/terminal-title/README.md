@@ -75,8 +75,6 @@ Examples:
    `✳ Notified: Permission granted`
 - `ConfigChange`:
    `✳ Updated config: project_settings`
-- `WorktreeCreate`:
-   `✳ Created worktree: bold-oak-a3f2`
 - `WorktreeRemove`:
    `✳ Removed worktree`
 - `PreCompact`:
@@ -128,10 +126,16 @@ Then add the hook to `.claude/settings.local.json`:
     "TeammateIdle": [{ "type": "command", "command": "cctt" }],
     "TaskCompleted": [{ "type": "command", "command": "cctt" }],
     "ConfigChange": [{ "type": "command", "command": "cctt" }],
-    "WorktreeCreate": [{ "type": "command", "command": "cctt" }],
     "WorktreeRemove": [{ "type": "command", "command": "cctt" }],
     "PreCompact": [{ "type": "command", "command": "cctt" }],
     "SessionEnd": [{ "type": "command", "command": "cctt" }]
   }
 }
 ```
+
+Leave `WorktreeCreate` unregistered.
+A command hook on that event replaces Claude Code's worktree creation and must print the new worktree's path;
+`cctt` only sets a title,
+so registering it there makes every worktree-isolated subagent fail to start.
+Evidence:
+`doc/troubleshooting/claude-code-worktree-create-hook-no-path.md`.

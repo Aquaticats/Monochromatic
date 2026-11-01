@@ -1,6 +1,8 @@
 # 2-Week Presentability Plan - Module ES
 
-**Objective**: Make the module/es package immediately presentable for demos/showcases within 2 weeks while avoiding major breaking changes.
+**Objective**:
+Make the module/es package immediately presentable for demos/showcases
+within 2 weeks while avoiding major breaking changes.
 
 **Timeline**: August 16 to August 30, 2025
 

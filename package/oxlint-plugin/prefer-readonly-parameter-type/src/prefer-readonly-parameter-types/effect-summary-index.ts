@@ -14,6 +14,7 @@
  @module
  */
 
+import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 import type { ParameterIndex, } from './effect-slot-identity.ts';
 import type { EffectCallableDeclaration, } from './effect-summary-model.ts';
 
@@ -80,6 +81,17 @@ export type EffectSummaryIndex = {
   readonly proveForeignBorrowed: (
     declaration: EffectCallableDeclaration,
   ) => ReadonlySet<ParameterIndex>;
+  /**
+   Lists the sources with omitted callables that the callable's summary was built from.
+   
+   Separate from the summary because only a consumer applying this index's effects to its own
+   summaries needs it: those summaries outlive the index in a cache, and a restore that never
+   builds the index again can say what a fresh scan said only if the entry recorded it.
+   Covers the declaring source and every source reached from it, each once, sorted by name.
+   */
+  readonly reachedOmissions: (
+    declaration: EffectCallableDeclaration,
+  ) => readonly ExternalOmissionRecord[];
 };
 
 /**

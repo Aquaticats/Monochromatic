@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   MAX_TERMINAL_TITLE_UTF8_BYTES,
   terminalTitleUtf8ByteLength,
@@ -238,6 +238,7 @@ await describe({
         getHandler({ registrations, event: 'before_agent_start', },)(
           {
             type: 'before_agent_start',
+            messageType: 'user',
             prompt: 'Fix\u001Bauth\u0007bug',
             systemPrompt: '',
             systemPromptOptions: {} as never,
@@ -256,6 +257,7 @@ await describe({
         getHandler({ registrations, event: 'before_agent_start', },)(
           {
             type: 'before_agent_start',
+            messageType: 'user',
             prompt: '😀'.repeat(MAX_TERMINAL_TITLE_UTF8_BYTES,),
             systemPrompt: '',
             systemPromptOptions: {} as never,
@@ -264,6 +266,31 @@ await describe({
         );
         expect(terminalTitleUtf8ByteLength(titles[0] ?? '',) <= MAX_TERMINAL_TITLE_UTF8_BYTES,)
           .toBe(true,);
+      },
+    },),
+    it({
+      name: 'skips the prompt title for custom-triggered runs',
+      fn: async function testCustomTriggerSkipsTitle() {
+        const { api, registrations, } = createMockApi();
+        terminalTitle(api,);
+        const { ctx, titles, } = createMockContext();
+        getHandler({ registrations, event: 'before_agent_start', },)(
+          {
+            type: 'before_agent_start',
+            messageType: 'custom',
+            message: {
+              role: 'custom',
+              customType: 'advisor-kickoff',
+              content: 'start review',
+              display: false,
+              timestamp: 0,
+            },
+            systemPrompt: '',
+            systemPromptOptions: {} as never,
+          } as BeforeAgentStartEvent,
+          ctx,
+        );
+        expect(titles,).toStrictEqual([],);
       },
     },),
   ],

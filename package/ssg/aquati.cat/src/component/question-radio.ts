@@ -28,7 +28,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { fingerprint32, } from 'farmhashjs';
 
@@ -123,7 +123,7 @@ function deriveQuestionId(props: QuestionProps,): string {
     parts.push(
       toHtmlString(opt.label,),
       opt.correct
-      === true ? '1' : '0'
+        === true ? '1' : '0'
     );
   }
   return fingerprint32(
@@ -131,8 +131,8 @@ function deriveQuestionId(props: QuestionProps,): string {
   )
     .toString(HEX_RADIX,)
     .padStart(
-      HEX_DIGITS_32,
-      '0',
+    HEX_DIGITS_32,
+    '0',
     );
 }
 
@@ -295,15 +295,15 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
           {
             children: props.options
               .map(function mapOption(
-              opt,
-              idx,
-            ) {
-              return renderOption({
-                qId,
-                idx,
                 opt,
-              },);
-            },),
+                idx,
+              ) {
+                return renderOption({
+                  qId,
+                  idx,
+                  opt,
+                },);
+              },),
           },
         ),
       ],

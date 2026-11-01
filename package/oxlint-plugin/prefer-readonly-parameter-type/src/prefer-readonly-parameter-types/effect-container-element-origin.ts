@@ -7,12 +7,12 @@
 import type {
   Expression,
   Node,
-} from 'typescript/unstable/ast';
-import { isCallExpression, } from 'typescript/unstable/ast/is';
+} from 'typescript/ast';
+import { isCallExpression, } from 'typescript/ast/is';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   bindingDeclarationInitializer,

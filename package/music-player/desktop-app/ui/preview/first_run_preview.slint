@@ -1,0 +1,133 @@
+// Preview windows for the three first-run states, using the exact copy from core/FirstRunState.kt.
+import { Theme } from "../theme.slint";
+import { FirstRunPane } from "../first_run.slint";
+
+// Declined state on the 443 wide cover, dark.
+export component DeclinedCoverDark inherits Window {
+    width: 443px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FirstRunPane {
+        state: 0;
+        title: "The device music library can't be read";
+        body: "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.";
+        primary-label: "Allow access";
+        secondary-labels: ["Open a folder", "Settings"];
+        explanation: "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.";
+    }
+}
+
+// Declined state on the 443 wide cover, light.
+export component DeclinedCoverLight inherits Window {
+    width: 443px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    FirstRunPane {
+        state: 0;
+        title: "The device music library can't be read";
+        body: "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.";
+        primary-label: "Allow access";
+        secondary-labels: ["Open a folder", "Settings"];
+        explanation: "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.";
+    }
+}
+
+// Declined state on the 851 wide inner panel, dark: the left half stays blank (D101).
+export component DeclinedInnerDark inherits Window {
+    width: 851px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FirstRunPane {
+        state: 0;
+        title: "The device music library can't be read";
+        body: "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.";
+        primary-label: "Allow access";
+        secondary-labels: ["Open a folder", "Settings"];
+        explanation: "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.";
+    }
+}
+
+// Declined state in a short window, so the Flickable must scroll; checks that nothing clips.
+export component DeclinedShortDark inherits Window {
+    width: 443px;
+    height: 300px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FirstRunPane {
+        state: 0;
+        title: "The device music library can't be read";
+        body: "It is open as your library, but access to music on this device was not granted. Allow access, or open a folder instead.";
+        primary-label: "Allow access";
+        secondary-labels: ["Open a folder", "Settings"];
+        explanation: "True peak is measured automatically for every audio file. Analysis uses CPU and battery; playback remains available while it runs.";
+    }
+}
+
+// System library with no audio, dark, on the cover.
+export component SystemNoAudioCoverDark inherits Window {
+    width: 443px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FirstRunPane {
+        state: 1;
+        title: "No audio found in the device music library";
+        body: "The device music library was checked completely. You can open a folder that is not listed there.";
+        primary-label: "Open a folder";
+        secondary-labels: ["Settings"];
+        explanation: "";
+    }
+}
+
+// System library with no audio, light, on the cover.
+export component SystemNoAudioCoverLight inherits Window {
+    width: 443px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    FirstRunPane {
+        state: 1;
+        title: "No audio found in the device music library";
+        body: "The device music library was checked completely. You can open a folder that is not listed there.";
+        primary-label: "Open a folder";
+        secondary-labels: ["Settings"];
+        explanation: "";
+    }
+}
+
+// Folder with no audio, dark, on the inner panel with the folder name in the headline.
+export component FolderNoAudioInnerDark inherits Window {
+    width: 851px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    FirstRunPane {
+        state: 2;
+        folder-name: "Cult of Luna";
+        title: "No audio found in Cult of Luna";
+        body: "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.";
+        primary-label: "Open a folder";
+        secondary-labels: ["Settings"];
+        explanation: "";
+    }
+}
+
+// Folder with no audio, light, on the cover.
+export component FolderNoAudioCoverLight inherits Window {
+    width: 443px;
+    height: 620px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    FirstRunPane {
+        state: 2;
+        folder-name: "Cult of Luna";
+        title: "No audio found in Cult of Luna";
+        body: "The chosen folder was checked completely and contains no supported audio files. Opening a different folder changes the music source.";
+        primary-label: "Open a folder";
+        secondary-labels: ["Settings"];
+        explanation: "";
+    }
+}

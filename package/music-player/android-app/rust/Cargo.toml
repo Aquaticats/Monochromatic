@@ -1,13 +1,17 @@
 [package]
 name = "musicplayer-native"
-version = "0.1.0"
+version = "0.1.13"
 edition = "2024"
 publish = false
 
 [lints.clippy]
+complexity = { level = "allow", priority = -1 }
 disallowed_methods = "deny"
 implicit_return = "deny"
 needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
 
 # Standalone crate: this Android package is a Gradle island that no parent cargo
 # workspace owns. An empty [workspace] table pins this crate as its own root, so a
@@ -22,41 +26,28 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Pure-Rust JNI bindings (no C).
-jni = "0.21"
+jni = { workspace = true }
 
-# Cache fingerprint hash (src/fingerprint.rs, exposed to Kotlin over JNI as
-# NativeBridge.nativeFingerprint). gxhash has no JVM/Kotlin port, so the
-# fingerprint that used to be hand-written FNV-1a in pure Kotlin moved into this
-# native crate. Pinned to major 3, matching the desktop crate, so identical
-# (path, size, mtime) input hashes identically on both flavors (gxhash output is
-# stable within a major and across its supported platforms). REQUIRES the `aes`
-# CPU feature with NO software fallback: .cargo/config.toml enables
-# -C target-feature=+aes for the Android target triples, and the arm64 device must
-# carry the ARMv8 crypto extensions (a SIGILL at runtime otherwise). Builds on
-# STABLE Rust (the nightly-only `hybrid` feature is left OFF). See
-# ../../../doc/troubleshooting/gxhash-aes-target-feature.md.
-gxhash = "3"
-
-# libopus via opus-rs HEAD: its opusic-sys backend bundles libopus 1.6.1 and
-# builds it from source with cmake on every platform. Pinned to the same rev as
-# the desktop crate (the CMake 4.x compatibility fix; see that crate's Cargo.toml).
+# libopus via opus-rs 0.4: its opusic-sys backend bundles libopus 1.6.1 and
+# builds it from source with cmake on every platform. The same release as the
+# desktop crate (the CMake 4.x compatibility fix; see that crate's Cargo.toml).
 # This is the one C cross-compile the full-Rust variant must clear for arm64 Android.
-opus = { git = "https://github.com/SpaceManiac/opus-rs", rev = "559876660603dc8079a053e03e6438766f669e69" }
+opus = { workspace = true }
 
 # Pure-Rust demux + decoders for FLAC/WAV/MP3/Vorbis/AAC/ALAC (Opus is handled by
 # the opus crate above). Same version and feature set as the desktop crate; no C,
 # so it cross-compiles for Android with no extra toolchain.
-symphonia = { version = "0.6", features = ["all"] }
+symphonia = { workspace = true, features = ["all"] }
 
 # AAudio output (raw ndk::audio, the chosen output backend): pure-Rust FFI to the
 # NDK audio C API, no C/C++ build; links the sysroot libaaudio via #[link]. The
 # `audio` feature is off by default and pulls api-level-26 (the app targets 35).
-ndk = { version = "0.9", features = ["audio"] }
+ndk = { workspace = true, features = ["audio"] }
 
 # Lock-free SPSC ring buffer between the decode worker (producer) and the AAudio
 # data callback (consumer), so the realtime callback never decodes or allocates.
 # Same major version as the desktop crate, whose engine this one ports.
-ringbuf = "0.4"
+ringbuf = { workspace = true }
 
 # Shared true-peak core: the Catmull-Rom meter and whole-buffer helper (src/truepeak.rs),
 # plus, behind the `service` feature, the persistent decision cache (`DecisionCache`), the
@@ -68,8 +59,11 @@ ringbuf = "0.4"
 # cross-compiles for the Android ABIs; the Stage-0 spike proved arm64-v8a + x86_64 builds
 # and an in-process round-trip to an app-private path) and Tokio transitively; the cache
 # schema, its exact-over-probe precedence, and the gain math all live in the shared crate,
-# so Kotlin no longer owns a JSON peak cache or the gain calculation.
-truepeak-core = { path = "../../truepeak-core", features = ["service"] }
+# so Kotlin no longer owns a JSON peak cache or the gain calculation. The `fingerprint` feature
+# adds the shared `track_fingerprint` (XXH3-64 through `twox-hash`, run-time AVX2/SSE2/NEON
+# selection, no `-C target-feature` flag) behind src/fingerprint.rs, the same function the
+# desktop crate calls. See ../../../doc/decision/music-player-fingerprint-hash.md.
+truepeak-core = { path = "../../truepeak-core", features = ["service", "fingerprint"], version = "=0.2.0" }
 
 # Async runtime for the native true-peak service (src/service.rs): a dedicated thread runs a
 # current-thread Tokio runtime that drives the shared `DecisionCache`'s Turso futures, and the
@@ -78,7 +72,7 @@ truepeak-core = { path = "../../truepeak-core", features = ["service"] }
 # channels), `macros` (`select!` to bias reads ahead of a warming write backlog). NOT
 # `rt-multi-thread`: one actor thread is enough. Tokio is pure Rust, so it cross-compiles for
 # the Android ABIs with nothing extra to clear.
-tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tokio = { workspace = true, features = ["rt", "sync", "macros"] }
 
 # The logging facade, its subscriber, and the Android logcat layer (src/logging.rs). Android
 # stderr never reaches logcat, so tracing events (this crate's and truepeak-core's, now
@@ -86,6 +80,29 @@ tokio = { version = "1", features = ["rt", "sync", "macros"] }
 # once behind a OnceLock. env-filter reads RUST_LOG (default info). paranoid-android reaches
 # logcat through ndk-sys 0.5, which does NOT request `-llog`, so build.rs links liblog; the
 # `api-30` feature is left OFF to keep min SDK 26.
-paranoid-android = "0.2.2"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+paranoid-android = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[profile.release]
+# Size: libmusicplayer_native.so in 0.1.7 was 26.78 MB (arm64-v8a) and 27.61 MB (x86_64) with the default release
+# profile. Measured on 2026-10-22 through the build:native task: stripping symbols gave 19.34 and 21.92 MB, thin LTO
+# on top gave 19.50 and 21.96 MB (no gain), and fat LTO with one codegen unit gave 15.84 and 18.28 MB. The build of
+# both ABIs from scratch took 125 s stripped and 352 s with fat LTO on a 28-core host. `strip = "symbols"` keeps
+# unwind info, so panics behave as before. For a quick edit-and-run loop override the profile per run:
+# CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 (costs size only).
+strip = "symbols"
+lto = "fat"
+codegen-units = 1
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+jni = ">=0.22.4"
+ndk = ">=0.9"
+opus = ">=0.4"
+paranoid-android = ">=0.2.2"
+ringbuf = ">=0.5.3"
+symphonia = ">=0.6.1"
+tokio = ">=1.53.2"
+tracing = ">=0.1.44"
+tracing-subscriber = ">=0.3.23"

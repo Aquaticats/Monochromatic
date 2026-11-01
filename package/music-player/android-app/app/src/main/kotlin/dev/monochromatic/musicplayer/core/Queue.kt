@@ -45,23 +45,23 @@ import kotlin.random.Random
 // no I/O, so it is fully unit-tested. It is a faithful port of the desktop's
 // `queue.rs`.
 //
-// Playback has a SCOPE that it loops over, chosen by the shuffle mode (the
+// Playback has a SCOPE that it walks, chosen by the playback mode (the
 // sibling `PlaybackMode` enum):
 //
 //   - `PlaybackMode.IN_ORDER` and `PlaybackMode.SHUFFLE_PAGE` confine playback to the
 //     current track's PAGE: its top-level folder under the loaded root, or its
 //     A-Z/`#` letter bucket for a root-level track. This is the same grouping the
-//     UI tabs use, computed by the sibling `paginate` function. `OFF` plays the
-//     page in load order; `WITHIN_PAGE` shuffles the page. Either way, reaching
-//     the end of the page loops back to its start.
+//     UI tabs use, computed by the sibling `paginate` function. `IN_ORDER` plays the
+//     page in load order and STOPS after its last track (D2); `SHUFFLE_PAGE` shuffles the
+//     page and starts a new cycle when every track has played. A manual Next at the end
+//     of an In order page wraps to its start.
 //   - `PlaybackMode.SHUFFLE_ALL` scopes playback to the whole queue, shuffled, and loops
 //     the whole queue.
 //
-// "Repeat track" is independent of the shuffle scope: when on, a track that ends
-// NATURALLY replays itself; a manual Next/Prev still moves within the scope.
-// Because `OFF`/`WITHIN_PAGE` are page-confined and always loop the page, there is
-// deliberately NO way to play the whole queue in load order and loop the whole
-// queue; when not shuffling, the user stays inside the current page.
+// `PlaybackMode.REPEAT` replays a track that ends NATURALLY; a manual Next/Prev still
+// moves within the page. Because `IN_ORDER` and `REPEAT` are page-confined, there is
+// deliberately NO way to play the whole queue in load order; when not shuffling,
+// the user stays inside the current page.
 //
 // Portability note (a real Gotcha): the desktop's deterministic shuffle uses a
 // seeded xorshift64 PRNG. That exact cross-language sequence is not portable, so
@@ -128,6 +128,15 @@ class Queue private constructor(private val rng: Random) {
      * source and use.
      */
     private var tracks: List<String> = emptyList()
+
+    /** Relative display paths of [tracks], or null until first asked for or handed over by a library build. */
+    private var cachedPaths: List<String>? = null
+
+    /** Pages of [tracks], or null until first asked for or handed over by a library build. */
+    private var cachedPages: List<Page>? = null
+
+    /** Tab-order page of each load-order index, or null until first asked for or handed over by a build. */
+    private var cachedLookup: IntArray? = null
 
     // What:     `private var order: List<Int> = emptyList()` declares a private,
     //           reassignable read-only list of integers.
@@ -410,7 +419,17 @@ class Queue private constructor(private val rng: Random) {
      * Defines display paths behavior for this music-player component; the TypeScript-oriented notes above
      * explain its call shape and effects.
      */
-    fun displayPaths(): List<String> = relativeDisplayPaths(tracks)
+    fun displayPaths(): List<String> = cachedPaths ?: relativeDisplayPaths(tracks).also { paths -> cachedPaths = paths }
+
+    /** Returns the pages of the tracks, built on first use and kept until the tracks change. */
+    fun pages(): List<Page> = cachedPages ?: paginate(displayPaths()).also { built -> cachedPages = built }
+
+    /** Returns the tab-order page of a load-order index, or null when no page holds it. */
+    private fun pageOf(index: Int): Int? {
+        /** Page table of the tracks, built on first use. */
+        val table: IntArray = cachedLookup ?: pageLookupOf(pages(), tracks.size).also { built -> cachedLookup = built }
+        return table.getOrNull(index)?.takeIf { page -> page >= 0 }
+    }
 
     // What:     `fun currentIndex(): Int? = pos?.let { order[it] }` declares an
     //           instance method returning a NULLABLE `Int?`, expression body. The
@@ -529,12 +548,12 @@ class Queue private constructor(private val rng: Random) {
      * Defines set tracks behavior for this music-player component; the TypeScript-oriented notes above explain
      * its call shape and effects.
      */
-    fun setTracks(newTracks: List<String>) {
+    fun setTracks(newTracks: List<String>, built: BuiltLibrary? = null) {
         /** Pages derived from the prior track set. */
-        val previousPages: List<Page> = paginate(displayPaths())
+        val previousPages: List<Page> = pages()
         /** Prior displayed page position, or null. */
         val previousPage: Int? = pageScope.firstOrNull()?.let { previousIndex ->
-            pageOfIndex(previousPages, previousIndex)
+            pageOf(previousIndex)
         }
         /** Stable prior page identity, or null. */
         val previousPageIdentity: String? = previousPage?.let { page ->
@@ -549,8 +568,11 @@ class Queue private constructor(private val rng: Random) {
         // this.tracks = newTracks;
         // ```
         tracks = newTracks
+        cachedPaths = built?.displayPaths
+        cachedPages = built?.pages
+        cachedLookup = built?.pageOfIndex
         /** Rebuilt pages for resolving the retained displayed page. */
-        val rebuiltPages: List<Page> = paginate(displayPaths())
+        val rebuiltPages: List<Page> = pages()
         /** Identity match, or numeric fallback when prior page was removed. */
         val rebuiltPage: Page? = rebuiltPages
             .firstOrNull { page -> pageIdentity(page) == previousPageIdentity }
@@ -677,9 +699,9 @@ class Queue private constructor(private val rng: Random) {
         if (track >= tracks.size) return null
         if (track !in pageScope) {
             /** Pages rebuilt from the same display paths shown by the UI. */
-            val trackPages: List<Page> = paginate(displayPaths())
+            val trackPages: List<Page> = pages()
             /** Page containing the selected track, or null for a defensive fallback. */
-            val trackPage: Int? = pageOfIndex(trackPages, track)
+            val trackPage: Int? = pageOf(track)
             pageScope = if (trackPage == null) {
                 tracks.indices.toList()
             } else {
@@ -765,11 +787,13 @@ class Queue private constructor(private val rng: Random) {
     //           method taking one `Boolean` parameter `natural` and returning a
     //           nullable `Int?`, block body. `natural` is `true` when a track ended
     //           on its own, `false` when the user pressed Next.
-    // Why:      Move to the next track within the scope, looping to the scope's start
-    //           at the end; a track that ends naturally under "repeat track" replays
-    //           itself instead. Only a natural end honours "repeat track". Returns the
-    //           load-order index of the track to play next, or `null` when the queue
-    //           is empty.
+    // Why:      Move to the next track within the scope. A track that ends naturally
+    //           under Repeat replays itself, and one that ends naturally under In order
+    //           at the scope's last track has nothing to follow it (D2: In order plays
+    //           to the end of the folder and stops). A manual Next wraps to the scope's
+    //           start in every sequential mode. Returns the load-order index of the
+    //           track to play next, or `null` when the queue is empty or In order has
+    //           reached its end (the cursor stays on the last track).
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -784,6 +808,7 @@ class Queue private constructor(private val rng: Random) {
     //   }
     //   const next = position + 1;
     //   if (next < this.order.length) { this.pos = next; return this.order[next]; }
+    //   if (natural && this.mode === PlaybackMode.IN_ORDER) return null; // D2: stop at the end
     //   this.pos = 0; return this.order[0];
     // }
     // ```
@@ -824,11 +849,38 @@ class Queue private constructor(private val rng: Random) {
             if (next < order.size) {
                 pos = next
                 order[next]
+            } else if (natural && mode == PlaybackMode.IN_ORDER) {
+                null
             } else {
                 pos = sequentialStart
                 order[sequentialStart]
             }
         }
+    }
+
+    // What:     `fun rewindScope(): Int?` puts the cursor on the scope's first track and returns
+    //           that track's load-order index, or `null` for an empty scope.
+    // Why:      After In order has played to the end and stopped, the next Play starts the
+    //           folder again from its first track, as a disc player does; a cursor left on the
+    //           last track would end again at once.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // rewindScope(): number | null {
+    //   if (this.order.length === 0) return null;
+    //   this.pos = Math.min(this.sequentialStart, this.order.length - 1);
+    //   return this.order[this.pos];
+    // }
+    // ```
+    /** Moves the cursor to the first track of the scope and returns it, or null when nothing is queued. */
+    fun rewindScope(): Int? {
+        if (order.isEmpty()) {
+            return null
+        }
+        /** Position of the first track the sequential walk repeats. */
+        val first: Int = minOf(sequentialStart, order.size - 1)
+        pos = first
+        return order[first]
     }
 
     // What:     `fun moveCursorTo(scopeIndex: Int): Int? { ... }` declares an instance
@@ -1016,7 +1068,6 @@ class Queue private constructor(private val rng: Random) {
          * Defines names value for this music-player component; the TypeScript-oriented notes above explain its
          * source and use.
          */
-        val names: List<String> = displayPaths()
         // What:     `val pages: List<Page> = paginate(names)` declares a read-only
         //           `List<Page>` local `pages`. `paginate(names)` calls the sibling
         //           package-level function (from `Pagination.kt`) that groups the
@@ -1034,7 +1085,7 @@ class Queue private constructor(private val rng: Random) {
          * Defines pages value for this music-player component; the TypeScript-oriented notes above explain its
          * source and use.
          */
-        val pages: List<Page> = paginate(names)
+        val pages: List<Page> = pages()
         // What:     `val page: Int? = pageOfIndex(pages, anchor)` declares a read-only
         //           NULLABLE `Int?` local `page`. `pageOfIndex(pages, anchor)` is the
         //           sibling function (from `Pagination.kt`) that returns the POSITION
@@ -1050,7 +1101,7 @@ class Queue private constructor(private val rng: Random) {
          * Defines page value for this music-player component; the TypeScript-oriented notes above explain its
          * source and use.
          */
-        val page: Int? = pageOfIndex(pages, anchor)
+        val page: Int? = pageOf(anchor)
         // What:     `return if (page != null) { ... } else { ... }` returns the value
         //           of an IF/ELSE used as an EXPRESSION (it evaluates to one of the
         //           two branch values, like a TS ternary). The condition

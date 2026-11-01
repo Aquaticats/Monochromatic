@@ -1,0 +1,122 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+# Tests load each sibling from its own build, so siblings build first.
+depends = ["//package/translation-repair/adjudication:build:js:node", "//package/translation-repair/artifact:build:js:node", "//package/translation-repair/artifact-pool:build:js:node", "//package/translation-repair/assembly:build:js:node", "//package/translation-repair/corpus-pass:build:js:node", "//package/translation-repair/corpus-source:build:js:node", "//package/translation-repair/document-structure:build:js:node", "//package/translation-repair/glossary:build:js:node", "//package/translation-repair/house-rule:build:js:node", "//package/translation-repair/insertion:build:js:node", "//package/translation-repair/markup:build:js:node", "//package/translation-repair/page-pass:build:js:node", "//package/translation-repair/probe:build:js:node", "//package/translation-repair/provider:build:js:node", "//package/translation-repair/provider-stream:build:js:node", "//package/translation-repair/repair:build:js:node", "//package/translation-repair/run:build:js:node", "//package/translation-repair/shared-contract:build:js:node", "//package/translation-repair/slice-cache:build:js:node", "//package/translation-repair/slice-reading:build:js:node", "//package/translation-repair/stage:build:js:node", "//package/translation-repair/translate-floor:build:js:node", "//package/translation-repair/translate-stage:build:js:node", "//package/translation-repair/typography:build:js:node"]
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."sentinel-probe"]
+description = "Run named corpus entries through the pipeline to validate a change (pass ids after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "sentinel-probe"
+run = "node dist/final/node/sentinel-probe.mjs"
+
+[tasks."displacement-probe"]
+description = "Read per-slice size ratios against each document's own median to find passages the translation moved across a section boundary; SPENDS NO QUOTA"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "displacement-probe"
+run = "node dist/final/node/displacement-probe.mjs"
+
+[tasks."editor-calibrate"]
+description = "Rank every model on the EDITOR's own job by driving the whole repair lane, every roster model editing and judging each slice, and report the refiner standing off the same spend; SPENDS QUOTA (pass a slice count after --, default 6; --candidates <seatable ids> seats those cards as the editors beside the roster's writers in place of the run's named editors, and --candidates-alone seats only them, though the critics, panel, judges and checkers stay the whole roster; TRANSLATION_REPAIR_SLICE_OVERLAP=N runs N slices at once, default 4, and the straggler window is 300000 ms unless TRANSLATION_REPAIR_STRAGGLER_GRACE_MS says otherwise, both decided 2026-08-26)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-calibrate"
+run = "node dist/final/node/editor-calibrate.mjs"
+
+[tasks."editor-width-probe"]
+description = "Run the same slices at the production editor width and at the whole roster, judged by one fixed panel, with the narrow arm repeated as a null band and the two winners contested in both seating orders; SPENDS QUOTA (pass a sample size after --, default 18 halved into two draws)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-width-probe"
+run = "node dist/final/node/editor-width-probe.mjs"
+
+[tasks."translate-probe"]
+description = "PROTOTYPE for the translate-first re-design: ask a translator ensemble to render the corpus section with the worst coverage gap, which the repair loop cannot express"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "translate-probe"
+run = "node dist/final/node/translate-probe.mjs"
+
+[tasks."roster-card"]
+description = "Print the model-cards.ts fragment for one model off a provider's live listing (usage: -- <synthetic|hyper|openrouter|bedrock> <served id>), so seating a model is one card and one list entry; read-only, key never printed"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "roster-card"
+run = "node dist/final/node/roster-card.mjs"
+
+[tasks."reader-measure"]
+description = "Measure a candidate picture reader through OpenRouter (zero data retention) against the readings the pipeline already trusts, by the two-clause reader rule of 2026-09-08, and say whether to lift its openrouter-pictures-unmeasured hold; SPENDS THE OPENROUTER KEY, one ask per matched picture (pass --trusted dir, repeatable, naming a directory holding runs directories, --pictures dir naming the corpus people directory, and optionally --model seat id, default gemma-4-26b-a4b-it, and --sample count, default 9, after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "reader-measure"
+run = "node dist/final/node/reader-measure.mjs"
+
+[tasks."model-health"]
+description = "Ask every roster model one trivial structured question and report what came back, so schema-mismatch can be told apart from a dead model"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "model-health"
+run = "node dist/final/node/model-health.mjs"
+
+[tasks."editor-standing-read"]
+description = "Read the EDITOR and REFINER standings off already-settled artifacts, reported per pipeline digest and never pooled across them; OBSERVATIONAL, so it ranks only models that held a seat and is silent about the rest; SPENDS NOTHING (pass one or more run directories after --, default this run's)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-standing-read"
+run = "node dist/final/node/editor-standing-read.mjs"
+
+[tasks."model-catalog"]
+description = "Compare what the provider serves against the compiled catalog, so a model that vanished stops costing a silent lost voice per call and a model holding no run role becomes visible"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "model-catalog"
+run = "node dist/final/node/model-catalog.mjs"
+
+[tasks."checker-sensitivity"]
+description = "Ask whether the resolution checkers can say no: a genuine fix, an untouched text, and a fix that damaged its slice, cat-themed fixtures only"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "checker-sensitivity"
+run = "node dist/final/node/checker-sensitivity.mjs"
+
+[tasks."producer-calibrate"]
+description = "Run the same corpus slices with every roster model writing and every one judging, then rank producers by the share of disinterested ballots their work drew; SPENDS QUOTA, wants a throwaway TRANSLATION_REPAIR_RUNS_DIR (pass a slice count, then --candidates seatable,ids and --candidates-alone, after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "producer-calibrate"
+run = "node dist/final/node/producer-calibrate.mjs"
+
+[tasks."roster-bench"]
+description = "Run the same corpus slices through the translate lane at every producer-roster width, recording decline, tie, self-vote and cost rates; SPENDS QUOTA, wants a throwaway TRANSLATION_REPAIR_RUNS_DIR (pass a slice count after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "roster-bench"
+run = "node dist/final/node/roster-bench.mjs"
+
+[tasks."window-trial-probe"]
+description = "Judge flagged slices and matched controls three times over ONE slate, narrow, narrow again, then with the neighbouring original, and report whether the window moved the replacement rate further than two narrow runs move it; SPENDS QUOTA, resumes from its ledger, wants a throwaway TRANSLATION_REPAIR_RUNS_DIR"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "window-trial-probe"
+run = "node dist/final/node/window-trial-probe.mjs"

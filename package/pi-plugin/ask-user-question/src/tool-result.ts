@@ -3,7 +3,6 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import {
@@ -14,8 +13,9 @@ import {
   withFileMutationQueue,
   type AgentToolResult,
 } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Constants
 
 /**
@@ -70,12 +70,12 @@ export type AskUserQuestionDetails =
      */
     readonly fullAnswerPath?: string;
   }
-  | {
+    | {
     /**
      User declined or answer helper disappeared.
      */
-    readonly status: 'cancelled';
-  };
+      readonly status: 'cancelled';
+    };
 
 //endregion Types
 
@@ -182,7 +182,7 @@ async function writeRetainedAnswer(
    Unique retained-answer directory.
    */
   const directory = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     RETAINED_ANSWER_PREFIX,
   ),);
   await chmod(

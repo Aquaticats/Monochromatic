@@ -9,7 +9,7 @@ import {
   rm,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 //region Disposable helpers
 
@@ -56,7 +56,7 @@ async function tempDir(
    Temporary directory path created for test.
    */
   const dirPath = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     prefix,
   ),);
 

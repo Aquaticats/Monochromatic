@@ -3,7 +3,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   isAbsolute,
   join,
@@ -13,8 +13,9 @@ import {
 import {
   findRoot,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import spawn from 'nano-spawn';
+import dedent from 'string-dedent';
 
 /**
  Shared dev-only fixtures for the oxlint plugin unit tests.
@@ -59,6 +60,32 @@ export type OxlintRuleDiagnostic = {
    Source file path reported by oxlint.
    */
   readonly filename: string;
+  /**
+   Label spans oxlint attaches to the diagnostic, each locating the offending token.
+   */
+  readonly labels?: readonly {
+    /**
+     Exact source range the label names.
+     */
+    readonly span: {
+      /**
+       UTF-16 offset of the range start in the linted source.
+       */
+      readonly offset: number;
+      /**
+       UTF-16 length of the range.
+       */
+      readonly length: number;
+      /**
+       One-based line of the range start.
+       */
+      readonly line: number;
+      /**
+       One-based column of the range start.
+       */
+      readonly column: number;
+    };
+  }[];
 };
 
 /**
@@ -130,6 +157,13 @@ export type ResolveFixtureTargetParams = {
 };
 
 /**
+ Which fixes an oxlint run writes back to the target file.
+ 
+ `fixes` passes `--fix`; `fixes-and-suggestions` also passes `--fix-suggestions`.
+ */
+export type OxlintFixMode = 'fixes' | 'fixes-and-suggestions';
+
+/**
  Options for running oxlint against a fixture target.
  */
 export type RunOxlintFixtureParams = {
@@ -153,6 +187,15 @@ export type RunOxlintFixtureParams = {
    Optional Oxlint worker count for resource-sensitive plugin tests.
    */
   readonly threads?: number;
+  /**
+   Fixes to write back to the target. When absent the run only lints and leaves the target untouched.
+   */
+  readonly fix?: OxlintFixMode;
+  /**
+   Variables added to the environment of the oxlint process, such as a fault injection loaded through
+   `NODE_OPTIONS`. Absent variables keep the environment of the test process.
+   */
+  readonly environment?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -272,20 +315,87 @@ export function resolveFixtureTarget(params: ResolveFixtureTargetParams,): strin
 }
 
 /**
- Returns stdout stored on nano-spawn errors when oxlint exits non-zero.
- 
+ Text oxlint printed, and the command line that printed it.
+ */
+type OxlintProcessOutput = {
+  /**
+   Command line oxlint was started with, as nano-spawn reports it.
+   */
+  readonly command: string;
+  /**
+   Captured standard output.
+   */
+  readonly stdout: string;
+  /**
+   Captured standard error.
+   */
+  readonly stderr: string;
+};
+
+/**
+ Error thrown when oxlint prints text that is not the JSON the runner asked for.
+
+ Oxlint prints a failure text instead of JSON when it cannot load a plugin or read its config, such as when a
+ plugin's `createOnce` throws, so the message carries the whole output for the reader to act on.
+ */
+export class OxlintOutputParseError extends Error {
+  /**
+   Builds the error from the run that printed the text.
+
+   @param params - target, config and process output of the run, and the JSON parse failure
+
+   @example
+   ```ts
+   new OxlintOutputParseError({ target, fixtureConfig, output, cause });
+   ```
+   */
+  constructor(
+    params: {
+      readonly target: string;
+      readonly fixtureConfig: string;
+      readonly output: OxlintProcessOutput;
+      readonly cause: unknown;
+    },
+  ) {
+    /**
+     Run details the message reports.
+     */
+    const {
+      target,
+      fixtureConfig,
+      output,
+      cause,
+    } = params;
+    super(
+      dedent`
+        oxlint did not print JSON while linting ${target} with the config ${fixtureConfig}.
+        Command: ${output.command}
+        Standard output:
+        ${output.stdout}
+        Standard error:
+        ${output.stderr}
+      `,
+      { cause, },
+    );
+    this.name = 'OxlintOutputParseError';
+  }
+}
+
+/**
+ Returns the output nano-spawn stores on errors when oxlint exits non-zero.
+
  @param error - thrown value from `spawn`
- 
- @returns captured stdout
- 
+
+ @returns captured stdout, with stderr and the command line when nano-spawn stored them
+
  @throws original thrown value when stdout is not available
- 
+
  @example
  ```ts
- const stdout = stdoutFromSpawnError({ error });
+ const output = outputFromSpawnError({ error });
  ```
  */
-function stdoutFromSpawnError({ error, }: { readonly error: unknown; },): string {
+function outputFromSpawnError({ error, }: { readonly error: unknown; },): OxlintProcessOutput {
   if (((typeof error) !== 'object') || (error === null)) {
     throw new Error(
       'oxlint spawn failure did not expose stdout.',
@@ -308,38 +418,102 @@ function stdoutFromSpawnError({ error, }: { readonly error: unknown; },): string
       { cause: error, },
     );
   }
-  return stdout;
+  return {
+    command: ('command' in error) && ((typeof error.command) === 'string') ? error.command : 'oxlint',
+    stdout,
+    stderr: ('stderr' in error) && ((typeof error.stderr) === 'string') ? error.stderr : '',
+  };
 }
 
 /**
  Parses oxlint JSON output into typed diagnostics.
  
- @param stdout - raw `--format json` stdout
+ @param params - target, config and process output of the run
  
  @returns parsed oxlint output
  
+ @throws {@link OxlintOutputParseError} naming the target and config and carrying the stdout, stderr and command
+ when the stdout is not JSON, with the JSON parse failure as `cause`
+ 
  @example
  ```ts
- const output = parseOxlintOutput('{"diagnostics":[]}');
+ const output = parseOxlintOutput({ target, fixtureConfig, output: processOutput });
  ```
  */
-function parseOxlintOutput(stdout: string,): OxlintOutput {
-  /* oxlint-disable typescript/no-unsafe-assignment -- JSON.parse returns unknown JSON; OxlintOutput validates the consumed shape for tests. */
+function parseOxlintOutput(
+  params: {
+    readonly target: string;
+    readonly fixtureConfig: string;
+    readonly output: OxlintProcessOutput;
+  },
+): OxlintOutput {
   /**
-   Parsed oxlint output trusted by fixture tests.
+   Run details the failure message reports.
    */
-  const output: OxlintOutput = JSON.parse(stdout,);
-  /* oxlint-enable typescript/no-unsafe-assignment */
-  return output;
+  const {
+    target,
+    fixtureConfig,
+    output: processOutput,
+  } = params;
+  try {
+    /* oxlint-disable typescript/no-unsafe-assignment -- JSON.parse returns unknown JSON; OxlintOutput validates the consumed shape for tests. */
+    /**
+     Parsed oxlint output trusted by fixture tests.
+     */
+    const output: OxlintOutput = JSON.parse(processOutput.stdout,);
+    /* oxlint-enable typescript/no-unsafe-assignment */
+    return output;
+  }
+  catch (error: unknown) {
+    throw new OxlintOutputParseError({
+      target,
+      fixtureConfig,
+      output: processOutput,
+      cause: error,
+    },);
+  }
+}
+
+/**
+ Returns the oxlint flags that write fixes back to the target.
+ 
+ @param fix - requested fix mode
+ 
+ @returns the flags of the mode
+ 
+ @example
+ ```ts
+ fixFlags('fixes-and-suggestions');
+ ```
+ */
+function fixFlags(fix: OxlintFixMode,): readonly string[] {
+  if (fix === 'fixes')
+    return ['--fix',];
+  return [
+    '--fix',
+    '--fix-suggestions',
+  ];
 }
 
 /**
  Runs oxlint with a fixture config and filters diagnostics to one plugin.
- 
+
+ Oxlint reports a plugin that threw, and a source it could not parse, as a diagnostic with no rule code. Keeping
+ only the diagnostics of one plugin would drop those silently, and a fixture expecting no findings would pass
+ while the plugin crashed, so such a diagnostic fails the run instead.
+
+ A fix run (the `fix` option) rewrites the target and applies the same rule. A plugin that crashes fixes
+ nothing, so a test that reads the target back to show a source was left alone would otherwise pass through
+ the crash.
+
  @param params - oxlint fixture invocation details
- 
- @returns plugin diagnostics sorted exactly as oxlint emitted them
- 
+
+ @returns plugin diagnostics left after the run, sorted exactly as oxlint emitted them
+
+ @throws {@link Error} naming the target and every message when oxlint emitted a diagnostic with no rule code
+
+ @throws {@link OxlintOutputParseError} when oxlint printed text instead of JSON, such as when a plugin failed to load
+
  @example
  ```ts
  await runOxlintFixture({ codePrefix: 'tsdoc(', configFlag: '--config', fixtureConfig, target });
@@ -357,60 +531,93 @@ export async function runOxlintFixture(
     fixtureConfig,
     target,
     threads,
+    fix,
+    environment,
   } = params;
   /**
-   Captures stdout from oxlint whether diagnostics make the process exit non-zero or not.
+   Captures the output of oxlint whether diagnostics make the process exit non-zero or not.
    
-   @returns captured oxlint stdout
+   @returns captured oxlint output
    */
-  async function captureStdout(): Promise<string> {
+  async function captureOutput(): Promise<OxlintProcessOutput> {
     try {
       /**
        Successful oxlint process output.
        */
-      const { stdout, } = await spawn(
+      const result = await spawn(
         'oxlint',
         [
           ...threads === undefined ? [] : [
             '--threads',
             String(threads,),
           ],
+          ...fix === undefined ? [] : fixFlags(fix,),
           '--format',
           'json',
           configFlag,
           fixtureConfig,
           target,
         ],
-        { cwd: OXLINT_PLUGIN_TEST_ROOT, },
+        {
+          cwd: OXLINT_PLUGIN_TEST_ROOT,
+          ...environment === undefined ? {} : { env: environment, },
+        },
       );
-      return stdout;
+      return {
+        command: result.command,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
     }
     catch (error: unknown) {
-      return stdoutFromSpawnError({ error, },);
+      return outputFromSpawnError({ error, },);
     }
   }
 
   /**
    Parsed oxlint JSON output for the fixture run.
    */
-  const output = parseOxlintOutput(await captureStdout(),);
+  const output = parseOxlintOutput({
+    target,
+    fixtureConfig,
+    output: await captureOutput(),
+  },);
   /**
    Diagnostics emitted by oxlint before plugin filtering.
    */
   const { diagnostics, } = output;
   /**
+   Diagnostics oxlint emitted for something other than a rule, such as a plugin that threw.
+   */
+  const runnerFailures = diagnostics
+    .filter(function hasNoRuleCode(diagnostic,): boolean {
+      return (typeof diagnostic.code) !== 'string';
+    },);
+  if (runnerFailures.length > 0) {
+    throw new Error(
+      [
+        `oxlint emitted ${String(runnerFailures.length,)} diagnostic(s) with no rule code while linting ${target},`,
+        'which is how it reports a plugin that threw or a source it could not parse:',
+        ...runnerFailures.map(function describeFailure(diagnostic,): string {
+          return diagnostic.message;
+        },),
+      ]
+        .join('\n',),
+    );
+  }
+  /**
    Diagnostics belonging to the requested plugin only.
    */
   const pluginDiagnostics = diagnostics
     .filter(
-      function keepPluginDiagnostic(
-        diagnostic,
-      ): diagnostic is OxlintRuleDiagnostic {
-        if ((typeof diagnostic.code) !== 'string')
-          return false;
-        return diagnostic.code
-          .startsWith(codePrefix,);
-      },
+    function keepPluginDiagnostic(
+      diagnostic,
+    ): diagnostic is OxlintRuleDiagnostic {
+      if ((typeof diagnostic.code) !== 'string')
+        return false;
+      return diagnostic.code
+        .startsWith(codePrefix,);
+    },
     );
   return pluginDiagnostics;
 }
@@ -442,7 +649,7 @@ export async function createTempFixtureFile(
    Unique temp directory owning this fixture copy.
    */
   const dirPath = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     tempPrefix,
   ),);
   /**

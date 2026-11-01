@@ -76,4 +76,4 @@ export function intFlag(row: {
   return Number.isFinite(parsed,) ? parsed : row.fallback;
 }
 
-export { wait, } from '@monochromatic-dev/module-async-time';
+export { wait, } from '@monochromatic-dev/async-time-core';

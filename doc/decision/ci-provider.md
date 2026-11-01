@@ -8,6 +8,28 @@ the only option kept open is adding GitHub self-hosted runners for ubuntu x86
 if deliberately heavy per-push jobs ever exceed the hosted concurrency budget.
 Non-GitHub providers are rejected below so they do not get re-proposed.
 
+## Superseded in part on 2026-10-18
+
+[The Depot CI adoption decision](depot-ci-adoption.md) replaces the provider decision above for
+this repository.
+The replaced decision is the "stay on GitHub Actions standard hosted runners" choice at lines 4
+to 9,
+including its "no migration is scheduled or anticipated" and "non-GitHub providers are rejected"
+clauses.
+The current decision keeps GitHub-hosted runners as the default executor and the only executor
+for untrusted pull-request source,
+and admits Depot-managed GitHub runners and selected native Depot CI workflows as bounded
+additional capacity under a Developer no-overage baseline and an advisory-only model.
+The original 2026-06-11 measurements and the "Kept open:
+GitHub self-hosted runners" section are
+retained unchanged as history.
+The rejections of OSS-Fuzz,
+GitLab CI,
+Woodpecker CI,
+Forgejo Actions and
+Buildkite remain in force;
+only the Depot replacement is affected by this note.
+
 Measurements in this file were taken on 2026-06-11 from the live repo
 (`gh run list`,
  `git log`) and current GitHub documentation.

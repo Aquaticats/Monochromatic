@@ -1,0 +1,30 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/upstream-fork-conf.fuzz",
+  "description": "Property-based fuzz campaign for module-conf-fork: store operation invariants and a differential oracle against the vendored upstream conf snapshot (83e267178f).",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/upstream-fork-conf": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "atomically": "catalog:",
+    "debounce-fn": "catalog:",
+    "dot-prop": "catalog:",
+    "env-paths": "catalog:",
+    "fast-check": "catalog:",
+    "json-schema-typed": "catalog:",
+    "semver": "catalog:",
+    "typescript": "catalog:",
+    "uint8array-extras": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/conf.fuzz"
+  }
+}

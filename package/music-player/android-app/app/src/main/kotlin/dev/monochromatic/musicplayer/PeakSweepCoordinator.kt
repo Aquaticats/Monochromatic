@@ -112,6 +112,7 @@ import kotlinx.coroutines.withContext
 // import { AtomicInteger } from "java/util/concurrent/atomic"; // JS has no real one (single-threaded)
 // ```
 import java.util.concurrent.atomic.AtomicInteger
+import dev.monochromatic.musicplayer.core.SweepPauseGate
 
 // What:     `suspend fun <T> sweepTracksInParallel(...)` declares the coordinator.
 //           - `suspend` because it awaits the workers and the injected suspend ops.
@@ -135,6 +136,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * positive. Cooperative cancellation of the calling scope stops the workers promptly. Pass
  * [workers] of 1 for a serial sweep. Returns the [SweepTally].
  *
+ * When [pauseGate] is given, every worker passes it before each claim: while it is paused no new track
+ * is claimed (a decode already running finishes), resuming continues the same sweep, and cancelling the
+ * scope while paused ends the workers instead of hanging them. Null means the sweep cannot be paused.
+ *
  * @example
  * ```kotlin
  * val tally = sweepTracksInParallel(
@@ -156,6 +161,7 @@ suspend fun <T> sweepTracksInParallel(
     process: suspend (T) -> SweepOutcome,
     onFlush: suspend () -> Unit,
     onProgress: (Int, Int) -> Unit,
+    pauseGate: SweepPauseGate? = null,
 ): SweepTally {
     // What:     `minOf(items.size, maxTracks)` is the highest index the workers
     //           will claim: the whole list, or the cap, whichever is smaller.
@@ -196,6 +202,11 @@ suspend fun <T> sweepTracksInParallel(
                     //           is drained OR the coroutine is cancelled.
                     // Why:      Promptly abandon work when the service/worker stops.
                     while (isActive) {
+                        // What:     `pauseGate?.awaitResumed()` suspends here while the user has paused the sweep.
+                        // Why:      D84 reads Pause as a temporary pause: no new claim while paused, so a paused
+                        //           worker never holds an index, and the same sweep continues on resume. The wait is
+                        //           cancellable, so a stopped service does not hang on a paused gate.
+                        pauseGate?.awaitResumed()
                         /** This worker's freshly claimed index, or past-the-end when drained. */
                         val index: Int = cursor.getAndIncrement()
                         if (index >= limit) {

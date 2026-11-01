@@ -128,7 +128,6 @@ index.meta
 .serena/memories/
 .serena/project.local.yml
 .serena/.gitignore
-.stylelintcache
 .eslintcache
 .vale
 
@@ -170,6 +169,9 @@ $RECYCLE.BIN/
 *.lnk
 
 # JetBrains, VS Code, and Zed local state
+# .name is the IDE's display name for the checkout, rewritten per worktree
+# and per open (last seen as a newline-only diff), so it is local state too.
+/.idea/.name
 /.idea/modules.xml
 .idea/**/workspace.xml
 .idea/**/tasks.xml
@@ -208,7 +210,7 @@ captures/
 /package-paused/webapp-forge/*/data/
 
 # Package-specific generated files unsafe to generalize
-/package/desktop-daemon/hall-monitor/**/hall-monitor
+/package/hall-monitor/daemon/**/hall-monitor
 /package/kwin/key-helper/key-helper-service
 /package/music-player/android-app/build/
 **/app/build/
@@ -217,8 +219,8 @@ captures/
 
 # Fuzzing scratch corpora; committed seeds live in tracked seeds/<target>/ siblings
 # passed to libFuzzer as a second corpus dir.
-/package/cli/forbidden-strings.fuzz/corpus/
-/package/rust-module/forbidden-regex.fuzz/corpus/
+/package/forbidden-strings/cli.fuzz/corpus/
+/package/forbidden-strings/core.fuzz/corpus/
 
 # cargo-mutants report output (written into the crate dir by the containerized run)
 mutants.out/
@@ -228,3 +230,10 @@ mutants.out.old/
 # stray build artifacts hidden by the blanket `*.js` and `metadata.json` ignores.
 !/packages/kwin/key-helper/kwin-script/contents/code/main.js
 !/packages/kwin/key-helper/kwin-script/metadata.json
+
+# The music player design pages load these Design Component runtime files; they are tracked source, not build
+# output, so a clean clone renders every .dc.html page.
+!/package/music-player/design/support.js
+!/package/music-player/design/candidates/support.js
+!/package/music-player/design/candidates/artists.js
+!/package/music-player/design/candidates/buckets.js

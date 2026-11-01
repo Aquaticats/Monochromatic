@@ -1,0 +1,95 @@
+// Preview windows for the track menu with the seven D7 actions for `Another Xronixle`.
+import { Theme } from "../theme.slint";
+import { TrackMenu, TrackMenuItem } from "../menu.slint";
+
+// Seven actions in Android order. Dividers follow the group changes in TrackMenuPopup.kt (groups 0, 1, 2),
+// so Move to trash has no divider before it because it shares group 2 with Copy filename.
+// Notes: the File details value is the authored `-1.2 dBTP`; the icon indexes match menu.slint.
+
+// Menu on the cover (start inset 0), dark.
+export component MenuCoverDark inherits Window {
+    width: 443px;
+    height: 460px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    TrackMenu {
+        x: 0px;
+        y: 0px;
+        title: "Another Xronixle";
+        start-inset: 0px;
+        items: [
+            { label: "Play", label-before: "", access: "P", label-after: "lay", icon: 0, destructive: false, divider-before: false, value: "" },
+            { label: "Start shuffle from here", label-before: "", access: "S", label-after: "tart shuffle from here", icon: 1, destructive: false, divider-before: false, value: "" },
+            { label: "File details", label-before: "File ", access: "d", label-after: "etails", icon: 2, destructive: false, divider-before: true, value: "-1.2 dBTP" },
+            { label: "Show in file manager", label-before: "Show in ", access: "f", label-after: "ile manager", icon: 3, destructive: false, divider-before: true, value: "" },
+            { label: "Copy filename", label-before: "", access: "C", label-after: "opy filename", icon: 4, destructive: false, divider-before: false, value: "" },
+            { label: "Move to trash", label-before: "", access: "M", label-after: "ove to trash", icon: 5, destructive: true, divider-before: false, value: "" },
+        ];
+    }
+}
+
+// Menu on the cover (start inset 0), light.
+export component MenuCoverLight inherits Window {
+    width: 443px;
+    height: 460px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    TrackMenu {
+        x: 0px;
+        y: 0px;
+        title: "Another Xronixle";
+        start-inset: 0px;
+        items: [
+            { label: "Play", label-before: "", access: "P", label-after: "lay", icon: 0, destructive: false, divider-before: false, value: "" },
+            { label: "Start shuffle from here", label-before: "", access: "S", label-after: "tart shuffle from here", icon: 1, destructive: false, divider-before: false, value: "" },
+            { label: "File details", label-before: "File ", access: "d", label-after: "etails", icon: 2, destructive: false, divider-before: true, value: "-1.2 dBTP" },
+            { label: "Show in file manager", label-before: "Show in ", access: "f", label-after: "ile manager", icon: 3, destructive: false, divider-before: true, value: "" },
+            { label: "Copy filename", label-before: "", access: "C", label-after: "opy filename", icon: 4, destructive: false, divider-before: false, value: "" },
+            { label: "Move to trash", label-before: "", access: "M", label-after: "ove to trash", icon: 5, destructive: true, divider-before: false, value: "" },
+        ];
+    }
+}
+
+// Menu on the inner panel (start inset 12), dark, on the 851 wide panel.
+export component MenuInnerDark inherits Window {
+    width: 851px;
+    height: 460px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 2; }
+    TrackMenu {
+        x: 480px;
+        y: 0px;
+        title: "Another Xronixle";
+        start-inset: 12px;
+        items: [
+            { label: "Play", label-before: "", access: "P", label-after: "lay", icon: 0, destructive: false, divider-before: false, value: "" },
+            { label: "Start shuffle from here", label-before: "", access: "S", label-after: "tart shuffle from here", icon: 1, destructive: false, divider-before: false, value: "" },
+            { label: "File details", label-before: "File ", access: "d", label-after: "etails", icon: 2, destructive: false, divider-before: true, value: "-1.2 dBTP" },
+            { label: "Show in file manager", label-before: "Show in ", access: "f", label-after: "ile manager", icon: 3, destructive: false, divider-before: true, value: "" },
+            { label: "Copy filename", label-before: "", access: "C", label-after: "opy filename", icon: 4, destructive: false, divider-before: false, value: "" },
+            { label: "Move to trash", label-before: "", access: "M", label-after: "ove to trash", icon: 5, destructive: true, divider-before: false, value: "" },
+        ];
+    }
+}
+
+// Menu on the inner panel (start inset 12), light.
+export component MenuInnerLight inherits Window {
+    width: 851px;
+    height: 460px;
+    background: Theme.canvas;
+    init => { Theme.scheme-override = 1; }
+    TrackMenu {
+        x: 480px;
+        y: 0px;
+        title: "Another Xronixle";
+        start-inset: 12px;
+        items: [
+            { label: "Play", label-before: "", access: "P", label-after: "lay", icon: 0, destructive: false, divider-before: false, value: "" },
+            { label: "Start shuffle from here", label-before: "", access: "S", label-after: "tart shuffle from here", icon: 1, destructive: false, divider-before: false, value: "" },
+            { label: "File details", label-before: "File ", access: "d", label-after: "etails", icon: 2, destructive: false, divider-before: true, value: "-1.2 dBTP" },
+            { label: "Show in file manager", label-before: "Show in ", access: "f", label-after: "ile manager", icon: 3, destructive: false, divider-before: true, value: "" },
+            { label: "Copy filename", label-before: "", access: "C", label-after: "opy filename", icon: 4, destructive: false, divider-before: false, value: "" },
+            { label: "Move to trash", label-before: "", access: "M", label-after: "ove to trash", icon: 5, destructive: true, divider-before: false, value: "" },
+        ];
+    }
+}

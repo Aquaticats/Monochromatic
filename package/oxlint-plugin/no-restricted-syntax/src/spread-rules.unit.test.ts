@@ -4,31 +4,36 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
 } from 'node:path';
+import { pathToFileURL, } from 'node:url';
 
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   fixtureConfigPath,
   fixtureSourceRoot,
   type OxlintRuleDiagnostic,
-  OXLINT_PLUGIN_TEST_ROOT as ROOT,
   resolveFixtureTarget,
   runOxlintFixture,
 } from '@monochromatic-dev/oxlint-plugin-test-support/ts';
-import spawn from 'nano-spawn';
 
 //region Helpers
 
 /** Spread and copy rules covered by this file. */
 type SpreadRule = 'no-useless-spread' | 'prefer-spread';
+
+/** Fault injection that makes every native TypeScript spawn fail as an out-of-memory spawn does. */
+const REFUSE_NATIVE_SPAWN = pathToFileURL(resolve(
+  import.meta.dirname,
+  'refuse-native-api-spawn.test-fixture.ts',
+),).href;
 
 /** Fixture source root. */
 const FIXTURES = fixtureSourceRoot({
@@ -169,7 +174,7 @@ function scratchSource(
 ): ScratchSource {
   /** Unique temp directory. */
   const dirPath = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'oxlint-spread-rules-',
   ),);
   /** Source file path. */
@@ -213,6 +218,7 @@ function scratchSource(
 
 /**
  Runs `oxlint --fix` with one rule on scratch source and returns the fixed text.
+ A plugin that crashes during the run fails it, so the text is never an untouched file read back after a crash.
 
  @example
  ```ts
@@ -224,34 +230,26 @@ async function fixedSource(
     rule,
     source,
     typed,
+    refuseSpawn = false,
   }: {
     readonly rule: SpreadRule;
     readonly source: string;
     readonly typed: boolean;
+    readonly refuseSpawn?: boolean;
   },
 ): Promise<string> {
   using scratch = scratchSource({
     source,
     typed,
   },);
-  try {
-    await spawn(
-      'oxlint',
-      [
-        '--fix',
-        '--format',
-        'json',
-        '-c',
-        ruleConfig(rule,),
-        scratch.filePath,
-      ],
-      { cwd: ROOT, },
-    );
-  }
-  catch (error: unknown) {
-    if ((!((typeof error) === 'object')) || (error === null) || (!('stdout' in error)))
-      throw error;
-  }
+  await runOxlintFixture({
+    codePrefix: 'no-restricted-syntax(',
+    configFlag: '-c',
+    fixtureConfig: ruleConfig(rule,),
+    target: scratch.filePath,
+    fix: 'fixes',
+    ...refuseSpawn ? { environment: { NODE_OPTIONS: `--import=${REFUSE_NATIVE_SPAWN}`, }, } : {},
+  },);
   return readFileSync(
     scratch.filePath,
     'utf8',
@@ -386,6 +384,26 @@ await describe({
           },
         },),
         it({
+          name: 'fails the fix run, not reading the issue 563 source back as untouched, when the TypeScript bridge cannot start',
+          fn: async () => {
+            /** Failure of the fix run, which stays undefined when the run reads the untouched file back. */
+            let caught: unknown;
+            try {
+              await fixedSource({
+                rule: 'no-useless-spread',
+                source: ISSUE_563_SOURCE,
+                typed: true,
+                refuseSpawn: true,
+              },);
+            }
+            catch (error: unknown) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect(String(caught,),).toContain('spawn ENOMEM',);
+          },
+        },),
+        it({
           name: 'fixes certain copies, literal spreads, and iterable consumers',
           fn: async () => {
             /** Source whose every spread is provably removable. */
@@ -490,6 +508,26 @@ await describe({
               typed: false,
             },),)
               .toBe(ISSUE_565_SOURCE,);
+          },
+        },),
+        it({
+          name: 'fails the fix run, not reading the issue 565 source back as untouched, when the TypeScript bridge cannot start',
+          fn: async () => {
+            /** Failure of the fix run, which stays undefined when the run reads the untouched file back. */
+            let caught: unknown;
+            try {
+              await fixedSource({
+                rule: 'prefer-spread',
+                source: ISSUE_565_SOURCE,
+                typed: true,
+                refuseSpawn: true,
+              },);
+            }
+            catch (error: unknown) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect(String(caught,),).toContain('spawn ENOMEM',);
           },
         },),
         it({

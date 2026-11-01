@@ -11,7 +11,7 @@ pCloud API are out of scope;
  the binary-bundling and on-device-server mechanics are assessed
 because they are stack concerns.
  The repo already ships Slint + Rust for two desktop apps
-(package/desktop-app/terminal,
+(package/terminal/app,
  package/music-player/desktop-app),
  pinned to a slint git rev;
 this vet covers the NEW part:

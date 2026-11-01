@@ -81,9 +81,9 @@ type GoalSettlementReviewer = (
  */
 type GoalSettlementDisposition =
   | 'approved'
-  | 'continued'
-  | 'review_unavailable'
-  | 'stale';
+    | 'continued'
+    | 'review_unavailable'
+    | 'stale';
 
 export type {
   GoalReviewerCandidate,

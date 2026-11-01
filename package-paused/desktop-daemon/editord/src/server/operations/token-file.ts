@@ -23,7 +23,7 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -56,7 +56,7 @@ const TOUCH_INTERVAL_MS = 1_000;
  */
 function tokenFilePath({ port, }: { readonly port: number; },): string {
   return join(
-    tmpdir(),
+    scratchRoot(),
     `editord-${String(port,)}.token`,
   );
 }

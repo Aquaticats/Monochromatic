@@ -133,7 +133,7 @@ data-only gate doing its job:
 Four offers are new,
  and each was checked rather than assumed.
  `navigate` and
-`findRegressions` in `module/toml-edit`,
+`findRegressions` in `toml-edit/core`,
  `collectIgnoredKeys` in `pi-plugin/search-fetch`,
 and `parseCodexRateLimitSnapshots` in `pi-plugin/statusline` all read their parameter and
 never write through it,

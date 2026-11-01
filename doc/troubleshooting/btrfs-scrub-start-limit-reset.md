@@ -51,7 +51,8 @@ for (i = 0; i < fi_args.num_devices; ++i) {
 On a single-device filesystem,
 the saved value returns immediately while the kernel scrub continues.
 On a multi-device filesystem,
-the first value returns before the first join while later devices retain the temporary value until preceding joins finish.
+the first value returns before the first join
+while later devices retain the temporary value until preceding joins finish.
 Without `--limit`,
 that temporary value is zero.
 
@@ -166,7 +167,8 @@ Tradeoffs:
 
 - The live command changes persistent-in-mount sysfs state rather than tying restoration to one scrub invocation.
 - Record every previous device value and restore it explicitly after scrub completion.
-- A process that exits before restoration can leave the live limit active until it is changed or the filesystem unmounts.
+- A process that exits before restoration can leave the live limit active
+  until it is changed or the filesystem unmounts.
 
 The production scrub used this workaround.
 It checked 1.42 TiB in 3:28:01 and reported no errors.

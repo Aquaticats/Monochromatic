@@ -11,7 +11,7 @@ import type {
   ImportSpecifier,
   NamespaceImport,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isIdentifier,
   isImportClause,
@@ -21,11 +21,11 @@ import {
   isPropertyAccessExpression,
   isSourceFile,
   isStringLiteral,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Sentinel when call lacks exact package import identity.
@@ -202,8 +202,8 @@ export function packageCallIdentity({
           .propertyName
           ?.text
           ?? imported.binding
-          .name
-          .text,
+            .name
+            .text,
         memberPath: [],
       };
     }
@@ -253,8 +253,8 @@ export function packageCallIdentity({
         .propertyName
         ?.text
         ?? imported.binding
-        .name
-        .text,
+          .name
+          .text,
       memberPath: [call.expression
         .name
         .text,],

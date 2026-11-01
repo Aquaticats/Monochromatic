@@ -134,7 +134,6 @@
 			// "vue.volar",
 
       "oxc.oxc-vscode",
-      "stylelint.vscode-stylelint",
       "astro-build.astro-vscode",
 			"html-validate.vscode-html-validate",
 		],

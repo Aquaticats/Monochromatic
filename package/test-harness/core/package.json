@@ -1,0 +1,48 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/test-harness-core",
+  "description": "Test harness with Jest-style expect over chai, sinon sandbox with dispose, and concurrent describe/it runner.",
+  "type": "module",
+  "version": "0.0.2",
+  "private": false,
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "node": "./dist/final/node/index.mjs",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/numeric-format-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core-diagnostic": "workspace:*",
+    "@monochromatic-dev/test-harness-core-expect": "workspace:*",
+    "@monochromatic-dev/test-harness-core-sandbox": "workspace:*",
+    "chai": "catalog:",
+    "expect-type": "catalog:",
+    "chai-as-promised": "catalog:",
+    "p-limit": "catalog:",
+    "@types/sinon": "catalog:",
+    "sinon": "catalog:",
+    "sinon-chai": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/sinon-chai": "catalog:",
+    "typescript": "catalog:"
+  }
+}

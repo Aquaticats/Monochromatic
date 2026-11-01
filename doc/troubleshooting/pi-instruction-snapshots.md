@@ -1,5 +1,218 @@
 # Pi 0.87.1 and 1.0.0 instruction snapshots can miss later prompt transformations
 
+## Pi 1.2.0 complete workspace assessments exceeded single-request construction on 2026-10-15
+
+After capture ceilings were removed,
+the configured workspace still failed tool preparation with
+`Clause relation requires one through 256 original instruction candidates`.
+The emitting owner was
+`package/pi-plugin/auto-mode/native/contract/collector/program-rule-batch-sdk-copy-v2/input/instruction-batches.ts`.
+Process-local controls measured 615 instruction candidates,
+617 total questions,
+and 7420722 bytes in the internal selection request.
+That byte count is not a model token count or live heap measurement.
+
+The evaluator selected every original candidate into one complete logical assessment,
+but the transport encoded that assessment as a single provider request.
+The provider's [Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+documents at most 200 questions per request.
+The workspace was not invalid;
+the construction and transport layers had conflated a complete assessment with one request.
+Other owned checks also rejected aggregate claims,
+wire bytes,
+and complete retained answers at fixture-derived thresholds.
+
+The user authorized three sequential bundles of at most three parallel calls on 2026-10-15.
+Initially only the average USD 0.001 per judgment cost limit was removed.
+The user subsequently raised the preparation-inclusive deadline to 15 seconds on the same date.
+The unverified size-triggered manual fallback in `8fe7e33410` was withdrawn by `95bd6db768`.
+
+The maintained sender now partitions original question names without changing shared context,
+then merges only complete attributed responses.
+The native judgment owns bundle and call counters across dispatches and eligible retries.
+Sibling failures cancel outstanding transport work;
+partial answers cannot authorize execution.
+Saved dispatch capabilities cannot enter later dispatches.
+
+The configured native CLI passed Allow execution and prohibition,
+denial,
+Stop,
+dismissal,
+abort,
+generic prerequisite,
+and bare-policy controls with the full copied repository instructions and configured skills.
+Its requests contained 200, 200, 200, and 17 questions across two bundles.
+These are network-isolated fixtures with authored model replies,
+not live-provider latency measurements.
+
+A subsequent real-service replay of those exact request bodies expired at five seconds.
+The first bundle dispatched 2566713, 2690737, and 4538472 bytes;
+no response headers arrived before cancellation,
+and the remaining request was not sent.
+Every request contains the same 2152170-byte shared state.
+The largest retained source is a 592915-byte `message_end` receipt collection;
+the corresponding selected-rule question repeats that collection.
+This establishes a remaining live-use failure,
+not proof that payload size alone caused the timeout.
+The configured offline successes must not be described as full live functionality.
+
+After the deadline increase,
+the unchanged third request returned HTTP 400 with `context_length_exceeded`,
+`type: invalid_request_error`, and `param: input`.
+Its exact response message was
+`Your input exceeds the context window of this model. Please adjust your input and try again.`
+The response supplied no token count or effective serving limit.
+The [Luna model page](https://developers.openai.com/api/docs/models/gpt-6-luna)
+documents a 1050000-token context window;
+request bytes are not a token measurement.
+
+The user identified the more fundamental regression:
+the legacy context selector sends a recent visible-message window,
+not every captured source receipt on every decision.
+`src/visible-context.ts` selects the larger of five latest visible messages and the latest-user span.
+`src/context.ts` obtains Pi's compaction-aware projection;
+`src/judge-messages.ts` supplies loaded project files separately.
+The native `wire.mjs` instead serializes the complete governing-source collection,
+and `wire-clause.mjs` repeats selected source text in question instructions.
+The restored assessment scope must be verified before declaring the native repair complete.
+Scratch-only byte-sharing experiments are not a replacement for that requirement.
+
+`mise run //package/pi-plugin/auto-mode:test:assessment-bundles`
+exercises the built sender with the actual built judgment owner.
+The test proves three parallel starts before releasing the first bundle,
+complete answer identity,
+provider-boundary counts,
+cancellation,
+malformed-response rejection,
+and ownership retirement.
+Removing the three-bundle guard through a process-local import hook makes the fourth-bundle test fail
+with `Expected original budget operation to reject`;
+the unmodified built consumer passes.
+
+This was an owned integration defect;
+no upstream Pi issue or patch was filed.
+
+## Pi 1.2.0 native prompt submission rejected by owned capture ceilings on 2026-10-15
+
+### Symptom and root cause
+
+The user restarted the native Pi host and submitted a prompt with bypass off.
+The owned `RunPromptCustodyError` displayed
+`Native run prompt derivation is incomplete or no longer current`.
+The nested deciding error was
+`Original callback option input exceeds the source byte bound`.
+This was an auto-mode integration defect, not a Pi token limit or provider budget.
+
+At pre-repair commit `5ccee1f7b7`,
+`package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody-v3/handler-option-inputs.mjs:16`
+applied a single-text fixture limit to a complete serialized callback-option bundle:
+
+```javascript
+// package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody-v3/handler-option-inputs.mjs:16 at 5ccee1f7b7
+if(Buffer.byteLength(content)>65_536)throw new SourceCollectionError('Original callback option input exceeds the source byte bound');
+```
+
+The configured CLI fixture measured 83938 bytes at that boundary.
+The tool-loadout source then measured 113905 bytes at another 65536-byte limit.
+Process-local controls exposed further rejection of a 2850095-byte linked snapshot at one MiB,
+then a follow-up run at 5282773 bytes against four MiB.
+With user/project skills,
+the shared receipt check failed with 13 resource receipts occupying 158177 bytes
+and 110 session receipts occupying 4298044 bytes.
+These are repeated serialized evidence bytes, not heap measurements.
+
+The first functionality claim was unsupported:
+its CLI smoke test used a minimal policy and only `codemode,read`.
+That fixture could pass while the configured workspace and follow-up prompt failed.
+Raising one threshold at a time moved the failure to another owned threshold.
+
+### Repair and verification
+
+The user explicitly accepted removal of arbitrary capture size/count ceilings on 2026-10-15.
+The repaired capture paths retain complete text, metadata, source lists and clause indexes.
+They retain ownership, freshness, cancellation and descriptor validation.
+The generic diagnostic now includes the deciding nested error message.
+
+The metadata copier replaces incidental depth-based cycle rejection with explicit ancestor tracking at
+`package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody/messages.mjs:60`:
+
+```javascript
+// package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody/messages.mjs:60
+if(active.has(value))throw new SourceCollectionError('Tool metadata contains a cycle');
+active.add(value);
+pending.push({leave:true,value});
+```
+
+The work stack removes an object from `active` after its descendants finish.
+Shared metadata can therefore occur in separate branches;
+message aliases retain their separate rejection rule.
+Receipt counter validation now checks exact numeric representation at
+`package/pi-plugin/auto-mode/src/input-receipt-budget.ts:161`:
+
+```typescript
+// package/pi-plugin/auto-mode/src/input-receipt-budget.ts:161
+if ((!Number.isSafeInteger(resourceUsage.count + sessionUsage.count,))
+  || (!Number.isSafeInteger(resourceUsage.bytes + sessionUsage.bytes,))) {
+```
+
+Run the built consumer controls from the repository root:
+
+```bash
+# Repository root
+mise run //package/pi-plugin/auto-mode:build
+mise run //package/pi-plugin/auto-mode:test:native:prompt-capacity
+mise run //package/pi-plugin/auto-mode:test:native:resource-input
+mise run //package/pi-plugin/auto-mode:test:native:event-receipts
+mise run //package/pi-plugin/auto-mode:test:native:governing-bindings
+```
+
+The original prompt regression was committed red in `49b0dd1b08`.
+The repaired built tests pass complete initial/follow-up prompts,
+text and lists beyond the former ceilings,
+a 10000-level data tree,
+shared metadata,
+event histories beyond 128 receipts,
+and source indexes beyond 512 clauses.
+Negative controls still reject cycles, message aliases, unsupported values,
+proxy records, accessors, stale sources and duplicate source occurrences.
+Type checking passes.
+
+The installed CLI also completed initial and follow-up prompts with bypass off,
+the copied repository instructions,
+the actual configured packages,
+default tools,
+and user/project skills.
+The private `capture-removal-repro` task under
+`${HOME}/temp/agent/pi-tool-call-scope-20261014` uses a disposable home,
+read-only package mounts,
+network isolation and local provider responses.
+It applies no capacity overrides.
+This establishes offline prompt handling, not live-provider or physical-terminal behavior.
+
+### Tradeoffs and rejected approaches
+
+Complete capture can retain more memory than the former failing fixture profile.
+Arbitrary serialized-byte ceilings did not establish a total-memory guarantee.
+Provider/request constraints and executable-program admission remain separate.
+Run owners retain original scopes through their session history;
+session/resource pools retain original receipt publications and owned copies.
+No source is silently truncated or dropped to satisfy a fixture threshold.
+
+Repeated threshold increases were rejected because the next independent threshold failed.
+The standard SDK with the legacy extension completed the same prompt control,
+but was not installed as a rollback or treated as proof of tool-guard correctness.
+
+### Upstream filing decision
+
+No upstream issue or draft is appropriate.
+This incident's deciding checks are owned repository code.
+Upstream fault is disproved by the source trace;
+fixability, supported upstream use, contribution policy and maintainer willingness
+are not gates for this local repair.
+The tested fix is the owned consumer patch, not an upstream prototype.
+The existing upstream tracker discussion concerns instruction visibility,
+not these repository-added capture ceilings.
+
 ## Symptom and relevance
 
 An authorization consumer that copies project context during its `before_agent_start` handler
@@ -474,13 +687,15 @@ request-local,
 and payload markers.
 Own entries matched their persisted JSON values;
 this was not raw-object identity or byte-for-byte serialization equality.
-The existing collector's `assertObservedFresh()` passed on its observed surfaces even when later payload content differed.
+The existing collector's `assertObservedFresh()` passed on its observed surfaces
+even when later payload content differed.
 It correctly retained `run-producer-inventory`,
 `final-request-transformations`,
 and `provider-native-payload` as unqualified gaps.
 Its freshness check was never a claim of terminal-request completeness.
 
-A separate disposable guard-removal pair passed with the validator intact and failed when the mismatch check was removed.
+A separate disposable guard-removal pair passed with the validator intact
+and failed when the mismatch check was removed.
 Unexpected setup,
 SDK,
 retention,
@@ -744,7 +959,8 @@ and persisted-fork paths replaced both the `AgentSession` and manager.
 An in-memory fork replaced the `AgentSession` but reused its manager.
 Without explicit invalidation,
 that old receipt was rejected by the stale extension-context check rather than by manager identity.
-The SDK extension runner emitted its existing `This extension ctx is stale after session replacement or reload` diagnostic.
+The SDK extension runner emitted its existing
+`This extension ctx is stale after session replacement or reload` diagnostic.
 Manager identity alone did not explain that rejection.
 
 In the tested replacement paths,
@@ -868,6 +1084,1142 @@ arbitrary extension payloads,
 raw own-state protection,
 or complete mutation custody.
 The installed SDK remained unchanged.
+
+### Private fields isolate data but leave method routes open
+
+`contract/lifecycle/manager-private-fields/` passed `proc_50e1`:
+58 declared observations using four owned native managers,
+no SDK sessions or model requests.
+The experiment converted the pinned copy variant's 11 state fields to JavaScript private fields.
+All state fields disappeared from ordinary own-property enumeration.
+Public writes to ten tested field names no longer changed canonical read results,
+unlike the copy-only baseline.
+
+The persistent `flushed` flag had a separate positive control.
+Setting the baseline's public flag to false caused exact `EEXIST` at its owned session path:
+the memory entry had been appended,
+but the old file bytes remained.
+The private-field variant ignored the public shadow and persisted the new append.
+The failed baseline fixture was not reused.
+
+Private fields did not close method custody:
+
+-   Cached and prototype `branch` calls still moved/restored the leaf without the selected instance hook.
+-   An own getter override still spoofed ordinary `getSessionId()` calls.
+    A captured prototype getter returned the actual ID.
+-   The compiled public `_loadEntries` method still replaced/restored graph content in both variants.
+
+The result catalogs unexercised methods rather than claiming whole-module compatibility.
+The follow-up `manager-private-fields-sdk/` passed `proc_809e`:
+two changed-variant SDK sessions,
+four injected requests,
+one inert execution,
+and no external model requests.
+It reused the pinned prior probe logic with only the variant schedule and aggregate counts changed.
+Measured consumer outcomes matched the retained copy-boundary baseline without replaying unchanged sessions.
+
+Data isolation and those selected consumers are now qualified within their stated profiles.
+A native lifecycle occurrence and protected method surface are not implemented or qualified.
+The proposed next structural work is recorded in
+[the private SDK custody proposal](../planning/pi-auto-mode-sdk-state-custody.md),
+now accepted for private prototyping only,
+not deployment.
+
+### Intrinsic native occurrences and protected methods
+
+The accepted private SDK custody prototype lives in `contract/lifecycle/sdk-custody-native/`.
+It adds opaque root occurrences,
+protects the instance/prototype/constructor method slots,
+and makes low-level writers private.
+The installed declaration exposes `_persist` publicly;
+removing that writer is a deliberate interface change for this controlled prototype,
+not arbitrary SDK-caller compatibility.
+
+The first run,
+`proc_b8f3`,
+completed its native workers but failed independent verification.
+Node `assert/strict` emitted `AssertionError [ERR_ASSERTION]` because the mutable-instance worker's message
+did not match the predeclared method-assignment witness.
+Its retained stack points to `sdk-custody-native/check.mjs:35:12`,
+the public `leafId` shadow assertion.
+The original failure and source remain intact.
+
+`proc_04d7` then exercised four fresh paired controls.
+The retained frozen prototype rejected ordinary method assignment in both variants.
+Only the unfrozen instance admitted an own getter through `Reflect.defineProperty` and returned its spoofed value.
+The intact instance rejected that definition.
+This corrects the authored test assumption;
+it is not an upstream defect claim.
+
+`proc_2023` reconciled the retained workers with the specific stack/source witness and that supplement,
+without replaying the native matrix.
+It admitted 24 intact native-manager cases and 12 independent guard-removal outcomes.
+Cached/prototype navigation changed the native occurrence;
+returning to the old leaf did not revive it.
+The append family preserved its lifecycle occurrence.
+A fault immediately before the branch write retained the original error and old leaf,
+while the occurrence had already changed.
+Separate omissions exercised each structural marker site.
+
+No SDK agent session or external model request ran in this native-manager phase.
+The stronger protected-method variant then passed selected actual SDK consumers in `proc_51fd`:
+two completed sessions,
+four injected requests,
+one inert execution,
+no external model calls.
+Its measured message/context-edit outcomes matched retained baseline records.
+This does not establish every SDK caller's compatibility.
+
+Independent source review found separate registry-integration defects:
+a callback could invalidate a root after its last freshness check,
+and a replacement-reader failure could occur after transition finalization.
+`proc_f13e` reproduced nine failing controls on the preserved draft.
+The remedy validates after callbacks,
+prepares fallible replacement observations before finalization,
+and publishes commit/cancellation state without further callbacks.
+Failed preparation keeps transition cleanup available;
+an unreturned begin handle is cleaned up internally.
+
+`proc_9258` passed 24 retained legacy cases,
+17 native-reader protocol cases,
+nine callback/publication cases,
+and 11 independent guard-removal variants.
+These use constructor-owned doubles,
+not actual SDK roots.
+The actual binding in `root-lifecycle-intrinsic-sdk/` then passed `proc_2e77`:
+six completed SDK sessions,
+six injected requests,
+no tool execution,
+and no external model calls.
+No instance mutator hook was installed.
+
+No-op and cancelled navigation resumed the original receipt.
+Managed navigation,
+a native pre-write failure,
+and cached/prototype calls retired old receipts;
+restoring the original leaf did not revive them.
+The exact native failure survived with unchanged leaf/entry values.
+Five refused stream attempts stopped during suspension before request generation advanced.
+
+This qualifies the tested native-manager occurrence,
+registry,
+and request-observer integration.
+It does not establish all `AgentSession` or runtime-state custody,
+instruction authority,
+current human permission,
+or production integration.
+Session/runtime replacement and other state writers remain separate custody work.
+
+### Direct session disposal is not a manager occurrence change
+
+The focused follow-up `session-disposal-intake/` passed its diagnostic checks in `proc_7f17`:
+one owned SDK session,
+one injected request,
+one disposal,
+and no tools or external model calls.
+This is a measured gap,
+not a safety pass.
+
+The manager-backed lifecycle lease and full request receipt were both active in an owned abort hook
+before the SDK invalidated its extension context.
+After disposal,
+the manager occurrence and entry JSON were unchanged.
+Lifecycle-only assertion and a new lifecycle capture still succeeded.
+The full request observer rejected,
+with Pi SDK 1.0.0 `ExtensionRunner.assertActive` emitting a plain `Error` whose message begins
+`This extension ctx is stale after session replacement or reload.`
+The collector propagated that SDK error;
+it was not a `SourceCollectionError` fingerprint mismatch.
+
+The abort portion of `AgentSession.dispose()` is explicit in `dist/core/agent-session.js:977`:
+
+```js
+// Installed SDK: dist/core/agent-session.js, disposal entry excerpt.
+dispose() {
+    try {
+        this.abortRetry();
+        this.abortCompaction();
+        this.abortBranchSummary();
+        this.abortBash();
+        this.agent.abort();
+    }
+    catch {
+        // Dispose must succeed even if an abort hook throws.
+    }
+```
+
+The immediately following statement at line 988 begins with this call,
+using the retained stale-context diagnostic:
+
+```js
+// Installed SDK: dist/core/agent-session.js, next statement's prefix.
+this._extensionRunner.invalidate(
+```
+
+The same class declares ordinary fields at lines 82 and 83:
+
+```js
+// Installed SDK: dist/core/agent-session.js, field declarations.
+agent;
+sessionManager;
+```
+
+`dist/core/agent-session-runtime.js:6` imports its own installed manager module:
+
+```js
+// Installed SDK: dist/core/agent-session-runtime.js.
+import { SessionManager } from "./session-manager.js";
+```
+
+Providing a protected manager to an initial SDK session does not itself change that import
+or redirect the runtime's replacement constructors.
+
+The private extension now observes session liveness and its actual manager pairing,
+not inferred liveness from unchanged manager state.
+`root-lifecycle-session/` passed `proc_59d2`:
+24 legacy,
+17 native-reader,
+nine callback,
+and six pair-reader cases,
+plus 12 guard-removal variants.
+
+The staged SDK session has a private monotone disposed flag,
+a protected actual-manager slot,
+and protected disposal entry points.
+`session-lifetime-sdk-controls-v2/` passed `proc_deae`:
+six SDK sessions/requests,
+four intact cases,
+and two exact guard-failure controls,
+with no tools or external model calls.
+Direct,
+cached,
+and prototype disposal rejected old lifecycle/receipt use before abort hooks.
+Original abort delegation,
+a controlled swallowed abort error,
+SDK context invalidation,
+and cleanup remained observable.
+Removing the flag or moving it after abort hooks failed the same pre-abort assertion.
+
+The first preparation `proc_f507` stopped before its SDK worker:
+an authored `join()` path still named `root-lifecycle-native` while comparing
+`root-lifecycle-session` source hashes.
+Its Node `AssertionError [ERR_ASSERTION]`,
+partial preparation,
+and original source remain preserved.
+The fresh v2 phase corrected that directory literal;
+it did not replay an earlier SDK execution.
+
+Compatibility checks against the changed factory also passed:
+`proc_7c32` completed two content-consumer sessions,
+four injected requests,
+and one inert execution;
+`proc_791c` completed six navigation-consumer sessions and six injected requests without tools.
+No external model calls ran.
+Message/context-edit behavior matched retained baseline outcomes,
+and navigation preserved the tested suspension/retirement behavior.
+
+Runtime operation-entry suspension,
+replacement factory imports,
+terminal disposal,
+callback reentrancy,
+other mutable state,
+and content freshness remain separate requirements.
+A runtime-owned operation module is a proposed scope extension,
+not an implemented or qualified part of these results.
+
+### Runtime-owned operation and constructor profile
+
+The accepted private runtime extension reuses the existing registry rather than adding another owner registry.
+`completeRetirement` passed `proc_68df` with 12 cases and three guard-removal controls:
+it finishes an already-retired transition without issuing a replacement root.
+It is distinct from failed retirement and from cancellation.
+
+The stock SDK callback intake `proc_ef9b` constructed eight sessions across three cases,
+without model requests.
+Awaited nested replacements completed from both rebind and `withSession` callbacks.
+A callback failure after application left the new session live.
+The private coordinator preserves that behavior rather than treating application as reversible.
+
+`runtime-custody/` passed `proc_a3be`:
+23 pure cases and six guard removals.
+`runtime-owned-sdk/` then passed `proc_07ea`:
+12 actual SDK cases,
+21 constructed sessions,
+no model requests,
+and no tools.
+The cases exercised new/switch/import,
+constant-manager and persisted forks,
+cancellation,
+pre-effect import failure,
+factory failure,
+post-apply callback failure,
+post-apply nesting,
+and terminal disposal.
+
+The old lease was suspended before before-switch/fork handlers and retired before shutdown/disposal.
+Cached/prototype dispatch reached protected native operation entry.
+All factory managers came from the declared constructor functions.
+Each constructed session entered native disposal once in the schedule;
+completion followed the native return,
+not merely the session's early closed flag.
+
+This is a controlled factory profile.
+The publisher in the private generator `contract/lifecycle/runtime-sdk-copy/generate-runtime.mjs:40`
+contains only synchronous private-field assignments from prepared data:
+
+```js
+// Private repository: contract/lifecycle/runtime-sdk-copy/generate-runtime.mjs
+this.#operations.apply({ result, publish: (prepared) => {
+    this.#_session = prepared.session;
+    this.#_services = prepared.services;
+    this.#_diagnostics = prepared.diagnostics;
+    this.#_modelFallbackMessage = prepared.modelFallbackMessage;
+} });
+```
+
+Owned non-proxy results remain a producer precondition;
+data-descriptor checks alone do not establish it.
+`proc_4f1c` separately demonstrated that an arbitrary throwing publisher can leave an admitted successor
+without a coordinator cleanup route,
+and that contradictory arbitrary body results are not enforced by the generic helper.
+Those are excluded-contract findings,
+not approved recovery behavior.
+
+Independent review then identified an initial-result admission asymmetry in the private coordinator,
+not an upstream SDK defect.
+The fresh `runtime-initial-admission-v2/` snapshot validates initial records and checks the initial manager
+before invoking its factory.
+`proc_ebd6` passed ten admission cases,
+three guard-removal controls,
+and a new assertion that failed against the retained previous source.
+It also passed six SDK cases with 11 constructed sessions and no model requests.
+Native cleanup failure after the early disposed flag propagated its original error;
+incomplete cleanup was retried while the root stayed retired.
+Completed cleanup was not repeated.
+Nested factory failures preserved the original error and left the applied-but-disposed root unavailable.
+A nested post-apply callback failure preserved the latest live root.
+The earlier 12-case schedule was retained,
+not replayed.
+
+The injected native cleanup error occurred at `dist/core/agent-session.js:989` in Pi 1.0.0,
+after its abort catch and extension-context invalidation:
+
+```js
+// Pi 1.0.0: dist/core/agent-session.js:989
+this._disconnectFromAgent();
+this._eventListeners = [];
+```
+
+The fixture threw once from the disconnection delegate after observing the private disposed flag.
+This tested a native disposal that had entered but not completed,
+not an observed default SDK failure.
+Both failed attempts were retained;
+all 11 constructed sessions subsequently completed cleanup.
+
+Factory session-start callbacks in the actual runtime fixtures only recorded events:
+constructor-phase model requests or protected actions were not admitted.
+Cleanup after idle external disposal or mutation was not exercised.
+Other mutable SDK state,
+all instruction producers,
+current human permission,
+and production integration remain outside the claim.
+
+### Constructor-phase requests and publication conflict
+
+`proc_587f` passed a fresh diagnostic against the unchanged private runtime:
+five cases,
+nine SDK sessions,
+and nine locally injected requests.
+An initial `session_start` request completed before runtime creation returned.
+A new-manager replacement request also completed during `session_start`,
+but runtime publication then emitted
+`RootTransitionError: Replacement manager already has an active root`.
+A factory error after such a request left the candidate session and receipt active
+when the old runtime closed.
+Explicit fixture cleanup retired them.
+A same-manager fork refused capture during the pending transition,
+then succeeded after application.
+
+Pi 1.0.0 `dist/core/agent-session.js:2582` awaits startup before later resource discovery:
+
+```js
+// Pi 1.0.0: dist/core/agent-session.js, bindExtensions
+this._applyExtensionBindings(this._extensionRunner);
+await this._extensionRunner.emit(this._sessionStartEvent);
+this._extensionRunner.reportUnhandledMcpServers();
+await this.extendResourcesFromExtensions(this._sessionStartEvent.reason === "reload" ? "reload" : "startup");
+```
+
+The private registry `contract/lifecycle/runtime-root-lifecycle/lifecycle.mjs:72`
+creates a root for an owned pair during capture:
+
+```js
+// Private registry: contract/lifecycle/runtime-root-lifecycle/lifecycle.mjs
+if(!root)root=createRoot({session,manager,canonical});
+```
+
+Its replacement publication at line 123 rejects that independently active root:
+
+```js
+// Private registry: contract/lifecycle/runtime-root-lifecycle/lifecycle.mjs
+if(existing&&existing!==operation.root&&!retired(existing))throw new RootTransitionError('Replacement manager already has an active root');
+```
+
+This is a private occurrence-ownership/publication gap,
+not an upstream defect or proof that all startup requests must be denied.
+The required continuation is factory-scoped ownership in the existing registry:
+adopt only the exact fresh candidate on success and retire abandoned candidates.
+No startup request,
+constructor identity,
+or proposed occurrence token establishes human permission or another judgment budget.
+
+### Idle external disposal blocks runtime cleanup
+
+`proc_2d14` measured four actual SDK cases with four injected requests and no external calls.
+Ordinary runtime close completed.
+After direct complete or partial session disposal,
+first runtime close propagated `NativeSessionDisposedError`,
+then another close rejected the already-retired lease.
+After native branch-away/back,
+runtime close rejected the retired lease without disposing the still-live session.
+Explicit fixture cleanup completed the owned sessions.
+
+The private operation owner in `contract/lifecycle/runtime-construction-operations/operations.mjs`
+used active-root entry for terminal work as well as replacements:
+
+```js
+// Private repository: contract/lifecycle/runtime-construction-operations/operations.mjs
+if(!unavailable)transition=lifecycle.begin(lease);
+```
+
+The remedy separates terminal-only invalidation from ordinary active-root admission.
+Its token must not become a replacement or construction token.
+`proc_8d27` verified that distinction with 16 cases and five guard removals;
+the original `proc_e63c` verifier failure remains preserved.
+Native cleanup completion also needs a separate observation:
+the existing disposed flag is set before abort and later cleanup can still throw.
+A completion reader must stay incomplete during nested disposal and after an outer failure.
+`proc_9e54` passed six intact SDK cases and three omission controls using nine sessions,
+with no model requests.
+The completion-aware runtime then passed `proc_4ad5`:
+four sessions/four injected requests,
+successful close in every declared mode,
+no repeated completed native disposal,
+and a successful retry after partial disposal.
+
+Shutdown then host invalidation callbacks retained their order.
+After a prior direct disposal they ran late and observed stale extension context;
+this is an observed compatibility detail,
+not complete native event parity.
+This is a private implementation issue,
+not an upstream SDK defect or permission grant.
+
+### Registration-fault fixture used an invalid branch argument
+
+The constructor-request tail `proc_cc01` expected a native occurrence change,
+but its diagnostic callback called `SessionManager.branch(null)`.
+Pi 1.0.0 declares `branch(branchFromId: string)` in `dist/core/session-manager.d.ts:347`.
+Its implementation rejects the absent entry before changing the leaf:
+
+```js
+// Pi 1.0.0: dist/core/session-manager.js:1161
+branch(branchFromId) {
+    if (!this.byId.has(branchFromId)) {
+        throw new Error(`Entry ${branchFromId} not found`);
+    }
+    this.leafId = branchFromId;
+}
+```
+
+The lifecycle diagnostic callback retained `Error: Entry null not found`,
+so no occurrence change happened and the candidate request/publication completed.
+The correct native operation is `resetLeaf()` at `dist/core/session-manager.js:1172`.
+The fresh paired control `proc_06bb` verified both outcomes:
+the invalid call retained its exact error,
+while `resetLeaf()` changed the occurrence,
+rejected registration,
+and cleaned the candidate before a request.
+
+`proc_0c7e` then reconciled the intended constructor profile from retained and corrected cases:
+nine cases,
+15 SDK sessions,
+and 14 injected requests.
+The source-stage cleanup and invalid-branch diagnostics remain separate.
+Original `proc_aa49` and `proc_cc01` failures were not relabeled successful or replayed.
+
+### Auxiliary producers bypass ordinary run hooks
+
+`proc_941b` exercised five actual SDK producers with five sessions and five injected requests:
+ordinary prompt,
+`sendUserMessage`,
+manual compaction,
+branch summary,
+and bug-report summary.
+No external model or tool ran.
+
+Prompt and `sendUserMessage` traversed `before_agent_start`,
+`context_with_system`,
+and `before_provider_request`.
+The auxiliary summaries used the same session stream function,
+but supplied no ordinary payload hook and built different instruction text.
+Their ordinary rendered getter/resource-base observations remained unchanged.
+The branch-summary receipt became stale after native navigation.
+
+Pi 1.0.0 forwards `this.agent.streamFunction` from `dist/core/agent-session.js:2111`,
+line 3240,
+and line 3478 into the auxiliary summarizers.
+`dist/core/compaction/compaction.js:485` invokes that function directly:
+
+```js
+// Pi 1.0.0: dist/core/compaction/compaction.js:485
+const produce = async () => streamFn
+    ? (await streamFn(model, context, requestOptions)).result()
+    : completeSimple(model, context, requestOptions);
+```
+
+This invalidates a blanket requirement that every request traverse the ordinary run-hook chain.
+A producer inventory must follow the actual native request builder,
+and any main-agent action consumer must distinguish auxiliary responses from main-agent responses.
+Neither producer identity nor an observed hook chain authenticates governing instructions or a human grant.
+The existing collector coverage gaps remain open;
+they are not closed by deleting gap labels or by matching a hardcoded prompt marker.
+
+### Producer and wire evidence constrain the group consumer separately
+
+`proc_e862` exercised code-owned request origin at actual native main-agent and auxiliary call sites.
+`proc_1aaa` then connected that origin to the existing complete prepared-group host.
+The private helper in `contract/collector/request-producer-group-consumer/request.mjs:3` composes the checks:
+
+```js
+// Private prototype: contract/collector/request-producer-group-consumer/request.mjs
+export function readMainAgentRequest({producerOwner,observer,stream,response}) {
+  producerOwner.assertMainAgentResponse({stream,response});
+  return observer.observationFor(response);
+}
+```
+
+The private observer's `contract/lifecycle/root-lifecycle-retirement-entry/observer.mjs:52` calls `validate(scope)`.
+That function invokes `assertScope` at line 41,
+which calls `lifecycle.assertActive` and `collector.assertObservedFresh` at lines 37 and 38:
+
+```js
+// Private prototype: root-lifecycle-retirement-entry/observer.mjs:52
+function observationFor(response) {
+  const scope = object(response) ? responses.get(response) : undefined;
+  if (!scope) throw new RequestObservationOwnershipError('Response is not associated with this observer');
+  validate(scope);
+  return scope.receipt;
+}
+```
+
+Thus `observationFor` is not merely an identity lookup.
+The helper does not grant permission or decide policy.
+
+`proc_1aaa` qualified the producer/wire gate at the actual complete prepared-group consumer:
+six SDK sessions,
+13 injected requests,
+and five inert executions.
+Parallel and sequential groups each assessed once before both members executed.
+Missing wire evidence,
+a copied response,
+and a genuine same-session auxiliary-summary response each blocked both members before assessment.
+When the source changed after the first serial result,
+the second member was blocked and the completed first result remained.
+This still uses a fixed inert assessment,
+not a qualified policy or semantic verdict.
+
+`proc_bed1` reconciled the separate pure consumer controls without replaying workers:
+three cases and two guard removals.
+The original `proc_6333` summary incorrectly reported six removals from a copied literal count;
+its source and result remain preserved.
+The next boundary is one enclosing judgment's budget,
+code-owned evidence/decision handling,
+and dependency finalization.
+Start its clock before provenance checks and preparation,
+not after either gate.
+
+The separate native-host omission control `proc_3b7a` used one session/two injected requests.
+Removing the host checkpoint callback reached assessment where the fixture expected none,
+producing exact `AssertionError [ERR_ASSERTION]: 1 !== 0`.
+A separate assessment receipt assertion still prevented execution;
+this proves omission detection,
+not an unsafe execution.
+No intact SDK worker was replayed.
+
+## Pi 1.0.0 instruction originals versus source labels
+
+The private instruction-origin intake distinguishes native file selection,
+callback replacement,
+and rendering.
+It does not assign instruction authority or change production auto-mode.
+The source checkout for this subsection is
+`~/temp/agent/pi-sdk-1.0.0-source.qxeIPlda`,
+commit `a13d35a742c6ef8462812a28fbe1d8c8b7431c32`.
+Paths in its source excerpts are relative to that checkout.
+The worker imported installed SDK 1.0.0 modules directly under Node 26.10.0.
+
+### Source selection and replacement
+
+The native loader selects the first supported context filename in a directory.
+The selection order is explicit at
+`packages/coding-agent/src/core/resource-loader.ts:185`:
+
+```typescript
+// packages/coding-agent/src/core/resource-loader.ts:185
+const candidates = ["AGENTS.override.md", "AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"];
+```
+
+That selection is a loader fact,
+not proof of a file's governing authority.
+The fixture confirmed that a selected `AGENTS.override.md`
+does not delete or change the underlying `AGENTS.md`.
+The guard's required complete current policy remains a separate input.
+
+The selected file records can then be replaced by a callback.
+At `packages/coding-agent/src/core/resource-loader.ts:642`:
+
+```typescript
+// packages/coding-agent/src/core/resource-loader.ts:642
+const resolvedAgentsFiles = this.agentsFilesOverride ? this.agentsFilesOverride(agentsFiles) : agentsFiles;
+this.agentsFiles = resolvedAgentsFiles.agentsFiles;
+```
+
+The fixture callback returned a record with an actual original file's path
+but different content.
+The getter exposed the replacement;
+the original file bytes stayed unchanged.
+Pairing getter text with a path label therefore does not establish that those bytes came from that file.
+
+The configured prompt path is also retained independently of replacement text.
+At `packages/coding-agent/src/core/resource-loader.ts:646`:
+
+```typescript
+// packages/coding-agent/src/core/resource-loader.ts:646
+const baseSystemPrompt = resolvePromptInput(systemPromptSource, "system prompt");
+this.systemPrompt = this.systemPromptOverride ? this.systemPromptOverride(baseSystemPrompt) : baseSystemPrompt;
+this.systemPromptSourcePath =
+    systemPromptSource && existsSync(systemPromptSource) ? resolvePath(systemPromptSource) : undefined;
+```
+
+The probe observed the unchanged original path alongside callback-replaced prompt text.
+Append text and source paths likewise follow different operations:
+
+```typescript
+// packages/coding-agent/src/core/resource-loader.ts:659
+this.appendSystemPrompt = this.appendSystemPromptOverride
+    ? this.appendSystemPromptOverride(baseAppend)
+    : baseAppend;
+this.appendSystemPromptSourcePaths = appendSources
+    .filter((source) => existsSync(source))
+    .map((source) => resolvePath(source));
+```
+
+The fixture returned reordered and added append text:
+three text entries with one file-path entry.
+The existing collector correctly leaves their text-to-path relation unestablished;
+array position cannot supply the missing relation.
+
+### Equal sections are not necessarily equal whole prompts
+
+The first worker,
+`proc_02e4`,
+failed at its final comparison with Node's
+`AssertionError [ERR_ASSERTION]: Expected values to be strictly equal`
+at `instruction-origin-intake/probe.mjs:56:10`.
+Its whole-prompt equality expectation was wrong.
+The generated project section preceded `cwd`,
+while the new custom section followed it.
+
+The deciding builder statements are at
+`packages/coding-agent/src/core/system-prompt.ts:164`
+and line 170:
+
+```typescript
+// packages/coding-agent/src/core/system-prompt.ts:164
+if (contextFiles.length > 0) promptSections.project_context = renderProjectContext(contextFiles);
+```
+
+```typescript
+// packages/coding-agent/src/core/system-prompt.ts:170
+promptSections.cwd = cwd.replace(/\\/g, "/");
+for (const [name, content] of Object.entries(customSections)) {
+    if (content) promptSections[name] = content;
+}
+```
+
+The fresh builder-only recovery,
+`proc_aa7a`,
+verified equal project-section bytes but different unforced whole-prompt bytes.
+It also verified whole-prompt equality through an explicit forced-text input,
+without context-file originals.
+That is a different representation path,
+not a relabeled success for the failed unforced comparison.
+The forced branch is explicit at
+`packages/coding-agent/src/core/system-prompt.ts:190`:
+
+```typescript
+// packages/coding-agent/src/core/system-prompt.ts:190
+if (input.forceSystemPrompt !== undefined) return { content: input.forceSystemPrompt };
+```
+
+Neither the section text nor forced rendered text authenticates its original source.
+
+### Verification scope and next consumer work
+
+Both namespaces used `mise --no-env --no-hooks run check`
+from their respective directories under
+`~/temp/agent/auto-mode-consumer-contract.mDLkyNoP/contract/collector/`.
+The controllers refuse existing output namespaces.
+Keep the consumed artifacts;
+do not rerun them in place.
+
+The original failed worker reached four completed loader assertion groups
+before the final comparison failed.
+The recovery checked original source identities,
+the exact failure location,
+and retained streams to reconcile that straight-line prefix.
+Those are reconstructed completed-prefix observations,
+not separately persisted successful case receipts.
+The original worker remains failed.
+
+The recovery created no additional resource loader and no `AgentSession`.
+It exercised only the corrected native builder comparison.
+Both phases made no model request or external fetch.
+The original failed stream remains retained;
+the recovery stream checks passed.
+Cleared home,
+private descriptors,
+a 512 MiB old-space setting,
+and a 60-second worker bound are fixture controls,
+not OS isolation or total-memory guarantees.
+
+Positive controls include exact native original file records,
+unchanged source files,
+and visibly different whole prompts when section order changes.
+Rejected shortcuts are path-label authentication,
+append-array index pairing,
+and the initial whole-prompt equality expectation.
+No production workaround or complete source-authority collector is qualified.
+The next implementation must retain native originals before transformations,
+link subsequent representations to their actual producers,
+and keep source authority and legitimate delegation distinct from those observations.
+The existing upstream filing decision remains unchanged:
+these supported transformation behaviors expose a consumer requirement,
+not a newly established upstream defect.
+
+### Owned capture, pending cleanup, and SDK error wrapping
+
+A private constructor owner now captures the native callback inputs before transformation,
+not just the final getter results.
+It fixes the selected reader and callback identities,
+retains ordinary bounded input copies,
+and publishes only after the inspected native reload returns with its required phases.
+Direct callback calls do not create authority;
+a forged call during a reload makes the later genuine phase fail instead of publishing that record.
+`proc_5602` passed 17 pure controls and `proc_6b95` passed four actual native-loader cases.
+
+The raw-output comparison is separate from byte equality.
+The private `contract/collector/resource-input-custody-v2/owner.mjs:66`
+checks both:
+
+```javascript
+// Private prototype: resource-input-custody-v2/owner.mjs:66, selected condition
+outputs.raw.some((value,index)=>value!==references[index]) ||
+JSON.stringify(outputs.copies)!==JSON.stringify(scope.phases.map(value=>value.after))
+```
+
+`proc_0116` removed only the identity term.
+An identical copied array then failed the intended guard-sensitivity assertion:
+`AssertionError [ERR_ASSERTION]: Missing expected exception (ResourceInputCustodyError).`
+This was a new native-loader case,
+not a replay of the intact matrix.
+
+The first private owner delayed its guard failure while draining an unsupported Promise result.
+Its `contract/collector/resource-input-custody/owner.mjs:86` awaited the result before handing back the failure:
+
+```javascript
+// Private prototype: resource-input-custody/owner.mjs:86
+scope.unbound=(await Promise.all(scope.pending)).flat();
+```
+
+The corrected owner separates native reload completion from pending unsupported work.
+`proc_ef3d` compared both sources with manually controlled settlement:
+the original had recorded the failure but had not returned it,
+while the correction returned the failure with cleanup still pending.
+Both retained the later rejection,
+including `undefined`,
+and all test work was settled and drained.
+New reloads and current-use capture stay refused until that cleanup finishes.
+This is not a hard-stall guarantee or support for arbitrary Promise subclasses,
+modified Promise behavior,
+hostile thenables,
+or a callback waiting on its own drain.
+
+The actual SDK integration initially failed a fixture assertion in `proc_9b98`.
+The fixture expected the collector's leaf error directly.
+The existing private observer wraps source failures at
+`contract/lifecycle/root-lifecycle-retirement-entry/observer.mjs:39`:
+
+```javascript
+// Private prototype: root-lifecycle-retirement-entry/observer.mjs:39, final throw
+throw new RequestObservationStaleError('Observed request is no longer current',{cause:error});
+```
+
+The first completed baseline was preserved.
+The fresh changed-source case in `proc_edba` asserted both
+`RequestObservationStaleError: Observed request is no longer current`
+and its cause,
+`SourceCollectionError: Native resource reload replaced this snapshot`.
+A same-byte native reload blocked the second serial root while retaining the first outcome.
+No source-owner implementation change was needed for this fixture correction.
+
+The intended SDK pair consists of the retained baseline and fresh changed-source case:
+two sessions,
+four injected requests,
+two canned assessments,
+and definition counts `[2, 1]`.
+The original failed suffix adds a separate session,
+two requests,
+and one canned assessment to the execution ledger.
+It remains failed,
+not silently replaced by the recovery.
+
+The source checks,
+complete streams,
+persisted outcomes,
+and disposal checks passed for the accepted cases.
+The tasks were `mise --no-env --no-hooks run check`
+in the named private phase directories.
+No external model ran.
+The new owner still reports source authority,
+raw-file identity,
+and delegation as unestablished.
+A successful native reload is not a permission grant.
+The workaround is private input capture with conservative stale-result refusal;
+unsupported publishers and subsequent prompt transformations remain outside its qualified scope.
+There is no new upstream defect or filing artifact.
+
+## Owned native base prompt and mutable working copies
+
+### Measured helper gaps
+
+The first private base helper checked only its canonical options identity,
+then returned its retained view at
+`contract/collector/base-prompt-custody/base-owner.mjs:40`:
+
+```javascript
+// Private base-prompt-custody/base-owner.mjs:40
+return current.view;
+```
+
+It did not revalidate the resource occurrence.
+`proc_14bd` first proved a valid original read,
+changed the actual owned resource occurrence through reload,
+and confirmed that the expected refusal was missing.
+The fresh helper rechecks that original relation at current use:
+
+```javascript
+// Private base-prompt-custody-v2/base-owner.mjs:47
+const frame=readBoundResourceFrame({binding:scope.binding,loader:scope.loader});
+```
+
+```javascript
+// Private base-prompt-custody-v2/base-owner.mjs:48
+if(frame!==scope.view.resourceFrame||current!==scope||active)throw new SourceCollectionError('Original resource occurrence or native base changed before current read');
+```
+
+A separate resource diagnostic,
+`proc_8da2`,
+replaced the ordinary output field with an accessor returning the same array.
+The original reader invoked that accessor and accepted the view.
+The correction checks the output's data-property descriptor before any native reader can invoke it:
+
+```javascript
+// Private base-prompt-custody-v2/resource-owner.mjs:74
+if(!field||!Object.hasOwn(field,'value'))throw new SourceCollectionError('Native resource output field '+name+' is not an own data property');
+```
+
+The corrected pure controls,
+`proc_3378`,
+passed 17 cases.
+Separate single-guard controls,
+`proc_d6a3`,
+removed only the original-resource comparison or only the output descriptor rejection.
+Both produced
+`AssertionError [ERR_ASSERTION]: Missing expected exception (BaseCompositionError).`
+The accessor mutant invoked the getter once;
+the intact case rejected it without invocation.
+No SDK matrix was replayed for these pure sensitivity controls.
+
+### Native copies and lifetime
+
+The private native session now owns base options in a private field
+and builds them through the recorded native read/normalization operation.
+The inspected SDK normalizer explicitly constructs both optional prompt keys,
+even when their values are undefined:
+
+```javascript
+// SDK 1.0.2: dist/core/system-prompt.js:11
+customPrompt: input.customPrompt,
+forceSystemPrompt: input.forceSystemPrompt,
+```
+
+The schema copy rebuilds nested skill-source metadata before freezing.
+It does not freeze the loader's borrowed source object.
+The private SDK supplies a new copy to each command-context read
+and to the native run-hook input:
+
+```javascript
+// Private base-prompt-sdk-copy/stage-private/session.mjs:2826
+getSystemPromptOptions: () => copyPromptOptions(this.#baseSystemPromptOptions),
+```
+
+```javascript
+// Private base-prompt-sdk-copy/stage-private/session.mjs:1635
+const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, copyPromptOptions(this.#baseSystemPromptOptions));
+```
+
+`proc_516c` verified this through actual SDK 1.0.2 sessions:
+two sessions,
+one injected request,
+and no semantic assessment.
+A command changed its returned copy without changing canonical base data.
+A `before_agent_start` handler changed its mutable working copy,
+and that change reached the actual request.
+The canonical base stayed unchanged.
+Same-value resource reload made the base stale until an actual native rebuild.
+Missing opaque binding refused protected collection,
+and disposal refused current reads while retaining inspection.
+
+This is private copy and current-use behavior.
+It does not authenticate strings merely because they match,
+make a copied working object canonical,
+or establish governing-source authority.
+
+### Preserved fixture failure and original-judgment consumer
+
+The first native fixture,
+`proc_c33b`,
+installed a direct stream wrapper rather than registering its consumer.
+It created one session,
+made no wire request,
+completed disposal,
+and persisted
+`RequestProducerError: Native producer stream is not bound to this issuer`.
+The deciding check was already present at
+`contract/collector/request-producer-judgment-consumers/owner.mjs:77`:
+
+```javascript
+// Private request-producer-judgment-consumers/owner.mjs:77
+if(!consumer)throw new RequestProducerError('Native producer stream is not bound to this issuer');
+```
+
+The corrected fixture used the existing `producerOwner.bindConsumer`.
+It also separated the JSONL header from the entries comparison:
+the private native manager's `getEntries()` excludes the header:
+
+```javascript
+// Private base-prompt-sdk-copy/stage-private/manager.mjs:1115
+return structuredClone(this.#fileEntries.filter((e) => e.type !== "session"));
+```
+
+That comparison had not been reached in the original failure,
+so it is not a second observed failure.
+No base-helper or SDK behavior change was needed for this fixture correction.
+
+`proc_02ab` exercised the base-linked collector in the actual original judgment:
+two sessions,
+four injected requests,
+two canned assessments,
+and root-definition counts `[2, 1]`.
+The same-value native base rebuild produced
+`RequestObservationStaleError: Observed request is no longer current`,
+caused by
+`SourceCollectionError: Native base prompt was rebuilt after this source snapshot`.
+The first outcome remained recorded and the second definition did not start.
+The original assessment budget stayed closed.
+
+These native phases used `mise --no-env --no-hooks run check`
+in their named private directories.
+Source identities,
+complete streams,
+persisted results,
+and disposal were checked.
+No external model ran.
+The original failed namespace remains unchanged.
+
+### Limits and upstream disposition
+
+The private remedy owns base data and refuses stale current use,
+but does not claim complete run-option or final-request source coverage.
+Legitimate handler mutations remain supported through working copies;
+later handler ancestry and projection need their own records.
+The finite profile is not a new universal policy restriction.
+Unlinked native options remain observations only;
+protected readers cannot release them as qualified source evidence.
+
+The defects were in the owned helpers and fixture.
+No upstream defect or contribution is established,
+and no upstream issue or patch is proposed.
+The existing upstream-filing decision remains unchanged.
+
+## Pi 1.0.2 owned run publication and first-turn fixture failure
+
+### Symptoms and deciding source
+
+The private v2 run helper had separate measured defects.
+`proc_73ca` changed the canonical prompt by mutating a retained handler object
+after emitter return but before publication.
+`proc_9709` observed one invocation of a thrown object's `toJSON`
+during publication-size accounting.
+Neither was an upstream defect.
+
+The v3 transfer boundary is
+`contract/collector/run-prompt-custody-v3/owner.mjs:120`:
+
+```javascript
+// Private collector/run-prompt-custody-v3/owner.mjs:120
+scope.delivery=copyPromptOptions(working);
+```
+
+Native reconciliation receives this separate mutable copy.
+Final publication copies again.
+At `owner.mjs:130`,
+the published failure projection selects inert fields instead of raw thrown objects:
+
+```javascript
+// Private collector/run-prompt-custody-v3/owner.mjs:130, projection expression
+Object.freeze({occurrence:failure.identity,ordinal,at:failure.at})
+```
+
+Raw thrown values remain in retained inspection.
+The tradeoff is deliberate:
+serialized source observations identify failure occurrences,
+while full error objects require diagnostic inspection.
+Before/after observations do not prove that a handler solely authored every mutation
+during an asynchronous interval.
+
+The first SDK fixture,
+`proc_602f`,
+failed its own assertion:
+
+```text
+# Private collector/run-prompt-native-controls/probe.mjs:77
+assert(retained.history.some(value=>value.kind==='next-turn-refresh'&&value.state==='published'))
+```
+
+It had produced one text response,
+not a tool-bearing turn followed by another response.
+The installed Pi agent-core 1.0.2 `dist/agent-loop.js:92-93`
+guards next-turn preparation:
+
+```javascript
+// Installed @earendil-works/pi-agent-core 1.0.2, dist/agent-loop.js:92-93
+if (lastCompletedTurn) {
+    const nextTurnSnapshot = await config.prepareNextTurn?.(lastCompletedTurn);
+```
+
+The call sits inside the continuing-turn loop at `dist/agent-loop.js:90`.
+Expecting it after a single terminal text response was the wrong fixture assumption.
+The failed worker retained one session,
+one injected request,
+and completed disposal;
+it did not persist a completed-case receipt.
+
+### Verification and corrected consumer controls
+
+`proc_1b81` passed 21 pure v2 controls.
+`proc_e503` passed the v3 changed-boundary controls.
+`proc_3237` independently removed only the reconciliation copy
+or only the inert failure projection.
+The first omission produced an `ERR_ASSERTION`:
+actual `LATE_BORROWED_MUTATION`,
+expected `undefined`.
+The second produced `ERR_ASSERTION` with actual `1`,
+expected `0`.
+The intact controls passed.
+These were pure helpers,
+not additional SDK executions.
+
+The clean native suffix,
+`proc_0a79`,
+used one SDK 1.0.2 session and one injected request.
+Its ordered handlers exercised the event and context renderers,
+forced text,
+a same-tool base rebuild,
+a custom text message,
+and a partial mutation followed by `throw undefined`.
+The error was reported once.
+A retained alias mutation after the native normalization await did not reach the wire.
+Current source capture,
+public run/runner shadows,
+native reset,
+persisted entries,
+disposal,
+and retained inspection were checked.
+This single-response case correctly observed no next-turn refresh.
+
+`proc_d157` supplied actual tool-bearing turns and genuine subsequent responses:
+two sessions,
+four injected requests,
+two canned assessments,
+and root-definition counts `[2, 1]`.
+Both genuine second responses observed `next-turn-refresh` source records.
+The negative case also injected the real native refresh callback during the first inert root
+to test source staleness;
+that injection does not authenticate a scheduled second turn.
+It changed only the run occurrence,
+not its bytes or base identity.
+The original judgment rejected the second root with:
+
+```text
+# Private collector/run-prompt-judgment-controls/result.json
+RequestObservationStaleError: Observed request is no longer current
+  cause: SourceCollectionError: Native run prompt was replaced after this source snapshot
+```
+
+The first outcome and original closed inference budget survived.
+The decisive collector comparison is
+`contract/collector/run-prompt-sdk-copy-v2/resource-owner.mjs:185`:
+
+```javascript
+// Private collector/run-prompt-sdk-copy-v2/resource-owner.mjs:185, comparison expression
+readSessionRun(session)!==saved.run
+```
+
+Run native fixtures with `mise --no-env --no-hooks run check`
+in their named fresh private directories;
+the consumed namespaces must not be rerun.
+The guard fixture uses the same task name.
+Receipts verify full streams,
+listed source identities,
+persisted results,
+and cleanup.
+No external semantic model ran.
+
+### Limits and upstream disposition
+
+Do not repair this fixture by forcing next-turn preparation on the initial response.
+That would change the behavior being tested.
+Keep the failed worker separate from the corrected suffix
+and use a genuine subsequent turn for refresh coverage.
+
+The private graph preserves native mutable handler behavior while isolating its published values.
+It does not establish source authority,
+instruction applicability,
+permission,
+or final policy.
+Images,
+arbitrary publishers,
+pending-hook session/runner replacement,
+hard stalls,
+and production retention limits remain unqualified.
+History is retained for the session lifetime;
+per-operation bounds are not a total-memory guarantee.
+
+There is no new upstream defect or contribution to file.
+The existing upstream-filing decision remains unchanged:
+the faulty assumption and helper defects belong to the private consumer.
 
 ## Verified workarounds and limits
 

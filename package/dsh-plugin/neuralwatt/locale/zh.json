@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "NeuralWatt 提供方",
+    "description": "在随附的 pi-ai 适配器之上持有 neuralwatt 模型路由：激活时从 NeuralWatt API 实时获取模型列表，携带准确的上下文窗口与思考级别；API 不可达时由随包快照顶上。"
+  }
+}

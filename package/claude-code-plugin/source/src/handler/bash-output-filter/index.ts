@@ -5,6 +5,7 @@ import type {
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
+import { shouldForceBackground, } from './force-background.ts';
 import {
   isAllowed,
   shouldSkip,
@@ -75,8 +76,29 @@ function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOut
    */
   const bashInput = event.tool_input;
 
-  if ((!isAllowed(bashInput.command,)) || shouldSkip(bashInput.command,))
-    return {};
+  /**
+   Whether this main-agent call is rewritten to run as a background task.
+   */
+  const forceBackground = shouldForceBackground({
+    ...(event.agent_id === undefined ? {} : { agentId: event.agent_id, }),
+    command: bashInput.command,
+    env: process.env,
+  },);
+
+  if ((!isAllowed(bashInput.command,)) || shouldSkip(bashInput.command,)) {
+    if (!forceBackground)
+      return {};
+
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: {
+          ...bashInput,
+          run_in_background: true,
+        },
+      },
+    };
+  }
 
   /**
    True when running from the bundled hook entry (`.mjs`); false during source-driven dev runs.
@@ -102,6 +124,7 @@ function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOut
       updatedInput: {
         ...bashInput,
         command: wrappedCommand,
+        ...(forceBackground ? { run_in_background: true, } : {}),
       },
     },
   };

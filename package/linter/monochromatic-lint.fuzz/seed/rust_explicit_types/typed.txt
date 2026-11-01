@@ -1,0 +1,2 @@
+fn named(value: u16) -> u16 { return value; }
+fn main() { let callback: _ = named; let number: _ = 1_u16; }

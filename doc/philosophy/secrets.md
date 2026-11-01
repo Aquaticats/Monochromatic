@@ -2,8 +2,10 @@
 
 Local developer secrets (API keys and tokens consumed by tasks and packages)
 live in a gitignored,
- age-encrypted `.env.local.json` at the repo root,
-decrypted transparently by mise through its `[env]` `_.file` directive.
+ age-encrypted `.env.local.json` at the repo root.
+mise decrypts it transparently through its `[env]` `_.file` directive,
+and `@monochromatic-dev/env-local-json-core` reads the same file directly for
+consumers launched outside mise.
 CI secrets are separate and stay in the platform's own encrypted store
 (GitHub Actions secrets);
  this document is about the local developer set.
@@ -14,9 +16,16 @@ mise decrypts sops-encrypted env files natively (built-in `rops`),
 so a secret stored in `.env.local.json` reaches `process.env` exactly the way
 the old plaintext `.env.local` did.
 Every consumer that reads `process.env.SOME_KEY` is untouched by the migration.
+Consumers launched outside mise,
+such as search-fetch behind the harnesses,
+use the direct reader instead;
+no plaintext copy comes back.
 The Hetzner OpenTofu provider reads `HCLOUD_TOKEN`,
-and the IPinfo helpers read `IPINFO_TOKEN`,
-so those tokens share the root store instead of being duplicated in package-local tfvars or env files.
+the IPinfo helpers read `IPINFO_TOKEN`,
+and search-fetch reads `EXA_API_KEY` and `LINKUP_API_KEY` from the environment
+or from the same store through the direct reader.
+Those names share the root store instead of being duplicated in package-local
+tfvars or env files.
 Non-secret,
 machine-specific OpenTofu inputs remain in a gitignored `*.auto.tfvars.json` file.
 
@@ -70,6 +79,7 @@ Encryption alone achieves the actual goal,
 without publishing anything.
 The loader is encrypted-only:
 no plaintext `.env` slot survives in `_.file`,
+and the direct reader rejects a store without sops metadata,
 so a secret can never regress into an unencrypted,
  backed-up file.
 
@@ -86,6 +96,23 @@ and private-key filename patterns (`id_ed25519`,
 are added to the backup tool's global ignore rules as defense in depth.
 Ciphertext and key are separated by where they live,
  not by hope.
+
+The direct reader and the `secrets:edit` CLI resolve an identity from the same
+chain:
+`MISE_SOPS_AGE_KEY`,
+then `MISE_SOPS_AGE_KEY_FILE` when that file exists,
+then `SOPS_AGE_KEY_FILE` when that file exists,
+then `SOPS_AGE_KEY`,
+then `age.txt` in the mise configuration directory.
+The last entry honors `MISE_CONFIG_DIR`,
+then `XDG_CONFIG_HOME`,
+then `$HOME/.config`.
+`secrets:edit` uses the same resolver,
+so reading and editing never disagree about which key to use.
+mise's own `rops` loader finds the same default path without this chain.
+The backup-scope argument above depends on the identity staying at that
+out-of-scope path;
+an identity file moved into a backed-up directory loses the separation.
 
 ## Test tool behavior; do not assume it
 
@@ -115,14 +142,52 @@ while its quick-start says "plain text defaults").
    and mise selects the parser from the `.json` extension,
    so the encrypted file loads with no extra configuration.
 - The identity at mise's default path `~/.config/mise/age.txt` needs zero env
-   plumbing for runtime decryption;
+   plumbing for mise's runtime decryption;
    `rops` finds it automatically.
    The sops CLI,
-   used only to edit,
-   needs `SOPS_AGE_KEY_FILE` set,
-   which the `secrets:edit` mise task provides.
+   used to edit the store and to decrypt it for the direct reader,
+   resolves the same path through the shared identity chain,
+   so `secrets:edit` needs no identity variable of its own.
 - `experimental` was already enabled,
    so sops mode needed no settings change.
+
+## A direct reader for harnesses launched outside mise
+
+`@monochromatic-dev/env-local-json-core` reads the same encrypted store
+without mise,
+which matters for a harness that spawns its tools with a
+scrubbed environment.
+The reader is keyed:
+callers name the environment variables they need and receive only those values
+that the environment did not already supply.
+It never mutates `process.env` and never caches decrypted content,
+so a spawned subprocess inherits nothing new.
+
+The reader keeps the store's guarantees:
+it requires sops metadata on the ciphertext before it resolves an identity or
+starts sops,
+it validates every decrypted value as a non-blank string,
+and it never forwards sops output into a log or an error.
+Discovery is an explicit path first,
+then the nearest repository root holding the store,
+then a bounded walk that stops at the home directory,
+the containing repository,
+or the filesystem root.
+`ENV_LOCAL_JSON_PATH` names the explicit path for hosts whose working
+directory is unrelated to the checkout.
+
+search-fetch is the first consumer.
+It applies environment precedence per key,
+records whether each key came from the environment or the store,
+and keeps the blocklist and GitHub routing working when the store is
+unavailable;
+only calls that need the missing provider key fail,
+with the store diagnostic in the error text.
+
+mise keeps its `_.file` loader for mise-run commands.
+The direct reader is the no-mise path,
+and environment precedence means the two cannot disagree about the effective
+value.
 
 ## Recovery is regeneration, not backup
 

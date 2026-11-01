@@ -30,6 +30,256 @@ The accepted AUP,
 necessity-based retention,
 and gateway-internal retry choices remain settled.
 
+## Rule-relevance interface and cache canary
+
+`proc_f465` verified one real Jev/Gateway relevance request over all 205 current indexed policy rules.
+The frozen complete-policy body was 255,046 bytes.
+Every answer matched its requested rule ID and the fixed typed response contract.
+Same-owner warm and restarted-owner persistent refreshes added no request.
+The raw estimates did not exclude rules or authorize actions.
+
+Returned usage was 59,382 input tokens and 3,729 output tokens.
+At 42 nanoUSD per input token with output unbilled,
+modeled maintenance cost was US$0.002494044.
+At completion of the cold relevance canary,
+the cumulative recorded semantic subtotal reached US$0.055516382,
+including the preceding US$0.053022338 subtotal.
+Invoice amounts,
+Gateway-internal attempts,
+representative workload averages,
+and relevance accuracy remain unestablished by this interface canary.
+No paid replay is needed to inspect these retained estimates.
+
+A post-collection authored reference diagnostic,
+`proc_2dfd`,
+compared 13 permission/safety/prerequisite rules and 12 presentation/code-style rules
+without another provider call.
+The 80/20 band produced 20 correct classifications and five unresolved;
+90/10 produced 14 correct and 11 unresolved;
+95/05 produced one correct and 24 unresolved.
+No decided classification contradicted this subset's authored reference.
+These are diagnostic bands,
+not adopted thresholds or held-out accuracy results.
+The references were authored after collection,
+and initial scores outside the subset were visible during schema inspection.
+
+Notably,
+`LN7` received relevance `0.53` despite explicitly requiring approval to loosen lint rules.
+A relevance cutoff that simply drops everything below a high positive threshold would lose this restriction.
+The current implementation retains uncertain rules and admits no exclusions.
+
+## Full-rule action interface rejection
+
+The copied-native-input `operation_violates_rule` canary sent one 454,012-byte request
+with all 205 rule questions and complete policy/program context.
+It returned HTTP 400 with `max_tokens_exceeded`.
+`proc_48e7` reconciled one initiated client request,
+zero completed samples,
+no returned scores or token usage,
+and no retry.
+This was research over archived data,
+not reopening a native judgment or authorizing a tool.
+
+Before the accepted shared-guidance trial,
+the known modeled semantic subtotal was US$0.055516382.
+The failed full-rule requests' billing amounts remain unknown.
+Do not add a zero charge or fabricate an input-token estimate.
+The [endpoint boundary record](../troubleshooting/llmgateway-systemone-boundaries.md)
+documents the provider's separate total and state-plus-longest-question limits.
+
+The no-question-change encoding revision removes duplicate model-facing binding bookkeeping only.
+Its separately frozen 315,353-byte request also returned `max_tokens_exceeded`,
+without usage or scores.
+`proc_e51c` reconciled that second consumed namespace.
+No unchanged body was retried.
+
+The shared-guidance local prototype retains all original instruction words,
+per-rule criteria and rule context,
+and complete policy/program input.
+`proc_0c8c` measured 256,710 bytes.
+The question sentence remains per head;
+373 bytes of remaining guidance are shared and explicitly referenced.
+This changes where the model reads guidance,
+so content preservation alone is not semantic qualification.
+A separate one-shot trial subsequently established provider acceptance for this frozen input.
+`proc_ca7b` verified 205 estimates,
+62,053 input and 3,729 output tokens,
+and 1,001.814279 ms including preparation under the five-second sample budget.
+Modeled cost was US$0.002606226,
+bringing the known semantic subtotal to US$0.058122608 plus two failed requests with unknown billing.
+This is a single copied-input research measurement,
+not an original SDK judgment,
+accuracy or calibration evidence,
+invoice accounting,
+or proof of the workload-average target.
+No cutoff or production adoption follows.
+
+## Batched instruction-meaning encoding diagnostic
+
+`proc_51ef` verified a fixed four-request study of the unchanged
+`states_approval_prerequisite` predicate in pre-authored wire slots.
+The archived native input was 75,060 bytes per request,
+with complete current policy,
+parent program,
+prepared group,
+and original main request.
+This was research over copied inputs,
+not continuation of a consumed native judgment.
+
+The `LN7` and `HRM` development references were placed in forward and reversed slot order,
+then repeated with byte-identical bodies for each order.
+The references were known before this study and were not held-out examples.
+`LN7` returned `0.97` in every sample.
+`HRM` returned `0.09`,
+`0.10`,
+`0.09`,
+and `0.09`.
+Forward repeats had no observed score change;
+the reverse `HRM` repeat changed by `0.01`.
+This does not establish a score difference caused by slot order.
+
+Both 80/20 and 90/10 diagnostic bands yielded eight correct,
+zero wrong,
+and zero unresolved estimates.
+At 95/05,
+four resolved correctly and four remained unresolved.
+No threshold is adopted.
+No vote,
+adaptive repeat,
+or alternate semantic wording was used.
+
+The study cost US$0.003214512 in modeled returned-token usage,
+with mean US$0.000803628 at 42 nanoUSD per input token.
+A cleared Node metadata read `proc_2fdd` refreshed that advertised rate before dispatch.
+Invoices,
+hidden gateway attempts,
+and representative workload cost remain unverified.
+The recorded semantic-study subtotal is US$0.053022338,
+excluding agent and reviewer costs.
+
+Separate native controls `proc_0eb5` established the original-judgment batch path using fake transport.
+The live research study itself created no SDK session or tool execution.
+Full source,
+request,
+response,
+deadline,
+stream,
+and worker-exit checks are retained in
+`contract/research/batched-instruction-runner/verified-result.json`
+in the private repository.
+That namespace is consumed.
+This result does not qualify current-action applicability,
+approval subtype or authorizer,
+instruction hierarchy,
+full policy coverage,
+or production permission.
+
+## Real instruction-condition development result
+
+The completed older semantic screens do not qualify the new instruction-condition head.
+`proc_e22b` verified two fixed passes over seven programs,
+14 live Jev requests,
+and no retries.
+The full current policy and its exact `LN7` clause accompanied each complete program,
+initial state,
+and explicit in-memory lint configuration contract.
+Independent execution established three positive and four negative references before inference.
+
+The 90/10 diagnostic band produced six correct,
+three wrong,
+and five unresolved judgments.
+The 80/20 band produced ten correct,
+three wrong,
+and one unresolved.
+At 95/05,
+all six positives resolved correctly while every negative remained unresolved.
+No band is adopted.
+
+The uncalled-function case returned `0.90` and `0.93`.
+The unused-configuration case returned `0.93` and `0.16`
+for byte-identical input.
+The observed spread rules out treating a single favorable replay as a fix.
+The source and verification record is
+`contract/research/instruction-condition-qualification/verified-result.json`
+in the private qualification repository.
+
+Modeled study spend was US$0.005012028,
+with mean US$0.000358002 at the refreshed published input rate.
+This is returned-token accounting,
+not invoice,
+internal-attempt,
+held-out,
+or representative workload qualification.
+
+The correction targets decomposition:
+retain code-provable branch and target facts in code.
+`proc_dcb4` and `proc_74a8` exercised a conservative no-active-write profile
+and distinguished its facts from the remaining unqualified model estimates.
+The profile does not execute arbitrary candidate code,
+does not cover every JavaScript program or native tool,
+and does not authorize actions.
+Real active-target and tool-contract ownership must precede its use by a policy consumer.
+Do not ask the failed head again with alternative wording
+or present the stricter band as a qualified policy threshold.
+
+See the [current frontier](../handover/pi-auto-mode-current-frontier.md)
+for the actual host-source and original-judgment clause bindings,
+and the [gateway observations](../troubleshooting/llmgateway-systemone-boundaries.md)
+for the retained model failures.
+
+## Instruction-prerequisite relation result
+
+`proc_ef2e` verified a separate rule-meaning diagnostic:
+12 live Jev requests,
+two fixed identical passes over six actual policy clauses,
+and no retries.
+The predicate asks whether the selected clause states
+an approval or authorization prerequisite for any described action.
+It does not ask whether the proposed action is covered,
+whether authorization is already supplied,
+who can supply it,
+or whether a new human grant is needed.
+Every request retained the complete current policy,
+the exact indexed clause,
+and the complete fixed enclosing program.
+Reference labels were written before inference and independently reviewed.
+
+Scores in the respective passes were:
+
+- `LN7`:
+   `0.98 / 0.98`.
+- `PX2`:
+   `0.97 / 0.97`.
+- `PX3`:
+   `0.96 / 0.96`.
+- `HRM`:
+   `0.08 / 0.08`.
+- `LN3`:
+   `0.13 / 0.11`.
+- `GCE`:
+   `0.08 / 0.08`.
+
+The unadopted 80/20 diagnostic band matched all 12 development references.
+At 90/10,
+ten matched and two remained unresolved.
+At 95/05,
+six matched and six remained unresolved.
+None of these results adopts a threshold or establishes held-out correctness.
+The target changed from predicting program effects to extracting a narrow relation from a selected clause;
+the failed broad effect head remains unqualified.
+
+Modeled returned-token spend was US$0.004224444 total
+and US$0.000352037 mean,
+using the retained published rate.
+The combined recorded semantic-study subtotal is US$0.049044476.
+These values exclude reviewer/agent cost,
+unobserved gateway attempts or charges,
+and invoice verification.
+The live namespace is consumed.
+Next,
+connect the fixed relation to the actual original SDK judgment beside the owned code-effect facts,
+while keeping estimates unqualified for policy permission.
+
 ## Recommended next qualification candidate
 
 The user accepted the recommendation with "Okay,

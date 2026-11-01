@@ -1,9 +1,9 @@
-# TypeScript 7.0.2 semantic lint plugins need the unstable sync API and an internal mapped-readonly flag
+# TypeScript 7 semantic lint plugins need the sync API and an internal mapped-readonly flag
 
 ## Symptom
 
 Code written for the TypeScript 6 compiler API cannot obtain a `Program` or `TypeChecker` from the repository's
-installed `typescript@7.0.2` package.
+installed `typescript@7.1.0-beta` package.
 Two representative failures are:
 
 - `import * as ts from 'typescript'` loads the version-only root export,
@@ -11,18 +11,40 @@ Two representative failures are:
 - importing the former `typescript/lib/typescript.js` implementation fails with
   `ERR_MODULE_NOT_FOUND` because TypeScript 7 does not ship that file.
 
-TypeScript 7.0.2 does expose a synchronous semantic API at `typescript/unstable/sync`.
+TypeScript 7 does expose a synchronous semantic API at `typescript/sync`.
 That API can support a synchronous Oxlint JavaScript rule,
 but it does not export a named readonly-symbol query or `CheckFlags` enum.
 Mapped readonly properties therefore require an explicitly version-tested adapter around the numeric
 `Symbol.checkFlags` field.
 
+Version context:
+ the repository moved from `typescript@7.0.2` to `typescript@7.1.0-beta` (published 2026-10-20T16:45:47Z),
+ which renamed the API entry points.
+`typescript/unstable/*` no longer resolves (`ERR_PACKAGE_PATH_NOT_EXPORTED`);
+ the same API now ships at `typescript/sync`,
+`typescript/async`,
+`typescript/fs`,
+`typescript/path`,
+ `typescript/proto`,
+`typescript/ast`,
+`typescript/ast/is`,
+`typescript/ast/factory`,
+`typescript/ast/utils`,
+ `typescript/ast/scanner`,
+`typescript/ast/visitor`,
+and `typescript/ast/clone`.
+The package root `typescript` stays version-only,
+ and the rename changed no symbol names.
+Evidence recorded before that move keeps its original text with an in-place rename note
+ (the moved-identifier rule `WR6` in `AGENTS.md`),
+ and `node_modules/.pnpm/typescript@7.0.2/` citations name 7.0.2 virtual-store paths that the move removed.
+
 ## Root cause
 
 ### The stable package root is not the compiler API
 
-The installed `typescript@7.0.2/package.json:37-40` exports the package root as `lib/version.cjs` and the semantic API
-under an explicitly unstable subpath:
+The `typescript@7.0.2/package.json:37-40` export map (2026-era evidence) exported the package root as `lib/version.cjs`
+and the semantic API under an explicitly unstable subpath:
 
 ```json
 "exports": {
@@ -31,10 +53,16 @@ under an explicitly unstable subpath:
     "./unstable/sync": "./dist/api/sync/api.js",
 ```
 
+(Path renamed to `typescript/sync` in 7.1.0-beta,
+2026-10-20;
+ the `./unstable/` segment is gone from every entry and the root `.` export stays version-only.)
+
 The [TypeScript 7.0 announcement][typescript-7-announcement] states that 7.0 does not ship a stable API and expects a
 new API in 7.1.
 The exported unstable subpath is therefore usable by explicit project choice,
 not a compatibility continuation of `createProgram`.
+The 7.1.0-beta rename moved the export paths only;
+ it changed no symbol names (verified during the 2026-10-20 move).
 
 ### The synchronous API is a native-process client
 
@@ -116,7 +144,9 @@ Ordinary symbols stay unchanged.
 The catalog-free foreign-ownership fallback needs every inbound use of a reached callable without scanning every
 callable declaration in the configured project.
 The installed synchronous client exposes that operation at
-`node_modules/.pnpm/typescript@7.0.2/node_modules/typescript/dist/api/sync/api.js:711-721`:
+`node_modules/.pnpm/typescript@7.0.2/node_modules/typescript/dist/api/sync/api.js:711-721`
+(a 7.0.2 virtual-store path that the 7.1.0-beta move removed;
+ the same relative file `dist/api/sync/api.js` ships in `typescript@7.1.0-beta`):
 
 ```javascript
 getSignatureUsage(signatureDecl) {
@@ -421,7 +451,8 @@ close() {
 
 Under concurrent process load,
 the native child could handle `SIGTERM` before pipe EOF ended the server cleanly.
-The deterministic adapter now guards TypeScript 7.0.2's unstable `API.client.channel.child` shape
+The deterministic adapter now guards the `API.client.channel.child` shape recorded from `typescript@7.0.2`
+(2026-era evidence)
 and replaces that child's `kill` operation with the same operation forced to `SIGKILL`.
 TypeScript still owns stream cleanup,
 child tracking,
@@ -464,7 +495,7 @@ The missing named API is tracked by [typescript-go issue 4080][readonly-issue].
 
 ## Verification
 
-Verified components:
+Verified components (the recorded run used the 2026-era `typescript@7.0.2` package):
 
 - repository package `typescript@7.0.2`;
 - npm integrity recorded in `pnpm-lock.yaml`;
@@ -473,7 +504,9 @@ Verified components:
 - Oxlint 1.73.0 JavaScript-plugin execution boundary;
 - Linux x64 with Node 26.5.0.
 
-A disposable Oxlint plugin imported `API` from `typescript/unstable/sync`,
+A disposable Oxlint plugin imported `API` from `typescript/unstable/sync`
+(path renamed to `typescript/sync` in 7.1.0-beta,
+2026-10-20),
 opened a fixture `tsconfig.json`,
 and queried source nodes through the returned project.
 Its corpus contained imported aliases,
@@ -488,7 +521,11 @@ direct mutation,
 cross-file mutation,
 and callback-propagated mutation.
 
-Run the semantic API independently with this minimal fixture:
+Run the semantic API independently with this minimal fixture.
+It is recorded as run against `typescript@7.0.2` (2026-era evidence),
+and its `typescript/unstable/*` specifiers were renamed `typescript/*` in 7.1.0-beta,
+2026-10-20,
+so a rerun today imports `typescript/sync` and `typescript/ast/is` instead:
 
 ```typescript
 // /tmp/ts7-sync-probe/input.ts
@@ -546,7 +583,10 @@ DeepReadonly<Mutable<string>>
 true
 ```
 
-The alias precondition probe used an ordinary value symbol:
+The alias precondition probe used an ordinary value symbol.
+It is likewise recorded as run against `typescript@7.0.2` (2026-era evidence),
+and its `typescript/unstable/sync` specifier was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20:
 
 ```typescript
 // /tmp/ts7-alias-guard-probe/input.ts
@@ -685,17 +725,17 @@ The direct unsafe and guarded probes in the Verification section reproduced the 
 
 Tradeoff:
 callers must retain this precondition at every alias-resolution call site.
-The unstable API does not turn misuse into an ordinary JavaScript argument error.
+The sync API does not turn misuse into an ordinary JavaScript argument error.
 
-### Use the unstable synchronous API with a narrow adapter
+### Use the synchronous API with a narrow adapter
 
-Import `typescript/unstable/sync`,
+Import `typescript/sync`,
 keep one `API` client per plugin process,
-and hide all unstable calls behind a project-owned bridge module.
+and hide all sync API calls behind a project-owned bridge module.
 Keep the readonly bit in one named constant with a TypeScript-version contract test.
 
 Tradeoff:
-minor TypeScript updates may change the unstable API or hidden flag meaning.
+minor TypeScript updates may change the API or hidden flag meaning.
 The adapter must fail closed and emit a bridge diagnostic instead of silently treating unknown types as readonly.
 
 ### Use snapshots and a virtual filesystem overlay
@@ -710,8 +750,8 @@ Reuse that project and source when they are identical and no deletion requires i
 Only clear the decoded-source cache and send `fileChanges` when the source or project lifecycle actually changed.
 Dispose superseded snapshots and close the API client during Node `beforeExit`
 when the host provides no explicit lifecycle hook.
-For TypeScript 7.0.2,
-guard the unstable native-child shape
+For the `typescript@7.0.2` sync client (2026-era evidence),
+guard the native-child shape
 and force TypeScript's channel-owned kill operation to use `SIGKILL` before exposing the API to callers.
 
 Tradeoff:
@@ -737,7 +777,7 @@ and parser-recovery span cases.
 ## What does not work
 
 - **Importing the package root as the old compiler API:
-  ** it returns only version metadata in TypeScript 7.0.2.
+  ** it returns only version metadata in `typescript@7.0.2` and `typescript@7.1.0-beta`.
 - **Importing `typescript/lib/typescript.js`:
   ** that TypeScript 6 implementation path is not shipped.
 - **Using `@typescript-eslint/project-service`:
@@ -750,7 +790,7 @@ and parser-recovery span cases.
   ** mapped properties can resolve to mutable origin
   declarations;
    the transient readonly bit carries the projected state.
-- **Using the asynchronous unstable API inside an Oxlint visitor:
+- **Using the asynchronous API at `typescript/async` inside an Oxlint visitor:
   ** Oxlint JavaScript rule callbacks are synchronous and
   cannot await semantic results before reporting.
 - **Closing the bridge from a process `exit` listener:
@@ -808,7 +848,10 @@ The repository workaround remains pinned and shape-guarded until that report or 
     ** Yes.
     Explicit shutdown can use a quiet protocol or treat expected shutdown cancellation as success.
 3.  **Are they supporting this use case?
-    ** The subpath is intentionally unstable,
+    ** The 7.0-era subpath was intentionally unstable
+    (`typescript/unstable/sync`,
+    renamed `typescript/sync` in 7.1.0-beta,
+    2026-10-20),
     but TypeScript ships the client,
     server,
     and explicit `close()` operation together.
@@ -822,7 +865,9 @@ The repository workaround remains pinned and shape-guarded until that report or 
     ** No upstream patch was produced.
     The consumer-side forced-signal workaround isolates the emitting path and removes the diagnostic.
 
-Suggested issue title:
+Suggested issue title
+ (the `typescript/unstable/sync` path in it was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20):
 `typescript/unstable/sync API close can print context canceled to stderr`.
 
 Suggested report body:
@@ -874,8 +919,11 @@ or could the API server treat signal cancellation during expected shutdown as su
     and the verified consumer adapter resolves this repository's immediate need.
 
 Do not file the following draft as-is.
-It is an additive comment candidate for issue 4080 only if a human decides that documenting the unstable workaround
-would help upstream:
+It is an additive comment candidate for issue 4080 only if a human decides that documenting this workaround
+would help upstream.
+The draft keeps its recorded `typescript@7.0.2` and `typescript/unstable/sync` wording
+(path renamed to `typescript/sync` in 7.1.0-beta,
+2026-10-20):
 
 ~~~md
 TypeScript 7.0.2's `typescript/unstable/sync` API currently serializes `Symbol.checkFlags` as a number.

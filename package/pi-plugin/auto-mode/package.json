@@ -1,6 +1,6 @@
 {
   "name": "@monochromatic-dev/pi-plugin-auto-mode",
-  "description": "LLM-as-judge guardrail for pi: replaces pi-safeguard with fixed path handling and structured-output judge",
+  "description": "Complete-group tool-call review through Pi's public plugin API",
   "type": "module",
   "private": true,
   "version": "0.0.2",
@@ -16,9 +16,6 @@
     },
     "./ts": "./src/index.ts"
   },
-  "pi": {
-    "extensions": ["./dist/final/node/index.mjs"]
-  },
   "files": [
     "dist/final",
     "src"
@@ -28,21 +25,14 @@
     "typebox": "*"
   },
   "dependencies": {
-    "@monochromatic-dev/git-executable": "workspace:*",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
-    "@monochromatic-dev/agent-harness-shared-shell-command-analyzer": "workspace:*",
-    "@monochromatic-dev/pi-shared-model-review": "workspace:*",
-    "@monochromatic-dev/pi-shared-model-selection": "workspace:*",
-    "nano-spawn": "catalog:"
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/agent-harness-shared-shell-command-analyzer": "workspace:*"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typebox": "catalog:"
   }

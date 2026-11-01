@@ -1,0 +1,42 @@
+# CachyOS, unpinned (doc/decision/container-base-distro.md). The host passes CACHYOS_IMAGE, the newest CachyOS image
+# its CPU level runs (package/mutation-test/cli/src/host/image.ts); without it the plain image builds.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
+
+ENV PATH=/usr/local/bin:/baked/node_modules/.bin:$PATH
+
+# --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot give it
+# (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md). gcc-libs carries libatomic, which the
+# official Node.js Linux build links against.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+    ca-certificates curl gcc-libs git jq procps-ng rsync tar which \
+  && rm --recursive --force /var/cache/pacman/pkg/*
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+WORKDIR /baked
+COPY . /baked
+
+# Node and pnpm are the archived artifacts `toolchain.lock.json` pins (repository root: the source of truth for
+# every tool version, doc/decision/mpm-toolchain-adoption.md). `jq` reads the `linux-x64` rows of each; the archive
+# is fetched, its SHA-256 verified against the lock, and the binaries linked into /usr/local/bin before the frozen
+# install. Nothing here installs or trusts anything else.
+RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolchain.lock.json)" \
+  && node_sum="$(jq --raw-output '.tools.node.artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+  && curl --fail --silent --show-error --location --output /tmp/node.tar.gz "$node_url" \
+  && echo "$node_sum  /tmp/node.tar.gz" | sha256sum --check \
+  && mkdir /opt/node \
+  && tar --extract --file /tmp/node.tar.gz --directory /opt/node --strip-components=1 \
+  && ln --symbolic /opt/node/bin/node /usr/local/bin/node \
+  && ln --symbolic /opt/node/bin/npm /usr/local/bin/npm \
+  && ln --symbolic /opt/node/bin/npx /usr/local/bin/npx \
+  && pnpm_url="$(jq --raw-output '.tools.pnpm.artifacts["linux-x64"].url' toolchain.lock.json)" \
+  && pnpm_sum="$(jq --raw-output '.tools.pnpm.artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+  && curl --fail --silent --show-error --location --output /tmp/pnpm.tar.gz "$pnpm_url" \
+  && echo "$pnpm_sum  /tmp/pnpm.tar.gz" | sha256sum --check \
+  && mkdir /opt/pnpm \
+  && tar --extract --file /tmp/pnpm.tar.gz --directory /opt/pnpm \
+  && ln --symbolic /opt/pnpm/pnpm /usr/local/bin/pnpm \
+  && pnpm install --frozen-lockfile
+
+CMD ["node", "--version"]

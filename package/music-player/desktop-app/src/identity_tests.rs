@@ -1,7 +1,10 @@
 //! Tests that the identity constants stay in sync with the non-Rust files that
-//! must carry the same strings: the macOS `Info.plist` (the bundle id) and the
-//! Linux `.desktop` file (the WM class). Those files cannot share a Rust
-//! constant, so these compile-time checks are the only guard against drift.
+//! must carry the same strings:
+//!  the macOS `Info.plist` (the bundle id) and the
+//! Linux `.desktop` file (the WM class).
+//!  Those files cannot share a Rust
+//! constant,
+//!  so these compile-time checks are the only guard against drift.
 
 // What:     `use super::*;`. Glob-import the parent `identity` module's items
 //           (its constants) into this test module. `super` names the parent.

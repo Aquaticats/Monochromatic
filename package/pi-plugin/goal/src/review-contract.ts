@@ -324,41 +324,41 @@ function truncateTranscript(
       readonly characters: number;
       readonly chunks: readonly string[];
     }>(
-      function retainNewest(
-        state,
-        chunk,
-      ) {
+    function retainNewest(
+      state,
+      chunk,
+    ) {
         /**
          Separator needed before already-retained newer chunks.
          */
         /**
          Newer chunks already retained by reduction.
          */
-        const { chunks: retainedChunks, } = state;
+      const { chunks: retainedChunks, } = state;
         /**
          Separator characters needed before retained newer chunks.
          */
-        const separatorCharacters = retainedChunks.length === 0
-          ? 0
-          : EVIDENCE_SEPARATOR.length;
+      const separatorCharacters = retainedChunks.length === 0
+        ? 0
+        : EVIDENCE_SEPARATOR.length;
         /**
          Characters required for this complete older chunk.
          */
-        const required = chunk.length + separatorCharacters;
-        if ((state.characters + required) > retainedBudget)
-          return state;
-        return {
-          characters: state.characters + required,
-          chunks: [
-            chunk,
-            ...retainedChunks,
-          ],
-        };
-      },
-      {
-        characters: 0,
-        chunks: [],
-      },
+      const required = chunk.length + separatorCharacters;
+      if ((state.characters + required) > retainedBudget)
+        return state;
+      return {
+        characters: state.characters + required,
+        chunks: [
+          chunk,
+          ...retainedChunks,
+        ],
+      };
+    },
+    {
+      characters: 0,
+      chunks: [],
+    },
     );
   /**
    Retained newest complete chunks.
@@ -450,7 +450,7 @@ function buildBudgetedGoalReviewPrompt(
     transcriptTruncated: truncated,
     estimatedInputTokens: Math.ceil(
       (GOAL_REVIEW_SYSTEM_PROMPT.length + userContent.length)
-      / ESTIMATED_CHARACTERS_PER_TOKEN,
+        / ESTIMATED_CHARACTERS_PER_TOKEN,
     ),
   };
 }

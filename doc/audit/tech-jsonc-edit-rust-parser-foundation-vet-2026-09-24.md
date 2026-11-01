@@ -1,5 +1,10 @@
 # Vet the parser foundation for a native Rust jsonc-edit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:
@@ -56,9 +61,12 @@
 The delegated research froze its literal initial queries before discovery:
 
 - In-repo:
-   `rg --files doc package | rg 'rust-structured-edits|jsonc|json-five|biome_json|edikt'` and `rg --line-number 'jsonc-parser|edikt-jsonc|json-five|biome_json_parser|attached.comment|surrogate' doc package`.
+   `rg --files doc package | rg 'rust-structured-edits|jsonc|json-five|biome_json|edikt'`
+   and `rg --line-number 'jsonc-parser|edikt-jsonc|json-five|biome_json_parser|attached.comment|surrogate' doc package`.
 - Registry/web:
-   `site:crates.io/crates/ jsonc-parser edikt-jsonc json-five biome_json_parser latest version repository` and `Rust JSONC parser lossless comments tokens raw string escapes exact numeric literals crates source` via Exa fast/Linkup fallback.
+   `site:crates.io/crates/ jsonc-parser edikt-jsonc json-five biome_json_parser latest version repository`
+   and `Rust JSONC parser lossless comments tokens raw string escapes exact numeric literals crates source` via Exa
+   fast/Linkup fallback.
 - Repository host:
    targeted official source linked from crates and repository decision records;
    broad GitHub query and registry pagination remain to be run.
@@ -91,7 +99,8 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `jsonc-parser` 0.33.2
 
 - Discovery:
-   [versioned source and API](https://docs.rs/jsonc-parser/0.33.2/jsonc_parser/) and prior in-repo [Rust edit survey](../planning/monorepo-manager-route-research/rust-structured-edits.md).
+   [versioned source and API](https://docs.rs/jsonc-parser/0.33.2/jsonc_parser/)
+   and prior in-repo [Rust edit survey](../planning/monorepo-manager-route-research/rust-structured-edits.md).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -107,16 +116,19 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `edikt-jsonc` 0.4.0
 
 - Discovery:
-   [crates.io entry](https://crates.io/crates/edikt-jsonc) and [lexer source](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/lexer.rs).
+   [crates.io entry](https://crates.io/crates/edikt-jsonc) and
+   [lexer source](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/lexer.rs).
 - Category:
    inspectable open-source Rust lexer/CST with native and multi-platform overlays.
 - Screening:
    raw comments,
    strings,
    and numbers are available.
-   [Comment projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/comments.rs) puts key-side and value-side comments together on the value,
+   [Comment projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/comments.rs) puts key-side
+   and value-side comments together on the value,
    so an attachment layer is still needed.
-   [Value projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/project.rs) uses `f64` for some numbers and Rust `String`;
+   [Value projection](https://docs.rs/crate/edikt-jsonc/0.4.0/source/src/project.rs) uses `f64` for some numbers
+   and Rust `String`;
    bypassing it may allow a compliant projection from raw tokens.
    JSON5 and malformed-input acceptance requires strict validation.
    Pin clone and probe before any conclusion.
@@ -124,7 +136,8 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `json-five` 0.3.1
 
 - Discovery:
-   [round-trip token source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/tokenize.rs) and [parser source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/parser.rs).
+   [round-trip token source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/tokenize.rs)
+   and [parser source](https://docs.rs/crate/json-five/0.3.1/source/src/rt/parser.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -137,19 +150,22 @@ Both local delegated `rg` queries were blocked by its security guardrail,
 ### `biome_json_parser` 0.5.7
 
 - Discovery:
-   [lexer source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lexer/mod.rs) and [parser source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lib.rs).
+   [lexer source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lexer/mod.rs)
+   and [parser source](https://docs.rs/crate/biome_json_parser/0.5.7/source/src/lib.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
    lossless trivia and raw scalar ranges may support an adapter.
-   [Prior repository research](../planning/monorepo-manager-route-research/rust-structured-edits.md) corrected its build pin count to three exact companion crates.
+   [Prior repository research](../planning/monorepo-manager-route-research/rust-structured-edits.md) corrected its
+   build pin count to three exact companion crates.
    Strict container-root validation and the attached-comment layer remain repository work.
    Token support for unpaired escapes must be probed.
 
 ### `jwc` 0.1.0
 
 - Discovery:
-   [AST source](https://docs.rs/crate/jwc/0.1.0/source/src/ast.rs) and [parser source](https://docs.rs/crate/jwc/0.1.0/source/src/single_pass_parser.rs).
+   [AST source](https://docs.rs/crate/jwc/0.1.0/source/src/ast.rs)
+   and [parser source](https://docs.rs/crate/jwc/0.1.0/source/src/single_pass_parser.rs).
 - Category:
    inspectable open-source Rust parser with native and multi-platform overlays.
 - Screening:
@@ -277,7 +293,8 @@ Web searches discovered `jwc`,
 ### Other registry leads
 
 - `jsonc` 0.1.0 has no repository URL in registry metadata;
-   the published source in the local Cargo cache (`jsonc_document.rs:2-4,62-73,107-119`) wraps `jsonc-parser` and projects through `serde_json::Value`.
+   the published source in the local Cargo cache (`jsonc_document.rs:2-4,62-73,107-119`) wraps `jsonc-parser`
+   and projects through `serde_json::Value`.
    It inherits the upstream scanner's surrogate constraint and cannot provide the full contract as-is.
 - `jsonc_tools` 0.0.1 published source (`src/lib.rs:1-18`,
    `src/parser/parser.rs:1-13`) is a scaffold with no JSONC parser implementation.

@@ -34,3 +34,31 @@ extends = "test:unit"
 [tasks."verify:extension"]
 depends = ["build"]
 run = "node src/mise.verify-extension.ts"
+
+[tasks."verify:terminal"]
+description = "Open the default terminal with a scripted editor and verify real helper submission and cancellation"
+run = ["mise run //package/pi-plugin/ask-user-question:build", "mise run //package/pi-plugin/ask-user-question:verify:terminal:run"]
+
+[tasks."verify:terminal:run"]
+hide = true
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { createRequestRegistry, requestExternalAnswer } = await import('./dist/final/node/index.mjs')
+const { mkdtempDisposable } = await import('node:fs/promises')
+const { tmpdir } = await import('node:os')
+const { join } = await import('node:path')
+await using fixture = await mkdtempDisposable(join(tmpdir(), 'ask-terminal-verify-'))
+const editorSource = 'import {writeFile} from "node:fs/promises"; await writeFile(process.argv.at(-1), JSON.parse(process.argv.at(-2)));'
+for (const answer of ['first\nsecond\n', '']) {
+  const outcome = await requestExternalAnswer({
+    cwd: fixture.path,
+    registry: createRequestRegistry(),
+    editorCommand: [process.execPath, '--input-type=module', '--eval', editorSource, '--', JSON.stringify(answer)],
+  })
+  const expected = answer === '' ? { status: 'cancelled' } : { status: 'answered', answer: 'first\nsecond' }
+  if (JSON.stringify(outcome) !== JSON.stringify(expected)) {
+    throw new Error(`Detached-terminal verification failed: ${JSON.stringify(outcome)}`)
+  }
+  console.log(`Detached terminal verified: ${outcome.status}`)
+}
+'''

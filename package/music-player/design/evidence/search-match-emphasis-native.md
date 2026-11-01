@@ -25,7 +25,7 @@ The debug-only `SearchFixtureHighlights.kt` in prototype commit
 `b471ec537` takes `MaterialTheme.colorScheme.primary` from the active
 candidate theme,
 then calls the existing production color utility
-`mixOklchWithNeutral` in
+`mixOklchWithNeutral` (deleted 2026-10-13; the match fill is now a `core/ThemeRoles.kt` role, D108) in
 `package/music-player/android-app/app/src/main/kotlin/dev/monochromatic/musicplayer/OklchColor.kt`.
 For the light scene,
 the prototype mixes OKLCH lightness 0.72 of the way to white and chroma

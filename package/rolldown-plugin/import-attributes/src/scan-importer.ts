@@ -131,7 +131,7 @@ export async function scanImporterForAttribute({
         || (node.attributes
           .length
           === 0))
-      {
+        {
         return;
       }
       found = extractTypeFromAttributes(node.attributes,);

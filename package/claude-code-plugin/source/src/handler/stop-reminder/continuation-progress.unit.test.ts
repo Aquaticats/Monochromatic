@@ -2,13 +2,14 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   CONTINUATION_MARKER,
   FEEDBACK_PREFIX,
 } from './continuation-depth.ts';
 import {
   hasRunningBackgroundTask,
+  hasRunningSubagent,
   recordCarriesToolUse,
   workedSinceLastForcedContinuation,
 } from './continuation-progress.ts';
@@ -89,6 +90,35 @@ await describe({
           name: 'skips a truncated final line rather than throwing',
           fn: async () => {
             expect(workedSinceLastForcedContinuation([BLOCK_LINE, '{"type":"assist',],),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: hasRunningSubagent.name,
+      children: [
+        it({
+          name: 'reports a running subagent',
+          fn: async () => {
+            expect(hasRunningSubagent([{ id: 'a', type: 'subagent', status: 'running', },],),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'ignores a running shell task, a running monitor, and a finished subagent',
+          fn: async () => {
+            expect(hasRunningSubagent([
+              { id: 'a', type: 'shell', status: 'running', },
+              { id: 'b', type: 'monitor', status: 'running', },
+              { id: 'c', type: 'subagent', status: 'completed', },
+            ],),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'reports no subagent when the list is empty or absent',
+          fn: async () => {
+            expect(hasRunningSubagent([],),).toBe(false,);
+            expect(hasRunningSubagent(),).toBe(false,);
           },
         },),
       ],

@@ -22,7 +22,7 @@ pnpm drift section.
 ## Symptom
 
 Running the full matrix
-(`mise run //package/dev-script/catalog-tighten.matrix:test:matrix`),
+(`mise run //package/dependency-catalog/cli-tighten.matrix:test:matrix`),
  which runs
 the scenarios in containers at concurrency 2,
  the `stale orphan` scenario failed
@@ -76,14 +76,14 @@ layout,
  so there is
 no cross-entry concurrency:
  `catalogEntries.map` in
-`package/dev-script/catalog-tighten/src/index.ts:297` folds over exactly one
+`package/dependency-catalog/cli-tighten/src/index.ts:297` folds over exactly one
 entry.
 
 Resolution reads a fixed importer list in a fixed order and returns the first
 hit,
  with no shared mutable state,
  in
-`package/dev-script/catalog-tighten/src/version-resolve.ts:242`:
+`package/dependency-catalog/cli-tighten/src/version-resolve.ts:242`:
 
 ```ts
 const candidateDirs = [
@@ -117,7 +117,7 @@ install;
  and the resolver above never
 reads `.pnpm` on the tighten path.
  So the only way `stale orphan` reaches the
-miss branch (`package/dev-script/catalog-tighten/src/index.ts:347`) is if a
+miss branch (`package/dependency-catalog/cli-tighten/src/index.ts:347`) is if a
 consumer's `picomatch` manifest was unreadable at read time,
  which requires the
 install layout to have been incomplete despite `pnpm install` exiting 0.
@@ -164,11 +164,11 @@ Reproduction command (the exact original condition):
 
 ```sh
 # /var/home/user/Monochromatic
-mise run //package/dev-script/catalog-tighten.matrix:test:matrix
+mise run //package/dependency-catalog/cli-tighten.matrix:test:matrix
 ```
 
 The assertion already embeds the full tool output in its error
-(`package/dev-script/catalog-tighten.matrix/src/in-container.ts`,
+(`package/dependency-catalog/cli-tighten.matrix/src/in-container.ts`,
  the
 `expected ... got:\n${output}` throws),
  so a recurrence in CI or a captured run
@@ -215,7 +215,7 @@ verify a fix against.
 
 Add `retries: 2` to the matrix `it` in `matrix.unit.matrix.test.ts`.
  The harness
-supports it (`@monochromatic-dev/module-test`,
+supports it (`@monochromatic-dev/test-harness-core`,
  `it({ retries })`).
  A retry
 re-runs the whole scenario,

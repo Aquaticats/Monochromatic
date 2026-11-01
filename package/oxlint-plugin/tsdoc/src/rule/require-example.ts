@@ -119,7 +119,7 @@ function isExempt(result: ReadonlyDeep<TsdocParseResult>,): boolean {
   ```ts
   add(1, 2); // => 3
   ```
-  *\/
+ *\/
  export function add(a: number, b: number): number { return a + b; }
  ```
  */
@@ -280,7 +280,7 @@ export const requireExample: CreateOnceRule = {
         !== 'FunctionExpression')
         && (init.type
           !== 'ArrowFunctionExpression'))
-      {
+        {
         return;
       }
 

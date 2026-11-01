@@ -3,7 +3,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   guardrailHandler,
   type GuardrailOutput,
@@ -213,6 +213,36 @@ await describe({
           name: 'allows "bun tests" (different word, no test subcommand)',
           fn: async ({ expect: e, },) => {
             const result = guardrailHandler(makeBashEvent('bun tests',),);
+            e(isDeny(result,),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'Bash: process-name wait loop blocking',
+      children: [
+        it({
+          name: 'denies "until ! pgrep -f build; do sleep 1; done"',
+          fn: async ({ expect: e, },) => {
+            const result = guardrailHandler(
+              makeBashEvent('until ! pgrep -f build; do sleep 1; done',),
+            );
+            e(isDeny(result,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows straight-line "pgrep -af build"',
+          fn: async ({ expect: e, },) => {
+            const result = guardrailHandler(makeBashEvent('pgrep -af build',),);
+            e(isDeny(result,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'allows PID-based "timeout 600 tail --pid=123 --follow /dev/null"',
+          fn: async ({ expect: e, },) => {
+            const result = guardrailHandler(
+              makeBashEvent('timeout 600 tail --pid=123 --follow /dev/null',),
+            );
             e(isDeny(result,),).toBe(false,);
           },
         },),

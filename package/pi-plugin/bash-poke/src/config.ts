@@ -6,8 +6,8 @@
 
 import { readFile, } from 'node:fs/promises';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { configPathForHome, } from './config-paths.ts';
 import { BashPokeConfigError, } from './config-error.ts';
@@ -33,14 +33,14 @@ type SettingsFileRead =
   | {
     readonly state: 'absent';
   }
-  | {
-    readonly state: 'present';
-    readonly text: string;
-  }
-  | {
-    readonly state: 'unreadable';
-    readonly failure: string;
-  };
+    | {
+      readonly state: 'present';
+      readonly text: string;
+    }
+    | {
+      readonly state: 'unreadable';
+      readonly failure: string;
+    };
 
 /**
  Result of decoding settings text.
@@ -50,10 +50,10 @@ type SettingsJsonParse =
     readonly state: 'parsed';
     readonly value: unknown;
   }
-  | {
-    readonly state: 'invalid';
-    readonly failure: string;
-  };
+    | {
+      readonly state: 'invalid';
+      readonly failure: string;
+    };
 
 //endregion Types
 

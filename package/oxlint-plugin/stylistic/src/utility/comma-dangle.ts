@@ -490,6 +490,10 @@ function lastToken(params: ForeignBorrowed<Readonly<LastTokenParams>>,): Token |
 /**
  Returns token before a container's closing delimiter.
  
+ Binding patterns carry type annotations whose node ranges extend past the
+ pattern's own brace, so a trailing annotation is skipped to reach the list
+ close delimiter the comma actually belongs to.
+ 
  @param params - context and container for lookup
  
  @returns penultimate container token, or sentinel
@@ -510,13 +514,24 @@ function containerPenultimateToken(
     container,
   } = params;
   /**
-   Token before closing delimiter, absent for malformed stubs.
+   Type annotation node extending a binding pattern's range, when present.
+   */
+  const { typeAnnotation, } = fieldsOf(container,);
+  /**
+   Container close delimiter: the pattern's own brace when an annotation follows, else the container tail.
+   */
+  const closeToken = isNode(typeAnnotation,)
+    ? context.sourceCode
+      .getTokenBefore(typeAnnotation,)
+    : context.sourceCode
+      .getLastToken(container,);
+  if (closeToken === null)
+    return NO_TOKEN;
+  /**
+   Token before close delimiter, absent for malformed stubs.
    */
   const token = context.sourceCode
-    .getLastToken(
-      container,
-      1,
-    );
+    .getTokenBefore(closeToken,);
   return token ?? NO_TOKEN;
 }
 

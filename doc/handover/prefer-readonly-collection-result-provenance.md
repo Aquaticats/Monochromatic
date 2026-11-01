@@ -1,5 +1,10 @@
 # Handover: collection result provenance in `prefer-readonly-parameter-types`
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Live document.
 Updated as increments land,
  so the last section is the one to read first when picking this up.

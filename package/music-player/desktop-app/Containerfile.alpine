@@ -1,0 +1,195 @@
+# Alpine Linux (musl libc) build, test and run image for the `music-player` desktop app.
+# Alpine is the second supported Linux target beside the Fedora glibc image in `Containerfile`:
+# ../../../doc/decision/music-player-alpine.md records the measurements behind every choice here.
+#
+# Three stages:
+#   build    Rust toolchain, C toolchain and the -dev packages the crate graph links or parses at build time.
+#            Also runs `cargo nextest` (the unit tests) and builds the app and the repo's nested compositor.
+#   runtime  The smallest apk set a person needs to run the dynamically linked binary. This list is the
+#            deliverable quoted in README.md under "Alpine Linux"; keep the two in step.
+#   smoke    The runtime set plus what a headless test session needs (a PipeWire daemon, an ALSA stub, socat), and
+#            `music-player-smoke`, which starts the app inside the repo's nested compositor and checks it.
+#
+# The base is pinned by digest (the multi-arch index digest of alpine:3.24.2, the stable release on 2026-10-14),
+# so x86_64 and aarch64 builds start from the same Alpine content. Refresh the tag and the digest together:
+#   podman pull docker.io/library/alpine:3.24 && podman inspect docker.io/library/alpine:3.24 --format '{{.Digest}}'
+ARG ALPINE=docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+
+FROM ${ALPINE} AS build
+
+# Build packages:
+#   rust, cargo, rust-clippy  Alpine's own musl-hosted toolchain. The repo pins no toolchain, Slint 1.18 needs a
+#                          recent stable, and Alpine 3.24 ships 1.96. Its default is a DYNAMIC musl link, which
+#                          is the only link that can open a window (see the decision doc).
+#   build-base             gcc, g++, make and musl-dev: cc for the C dependencies.
+#   cmake, samurai         opusic-sys compiles its bundled libopus 1.6.1 through CMake; samurai is Alpine's ninja.
+#   clang21-libclang       libclang for bindgen (pipewire's libspa-sys); bindgen only loads libclang and parses
+#                          the system headers, so clang-dev is not needed.
+#   linux-headers          bindgen parses PipeWire headers that include <linux/...>.
+#   pkgconf                pkg-config, used by the *-sys crates.
+#   pipewire-dev           libpipewire-0.3 and the SPA headers for the `pipewire` crate (link-time dependency).
+#   alsa-lib-dev           libasound for the `alsa-fallback` feature (cpal's ALSA backend).
+#   fontconfig-dev, freetype-dev  linked by the Slint font stack.
+#   wayland-dev, libxkbcommon-dev, libdrm-dev, mesa-dev  build the repo's nested compositor from source.
+#   cargo-nextest          the test runner (RNQ); from Alpine so aarch64 needs no prebuilt download.
+#   dbus                   dbus-daemon: the notification tests start a private session bus of their own.
+#   font-dejavu            any font: with fontconfig present but no font installed, fontique panics with
+#                          NoMatch, which fails 227 UI tests (and the app itself at startup).
+RUN apk add --no-cache \
+      rust cargo rust-clippy \
+      build-base cmake samurai pkgconf linux-headers \
+      clang21-libclang \
+      pipewire-dev alsa-lib-dev \
+      fontconfig-dev freetype-dev \
+      wayland-dev libxkbcommon-dev libdrm-dev mesa-dev \
+      cargo-nextest \
+      dbus \
+      font-dejavu
+
+FROM ${ALPINE} AS runtime
+
+# Runtime packages, one reason each (the direct DT_NEEDED libraries of the release binary are libfontconfig,
+# libasound, libpipewire-0.3 and libgcc_s plus their own dependencies; the rest are libraries it opens with dlopen):
+#   fontconfig, font-dejavu  font discovery and at least one font. With no font installed the app panics at
+#                          startup; any font package works, DejaVu is the small one.
+#   pipewire-libs          libpipewire-0.3, linked by the binary, and the SPA plugins it loads.
+#   libgcc                 libgcc_s, the unwinder every dynamically linked Rust program on musl needs.
+#   wayland-libs-client    libwayland-client, opened by winit.
+#   wayland-libs-egl       libwayland-egl, opened by winit to create the EGL window surface. mesa-egl does not
+#                          depend on it: without it the app panics with "Library libwayland-egl.so could not be loaded".
+#   libxkbcommon           keyboard handling, opened by winit.
+#   mesa-egl, mesa-gles, mesa-dri-gallium  the OpenGL ES stack the femtovg renderer draws with, and Mesa's
+#                          drivers (llvmpipe on a machine with no GPU).
+#   alsa-lib               libasound for the ALSA fallback when no PipeWire daemon runs.
+RUN apk add --no-cache \
+      fontconfig font-dejavu \
+      pipewire-libs libgcc \
+      wayland-libs-client wayland-libs-egl libxkbcommon \
+      mesa-egl mesa-gles mesa-dri-gallium \
+      alsa-lib
+
+FROM runtime AS smoke
+
+# Test-session packages (a person does not need these):
+#   pipewire, wireplumber, pipewire-tools  a PipeWire daemon with a session manager, plus pw-cli and pw-link, for
+#                          the scenario that proves the app plays through PipeWire.
+#   wayland-libs-server, libdrm  opened by the nested compositor.
+#   socat                  talks to the compositor's control socket.
+RUN apk add --no-cache \
+      pipewire wireplumber pipewire-tools \
+      wayland-libs-server libdrm \
+      socat
+
+# The smoke test. It lives here, not in a script file, because this repository keeps shell in Containerfiles and
+# workflows only. It is written with one printf argument per line, not a heredoc, because the Ubuntu 24.04 runners ship
+# podman 4.9, whose builder reads every heredoc line as a Containerfile instruction. The script therefore must not
+# contain a single quote; use double quotes inside it. Inputs (all bind-mounted read-only by the caller):
+#   /opt/music-player/music-player  the app binary built in the build stage
+#   /opt/music-player/nws           the nested compositor built from package/nested-wayland-session/cli
+#   /opt/music-player/fixture       the invented tone files of package/music-player/desktop-app/fixture
+# Three scenarios, each a fresh app run inside the compositor with no GPU and no seat:
+#   no-audio   no sound server, no ALSA device: the app must start and tell the person (never crash)
+#   alsa       an ALSA PCM that discards audio: the ALSA fallback must open it
+#   pipewire   a real PipeWire daemon with a null sink: the app must play into it
+# Each scenario asserts the app drew its first screen (the "queue projected" log line), logged no panic, and
+# produced a screenshot that is not blank. A scenario failure prints its log and exits non-zero.
+RUN printf '%s\n' \
+      '#!/bin/sh' \
+      'set -eu' \
+      '' \
+      'app=/opt/music-player/music-player' \
+      'nws=/opt/music-player/nws' \
+      'fixtures=/opt/music-player/fixture' \
+      'out="${SMOKE_OUT:-/tmp/smoke-out}"' \
+      'mkdir -p "$out"' \
+      '' \
+      '# Alpine has no systemd-logind, so nothing creates the runtime directory Wayland and PipeWire need.' \
+      'export XDG_RUNTIME_DIR=/tmp/xdg-runtime' \
+      'export XDG_CONFIG_HOME=/tmp/xdg/config' \
+      'export XDG_CACHE_HOME=/tmp/xdg/cache' \
+      'export XDG_DATA_HOME=/tmp/xdg/data' \
+      'export HOME=/tmp/home' \
+      'rm -rf /tmp/xdg-runtime /tmp/xdg /tmp/home' \
+      'mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$HOME"' \
+      'chmod 700 "$XDG_RUNTIME_DIR"' \
+      'unset WAYLAND_DISPLAY DISPLAY' \
+      'socket="$XDG_RUNTIME_DIR/nws.sock"' \
+      '' \
+      'fail() {' \
+      '  echo "SMOKE FAIL: $*" >&2' \
+      '  exit 1' \
+      '}' \
+      '' \
+      'control() {' \
+      '  echo "$1" | socat - "UNIX-CONNECT:$socket"' \
+      '}' \
+      '' \
+      '# wait_for PATTERN FILE SECONDS: poll FILE for PATTERN once a second.' \
+      'wait_for() {' \
+      '  seconds=0' \
+      '  while ! grep -q -e "$1" "$2" 2>/dev/null; do' \
+      '    seconds=$((seconds + 1))' \
+      '    [ "$seconds" -le "$3" ] || return 1' \
+      '    sleep 1' \
+      '  done' \
+      '}' \
+      '' \
+      '# scenario NAME EXPECTED_LOG_LINE [APP_ARG...]' \
+      'scenario() {' \
+      '  name="$1"' \
+      '  expected="$2"' \
+      '  shift 2' \
+      '  log="$out/$name.log"' \
+      '  rm -f "$socket"' \
+      '  echo "== scenario $name"' \
+      '  "$nws" --headless --gpu software --size 1280x720 --socket "$socket" -- "$app" "$@" "$fixtures" > "$log" 2>&1 &' \
+      '  nws_pid=$!' \
+      '  wait_for "queue projected" "$log" 90 || { cat "$log"; fail "$name: the app never drew its first screen"; }' \
+      '  wait_for "$expected" "$log" 30 || { cat "$log"; fail "$name: expected the log line: $expected"; }' \
+      '  sleep 2' \
+      '  if grep -q "panicked at" "$log"; then' \
+      '    cat "$log"' \
+      '    fail "$name: the app panicked"' \
+      '  fi' \
+      '  [ "$(control ping)" = ok ] || fail "$name: the compositor does not answer ping"' \
+      '  [ "$(control "screenshot $out/$name.png")" = ok ] || fail "$name: the screenshot failed"' \
+      '  size="$(wc -c < "$out/$name.png")"' \
+      '  [ "$size" -gt 100000 ] || fail "$name: the screenshot is $size bytes, so the window looks blank"' \
+      '  echo "scenario $name: drew the window (screenshot $size bytes) and logged: $expected"' \
+      '}' \
+      '' \
+      '# finish: ask the compositor to stop and wait for it, which also ends the hosted app.' \
+      'finish() {' \
+      '  control quit > /dev/null || true' \
+      '  wait "$nws_pid" || true' \
+      '}' \
+      '' \
+      'rm -f /etc/asound.conf' \
+      'scenario no-audio "no audio output is available"' \
+      'finish' \
+      '' \
+      '# An ALSA PCM that discards audio: a plug in front of the null device.' \
+      'printf "pcm.!default {\n  type plug\n  slave.pcm \"discard\"\n}\npcm.discard {\n  type null\n}\n" > /etc/asound.conf' \
+      'scenario alsa "audio output: the default ALSA device"' \
+      'finish' \
+      'rm -f /etc/asound.conf' \
+      '' \
+      'pipewire > "$out/pipewire.log" 2>&1 &' \
+      'pipewire_pid=$!' \
+      'sleep 2' \
+      'wireplumber > "$out/wireplumber.log" 2>&1 &' \
+      'wireplumber_pid=$!' \
+      'sleep 3' \
+      'pw-cli create-node adapter "{ factory.name=support.null-audio-sink node.name=nullsink media.class=Audio/Sink object.linger=true audio.position=[FL,FR] }" > /dev/null' \
+      'sleep 2' \
+      'scenario pipewire "audio output buffer sizes" --start-playing' \
+      'sleep 2' \
+      'pw-link --links > "$out/pw-links.txt"' \
+      'grep -q "music-player" "$out/pw-links.txt" || { cat "$out/pw-links.txt"; fail "pipewire: the app has no PipeWire stream"; }' \
+      'grep -q "nullsink:playback_" "$out/pw-links.txt" || { cat "$out/pw-links.txt"; fail "pipewire: the app stream is not linked to the null sink"; }' \
+      'echo "scenario pipewire: the app stream is linked to the null sink"' \
+      'finish' \
+      'kill "$wireplumber_pid" "$pipewire_pid" 2>/dev/null || true' \
+      'echo "SMOKE OK"' \
+    > /usr/local/bin/music-player-smoke \
+    && chmod 755 /usr/local/bin/music-player-smoke

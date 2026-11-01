@@ -14,7 +14,7 @@ import {
 } from '@earendil-works/pi-ai';
 import type { AgentSession, } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { expect, } from '@monochromatic-dev/module-test/ts';
+import { expect, } from '@monochromatic-dev/test-harness-core/ts';
 import { fixtureAssistant, } from './host-fixture-model.ts';
 import { fixtureProvider, } from './host-fixture-provider.ts';
 import {
@@ -56,64 +56,64 @@ export async function verifyHostAbort(): Promise<void> {
       context: ForeignBorrowed<TranscriptContext>,
       options?: ForeignBorrowed<StreamOptions>,
     ): AssistantMessageEventStream {
-    source.state
-      .calls
-      .push({
-        kind: 'full',
-        model,
-        context,
-        ...(options === undefined ? {} : { options, }),
-      },);
+      source.state
+        .calls
+        .push({
+          kind: 'full',
+          model,
+          context,
+          ...(options === undefined ? {} : { options, }),
+        },);
     /**
      Native event queue remains owned by this single cancellation probe.
      */
-    const events = createAssistantMessageEventStream();
+      const events = createAssistantMessageEventStream();
     /**
      Initial native partial preserves the original model and provider identity.
      */
-    const partial = fixtureAssistant({ model, },);
-    events.push({
-      type: 'start',
-      partial,
-    },);
+      const partial = fixtureAssistant({ model, },);
+      events.push({
+        type: 'start',
+        partial,
+      },);
     /**
      Actual host signal must own cancellation instead of a fixture timer.
      */
-    const signal = options?.signal;
-    if (signal === undefined)
-      throw new Error('Actual host did not pass its cancellation signal.',);
+      const signal = options?.signal;
+      if (signal === undefined)
+        throw new Error('Actual host did not pass its cancellation signal.',);
     /**
      Cancellation emits the native error event and settles the same stream.
      */
-    function aborted(): void {
+      function aborted(): void {
       /**
        Terminal native abort response is preserved in canonical session history.
        */
-      const message = fixtureAssistant({
-        model,
-        overrides: {
-          stopReason: 'aborted',
-          errorMessage: 'Synthetic request aborted.',
-        },
-      },);
-      events.push({
-        type: 'error',
-        reason: 'aborted',
-        error: message,
-      },);
-      events.end(message,);
-    }
-    if (signal.aborted)
-      aborted();
-    else
-      signal.addEventListener(
-        'abort',
-        aborted,
-        { once: true, },
-      );
-    started.resolve();
-    return events;
-  },
+        const message = fixtureAssistant({
+          model,
+          overrides: {
+            stopReason: 'aborted',
+            errorMessage: 'Synthetic request aborted.',
+          },
+        },);
+        events.push({
+          type: 'error',
+          reason: 'aborted',
+          error: message,
+        },);
+        events.end(message,);
+      }
+      if (signal.aborted)
+        aborted();
+      else
+        signal.addEventListener(
+          'abort',
+          aborted,
+          { once: true, },
+        );
+      started.resolve();
+      return events;
+    },
   };
   /**
    Actual SDK host drives prompt, cancellation, and final history reconciliation.
@@ -184,8 +184,8 @@ export async function verifyHostAbort(): Promise<void> {
     .calls[0]
     ?.options,)
     .toHaveProperty(
-      'serviceTier',
-      'priority',
+    'serviceTier',
+    'priority',
     );
   expect(host.session
     .model,)

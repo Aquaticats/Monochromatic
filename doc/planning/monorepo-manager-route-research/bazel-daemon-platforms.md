@@ -59,7 +59,8 @@ These are recorded here only; the repository was not edited.
   "Another command (%s) is running. Waiting for it to complete on the server"
   [V: `bazel src/main/java/com/google/devtools/build/lib/runtime/BlazeCommandDispatcher.java:229-265`].
   The conclusion (one command at a time per output base) is unchanged.
-- `doc/planning/monorepo-manager-build-routes.md` says the sandbox "prevents the action from accidentally using any input files that are not declared".
+- `doc/planning/monorepo-manager-build-routes.md` says the sandbox "prevents the action from accidentally using any
+- input files that are not declared".
   The same page also says "Processes can freely access all files on the file system"
   and only hides undeclared inputs from tools that do not know absolute paths
   [V: `bazel docs/docs/sandboxing.mdx:14-22`].
@@ -146,7 +147,8 @@ so every command `watchd` issues uses one flag set
   `--watchfs`,
   `--spawn_strategy=linux-sandbox` (fails instead of silently falling back to `processwrapper-sandbox`
   [V: `bazel docs/docs/sandboxing.mdx:91-102`]),
-  `--experimental_sandbox_limits=memory=<n>` and `cpu=<n>` (without a limit no per-action cgroup exists, see section "Cgroups"),
+  `--experimental_sandbox_limits=memory=<n>` and `cpu=<n>` (without a limit no per-action cgroup exists, see section
+  "Cgroups"),
   `--keep_going`,
   `--build_event_json_file=<run dir>/<invocation>.jsonl`,
   `--build_event_publish_all_actions`,
@@ -169,7 +171,8 @@ and agents or humans reach Bazel through `watchd` rather than a bare `bazel` [U,
   [V: `bazel docs/remote/bep.mdx:91-98`],
   so all progress semantics come from Bazel's `build_event_stream.proto`.
 - BEP event kinds useful for WR2
-  (id `oneof` [V: `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto:269-298`],
+  (id `oneof` [V:
+  `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto:269-298`],
   payload `oneof` [V: same file `:1649-1682`]):
   - `BuildStarted` (invocation, command, start time) and `PatternExpanded` (targets requested);
   - `TargetConfigured` and `TargetComplete` (`success`, output groups, `failure_detail`)
@@ -179,7 +182,8 @@ and agents or humans reach Bazel through `watchd` rather than a bare `bazel` [U,
     by default only "important" actions, including all failed ones, are reported
     [V: same file `:174-176`];
     `--build_event_publish_all_actions` publishes all
-    [V: `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/transports/BuildEventStreamOptions.java:161-166`];
+    [V: `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/transports/BuildEventStreamOptions.java:161-
+    166`];
     whether action cache hits produce `ActionExecuted` events [U];
   - `TestResult`, `TestSummary`, and `TestProgress` (a URI for an active test run)
     [V: same file `:708-804`];
@@ -205,7 +209,8 @@ and agents or humans reach Bazel through `watchd` rather than a bare `bazel` [U,
   [V: `bazel docs/remote/bep.mdx:64-87`].
   The writer thread flushes at least every 250 ms
   (`EXPERIMENTAL_BEP_FILE_FLUSH_MILLIS`, default 250)
-  [V: `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/transports/FileTransport.java:99-101,136-150`].
+  [V: `bazel src/main/java/com/google/devtools/build/lib/buildeventstream/transports/FileTransport.java:99-101,136-150`]
+  .
   `watchd` tails the JSON lines file per invocation.
   A slow reader cannot fail the build [U, inferred: no ack path in `FileTransport`].
 - BES backend (alternative):
@@ -340,7 +345,8 @@ and agents or humans reach Bazel through `watchd` rather than a bare `bazel` [U,
 - Limits here:
   `fs.inotify.max_user_watches` 524288, `max_user_instances` 8192, `max_queued_events` 16384
   [M: `/proc/sys/fs/inotify/*`];
-  the repository has 99,415 directories, 3,450 after excluding `.git`, `node_modules`, `target`, `.gradle`, `build`, `dist`
+  the repository has 99,415 directories, 3,450 after excluding `.git`, `node_modules`, `target`, `.gradle`, `build`,
+  `dist`
   [M: `fd --type directory`].
   `watchd`'s watcher and Bazel's `--watchfs` each consume watches [U, inferred].
 - `ibazel` as design reference:
@@ -435,7 +441,8 @@ and agents or humans reach Bazel through `watchd` rather than a bare `bazel` [U,
   linux-sandbox otherwise makes the whole filesystem read-only except the sandbox directory
   and kills all processes the action spawned
   [V: `bazel docs/docs/sandboxing.mdx:77-86`].
-  Writing `~/.config/JetBrains/...` from a build action would need that flag and would still be invisible to caching [U, inferred].
+  Writing `~/.config/JetBrains/...` from a build action would need that flag and would still be invisible to caching
+  [U, inferred].
 - Mapping of file-enforcer features:
   - FE18 and FE19 via Meta Package Manager:
     a `bazel run //tools:provision` target, triggered by `watchd` on its own staleness check
@@ -521,24 +528,28 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   [V: `rules_rust rust/extensions.bzl:236-241`];
   llvm-tools repository support exists [V: `rules_rust rust/private/repository_utils.bzl:282`];
   component parity [U].
-- `cargo-nextest`, `cargo-fuzz`: no rules_rust integration (prior research, `doc/research/bazel-migration-dx.md`); stays Mise or MPM, or prebuilt binaries.
+- `cargo-nextest`, `cargo-fuzz`: no rules_rust integration (prior research, `doc/research/bazel-migration-dx.md`);
+- stays Mise or MPM, or prebuilt binaries.
 - `java` (`temurin-21`): rules_java remote JDKs [U: distribution and version choices not checked];
   Gradle builds kept outside Bazel still need a JDK from Mise or MPM.
 - `android-sdk`: rules_android resolves the SDK from `ANDROID_HOME`
   [V: `rules_android rules/android_sdk_repository/rule.bzl:116`], so it is not provisioned;
-  the BCR module `hermetic_android_toolchains` 0.4.0 exists [V: BCR `modules/hermetic_android_toolchains/metadata.json`], not evaluated.
+  the BCR module `hermetic_android_toolchains` 0.4.0 exists [V: BCR
+  `modules/hermetic_android_toolchains/metadata.json`], not evaluated.
 - `zig` 0.15.2: `rules_zig` release v0.16.0 exists and takes a `zig_version`
   [V: `gh api repos/aherrmann/rules_zig` README lines 132-145, latest release v0.16.0];
   0.15.2 availability [U]; the repository uses Zig inside a Cargo build script (`libghostty-vt-sys`),
   which needs the binary plumbed into `cargo_build_script` [U].
 - `cmake`: `rules_foreign_cc` is in the BCR [V: BCR list]; plumbing into `opusic-sys` build scripts [U].
-- Prebuilt CLIs (`dprint`, `ripgrep`, `fd`, `fastmod`, `hyperfine`, `caddy`, `opentofu`, `hcloud`, `llama.cpp`, `harper-cli`, `betterleaks`, `rcodesign`, `slint-lsp`, `slint-viewer`):
+- Prebuilt CLIs (`dprint`, `ripgrep`, `fd`, `fastmod`, `hyperfine`, `caddy`, `opentofu`, `hcloud`, `llama.cpp`,
+- `harper-cli`, `betterleaks`, `rcodesign`, `slint-lsp`, `slint-viewer`):
   `rules_multitool` lockfile entries need URL plus `sha256` per OS and CPU
   [V: `bzd` fetch of `bazel-contrib/rules_multitool/readme.md`, "Usage" section];
   `bazel_env.bzl` puts Bazel-managed tools on `PATH` through direnv
   [V: `buildbuddy-io/bazel_env.bzl` README lines 3-6] using bash trampolines
   [V: `bazel_env.bzl` source lines 444-447].
-- npm CLIs (`typescript-language-server`, `wrangler`, `pagefind`, `socket`): pnpm dev dependencies through rules_js [U, inferred].
+- npm CLIs (`typescript-language-server`, `wrangler`, `pagefind`, `socket`): pnpm dev dependencies through rules_js [U,
+- inferred].
 - `sops`, `age`: secrets tooling outside the build graph; Mise or MPM [U, inferred].
 - `uv`, `pipx:slopo`: `rules_python` and `rules_uv` exist in the BCR [V: BCR list]; not evaluated.
 - `bun`: no BCR module matches `bun` [V: `bzd/bcr-modules-full.txt` search].
@@ -552,13 +563,16 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
 
 ## 9. Fedora Atomic specifics
 
-- Host: Bazzite 44 (Kinoite), SELinux enforcing, user context `unconfined_t`, home on btrfs, `/home` resolves to `/var/home`
-  [M: `/etc/os-release`, `/sys/fs/selinux/enforce`, `id --context`, `readlink --canonicalize /home`, `stat --file-system`].
+- Host: Bazzite 44 (Kinoite), SELinux enforcing, user context `unconfined_t`, home on btrfs, `/home` resolves to
+- `/var/home`
+  [M: `/etc/os-release`, `/sys/fs/selinux/enforce`, `id --context`, `readlink --canonicalize /home`,
+  `stat --file-system`].
 - User namespaces:
   the docs' only prerequisite is `kernel.unprivileged_userns_clone` not being 0 where that file exists
   [V: `bazel docs/docs/sandboxing.mdx:128-138`];
   the file does not exist here, `user.max_user_namespaces` is 254589,
-  and `unshare --user --map-root-user --mount --pid --net --ipc --uts --fork -- /usr/bin/true` succeeded from the agent shell
+  and `unshare --user --map-root-user --mount --pid --net --ipc --uts --fork -- /usr/bin/true` succeeded from the agent
+  shell
   [M].
   The agent shell is in the initial user namespace (`user:[4026531837]`) [M],
   so linux-sandbox is not nested there [U, inferred].
@@ -569,7 +583,8 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   `user@1000.service` delegates `cpu io memory pids dmem`, owned by the user
   [M: `cgroup.controllers`, `cgroup.subtree_control`, `stat`];
   `/usr/bin/systemd-run` exists (systemd 259) [M].
-  Delegated nested layout, limits, and freeze work for an unprivileged process [M: probe in section "Architecture overview"].
+  Delegated nested layout, limits, and freeze work for an unprivileged process [M: probe in section "Architecture
+  overview"].
 - Bazel binaries arrive through Bazelisk into the user cache, so no rpm-ostree layering is needed [U].
 
 ## 10. Cgroups
@@ -591,7 +606,8 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   Bazel would create cgroups inside the systemd-managed `app.slice` and write its `cgroup.subtree_control`
   [V: `bazel src/main/java/com/google/devtools/build/lib/sandbox/cgroups/controller/v2/UnifiedController.java:36-48`],
   which systemd's delegation rules forbid
-  ("Never create your own cgroups below arbitrary cgroups systemd manages", "Never *write* to any of the attributes of a cgroup systemd created")
+  ("Never create your own cgroups below arbitrary cgroups systemd manages", "Never *write* to any of the attributes of
+  a cgroup systemd created")
   [V: `bzd/CGROUP_DELEGATION.md:386-400`].
   `watchd` therefore uses `--experimental_cgroup_parent` inside its own delegated unit and never this flag.
 - `--experimental_sandbox_memory_limit_mb` and `--experimental_sandbox_limits=<name>=<value>`:
@@ -645,15 +661,18 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   [V: `VirtualCgroupFactory.java:57-71`].
 - Not created for `processwrapper-sandbox`, `local`/`standalone`, `no-sandbox` or `local` tagged actions,
   or `bazel run` targets
-  [V: no `cgroup` references in `ProcessWrapperSandboxedSpawnRunner.java` or `LocalSpawnRunner.java`; `bazel run` exec in client at `blaze.cc:2190-2219`].
+  [V: no `cgroup` references in `ProcessWrapperSandboxedSpawnRunner.java` or `LocalSpawnRunner.java`; `bazel run` exec
+  in client at `blaze.cc:2190-2219`].
 - Silent degradation:
   if the server's parent cgroup is not writable, the virtual root becomes `NULL` with an info-level log
   [V: `VirtualCgroup.java:81-100,158-168`],
   and failed limit writes only log warnings
   [V: `VirtualCgroupFactory.java:77-94`].
-  Issue bazelbuild/bazel#26062 ("bazel should fail if cgroups cannot be created and experimental_sandbox_limits or experimental_sandbox_memory_limit_mb is set")
+  Issue bazelbuild/bazel#26062 ("bazel should fail if cgroups cannot be created and experimental_sandbox_limits or
+  experimental_sandbox_memory_limit_mb is set")
   is open and marked stale on 2026-08-28;
-  a Bazel maintainer wrote "we don't want to fail the build if cgroups aren't created properly because it turns out that user environments affect this too easily"
+  a Bazel maintainer wrote "we don't want to fail the build if cgroups aren't created properly because it turns out
+  that user environments affect this too easily"
   and later "it doesn't seem like we use this internally either"
   [V: `gh issue view 26062 --comments`, comments 2025-05-20 and 2025-06-11].
 - `watchd` enforcement plan:
@@ -668,7 +687,8 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
 ### Freezing a running build
 
 - Kernel semantics:
-  writing `1` to `cgroup.freeze` freezes the cgroup and all descendants; completion is signalled by `frozen 1` in `cgroup.events`;
+  writing `1` to `cgroup.freeze` freezes the cgroup and all descendants; completion is signalled by `frozen 1` in
+  `cgroup.events`;
   frozen processes can still be killed by fatal signals
   [V: `bzd/cgroup-v2.rst:1025-1046`].
 - Freezing only the server leaf is not enough:
@@ -736,7 +756,8 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
 ### Y1. Documentation rule (HC7) is already failed, and the design leans harder on undocumented behavior
 
 - Evidence:
-  Bazel exited the vet on a documentation confusion trigger (`doc/planning/monorepo-manager-build-routes.md`, "Inherited gaps").
+  Bazel exited the vet on a documentation confusion trigger (`doc/planning/monorepo-manager-build-routes.md`,
+  "Inherited gaps").
   This design additionally depends on behavior found only in source or one-line flag help:
   cancel propagation and the 10 s cancel deadline [V: `blaze.cc:1838-1946`],
   BES failure exit codes and retry policy [V: `BuildEventServiceUploader.java:339-354,556-582`],
@@ -750,14 +771,18 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
 ### Y2. Bazel's cgroup sandboxing is experimental, conditional, and fails open
 
 - Evidence:
-  per-action cgroups exist only for linux-sandbox actions and only when a limit is set [V: `VirtualCgroupFactory.java:57-71`; `LinuxSandboxedSpawnRunner.java:159-166,323-330`];
+  per-action cgroups exist only for linux-sandbox actions and only when a limit is set [V:
+  `VirtualCgroupFactory.java:57-71`; `LinuxSandboxedSpawnRunner.java:159-166,323-330`];
   only `cpu` and `memory` [V: `VirtualCgroupFactory.java:62-94`];
   unwritable cgroups degrade silently [V: `VirtualCgroup.java:96-99`; `daemonize.cc:333`];
   upstream declines to fail builds and the issue is stale [V: bazelbuild/bazel#26062];
-  the flag set is churning (`incompatible_use_new_cgroup_implementation` became a no-op on `main`) [V: `BazelRulesModule.java:88-94`];
-  the built-in user-cgroup mode breaks systemd delegation rules [V: `daemonize.cc:295`; `VirtualCgroup.java:150-157`; `bzd/CGROUP_DELEGATION.md:386-400`].
+  the flag set is churning (`incompatible_use_new_cgroup_implementation` became a no-op on `main`) [V:
+  `BazelRulesModule.java:88-94`];
+  the built-in user-cgroup mode breaks systemd delegation rules [V: `daemonize.cc:295`; `VirtualCgroup.java:150-157`;
+  `bzd/CGROUP_DELEGATION.md:386-400`].
 - Why it could force redesign:
-  with cgroups a hard requirement, the guarantee must come from `watchd` (delegated tree, aggregate limits, canary verification),
+  with cgroups a hard requirement, the guarantee must come from `watchd` (delegated tree, aggregate limits, canary
+  verification),
   and per-action limits remain a best-effort Bazel feature that can switch itself off without an error.
 
 ### Y3. Large parts of the work escape both the sandbox and per-action cgroups
@@ -765,18 +790,23 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
 - Evidence:
   `bazel run` targets execute in the client process after the server finishes [V: `blaze.cc:2190-2219`];
   `processwrapper-sandbox`, `local`, and `no-sandbox` paths create no cgroups [V: no references in those runners];
-  persistent workers need extra flags, one undocumented [V: `WorkerOptions.java:285-295`; `WorkerModule.java:122-130`], and rules_kotlin uses workers [V: `toolchains.bzl:92`].
-  File-enforcer's home-directory settings (FE15), OS packages (FE18, FE19), and source-tree writes (FE05, FE22) all land on the `bazel run` or `watchd` side.
+  persistent workers need extra flags, one undocumented [V: `WorkerOptions.java:285-295`; `WorkerModule.java:122-130`],
+  and rules_kotlin uses workers [V: `toolchains.bzl:92`].
+  File-enforcer's home-directory settings (FE15), OS packages (FE18, FE19), and source-tree writes (FE05, FE22) all
+  land on the `bazel run` or `watchd` side.
 - Why it could force redesign:
-  if "sandboxing" means filesystem isolation per task and not only cgroup containment, those features cannot satisfy it under Bazel; only `watchd`'s cgroup applies.
+  if "sandboxing" means filesystem isolation per task and not only cgroup containment, those features cannot satisfy it
+  under Bazel; only `watchd`'s cgroup applies.
 
 ### Y4. File-enforcer mostly moves into `watchd` instead of into Bazel
 
 - Evidence:
   no cross-package globs [V: `functions.mdx:269-281`];
   no destinations outside the workspace [V: `write_source_file.bzl:97-100`; `repository_ctx.mdx:332`];
-  `write_source_files` unconditionally deletes and copies through bash [V: `write_source_file.bzl:223-310`], which fights echo suppression and FE05;
-  generated manifests feed repository rules [V: `crate_universe/extensions.bzl:63-64`; `rules_js docs/pnpm.md:140-146`], creating bootstrap hazards [U, inferred].
+  `write_source_files` unconditionally deletes and copies through bash [V: `write_source_file.bzl:223-310`], which
+  fights echo suppression and FE05;
+  generated manifests feed repository rules [V: `crate_universe/extensions.bzl:63-64`;
+  `rules_js docs/pnpm.md:140-146`], creating bootstrap hazards [U, inferred].
 - Why it could force redesign:
   FE05, FE09 (for `bazel run` work), FE20 to FE23 are rebuilt in `watchd`,
   so Route A keeps most of Route B's file-enforcer work and adds Starlark generators and discovery rules on top.
@@ -806,7 +836,8 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   freezing the server's own cgroup misses limited actions [V: `VirtualCgroup.java:93,150-157`];
   wall-clock timers kill tests on thaw [V: `linux-sandbox.cc:408`; `process-tools.cc:177-188`; consequence U, inferred];
   cancel fails while frozen [V: `blaze.cc:1939`].
-- Why it matters: not disqualifying if `work.pause` is optional or scoped to non-test work; no corruption mechanism was found.
+- Why it matters: not disqualifying if `work.pause` is optional or scoped to non-test work; no corruption mechanism was
+- found.
 
 ### Y8. Hermetic toolchains require pinning, which conflicts with the repository's `PIN` rule
 
@@ -815,14 +846,16 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   `rules_multitool` needs `sha256` per platform [V: readme "Usage"];
   the Android SDK is not provisioned [V: `rule.bzl:116`];
   `mise.toml` uses `latest` for most tools and `CLAUDE.md` rule `PIN` requires justification for pins [V].
-- Why it needs a decision: either the policy changes to "lockfile plus bump automation", or Mise or MPM keeps provisioning and Bazel is not hermetic for those tools.
+- Why it needs a decision: either the policy changes to "lockfile plus bump automation", or Mise or MPM keeps
+- provisioning and Bazel is not hermetic for those tools.
 
 ### Y9. Linux CI may not get linux-sandbox or delegated cgroups
 
 - Evidence:
   AppArmor blocks linux-sandbox on Ubuntu 24.x, issue #24081 and fix PR #26434 both open [V];
   runner image settings and systemd user sessions unchecked [U].
-- Why it could disqualify: "sandboxing with at least cgroups is a must" would hold locally but not in CI without runner-level workarounds.
+- Why it could disqualify: "sandboxing with at least cgroups is a must" would hold locally but not in CI without
+- runner-level workarounds.
 
 ### Y10. Windows and macOS (after 0.x)
 
@@ -832,5 +865,7 @@ Bazel toolchains pin exact versions; the repository's `PIN` rule says "Pin tool 
   no Windows sandbox [V: `sandboxing.mdx:50-97`; `SandboxOptions.java:197-217`];
   cgroups are Linux-only [V: `VirtualCgroup.java:82-85`];
   `--watchfs` is a no-op on Windows without an experimental flag [V: `LocalDiffAwareness.java:52-75`];
-  graceful cancel needs console control events [V: `blaze_util_windows.cc:299-322`; `bzd/node-child_process.md:1748-1754`].
-- Why it matters: out of scope for 0.x, but HC5 later requires Windows and macOS runners, and the cgroup requirement has no equivalent there.
+  graceful cancel needs console control events [V: `blaze_util_windows.cc:299-322`;
+  `bzd/node-child_process.md:1748-1754`].
+- Why it matters: out of scope for 0.x, but HC5 later requires Windows and macOS runners, and the cgroup requirement
+- has no equivalent there.

@@ -4,7 +4,7 @@ import {
   once,
 } from 'node:events';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Logger
 
@@ -62,6 +62,7 @@ export async function runEditor(
   const [executable, ...configuredArgs] = editorCommand;
   if (executable === undefined)
     throw new Error('Resolved editor command did not contain an executable.',);
+  signal.throwIfAborted();
   l.info(`launching configured editor: ${executable}`,);
   console.log('Write your answer, then save and exit to submit. Leave the file empty to cancel.',);
   /**

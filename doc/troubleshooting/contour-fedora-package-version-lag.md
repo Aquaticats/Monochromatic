@@ -199,7 +199,8 @@ and activation requires a reboot.
 - Treating `contour --version` as the complete RPM version loses the `.8249` release build serial by design.
 - Installing the upstream Ubuntu DEB as though it were a Fedora RPM uses the wrong package format and dependency model.
 - The upstream release assets do not contain a Fedora RPM or AppImage to layer directly.
-- The current RPM `Install Date` does not establish the original request date because each deployment has its own RPM database.
+- The current RPM `Install Date` does not establish the original request date
+  because each deployment has its own RPM database.
 
 ## Upstream filing decision
 

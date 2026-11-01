@@ -271,14 +271,15 @@ importers:
         specifier: 'catalog:'
         version: 26.0.1
 
-  package/build-tool/css:
+  package/css/cli:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 26.0.0
 ```
 
-A throwaway worktree verified that recursive update reaches the stale importers and rewrites only `pnpm-lock.yaml` when `--no-save --lockfile-only` is used:
+A throwaway worktree verified that recursive update reaches the stale importers
+and rewrites only `pnpm-lock.yaml` when `--no-save --lockfile-only` is used:
 
 ```shell
 # /tmp/agent/monochromatic-pnpm-lockfile-only-20260626
@@ -304,7 +305,7 @@ The same throwaway run updated the lockfile catalog snapshot and package importe
 -      version: 26.0.0
 +      version: 26.0.1
 @@
-   package/build-tool/css:
+   package/css/cli:
 @@
        '@types/node':
          specifier: 'catalog:'
@@ -334,7 +335,9 @@ pnpm update --recursive --no-save
 
 Tradeoff:
  without `--lockfile-only`,
- a fresh worktree also materializes `node_modules` and may print bin-link warnings for workspace packages whose build outputs do not exist yet.
+ a fresh worktree also materializes `node_modules`
+and may print bin-link warnings for workspace packages
+whose build outputs do not exist yet.
 
 Use the lockfile-only form when the goal is only the lockfile bump:
 
@@ -426,7 +429,8 @@ Constraint check:
    The repository has `CONTRIBUTING.md` with setup,
    test,
    and PR instructions.
-   `.github/ISSUE_TEMPLATE/bug-report.yaml` accepts bug reports and asks for latest-release verification plus reproduction steps.
+   `.github/ISSUE_TEMPLATE/bug-report.yaml` accepts bug reports
+   and asks for latest-release verification plus reproduction steps.
    No AI-assistance ban was found in `CONTRIBUTING.md`,
    the issue template,
    or a pull request template search.

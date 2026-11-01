@@ -1,0 +1,1 @@
+[{"files":["**/*.rs"],"rules":{"rust/max-lines":{"max":300}}},{"files":["**/*.rs"],"rules":{"rust/max-lines":{"severity":"warn"}}}]

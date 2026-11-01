@@ -1,0 +1,59 @@
+{
+  "repository": "Aquaticats/Monochromatic",
+  "workflowPath": ".github/workflows/scorecard.yml",
+  "repairCommit": "f598404b31fcb28a8e0206d7e99c487a4bebc00f",
+  "run": {
+    "id": 38831778986,
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/38831778986",
+    "headSha": "0baff85defe4109be16a1ba15e96712d8a85b49a",
+    "event": "push",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "gateJob": {
+    "id": 116751956364,
+    "name": "Scorecard rate limit",
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/38831778986/job/116751956364",
+    "conclusion": "success",
+    "startedAt": "2026-10-16T00:51:02Z",
+    "completedAt": "2026-10-16T00:51:31Z"
+  },
+  "countStep": {
+    "name": "Count recent analysis runs",
+    "conclusion": "success",
+    "startedAt": "2026-10-16T00:51:04Z",
+    "completedAt": "2026-10-16T00:51:29Z",
+    "elapsedSecondsFromApiTimestamps": 25,
+    "historicalRunsVisited": 972,
+    "graphqlRequests": 10,
+    "graphqlPoints": 10,
+    "restHistoryRequests": 0,
+    "allowed": false,
+    "exhaustedBudget": {
+      "window": "day",
+      "count": 8
+    }
+  },
+  "analysisJob": {
+    "id": 116752248050,
+    "name": "Scorecard analysis",
+    "conclusion": "skipped"
+  },
+  "logExcerpts": [
+    "2026-10-16T00:51:29.3231685Z Checked 972 historical runs using 10 GraphQL requests and 10 points; no REST history requests.",
+    "2026-10-16T00:51:29.3257329Z ##[notice]Skipping Scorecard analysis: 8 runs already executed in the last day."
+  ],
+  "collection": {
+    "runEndpoint": "repos/Aquaticats/Monochromatic/actions/runs/38831778986",
+    "jobsEndpoint": "repos/Aquaticats/Monochromatic/actions/runs/38831778986/jobs",
+    "logEndpoint": "repos/Aquaticats/Monochromatic/actions/jobs/116751956364/logs",
+    "method": "Read completed run and job records with gh api; download complete gate log to a private file; inspect timestamped runtime summary and budget notice.",
+    "retention": "Selected credential-free fields and log excerpts; full raw log remains private."
+  },
+  "limitations": [
+    "One production sample against changing history; not an unchanged-input latency comparison.",
+    "The no-REST count concerns the gate's history script, not every API operation performed by the workflow or evidence collection.",
+    "The observed execution exercised day-budget rejection; local fixtures cover admission and other budget branches.",
+    "Existing workflow-creation-time, latest-attempt, cancellation, and absent-analysis accounting boundaries remain."
+  ]
+}

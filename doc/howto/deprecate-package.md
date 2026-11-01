@@ -6,6 +6,12 @@ Codifies what was learned during the 2026-05-19 deprecation of
 `@monochromatic-dev/mcp-nvim` (commits `374095ac`,
  `0c279114`,
  `4cdff544`).
+Those commits bundled with tsdown through `@monochromatic-dev/config-tsdown`,
+removed from `package/` on 2026-07-15 (commit `844e9dedda`,
+ surviving only under `package-paused/` and `package-deprecated/`).
+The shared bundling config is now `@monochromatic-dev/config-rolldown`
+(`package/config/rolldown`) consumed through `rolldown.node.config.ts`,
+and the steps below name it.
 
 ## When this applies
 
@@ -43,14 +49,15 @@ giving users an unambiguous signal.
 The `package-deprecated/<category>/<name>/` directory mirrors `package/<category>/<name>/`.
 Both globs (`package-deprecated/*/*` and `package/*/*`) appear in
 `pnpm-workspace.yaml` (so workspace dep resolution still works) and in
-`mise.no-env.toml#config_roots` (so the package's mise tasks are still discoverable
+`mise.toml#monorepo.config_roots` (so the package's mise tasks are still discoverable
 for a one-time rebuild).
 The deprecation signal is the directory name plus the npm-registry deprecation
 marker.
 
 The published bundle is fully self-contained:
- tsdown's `alwaysBundle` list
-inlines `@monochromatic-dev/**` workspace deps and any other npm deps you
+ the `alwaysBundle`
+bundle-inclusion patterns of `@monochromatic-dev/config-rolldown`
+inline `@monochromatic-dev/**` workspace deps and any other npm deps you
 add.
  The published `package.json` should have zero (or near-zero) runtime
 dependencies,
@@ -75,46 +82,57 @@ dependencies,
 
 ## Procedure
 
-### 1. Set up tsdown bundling
+### 1. Set up rolldown bundling
 
 Most workspace packages run directly through Node or a built Node bundle
 managed by mise.
  To produce a publishable Node-compatible bundle:
 
-1. Create `tsdown.node.config.ts`.
+1. Create `rolldown.node.config.ts`.
     The minimum form re-exports the shared
-   config:
+   config
+   (see `package/test-harness/core-diagnostic/rolldown.node.config.ts`):
 
    ```ts
-   export { default, } from '@monochromatic-dev/config-tsdown/.node.ts';
+   export { default, } from '@monochromatic-dev/config-rolldown/.node.ts';
    ```
 
    To bundle additional npm runtime deps so the published package has
    zero transitive deps,
-    extend with `defineConfig`:
+    pass a custom bundle-inclusion set to
+   `nodeConfig` through `nodeExternal`
+   (see `package/config/oxlint/rolldown.node.config.ts`):
 
    ```ts
-   import base from '@monochromatic-dev/config-tsdown/.node.ts';
-   import { defineConfig, } from 'tsdown';
+   import {
+     nodeConfig,
+     nodeExternal,
+     type NodeFlavorConfig,
+   } from '@monochromatic-dev/config-rolldown/.node.ts';
 
-   export default defineConfig({
-     ...base,
-     deps: {
-       ...base.deps,
+   const config: NodeFlavorConfig = nodeConfig({
+     external: await nodeExternal({
        alwaysBundle: [
-         ...(base.deps?.alwaysBundle ?? []),
+         '@monochromatic-dev/**',
+         'nano-spawn',
          'neovim',
        ],
-     },
+     },),
    },);
+
+   export default config;
    ```
 
-   The shared config already inlines `@monochromatic-dev/**` and `nano-spawn`.
-    Add anything else you want self-contained.
+   The shared config's default `alwaysBundle` set
+   inlines `@monochromatic-dev/**` and `nano-spawn`.
+   Passing your own `alwaysBundle` list replaces that default,
+    so re-list
+   those two
+   and add anything else you want self-contained.
 
 2. Add build mise tasks to the package's `mise.toml`.
     Mirror the pattern
-   in `package/module/matrix/mise.toml`:
+   in `package/test-harness/core-matrix/mise.toml`:
 
    ```toml
    [tasks.build]
@@ -142,7 +160,8 @@ managed by mise.
       built artifact for `.`,
       source path for `./ts`
    - `"files": ["dist/final", "src"]`
-   - Move every dep that tsdown will bundle from `dependencies` to
+   - Move every dep the bundle inlines (anything you added to
+     `alwaysBundle`) from `dependencies` to
      `devDependencies` (so it ends up in dev install but not in the
      published manifest)
    - Keep external runtime deps in `dependencies` if any survived
@@ -153,9 +172,13 @@ managed by mise.
    still has a legacy `#!/usr/bin/env bun` shebang,
     change it before
    building.
-    tsdown preserves the shebang in the bundle output,
-    so the
-   published bin runs on any Node ≥ 18 host without Bun installed.
+    Rolldown carries a source `#!` line into the bundle
+   (verified 2026-10-22 against rolldown v1.2.14),
+   and the shared config injects `#!/usr/bin/env node` only into a
+   bin-targeted chunk that starts without `#!`
+   (`package/config/rolldown/src/bin-shebang.ts`),
+   so a surviving Bun line is left untouched
+   and the published bin would then require Bun.
 
 5. `pnpm install` then `mise run //package/<cat>/<name>:build`.
     Confirm
@@ -206,7 +229,7 @@ packages:
 - 'package-deprecated/*/*'
 ```
 
-`mise.no-env.toml#monorepo.config_roots`:
+`mise.toml#monorepo.config_roots`:
 
 ```toml
 [monorepo]
@@ -216,11 +239,9 @@ config_roots = [
 ]
 ```
 
-Then regenerate `mise.toml`:
-
-```sh
-mise run file-enforcer
-```
+`mise.toml` is hand-written and committed,
+so the edit above is the whole change;
+nothing regenerates it.
 
 ### 4. Mark the package for publish
 
@@ -387,7 +408,7 @@ Workaround:
 `node_modules/@monochromatic-dev/config-typescript` is reachable via
 Node's upward module resolution,
  so `tsc`,
- `tsdown`,
+ `rolldown`,
  and the build still
 work.
  The published bundle does not ship `tsconfig.json` anyway,

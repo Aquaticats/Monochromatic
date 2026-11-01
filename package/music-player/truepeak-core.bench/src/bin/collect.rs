@@ -1,9 +1,15 @@
-//! Corpus collector: decode every track through the shared truepeak-core meter and emit
-//! fine-grained cache bins, so the search can model dense sub-second probe windows.
+//! Corpus collector:
+//!  decode every track through the shared truepeak-core meter and emit
+//! fine-grained cache bins,
+//!  so the search can model dense sub-second probe windows.
 //!
 //! Decoding is delegated to ffmpeg (one `f32le` pipe per file at the stream's native rate
-//! and channels), so no decoder is ported into the repo; the meter is the production
-//! `truepeak_core::TruePeakMeter`, segmented with `take_peak` at each bin boundary. Usage:
+//! and channels),
+//!  so no decoder is ported into the repo;
+//!  the meter is the production
+//! `truepeak_core::TruePeakMeter`,
+//!  segmented with `take_peak` at each bin boundary.
+//!  Usage:
 //! `truepeak-core-collect <music-root> <out.jsonl> [bin_seconds] [workers]`.
 
 /// Imports the work queue shared across decode threads.
@@ -18,7 +24,9 @@ use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 /// Imports the child-process spawner for ffprobe and ffmpeg.
 use std::process::{Command, Stdio};
-/// Imports the shared queue handle, channel, and lock.
+/// Imports the shared queue handle,
+///  channel,
+///  and lock.
 use std::sync::{Arc, Mutex, mpsc};
 /// Imports thread spawning for the decode workers.
 use std::thread;
@@ -28,7 +36,8 @@ use anyhow::{anyhow, bail, Context, Result};
 
 /// Imports serde derive and JSON for the per-track output rows.
 use serde::Serialize;
-/// Imports the shared meter, the one true-peak measurement.
+/// Imports the shared meter,
+///  the one true-peak measurement.
 use truepeak_core::TruePeakMeter;
 
 /// Default seconds per cache bin when the argument is omitted.
@@ -40,7 +49,10 @@ const AUDIO_EXTENSIONS: &[&str] = &[
     "flac", "wav", "wave", "mp3", "ogg", "oga", "opus", "m4a", "m4b", "mp4", "aac", "aiff", "aif",
 ];
 
-/// One track's measurement: shape, the full true peak, and the per-bin peaks.
+/// One track's measurement:
+///  shape,
+///  the full true peak,
+///  and the per-bin peaks.
 #[derive(Serialize)]
 struct TrackMetrics {
     /// Absolute path of the decoded file.
@@ -61,7 +73,9 @@ struct TrackMetrics {
     bin_peaks: Vec<f32>,
 }
 
-/// Read the sample rate, channel count, and duration of a file via ffprobe.
+/// Read the sample rate,
+///  channel count,
+///  and duration of a file via ffprobe.
 fn probe_spec(path: &Path) -> Result<(u32, u16, f64)> {
     // Ask ffprobe for the first audio stream's rate and channels and the container duration.
     let output = Command::new("ffprobe")
@@ -80,7 +94,9 @@ fn probe_spec(path: &Path) -> Result<(u32, u16, f64)> {
     return Ok((rate, channels, duration))
 }
 
-/// Decode a file with ffmpeg and return its full peak, per-bin peaks, and frame count.
+/// Decode a file with ffmpeg and return its full peak,
+///  per-bin peaks,
+///  and frame count.
 fn decode_and_bin(
     path: &Path,
     channels: u16,
@@ -137,7 +153,9 @@ fn decode_and_bin(
     return Ok((full_peak, bins, decoded_frames))
 }
 
-/// Measure one track end to end (probe, decode, bin) into a `TrackMetrics`.
+/// Measure one track end to end (probe,
+///  decode,
+///  bin) into a `TrackMetrics`.
 fn measure(path: &Path, bin_seconds: f64) -> Result<TrackMetrics> {
     let (rate, channels, _container_duration) = probe_spec(path)?;
     if rate == 0 || channels == 0 {
@@ -157,7 +175,8 @@ fn measure(path: &Path, bin_seconds: f64) -> Result<TrackMetrics> {
     })
 }
 
-/// Recursively collect audio files under a root, sorted for determinism.
+/// Recursively collect audio files under a root,
+///  sorted for determinism.
 fn collect_audio_files(root: &Path) -> Result<Vec<PathBuf>> {
     // Depth-first walk with an explicit stack (no recursion over the directory tree depth).
     let mut pending = vec![root.to_path_buf()];
@@ -188,7 +207,10 @@ fn is_audio(path: &Path) -> bool {
     }
 }
 
-/// Entry point: walk the root, decode in parallel, and write the JSONL corpus.
+/// Entry point:
+///  walk the root,
+///  decode in parallel,
+///  and write the JSONL corpus.
 fn main() -> Result<()> {
     // Send tracing events (including truepeak-core's) to stderr; the JSONL report is stdout.
     tracing_subscriber::fmt()
@@ -210,15 +232,17 @@ fn main() -> Result<()> {
     let (sender, receiver) = mpsc::channel::<Result<TrackMetrics>>();
     // Each worker pops a path, measures it, and sends the result or an error string.
     for _ in 0..workers {
-        let queue = Arc::clone(&queue);
-        let sender = sender.clone();
+        // Per-worker clones get their own names so neither shadows the shared
+        // originals the loop keeps cloning from.
+        let worker_queue = Arc::clone(&queue);
+        let worker_sender = sender.clone();
         thread::spawn(move || {
             loop {
-                let path = queue.lock().expect("queue poisoned").pop_front();
-                let Some(path) = path else { break };
+                let popped = worker_queue.lock().expect("queue poisoned").pop_front();
+                let Some(path) = popped else { break };
                 let message = measure(&path, bin_seconds)
                     .map_err(|error| anyhow!("{}: {error}", path.to_string_lossy()));
-                if sender.send(message).is_err() {
+                if worker_sender.send(message).is_err() {
                     break;
                 }
             }

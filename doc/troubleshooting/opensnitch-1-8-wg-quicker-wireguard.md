@@ -59,7 +59,7 @@ not from changing the host firewall.
 ### The tools own separate nftables objects
 
 `wg-quicker` creates a per-interface table in
-`package/cli/wg-quicker/src/tunnel-firewall.ts:35-50`:
+`package/wg/cli-quicker/src/tunnel-firewall.ts:35-50`:
 
 ```ts
 const iface = config.interfaceName;
@@ -165,7 +165,7 @@ not a routing-rule collision.
 ### Accepted packet marks remain compatible with wg-quicker routing
 
 `wg-quicker` depends on WireGuard's outer packet retaining the interface mark.
-Its policy rule in `package/cli/wg-quicker/src/tunnel-route.ts:121-143` is:
+Its policy rule in `package/wg/cli-quicker/src/tunnel-route.ts:121-143` is:
 
 ```ts
 args: [
@@ -213,7 +213,7 @@ endpoint recursion.
 ### Application exemptions remain subject to OpenSnitch
 
 `wg-quicker-exempt` sets `SO_MARK` from cgroup socket-address hooks in
-`package/cli/wg-quicker-exempt/src/bpf.rs:90-123`:
+`package/wg/cli-quicker-exempt/src/bpf.rs:90-123`:
 
 ```rust
 const SO_MARK: i32 = 36;
@@ -287,7 +287,7 @@ so the stock value would need adjustment for that tunnel.
 
 Current `wg-quicker` extracts distinct peer endpoint ports and installs OpenSnitch rules after WireGuard accepts the
 peer config but before bringing the link up.
-`package/cli/wg-quicker/src/tunnel.ts:294-309` contains the ordering:
+`package/wg/cli-quicker/src/tunnel.ts:294-309` contains the ordering:
 
 ```ts
 try {
@@ -308,7 +308,7 @@ The config-tree implementation preserves unrelated and unknown JSON fields,
 removes stale rules owned by the same interface,
 and appends one enabled rule per sorted port.
 The ownership and replacement path appears in
-`package/cli/wg-quicker/src/opensnitch-config-tree.ts:275-424`:
+`package/wg/cli-quicker/src/opensnitch-config-tree.ts:275-424`:
 
 ```ts
 const prefix = managedPrefix({ interfaceName, },);
@@ -361,22 +361,22 @@ The released 1.8.0 defaults in
 
 An explicit `WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG` takes precedence.
 Otherwise,
-`package/cli/wg-quicker/src/opensnitch-daemon-config.ts:212-278` reads absolute `FwOptions.ConfigPath` from the
+`package/wg/cli-quicker/src/opensnitch-daemon-config.ts:212-278` reads absolute `FwOptions.ConfigPath` from the
 selected daemon config.
 The final strict-deny fixture set only `WG_QUICKER_OPENSNITCH_DAEMON_CONFIG`,
 resolved a non-default watched system-firewall path,
 and passed traffic.
 
 Before config mutation,
-`package/cli/wg-quicker/src/opensnitch-state.ts` atomically persists namespace-scoped interface ownership,
+`package/wg/cli-quicker/src/opensnitch-state.ts` atomically persists namespace-scoped interface ownership,
 config path,
 and potential ports in private runtime state.
 Cleanup uses that recorded path even if daemon `FwOptions.ConfigPath` changes while the interface is up.
 It clears state only after config reconciliation and live-chain proof succeed.
 
 Cleanup removes owned rules before checking whether the WireGuard link still exists.
-`package/cli/wg-quicker/src/tunnel.ts:398-412` retries that removal even when `down` finds the link already absent.
-The ordering in `package/cli/wg-quicker/src/tunnel-cleanup.ts:24-34` also recovers an allowance left by an
+`package/wg/cli-quicker/src/tunnel.ts:398-412` retries that removal even when `down` finds the link already absent.
+The ordering in `package/wg/cli-quicker/src/tunnel-cleanup.ts:24-34` also recovers an allowance left by an
 interrupted startup:
 
 ```ts
@@ -440,7 +440,7 @@ It changes the inode watched by OpenSnitch and produced unstable second-reload b
 The current writer performs one positional write to the existing inode for each bounded attempt.
 When new JSON is shorter,
 it pads the document with valid trailing JSON whitespace instead of truncating.
-`package/cli/wg-quicker/src/opensnitch-config-file.ts:102-180` contains the workaround:
+`package/wg/cli-quicker/src/opensnitch-config-file.ts:102-180` contains the workaround:
 
 ```ts
 const padding = Buffer.alloc(
@@ -468,13 +468,13 @@ const { bytesWritten, } = await handle.write(
 
 The recovery fixture later observed the same daemon diagnostic after some single positional writes.
 One event reduces the trigger surface but does not eliminate OpenSnitch's internal reload race.
-`package/cli/wg-quicker/src/opensnitch-live.ts:179-228` therefore requires consecutive live nftables listings in
+`package/wg/cli-quicker/src/opensnitch-live.ts:179-228` therefore requires consecutive live nftables listings in
 the daemon's network namespace.
 Every managed port rule must precede the first queue rule,
 and formerly owned exact ports must be absent.
 When no daemon exists,
 the verifier lists surviving nftables tables and refuses to clear ownership while a stale managed allowance remains.
-`package/cli/wg-quicker/src/opensnitch-operation.ts:288-338` performs one bounded same-inode rewrite and repeats
+`package/wg/cli-quicker/src/opensnitch-operation.ts:288-338` performs one bounded same-inode rewrite and repeats
 the proof after a missed convergence.
 Startup fails and rolls back when that retry also fails.
 If the daemon is stopped,
@@ -514,11 +514,11 @@ or WireGuard interface was changed.
 ### Runnable package checks
 
 ```console
-mise run //package/cli/wg-quicker:buildAndTest
-mise run //package/cli/wg-quicker:test:integration:route
-mise run //package/cli/wg-quicker:test:integration:bypass
-mise run //package/cli/wg-quicker:lint:types
-mise run //package/cli/wg-quicker:lint:oxlint
+mise run //package/wg/cli-quicker:buildAndTest
+mise run //package/wg/cli-quicker:test:integration:route
+mise run //package/wg/cli-quicker:test:integration:bypass
+mise run //package/wg/cli-quicker:lint:types
+mise run //package/wg/cli-quicker:lint:oxlint
 ```
 
 The combined boundary invocation used the built CLI and released daemon:
@@ -528,7 +528,7 @@ sudo ip netns exec wgqosc813 env \
   WG_QUICKER_RUNTIME_DIRECTORY="$scratch/runtime" \
   WG_QUICKER_OPENSNITCH_DAEMON_CONFIG="$scratch/default-config.json" \
   WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG="$scratch/system-fw.json" \
-  "$node_bin" package/cli/wg-quicker/dist/final/node/index.mjs \
+  "$node_bin" package/wg/cli-quicker/dist/final/node/index.mjs \
   up "$scratch/wgqos.conf"
 
 sudo ip netns exec wgqosc813 ping -c 3 -w 5 10.44.0.2
@@ -569,7 +569,7 @@ sudo ip netns exec wgqosc813 env \
 The exact network topology is the same two-namespace,
 physical-veth,
 and two-peer topology implemented by
-`package/cli/wg-quicker/src/tunnel-route.integration.test.ts`.
+`package/wg/cli-quicker/src/tunnel-route.integration.test.ts`.
 The combined test added OpenSnitch to its client namespace before invoking the real `wg-quicker` bundle.
 
 ### Working catalog

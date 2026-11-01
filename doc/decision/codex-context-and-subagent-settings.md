@@ -164,3 +164,16 @@ prevent_idle_sleep  experimental       false
 
 Existing sessions may retain the tool surface created when they started.
 The user-level feature gate applies when a new Codex session initializes.
+
+## Conflicting session observation on 2026-10-15
+
+During research into Claude Code model restrictions,
+the Codex session exposed working collaboration tools and launched research subagents.
+A fresh read of `~/.codex/config.toml` still found `multi_agent = false` under `[features]`.
+The user reiterated that Codex subagents are disabled.
+The agent had followed delegation instructions in skills without first checking this decision.
+The research agents finished and further delegation stopped.
+
+The cause of the exposed tools is unresolved.
+The configuration readback alone does not establish that this session honored the feature gate.
+No Codex configuration was changed during this observation.

@@ -1,3 +1,3 @@
 export {
   replicateElementAsContentOf,
-} from '@monochromatic-dev/module-dom/ts/duplicateElement.ts';
+} from '@monochromatic-dev/dom-core/ts/duplicateElement.ts';

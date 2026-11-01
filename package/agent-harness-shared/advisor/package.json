@@ -1,0 +1,46 @@
+{
+  "name": "@monochromatic-dev/agent-harness-shared-advisor",
+  "description": "Host-neutral Advisor core: scoped reviewer selection, serialized review context, and bounded completion recovery on model-resolution, transcript, and theme ports",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/agent-harness-shared/advisor"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts"
+  },
+  "files": [
+    "dist/final",
+    "src"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-model-selection": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "type-fest": "catalog:",
+    "valibot": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typebox": "catalog:",
+    "typescript": "catalog:"
+  }
+}

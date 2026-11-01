@@ -1,0 +1,422 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T19:06:08.832Z",
+  "state": "Source/local prerequisites sealed; Root replacement admission and coordinated global slot pending; no second allocation",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "fixture": {
+    "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+    "branch": "research/depot-native-ssh-recovery-20261018",
+    "paths": [
+      ".depot/probe/native-ssh/mise.toml",
+      ".depot/workflows/native-ssh-acceptance.yml"
+    ],
+    "sourceFiles": [
+      {
+        "path": ".depot/workflows/native-ssh-acceptance.yml",
+        "bytes": 1318,
+        "sha256": "7dd50ca30ee980cbe44dfd6a66ff152595d1ee295c36c07780d41d9f41a28183"
+      },
+      {
+        "path": ".depot/probe/native-ssh/mise.toml",
+        "bytes": 7263,
+        "sha256": "d9673e56b2d487f35da1e6e4108cf41b855bda9656dd2b1041ebd836f841d473"
+      }
+    ]
+  },
+  "priorExecution": {
+    "runId": "sqrz4sml30",
+    "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+    "terminalVerified": true,
+    "passed": false,
+    "campaignAttempt": 1,
+    "stateSha256": "66ef6652e5dbe5a1642784046a8e8d1054d6f1169f93f3e707c675ef294415a2",
+    "runtimeEvidence": "doc/audit/depot-native-ssh-runtime-2026-10-18.evidence.json",
+    "runtimeEvidenceSha256": "ccf1799e346706e7a3dd3fb5a2654c6e72580cd7a8cad1941d1e60b3d4dde9f0",
+    "originalParentAdmissionCommit": "dc62a35802",
+    "originalInputsRemainImmutable": true
+  },
+  "admission": {
+    "approved": false,
+    "maximumNewJobs": 1,
+    "maximumCumulativeJobs": 2,
+    "maximumConcurrentJobs": 1,
+    "requestedCpu": 2,
+    "requestedMemoryGiB": 8,
+    "serverJobMinutes": 3,
+    "pausedStepMinutes": 2,
+    "cancellationDeadlineSeconds": 150,
+    "eachSshLegSeconds": 15,
+    "combinedNominalReservationUsd": 0.036,
+    "noAggregateInvoiceCap": true,
+    "globalSlotRequiresRootCoverageCoordination": true
+  },
+  "correction": {
+    "changed": "Preinstall the exact action-selected static tmate2.4.0 asset under owned HOME scratch, add its PATH and explicit executable env, skip the action dependency-install branch, verify the admitted binary during final consumer.",
+    "originalBoundary": "Last installer output was APT mirror-list line; actual blocking instruction/cause not established.",
+    "unchanged": "Same application,2CPU/8GiB shape,3min job/2min paused step, direct SSH/native CLI RPC/paused tmate challenges, workflow environment checks, writer ownership/modes and final resume consumer.",
+    "sourceDecision": {
+      "actionRepository": "mxschmitt/action-tmate",
+      "actionRevision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "entrypoint": "lib/index.js",
+      "sourcePath": "src/index.js",
+      "dependencyBranchLines": [
+        82,
+        125
+      ],
+      "bundleBranchLines": [
+        37951,
+        37995
+      ],
+      "helperPath": "src/helpers.js",
+      "tmateVersionFlag": {
+        "repository": "tmate-io/tmate",
+        "revision": "5e00bfa5e137e76c81888727712ced2b3fd99f5b",
+        "path": "tmux.c",
+        "lines": [
+          267,
+          284
+        ]
+      }
+    }
+  },
+  "binaryAdmission": {
+    "checkedAt": "2026-10-18T18:57:53.437Z",
+    "release": {
+      "url": "https://api.github.com/repos/tmate-io/tmate/releases/tags/2.4.0",
+      "bytes": 17530,
+      "sha256": "5d3534f88c26dc472cce9f2ab3854a3faba3ef63f712151cef6a6d5e842f4b43",
+      "tag": "2.4.0",
+      "assetId": 16209267,
+      "assetName": "tmate-2.4.0-static-linux-amd64.tar.xz",
+      "assetBytes": 1252460,
+      "assetSha256": "6e503a1a3b0f9117bce6ff7cc30cf61bdc79e9b32d074cf96deb0264e067a60d",
+      "upstreamAssetDigest": null,
+      "independentlySignedChecksumVerified": false
+    },
+    "executable": {
+      "bytes": 3135320,
+      "sha256": "d2fff992e40ce18ff81b9a92fa1cb93a56fb5a82c1cc428204552d8dfa1bc04f",
+      "format": "ELF",
+      "localVersion": "tmate 2.4.0"
+    },
+    "archiveMembers": [
+      "tmate-2.4.0-static-linux-amd64/",
+      "tmate-2.4.0-static-linux-amd64/tmate"
+    ],
+    "integrityControls": {
+      "positive": true,
+      "wrongDigestRejected": true,
+      "truncationRejected": true,
+      "oneBitMutationRejected": true
+    },
+    "localConsumer": {
+      "mountFree": true,
+      "network": "none",
+      "cpu": 2,
+      "memory": "2g",
+      "readOnly": true,
+      "containerAbsent": true,
+      "imageAbsent": true
+    },
+    "cloudAllocations": 0
+  },
+  "identities": {
+    "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+    "controllerSha256": "150583785d9de5ecb7d5ac757b0f4dea0e73ce8ff060f4f3db222a4d34622173",
+    "helperSha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626",
+    "askpassSha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2",
+    "remoteConsumerSha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a",
+    "manifestProjectionSha256": "1f517b13cd137ac39319499b18994b21039b7f166ad78d1a226a31cfdac4a503",
+    "previousStateSha256": "66ef6652e5dbe5a1642784046a8e8d1054d6f1169f93f3e707c675ef294415a2"
+  },
+  "manifestProjection": {
+    "base": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "branch": "research/depot-native-ssh-recovery-20261018",
+    "tree": "/var/mnt/encrypted/temp/agent/depot-native-ssh-correction.8UYvwa1d/worktree",
+    "area": "/var/mnt/encrypted/temp/agent/depot-native-ssh-correction.8UYvwa1d",
+    "profile": {
+      "label": "depot-ubuntu-24.04",
+      "cpu": 2,
+      "memoryGiB": 8,
+      "jobTimeoutMinutes": 3,
+      "tmateStepTimeoutMinutes": 2,
+      "maximumJobsIncludingCorrection": 2,
+      "perMinuteUsd": 0.006,
+      "maximumNominalReservationUsd": 0.036
+    },
+    "pausedAction": {
+      "commit": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "relation": "Pinned equivalent of source-reviewed CLI@v3 injection; no CLI-injection execution credit"
+    },
+    "localBridges": {
+      "askpass": "/var/mnt/encrypted/temp/agent/depot-native-ssh-correction.8UYvwa1d/ssh-askpass.mjs",
+      "remoteConsumer": "/var/mnt/encrypted/temp/agent/depot-native-ssh-correction.8UYvwa1d/remote-consumer.mjs",
+      "credentialTransport": "Existing local CLI token stays in controller memory and one owned0700-directory Unix socket; never token argv/env/file",
+      "hostKeyPolicy": "Private known_hosts with accept-new; retain observed fingerprints without claiming independent vendor key attestation",
+      "directAuthentication": "password only, pubkey/agent disabled; reject unexpected askpass prompts",
+      "tmateAuthentication": "Session target is a bearer capability; private only, BatchMode=yes, no user token forwarded"
+    },
+    "priorAttempt": {
+      "runId": "sqrz4sml30",
+      "source": "b6a60493c16087043a7043f50cd31d8aebf4bdee",
+      "stateSha256": "66ef6652e5dbe5a1642784046a8e8d1054d6f1169f93f3e707c675ef294415a2",
+      "terminalVerified": true,
+      "passed": false,
+      "campaignAttempt": 1
+    },
+    "binaryAdmission": {
+      "checkedAt": "2026-10-18T18:57:53.437Z",
+      "release": {
+        "url": "https://api.github.com/repos/tmate-io/tmate/releases/tags/2.4.0",
+        "bytes": 17530,
+        "sha256": "5d3534f88c26dc472cce9f2ab3854a3faba3ef63f712151cef6a6d5e842f4b43",
+        "tag": "2.4.0",
+        "assetId": 16209267,
+        "assetName": "tmate-2.4.0-static-linux-amd64.tar.xz",
+        "assetBytes": 1252460,
+        "assetSha256": "6e503a1a3b0f9117bce6ff7cc30cf61bdc79e9b32d074cf96deb0264e067a60d",
+        "upstreamAssetDigest": null,
+        "independentlySignedChecksumVerified": false
+      },
+      "executable": {
+        "bytes": 3135320,
+        "sha256": "d2fff992e40ce18ff81b9a92fa1cb93a56fb5a82c1cc428204552d8dfa1bc04f",
+        "format": "ELF",
+        "localVersion": "tmate 2.4.0"
+      },
+      "archiveMembers": [
+        "tmate-2.4.0-static-linux-amd64/",
+        "tmate-2.4.0-static-linux-amd64/tmate"
+      ],
+      "integrityControls": {
+        "positive": true,
+        "wrongDigestRejected": true,
+        "truncationRejected": true,
+        "oneBitMutationRejected": true
+      },
+      "localConsumer": {
+        "mountFree": true,
+        "network": "none",
+        "cpu": 2,
+        "memory": "2g",
+        "readOnly": true,
+        "containerAbsent": true,
+        "imageAbsent": true
+      },
+      "cloudAllocations": 0
+    }
+  },
+  "preflight": {
+    "fixtureJavaScriptSyntaxChecks": 3,
+    "controllerSyntax": true,
+    "bridgeSyntax": true,
+    "firstTerminalStateHashBound": true,
+    "cleanWorktree": true,
+    "exactRemoteSource": true,
+    "sourceAndPackagedEntrypointReviewed": true,
+    "planOnlyNoCloud": true
+  },
+  "controller": {
+    "task": "run-native-ssh-acceptance",
+    "privateArea": "/var/mnt/encrypted/temp/agent/depot-native-ssh-correction.8UYvwa1d",
+    "plan": {
+      "source": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+      "dispatch": [
+        "depot",
+        "ci",
+        "run",
+        "--org",
+        "l4zncjjbj5",
+        "--forge",
+        "github",
+        "--workflow",
+        ".depot/workflows/native-ssh-acceptance.yml",
+        "--job",
+        "ssh-proof"
+      ],
+      "selector": [
+        "depot",
+        "ci",
+        "ssh",
+        "<owned-run>",
+        "--job",
+        "<exact-owned-job-key>",
+        "--org",
+        "l4zncjjbj5",
+        "--info",
+        "--output",
+        "json"
+      ],
+      "logs": [
+        "depot",
+        "ci",
+        "logs",
+        "<owned-attempt>",
+        "--org",
+        "l4zncjjbj5",
+        "--output",
+        "json"
+      ],
+      "cancel": [
+        "depot",
+        "ci",
+        "cancel",
+        "<owned-run>",
+        "--org",
+        "l4zncjjbj5",
+        "--output",
+        "json"
+      ],
+      "terminal": [
+        "depot",
+        "ci",
+        "status",
+        "<owned-run>",
+        "--org",
+        "l4zncjjbj5",
+        "--wait",
+        "--output",
+        "json"
+      ],
+      "watchdog": {
+        "cancelAtMsFromDispatch": 150000,
+        "sshLegMs": 15000,
+        "terminationGraceMs": 1500,
+        "cleanupCliMs": 10000,
+        "localOuterMs": 210000,
+        "serverJobMinutes": 3,
+        "pausedStepMinutes": 2
+      },
+      "nominalReservationUsd": 0.036,
+      "maximumRuns": 2,
+      "approvalFile": "native-ssh-admission.json"
+    },
+    "lifecycleLimit": "210seconds begins cleanup; individual owned clients have bounded TERM/KILL/reaping and cleanup calls. No independent overall process hard deadline is claimed.",
+    "firstStateMutationBlocksThirdAttempt": true
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz",
+    "gzipBytes": 329845,
+    "gzipSha256": "11118675368dcfecfcba9d6f3d3cee8856e6d6c9c1709eca9f78dc00d59b806a",
+    "uncompressedBytes": 1490378,
+    "uncompressedSha256": "84c2e45130dd4741104c7e07f68ab31a7a73335627c281575d748cb259904546",
+    "sourceCount": 16
+  },
+  "sourceRecords": [
+    {
+      "id": "action-tmate/action.yml",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 2625,
+      "sha256": "6163a5b07609f5484f2a8d0b72f348fde969192a6f815fce6c67ae9aabf8ed46"
+    },
+    {
+      "id": "action-tmate/src/index.js",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 10717,
+      "sha256": "70855ed49eb89e1024844439edf752e2592409a5b56430f8b5faa22008b61026"
+    },
+    {
+      "id": "action-tmate/src/helpers.js",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 2291,
+      "sha256": "a2cba408385cd13dfe75a2a9197309c80cae83597d3a5823ce829d2dcf94ff7d"
+    },
+    {
+      "id": "action-tmate/lib/index.js",
+      "repository": "https://github.com/mxschmitt/action-tmate",
+      "revision": "35b54afac29c97fb54faba5b513f8fbd1882f113",
+      "bytes": 1346956,
+      "sha256": "dff80637e6a575dd9b5d897fd38afd327267e3843e2dba581739a87d8c34a64c"
+    },
+    {
+      "id": "tmate/tmux.c",
+      "repository": "https://github.com/tmate-io/tmate",
+      "revision": "5e00bfa5e137e76c81888727712ced2b3fd99f5b",
+      "bytes": 9451,
+      "sha256": "b4c427aee886f1073568fb616a34c71eb83dc46cc5c408d66a80866855899dbe"
+    },
+    {
+      "id": "tmate/COPYING",
+      "repository": "https://github.com/tmate-io/tmate",
+      "revision": "5e00bfa5e137e76c81888727712ced2b3fd99f5b",
+      "bytes": 1113,
+      "sha256": "ce75f1345a76c93bd0f413d1b93ff1baa0669f34a7242779a00c1b862b4f813a"
+    },
+    {
+      "id": "fixture/.depot/probe/native-ssh/mise.toml",
+      "repository": "Monochromatic research/depot-native-ssh-recovery-20261018",
+      "revision": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+      "bytes": 7263,
+      "sha256": "d9673e56b2d487f35da1e6e4108cf41b855bda9656dd2b1041ebd836f841d473"
+    },
+    {
+      "id": "fixture/.depot/workflows/native-ssh-acceptance.yml",
+      "repository": "Monochromatic research/depot-native-ssh-recovery-20261018",
+      "revision": "553bd7a8d2e79c1b907ac4181a28300a98285f9f",
+      "bytes": 1318,
+      "sha256": "7dd50ca30ee980cbe44dfd6a66ff152595d1ee295c36c07780d41d9f41a28183"
+    },
+    {
+      "id": "controller/mise.toml",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 40358,
+      "sha256": "ee0edd893f7506bffd88c44f4c7eab22f02ce52ffb680c560b2b87b17a1baa5f"
+    },
+    {
+      "id": "controller/native-ssh-owned-process.mjs",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 3671,
+      "sha256": "28cad73e5b02cb1062539741407446a373be17fbc099ec094dd68ae8f0f86626"
+    },
+    {
+      "id": "controller/native-ssh-proposal-manifest.json",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 6139,
+      "sha256": "fa58b36db7ab4695a0fbf3028048d63bdbfe79f608af1f3eff05d5a4a9f8191c"
+    },
+    {
+      "id": "controller/ssh-askpass.mjs",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 538,
+      "sha256": "6da0664744dba0a8a296c78e31c8967f0b5a61c031bccec568c2dafa29617db2"
+    },
+    {
+      "id": "controller/remote-consumer.mjs",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 1682,
+      "sha256": "ec72cfe8840a7b171a574be6caafbac15fb4b3fd5fcb6e27af9939cee0029f2a"
+    },
+    {
+      "id": "controller/binary-admission.json",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 1194,
+      "sha256": "10e77d2256a6c5639988dde90e928020e6b6042197de0d25fc3ac8978d968593"
+    },
+    {
+      "id": "controller/plan-only.json",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 910,
+      "sha256": "f85b1d94f8a03ffb541e3bfca4e694518c46b48f3c090c5ee374655b04b00f48"
+    },
+    {
+      "id": "controller/local-version.json",
+      "repository": "Owned isolated research control",
+      "revision": "correction-source-seal-2026-10-18",
+      "bytes": 155,
+      "sha256": "c0e2713d5bcfc666ef815dbe7afd22f60a53aa2ea6b51d5c73d4b604e837cd26"
+    }
+  ],
+  "runtimeQualifiedCorrection": false,
+  "cloudAllocations": [],
+  "nextAction": "Root independently reviews replacement source/controller/bridges/projection and writes its private admission, then coordinates one released global slot before dispatch."
+}

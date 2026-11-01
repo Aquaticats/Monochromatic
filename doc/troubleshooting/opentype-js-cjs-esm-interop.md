@@ -1,4 +1,5 @@
-# opentype.js 2.0.0's CJS/UMD `main` drops named exports under Node's ESM interop, and the workaround trips oxlint's `no-named-as-default-member`
+# opentype.js 2.0.0's CJS/UMD `main` drops named exports under Node's ESM interop,
+and the workaround trips oxlint's `no-named-as-default-member`
 
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.

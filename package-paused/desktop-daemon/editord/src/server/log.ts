@@ -8,7 +8,7 @@ import {
   logger,
   tagged,
   type Logger as ModuleLogger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 /**
  * Logger handle passed through editord server modules.

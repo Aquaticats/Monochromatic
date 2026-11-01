@@ -23,7 +23,7 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isAssertionExpression,
   isCallExpression,
@@ -31,7 +31,7 @@ import {
   isNonNullExpression,
   isParenthesizedExpression,
   isSatisfiesExpression,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import { capturedOriginsByCalleeSlot, } from './effect-captured-result-origins.ts';
 import {
@@ -198,9 +198,9 @@ export function recordResultApplicationSites({
   sites.forEach(function recordOne(site,): void {
     summary.resultApplications
       .push({
-      callSiteKey: site,
-      kind,
-    },);
+        callSiteKey: site,
+        kind,
+      },);
   },);
 }
 
@@ -277,10 +277,10 @@ export function recordResultRetentionSites({
   sites.forEach(function recordOne(site,): void {
     summary.resultApplications
       .push({
-      callSiteKey: site,
-      kind: 'retained',
-      provenance,
-    },);
+        callSiteKey: site,
+        kind: 'retained',
+        provenance,
+      },);
   },);
 }
 
@@ -374,8 +374,8 @@ function substituteRetainedOrigins({
         growth.any = true;
       summary.opaqueProvenanceBySlot
         .set(
-          origin,
-          facts,
+        origin,
+        facts,
         );
     }
   }
@@ -568,18 +568,18 @@ export function propagateResultApplications({
      turns that into opacity for every origin the edge packages, so nothing is added
      here and nothing is claimed.
      */
-    const calleeSummary = summaries.get(edge.calleeKey,);
-    if (calleeSummary === undefined)
-      continue;
+      const calleeSummary = summaries.get(edge.calleeKey,);
+      if (calleeSummary === undefined)
+        continue;
     /**
      Captures re-filed under the callee slots their formals own, so the substitution walk can
      read them with the same index it reads ordinary origins with.
      */
-    const capturedByCalleeSlot = capturedOriginsByCalleeSlot({
-      calleeSummary,
-      edge,
-    },);
-    if (application.kind === 'retained') {
+      const capturedByCalleeSlot = capturedOriginsByCalleeSlot({
+        calleeSummary,
+        edge,
+      },);
+      if (application.kind === 'retained') {
       /* No guard on the provenance, because the type carries the invariant now. A
        * retention with nothing to say would arrive as an unexplained opaque slot and be
        * reported as an unresolved effect, and the first spelling of this defended against
@@ -587,23 +587,23 @@ export function propagateResultApplications({
        * type-checking, so the throw was the only thing between a well-typed literal and a
        * crash inside the fixed point. Making `ResultApplication` a union proved the branch
        * unreachable: TypeScript narrowed the check to `never` and rejected it. */
-      if (substituteRetainedOrigins({
-        summary,
+        if (substituteRetainedOrigins({
+          summary,
+          edge,
+          calleeReturned: calleeSummary.returned,
+          capturedByCalleeSlot,
+          provenance: application.provenance,
+        },))
+          growth.any = true;
+        continue;
+      }
+      if (substituteReturnedOrigins({
+        target: application.kind === 'mutated' ? summary.mutated : summary.returned,
         edge,
         calleeReturned: calleeSummary.returned,
         capturedByCalleeSlot,
-        provenance: application.provenance,
       },))
         growth.any = true;
-      continue;
-    }
-    if (substituteReturnedOrigins({
-      target: application.kind === 'mutated' ? summary.mutated : summary.returned,
-      edge,
-      calleeReturned: calleeSummary.returned,
-      capturedByCalleeSlot,
-    },))
-      growth.any = true;
     }
   }
   return growth.any;

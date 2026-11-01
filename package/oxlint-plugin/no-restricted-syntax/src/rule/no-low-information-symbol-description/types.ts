@@ -28,20 +28,20 @@ export type NamespaceParts = {
  */
 export type FailureMessageId =
   | 'tooFewWords'
-  | 'allUppercase'
-  | 'bareCamelIdentifier'
-  | 'repeatedMeaningfulWord'
-  | 'shortNamespacedTail'
-  | 'startsWithNoWithoutMarker'
-  | 'startsWithNotWithoutMarker'
-  | 'shortPhraseLacksSpecificityMarker';
+    | 'allUppercase'
+    | 'bareCamelIdentifier'
+    | 'repeatedMeaningfulWord'
+    | 'shortNamespacedTail'
+    | 'startsWithNoWithoutMarker'
+    | 'startsWithNotWithoutMarker'
+    | 'shortPhraseLacksSpecificityMarker';
 
 /**
  Verdict for a static description: a pass, or a fail carrying its message id.
  */
 export type SymbolDescriptionVerdict =
   | { readonly status: 'pass'; }
-  | {
-    readonly status: 'fail';
-    readonly messageId: FailureMessageId;
-  };
+    | {
+      readonly status: 'fail';
+      readonly messageId: FailureMessageId;
+    };

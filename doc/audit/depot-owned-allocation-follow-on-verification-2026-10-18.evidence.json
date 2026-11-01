@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:57:20.738Z",
+  "ledger": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
+    "sha256": "cc8b0b66245b1dae2c2087985a0a1e6390ffaff19fd08106a51516db0f03eceb",
+    "sourceArchiveSha256": "61202ec3bdfe0820df91a6966e07199a9167a8aa56e3424d97d03f9043e3588c"
+  },
+  "allocationVerification": {
+    "passed": true,
+    "recordedAt": "2026-10-18T17:52:37.404Z",
+    "bodyJoins": 39,
+    "zipMembers": 4,
+    "intervalJoins": 35,
+    "baselineUnchanged": true,
+    "uniqueIdentityJoins": 35
+  },
+  "providerProjectionVerification": {
+    "recordedAt": "2026-10-18T17:52:38.227Z",
+    "passed": true,
+    "selectedValueJoins": 1350,
+    "sourcePointerJoins": 74,
+    "privateOriginalHashesVerified": 7,
+    "publicActorControl": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39140975786",
+      "httpStatus": 200,
+      "authorizationHeaderSent": false,
+      "actorAndTriggeringActorIdsMatchPublicResponse": true
+    },
+    "nonpublicActorEmailPublished": false,
+    "newPrivateOriginalsNotPublished": true,
+    "credentialSignedUrlOrConnectionMaterialFound": false,
+    "historyRewritePerformed": false
+  },
+  "sealedReceiptSourceJoins": [
+    {
+      "evidencePath": "doc/audit/depot-native-snapshot-absence-2026-10-18.evidence.json",
+      "evidenceSha256": "967abe64d26450f9754b00c387c742b1ea744f6ac8e58d7be605b240c1499956",
+      "sourceArchive": "doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
+      "sourceArchiveSha256": "9267311d49c9e029fec418aeb9d2af89ee77ddccaa947db08df60fbed80ffafc",
+      "sourceBodyJoins": 20
+    },
+    {
+      "evidencePath": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.evidence.json",
+      "evidenceSha256": "3b3d8017b4127cb3303426f42861e268c8a01705f917f252f93a557ce17a1962",
+      "sourceArchive": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz",
+      "sourceArchiveSha256": "957707da9ae62aea184452d44c749ae026f5acce24b01e67aaba81467738a05e",
+      "sourceBodyJoins": 4
+    }
+  ],
+  "legacyInputVersions": {
+    "path": "doc/audit/depot-rust-legacy-input-version-joins-2026-10-18.evidence.json",
+    "sha256": "9ffac9b67aab08b3b7c503461563784934eefb8d7baf7384ba86c8af7ccf19c4",
+    "joinedInputs": 169
+  },
+  "nominalKnownProviderWindowListProxyTotal": {
+    "usd": "0.6041",
+    "numerator": "36246000000",
+    "denominator": "60000000000"
+  },
+  "rootGraphNominalKnownProviderWindowSubtotal": {
+    "usd": "0.487",
+    "numerator": "29220000000",
+    "denominator": "60000000000",
+    "runs": [
+      "39135886118",
+      "39140975786",
+      "gb01kjx2qk",
+      "fnvwqfg0bb"
+    ],
+    "actualInvoiceObserved": false
+  },
+  "newCloudAllocations": 0
+}

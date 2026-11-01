@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Template editor on the Fold</title>
+<style>
+:root { color-scheme: light dark; --color-surface: #fcf9ff; --color-card: #f0edf5; --color-text: #201e26;
+  --color-muted: #56515e; --color-line: #756e81; --color-focus: #554184; --color-selected: #e5dafa; }
+@media (prefers-color-scheme: dark) {
+  :root { --color-surface: #17151d; --color-card: #26222e; --color-text: #eee7f6;
+    --color-muted: #c2b9d0; --color-line: #a79bb8; --color-focus: #d9c0ff; --color-selected: #443452; }
+}
+* { box-sizing: border-box; }
+body { margin-block: 0; margin-inline: auto; padding-block: 2rem; padding-inline: 1rem;
+  max-inline-size: 88rem; color: var(--color-text); background-color: var(--color-surface);
+  font-family: system-ui,sans-serif; line-height: 1.55; }
+h1 { font-size: clamp(1.8rem,4vi,2.8rem); line-height: 1.2; }
+h2 { margin-block-start: 2.5rem; line-height: 1.3; }
+h3 { line-height: 1.3; }
+p,li { max-inline-size: 75ch; }
+a { color: var(--color-focus); }
+code,.digest { overflow-wrap: anywhere; }
+section,fieldset,details { margin-block: 1.5rem; min-inline-size: 0; }
+fieldset { border-width: 0.0625rem; border-style: solid; border-color: var(--color-line);
+  border-radius: 1rem; padding-block: 1.25rem; padding-inline: 1.25rem; }
+legend { font-size: 1.25rem; font-weight: 700; padding-inline: 0.4rem; }
+.note { border-inline-start-width: 0.3rem; border-inline-start-style: solid;
+  border-inline-start-color: var(--color-focus); padding-inline-start: 1rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }
+.control { display: grid; gap: 0.3rem; }
+button,select,input,textarea { font: inherit; color: var(--color-text); background-color: var(--color-card);
+  border-width: 0.0625rem; border-style: solid; border-color: var(--color-line); border-radius: 0.5rem;
+  min-inline-size: 3rem; min-block-size: 3rem; }
+button,select { padding-block: 0.6rem; padding-inline: 1rem; }
+button { cursor: pointer; }
+:where(button,select,input,textarea,a,summary,.viewer):focus-visible {
+  outline-width: 0.2rem; outline-style: solid; outline-color: var(--color-focus); outline-offset: 0.2rem; }
+.summary-text { color: var(--color-muted); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,20rem),1fr)); gap: 1rem; }
+figure { margin-block: 0; margin-inline: 0; min-inline-size: 0; padding-block: 1rem; padding-inline: 1rem;
+  border-radius: 1rem; background-color: var(--color-card); }
+figure h3 { margin-block-start: 0; }
+.preview-button { display: grid; gap: 0.75rem; inline-size: 100%; padding-block: 0.5rem; padding-inline: 0.5rem; }
+.preview-button img { display: block; inline-size: 100%; block-size: auto; }
+figcaption { margin-block-start: 0.8rem; font-size: 0.9rem; overflow-wrap: anywhere; }
+textarea { display: block; inline-size: 100%; min-block-size: 8rem; padding-block: 0.75rem; padding-inline: 0.75rem; }
+summary { min-inline-size: 3rem; min-block-size: 3rem; cursor: pointer; padding-block: 0.7rem; padding-inline: 0.5rem;
+  font-weight: 700; }
+dialog { inline-size: min(80rem,calc(100vi - 2rem)); max-block-size: calc(100vb - 2rem);
+  color: var(--color-text); background-color: var(--color-surface); border-width: 0.125rem;
+  border-style: solid; border-color: var(--color-line); border-radius: 1rem;
+  padding-block: 1rem; padding-inline: 1rem; }
+dialog::backdrop { background-color: var(--color-surface); opacity: 0.85; }
+dialog h2 { margin-block-start: 0; }
+.viewer { overflow: auto; max-block-size: 65vb; min-inline-size: 3rem; min-block-size: 3rem; }
+.viewer img { display: block; max-inline-size: none; block-size: auto; }
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+<p class="summary-text">Design study. The template editor and its two templates, as decided.</p>
+<h1>Templates for the player's lines</h1>
+<p>Purpose: show the template editor (D81) as you decided it (D89 to D96, accepted in D98) and the two lines that get
+a template, which you approved (D99). The page asks nothing; anything you would change goes in the last field.</p>
+<p class="note">Every state is authored debug input. Typing is not connected: each view shows fixed template text,
+and the preview, error lines and help it draws are checked against a reference that computes what the grammar yields.
+The app has a duration only for the playing track today and draws no supporting line yet, so this previews a line the
+app cannot fill for every row.</p>
+<p>The buttons emit debug events only. No template is stored and no row of the player changes.
+No production implementation is authorized.</p>
+<p>What to look at: the states of the decided editor and its two templates on both panels, at 100% and 200% text. How to
+respond: if anything should
+change, write it in the last field, press <strong>Prepare reply</strong> and paste the prepared text into the chat. This
+page sends and saves nothing.</p>
+</header>
+<section aria-labelledby="environment-title">
+<h2 id="environment-title">Inspect the same native conditions</h2>
+<div class="controls">
+<label class="control" for="panel">Panel<select id="panel"><option value="inner">Inner</option><option value="cover">Cover</option></select></label>
+<label class="control" for="scale">Native font scale<select id="scale"><option value="1">100%</option><option value="2">200%</option></select></label>
+<label class="control" for="scheme">Native image theme<select id="scheme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+</div>
+<p id="environment" role="status"></p>
+<p>Thumbnails fit the review column. Open any image to inspect it at 100% logical dp or native pixels.
+These are sanitized app-area crops, not device mockups. Status strips were removed for privacy;
+bottom navigation remains. Logical dp uses the measured 390dpi density, not your monitor's physical size.</p>
+</section>
+<form id="review-form">
+<section aria-labelledby="state-title"><h2 id="state-title">The editor's states</h2>
+<p>The preview is the first thing on one scrolling page (D91). Three states hold focus in the template field with the
+system keyboard open, and the page rests where Android puts a focused field (D94). Under each image, the page says what
+of that state is not in view.</p>
+<div class="gallery">
+<figure data-scene="list"><h3>Settings, listing both templates</h3><button type="button" class="preview-button"><img alt="Settings page listing the Track rows and Playing track templates, each with the line it currently produces"><span>Open the Settings page</span></button><figcaption></figcaption></figure>
+<figure data-scene="default"><h3>Editor with the default template</h3><button type="button" class="preview-button"><img alt="Template editor showing two preview rows, the default template and the start of the field list"><span>Open the editor with the default template</span></button><figcaption></figcaption></figure>
+<figure data-scene="help"><h3>Typing inside a call</h3><button type="button" class="preview-button"><img alt="Template editor with the keyboard open and help for the format argument of tf under the field"><span>Open the editor while typing inside a call</span></button><figcaption></figcaption></figure>
+<figure data-scene="unknown-field"><h3>An unknown field</h3><button type="button" class="preview-button"><img alt="Template editor with the keyboard open and an error line naming mi and the unknown field"><span>Open the editor with an unknown field</span></button><figcaption></figcaption></figure>
+<figure data-scene="open-formula"><h3>A formula left open</h3><button type="button" class="preview-button"><img alt="Template editor with the keyboard open and an error line saying a dollar sign has no closing dollar sign"><span>Open the editor with a formula left open</span></button><figcaption></figcaption></figure>
+<figure data-scene="custom"><h3>A changed template</h3><button type="button" class="preview-button"><img alt="Template editor with a changed template; the second preview row ends with the separator, because its true peak is empty"><span>Open the editor with a changed template</span></button><figcaption></figcaption></figure>
+<figure data-scene="custom-end"><h3>A changed template, scrolled to the end</h3><button type="button" class="preview-button"><img alt="Template editor scrolled to its end, showing the rest of the field list and Reset to default"><span>Open the editor scrolled to its end</span></button><figcaption></figcaption></figure>
+<figure data-scene="empty-library"><h3>An open library with no tracks</h3><button type="button" class="preview-button"><img alt="Template editor with stand-in preview rows because the open library holds no track"><span>Open the editor on an empty library</span></button><figcaption></figcaption></figure>
+<figure data-scene="playing"><h3>The playing track's template</h3><button type="button" class="preview-button"><img alt="Playing track template editor with its default template, preview rows counting each file's place in its folder, and the field list"><span>Open the playing track's editor</span></button><figcaption></figcaption></figure>
+</div>
+</section>
+<section aria-labelledby="decided-title"><h2 id="decided-title">What is decided</h2>
+<ul>
+<li>Spelling follows KWGT: formulas between dollar signs, <code>mi(field)</code> for a field of the track,
+<code>tf(seconds, format)</code> for a duration, <code>tc(mode, text)</code> for case and cutting, and <code>+</code> to
+join text. There is no conditional and nothing to compare with (D92).</li>
+<li>Fields: <code>title</code>, <code>file</code>, <code>ext</code>, <code>folder</code>, <code>path</code>,
+<code>len</code> and <code>peak</code>. There is no artist or album field, because the app reads no tags.</li>
+<li>Text outside the formulas is always shown, and a field with no value yields nothing (D93). The true peak carries its
+own unit. The default template is <code>$tf(mi(len), m:ss)$ $mi(peak)$</code>: an analysed file reads
+<code>4:35 −1.2 dBTP</code>, one not analysed yet reads <code>5:12</code>. A separator you write next to an empty field
+stays in the line, as the changed template shows.</li>
+<li>The preview shows two files of the open library, one of them not analysed yet. A library is always open; when it
+holds no track, the preview shows sample values and says so (D95). The preview scrolls with the page (D91).</li>
+<li>An edit applies as typed while the template is valid. While it has a mistake, rows keep the last valid template.
+There is no Save step; <strong>Reset to default</strong> is drawn only when the template differs from the default.</li>
+<li>A mistake is named under the field in place of the typing help. A formula left open is a mistake.</li>
+<li>The field list stays under the field; with the keyboard open you scroll to it (D96).</li>
+</ul>
+</section>
+<section aria-labelledby="lines-title"><h2 id="lines-title">Which lines get a template</h2>
+<p>Built as the agent's one version (D97) and approved as built (D99).</p>
+<ul>
+<li>Two templates, listed under Templates in Settings: <strong>Track rows</strong>, the supporting line studied so far,
+and <strong>Playing track</strong>, the line under the playing track's title in the deck. Each editor is titled with
+its template's name, so the track rows' editor is now titled Track rows.</li>
+<li>The playing track's default is <code>$mi(track)$ of $mi(total)$ $mi(peak)$</code>: <code>1 of 16 −1.2 dBTP</code>
+for an analysed file and <code>2 of 16</code> before analysis. On the inner panel the deck in the left pane shows that
+line. Its fields are the track fields and two more: <code>track</code>, the file's place in its folder, and
+<code>total</code>, how many tracks the folder holds. <code>mi(track)</code> follows KWGT's own field of that name.</li>
+<li>Search results are not templated: their second line is the parent folder, which D77 requires so equal names stay
+apart. Folder names and every title stay as they are.</li>
+</ul>
+</section>
+<details><summary>Read what was and was not checked</summary>
+<p>The host is a debug activity, not the player. The merged debug manifest disables the production launcher, playback
+and sweep services. Each view was captured with a fresh hierarchy, exactly one creation of the host since its launch,
+and the keyboard open only for the scenes whose state holds focus. 7 visits contributed views, out of many attempts
+while other work held the host's load average between about 45 and 100 on its 16 cores. The others ended without a
+new view: boots longer than their bound, launches reported as timed out, not-responding dialogs and lost focus; the
+system's memory-pressure killer also stopped the loop running them once. Views finished before an interruption were
+kept, and each view's record names its visit. The last visit captured the remaining 37 views and shut down cleanly.</p>
+<p>Whether a text is in view is read from its rectangle in the hierarchy, the page's scrolling window and the keyboard's
+own frame; hierarchy rectangles are not ink bounds. A text whose rectangle touches an edge of the window is reported as
+at the edge, because the hierarchy cannot tell cut from flush. Where the page rests with the keyboard open is where
+Android puts a focused field; the study scrolled only the view of the page's end. TalkBack, focus order, speech and contrast were not exercised. Real
+typing, caret movement by touch, scrolling by hand and inserting a field were not exercised.</p>
+<p>Not built yet: with the keyboard open most of the field list is out of view, so inserting a field means scrolling
+away from the field. That is the next concern of this round.</p>
+<p>The published crops keep exact RGB, opacity, dimensions and only essential PNG chunks. No digest of an image is
+recorded, and nothing is compared with a digest (D88).</p>
+</details>
+<fieldset><legend>Anything else</legend><label for="final-notes">What you would change, in your own words</label>
+<textarea id="final-notes" name="notes" placeholder="Optional."></textarea></fieldset>
+<button type="submit">Prepare reply</button>
+<section id="response" hidden aria-labelledby="response-title"><h2 id="response-title">Reply to copy</h2>
+<p id="response-status" role="status">Nothing has been sent or saved by this page.</p>
+<label for="reply">Prepared reply</label><textarea id="reply" readonly></textarea></section>
+</form>
+<dialog id="preview" aria-labelledby="preview-title">
+<h2 id="preview-title">Native witness</h2>
+<div class="controls"><button type="button" id="close-preview">Close image</button><button type="button" id="zoom-out">Smaller</button>
+<button type="button" id="zoom-in">Larger</button><button type="button" id="reset-preview">Reset 100% dp</button>
+<button type="button" id="native-preview">Native pixels</button></div>
+<p id="preview-scale" role="status"></p><p id="preview-metadata" class="digest"></p>
+<div class="viewer" tabindex="0" role="region" aria-label="Scrollable native witness"><img id="preview-image" alt=""></div>
+</dialog>
+<script>
+//region Native evidence viewer, only checked embedded images, their recorded facts and explicit view state
+const images = __TEMPLATE_EDITOR_IMAGES__;
+const facts = __TEMPLATE_EDITOR_FACTS__;
+const states = __TEMPLATE_EDITOR_STATES__;
+const nativeTheme = matchMedia('(prefers-color-scheme: dark)');
+const state = { panel: 'inner', fontScale: 1, theme: 'system', zoom: 1, preview: null };
+const controls = { panel: document.getElementById('panel'), scale: document.getElementById('scale'), scheme: document.getElementById('scheme') };
+const preview = document.getElementById('preview');
+function selectedScheme() { return state.theme === 'system' ? (nativeTheme.matches ? 'dark' : 'light') : state.theme; }
+function imageKey(figure) {
+  return [state.panel, figure.dataset.scene, selectedScheme(), state.fontScale].join('/');
+}
+// Plain words for what a view does not keep in view, from the roles the builder recorded.
+const roleWords = [[/^preview-(title|supporting)-/, 'the preview rows'], [/^preview-note$/, 'the note under the preview'],
+  [/^(field-label|template)$/, 'the template field'], [/^(error|help)-/, 'the lines under the field'],
+  [/^section-/, 'a section heading'], [/^field-(name|value|insert)-/, 'part of the field list'], [/^reset$/, 'Reset to default'],
+  [/^entry-/, 'the template entry'], [/^page-title$/, 'the page title']];
+function words(roles) {
+  const found = [];
+  for (const role of roles) {
+    const entry = roleWords.find(candidate => candidate[0].test(role));
+    if (!entry) throw new Error('Unknown role: ' + role);
+    if (!found.includes(entry[1])) found.push(entry[1]);
+  }
+  return found;
+}
+function metadata(image) {
+  return image.width + ' × ' + image.height + ' retained px · ' + (image.width / (image.density / 160)).toFixed(1) +
+    ' × ' + (image.height / (image.density / 160)).toFixed(1) + ' logical dp · source density ' + image.density +
+    'dpi · ' + image.file;
+}
+function render() {
+  document.getElementById('environment').textContent = state.panel + ' panel · ' + state.fontScale * 100 +
+    '% native text · ' + selectedScheme() + ' native images. Thumbnail size is not native font scale.';
+  for (const figure of document.querySelectorAll('figure[data-scene]')) {
+    const key = imageKey(figure);
+    const image = images[key];
+    const fact = facts[key];
+    if (!image || !fact) throw new Error('Required native view is absent: ' + key);
+    const element = figure.querySelector('img');
+    element.src = image.source;
+    element.width = image.width;
+    element.height = image.height;
+    figure.querySelector('figcaption').textContent = metadata(image) + ' · keyboard ' + (fact.keyboard ? 'open' : 'closed') +
+      (fact.keyboard ? (fact.caretDrawn ? ' · caret drawn' : ' · caret not drawn in this frame') : '') +
+      ' · ' + visibility(fact) + (fact.scrolls ? ' · the page scrolls' : ' · the page does not scroll');
+  }
+}
+// One sentence on what a view keeps in view, from the roles the builder recorded.
+function visibility(fact) {
+  const hidden = words(fact.outOfView);
+  const edge = words(fact.atEdge).filter(word => !hidden.includes(word));
+  if (hidden.length === 0 && edge.length === 0) return 'everything this state draws is in view';
+  return [hidden.length ? 'not in view: ' + hidden.join(', ') : '', edge.length ? 'at an edge of the view: ' + edge.join(', ') : '']
+    .filter(Boolean).join(' · ');
+}
+function resizePreview() {
+  if (!state.preview) throw new Error('No native witness is open.');
+  const rootFont = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const logicalWidth = state.preview.width / (state.preview.density / 160);
+  document.getElementById('preview-image').style.inlineSize = logicalWidth * state.zoom / rootFont + 'rem';
+  document.getElementById('preview-scale').textContent = (state.zoom * 100).toFixed(1) +
+    '% logical dp · ' + Math.round(logicalWidth * state.zoom) + ' CSS px displayed width. Pan within the image region.';
+}
+function openPreview(figure) {
+  const image = images[imageKey(figure)];
+  if (!image) throw new Error('Selected native evidence is absent.');
+  state.preview = image;
+  state.zoom = 1;
+  document.getElementById('preview-title').textContent = figure.querySelector('h3').textContent;
+  document.getElementById('preview-metadata').textContent = metadata(image);
+  const element = document.getElementById('preview-image');
+  element.src = image.source;
+  element.alt = figure.querySelector('img').alt;
+  resizePreview();
+  preview.showModal();
+  document.querySelector('.viewer').scrollTo(0, 0);
+}
+for (const figure of document.querySelectorAll('figure[data-scene]')) {
+  figure.querySelector('button').addEventListener('click', () => openPreview(figure));
+}
+controls.panel.addEventListener('change', () => { state.panel = controls.panel.value; render(); });
+controls.scale.addEventListener('change', () => { state.fontScale = Number(controls.scale.value); render(); });
+controls.scheme.addEventListener('change', () => { state.theme = controls.scheme.value; render(); });
+nativeTheme.addEventListener('change', () => { if (state.theme === 'system') render(); });
+document.getElementById('close-preview').addEventListener('click', () => preview.close());
+document.getElementById('zoom-out').addEventListener('click', () => { state.zoom = Math.max(0.125, state.zoom / 1.25); resizePreview(); });
+document.getElementById('zoom-in').addEventListener('click', () => { state.zoom = Math.min(4, state.zoom * 1.25); resizePreview(); });
+document.getElementById('reset-preview').addEventListener('click', () => { state.zoom = 1; resizePreview(); });
+document.getElementById('native-preview').addEventListener('click', () => { state.zoom = state.preview.density / 160; resizePreview(); });
+render();
+//endregion
+
+//region Reply, prepared in the page and sent nowhere
+function prepareReply(event) {
+  event.preventDefault();
+  const form = document.getElementById('review-form');
+  if (!form.reportValidity()) return;
+  const data = new FormData(form);
+  const notes = String(data.get('notes')).trim();
+  document.getElementById('reply').value = 'Template editor study reply\n' + answers(data) +
+    'Anything else: ' + (notes || 'None.') + '\nNo production authorization.';
+  document.getElementById('response').hidden = false;
+  document.getElementById('reply').focus();
+}
+// The page asks nothing; the reply carries only the free text.
+function answers(data) { return ''; }
+function invalidateReply() {
+  document.getElementById('reply').value = '';
+  document.getElementById('response').hidden = true;
+}
+document.getElementById('review-form').addEventListener('input', invalidateReply);
+document.getElementById('review-form').addEventListener('change', invalidateReply);
+document.getElementById('review-form').addEventListener('submit', prepareReply);
+//endregion
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 //region Workspace ownership: remove only test-created storage.
@@ -63,7 +63,7 @@ export async function fixtureHome(): Promise<FixtureHome> {
    Newly created storage is owned immediately, even if initialization fails.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'openai-fast-host-',
   ),);
   /**

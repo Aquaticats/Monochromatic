@@ -6,7 +6,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import spawn from 'nano-spawn';
 
 import {
@@ -23,7 +23,7 @@ import {
 
 import {
   type ChainNode,
-  chainBreakOffsets,
+  chainBreaks,
 } from '../dist/final/node/index.mjs';
 
 /** Minimal token stub the chain walk reads: a value to classify and a start offset. */
@@ -141,6 +141,37 @@ async function lint(fixturePath: string,): Promise<readonly OxlintDiagnostic[]> 
 
 
 /**
+ Runs oxlint --fix once on a fixture file.
+ 
+ Oxlint exits non-zero while unfixable findings remain, which is expected here; a plugin that crashed is not,
+ and fails the run, so a file read back afterwards was never left alone by a crash.
+ 
+ @param params - file to rewrite and the config to fix it under
+ 
+ @example
+ ```ts
+ await fixOnce({ filePath: fixture.filePath, fixtureConfig: FIXTURE_CONFIG });
+ ```
+ */
+async function fixOnce(
+  {
+    filePath,
+    fixtureConfig,
+  }: {
+    readonly filePath: string;
+    readonly fixtureConfig: string;
+  },
+): Promise<void> {
+  await runOxlintFixture({
+    codePrefix: 'stylistic(',
+    configFlag: '--config',
+    fixtureConfig,
+    target: filePath,
+    fix: 'fixes',
+  },);
+}
+
+/**
  Runs oxlint --fix on a fixture until content stops changing.
  
  Some stylistic fixes overlap, so oxlint applies only one fix for that source
@@ -162,23 +193,11 @@ async function fixUntilStable(filePath: string,): Promise<void> {
   ) {
     /** File content before this pass; unchanged output means convergence. */
     const before = readFileSync(filePath, 'utf8',);
-    try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- each pass must read previous pass output from disk
-      await spawn(
-        'oxlint',
-        [
-          '--fix',
-          '--config',
-          FIXTURE_CONFIG,
-          filePath,
-        ],
-        { cwd: ROOT, },
-      );
-    }
-    catch (error: unknown) {
-      // --fix may exit non-zero while later passes or unfixable rules remain.
-    expect(error,).toBeDefined();
-    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each pass must read previous pass output from disk
+    await fixOnce({
+      filePath,
+      fixtureConfig: FIXTURE_CONFIG,
+    },);
     if (readFileSync(filePath, 'utf8',) === before)
       return;
   }
@@ -429,6 +448,13 @@ await describe({
           name: 'block-body-newline valid cases produce no violations',
           fn: async () => {
             const diagnostics = await lint('valid/block-body-newline.ts',);
+            expect(diagnostics,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'indentation valid cases produce no violations',
+          fn: async () => {
+            const diagnostics = await lint('valid/indentation.ts',);
             expect(diagnostics,).toEqual([],);
           },
         },),
@@ -768,13 +794,13 @@ await describe({
             const steps = 50_000;
             /** Shared mock context; the synthetic nodes carry their own offsets. */
             const context = mockChainContext();
-            /** Break offsets of a `steps`-deep member spine. */
-            const memberBreaks = chainBreakOffsets({
+            /** Breaks of a `steps`-deep member spine. */
+            const memberBreaks = chainBreaks({
               context,
               node: buildMemberChain(steps,),
             },);
-            /** Break offsets of a `steps`-operator left-associative spine. */
-            const operatorBreaks = chainBreakOffsets({
+            /** Breaks of a `steps`-operator left-associative spine. */
+            const operatorBreaks = chainBreaks({
               context,
               node: buildOperatorChain(steps,),
             },);
@@ -947,6 +973,79 @@ await describe({
             );
           },
         },),
+        it({
+          name: 'reports missing trailing commas on type-annotated patterns',
+          fn: async () => {
+            const diagnostics = await lint(
+              'invalid/comma-dangle-pattern-annotation.ts',
+            );
+            const commaDiagnostics = diagnostics.filter(
+              function isCommaDangle(diagnostic,): boolean {
+                return diagnostic.code === 'stylistic(comma-dangle)';
+              },
+            );
+            expect(commaDiagnostics,).toHaveLength(3,);
+            expect(commaDiagnostics[0]?.message,).toBe('Missing trailing comma.',);
+          },
+        },),
+        it({
+          name: 'valid type-annotated pattern cases produce no violations',
+          fn: async () => {
+            const diagnostics = await lint(
+              'valid/comma-dangle-pattern-annotation.ts',
+            );
+            expect(diagnostics,).toEqual([],);
+          },
+        },),
+        it({
+          name: '--fix adds pattern commas and leaves type annotations alone',
+          fn: async () => {
+            /** Source fixture copied so --fix never mutates original fixture. */
+            const annotationSrc = resolve(
+              FIXTURES,
+              'invalid',
+              'comma-dangle-pattern-annotation.ts',
+            );
+            /** Temp fixture copy isolated from parallel autofix tests. */
+            await using annotationCopy = await createTempFixtureFile({
+              fileName: 'comma-dangle-pattern-annotation.ts',
+              sourcePath: annotationSrc,
+              tempPrefix: 'oxlint-stylistic-autofix-',
+            },);
+
+            await fixUntilStable(annotationCopy.filePath,);
+
+            const fixedContent = readFileSync(annotationCopy.filePath, 'utf8',);
+            expect(fixedContent,).toContain('function destructured({ salt, }: { readonly salt: number; },): void',);
+            expect(fixedContent,).toContain('function destructuredPresent({ salt, }: { readonly salt: number; },): void',);
+            expect(fixedContent,).toContain('function destructuredTuple([only,]: [number,],): void',);
+            expect(fixedContent,).not.toContain(';,');
+
+            const diagnostics = await lint(annotationCopy.filePath,);
+            expect(diagnostics,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'indentation',
+      children: [
+        it({
+          name: 'reports one violation per deviating checked line',
+          fn: async () => {
+            const diagnostics = await lint('invalid/indentation.ts',);
+            const indentationDiagnostics = diagnostics.filter(
+              function isIndentationDiagnostic(diagnostic,): boolean {
+                return diagnostic.code === 'stylistic(indentation)';
+              },
+            );
+            expect(indentationDiagnostics,).toHaveLength(6,);
+            expect(indentationDiagnostics[0]?.message,).toBe(
+              'Expected indentation of 2 spaces but found 6.',
+            );
+          },
+        },),
       ],
     },),
 
@@ -957,6 +1056,63 @@ await describe({
     describe({
       name: 'autofix',
       children: [
+        it({
+          name: '--fix normalizes indentation idempotently',
+          fn: async () => {
+            const sourcePath = resolve(
+              FIXTURES,
+              'invalid',
+              'indentation.ts',
+            );
+            await using fixtureCopy = await createTempFixtureFile({
+              fileName: 'indentation.ts',
+              sourcePath,
+              tempPrefix: 'oxlint-stylistic-indentation-',
+            },);
+
+            await fixUntilStable(fixtureCopy.filePath,);
+            const fixedOnce = readFileSync(fixtureCopy.filePath, 'utf8',);
+            expect(fixedOnce,).toContain(
+              'function hang(\n  parameter: number,\n): number {\n  return parameter;',
+            );
+            expect(fixedOnce,).toContain('  value = 1;',);
+            expect(fixedOnce,).toContain(
+              '  method(): number {\n    return this.value;',
+            );
+            expect(fixedOnce,).toContain('  else {\n    return 2;',);
+
+            await fixUntilStable(fixtureCopy.filePath,);
+            expect(readFileSync(fixtureCopy.filePath, 'utf8',),).toBe(fixedOnce,);
+            expect(await lint(fixtureCopy.filePath,),).toEqual([],);
+          },
+        },),
+        it({
+          name: '--fix converges indentation with argument, chain, and body fixers',
+          fn: async () => {
+            const sourcePath = resolve(
+              FIXTURES,
+              'invalid',
+              'indentation-mixed.ts',
+            );
+            await using fixtureCopy = await createTempFixtureFile({
+              fileName: 'indentation-mixed.ts',
+              sourcePath,
+              tempPrefix: 'oxlint-stylistic-indentation-mixed-',
+            },);
+
+            await fixUntilStable(fixtureCopy.filePath,);
+            const fixedOnce = readFileSync(fixtureCopy.filePath, 'utf8',);
+            expect(fixedOnce,).toContain('  calls(\n    1,\n    2,\n  );',);
+            expect(fixedOnce,).toContain(
+              '  const chained = value.then(1, )\n    .finally(2, );',
+            );
+            expect(fixedOnce,).toContain('  if (true) {\n    mixed();\n  }',);
+
+            await fixUntilStable(fixtureCopy.filePath,);
+            expect(readFileSync(fixtureCopy.filePath, 'utf8',),).toBe(fixedOnce,);
+            expect(await lint(fixtureCopy.filePath,),).toEqual([],);
+          },
+        },),
         it({
           name: '--fix removes every canonical TSDoc prefix in never mode idempotently',
           fn: async () => {
@@ -999,16 +1155,10 @@ await describe({
               tempPrefix: 'oxlint-stylistic-autofix-',
             },);
 
-            await spawn(
-              'oxlint',
-              [
-                '--fix',
-                '--config',
-                ASTERISK_PREFIX_ALWAYS_FIXTURE_CONFIG,
-                fixtureCopy.filePath,
-              ],
-              { cwd: ROOT, },
-            );
+            await fixOnce({
+              filePath: fixtureCopy.filePath,
+              fixtureConfig: ASTERISK_PREFIX_ALWAYS_FIXTURE_CONFIG,
+            },);
             const fixedOnce = readFileSync(fixtureCopy.filePath, 'utf8',);
             expect(fixedOnce,).toContain(
               '/**\n * Star-less description.\n *\n * **Leading bold** remains literal content.\n *\n * *through* remains literal content.',
@@ -1017,16 +1167,10 @@ await describe({
               '/**\n * Description whose closing delimiter shares its final line.\n */',
             );
 
-            await spawn(
-              'oxlint',
-              [
-                '--fix',
-                '--config',
-                ASTERISK_PREFIX_ALWAYS_FIXTURE_CONFIG,
-                fixtureCopy.filePath,
-              ],
-              { cwd: ROOT, },
-            );
+            await fixOnce({
+              filePath: fixtureCopy.filePath,
+              fixtureConfig: ASTERISK_PREFIX_ALWAYS_FIXTURE_CONFIG,
+            },);
             expect(readFileSync(fixtureCopy.filePath, 'utf8',),).toBe(fixedOnce,);
             expect(await lintWithConfig({
               fixturePath: fixtureCopy.filePath,
@@ -1050,22 +1194,10 @@ await describe({
               tempPrefix: 'oxlint-stylistic-autofix-',
             },);
 
-            try {
-              await spawn(
-                'oxlint',
-                [
-                  '--fix',
-                  '--config',
-                  FIXTURE_CONFIG,
-                  semiCopy.filePath,
-                ],
-                { cwd: ROOT, },
-              );
-            }
-            catch (error: unknown) {
-              // --fix may still exit non-zero if unfixable issues remain
-            expect(error,).toBeDefined();
-            }
+            await fixOnce({
+              filePath: semiCopy.filePath,
+              fixtureConfig: FIXTURE_CONFIG,
+            },);
 
             const fixedContent = readFileSync(semiCopy.filePath, 'utf8',);
             expect(fixedContent,).toContain('const value = 1;',);
@@ -1175,22 +1307,10 @@ await describe({
               tempPrefix: 'oxlint-stylistic-autofix-',
             },);
 
-            try {
-              await spawn(
-                'oxlint',
-                [
-                  '--fix',
-                  '-c',
-                  FIXTURE_CONFIG,
-                  trailingCopy.filePath,
-                ],
-                { cwd: ROOT, },
-              );
-            }
-            catch (error: unknown) {
-              // --fix may still exit non-zero
-            expect(error,).toBeDefined();
-            }
+            await fixOnce({
+              filePath: trailingCopy.filePath,
+              fixtureConfig: FIXTURE_CONFIG,
+            },);
 
             const fixedContent = readFileSync(trailingCopy.filePath, 'utf8',);
 
@@ -1276,7 +1396,7 @@ await describe({
               'const b5 = items.map(a,)\n  .filter(b,)\n  .filter(c,);',
               'const b6 = a + b\n  + c\n  + d;',
               'const b7 = x && y\n  && z;',
-              'const b8 = aa.b()\n  .c()\n  + dd.e()\n  .f();',
+              'const b8 = aa.b()\n  .c()\n  + dd.e()\n    .f();',
               'const b9 = obj.b\n  .c\n  .d\n  .toString()\n  .trim();',
               'const b10 = obj.a\n  .b\n  > c;',
             ];
@@ -1325,22 +1445,10 @@ await describe({
             /** Original content; the suppressed fix must leave it byte-for-byte. */
             const before = readFileSync(commentCopy.filePath, 'utf8',);
 
-            try {
-              await spawn(
-                'oxlint',
-                [
-                  '--fix',
-                  '-c',
-                  FIXTURE_CONFIG,
-                  commentCopy.filePath,
-                ],
-                { cwd: ROOT, },
-              );
-            }
-            catch (error: unknown) {
-              // --fix may exit non-zero when unfixable issues remain
-            expect(error,).toBeDefined();
-            }
+            await fixOnce({
+              filePath: commentCopy.filePath,
+              fixtureConfig: FIXTURE_CONFIG,
+            },);
             expect(readFileSync(commentCopy.filePath, 'utf8',),).toBe(before,);
           },
         },),
@@ -1362,22 +1470,10 @@ await describe({
             /** Original content; unlike the head-comment case, the fix must rewrite it. */
             const before = readFileSync(argsCopy.filePath, 'utf8',);
 
-            try {
-              await spawn(
-                'oxlint',
-                [
-                  '--fix',
-                  '-c',
-                  FIXTURE_CONFIG,
-                  argsCopy.filePath,
-                ],
-                { cwd: ROOT, },
-              );
-            }
-            catch (error: unknown) {
-              // --fix may exit non-zero when unfixable issues remain
-            expect(error,).toBeDefined();
-            }
+            await fixOnce({
+              filePath: argsCopy.filePath,
+              fixtureConfig: FIXTURE_CONFIG,
+            },);
             /** Content after the fix: the chain broke at the member step. */
             const after = readFileSync(argsCopy.filePath, 'utf8',);
             // The fix applied rather than being suppressed by the interior comment.
@@ -1446,35 +1542,7 @@ await describe({
             // passes: pass 1 breaks the chain, pass 2 wraps the mixed operands, pass 3
             // re-indents the now-nested inner chain. Run --fix until the file stops
             // changing (capped well above the need) rather than hard-coding a count.
-            for (
-              let pass = 0;
-              pass < 8;
-              pass += 1
-            ) {
-              /** File content before this pass; an unchanged result after it means convergence. */
-              const before = readFileSync(combinedCopy.filePath, 'utf8',);
-              try {
-                // oxlint-disable-next-line eslint/no-await-in-loop -- each pass must read previous pass output from disk
-                await spawn(
-                  'oxlint',
-                  [
-                    '--fix',
-                    '-c',
-                    FIXTURE_CONFIG,
-                    combinedCopy.filePath,
-                  ],
-                  { cwd: ROOT, },
-                );
-              }
-              catch (error: unknown) {
-                // --fix may exit non-zero when unfixable issues remain
-              expect(error,).toBeDefined();
-              }
-              if (readFileSync(combinedCopy.filePath, 'utf8',)
-                === before) {
-                break;
-              }
-            }
+            await fixUntilStable(combinedCopy.filePath,);
 
             const diagnostics = await lint(combinedCopy.filePath,);
             const stylisticDiags = diagnostics.filter(
@@ -1581,35 +1649,7 @@ await describe({
             // so a deep spine and the sibling per-line rules settle over several
             // passes. Run --fix until the file stops changing (capped well above
             // the need) rather than hard-coding a count.
-            for (
-              let pass = 0;
-              pass < 8;
-              pass += 1
-            ) {
-              /** File content before this pass; an unchanged result means convergence. */
-              const before = readFileSync(convergeCopy.filePath, 'utf8',);
-              try {
-                // oxlint-disable-next-line eslint/no-await-in-loop -- each pass must read previous pass output from disk
-                await spawn(
-                  'oxlint',
-                  [
-                    '--fix',
-                    '-c',
-                    FIXTURE_CONFIG,
-                    convergeCopy.filePath,
-                  ],
-                  { cwd: ROOT, },
-                );
-              }
-              catch (error: unknown) {
-                // --fix may exit non-zero when unfixable issues remain
-              expect(error,).toBeDefined();
-              }
-              if (readFileSync(convergeCopy.filePath, 'utf8',)
-                === before) {
-                break;
-              }
-            }
+            await fixUntilStable(convergeCopy.filePath,);
 
             const diagnostics = await lint(convergeCopy.filePath,);
             const stylisticDiags = diagnostics.filter(

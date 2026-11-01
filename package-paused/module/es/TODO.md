@@ -2,13 +2,16 @@
 
 ## Vision: Complete Functional Programming Utility Library
 
-**Ambitious Goal**: Create the definitive TypeScript functional programming library containing every thinkable/possible utility function across all domains and use cases.
+**Ambitious Goal**: Create the definitive TypeScript functional programming library containing every thinkable/possible
+utility function across all domains and use cases.
 
-**Target Scale**: 500+ utility functions across 25+ categories with excellence in type safety, performance, and developer experience.
+**Target Scale**: 500+ utility functions across 25+ categories with excellence in type safety, performance,
+and developer experience.
 
 ### Package-Specific TODO Files for Module ES
 
-This directory contains detailed improvement plans for building the most comprehensive functional programming utilities library (`@monochromatic-dev/module-es`) for TypeScript.
+This directory contains detailed improvement plans for building the most comprehensive functional programming utilities
+library (`@monochromatic-dev/module-es`) for TypeScript.
 
 ### Quick Links
 
@@ -207,15 +210,17 @@ This directory contains detailed improvement plans for building the most compreh
 2. **API Refactors** → [API Refactors Todo](TODO.api-refactors.md#major-api-design-changes-required)
    - **Logger parameters** required for ALL functions (150+ functions affected)
    - **Named parameters** for 3+ parameter functions (major breaking change)
-   - **Type testing** with `@monochromatic-dev/module-test` for all type utilities
+   - **Type testing** with `@monochromatic-dev/test-harness-core` for all type utilities
    - **Major version bump required** (1.0.0 → 2.0.0)
 
-3. **Object Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#object-utilities-completely-missing)
+3. **Object Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#object-utilities-completely-missing)
    - Fundamental for all data manipulation
    - Missing pick, omit, merge, transform, deep operations
    - **Target**: 30+ functions (currently have 1)
 
-4. **Async Iterator Ecosystem** → [Missing Implementations Todo](TODO.missing-implementations.md#async-iterator-utilities-major-gap)
+4. **Async Iterator Ecosystem** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#async-iterator-utilities-major-gap)
    - Essential for modern async programming
    - Missing map, filter, reduce, batch, parallel processing
    - **Target**: 30+ functions (currently have 5)
@@ -224,20 +229,24 @@ This directory contains detailed improvement plans for building the most compreh
 
 **Major categories needed for comprehensive utility coverage**
 
-1. **Date/Time Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#datetime-utilities-completely-missing)
+1. **Date/Time Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#datetime-utilities-completely-missing)
    - Essential for most applications
    - Parsing, formatting, arithmetic, timezone handling
    - **Target**: 25+ functions (currently have 0)
 
-2. **Math Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#math-utilities-completely-missing)
+2. **Math Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#math-utilities-completely-missing)
    - Statistics, interpolation, geometric operations
    - **Target**: 25+ functions (currently have 5)
 
-3. **Validation Framework** → [Missing Implementations Todo](TODO.missing-implementations.md#validation-framework-major-expansion)
+3. **Validation Framework** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#validation-framework-major-expansion)
    - Input validation and type safety
    - **Target**: 30+ functions (currently have 5)
 
-4. **Array Utilities Completion** → [Missing Implementations Todo](TODO.missing-implementations.md#array-utilities-gaps-identified)
+4. **Array Utilities Completion** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#array-utilities-gaps-identified)
    - Shuffle, unique, flatten, zip, set operations
    - **Target**: 50+ functions (currently have 12)
 
@@ -245,15 +254,18 @@ This directory contains detailed improvement plans for building the most compreh
 
 **Important categories for complete utility coverage**
 
-1. **String Utilities Expansion** → [Missing Implementations Todo](TODO.missing-implementations.md#text-processing-new-category)
+1. **String Utilities Expansion** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#text-processing-new-category)
    - Text processing, analysis, transformation
    - **Target**: 40+ functions (currently have 20)
 
-2. **Collection Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#collection-utilities-major-expansion)
+2. **Collection Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#collection-utilities-major-expansion)
    - Set, Map, and specialized collection operations
    - **Target**: 25+ functions (currently have 8)
 
-3. **Network Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#network-utilities-new-category)
+3. **Network Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#network-utilities-new-category)
    - URL manipulation, HTTP utilities
    - **Target**: 15+ functions (currently have 0)
 
@@ -261,7 +273,8 @@ This directory contains detailed improvement plans for building the most compreh
    - Hashing, encoding, secure random generation
    - **Target**: 15+ functions (currently have 2)
 
-5. **Stream Processing** → [Missing Implementations Todo](TODO.missing-implementations.md#stream-processing-utilities-new-category)
+5. **Stream Processing** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#stream-processing-utilities-new-category)
    - Async stream manipulation and transformation
    - **Target**: 20+ functions (currently have 0)
 
@@ -269,7 +282,8 @@ This directory contains detailed improvement plans for building the most compreh
 
 **Advanced and specialized utility categories**
 
-1. **Geometry Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#geometry-utilities-new-category)
+1. **Geometry Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#geometry-utilities-new-category)
    - Point, vector, shape operations
    - **Target**: 20+ functions
 
@@ -281,11 +295,13 @@ This directory contains detailed improvement plans for building the most compreh
    - Text parsing and grammar handling
    - **Target**: 15+ functions
 
-4. **Tree/Graph Utilities** → [Missing Implementations Todo](TODO.missing-implementations.md#treegraph-utilities-new-category)
+4. **Tree/Graph Utilities** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#treegraph-utilities-new-category)
    - Advanced data structure algorithms
    - **Target**: 15+ functions
 
-5. **Lens/Optics System** → [Missing Implementations Todo](TODO.missing-implementations.md#lensoptics-utilities-new-category)
+5. **Lens/Optics System** →
+   [Missing Implementations Todo](TODO.missing-implementations.md#lensoptics-utilities-new-category)
    - Functional data access patterns
    - **Target**: 10+ functions
 
@@ -600,7 +616,8 @@ This directory contains detailed improvement plans for building the most compreh
 ### Build System Dependencies
 
 - **Export fixes** directly impact → [Build System Todo](../../TODO.build-system.md#missing-export-issues)
-- **Massive implementation scope** requires → [Performance Todo](../../TODO.performance.md#build-performance) optimization
+- **Massive implementation scope** requires → [Performance Todo](../../TODO.performance.md#build-performance)
+   optimization
 
 ### Ecosystem Impact
 
@@ -895,7 +912,9 @@ This directory contains detailed improvement plans for building the most compreh
 - **Innovation platform**: Pioneer new patterns and techniques
 - **Ecosystem foundation**: Enable advanced development patterns across all projects
 
-This represents the most ambitious functional programming utility library vision for TypeScript, aiming to provide every conceivable utility while maintaining the highest standards of type safety, performance, and developer experience.
+This represents the most ambitious functional programming utility library vision for TypeScript,
+aiming to provide every conceivable utility while maintaining the highest standards of type safety, performance,
+and developer experience.
 
 ## Cross-References
 

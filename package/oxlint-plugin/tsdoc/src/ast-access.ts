@@ -62,7 +62,7 @@ export function unwrapMethodDefinition(node: ReadonlyRecord,): ReadonlyRecord {
     === 'MethodDefinition')
     || (node.type
       === 'TSAbstractMethodDefinition'))
-  {
+    {
     /**
      Inner FunctionExpression of the method; carries the return-type and params info.
      */

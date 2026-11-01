@@ -8,7 +8,7 @@ The user authorized adoption and implementation after reviewing the completed te
 ## Decision
 
 Adopt `cidr-tools` with a pnpm catalog floor of `>=12.1.3` for
-`@monochromatic-dev/cli-wg-allowedips`.
+`@monochromatic-dev/wg-cli-allowedips`.
 The exact validated release is `cidr-tools` 12.1.3 with `ip-bigint` 9.0.7.
 
 The governing evaluation is

@@ -1,0 +1,255 @@
+name: advisory-core
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: advisory-core-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  gate:
+    name: advisory window
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: advisory-core-gate
+      cancel-in-progress: false
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+      latest_pending: ${{ steps.gate.outputs.latest_pending }}
+    steps:
+      - name: Count recent admitted runs
+        id: gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "- admitted by manual dispatch for qualification" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "- admitted pull-request advisory run; push budget not consumed" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          now=$(date +%s)
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow advisory-core.yml --limit 100 --json databaseId,createdAt --jq '.' 2>/dev/null || echo '[]')
+          counts=$(jq --argjson now "$now" --argjson current "$GITHUB_RUN_ID" '
+            def age: $now - (.createdAt | fromdateiso8601);
+            [ .[] | select(.databaseId != $current) | age ] as $ages |
+            {
+              minute: ([$ages[] | select(. < 60)] | length),
+              hour: ([$ages[] | select(. < 3600)] | length),
+              day: ([$ages[] | select(. < 86400)] | length)
+            }' <<<"$runs")
+          minute=$(jq -r '.minute' <<<"$counts")
+          hour=$(jq -r '.hour' <<<"$counts")
+          day=$(jq -r '.day' <<<"$counts")
+          {
+            echo "## Advisory core window"
+            echo "- recent runs: minute $minute, hour $hour, day $day"
+            echo "- budgets: 2 per minute, 4 per hour, 8 per day"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$minute" -ge 2 ] || [ "$hour" -ge 4 ] || [ "$day" -ge 8 ]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "latest_pending=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+            echo "- skipped: newest tip $HEAD_SHA marked pending" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "- admitted: $HEAD_SHA" >> "$GITHUB_STEP_SUMMARY"
+          fi
+  core:
+    name: advisory core
+    needs: gate
+    if: needs.gate.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The file-enforcer CLI README asks CI to set the server's idle time low, for a deterministic shutdown.
+      FILE_ENFORCER_IDLE_SECONDS: '2'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Install system prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
+      - name: Install the repository tools
+        uses: ./.github/actions/repo-tools-setup
+        with:
+          tools: file-enforcer mpm-shadow
+      # Committed outputs (CLAUDE.md, LICENSE, LICENSES, crate manifests, rust-catalog.toml and every other file no
+      # .gitignore matches) are checked before anything regenerates them, so a drift is reported instead of repaired
+      # (doc/decision/file-enforcer-rust-rewrite.md, "Cutover"; doc/runbook/rust-dependencies.md).
+      - name: Committed file drift
+        id: committed_file_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! file-enforcer check --outputs committed; then
+            echo "::error::A committed file differs from what file-enforcer renders; run 'mise run sync:files' and commit the result (doc/runbook/rust-dependencies.md)"
+            exit 1
+          fi
+      # The plan and the lock must agree and the lock's digest must match: an offline check, no installs.
+      - name: Toolchain lock drift
+        id: toolchain_lock_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! mpm-shadow install --lockfile-only --frozen-lockfile; then
+            echo "::error::toolchain.lock.json does not match toolchain.plan.jsonc; run 'mise run toolchain:update' and commit the result"
+            exit 1
+          fi
+      - name: Prepare dependencies
+        run: task-run prepare:pnpm
+      # prepare:pnpm has just written the gitignored outputs (skill copies, the package bin list, the resolved
+      # browserslist targets); they are checked separately, then the whole tree once.
+      - name: Local file drift
+        id: local_file_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          file-enforcer check --outputs local
+          file-enforcer check
+      # pnpr server config: pnpr's own generator renders it (package/config/pnpr), and the file-enforcer run above
+      # never writes it, so pnpr's own check can see a real drift.
+      - name: pnpr config drift
+        id: pnpr_config_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! task-run //package/config/pnpr:check:config; then
+            echo "::error::package/config/pnpr/config.yaml differs from what pnpr's generator renders; run 'mise run //package/config/pnpr:generate:config' and commit the result (package/config/pnpr/README.md)"
+            exit 1
+          fi
+      - name: Restore Rust trust cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
+          restore-keys: |
+            rust-catalog-trust-
+      # Checks only registry versions that no Cargo.lock held at the base revision, the counterpart of
+      # pnpm's trustLockfile: true: lockfile changes come only from the owner (doc/decision/rust-dependency-catalog.md).
+      # The base is the pushed range's previous commit, or the pull request's base; only that commit is fetched.
+      # A full cold check of all 1388 locked versions took 914 s and 187 API requests on 2026-10-29,
+      # so the 25-minute budget covers even a branch that relocks everything.
+      - name: Rust lockfile trust verification
+        id: rust_trust
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        env:
+          VERIFY_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          base="${VERIFY_BASE}"
+          if [ -z "${base}" ]; then
+            base="$(git rev-parse HEAD~1)"
+          fi
+          git fetch --no-tags --depth=1 origin "${base}"
+          task-run rust:verify -- --base "${base}"
+      - name: Save Rust trust cache
+        if: always()
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
+      - name: Static changed paths
+        id: static
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$base" ]; then
+            base="${{ github.event.before }}"
+          fi
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="HEAD^"
+          fi
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$base" || true
+          fi
+          mapfile -t files < <(git diff --name-only "$base" "${{ github.sha }}" -- '*.md' '*.mdx' '*.rs' 2>/dev/null || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed static files"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "${files[@]}"
+            task-run lint:monochromatic-lint -- "${files[@]}"
+          fi
+      - name: Build fast subset
+        id: build
+        continue-on-error: true
+        run: |
+          task-run //package/logger/core:build
+          task-run //package/upstream-fork/p-map:build
+          task-run //package/toml-edit/core:build
+          task-run //package/forbidden-strings/cli:build
+          task-run //package/linter/monochromatic-lint:build
+      - name: Unit fast subset
+        id: unit
+        run: |
+          task-run //package/logger/core:test:unit
+          task-run //package/upstream-fork/p-map:test:unit
+          task-run //package/toml-edit/core:test:unit
+          task-run //package/forbidden-strings/cli:test
+          task-run //package/linter/monochromatic-lint:test
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Advisory core result"
+            echo "- commit: ${{ github.sha }}"
+            echo "- provider: GitHub-hosted Linux"
+            echo "- fast subset: logger/core, upstream-fork/p-map, toml-edit/core, forbidden-strings/cli, linter/monochromatic-lint"
+            echo "- results are advisory: no required checks and no branch-protection change; a failed profile or drift check still fails the run"
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The drift checks run with continue-on-error so that one drift does not hide the others and the build and unit
+      # profiles still run; this step then fails the run for any of them, because the decision calls them gates
+      # ("checking committed outputs before any regeneration, then local outputs separately" and "the toolchain drift
+      # gate in CI beside `file-enforcer check`", doc/decision/file-enforcer-rust-rewrite.md).
+      - name: Enforce advisory result
+        if: always()
+        shell: bash
+        env:
+          STATIC: ${{ steps.static.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          UNIT: ${{ steps.unit.outcome }}
+          COMMITTED_FILE_DRIFT: ${{ steps.committed_file_drift.outcome }}
+          TOOLCHAIN_LOCK_DRIFT: ${{ steps.toolchain_lock_drift.outcome }}
+          LOCAL_FILE_DRIFT: ${{ steps.local_file_drift.outcome }}
+          PNPR_CONFIG_DRIFT: ${{ steps.pnpr_config_drift.outcome }}
+        run: |
+          failed=0
+          for name in STATIC BUILD UNIT COMMITTED_FILE_DRIFT TOOLCHAIN_LOCK_DRIFT LOCAL_FILE_DRIFT PNPR_CONFIG_DRIFT; do
+            if [ "${!name}" = "failure" ]; then
+              echo "::error::The $name step failed; see its log."
+              failed=1
+            fi
+          done
+          if [ "$failed" = 1 ]; then
+            echo "One or more advisory profiles or drift checks failed; see the step logs."
+            exit 1
+          fi

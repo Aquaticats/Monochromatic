@@ -208,8 +208,8 @@ function registerGoalLifecycle(
     if (command.kind === 'rejected') {
       context.ui
         .notify(
-          command.diagnostic,
-          'error',
+        command.diagnostic,
+        'error',
         );
       return Promise.resolve();
     }
@@ -274,8 +274,8 @@ function registerGoalLifecycle(
      */
     const delivered = transition.effects
       .some(function sendsKickoff(effect,) {
-      return effect.type === 'send_message';
-    },);
+        return effect.type === 'send_message';
+      },);
     applyTransition({
       transition,
       context,

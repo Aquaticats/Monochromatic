@@ -33,10 +33,10 @@ fn temp_cache(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `std::env::temp_dir().join(format!(...))`. Join a formatted filename
+    // What:     `crate::test_scratch::scratch_root().join(format!(...))`. Join a formatted filename
     //           under the system temp directory. Tail expression returns it.
     // Why:      Keep disposable cache state out of the repo and real config dir.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "mp-peak-swap-{}-{}-{}.db",
         std::process::id(),
         nanos,
@@ -136,6 +136,28 @@ fn cached_track_gain_returns_measured_gain() {
 
 // What:     `#[test]` marks the next function as a unit test.
 // Why:      The test runner discovers and runs it.
+// What:     `fn wait_until_ready(pending: &PendingPeakMeasurement, timeout: Duration) -> PendingPeakStatus`.
+//           Polls the handle until a result, a disconnect, or the deadline.
+// Why:      The engine polls the same handle without blocking, so the test does the same with a deadline.
+fn wait_until_ready(pending: &PendingPeakMeasurement, timeout: Duration) -> PendingPeakStatus {
+    // What:     `let deadline = std::time::Instant::now() + timeout;`. The last moment to keep polling.
+    // Why:      Bounds the test so a broken worker fails instead of hanging.
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        // What:     `let status = pending.try_result();`. Check the handle once.
+        // Why:      Same non-blocking read the engine loop performs.
+        let status = pending.try_result();
+        // What:     `if !matches!(status, PendingPeakStatus::Pending) || ... { return status; }`. Stop on a final status or at the deadline.
+        // Why:      A still-pending status is the only one that means "poll again".
+        if !matches!(status, PendingPeakStatus::Pending) || std::time::Instant::now() >= deadline {
+            return status;
+        }
+        // What:     `std::thread::sleep(Duration::from_millis(10));`. Short pause between polls.
+        // Why:      Avoids spinning a core while the fixture decodes.
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[test]
 fn async_current_track_measurement_populates_cache_and_returns_gain() {
     // What:     `let cache_path = temp_cache("async");`. Disposable cache file path.
@@ -160,10 +182,10 @@ fn async_current_track_measurement_populates_cache_and_returns_gain() {
         TrackGainResolution::Ready(_) => panic!("expected pending measurement"),
     };
 
-    // What:     `let status = pending.wait_result(Duration::from_secs(5));`. Wait up to
+    // What:     `let status = wait_until_ready(&pending, Duration::from_secs(5));`. Poll for up to
     //           five seconds for the real fixture decode.
     // Why:      The worker runs on another thread and should finish quickly.
-    let status = pending.wait_result(Duration::from_secs(5));
+    let status = wait_until_ready(&pending, Duration::from_secs(5));
     // What:     `let result = match status { ... }`. Extract the ready result or fail.
     // Why:      The async measurement must complete and report a gain.
     let result = match status {

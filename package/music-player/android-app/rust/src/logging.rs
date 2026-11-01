@@ -1,14 +1,23 @@
-//! The Android tracing subscriber: a logcat sink installed once per process.
+//! The Android tracing subscriber:
+//!  a logcat sink installed once per process.
 //!
-//! Android's stderr never reaches logcat, so every `tracing` event from this crate and the
+//! Android's stderr never reaches logcat,
+//!  so every `tracing` event from this crate and the
 //! shared `truepeak-core` is routed to logcat through `paranoid-android`'s subscriber layer.
-//! The JNI create entries call `init()` at startup; a `OnceLock` makes repeated calls (each
-//! JNI entry, each process re-attach) idempotent. The level is read from `RUST_LOG`
+//! The JNI create entries call `init()` at startup;
+//!  a `OnceLock` makes repeated calls (each
+//! JNI entry,
+//!  each process re-attach) idempotent.
+//!  The level is read from `RUST_LOG`
 //! (default `info`).
 
-/// What:     `use std::sync::OnceLock;`. A write-once cell (sibling `Once`) guarding the
+/// What:
+///      `use std::sync::OnceLock;`.
+///  A write-once cell (sibling `Once`) guarding the
 ///           one-time global-subscriber install across concurrent JNI calls.
-/// Why:      Installing the global default twice would error; the cell runs the closure once.
+/// Why:
+///       Installing the global default twice would error;
+///  the cell runs the closure once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -16,8 +25,11 @@
 /// ```
 use std::sync::OnceLock;
 
-/// What:     `use tracing_subscriber::EnvFilter;`. The `RUST_LOG`-driven level filter.
-/// Why:      Lets a developer raise the level with `adb shell setprop`/env without a rebuild.
+/// What:
+///      `use tracing_subscriber::EnvFilter;`.
+///  The `RUST_LOG`-driven level filter.
+/// Why:
+///       Lets a developer raise the level with `adb shell setprop`/env without a rebuild.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,9 +37,12 @@ use std::sync::OnceLock;
 /// ```
 use tracing_subscriber::EnvFilter;
 
-/// What:     `use tracing_subscriber::prelude::*;`. Brings the registry `.with(...)` combinator
+/// What:
+///      `use tracing_subscriber::prelude::*;`.
+///  Brings the registry `.with(...)` combinator
 ///           and `.try_init()` into scope.
-/// Why:      The layered subscriber is composed with these extension traits.
+/// Why:
+///       The layered subscriber is composed with these extension traits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,8 +50,12 @@ use tracing_subscriber::EnvFilter;
 /// ```
 use tracing_subscriber::prelude::*;
 
-/// What:     `static LOGGING: OnceLock<()> = OnceLock::new();`. The one-time install guard.
-/// Why:      Every JNI create entry may call `init()`; only the first does the work.
+/// What:
+///      `static LOGGING: OnceLock<()> = OnceLock::new();`.
+///  The one-time install guard.
+/// Why:
+///       Every JNI create entry may call `init()`;
+///  only the first does the work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,8 +63,13 @@ use tracing_subscriber::prelude::*;
 /// ```
 static LOGGING: OnceLock<()> = OnceLock::new();
 
-/// What:     `pub fn init()`. Install the logcat tracing subscriber once, idempotently.
-/// Why:      Android stderr never reaches logcat, so without this a device build is silent;
+/// What:
+///      `pub fn init()`.
+///  Install the logcat tracing subscriber once,
+///  idempotently.
+/// Why:
+///       Android stderr never reaches logcat,
+///  so without this a device build is silent;
 ///           `try_init` (not `init`) tolerates a subscriber another component already set.
 ///
 /// In TS you'd write (pseudocode):

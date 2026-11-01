@@ -176,7 +176,8 @@ Screened out as taken:
 
 ## Ranking
 
-`sumilint` > `monolint` > `monochromatic-lint` > `achrolint` > `grisaille` > `mochro` > `inklint` > `aquatint` > `unilint` > `greylint` > `chromalint`.
+`sumilint` > `monolint` > `monochromatic-lint` > `achrolint` > `grisaille` >
+`mochro` > `inklint` > `aquatint` > `unilint` > `greylint` > `chromalint`.
 
 - `sumilint` over `monolint`:
    same length and shape,

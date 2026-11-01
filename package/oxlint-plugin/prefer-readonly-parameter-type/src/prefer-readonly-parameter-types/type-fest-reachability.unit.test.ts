@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   fixtureSourceRoot,
 } from '@monochromatic-dev/oxlint-plugin-test-support/ts';

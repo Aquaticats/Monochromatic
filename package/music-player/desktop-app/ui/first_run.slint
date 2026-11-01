@@ -1,0 +1,181 @@
+// First-run pane for the declined and no-audio states (D101, D10, D27). The caller supplies the copy
+// prepared by the Rust module `first_run`, so this component only lays out text and buttons.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { Focus, PlayerStop, FocusRing } from "focus.slint";
+
+// Pane that shows one first-run state as a scrollable column of copy and actions.
+export component FirstRunPane inherits Rectangle {
+    // First-run screen: 0 none, otherwise the pane is shown. The copy already differs per state, so the layout does not
+    // branch on it.
+    in property <int> state: 0;
+    // Name of the chosen folder, for the caller to build the headline; the pane draws only `title`.
+    in property <string> folder-name: "";
+    // Headline that names the source the state is about.
+    in property <string> title: "";
+    // Explanation of the open source and what the actions do.
+    in property <string> body: "";
+    // Label of the filled action; an empty string draws no filled button.
+    in property <string> primary-label: "";
+    // Labels of the outlined actions, drawn in order; the index is passed to `secondary`.
+    in property <[string]> secondary-labels: [];
+    // True-peak explanation drawn below the actions with its heading; an empty string draws nothing.
+    in property <string> explanation: "";
+
+    // Fired when the filled action is pressed.
+    callback primary();
+    // Fired with the index in `secondary-labels` when an outlined action is pressed.
+    callback secondary(int);
+
+    background: Theme.canvas;
+    clip: true;
+
+    Flickable {
+        width: parent.width;
+        height: parent.height;
+        content-width: parent.width;
+        content-height: content.preferred-height;
+
+        content := VerticalLayout {
+            width: root.width;
+            // The text starts at the 24px edge, like the Search prompt. D101's blank left half is the folder pane beside this
+            // one in the two-pane layout; indenting by half of this pane as well pushed the text to the far right (EM3).
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-top: 24px;
+            padding-bottom: 24px;
+            spacing: 24px;
+            alignment: start;
+
+            Text {
+                text: root.title;
+                color: Theme.on-surface;
+                font-size: Theme.title-large;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.body;
+                color: Theme.on-surface-variant;
+                font-size: Theme.body-large;
+                wrap: word-wrap;
+            }
+
+            // Filled action, content width with a 48px minimum target (D101 order: filled first).
+            if root.primary-label != "" : primary-pill := Rectangle {
+                horizontal-stretch: 0;
+                width: primary-row.preferred-width;
+                height: max(48px, primary-row.preferred-height);
+                background: Theme.primary;
+                border-radius: 24px;
+
+                // Hover and pressed layer over the filled pill, in the content color of the primary fill.
+                StateLayer {
+                    radius: 24px;
+                    tint: Theme.on-primary;
+                    hovered: primary-touch.has-hover;
+                    pressed: primary-touch.pressed;
+                }
+                primary-row := HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 24px;
+                    alignment: center;
+                    Text {
+                        text: root.primary-label;
+                        color: Theme.on-primary;
+                        font-size: Theme.label-large;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                    }
+                }
+                primary-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    accessible-role: button;
+                    accessible-label: root.primary-label;
+                    clicked => {
+                        Focus.ring-visible = false;
+                        root.primary();
+                    }
+                }
+                primary-stop := PlayerStop {
+                    label: "first-run-primary";
+                    activated => { root.primary(); }
+                }
+                // The ring is outside the pill, flush with its edge. Its near ring is the same primary role as the pill's fill, so
+                // the 1 px on-primary ring around it is what sets the ring apart from the canvas. The content column keeps
+                // 24 px around the pill, more than the 3 px the ring reaches.
+                FocusRing {
+                    radius: 24px;
+                    active: primary-stop.ring;
+                }
+            }
+
+            // Outlined actions, one per label in order, each a 48px minimum target.
+            for label[index] in root.secondary-labels : secondary-pill := Rectangle {
+                horizontal-stretch: 0;
+                width: secondary-row.preferred-width;
+                height: max(48px, secondary-row.preferred-height);
+                background: transparent;
+                border-radius: 24px;
+                border-width: 1px;
+                border-color: Theme.outline;
+
+                // Hover and pressed layer over the outlined pill, in the content color of the canvas beneath it.
+                StateLayer {
+                    radius: 24px;
+                    tint: Theme.on-surface;
+                    hovered: secondary-touch.has-hover;
+                    pressed: secondary-touch.pressed;
+                }
+                secondary-row := HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 24px;
+                    alignment: center;
+                    Text {
+                        text: label;
+                        color: Theme.on-surface-variant;
+                        font-size: Theme.label-large;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                    }
+                }
+                secondary-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    accessible-role: button;
+                    accessible-label: label;
+                    clicked => {
+                        Focus.ring-visible = false;
+                        root.secondary(index);
+                    }
+                }
+                secondary-stop := PlayerStop {
+                    label: "first-run-secondary-" + index;
+                    activated => { root.secondary(index); }
+                }
+                FocusRing {
+                    radius: 24px;
+                    active: secondary-stop.ring;
+                }
+            }
+
+            // True-peak explanation below the actions, with its fixed heading (D10, D101).
+            if root.explanation != "" : VerticalLayout {
+                spacing: 16px;
+
+                Text {
+                    text: "About true-peak analysis";
+                    color: Theme.on-surface;
+                    font-size: Theme.title-medium;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: root.explanation;
+                    color: Theme.on-surface-variant;
+                    font-size: Theme.body-large;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}

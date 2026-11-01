@@ -34,11 +34,14 @@ or every internal helper.
 The semantic rule propagates guaranteed provenance through those paths.
 A helper parameter inherits foreign provenance only when every owned inbound call supplies wholly foreign mutable state.
 
-`ForeignHostCapability<T>` is narrower authority for runtime-owned capabilities whose exact implementation remains unavailable
+`ForeignHostCapability<T>` is narrower authority
+for runtime-owned capabilities
+whose exact implementation remains unavailable
 after source and source-map inference.
 It also carries foreign ownership.
 Use it only on host boundary inputs such as an extension runtime API or native cancellation capability.
-Every callable whose unresolved behavior is admitted by this marker must document possible caller-observable effects with
+Every callable whose unresolved behavior is admitted by this marker
+must document possible caller-observable effects with
 `@mutates`.
 An ordinary `ForeignBorrowed<T>` never admits unresolved behavior.
 

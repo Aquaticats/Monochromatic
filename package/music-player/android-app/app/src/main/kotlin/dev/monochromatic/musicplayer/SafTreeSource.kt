@@ -96,7 +96,7 @@ import android.provider.DocumentsContract.Document
 // ```
 import android.util.Log
 
-// What:     `import dev.monochromatic.musicplayer.core.BatchEmitGate` imports the app's
+// What:     `import dev.monochromatic.musicplayer.core.LibraryDeltaGate` imports the app's
 //           own `BatchEmitGate` CLASS from the sibling `.core` package: the pure rule
 //           that decides when a streaming scan has accumulated enough new tracks to emit
 //           another sorted-so-far batch.
@@ -107,7 +107,8 @@ import android.util.Log
 // ```ts
 // import { BatchEmitGate } from "./core/BatchEmitGate";
 // ```
-import dev.monochromatic.musicplayer.core.BatchEmitGate
+import dev.monochromatic.musicplayer.core.LibraryDeltaGate
+import dev.monochromatic.musicplayer.core.TrackSignatures
 
 // What:     `import dev.monochromatic.musicplayer.core.LIBRARY_BATCH_SIZE` imports the
 //           app's own top-level `Int` constant (the shared streaming threshold, around
@@ -287,6 +288,8 @@ object SafTreeSource {
         // Document.COLUMN_MIME_TYPE,
         // ```
         Document.COLUMN_MIME_TYPE,
+        Document.COLUMN_SIZE,
+        Document.COLUMN_LAST_MODIFIED,
     )
 
     // What:     `private data class Frame(val documentId: String, val prefix: String)`
@@ -310,7 +313,7 @@ object SafTreeSource {
     // What:     `private data class ChildRow(...)` stores one non-null SAF row.
     // Why:      Null ids or names are unusable, so cursor decoding happens once before row handling.
     /** Non-null child document row read from a SAF cursor. */
-    private data class ChildRow(val id: String, val name: String, val mimeType: String?)
+    private data class ChildRow(val id: String, val name: String, val mimeType: String?, val signature: Long)
 
     // What:     `suspend fun query(resolver, treeUri, onBatch): List<Track> = withContext(Dispatchers.IO) { ... }`
     //           declares the one public entry point. `suspend` marks it a coroutine
@@ -323,10 +326,10 @@ object SafTreeSource {
     //           tracks sorted by display path. The caller must hold a read grant for
     //           `treeUri`; listing the root without one throws (which the caller treats
     //           as a fall-back signal, not a crash). `suspend` keeps the cursor I/O off
-    //           the UI thread. When `onBatch` is supplied, the scan also emits growing,
-    //           already-sorted batches AS IT RUNS so the screen can fill in early; when it
-    //           is null (the default), the scan stays atomic and only the final list is
-    //           returned.
+    //           the UI thread. When `onBatch` is supplied, the scan also emits the tracks
+    //           found since the previous batch, in the order found and NOT sorted, AS IT
+    //           RUNS (the caller sorts, see `LibraryIngest`); when it is null (the
+    //           default), the scan stays atomic and only the final sorted list is returned.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -404,8 +407,7 @@ object SafTreeSource {
          * Defines gate value for this music-player component; the TypeScript-oriented notes above explain its
          * source and use.
          */
-        val gate: BatchEmitGate<Track> =
-            BatchEmitGate(LIBRARY_BATCH_SIZE) { left, right -> compareByCodePoint(left.displayPath, right.displayPath) }
+        val gate: LibraryDeltaGate<Track> = LibraryDeltaGate(LIBRARY_BATCH_SIZE)
         // What:     `val rootDocumentId: String = DocumentsContract.getTreeDocumentId(treeUri)`
         //           declares a read-only `String` local `rootDocumentId`.
         //           `getTreeDocumentId(treeUri)` extracts the granted tree's root
@@ -583,6 +585,7 @@ object SafTreeSource {
         // ```ts
         // console.info(`[${SOURCE_TAG}] scanned ${tracks.length} audio files under ${treeUri}`);
         // ```
+        emitLibraryTail(onBatch = onBatch, gate = gate, tracks = tracks)
         Log.i(SOURCE_TAG, "scanned ${tracks.size} audio files under $treeUri")
         // What:     `tracks.sortedWith { left, right -> compareByCodePoint(left.displayPath, right.displayPath) }`
         //           is the TAIL EXPRESSION of the `withContext` lambda (no trailing `;`), so
@@ -605,6 +608,23 @@ object SafTreeSource {
         tracks.sortedWith { left, right -> compareByCodePoint(left.displayPath, right.displayPath) }
     }
 
+    // What:     `private fun signatureOfRow(cursor)` reads the size and modification time of the current row.
+    // Why:      The analysis compares them with its ledger to find a replaced or edited file; a provider that reports
+    //           neither gives zero, which leaves the file identified by its URI alone.
+    /** Signature of the current cursor row's file, or 0 when the provider reports neither size nor time. */
+    private fun signatureOfRow(cursor: android.database.Cursor): Long {
+        /** Column of the size, or -1 when the provider has none. */
+        val sizeColumn: Int = cursor.getColumnIndex(Document.COLUMN_SIZE)
+        /** Column of the modification time, or -1 when the provider has none. */
+        val modifiedColumn: Int = cursor.getColumnIndex(Document.COLUMN_LAST_MODIFIED)
+        /** File size in bytes, or 0 when unknown. */
+        val size: Long = if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else 0L
+        /** Modification time in milliseconds, or 0 when unknown. */
+        val modified: Long =
+            if (modifiedColumn >= 0 && !cursor.isNull(modifiedColumn)) cursor.getLong(modifiedColumn) else 0L
+        return TrackSignatures.signatureOf(sizeBytes = size, modifiedMs = modified)
+    }
+
     // What:     `private fun childRowOf(...)` converts the current cursor row to a child record.
     // Why:      The scan loop can use one `continue` for unusable rows instead of one per column.
     /** Current cursor row as a non-null child record, or null when id/name is missing. */
@@ -621,7 +641,12 @@ object SafTreeSource {
         return if (childId == null || name == null) {
             null
         } else {
-            ChildRow(id = childId, name = name, mimeType = cursor.getString(mimeColumn))
+            ChildRow(
+                id = childId,
+                name = name,
+                mimeType = cursor.getString(mimeColumn),
+                signature = signatureOfRow(cursor),
+            )
         }
     }
 
@@ -647,7 +672,7 @@ object SafTreeSource {
     //   pending: Frame[],
     //   tracks: Track[],
     //   onBatch: ((batch: readonly Track[]) => Promise<void>) | null,
-    //   gate: BatchEmitGate<Track>,
+    //   gate: LibraryDeltaGate<Track>,
     // ): Promise<void> { ... }
     // ```
     /**
@@ -716,9 +741,9 @@ object SafTreeSource {
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // gate: BatchEmitGate<Track>,
+        // gate: LibraryDeltaGate<Track>,
         // ```
-        gate: BatchEmitGate<Track>,
+        gate: LibraryDeltaGate<Track>,
     ) {
         // What:     `val childrenUri: Uri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri,
         //           frame.documentId)`
@@ -964,6 +989,7 @@ object SafTreeSource {
                         // tracks.push({ uri: documentUri.toString(), displayPath: childPath });
                         // ```
                         tracks.add(Track(uri = documentUri.toString(), displayPath = childPath))
+                        TrackSignatures.record(documentUri.toString(), child.signature)
                         // What:     `if (onBatch != null) { val batch = gate.nextBatch(tracks); if (batch != null) {
                         //           onBatch(batch) } }`
                         //           streams a batch when one is requested. `gate.nextBatch(tracks)`

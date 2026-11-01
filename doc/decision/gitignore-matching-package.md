@@ -14,7 +14,7 @@ Accepted,
 The workspace uses `ignore` for gitignore-style matching in three places:
 
 - `package/pi-plugin/guardrail/src/path-guard.ts` protects paths before pi edit/write tools run.
-- `package/dev-script/watch-restart/src/filters/gitignore.ts` filters watched file events.
+- `package/watch-restart/cli/src/filters/gitignore.ts` filters watched file events.
 - `package/cli/markdown-lint/src/walk-files.ts` applies nested `.gitignore` layers while walking Markdown files.
 
 The guardrail caller is the decision driver.
@@ -22,7 +22,8 @@ It runs inside a coding-agent tool boundary,
 controls writes to protected paths,
 and needs both final gitignore state and rule provenance for useful refusal messages.
 The current guardrail implementation uses `ignore().add({ pattern, mark })` and `.test(relativePath)`;
-`package/pi-plugin/guardrail/src/path-guard.ts` also rebuilds single-pattern matchers to select the last matching message rule.
+`package/pi-plugin/guardrail/src/path-guard.ts` also rebuilds single-pattern matchers to select the last matching
+message rule.
 
 The replacement constraints were:
 
@@ -70,7 +71,8 @@ Source and validation evidence from the audit:
 - `/tmp/agent/node-ignore-20260705-1783268149/.github/workflows/nodejs.yml` runs Linux,
  macOS,
  and Windows jobs on Node 20.
-- Container validation ran with `podman run --memory=2g --cpus=2 --rm --security-opt label=disable --userns=keep-id --user $(id --user):$(id --group) --volume /tmp/agent/node-ignore-20260705-1783268149:/work --workdir /work docker.io/library/node:24-bookworm sh -lc 'node --version && npm install --ignore-scripts --no-audit --no-fund && npm test'`.
+- Container validation ran with
+`podman run --memory=2g --cpus=2 --rm --security-opt label=disable --userns=keep-id --user $(id --user):$(id --group) --volume /tmp/agent/node-ignore-20260705-1783268149:/work --workdir /work docker.io/library/node:24-bookworm sh -lc 'node --version && npm install --ignore-scripts --no-audit --no-fund && npm test'`.
   It passed `922/922` tests with `100%` statement,
  branch,
  function,
@@ -93,7 +95,8 @@ The package stays despite not being native ESM because exact semantics,
 It ships native ESM,
  bundled declarations,
  and a compact implementation.
-`/tmp/agent/fast-ignore-20260705-1783268149/src/ignore/matcher.ts` compiles ignore tiers into a tree and returns a boolean matcher.
+`/tmp/agent/fast-ignore-20260705-1783268149/src/ignore/matcher.ts` compiles ignore tiers into a tree
+and returns a boolean matcher.
 `/tmp/agent/fast-ignore-20260705-1783268149/src/glob/parse.ts` delegates segment parsing to `grammex`,
  and `/tmp/agent/fast-ignore-20260705-1783268149/src/glob/grammar.ts` defines the supported star,
  question,
@@ -107,13 +110,15 @@ It has no `mark`,
  so the protected-path refusal message path would need extra local matcher logic.
 It also extends the audit surface through same-author runtime dependencies:
  `grammex` and `string-escape-regex`.
-Those dependencies were cloned at `/tmp/agent/grammex-20260705-1783268149` and `/tmp/agent/string-escape-regex-20260705-1783268149`.
+Those dependencies were cloned at `/tmp/agent/grammex-20260705-1783268149`
+and `/tmp/agent/string-escape-regex-20260705-1783268149`.
 `string-escape-regex` is trivial,
  but `grammex` is a separate parser engine with about `426` nonblank source lines,
  so using `fast-ignore` means auditing more than the candidate package itself.
 
 Validation found a reproducible packaging friction:
- `npm test` failed on a clean clone with `ERR_MODULE_NOT_FOUND` because `test/index.js` imports `dist/` before it exists.
+ `npm test` failed on a clean clone with `ERR_MODULE_NOT_FOUND` because `test/index.js` imports `dist/` before it
+ exists.
 `npm run compile && npm test` then passed with `4` tests.
 No GitHub workflow,
  fuzzing,
@@ -125,7 +130,8 @@ No GitHub workflow,
  `proptest`,
  and `quickcheck`.
 
-`fast-ignore` remains acceptable for a future non-guardrail boolean filter if the caller only needs flat in-memory matching.
+`fast-ignore` remains acceptable for a future non-guardrail boolean filter if the caller only needs flat in-memory
+matching.
 It should not replace `ignore` where rule provenance or high-assurance gitignore parity is required.
 
 ### gitignore-matcher
@@ -133,7 +139,8 @@ It should not replace `ignore` where rule provenance or high-assurance gitignore
 `gitignore-matcher@1.0.0` is native ESM and has no runtime dependencies.
 It was rejected because source audit and integration testing found incorrect git semantics.
 
-`/tmp/agent/condu-20260705-1783268149/packages/generic/gitignore-matcher/gitignore-matcher.ts` converts patterns to regular expressions and exposes `isAccepted`,
+`/tmp/agent/condu-20260705-1783268149/packages/generic/gitignore-matcher/gitignore-matcher.ts` converts patterns to
+regular expressions and exposes `isAccepted`,
  `isIgnored`,
  and `explain`.
 The implementation measured as one production file and roughly `219` code lines.
@@ -145,7 +152,8 @@ Behavior check:
  a scratch package installed `gitignore-matcher@1.0.0`,
  created `new GitIgnore("foo/bar\n")`,
  and `isIgnored("x/foo/bar")` returned `true`.
-A disposable Git repository with the same `.gitignore` pattern reported `?? x/foo/bar` from `git status --ignored --short --untracked-files=all`,
+A disposable Git repository with the same `.gitignore` pattern reported `?? x/foo/bar` from
+`git status --ignored --short --untracked-files=all`,
  so Git did not ignore that path.
 That mismatch disqualifies it for gitignore parity.
 
@@ -158,8 +166,10 @@ That mismatch disqualifies it for gitignore parity.
  and glob information.
 It was rejected because it is the wrong abstraction and has a nested-negation mismatch against Git.
 
-`/tmp/agent/cspell-20260705-1783268149/packages/cspell-gitignore/src/GitIgnoreFile.ts` builds a `GlobMatcher` from each `.gitignore` file and `GitIgnoreHierarchy.isIgnored()` returns on the first matching layer.
-`/tmp/agent/cspell-20260705-1783268149/packages/cspell-gitignore/src/GitIgnore.ts` walks ancestor directories and caches hierarchies.
+`/tmp/agent/cspell-20260705-1783268149/packages/cspell-gitignore/src/GitIgnoreFile.ts` builds a `GlobMatcher` from each
+`.gitignore` file and `GitIgnoreHierarchy.isIgnored()` returns on the first matching layer.
+`/tmp/agent/cspell-20260705-1783268149/packages/cspell-gitignore/src/GitIgnore.ts` walks ancestor directories
+and caches hierarchies.
 The package depends on `@cspell/url`,
  `cspell-glob`,
  and `cspell-io`,
@@ -194,7 +204,8 @@ It is also CommonJS and requires Node `^22.22.2 || ^24.15.0 || >=26.0.0`,
 `@humanwhocodes/gitignore-to-minimatch` converts patterns but does not provide final gitignore-state management,
  nested directory semantics,
  or rule provenance.
-`gitignore-fs` was rejected during metadata screening because it depends on `ignore` and shells out through a filesystem-oriented API,
+`gitignore-fs` was rejected during metadata screening because it depends on `ignore`
+and shells out through a filesystem-oriented API,
  so it does not remove the incumbent risk.
 
 ## Ranking
@@ -223,6 +234,8 @@ It is also CommonJS and requires Node `^22.22.2 || ^24.15.0 || >=26.0.0`,
 
 - Keep `ignore` in the pnpm catalog and package manifests that need gitignore semantics.
 - Keep the existing guardrail use of `mark` and `.test(relativePath)`.
-- Do not propose `fast-ignore` as a drop-in replacement unless the caller explicitly does not need rule provenance and accepts a smaller validation base.
-- Any future replacement proposal must include a disposable Git fixture comparing candidate behavior with `git status --ignored` or `git check-ignore`,
+- Do not propose `fast-ignore` as a drop-in replacement unless the caller explicitly does not need rule provenance
+and accepts a smaller validation base.
+- Any future replacement proposal must include a disposable Git fixture comparing candidate behavior with
+`git status --ignored` or `git check-ignore`,
  plus source audit and full package validation.

@@ -103,8 +103,10 @@ Implemented:
    and embedded resources
 - `tools/call` arguments validated against the schema the tool advertises,
    answering `-32602` before dispatch when they do not match
+- `resources/list` and `resources/read` through an optional `ResourceProvider`,
+   advertised in `server/discover` only when configured
 - `resultType` on every result,
-   plus `ttlMs` and `cacheScope` on the two cacheable results
+   plus `ttlMs` and `cacheScope` on cacheable results
 - `io.modelcontextprotocol/serverInfo` stamped into the `_meta` of every result
 - `notifications/cancelled` read while a tool is running,
    and applied
@@ -154,12 +156,11 @@ Source trace,
 
 HTTP/SSE transport,
  OAuth,
- resources,
+ resource subscriptions,
  prompts,
  sampling,
  elicitation,
  completions,
- subscriptions,
  progress notifications,
  and pagination cursors.
 Tool registries here are fixed at construction,

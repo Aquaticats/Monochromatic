@@ -226,8 +226,9 @@ gh run view 32279201781 \
 
 - A push to `translation-repair-rebased` starts CodeQL because classic protection pattern `*` matches it.
   Run `32279201781` is a completed example.
-- Closely spaced pushes create overlapping workflow runs because default setup exposes no repository workflow file in which
-  to add a concurrency group.
+- Closely spaced pushes create overlapping workflow runs
+  because default setup exposes no repository workflow file
+  in which to add a concurrency group.
 - Selecting a labeled runner routes the same generated jobs elsewhere and preserves their trigger count.
 
 ## Verified remediation
@@ -399,7 +400,8 @@ GitHub directs users who need custom workflow triggers to advanced setup at
 ### Splitting the repository
 
 A split would change repository-level event boundaries,
-but the trigger amplification originates in an all-branch protection rule combined with documented default-setup behavior.
+but the trigger amplification originates in an all-branch protection rule
+combined with documented default-setup behavior.
 Changing repository topology is not required to change either input.
 
 ## Upstream filing artifact
@@ -409,7 +411,8 @@ Changing repository topology is not required to change either input.
 - **Is it really upstream's fault?**
    No.
   GitHub documents the protected-branch trigger explicitly.
-  The surprising volume comes from this repository applying classic branch protection pattern `*` to non-default branches.
+  The surprising volume comes from this repository applying
+  classic branch protection pattern `*` to non-default branches.
 - **Can upstream fix it?**
    GitHub could add default-setup concurrency controls,
   but no defect was established in the documented behavior.

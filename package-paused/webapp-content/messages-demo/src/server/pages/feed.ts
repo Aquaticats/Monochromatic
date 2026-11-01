@@ -6,13 +6,13 @@
  * so feeds revalidate cheaply while never serving stale content.
  */
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 import {
   MS_PER_SECOND,
   SECONDS_PER_DAY,
   SECONDS_PER_HOUR,
   SECONDS_PER_MINUTE,
-} from '@monochromatic-dev/module-const/ts';
+} from '@monochromatic-dev/const-core/ts';
 
 import {
   feedAggregates,

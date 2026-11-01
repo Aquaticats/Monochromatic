@@ -41,8 +41,15 @@ import { ancestorDirectories, } from './ancestor-directories.ts';
  
  Schema 8 retains every distinct bounded reason category for a source,
  including the known TypeScript tuple serializer panic.
+ 
+ Schema 9 adds `sharedKeyDigest` to the envelope of an entry shared across projects,
+ and addresses such an entry by file and key digest instead of by project.
+ 
+ Schema 10 adds `externalOmissions`,
+ the omissions met inside installed package implementations while the entry's source was scanned,
+ so a restore of the source reports what a fresh scan reported.
  */
-export const EFFECT_CACHE_SCHEMA = 8;
+export const EFFECT_CACHE_SCHEMA = 10;
 
 /**
  Process memo for analyzer implementation digest.
@@ -171,8 +178,8 @@ export function analyzerDigest(): string {
       join(
         analyzerPackageRoot(
           fileURLToPath(import.meta.resolve(
-          '@monochromatic-dev/oxlint-plugin-shared/ts',
-        ),),
+            '@monochromatic-dev/oxlint-plugin-shared/ts',
+          ),),
         ),
         'src',
       ),

@@ -89,10 +89,10 @@ This incident produced the notice in "Symptom".
     The created file holds only the verification probe:
     `{"test":true,"timestamp":1790483955782}`.
 3.  The probe comes from the file sink's verification,
-    `package/module/logger/src/sink/file.ts:190-233`:
+    `package/logger/core/src/sink/file.ts:190-233`:
 
     ```ts
-    // package/module/logger/src/sink/file.ts
+    // package/logger/core/src/sink/file.ts
     await mkdir(
       LOG_DIR,
       { recursive: true, },

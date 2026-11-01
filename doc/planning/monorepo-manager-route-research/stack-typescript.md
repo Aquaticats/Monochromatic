@@ -68,7 +68,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
 ### cgroup placement cost on this kernel
 
 - The cgroup2 mount has no `favordynmods`:
-  `findmnt --types cgroup2` printed `rw,nosuid,nodev,noexec,relatime,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting`
+  `findmnt --types cgroup2` printed
+  `rw,nosuid,nodev,noexec,relatime,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting`
   (verified, measured).
 - Writing to `cgroup.procs` takes the global `cgroup_threadgroup_rwsem` write lock unless favordynmods is on:
   `kernel/cgroup/cgroup.c:3091-3097` selects `CGRP_ATTACH_LOCK_GLOBAL` when `pid || threadgroup`,
@@ -84,7 +85,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
   Bun's PR #37466 body reports about 100 ms on its test machine (unverified here).
 - glibc `2.43` exports `pidfd_spawn`, `pidfd_spawnp`, `posix_spawnattr_setcgroup_np` (all `GLIBC_2.39`)
   and `posix_spawn_file_actions_addchdir_np` (`nm --dynamic --defined-only /lib64/libc.so.6`, verified, measured);
-  `POSIX_SPAWN_SETCGROUP` is `0x100` and `POSIX_SPAWN_SETSID` is `0x80` (`/usr/include/spawn.h:54-63`, verified, source).
+  `POSIX_SPAWN_SETCGROUP` is `0x100` and `POSIX_SPAWN_SETSID` is `0x80` (`/usr/include/spawn.h:54-63`, verified,
+  source).
 - Negative control proving the flag reaches `clone3`:
   `node --experimental-ffi SCRATCH/setcgroup-control.ts` printed
   `tmp dir fd rc 9 Bad file descriptor` and `current cgroup fd rc 0 spawned` (verified, measured).
@@ -97,7 +99,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
   so the ~10 ms lock applies there too (inference).
   `systemctl kill --signal=SIGKILL` uses `cgroup.kill` (`src/core/unit.c:4146-4147`, verified, source).
   Lower bound for one systemd client call:
-  `node SCRATCH/dbus-lower-bound.ts` printed `{"p50Ms":"6.97","p90Ms":"10.54"}` for `systemctl --user show` (verified, measured).
+  `node SCRATCH/dbus-lower-bound.ts` printed `{"p50Ms":"6.97","p90Ms":"10.54"}` for `systemctl --user show` (verified,
+  measured).
   The full per-task cost of `systemd-run --user --scope` was not measured because it creates a cgroup (unverified).
 
 ### Behaviors identical across the three runtimes
@@ -109,10 +112,12 @@ Nothing under `/var/home/user/Monochromatic` was modified
   `SCRATCH/ffi-inotify-probe.ts` printed `"overflowEvents":1` and `"timerTicksIn1500ms":149` for all three
   (verified, measured).
 - `fs.watch` registers on a cgroupfs `cgroup.events` file in all three
-  (`SCRATCH/cgroup-events-watch.ts` printed `watch on cgroup.events registered: populated 1 | frozen 0`, verified, measured);
+  (`SCRATCH/cgroup-events-watch.ts` printed `watch on cgroup.events registered: populated 1 | frozen 0`, verified,
+  measured);
   that the kernel's populated-change notification reaches the listener is documented
   (`cgroup-v2.rst:418-437`) but not probed (unverified).
-- `os.availableParallelism()` and `navigator.hardwareConcurrency` both return 16 in all three (`SCRATCH/parallelism-probe.ts`, verified, measured).
+- `os.availableParallelism()` and `navigator.hardwareConcurrency` both return 16 in all three
+- (`SCRATCH/parallelism-probe.ts`, verified, measured).
 - Freeze does not stop wall-clock timers in any runtime (runtime-independent; recorded in the input design).
 
 ## Option 1: TypeScript on Node
@@ -133,7 +138,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
   Pipe read ends are wrapped as `new net.Socket({ fd, readable: true, writable: false })`.
   Exit: a `process.on('SIGCHLD')` listener sweeps `waitid(P_PIDFD, ..., WEXITED|WNOHANG)` over running tasks.
 - Spawn (stable-API fallback):
-  `child_process.spawn('systemd-run', ['--user', '--scope', '--slice=<tool>-tasks.slice', '--expand-environment=no', '-p', 'MemoryMax=...', '--', ...argv], { detached: true })`,
+  `child_process.spawn('systemd-run', ['--user', '--scope', '--slice=<tool>-tasks.slice', '--expand-environment=no', '-p
+  ', 'MemoryMax=...', '--', ...argv], { detached: true })`,
   with freeze, thaw, and kill through `systemctl --user freeze|thaw|kill`.
 - Pause, end, limits: `fs.writeFile` to `cgroup.freeze`, `cgroup.kill`, `memory.max`, `pids.max`, `cpu.max`;
   wait for `frozen 1` or `populated 0` by watching `cgroup.events`.
@@ -148,7 +154,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
 - btrfs: `fs.statfs` for detection, `fs.copyFile(..., COPYFILE_FICLONE_FORCE)` for restore,
   `node:ffi` `ioctl` for `BTRFS_IOC_GET_SUBVOL_INFO` and subvolume or snapshot creation.
 - Hashing: `crypto.hash('sha256', ...)`.
-- file-enforcer: a child `node package/dev-script/file-enforcer/src/cli.ts` per evaluation, in its own task cgroup.
+- file-enforcer: a child `node package/file-enforcer/core/src/cli.ts` per evaluation, in its own task cgroup.
 
 ### R1: per-task cgroup placement, freeze, kill, pidfd
 
@@ -161,7 +167,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
   `v26.9.0` release notes list "ffi: enable module by default" (#65475) (verified, `gh release view v26.9.0`).
   Calls are synchronous only; the doc describes no async call mode (`doc/api/ffi.md`, verified, source).
   The installed binary has it: `node --experimental-ffi ... getpid` printed matching PIDs (verified, measured).
-- Per-task overhead, `SCRATCH/spawn-probe.ts` via `SCRATCH/spawn-driver.ts`, three rounds of 200 spawns of `/usr/bin/true`
+- Per-task overhead, `SCRATCH/spawn-probe.ts` via `SCRATCH/spawn-driver.ts`, three rounds of 200 spawns of
+- `/usr/bin/true`
   (p50 across rounds, verified, measured):
   - `child_process.spawn` direct: 1.47 to 1.58 ms.
   - `/bin/sh -c 'exec "$0" "$@"'` launcher (without the cgroup write): 2.51 to 2.75 ms.
@@ -171,7 +178,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
 - Pipe streaming from FFI-created pipes works without blocking the loop;
   a pidfd cannot be wrapped:
   `node --experimental-ffi SCRATCH/stdio-probe.ts` printed
-  `"pidfdSocket":"throws: TypeError [ERR_INVALID_FD_TYPE]: Unsupported fd type: UNKNOWN","stdout":["line-1","line-2","line-3"],"maxTimerGapMs":22`
+  `"pidfdSocket":"throws: TypeError [ERR_INVALID_FD_TYPE]: Unsupported fd type: UNKNOWN","stdout":["line-1","line-2","li
+  ne-3"],"maxTimerGapMs":22`
   (verified, measured).
 - `process.execve` is also Stability 1 Experimental (`doc/api/process.md:1700-1742`, verified, source).
 - Reaping: libuv only waits for PIDs it spawned (`deps/uv/src/unix/process.c:131`, verified, source),
@@ -191,7 +199,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
 - libuv drops `IN_Q_OVERFLOW` silently:
   the overflow event has `wd == -1`, `find_watcher` returns `NULL`, and the loop `continue`s with the comment
   "Stale event, no watchers left" (`deps/uv/src/unix/linux.c:2617-2619`, verified, source).
-  Probe (`SCRATCH/watch-probe.ts`, fixture of 401 directories, 30,000 create and unlink pairs while the JS thread is busy,
+  Probe (`SCRATCH/watch-probe.ts`, fixture of 401 directories, 30,000 create and unlink pairs while the JS thread is
+  busy,
   then one write to each of 300 files):
   - per-directory mode printed `"burstEvents":16384,"lateModified":300,"lateSeen":0,"errors":[]`;
     positive control without the burst printed `"lateSeen":300` (verified, measured).
@@ -207,7 +216,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
   (`SCRATCH/src/parcel-watcher-InotifyBackend.cc:120-123`, verified, source).
   chokidar builds on `fs.watch` (inference from its dependency on Node watchers, unverified here).
 - Open Node issues found for Linux watch loss: none
-  (`gh search issues --repo nodejs/node --state open 'fs.watch'` returned only Windows and single-file issues #61398, #53111).
+  (`gh search issues --repo nodejs/node --state open 'fs.watch'` returned only Windows and single-file issues #61398,
+  #53111).
   Closed #58868 fixed spurious recursive rename events on Linux (verified, search output).
 - FFI escape hatch detects overflow (see "Shared evidence").
 
@@ -229,11 +239,13 @@ Nothing under `/var/home/user/Monochromatic` was modified
 ### R4: btrfs
 
 - `node --experimental-ffi SCRATCH/btrfs-probe.ts ~/temp/agent/ts-stack-btrfs-probe-2026-09-16` printed
-  `"statfsType":"0x9123683e","copyFile FICLONE_FORCE":{"ok":true,"ms":52.21},"copyFile default":{"ok":true,"ms":0.19},"getSubvolInfo":{"rc":0,"treeid":"257","generation":"478203"},"ffiFiclone":{"rc":0,"ms":0.04}`
+  `"statfsType":"0x9123683e","copyFile FICLONE_FORCE":{"ok":true,"ms":52.21},"copyFile default":{"ok":true,"ms":0.19},"g
+  etSubvolInfo":{"rc":0,"treeid":"257","generation":"478203"},"ffiFiclone":{"rc":0,"ms":0.04}`
   (verified, measured).
   `treeid` 257 matches the `/home` subvolume id recorded in the input research.
 - `filefrag -v` showed `last,shared,eof` on the same physical range for all three copies (verified, measured).
-- Negative control: `COPYFILE_FICLONE_FORCE` on tmpfs threw `ENOTSUP` (`SCRATCH/ficlone-negative.ts`, verified, measured).
+- Negative control: `COPYFILE_FICLONE_FORCE` on tmpfs threw `ENOTSUP` (`SCRATCH/ficlone-negative.ts`, verified,
+- measured).
 - Subvolume and snapshot creation:
   `BTRFS_IOC_SUBVOL_CREATE` and `BTRFS_IOC_SNAP_CREATE_V2` are defined at `include/uapi/linux/btrfs.h:1170` and `:1187`
   (verified, source);
@@ -268,10 +280,12 @@ Nothing under `/var/home/user/Monochromatic` was modified
 ### R7: file-enforcer interop
 
 - `node SCRATCH/fe-import-probe.ts` printed
-  `{"importOk":true,"exportCount":80,"fsPromisesGlob":"function","globMatches":22,"asyncLocalStorage":"ctx","queryReimportSeesNewContent":true}`
+  `{"importOk":true,"exportCount":80,"fsPromisesGlob":"function","globMatches":22,"asyncLocalStorage":"ctx","queryReimpo
+  rtSeesNewContent":true}`
   (verified, measured).
 - In-process reuse keeps the module singletons listed in the input research,
-  so evaluation stays in child processes (same conclusion as `from-scratch-inputs.md` "What changes for a long-lived daemon").
+  so evaluation stays in child processes (same conclusion as `from-scratch-inputs.md` "What changes for a long-lived
+  daemon").
   Node is the runtime file-enforcer already targets (`mise.no-env.toml:1120-1127` per the input research).
 
 ### R8: repository fit
@@ -281,23 +295,27 @@ Nothing under `/var/home/user/Monochromatic` was modified
   `doc/philosophy/build-execution.md:1-16`,
   `mise.toml:51-54` (`node = "latest"`) (verified, source).
 - `AP4` requires `#!/usr/bin/env node` (`AGENTS.md:1403-1407`, verified, source).
-  On `v26.8.2` `node:ffi` needs `--experimental-ffi`, which the `AP4` shebang form cannot pass (only `NODE_OPTIONS` or `env -S` could);
-  on `v26.9.0` it is on by default (release notes, verified), so the pinned-latest policy resolves it once Mise installs 26.9.
+  On `v26.8.2` `node:ffi` needs `--experimental-ffi`, which the `AP4` shebang form cannot pass (only `NODE_OPTIONS` or
+  `env -S` could);
+  on `v26.9.0` it is on by default (release notes, verified), so the pinned-latest policy resolves it once Mise
+  installs 26.9.
 - Types: `package/config/typescript/tsconfig.options.json:70-72` uses `"types": ["node"]`;
   `@types/node@26.4.1` ships `ffi.d.ts` (verified, measured `ls`),
   but lacks `getCurrentEventLoop` (added `v26.6.0`), which this design does not need (verified, `rg`).
-- `module-test` is runtime-neutral (`package/module/test/README.md:7`, `:30-31`, verified, source);
+- `module-test` is runtime-neutral (`package/test-harness/core/README.md:7`, `:30-31`, verified, source);
   tests run through the existing Node `test:unit` template.
 - `XRT` (`AGENTS.md:955-956`) prefers cross-runtime patterns;
   `node:ffi` code is Node-specific and Linux/glibc-specific,
   which the Linux-only 0.x scope accepts (inference).
 - `SCR` (`AGENTS.md:963-967`) and the `sh` coverage in `doc/planning/load-bearing-code-languages.md:11`
   rule out the `sh -c` launcher variant (verified, source).
-- `MXL`, `TSD`, `eslint/no-magic-numbers`: FFI struct offsets need named constants and TSDoc (applies to all three options).
+- `MXL`, `TSD`, `eslint/no-magic-numbers`: FFI struct offsets need named constants and TSDoc (applies to all three
+- options).
 
 ### R9: documentation quality (culling triggers)
 
-All pages loaded with text using the user's `curl` command (`node SCRATCH/docs-fetch.ts`, HTTP 200, no JS-shell markers):
+All pages loaded with text using the user's `curl` command (`node SCRATCH/docs-fetch.ts`, HTTP 200, no JS-shell
+markers):
 `nodejs.org/api/{child_process,fs,net,ffi,process,crypto,os,worker_threads,cli}.html` (verified, measured).
 Triggers:
 
@@ -338,7 +356,8 @@ Ranked by severity, most severe first.
    Stability 1, four months old, whose flag default flipped in a minor release today.
    A signature mistake crashes the daemon (`doc/api/ffi.md:15-19`).
    The stable-API fallback exists but costs more:
-   `systemd-run --scope` per task (at least 7 ms of client and D-Bus work plus the ~10 ms attach lock, full cost unmeasured),
+   `systemd-run --scope` per task (at least 7 ms of client and D-Bus work plus the ~10 ms attach lock, full cost
+   unmeasured),
    or a Node `process.execve` launcher (43 to 46 ms, itself Stability 1) plus the lock.
 2. **The built-in watcher loses events silently on inotify overflow.**
    Measured 0 of 300 later modifications delivered with no error after a 16,384-event flood,
@@ -399,8 +418,10 @@ The only published docs describe `1.4.x`.
   - `sh` launcher without the cgroup write: 1.47 to 1.52 ms.
   - Bun launcher with `process.execve` (available, `typeof process.execve` printed `function`): 58.03 to 61.39 ms.
   - `bun:ffi` `pidfd_spawnp` with `SETCGROUP` into the current cgroup: 0.40 to 0.43 ms.
-- Pipes from FFI: `bun SCRATCH/stdio-probe.ts` printed `"stdout":["line-1","line-2","line-3"],"maxTimerGapMs":33` (verified, measured).
-- `bun:ffi` has no asynchronous calls ("Async functions are not yet supported", `docs/runtime/ffi.mdx:223`, verified, source);
+- Pipes from FFI: `bun SCRATCH/stdio-probe.ts` printed `"stdout":["line-1","line-2","line-3"],"maxTimerGapMs":33`
+- (verified, measured).
+- `bun:ffi` has no asynchronous calls ("Async functions are not yet supported", `docs/runtime/ffi.mdx:223`, verified,
+- source);
   exits come from the `SIGCHLD` sweep (measured working).
 
 ### R2: recursive watching
@@ -410,16 +431,19 @@ The only published docs describe `1.4.x`.
   - Recursive mode without any burst: `"lateSeen":3` of 300.
   - Per-directory mode without a burst: 300 of 300; with the flood: 299 of 300 and no overflow signal.
   - New nested directory with a file: `"raceSeen":false` in recursive mode.
-- Cause: `shouldEmit` emits only when the timestamp differs by more than 1 ms or when both the event type and path hash differ
+- Cause: `shouldEmit` emits only when the timestamp differs by more than 1 ms or when both the event type and path hash
+- differ
   (`src/runtime/node/path_watcher.zig:128-145`),
   while its comment claims it suppresses only when both match (verified, source).
 - Recursive mode has no `ignore` and walks `node_modules`:
   `bun SCRATCH/repo-watch-scale.ts recursive` printed `{"syncMs":1897,"watches":100532,"rssMiB":144}`;
   per-directory printed `{"syncMs":83,"watches":5481}` (verified, measured).
 - Subtree `inotify_add_watch` failures, including `ENOSPC`, are swallowed:
-  `if (subpath.len > 0) return .success;` (`path_watcher.zig:492`), and unknown wds such as the overflow event are skipped
+  `if (subpath.len > 0) return .success;` (`path_watcher.zig:492`), and unknown wds such as the overflow event are
+  skipped
   (`:617`) (verified, source).
-- `1.4.2` source fixes the predicate to "same path hash and same event type within 1 ms" (`bun-1.4.2-path_watcher.rs:215-250`),
+- `1.4.2` source fixes the predicate to "same path hash and same event type within 1 ms"
+- (`bun-1.4.2-path_watcher.rs:215-250`),
   reports overflow as `('change', null)` (`:950-967`, PR #33110 merged 2026-06-30),
   and surfaces subtree failures as `'error'` (PR #36415 merged 2026-07-31) (verified, source; not probed).
   Node documents that `filename` may be null for other reasons too, so a null filename is an ambiguous rescan signal
@@ -434,7 +458,8 @@ The only published docs describe `1.4.x`.
   `{"fanOutMs":20164,"fanOutShortWrites":144400,"fanOutReceivedRatio":0.278,"firstShortWriteAfterBytes":233152}`,
   so 72.2 percent of notifications written without handling short writes were lost (verified, measured).
 - `node:net` under Bun buffers and signals backpressure:
-  `FORCE_NODE_NET=1 bun SCRATCH/socket-probe.ts` printed `{"api":"node:net","fanOutMs":173,"firstFalseAfterBytes":262144}` (verified, measured).
+  `FORCE_NODE_NET=1 bun SCRATCH/socket-probe.ts` printed
+  `{"api":"node:net","fanOutMs":173,"firstFalseAfterBytes":262144}` (verified, measured).
 - Socket mode 755 under umask 022 (verified, measured).
 
 ### R4: btrfs
@@ -453,27 +478,32 @@ The only published docs describe `1.4.x`.
   `sha256` 2,227 to 2,298 MiB/s,
   and `Bun.CryptoHasher.algorithms` without BLAKE3 (verified, measured).
 - `getHashes()` omits `blake2b512` while `createHash('blake2b512')` works (verified, measured): a compat inconsistency.
-- `Bun.hash` functions are "optimized for speed of computation over collision-resistance" (`https://bun.com/docs/runtime/hashing`, verified, doc);
+- `Bun.hash` functions are "optimized for speed of computation over collision-resistance"
+- (`https://bun.com/docs/runtime/hashing`, verified, doc);
   as a cache key it needs a collision-resistant companion (inference).
 
 ### R6: process supervision
 
-- `Bun.spawn` `onExit`, `exited`, `kill`, `timeout`, `killSignal`, `signal` (`https://bun.com/docs/runtime/child-process`, verified, doc).
+- `Bun.spawn` `onExit`, `exited`, `kill`, `timeout`, `killSignal`, `signal`
+- (`https://bun.com/docs/runtime/child-process`, verified, doc).
 - Ctrl+C: `process.on('SIGINT')` (Node-compatible) plus `detached` for tasks.
 - Workers, needed only if blocking FFI calls must leave the main thread,
-  are "still experimental (particularly for terminating workers)" (`https://bun.com/docs/runtime/workers`, verified, doc).
+  are "still experimental (particularly for terminating workers)" (`https://bun.com/docs/runtime/workers`, verified,
+  doc).
 
 ### R7: file-enforcer interop
 
 - `bun SCRATCH/fe-import-probe.ts` printed the same result as Node:
   `importOk:true`, 80 exports, `glob`, `AsyncLocalStorage`, and query re-import working (verified, measured).
-- `CM3` bans `bun test`, which misreports under `@monochromatic-dev/module-test` (`AGENTS.md:877-881`, verified, source);
+- `CM3` bans `bun test`, which misreports under `@monochromatic-dev/test-harness-core` (`AGENTS.md:877-881`, verified,
+- source);
   Bun-specific code would still be tested through Node tasks or `bun <file>`.
 
 ### R8: repository fit
 
 - Bun is allowed only as documented islands:
-  `AGENTS.md:1407`, `doc/philosophy/build-execution.md:15-16`, `bunfig.toml:1-2`, `README.md:298-299` (verified, source).
+  `AGENTS.md:1407`, `doc/philosophy/build-execution.md:15-16`, `bunfig.toml:1-2`, `README.md:298-299` (verified,
+  source).
 - `XRT` prefers cross-runtime patterns over Bun-specific ones (`AGENTS.md:955-956`, verified, source).
 - No Bun type package is installed (`ls node_modules/.pnpm` shows only `@types/node`, verified, measured);
   the shared tsconfig lists only `node` types.
@@ -481,12 +511,14 @@ The only published docs describe `1.4.x`.
 
 ### R9: documentation quality (culling triggers)
 
-All fetched pages loaded with text (`bun.com/docs/runtime/{child-process,ffi,networking/tcp,hashing,file-io,nodejs-compat,workers}`,
+All fetched pages loaded with text
+(`bun.com/docs/runtime/{child-process,ffi,networking/tcp,hashing,file-io,nodejs-compat,workers}`,
 `bun.com/guides/read-file/watch`, `bun.com/1.4`) (verified, measured).
 Triggers:
 
 - Unversioned docs contradict the pinned runtime:
-  `https://bun.com/docs/runtime/child-process` documents `cgroup` ("the spawn fails if the child cannot join the cgroup"),
+  `https://bun.com/docs/runtime/child-process` documents `cgroup` ("the spawn fails if the child cannot join the
+  cgroup"),
   while 1.3.14 ignores it (verified, doc and measured).
 - Self-contradiction, `https://bun.com/docs/runtime/nodejs-compat`:
   "node:net 🟢 Fully implemented" in the same entry that says
@@ -500,7 +532,8 @@ Triggers:
 - Omission, `https://bun.com/docs/runtime/child-process`:
   the page never mentions `detached` (`rg --count detached` found 0 matches),
   although `bun.d.ts:7399-7411` documents it (verified, doc and source).
-- Stated immaturity: `https://bun.com/docs/runtime/ffi` "bun:ffi is experimental, with known bugs and limitations. Do not rely on it in production."
+- Stated immaturity: `https://bun.com/docs/runtime/ffi` "bun:ffi is experimental, with known bugs and limitations. Do
+- not rely on it in production."
 - Source comment contradicting code in 1.3.14 (`path_watcher.zig:120-136`) (verified, source).
 
 ### R10: maturity and maintenance
@@ -535,7 +568,8 @@ Ranked by severity, most severe first.
 5. **Watcher scale and signal ambiguity even on 1.4.2.**
    No `ignore` (100,532 watches recursively), and overflow arrives as a null filename that also has other meanings.
 6. **Node-compat drift**:
-   signed `statfs().type`, `getHashes()` omitting working algorithms, and documentation that describes a different version.
+   signed `statfs().type`, `getHashes()` omitting working algorithms, and documentation that describes a different
+   version.
 
 ## Option 3: TypeScript on Deno
 
@@ -571,7 +605,8 @@ Ranked by severity, most severe first.
   - FFI `pidfd_spawnp` with `SETCGROUP` into the current cgroup and a nonblocking `waitid`: 0.43 to 0.46 ms.
 - `Deno.dlopen` is in the stable namespace (`runtime/js/90_deno_ns.js:264-268`) without an experimental tag
   (`lib.deno.ns.d.ts:6780-6821`) (verified, source).
-- FFI pipes and exit: `SCRATCH/stdio-probe.ts` printed `"exitStatus":7,"stdout":["line-1","line-2","line-3"],"maxTimerGapMs":26`
+- FFI pipes and exit: `SCRATCH/stdio-probe.ts` printed
+- `"exitStatus":7,"stdout":["line-1","line-2","line-3"],"maxTimerGapMs":26`
   (verified, measured).
 
 ### R2: recursive watching
@@ -640,7 +675,7 @@ Ranked by severity, most severe first.
 ### R7: file-enforcer interop
 
 - With `--no-config`, import failed:
-  `Import "@monochromatic-dev/module-logger/ts" not a dependency` (verified, measured).
+  `Import "@monochromatic-dev/logger-core/ts" not a dependency` (verified, measured).
 - From the repository root with `deno run --no-lock --node-modules-dir=manual -A SCRATCH/fe-import-probe.ts`,
   the import succeeded with 80 exports and wrote no `deno.lock` or `node_modules/.deno` (verified, measured).
 - Prior repository experience: `doc/troubleshooting/browserslist-deno-root-read.md` records a Deno read prompt for `/`
@@ -652,16 +687,18 @@ Ranked by severity, most severe first.
   `deno run --allow-read SCRATCH/deno-proc-read.ts` printed
   `NotCapable: Requires all access to "/proc/self/cgroup", run again with the --allow-all flag`
   and the same for `/sys/fs/cgroup/cgroup.controllers` (verified, measured);
-  source: any path under `/dev`, `/proc`, or `/sys` except `/proc/pressure/` and pipe fds calls `check_has_all_permissions`
+  source: any path under `/dev`, `/proc`, or `/sys` except `/proc/pressure/` and pipe fds calls
+  `check_has_all_permissions`
   (`runtime/permissions/lib.rs:4614-4628`, verified, source).
   The daemon and `doctor` must run with `-A`, so Deno's sandbox brings no protection here.
 - No Deno runtime precedent for tools; the shared tsconfig lists only `node` types;
   `AP4` has no Deno shebang allowance; `Deno.*` APIs are runtime-specific under `XRT` (verified, source).
-- `module-test` is runtime-neutral (`package/module/test/README.md:7`, `:30-31`, verified, source).
+- `module-test` is runtime-neutral (`package/test-harness/core/README.md:7`, `:30-31`, verified, source).
 
 ### R9: documentation quality (culling triggers)
 
-All fetched pages loaded with text (`docs.deno.com/api/deno/~/Deno.{watchFs,Command,CommandOptions,listen,dlopen,ForeignFunction}`,
+All fetched pages loaded with text
+(`docs.deno.com/api/deno/~/Deno.{watchFs,Command,CommandOptions,listen,dlopen,ForeignFunction}`,
 `docs.deno.com/runtime/fundamentals/{ffi,security,node}/`, `docs.deno.com/runtime/reference/permissions/`,
 `docs.deno.com/api/node/fs/~/copyFile`) (verified, measured).
 Triggers:
@@ -674,9 +711,11 @@ Triggers:
   while Deno copies silently (measured, see R4).
 - Contradiction, `https://docs.deno.com/api/deno/~/Deno.watchFs`:
   "for directories, will watch the specified directory and all sub directories" for recursive mode,
-  while `recursive: false` watchers still receive child events (open #18348; matching by path prefix at `fs_events.rs:250-270`).
+  while `recursive: false` watchers still receive child events (open #18348; matching by path prefix at
+  `fs_events.rs:250-270`).
 - Confusion, same page:
-  the `ignore` example comment "skip the `.git` directory and `build` output" suggests those directories are not watched,
+  the `ignore` example comment "skip the `.git` directory and `build` output" suggests those directories are not
+  watched,
   while watches are still added (measured 100,532 watches with `ignore`).
 - Naming contradiction, `https://docs.deno.com/api/deno/~/Deno.dlopen` (`UnsafeCallback` text):
   "use deref() to then allow Deno's process to exit" next to the methods `ref()` and `unref()` (verified, doc).
@@ -707,7 +746,8 @@ Ranked by severity, most severe first.
 4. **The permission model is defeated.**
    `/proc` and `/sys` access requires `-A`, contrary to the documented symlink-only rule.
 5. **Repository fit.**
-   No Deno precedent for tools, Node-only type configuration, and file-enforcer resolution that depends on the working directory.
+   No Deno precedent for tools, Node-only type configuration, and file-enforcer resolution that depends on the working
+   directory.
 6. **Documentation contradictions** on permissions, `copyFile` flags, and `watchFs` recursion.
 
 ## Cross-option comparison
@@ -723,7 +763,8 @@ Node has the fewest and least severe yikes.
 - Node:
   - Its worst yike is dependence on `node:ffi` (experimental, memory-unsafe).
     That module is part of the core runtime, is on by default from v26.9.0,
-    and every FFI piece the design needs was measured working on the installed v26.8.2 without extra threads or reactors.
+    and every FFI piece the design needs was measured working on the installed v26.8.2 without extra threads or
+    reactors.
   - When FFI is set aside, a stable path still exists:
     `systemd-run --scope` per task, which the user ruled not disqualifying,
     plus per-directory `fs.watch` with a periodic rescan.
@@ -753,7 +794,8 @@ Ranking on disqualifying severity: Node > Bun > Deno.
 
 - Node over Bun:
   Node's worst problem is that its fast path is experimental but works and has a safe fallback.
-  Bun's worst problem is that neither available version is acceptable without breaking a stated constraint or shipping known loss.
+  Bun's worst problem is that neither available version is acceptable without breaking a stated constraint or shipping
+  known loss.
 - Bun over Deno:
   Bun 1.4.x would give native cgroup placement without FFI if the user lifts the pin.
   Deno has no native route at all,

@@ -93,7 +93,7 @@ export const exportPerLine: CreateOnceRule = {
          */
         if ((declaration !== null)
           && (declaration !== undefined))
-        {
+          {
           return;
         }
 

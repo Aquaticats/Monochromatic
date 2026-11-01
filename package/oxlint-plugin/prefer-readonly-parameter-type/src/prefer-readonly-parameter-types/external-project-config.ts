@@ -11,12 +11,13 @@ import {
 } from 'node:fs';
 import { join, } from 'node:path';
 
-import type { Project, } from 'typescript/unstable/sync';
+import type { Project, } from 'typescript/sync';
 
 import {
   contentDigest,
   effectCacheRoot,
 } from './effect-summary-cache-identity.ts';
+import { configuredProjectConfigFileName, } from './semantic-file-name.ts';
 
 /**
  Generated external configured-project schema.
@@ -60,7 +61,7 @@ export function externalProjectConfigPath({
    Dependency-local persistent cache root.
    */
   const cacheRoot = effectCacheRoot({
-    projectKey: consumerProject.configFileName,
+    projectKey: configuredProjectConfigFileName({ project: consumerProject, },),
   },);
   /**
    Exact generated project identity.

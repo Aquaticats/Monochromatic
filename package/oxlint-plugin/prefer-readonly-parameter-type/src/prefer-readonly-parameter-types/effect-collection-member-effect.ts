@@ -8,11 +8,11 @@ import type {
   CallExpression,
   Expression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import {
   COLLECTION_STRUCTURE_MUTATED,
@@ -69,8 +69,8 @@ export const COLLECTION_CALL_DERIVED: unique symbol = Symbol(
  */
 export type CollectionCallCoverage =
   | typeof COLLECTION_CALL_UNDERIVED
-  | typeof COLLECTION_CALL_RECEIVER_DERIVED
-  | typeof COLLECTION_CALL_DERIVED;
+    | typeof COLLECTION_CALL_RECEIVER_DERIVED
+    | typeof COLLECTION_CALL_DERIVED;
 
 /**
  Tests whether the receiver claim alone is answerable for this member.
@@ -152,11 +152,11 @@ function receiverClaimAnswerable({
    * whichever relation the result satisfies. */
   /* Both gates ask this for the same discharge, so narrowing one alone changes nothing. */
   if (resultEscapesCallable({
-      project,
-      body,
-      call,
-      elementStepsAttributed: true,
-    },)
+    project,
+    body,
+    call,
+    elementStepsAttributed: true,
+  },)
     && (!returnedResultDischargeable({
       project,
       call,
@@ -172,10 +172,10 @@ function receiverClaimAnswerable({
    * silence. Landing it while those attributions were empty would produce a false offer,
    * which is what `effect-summaries.unit.test.ts` pins. */
   return (callResultReceiver({
-      project,
-      checker,
-      call,
-    },) !== RESULT_NOT_RECEIVER_STATE)
+    project,
+    checker,
+    call,
+  },) !== RESULT_NOT_RECEIVER_STATE)
     || (callResultElementReceiver({
       project,
       checker,
@@ -261,9 +261,9 @@ export function recordCollectionMemberEffect({
      Caller parameters owning receiver, when receiver can carry mutable state.
      */
     const mutatedParameterOrigins = expressionCanCarryMutableState({
-          checker,
-          node: receiver,
-        },)
+      checker,
+      node: receiver,
+    },)
         /* A container this callable built is not the caller's, however much of the
          * caller's state it holds. `const stack = [root,]; stack.pop();` restructures the
          * fresh array and leaves `root` alone, and charging the receiver's origins there
@@ -275,11 +275,11 @@ export function recordCollectionMemberEffect({
          * *through* the container, `stack[0].label = x`, keeps its attribution through the
          * element path, which is what makes suppressing this one safe rather than a hole.
          * Recorded in `doc/planning/prefer-readonly-container-value-provenance.md`. */
-        && (!receiverHoldsConstructedContainer({
-          project,
-          containerLiteralHolders,
-          node: receiver,
-        },))
+      && (!receiverHoldsConstructedContainer({
+        project,
+        containerLiteralHolders,
+        node: receiver,
+      },))
       ? rootParameterOrigins({
         project,
         bindingOriginBySymbolId,
@@ -318,12 +318,12 @@ export function recordCollectionMemberEffect({
   },))
     return COLLECTION_CALL_DERIVED;
   return receiverClaimAnswerable({
-      project,
-      checker,
-      call,
-      declaration,
-      ...(body === undefined) ? {} : { body, },
-    },)
+    project,
+    checker,
+    call,
+    declaration,
+    ...(body === undefined) ? {} : { body, },
+  },)
     ? COLLECTION_CALL_RECEIVER_DERIVED
     : COLLECTION_CALL_UNDERIVED;
 }

@@ -5,7 +5,7 @@
  * corresponding overlay. Light-dismiss is built in: clicking outside or
  * pressing Escape closes the popover. No JavaScript required.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { probeKey, } from '../data/read-artifacts.ts';
 

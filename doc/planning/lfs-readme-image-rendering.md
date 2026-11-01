@@ -184,7 +184,8 @@ Reverses the metered-bandwidth decision the Worker exists for.
 ### Ranking
 
 A > B > C > D > E.
-A over B because B grows every clone permanently per regeneration while A keeps binaries out of history and fixes rollback.
+A over B because B grows every clone permanently per regeneration while A keeps binaries out of history
+and fixes rollback.
 B over C because B has no runtime dependency and C pins a `workers.dev` hostname into public docs.
 C over D because C reuses existing infrastructure.
 D over E because E reintroduces the clone bandwidth bill.

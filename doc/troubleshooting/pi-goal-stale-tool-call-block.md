@@ -505,7 +505,8 @@ but it is not yet implemented or verified and is therefore not listed as a verif
 
 ## Inferred operational escape hatch
 
-Removing `npm:@narumitw/pi-goal` from global Pi packages and reloading Pi should prevent this extension from registering its `tool_call` handler.
+Removing `npm:@narumitw/pi-goal` from global Pi packages and reloading Pi
+should prevent this extension from registering its `tool_call` handler.
 This follows Pi package-loading behavior,
 but no real settings mutation or reload was run during this investigation.
 Treat it as an unverified operational escape hatch.
@@ -620,7 +621,8 @@ There is no maintainer statement accepting the broader unrelated-tool requiremen
 No.
 Constraints three and five do not hold,
 so the troubleshooting policy's automatic upstream prototype requirement does not trigger.
-The planned repository-owned replacement intentionally chooses different product semantics rather than patching the third-party package in place.
+The planned repository-owned replacement intentionally chooses different product semantics
+rather than patching the third-party package in place.
 
 The upstream contribution gate does not pass.
 Do not post the draft as-is.

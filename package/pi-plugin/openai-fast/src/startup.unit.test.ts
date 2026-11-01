@@ -8,7 +8,7 @@ import { existsSync, } from 'node:fs';
 import { readFile, unlink, writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { CODEX_PROVIDER, OPENAI_PROVIDER, } from '../dist/final/node/index.mjs';
 import { fixtureHome, } from './host-fixture-home.ts';
 import { fixtureModel, } from './host-fixture-model.ts';
@@ -57,7 +57,7 @@ await describe({ name: 'built default extension startup', children: scenarios.ma
       [CODEX_PROVIDER]: { ...((authentication === 'models') && legacyConfigured ? { apiKey: HOST_TOKEN, } : {}), models: [model,], },
       [OPENAI_PROVIDER]: { ...(nativeConfigured && ((authentication === 'models') || (authentication === 'command'))
         ? { apiKey: authentication === 'command' ? commandKey : 'sk-startup-fixture', } : {}), models: [{ ...model, api: 'openai-responses',
-        provider: OPENAI_PROVIDER, baseUrl: 'https://api.openai.com/v1', },], },
+          provider: OPENAI_PROVIDER, baseUrl: 'https://api.openai.com/v1', },], },
     }, },),);
     /** Expired synthetic OAuth still counts as configured without resolving or refreshing it. */
     const oauth = fixtureCredential({ expired: true, },);
@@ -79,12 +79,12 @@ await describe({ name: 'built default extension startup', children: scenarios.ma
       '--offline', '--no-approve', '--no-extensions', '--extension', extension,
       '--no-skills', '--no-themes', '--no-prompt-templates', '--no-context-files',
       '--list-models', model.id,], {
-      cwd: home.cwd, timeout: 15_000, maxBuffer: 1_048_576, encoding: 'utf8',
-      env: { PATH: process.env.PATH ?? '', HOME: home.root, PI_CODING_AGENT_DIR: home.agentDir,
-        PI_PACKAGE_DIR: fileURLToPath(new URL('../', hostEntry,),), PI_OFFLINE: '1',
-        PI_OPENAI_FAST_AVAILABILITY_MARKER: marker,
-        ...((authentication === 'environment') && nativeConfigured ? { OPENAI_API_KEY: 'sk-environment-fixture', } : {}), },
-    },);
+        cwd: home.cwd, timeout: 15_000, maxBuffer: 1_048_576, encoding: 'utf8',
+        env: { PATH: process.env.PATH ?? '', HOME: home.root, PI_CODING_AGENT_DIR: home.agentDir,
+          PI_PACKAGE_DIR: fileURLToPath(new URL('../', hostEntry,),), PI_OFFLINE: '1',
+          PI_OPENAI_FAST_AVAILABILITY_MARKER: marker,
+          ...((authentication === 'environment') && nativeConfigured ? { OPENAI_API_KEY: 'sk-environment-fixture', } : {}), },
+      },);
     if (result.error !== undefined)
       throw result.error;
     expect(result.status,).toBe(0,);

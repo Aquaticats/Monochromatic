@@ -4,7 +4,7 @@
  Displays all posts in a given language that carry a specific tag,
  rendered as a post grid identical to the language landing page.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

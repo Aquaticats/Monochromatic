@@ -138,7 +138,8 @@ Fast costs twice applicable Standard rates for the scoped GPT-6 models.
 The rate card lists no GPT-6 latency or uptime SLA.
 These API rules and prices are **not established guarantees for Codex subscription transport**.
 
-An authorized [ChatGPT plan-sharing preview][plan-inference] also uses public Responses with specifically issued OAuth tokens.
+An authorized [ChatGPT plan-sharing preview][plan-inference] also uses public Responses
+with specifically issued OAuth tokens.
 That does not establish equivalent permissions for Pi's existing Codex login.
 
 ## Other extension precedent

@@ -1,0 +1,251 @@
+// monochromatic-lint.config.jsonc
+// Repository configuration for `mise run lint` and `mise run format`, from the draft in
+// doc/planning/unified-linter.md (`Draft repository configuration`).
+[
+  {
+    "name": "ignored-trees",
+    "ignores": [
+      "package-paused/",
+      "package-deprecated/",
+      ".out-of-scope/",
+    ],
+  },
+  {
+    "name": "rust",
+    "files": [
+      "**/*.rs",
+    ],
+    "rules": {
+      "rust/max-lines": {
+        "severity": "error",
+        "max": 300,
+      },
+      "rust/require-rustdoc": {
+        "severity": "error",
+      },
+      // Unit tests live in sidecar files (`<name>_tests.rs` declared with `#[cfg(test)] #[path = ...] mod tests;`).
+      // Decision record: doc/planning/rust-test-sidecar-enforcement.md.
+      "rust/tests-in-sidecars": {
+        "severity": "error",
+      },
+      // Type-aware closure check: the linter runs the Dylint library below once per Cargo package (see
+      // package/linter/monochromatic-lint/README.md, section "Closure check"). Warnings until no finding is left.
+      // `library` is relative to this file.
+      "rust/avoidable-closure": {
+        "severity": "warn",
+        "library": "package/linter/monochromatic-lint-closure",
+      },
+    },
+  },
+  // The IDE has no finding left, so it holds the line at error severity.
+  {
+    "name": "closure-check-ide",
+    "files": [
+      "package/ide/app/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
+  // The linter package has no finding left, so it holds the line at error severity.
+  {
+    "name": "closure-check-monochromatic-lint",
+    "files": [
+      "package/linter/monochromatic-lint/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
+  // Sidecar crates hold their smoke tests in `src`, and the troubleshooting probe is a recorded reproduction,
+  // not package source; the other rules stay selected for both.
+  {
+    "name": "tests-in-sidecars-exemptions",
+    "files": [
+      "**/fuzz/**/*.rs",
+      "**/*.fuzz/**/*.rs",
+      "doc/troubleshooting/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/tests-in-sidecars": {
+        "severity": "off",
+      },
+    },
+  },
+  {
+    "name": "rust-exemptions",
+    "files": [
+      "**/tests/**/*.rs",
+      "**/*_tests.rs",
+      "**/fuzz/**/*.rs",
+      "**/*.fuzz/**/*.rs",
+      "**/build.rs",
+      "**/fixture/**/*.rs",
+      "**/test-fixture/**/*.rs",
+      "**/invalid/**/*.rs",
+      "doc/audit/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/max-lines": {
+        "severity": "off",
+      },
+      "rust/require-rustdoc": {
+        "severity": "off",
+      },
+      // Tests, fuzz and bench code is exempt from the closure check. The linter also skips fuzz and bench crates
+      // (directories ending in .fuzz or .bench) by name, and does not compile tests, so this keeps the exemption
+      // visible for the paths a non-default build could reach.
+      "rust/avoidable-closure": {
+        "severity": "off",
+      },
+    },
+  },
+  // Scope of the incumbent Rust gate, not a rule judgement. `package/git-policy/cli/src/native` was
+  // checked only by the manual `native:lint:rust` task, which the gate never ran (see
+  // doc/handover/cli-git-native-policy-engine.md, section "The repository's Rust linter is not part of
+  // the gate"). No package task covers `doc/troubleshooting`: the root `lint:rust` fanout visits only
+  // `//package/` tasks (main mise.toml, `fanout_packages`). `doc/audit/**/*.rs` is already exempt above.
+  {
+    "name": "old-gate-scope",
+    "files": [
+      "package/git-policy/cli/src/native/**/*.rs",
+      "doc/troubleshooting/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/require-rustdoc": {
+        "severity": "off",
+      },
+    },
+  },
+  {
+    "name": "markdown",
+    "files": [
+      "**/*.md",
+      "**/*.mdx",
+    ],
+    "rules": {
+      "markdown/heading-increment": {
+        "severity": "error",
+      },
+      "markdown/commands-show-output": {
+        "severity": "error",
+      },
+      "markdown/no-duplicate-heading": {
+        "severity": "error",
+      },
+      "markdown/single-h1": {
+        "severity": "error",
+      },
+      "markdown/no-trailing-punctuation": {
+        "severity": "error",
+      },
+      "markdown/no-bare-urls": {
+        "severity": "error",
+      },
+      "markdown/no-emphasis-as-heading": {
+        "severity": "error",
+      },
+      "markdown/fenced-code-language": {
+        "severity": "error",
+      },
+      "markdown/link-image-reference-definitions": {
+        "severity": "error",
+      },
+      "markdown/link-image-style": {
+        "severity": "error",
+      },
+      "markdown/no-pipe-tables": {
+        "severity": "error",
+      },
+      "markdown/semantic-line-breaks": {
+        "severity": "error",
+      },
+      "markdown/lfs-image-url": {
+        "severity": "error",
+        "exclude": [
+          "package/ssg/",
+        ],
+      },
+    },
+  },
+  {
+    "name": "rustdoc",
+    "files": [
+      "**/*.rs/*.md",
+    ],
+    "rules": {
+      "markdown/single-h1": {
+        "severity": "off",
+      },
+    },
+  },
+  // Rust fences and doc tests report these two rules as warnings until step 8 of the plan fixes
+  // them; that step then deletes this block.
+  {
+    "name": "snippet-burn-down",
+    "files": [
+      "**/*.md/*.rs",
+      "**/*.mdx/*.rs",
+    ],
+    "rules": {
+      "rust/require-rustdoc": {
+        "severity": "warn",
+      },
+      "rust/max-lines": {
+        "severity": "warn",
+      },
+    },
+  },
+  // Rust fenced in a troubleshooting doc quotes upstream source word for word, so no Rust rule judges it.
+  // The repository owner's decision of 2026-10-22 UTC: "Exempt code blocks from rust rules in
+  // doc/troubleshooting/**/*.md". The pattern reaches only the fences of Markdown files under that tree,
+  // so every Markdown rule still applies to those files and Rust fences elsewhere stay checked.
+  // Keep this block after snippet-burn-down: the later block wins the merge.
+  {
+    "name": "troubleshooting-quoted-fences",
+    "files": [
+      "doc/troubleshooting/**/*.md/*.rs",
+    ],
+    "rules": {
+      "rust/max-lines": {
+        "severity": "off",
+      },
+      "rust/require-rustdoc": {
+        "severity": "off",
+      },
+      "rust/require-explicit-types": {
+        "severity": "off",
+      },
+      "rust/tests-in-sidecars": {
+        "severity": "off",
+      },
+      "rust/avoidable-closure": {
+        "severity": "off",
+      },
+    },
+  },
+]

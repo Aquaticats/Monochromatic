@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "cohortId": "complete-20261017T111555806Z",
+  "preparedAt": "2026-10-17T11:15:55.806Z",
+  "cases": {
+    "toml": {
+      "sourceRevision": "525d2e09f8168a3bdd7e513e26d4c80b363123e5",
+      "baseRevision": "cf9fcb48047d86e0af01ac9c73c1c7bf26fb277f",
+      "manifestSha256": "e43e84682a895efc0ab4a1eb664ddd147f10e14add7686ecec6f617f85c90185"
+    },
+    "logger": {
+      "sourceRevision": "ef01490f5e960f8ca0b424c12242caeb3c5a2b5e",
+      "baseRevision": "20dbaca6c2bb39d5d7e51fac447d76393c21a32e",
+      "manifestSha256": "c7adf82827d17abb798e0af917e6237fe876160411ba72ce3364ebbc7c2c347e"
+    },
+    "native": {
+      "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+      "baseRevision": "45795584ff2dcf830dc505e121f0cc92c77860e5",
+      "manifestSha256": "7ae6ca9ed89b7de913b2a5e80b85bc343893892223e98a5bc91d1d2cfc7092bf"
+    },
+    "desktop": {
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "baseRevision": "a9b4a681d21907ecc5eb208a754e7b9a0f6e9168",
+      "manifestSha256": "6cf9154e4fd73174e6b8677bdf700908852ffab027fe04b6c6bf2ca9ffea3363"
+    }
+  },
+  "routes": {
+    "native.producers": {
+      "caseId": "native",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".depot/workflows/depot-complete-native.yml",
+      "provider": "depot"
+    },
+    "native.features": {
+      "caseId": "native",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".depot/workflows/depot-complete-native-features.yml",
+      "provider": "depot"
+    },
+    "native.desktop": {
+      "caseId": "native",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".depot/workflows/depot-complete-desktop-linux.yml",
+      "provider": "depot"
+    },
+    "desktop.linux": {
+      "caseId": "desktop",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".depot/workflows/depot-complete-desktop-case-linux.yml",
+      "provider": "depot"
+    },
+    "toml.scanner": {
+      "caseId": "toml",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/forbidden-strings.yml",
+      "provider": "github-actions"
+    },
+    "toml.scorecard": {
+      "caseId": "toml",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/scorecard.yml",
+      "provider": "github-actions"
+    },
+    "logger.scanner": {
+      "caseId": "logger",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/forbidden-strings.yml",
+      "provider": "github-actions"
+    },
+    "logger.scorecard": {
+      "caseId": "logger",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/scorecard.yml",
+      "provider": "github-actions"
+    },
+    "native.scanner": {
+      "caseId": "native",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/forbidden-strings.yml",
+      "provider": "github-actions"
+    },
+    "native.scorecard": {
+      "caseId": "native",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/scorecard.yml",
+      "provider": "github-actions"
+    },
+    "desktop.scanner": {
+      "caseId": "desktop",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/forbidden-strings.yml",
+      "provider": "github-actions"
+    },
+    "desktop.scorecard": {
+      "caseId": "desktop",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/scorecard.yml",
+      "provider": "github-actions"
+    },
+    "native.hosts": {
+      "caseId": "native",
+      "harnessRevision": "467dc0002d6080f8aa951f488430450debf3df3c",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions"
+    },
+    "desktop.macos": {
+      "caseId": "desktop",
+      "harnessRevision": "467dc0002d6080f8aa951f488430450debf3df3c",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions"
+    },
+    "desktop.windows": {
+      "caseId": "desktop",
+      "harnessRevision": "4f7ff1a739976a3b781e6056dd3b71b84f1e082f",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "provider": "github-actions"
+    },
+    "desktop.alpine": {
+      "caseId": "desktop",
+      "harnessRevision": "16ee27b3d6b115baa5f1bb4046d52d01057172cd",
+      "workflow": ".github/workflows/music-player-alpine.yml",
+      "provider": "github-actions"
+    },
+    "toml.bounded": {
+      "caseId": "toml",
+      "harnessRevision": "9cc7f28fb8db201d9774ff7cf5404ebec3ffc260",
+      "workflow": ".depot/workflows/depot-complete-toml-bounded.yml",
+      "provider": "depot"
+    },
+    "logger.combined": {
+      "caseId": "logger",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".depot/workflows/depot-complete-logger-combined.yml",
+      "provider": "depot"
+    },
+    "logger.hosts": {
+      "caseId": "logger",
+      "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+      "workflow": ".github/workflows/fs-id.yml",
+      "provider": "github-actions"
+    },
+    "logger.vm": {
+      "caseId": "logger",
+      "harnessRevision": "0fbf23d77e5a9b616763990845e36dc2c453f6d6",
+      "workflow": ".depot/workflows/depot-complete-vm-original.yml",
+      "provider": "depot"
+    }
+  },
+  "registration": {
+    "path": ".depot/manifests/complete-routing.json",
+    "harnessRevision": "3d976fe06d22ae01c54aa206cf021a78374a3b06",
+    "caseCopies": 24,
+    "primaryChecks": 770,
+    "externalChecks": 33,
+    "routeCount": 20
+  },
+  "policy": {
+    "scorecard": "Sequential terminal dispatches under the unchanged current quota policy; live default-branch analysis with publication disabled.",
+    "historicalSources": "Exact immutable source revisions; retain source failures and do not credit unexecuted assertions.",
+    "android": "Consume only the common-bound native.producers native-android artifact and provenance."
+  }
+}

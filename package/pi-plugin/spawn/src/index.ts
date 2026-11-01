@@ -202,8 +202,8 @@ async function registerSession(
     ctx
       .ui
       .notify(
-        cliWarning,
-        'warning',
+      cliWarning,
+      'warning',
       );
   }
 }

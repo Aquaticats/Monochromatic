@@ -155,8 +155,8 @@ The confirmed default presentation requirements apply.
 
 Workspace discovery found relevant examples:
 
-- `package/module/async-time/src/index.ts`: waiting and timeout operations.
-- `package/module/async-iter/src/map-iterable-async.ts`:
+- `package/async-time/core/src/index.ts`: waiting and timeout operations.
+- `package/async-iter/core/src/map-iterable-async.ts`:
   starting asynchronous operations before collecting results with `Promise.all`.
 - `AGENTS.md`, `PP1` and `PP2`: implementation uses `async`/`await`
   and Promise combinators rather than callback chains or explicit Promise constructors.
@@ -1019,7 +1019,8 @@ The scratch `chat-ui.mjs` now replaces only the retained interface module during
 Every send captures its message and owns a fresh controller.
 Each conversation keeps a list of pending controllers, rather than one replaceable controller slot.
 Completion filters out only its own controller.
-Stop aborts the current list in that conversation, while another conversation and subsequently started sends remain independent.
+Stop aborts the current list in that conversation,
+while another conversation and subsequently started sends remain independent.
 Send is not disabled by pending replies. The explicit demonstration send-count bound remains.
 
 The input clears only when a message is accepted.
@@ -1030,7 +1031,8 @@ This separation prevents another send's progress from hiding a refused blank or 
 The existing reset generation still prevents old continuations and notes from entering the new experiment.
 
 A labelled `Reset and send example messages` control clears the experiment and starts two sends in A and one in B.
-It is lesson equipment, not a normal chat gesture, and removes the need for a timing race in the reference demonstration.
+It is lesson equipment, not a normal chat gesture,
+and removes the need for a timing race in the reference demonstration.
 The existing conversation-level Stop is now labelled `Stop pending sends` to disclose its expanded pending-work scope.
 It does not remove already displayed messages or replies.
 The downstream fixture's one-reply-per-successful-send contract is distinguished from general chat behavior.

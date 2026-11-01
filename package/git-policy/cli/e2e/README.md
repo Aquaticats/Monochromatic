@@ -5,29 +5,49 @@ It is the "Container end-to-end verification" part of
 [`doc/decision/cli-git-concurrent-commits.md`](../../../../doc/decision/cli-git-concurrent-commits.md)
 and slice 8 of
 [`doc/concurrent-commits-implementation-plan.md`](../doc/concurrent-commits-implementation-plan.md).
-Fresh dummy repositories replay realistic concurrent-agent workloads through the packed shadow `git`,
+Fresh dummy repositories replay realistic concurrent-agent workloads through the native `git` wrapper (`src/native/`),
 and an invariant checker judges every run.
 
 ## How to run
 
 ```sh
 # package/git-policy/cli: run from the repository root
-mise run //package/git-policy/cli:test:e2e:concurrent
-mise run //package/git-policy/cli:test:e2e:concurrent --seed 1
-mise run //package/git-policy/cli:test:e2e:concurrent --seed 1 --scenario shared-file-overlapping-hunks --git 2.55.0
+mise run //package/git-policy/cli:test:e2e:concurrent:native --git 2.55.0
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --git 2.55.0
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario shared-file-overlapping-hunks --git 2.55.0
 ```
 
-- `test:e2e:concurrent` depends on `test:e2e:concurrent:image`,
-  which depends on `pack:npm`.
-  Every run therefore tests the current build.
-- Every run prints its seed and a replay command first,
+- `test:e2e:concurrent:native` depends on `test:e2e:concurrent:native:image`,
+  which compiles the release executable from the checkout and builds the base image when it does not exist.
+  Every run therefore tests the current source.
+- Every run prints the selected wrapper and the executable it verified,
+  its seed and a replay command,
   then one line per scenario and Git version,
   then a summary.
   The task exits non-zero when any scenario fails or errors.
 - `--scenario` takes comma-separated scenario names;
-  `--git` takes comma-separated versions among `2.39.5`,
-  `2.40.0`,
-  and `2.55.0`.
+  `--git` takes comma-separated versions, and the image provides `2.55.0` only.
+- The native executable requires Git 2.55.0 or newer and runs nothing on an older Git,
+  so the image builds that one version.
+  On 2026-10-14 with seed 1, 36 scenarios passed and 2 skipped.
+
+The TypeScript wrapper that this suite first verified is retired;
+ its last commit is
+`f4fc1fa213ece65672e4314983a75266837892f9`,
+ and the sections that describe measurements say so where they cite it.
+
+- `E2E_WRAPPER` (empty or `native`,
+   the only wrapper) names the directory whose `git` shadows the real Git
+  (`wrapper-selection-fixture.ts`);
+  the consumer checks that this `git` is an ELF executable and prints the result first.
+- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in `rust:1.97-bookworm`
+  and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image.
+  `GIT_POLICY_NATIVE_IMAGE_TAG` names the native image's tag, so concurrent worktrees never share one.
+- `test:e2e:concurrent:image` builds the base image alone (Node,
+   the three Git builds,
+   `ssh-keygen`);
+  `GIT_POLICY_E2E_BASE_TAG` names a tag other than `latest`,
+   so a trial build never replaces the image other runs use.
 
 Regenerate the committed trace with real Git on the host.
 It mines this checkout by default;
@@ -44,23 +64,33 @@ mise run //package/git-policy/cli:e2e:concurrent:trace
 `concurrent-commits.Containerfile` builds `cli-git-concurrent-e2e`:
 
 - Node 24.11.0,
-  the floor of `engines.node` in `package.json`;
-- Git 2.39.5,
-  Git 2.40.0,
-  and Git 2.55.0,
-  built from checksum-pinned kernel.org tarballs,
-  installed under `/opt/git/<version>`;
+  the version the suite has always run with;
+- Git 2.55.0,
+  built from a checksum-pinned kernel.org tarball,
+  installed under `/opt/git/2.55.0`;
 - no Git on the default `PATH`,
-  so each scenario picks its Git by `PATH` order;
-- the packed tarball installed with npm at build time under `/opt/cli-git`.
+  so each scenario picks its Git by `PATH` order.
 
-Git 2.40.0 is the oldest release with every feature cli-git uses,
+The native image adds `/opt/native/bin/git`,
+ a link to the release executable,
+ on top of this image.
+
+The native executable requires Git 2.55.0 or newer and runs nothing on an older Git
+(`SPEC.md` "Compatibility and degradation"),
+so the image carries no other version.
+The rest of this section records why the image once also carried 2.39.5 and 2.40.0:
+the retired TypeScript wrapper degraded on them.
+The `replayPlumbing` skips and the `replay-unavailable-*` scenarios below stay in the catalog for that history,
+and no supported run exercises the `absent` ones.
+
+For the retired wrapper,
+ Git 2.40.0 was the oldest release with every feature it used,
 because it is the first whose `git merge-tree` accepts `--merge-base`:
 `Documentation/RelNotes/2.40.0.adoc` says "`merge-tree` learns a new `--merge-base` option",
 and `--write-tree` itself arrived in 2.38.0.
 Git 2.39.5,
 Debian bookworm's Git,
-proves that cli-git degrades without that option
+proved that the retired wrapper degraded without that option
 (`SPEC.md` "Compatibility and degradation"):
 a commit that loses a landing race fails fast with `concurrent-commit/head-moved` instead of replaying.
 Git 2.55.0 is the current release;
@@ -75,7 +105,7 @@ Each scenario declares how it depends on replay plumbing
   the default,
   skips it on 2.39.5,
   where its commits that lose a landing race would fail fast by design;
-- `unused` runs it on every Git,
+- `unused` runs it on every Git that meets its `minimumGit`,
   because none of its commits can lose a landing race:
   the baselines,
   `branch-switch-during-commit`,
@@ -87,8 +117,8 @@ Each scenario declares how it depends on replay plumbing
 
 The run uses `podman run --memory=2g --cpus=2 --rm --network=none`.
 `e2e/` is mounted read-only at `/fixture/e2e`,
-and `package/module/caught-value` is mounted read-only at `/fixture/caught-value`
-for `@monochromatic-dev/module-caught-value/ts`,
+and `package/caught-value/core` is mounted read-only at `/fixture/caught-value`
+for `@monochromatic-dev/caught-value-core/ts`,
 which the image resolves through a `/node_modules` symlink.
 No host repository is mounted writable,
 and no credentials enter the container.
@@ -97,8 +127,9 @@ Every scenario creates its own repository and local bare remote under `/work/<gi
 Measured image build times on this host:
 255 s for a build that compiles both Git versions
 (base images already pulled),
-and 12 to 19 s for the usual rebuild after `pack:npm`,
-which only replaces the tarball layer.
+measured while the suite still packed the TypeScript wrapper into the image
+(the rebuild after a new pack replaced only the tarball layer;
+ that layer no longer exists).
 
 ## Workloads
 
@@ -158,7 +189,7 @@ Baselines prove the harness sound and must pass on today's build:
 - `baseline-lint-staged`:
   lint-staged's backup stash and hide-unstaged sequence on a partially staged index commit,
   in a linked worktree.
-- `baseline-hooks-hookdir` and `baseline-hooks-config`:
+- `baseline-hooks-config`:
   `pre-commit`,
   `prepare-commit-msg`,
   `commit-msg`,
@@ -216,8 +247,7 @@ Design scenarios exercise the accepted concurrent-commit design:
 - `interleaved-index-writers`:
   4 commits and 4 `git add` runs of new files in a seeded interleaving;
   every add must succeed and its staged entry must survive.
-- `hooks-hookdir-concurrent`,
-  `hooks-config-concurrent`,
+- `hooks-config-concurrent`
   and `ssh-signing-concurrent`:
   4 agents at once with all four hooks or with signing.
 - `lint-staged-stash-concurrent`:
@@ -228,8 +258,8 @@ Design scenarios exercise the accepted concurrent-commit design:
   it may land only on the parent it saw.
   When it lands,
   the others replay onto the amended history,
-  which auto-push cannot fast-forward
-  (see `push-rejection-surfaced`).
+  which auto-push merges into the remote branch when the two histories do not conflict
+  (see `push-rejection-surfaced` for the conflicting case).
 - `reservation-after-lost-races`:
   a victim commit holds in its editor until a first winner lands,
   then loses one race per winner,
@@ -305,11 +335,39 @@ writes a `<token>.<event>` marker,
 and blocks while a `<token>.<event>.hold` file exists,
 which is how scenarios pin interleavings and inject kills.
 
+### Hook kinds
+
+Every scenario that needs a hook registers it as a config hook
+(`hooks: 'config'` in `RepositoryOptions`, `repository-model-fixture.ts`),
+which `repository-setup-fixture.ts` writes with
+`git config hook.e2e-<event>.command "<hook program> <event>"` and
+`git config --add hook.e2e-<event>.event <event>`.
+The command runs the shared hook program of `hook-program-fixture.ts`,
+so its logging, markers, holds, trailer and lint-staged mode are the same for every event.
+Config hooks need Git 2.54.0,
+so every hooked scenario declares `minimumGit: '2.54.0'` and skips on older Git.
+The native task runs Git 2.55.0 only, so that skip does not occur there.
+
+Traditional hooks (executable files in `.git/hooks` or a `core.hooksPath` directory)
+are unsupported by the wrapper, and any use is undefined behavior,
+so the suite installs none and `RepositoryOptions` cannot express them.
+Two scenarios that existed only as the traditional-hook twin of a config-hook scenario,
+`baseline-hooks-hookdir` and `hooks-hookdir-concurrent`, were removed;
+`baseline-hooks-config` and `hooks-config-concurrent` run the same workload and assertions.
+No other scenario's meaning depended on a traditional-hook behavior.
+
+Fixture setup commits made with real Git (`seedTracePaths` and `commitAmendBase` in `scenario-setup-fixture.ts`)
+pass `-c hook.e2e-<event>.enabled=false` for every event through `hookDisableArguments`,
+so the repository's config hooks do not run for them.
+The earlier `-c core.hooksPath=/dev/null` was removed:
+it silences only traditional hooks and leaves config hooks running
+(`doc/troubleshooting/git-hook-disable-switches.md`).
+
 ### Phase markers
 
 Landing phases run no hook,
 so the wrapper exposes them through a test-only environment variable
-(`src/policy-engine/commit-transaction-test-phase.ts`,
+(`src/native/transaction_phase.rs`,
 `SPEC.md` "Container end-to-end suite"):
 
 ```sh
@@ -379,15 +437,16 @@ so the harness records the attempt as deliberately killed.
 - `remote-contains`:
   the remote branch reaches every commit whose wrapper exited `0` with auto-push applying
   (not amends,
-  which auto-push cannot fast-forward,
   not the foreign real-Git commit,
-  and not commits landed on top of an amend of an already-published commit).
+  and not commits landed on top of an amend of an already-published commit whose merge conflicted,
+  which `push-rejection-surfaced` covers).
 - `push-rejection-surfaced`:
   a commit that exited `0` on top of a landed amend of a commit the remote already had
-  must have surfaced Git's `non-fast-forward` push rejection and cli-git's
-  `auto-push to origin failed` note
+  and that the remote does not contain must have surfaced Git's `non-fast-forward` push rejection and either cli-git's
+  `auto-push to origin failed` note or its `cli-git: auto-push: not published:` line
   (owner decision,
-  `doc/decision/cli-git-concurrent-commits.md` "Amending published history").
+  `doc/decision/cli-git-concurrent-commits.md` "Amending published history",
+  narrowed on 2026-10-19 to merges that conflict).
 - `no-leftovers`:
   no `refs/cli-git/` ref,
   lock file or lock directory
@@ -437,12 +496,19 @@ Each result line prints a workload digest over labels,
 selections,
 and captured bytes.
 Two consecutive runs of seed 1 printed identical digests for all 54 non-skipped runs,
-and the two seed-1 runs of 2026-09-26 against `09b0eb07b` and `9b5f66c40` printed identical digests for `concurrent-trace-replay`.
+and the two seed-1 runs of 2026-09-26 against `09b0eb07b` and `9b5f66c40`
+printed identical digests for `concurrent-trace-replay`.
 Hook barriers make the pinned interleavings identical on replay;
 free-running starts and the `sigkill-offset` kill still depend on process scheduling,
 so a replay reproduces the workload exactly but can land a free-running race differently.
 
-## Results on the current build
+## Results of the TypeScript wrapper build, 2026-09-26
+
+These counts are historical:
+they predate the switch from traditional hooks to config hooks,
+which removed two scenarios and gave the other hooked scenarios a `minimumGit` of 2.54.0.
+The first native run after the switch (seed 1369728287, Git 2.55.0) passed 34 scenarios
+and skipped the two `replay-unavailable-*` scenarios, which run on Git 2.39.5 only.
 
 Seeds 1,
 2,

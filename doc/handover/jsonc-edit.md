@@ -1,5 +1,14 @@
 # Handover: splitting JSONC out of module-es into module-jsonc-edit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit.conformance` is now `package/jsonc-edit/core-ts.conformance`;
+> `package/module/jsonc-edit.bench` is now `package/jsonc-edit/core-ts.bench`;
+> `package/module/jsonc-edit.fuzz` is now `package/jsonc-edit/core-ts.fuzz`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`;
+> `package/module/toml-edit` is now `package/toml-edit/core`.
+
 Living status doc.
 Updated as the package is scaffolded and implemented.
 

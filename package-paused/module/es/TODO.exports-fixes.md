@@ -65,7 +65,8 @@ The following exports are referenced by other modules but missing from [`iterabl
   - Audit [`index.ts`](src/index.ts:1) exports for consistency
 
 - [ ] **Type constraint issues**:
-  - [`array.type.fixedLength.unit.test.ts`](src/array.type.fixedLength.unit.test.ts:35) has `TupleArray` constraint issue
+  - [`array.type.fixedLength.unit.test.ts`](src/array.type.fixedLength.unit.test.ts:35)
+    has `TupleArray` constraint issue
   - [`mise.index-claude-user-messages.ts`](src/mise.index-claude-user-messages.ts:162) has `PatternMatcher` type issue
 
 ## Implementation Plan

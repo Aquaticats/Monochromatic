@@ -1,0 +1,118 @@
+{
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "requestedAt": "2026-10-18T17:08:17.374Z",
+  "state": "preparing exact finite profiles; no allocation admitted yet",
+  "proposedSeparateGuardUsd": 5,
+  "guardAdmitted": false,
+  "maximumNewCampaignConcurrentJobs": 2,
+  "maximumJobMinutes": 30,
+  "maximumNativeVcpu": 16,
+  "maximumNativeMemoryGB": 64,
+  "controls": [
+    "No Android, emulator, compositor-launch or desktop application relaunch.",
+    "No source or assertion fixes.",
+    "Default owning Cargo/Nextest concurrency; any authored container bounds remain explicit.",
+    "Raw Git blob IDs, LFS pointer OIDs and actual materialized payload hashes/formats remain separate.",
+    "No fresh allocation until exact per-owner plan and deciding source/receipt checks are reviewed.",
+    "Existing public and matched Depot OS controls retain their separate guards and live-allocation rule."
+  ],
+  "owners": [
+    {
+      "owner": "package/desktop-app/ide",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/desktop-app/ide:test",
+        "//package/desktop-app/ide:test:annotations",
+        "//package/desktop-app/ide:test:annotations-native",
+        "//package/desktop-app/ide:test:cli",
+        "//package/desktop-app/ide:test:find",
+        "//package/desktop-app/ide:test:fonts",
+        "//package/desktop-app/ide:test:ignored",
+        "//package/desktop-app/ide:test:language",
+        "//package/desktop-app/ide:test:minimap",
+        "//package/desktop-app/ide:test:native",
+        "//package/desktop-app/ide:test:open",
+        "//package/desktop-app/ide:test:raster",
+        "//package/desktop-app/ide:test:reader-lifecycle",
+        "//package/desktop-app/ide:test:search",
+        "//package/desktop-app/ide:test:syntax",
+        "//package/desktop-app/ide:test:tree",
+        "//package/desktop-app/ide:test:wrap"
+      ],
+      "runtimeCasesUnmeasured": true
+    },
+    {
+      "owner": "package/desktop-app/file-manager",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/desktop-app/file-manager:test"
+      ],
+      "runtimeCasesUnmeasured": true
+    },
+    {
+      "owner": "package/desktop-app/file-manager-gtk-sticky",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/desktop-app/file-manager-gtk-sticky:test",
+        "//package/desktop-app/file-manager-gtk-sticky:test:wayland"
+      ],
+      "runtimeCasesUnmeasured": true
+    },
+    {
+      "owner": "package/desktop-app/file-manager-qt",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/desktop-app/file-manager-qt:test"
+      ],
+      "runtimeCasesUnmeasured": true
+    },
+    {
+      "owner": "package/desktop-app/terminal",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/desktop-app/terminal:test",
+        "//package/desktop-app/terminal:test:container"
+      ],
+      "runtimeCasesUnmeasured": true
+    },
+    {
+      "owner": "package/linter/kotlin",
+      "state": "closed by existing exact-source authored Gradle test and JUnit join; no new allocation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/linter/kotlin:test"
+      ],
+      "runtimeCasesUnmeasured": false,
+      "distinctAuthoredJunitMethods": 6,
+      "passingSamples": 4,
+      "literalMiseOwnerWrapperInvoked": false,
+      "evidence": "doc/audit/depot-kotlin-gradle-owner-join-2026-10-18.evidence.json",
+      "evidenceSha256": "a497e3f495e1818af77eb9a2cba8ab45cbab71b5b59476364fe9cb1993b36614"
+    },
+    {
+      "owner": "package/music-player/design",
+      "state": "source audit and producer/consumer preparation",
+      "existingJoinedCommands": 0,
+      "owningTasks": [
+        "//package/music-player/design:test:cover-picker:revisit",
+        "//package/music-player/design:test:feedback:overlay",
+        "//package/music-player/design:test:first-run:access",
+        "//package/music-player/design:test:keyboard-map",
+        "//package/music-player/design:test:scan-indicator",
+        "//package/music-player/design:test:search:filename-comparison",
+        "//package/music-player/design:test:settings-pane",
+        "//package/music-player/design:test:template-editor",
+        "//package/music-player/design:test:template-reference",
+        "//package/music-player/design:test:track-menu",
+        "//package/music-player/design:test:unit"
+      ],
+      "runtimeCasesUnmeasured": true
+    }
+  ],
+  "scopeCorrection": "Missing command or semantic joins do not establish unexecuted owners. Remaining owner proposals wait for retained exact package/binary/case receipt exhaustion."
+}

@@ -21,7 +21,7 @@ import '../references/references-popup.ts';
 // oxlint-disable-next-line import/no-unassigned-import -- side-effect: register custom elements
 import '../rename/rename-input.ts';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 import { createDebounced, } from '../debounce.ts';
 import { AUTO_SAVE_DEBOUNCE_MS, } from '../timing.ts';
 

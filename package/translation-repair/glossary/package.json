@@ -1,0 +1,50 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/translation-repair-glossary",
+  "description": "The glossary part of the translation-repair pipeline; README.md says what it holds and what it leans on.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
+    "@monochromatic-dev/translation-repair-markup": "workspace:*",
+    "@monochromatic-dev/translation-repair-shared-contract": "workspace:*",
+    "@monochromatic-dev/translation-repair-typography": "workspace:*",
+    "pinyin-pro": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
+    "@types/mdast": "catalog:",
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/translation-repair/glossary"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

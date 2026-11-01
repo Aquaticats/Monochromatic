@@ -14,22 +14,26 @@ import {
   zstdDecompress,
 } from 'node:zlib';
 
-import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 import type { FigmaFileType, } from './types.ts';
 
 /**
- Magic bytes at the start of canvas.fig for each Figma file type.
+ Eight-byte ASCII prelude at the start of canvas.fig for each Figma file type.
+ 
+ The prelude is followed by a little-endian uint32 format version (see {@link CanvasHeader.version}),
+ so it never includes a version letter: version 101 is the ASCII byte `e` and version 106 is `j`,
+ which made the first nine bytes look like the nine-character magic `fig-kiwie` or `fig-kiwij`.
  
  @example
  ```ts
  CANVAS_FIG_MAGIC.fig;
- // 'fig-kiwie'
+ // 'fig-kiwi'
  ```
  */
 export const CANVAS_FIG_MAGIC = {
-  deck: 'fig-decke',
-  fig: 'fig-kiwie',
-  jam: 'fig-jam.e',
+  deck: 'fig-deck',
+  fig: 'fig-kiwi',
+  jam: 'fig-jam.',
 } as const;
 
 /**
@@ -44,9 +48,14 @@ export const CANVAS_FIG_MAGIC = {
 export const CANVAS_HEADER_SIZE = 16;
 
 /**
- Number of bytes reserved for the null-terminated magic string.
+ Byte length of the ASCII prelude that identifies the file type.
  */
-const MAGIC_FIELD_LENGTH = 10;
+const PRELUDE_LENGTH = 8;
+
+/**
+ Byte length of the little-endian uint32 format version that follows the prelude.
+ */
+const VERSION_LENGTH = 4;
 
 /**
  Byte length of zstd size prefix before frame data.
@@ -98,12 +107,17 @@ const ZSTD_MAGIC = new Uint8Array([
  
  @example
  ```ts
- const header: CanvasHeader = { fileType: 'fig', reserved: new Uint8Array() };
+ const header: CanvasHeader = { fileType: 'fig', version: 101 };
  ```
  */
 export type CanvasHeader = {
   readonly fileType: FigmaFileType;
-  readonly reserved: Uint8Array;
+  /**
+   Little-endian uint32 format version stored right after the prelude.
+   
+   Figma raises it over time (101 in older exports, 106 in October 2026 exports), and every value is accepted.
+   */
+  readonly version: number;
 };
 
 /**
@@ -111,26 +125,32 @@ export type CanvasHeader = {
  
  @example
  ```ts
- const parsed: CanvasFigSections = { fileType: 'fig', schemaBytes: new Uint8Array(), documentBytes: new Uint8Array() };
+ const parsed: CanvasFigSections = { fileType: 'fig', version: 101, schemaBytes: new Uint8Array(), documentBytes: new Uint8Array() };
  ```
  */
 export type CanvasFigSections = {
   readonly documentBytes: Uint8Array;
   readonly fileType: FigmaFileType;
   readonly schemaBytes: Uint8Array;
+  readonly version: number;
 };
 
 /**
  Parses 16-byte header of a canvas.fig binary blob.
  
+ The header is an 8-byte ASCII prelude naming the file type, a little-endian uint32 format version,
+ and a 4-byte length of the schema chunk that follows.
+ 
  @param data - Raw canvas.fig bytes.
  
- @returns {@link CanvasHeader} file type and reserved bytes.
+ @returns {@link CanvasHeader} file type and format version.
+ 
+ @throws When data is shorter than the header, or the prelude is none of {@link CANVAS_FIG_MAGIC}.
  
  @example
  ```ts
- parseCanvasHeader(new Uint8Array([102, 105, 103, 45, 107, 105, 119, 105, 101, 0, 0, 0, 0, 0, 0, 0])).fileType;
- // 'fig'
+ parseCanvasHeader(new Uint8Array([102, 105, 103, 45, 107, 105, 119, 105, 106, 0, 0, 0, 0, 0, 0, 0])).version;
+ // 106
  ```
  */
 export function parseCanvasHeader(data: Uint8Array,): CanvasHeader {
@@ -138,26 +158,30 @@ export function parseCanvasHeader(data: Uint8Array,): CanvasHeader {
     throw new Error(`canvas.fig header too short: ${data.length} bytes (need ${CANVAS_HEADER_SIZE})`);
 
   /**
-   Length before null terminator.
-   */
-  const magicLength = findMagicLength({ data, },);
-  /**
-   ASCII-decoded magic string.
+   ASCII-decoded prelude.
    */
   const magic = new TextDecoder('ascii',).decode(data.subarray(
     0,
-    magicLength,
+    PRELUDE_LENGTH,
   ),);
   /**
-   File type resolved from magic.
+   File type resolved from prelude.
    */
   const fileType = fileTypeFromMagic({ magic, },);
+  /**
+   Format version stored after the prelude.
+   */
+  const version = new DataView(
+    data.buffer,
+    data.byteOffset + PRELUDE_LENGTH,
+    VERSION_LENGTH,
+  ).getUint32(
+    0,
+    true,
+  );
   return {
     fileType,
-    reserved: data.subarray(
-      magicLength + 1,
-      CANVAS_HEADER_SIZE,
-    ),
+    version,
   };
 }
 
@@ -166,7 +190,7 @@ export function parseCanvasHeader(data: Uint8Array,): CanvasHeader {
  
  @param canvasData - Raw canvas.fig bytes.
  
- @returns parsed {@link CanvasFigSections} (file type, schema bytes, and document bytes).
+ @returns parsed {@link CanvasFigSections} (file type, format version, schema bytes, and document bytes).
  
  @example
  ```ts
@@ -175,9 +199,12 @@ export function parseCanvasHeader(data: Uint8Array,): CanvasHeader {
  */
 export async function parseCanvasFig(canvasData: Uint8Array,): Promise<CanvasFigSections> {
   /**
-   File type pulled from header.
+   File type and format version pulled from header.
    */
-  const { fileType, } = parseCanvasHeader(canvasData,);
+  const {
+    fileType,
+    version,
+  } = parseCanvasHeader(canvasData,);
   /**
    Start offset of zstd document frame.
    */
@@ -207,6 +234,7 @@ export async function parseCanvasFig(canvasData: Uint8Array,): Promise<CanvasFig
     documentBytes,
     fileType,
     schemaBytes,
+    version,
   };
 }
 
@@ -231,36 +259,17 @@ export async function decompressZstd(data: Uint8Array,): Promise<Uint8Array> {
 }
 
 /**
- Finds null terminator in header magic field.
- 
- @param data - Canvas bytes.
- 
- @returns Magic length.
- 
- @example
- ```ts
- findMagicLength({ data: new Uint8Array([65, 0]) });
- // 1
- ```
- */
-function findMagicLength({ data, }: { readonly data: Uint8Array; },): number {
-  for (let index = 0; index < MAGIC_FIELD_LENGTH; index++) {
-    if (data[index] === 0)
-      return index;
-  }
-  return MAGIC_FIELD_LENGTH;
-}
-
-/**
  Resolves file type from magic string.
  
- @param magic - Magic string.
+ @param magic - Eight-byte prelude decoded as text.
  
  @returns {@link FigmaFileType}.
  
+ @throws When the prelude is none of {@link CANVAS_FIG_MAGIC}; the message quotes the prelude and lists the accepted ones.
+ 
  @example
  ```ts
- fileTypeFromMagic({ magic: 'fig-kiwie' });
+ fileTypeFromMagic({ magic: 'fig-kiwi' });
  // 'fig'
  ```
  */
@@ -271,7 +280,11 @@ function fileTypeFromMagic({ magic, }: { readonly magic: string; },): FigmaFileT
     return 'deck';
   if (magic === CANVAS_FIG_MAGIC.jam)
     return 'jam';
-  throw new Error(`Unknown canvas.fig magic: "${magic}"`);
+  throw new Error(
+    `Unknown canvas.fig magic: ${JSON.stringify(magic,)} in the first ${PRELUDE_LENGTH} bytes of canvas.fig; `
+      + `accepted: ${JSON.stringify(CANVAS_FIG_MAGIC.fig,)} (fig), ${JSON.stringify(CANVAS_FIG_MAGIC.deck,)} (deck), `
+      + `${JSON.stringify(CANVAS_FIG_MAGIC.jam,)} (jam), each followed by a little-endian uint32 version of any value`,
+  );
 }
 
 /**

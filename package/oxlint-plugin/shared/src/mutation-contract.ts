@@ -160,41 +160,41 @@ function normalizedContractLines(commentValue: string,): readonly ContractLine[]
     /**
      Raw line start before newline separator.
      */
-    const rawStartOffset = state.cursor;
+      const rawStartOffset = state.cursor;
     /**
      Raw line end before newline separator.
      */
-    const rawEndOffset = rawStartOffset + rawLine.length;
+      const rawEndOffset = rawStartOffset + rawLine.length;
     /**
      Content after indentation and optional comment star.
      */
-    const leadingTrimmed = rawLine.trimStart();
+      const leadingTrimmed = rawLine.trimStart();
     /**
      Content after leading star marker.
      */
-    const withoutStar = leadingTrimmed.startsWith('*',)
-      ? leadingTrimmed.slice(1,)
-      : leadingTrimmed;
+      const withoutStar = leadingTrimmed.startsWith('*',)
+        ? leadingTrimmed.slice(1,)
+        : leadingTrimmed;
     /**
      Normalized content used for tag and fence scanning.
      */
-    const text = withoutStar.trimStart();
+      const text = withoutStar.trimStart();
     /**
      Whether current line opens or closes fenced code.
      */
-    const fenceLine = text.startsWith(FENCE_DELIMITER,);
-    state.lines
-      .push({
-      text,
-      lineOffset,
-      rawStartOffset,
-      rawEndOffset,
-      inFence: state.insideFence || fenceLine,
+      const fenceLine = text.startsWith(FENCE_DELIMITER,);
+      state.lines
+        .push({
+          text,
+          lineOffset,
+          rawStartOffset,
+          rawEndOffset,
+          inFence: state.insideFence || fenceLine,
+        },);
+      if (fenceLine)
+        state.insideFence = !state.insideFence;
+      state.cursor = rawEndOffset + 1;
     },);
-    if (fenceLine)
-      state.insideFence = !state.insideFence;
-    state.cursor = rawEndOffset + 1;
-  },);
   return state.lines;
 }
 
@@ -289,30 +289,30 @@ export function parseMutationContractBlocks({
     /**
      Leading block tag outside fenced examples.
      */
-    const tag = line.inFence ? '' : leadingBlockTag(line.text,);
-    if ((tag !== '') && BLOCK_TAG_NAMES.has(tag,)) {
-      if (current.value !== OPEN_MUTATION_UNAVAILABLE) {
-        blocks.push(finalizeSegment({
-          segment: current.value,
-          blockEndOffset: line.rawStartOffset,
-        },),);
-        current.value = OPEN_MUTATION_UNAVAILABLE;
+      const tag = line.inFence ? '' : leadingBlockTag(line.text,);
+      if ((tag !== '') && BLOCK_TAG_NAMES.has(tag,)) {
+        if (current.value !== OPEN_MUTATION_UNAVAILABLE) {
+          blocks.push(finalizeSegment({
+            segment: current.value,
+            blockEndOffset: line.rawStartOffset,
+          },),);
+          current.value = OPEN_MUTATION_UNAVAILABLE;
+        }
+        if (tag === '@mutates') {
+          current.value = {
+            parts: [line.text
+              .slice(tag.length,),],
+            lineOffset: line.lineOffset,
+            blockStartOffset: line.rawStartOffset,
+          };
+        }
+        return;
       }
-      if (tag === '@mutates') {
-        current.value = {
-          parts: [line.text
-            .slice(tag.length,),],
-          lineOffset: line.lineOffset,
-          blockStartOffset: line.rawStartOffset,
-        };
-      }
-      return;
-    }
-    if (current.value !== OPEN_MUTATION_UNAVAILABLE)
-      current.value
-        .parts
-        .push(line.text,);
-  },);
+      if (current.value !== OPEN_MUTATION_UNAVAILABLE)
+        current.value
+          .parts
+          .push(line.text,);
+    },);
   if (current.value !== OPEN_MUTATION_UNAVAILABLE) {
     blocks.push(finalizeSegment({
       segment: current.value,

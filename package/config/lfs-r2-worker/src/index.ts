@@ -14,7 +14,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { handleBatch, } from './batch.ts';
 import { mediaTypeForPath, } from './media-type.ts';
@@ -196,7 +196,7 @@ export async function handleRequest({
   hl.debug(`${request.method} ${url.pathname}`,);
   if ((request.method === 'POST')
     && url.pathname
-    .endsWith('/objects/batch',)) {
+      .endsWith('/objects/batch',)) {
     return await handleBatch({
       request,
       env,
@@ -254,8 +254,8 @@ export async function handleRequest({
   return new Response(
     'Method not allowed',
     {
-    status: METHOD_NOT_ALLOWED,
-    headers: { Allow: suffix === '' ? 'GET, HEAD, PUT' : 'GET, HEAD', },
-  },
+      status: METHOD_NOT_ALLOWED,
+      headers: { Allow: suffix === '' ? 'GET, HEAD, PUT' : 'GET, HEAD', },
+    },
   );
 }

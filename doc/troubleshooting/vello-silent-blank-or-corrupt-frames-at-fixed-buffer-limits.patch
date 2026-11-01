@@ -1,0 +1,56 @@
+diff --git a/research/vello_encoding/src/config.rs b/research/vello_encoding/src/config.rs
+index 7e78883..dc16745 100644
+--- a/research/vello_encoding/src/config.rs
++++ b/research/vello_encoding/src/config.rs
+@@ -17,6 +17,10 @@ pub(crate) const PATH_REDUCE_WG: u32 = 256;
+ const PATH_BBOX_WG: u32 = 256;
+ const FLATTEN_WG: u32 = 256;
+ const CLIP_REDUCE_WG: u32 = 256;
++// Must match `PTCL_INITIAL_ALLOC` in `shader/shared/ptcl.wgsl`: the `u32`s each tile owns before dynamic allocation.
++const PTCL_INITIAL_ALLOC: u32 = 64;
++// Smallest dynamic part of the ptcl buffer: what the default size leaves a 4096 by 4096 target.
++const PTCL_MIN_DYNAMIC: u32 = 1 << 22;
+ 
+ /// Counters for tracking dynamic allocation on the GPU.
+ ///
+@@ -173,7 +177,12 @@ impl RenderConfig {
+         let n_path_tags = layout.path_tags_size();
+         let workgroup_counts =
+             WorkgroupCounts::new(layout, width_in_tiles, height_in_tiles, n_path_tags);
+-        let buffer_sizes = BufferSizes::new(layout, &workgroup_counts);
++        let mut buffer_sizes = BufferSizes::new(layout, &workgroup_counts);
++        // The coarse shader checks `ptcl_size` only once a tile outgrows its initial region, so the
++        // initial regions of all tiles must fit in the buffer by construction.
++        let ptcl_initial = width_in_tiles * height_in_tiles * PTCL_INITIAL_ALLOC;
++        buffer_sizes.ptcl =
++            BufferSize::new(buffer_sizes.ptcl.len().max(ptcl_initial + PTCL_MIN_DYNAMIC));
+         Self {
+             gpu: ConfigUniform {
+                 width_in_tiles,
+@@ -438,3 +447,26 @@ impl BufferSizes {
+ const fn align_up(len: u32, alignment: u32) -> u32 {
+     len + (len.wrapping_neg() & (alignment - 1))
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn ptcl_size(width: u32, height: u32) -> u32 {
++        RenderConfig::new(&Layout::default(), width, height, &peniko::Color::BLACK)
++            .gpu
++            .ptcl_size
++    }
++
++    #[test]
++    fn ptcl_holds_the_initial_region_of_every_tile() {
++        // 4096 by 8208 pixels is 256 by 513 tiles, one tile row more than the default size covers.
++        assert!(ptcl_size(4096, 8208) >= 256 * 513 * 64 + (1 << 22));
++    }
++
++    #[test]
++    fn ptcl_keeps_the_default_size_up_to_4096_by_4096_pixels() {
++        assert_eq!(ptcl_size(64, 64), 1 << 23);
++        assert_eq!(ptcl_size(4096, 4096), 1 << 23);
++    }
++}

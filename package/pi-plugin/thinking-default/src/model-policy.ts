@@ -4,9 +4,9 @@
  @module
  */
 
-import { getModelIdLeaf, } from '@monochromatic-dev/pi-shared-model-selection/ts';
+import { getModelIdLeaf, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 
-export { getModelIdLeaf, } from '@monochromatic-dev/pi-shared-model-selection/ts';
+export { getModelIdLeaf, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 
 //region Thinking default constants
 

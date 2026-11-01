@@ -308,6 +308,121 @@ Use it only for deliberate inspection.
   Copy scenarios now use linked sources,
   while a separate regression test covers main-worktree bypass.
 
+## Linked-source guard-worktree creation on 2026-09-11
+
+This incident is separate from the main-worktree applicability bug.
+The attempted creation was launched from linked worktree
+`/var/home/user/worktrees/translation-repair`,
+not the main worktree.
+Its invocation-specific Git directory was
+`/var/home/user/Monochromatic/.git/worktrees/translation-repair`,
+while its common directory was `/var/home/user/Monochromatic/.git`.
+Copy applicability was therefore expected.
+
+### Observed boundary
+
+The agent requested a detached verification worktree under its private scratch root.
+Real Git completed checkout,
+but wrapper PID 2089648 retained repository-wide settlement while copying ignored state.
+A scoped commit in the source worktree then received cli-git's exact settlement-timeout diagnostic.
+The owner record identified that same PID and its process birth identity.
+At one observation the process had run for 8 minutes 24 seconds
+and reported RSS 1845524 KiB.
+
+The private stage was
+`~/temp/agent/.cli-git-worktree-copy-aW97uD`.
+Its measured apparent payload size was 33859161062 bytes.
+That is not a claim of physical disk consumption:
+`package/git-policy/cli/src/worktree-copy/snapshot.ts:47`
+requests copy-on-write with fallback:
+
+```ts
+// package/git-policy/cli/src/worktree-copy/snapshot.ts
+const COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE;
+```
+
+The deciding lifecycle remains
+`package/git-policy/cli/src/worktree-copy/lifecycle.ts:269`:
+the exclusive lease covers real Git and the subsequent ignored-state synchronization.
+Thus successful checkout output does not mean the wrapper has finished or released settlement.
+The linked wrapper bundle used here had SHA-256
+`be37f0e5de9cc0622b023846e96fbc66ab5df81c64728c0b78f68351c447f2d2`.
+
+### Recovery performed
+
+- Stopped only the agent-started copier through the process manager.
+- Verified the process was absent.
+- A later wrapped linked-worktree status recovered the stale active lease without manual active-lock deletion.
+- A Node recursive cleanup was stopped after its own resource use and a stop-manager timeout were observed.
+  The operating-system PID check subsequently confirmed it was gone;
+  the manager's `terminate_timeout` label was not treated as proof of a live process.
+- Removed only the identified owned stage with native `rm`,
+  idle I/O priority,
+  one-filesystem traversal and root preservation.
+  That invocation completed in 58 seconds.
+- Verified the stage no longer existed.
+- A synchronous commit had hit the command tool's outer timeout.
+  Its process was absent and HEAD had not advanced,
+  so the commit was retried through the managed process tool,
+  not blindly repeated synchronously.
+  It succeeded as `9f4034d15`.
+- Removed only the abandoned `.pending` claim created by that timed-out commit,
+  after checking its exact owner PID 2091885 and recorded birth identity and proving the PID absent.
+  No live `settlement.lock` was manually deleted.
+
+The root-sentinel checks were run for main,
+source and disposable target worktrees:
+`find` found no root `HEAD`,
+`config`,
+`hooks`,
+`objects` or `refs` artifacts;
+`git check-ignore --verbose` confirmed their ignore rules;
+`git clean --dry-run -d -X` named no deletion.
+The baked-in allowlist in `allowed-worktree-dirs.ts` was inspected rather than assumed absent.
+No unrelated worktree changes were restored or discarded.
+
+A separate logger diagnostic,
+`sink verification failed for entry 3`,
+appeared during inspection.
+It is not attributed to the copy or treated as proof of the settlement cause.
+
+### Verified creation path without ignored-state copying
+
+The disposable target was clean,
+so it was removed without force and recreated from the main worktree with an explicit start commit:
+
+```sh
+# Run in the actual main worktree; use a newly owned disposable destination.
+git worktree add --detach /var/home/user/temp/agent/translation-repair-guard-20260911 9f4034d15
+```
+
+The invocation completed,
+emitted no ignored-copy summary,
+and the target had neither copied `node_modules` nor the owned staging tree.
+The main wrapper bundle used for this invocation had SHA-256
+`b7020d8041970b77394bf2712cc3c7f1381f73a9c4ac0eac3977fef4f7495b4e`.
+These were different wrapper artifacts;
+the observations are not a matched timing comparison.
+The source applicability gate and the main-worktree creation itself establish the supported path.
+
+Tradeoff:
+verification dependencies must be supplied deliberately;
+creating the fixture does not copy caches or secret-bearing ignored files.
+Use an applicable linked source only when that ignored-state copy is actually wanted.
+The reproduction output and cleanup ownership record are retained under `~/temp/agent/`.
+
+Proposed `AGENTS.md` clarification to `WCD`,
+not applied:
+
+```text
+WCD: Pin commands with -C/--cwd/cd. Verify pwd + Git root before alternate-worktree writes.
+Create disposable worktrees from main-worktree context at an explicit commit unless ignored copying is wanted.
+```
+
+The expected operation was performed:
+the disposable target was recreated through the main-worktree path,
+not by disabling copy guards or deleting a live lock.
+
 ## Upstream filing artifact
 
 ### Upstream filing decision

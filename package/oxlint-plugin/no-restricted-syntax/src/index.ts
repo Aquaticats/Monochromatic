@@ -52,6 +52,7 @@ import { noRegex, } from './rule/no-regex.ts';
 import { noRestParams, } from './rule/no-rest-params.ts';
 import { noSwitch, } from './rule/no-switch.ts';
 import { noSync, } from './rule/no-sync.ts';
+import { noSystemTmpdir, } from './rule/no-system-tmpdir.ts';
 import { noTrimLeftRight, } from './rule/no-trim-left-right.ts';
 import { noTryFinally, } from './rule/no-try-finally.ts';
 import { noUselessSpread, } from './rule/no-useless-spread/index.ts';
@@ -66,6 +67,12 @@ import { preferErrorIsError, } from './rule/prefer-error-is-error.ts';
 import { preferSpread, } from './rule/prefer-spread/index.ts';
 import { requireDestructuredParams, } from './rule/require-destructured-params.ts';
 import { requireQueryselectorGeneric, } from './rule/require-queryselector-generic.ts';
+import { startSpreadEvidenceBridge, } from './rule/spread-evidence/bridge-start.ts';
+
+/* The spread rules need the TypeScript bridge, whose native child cannot be spawned once Oxlint has reserved
+ * address space for its workers on a host with many cores. Plugins load before the workers start, so the child
+ * starts here and a failure is kept for the first spread rule that needs a type to report. */
+startSpreadEvidenceBridge();
 
 /**
  Oxlint JS plugin implementing `no-restricted-syntax` rules
@@ -113,6 +120,7 @@ const plugin: Plugin = eslintCompatPlugin({
     'no-rest-params': noRestParams,
     'no-switch': noSwitch,
     'no-sync': noSync,
+    'no-system-tmpdir': noSystemTmpdir,
     'no-trim-left-right': noTrimLeftRight,
     'no-try-finally': noTryFinally,
     'no-useless-spread': noUselessSpread,
@@ -151,3 +159,15 @@ const plugin: Plugin = eslintCompatPlugin({
 },);
 
 export default plugin;
+
+/**
+ Exposed so built-artifact tests reach the export-surface classifier behind
+ `prefer-describe-function-ref-name`.
+ 
+ @internal
+ */
+export {
+  classifyNameInSourceText,
+  type ExportedNameKind,
+  isAllCapsSnakeName,
+} from './rule/prefer-describe-function-ref-name.export-scan.ts';

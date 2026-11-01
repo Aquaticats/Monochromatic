@@ -52,7 +52,8 @@ Replaces Claude Code's built-in spinner verbs,
 with no relation to what Claude is actually doing
 ([anthropics/claude-code#33057](https://github.com/anthropics/claude-code/issues/33057)).
 
-The statusline extracts a gerund from the last 8KB of the session transcript instead.
+The statusline extracts a gerund from the newest assistant prose and thinking summaries
+at the end of the session transcript instead.
 Since Claude's prose naturally contains gerunds that describe its current activity
 ("Let me search for...",
  "I'll try refactoring..."),
@@ -61,14 +62,42 @@ the displayed word reflects what Claude was most recently talking about.
 ### How it works
 
 1. The statusline JSON payload includes `transcript_path`
-2. `openAsBlob` reads only the final 8KB of the transcript (no full-file load)
-3. A regex finds all words matching `\b[a-z]+-?[a-z]*ing\b` (including hyphenated compounds)
-4. A noise filter removes non-activity words (pronouns,
+2. `openAsBlob` reads only the final 64KB of the transcript (no full-file load)
+3. The tail is split into lines;
+    the first line is dropped when the read began mid-file,
+    because it is cut off
+4. Lines are visited newest first;
+    only lines containing `"type":"assistant"` are passed to `JSON.parse`,
+    so only a handful of entries are ever parsed
+5. Only `text` and `thinking` content blocks of assistant entries are scanned
+    (the thinking signature is not);
+    tool calls,
+    tool results,
+    attachments,
+    and user entries are ignored
+6. A single-pass scanner reports every word that ends in `-ing` between word boundaries,
+    including hyphenated compounds such as `type-checking`
+7. A noise filter removes non-activity words (pronouns,
     prepositions,
     adjectives,
     phase-implying verbs)
-5. The last surviving match is capitalized and displayed
-6. Falls back to "Thinking" when no gerund is found or the transcript is unavailable
+8. The last surviving match of the newest entry that has one is capitalized and displayed
+9. When no gerund is found,
+    the word from an earlier render of the same session is shown instead;
+    see Memory below
+10. Falls back to "Thinking" when the session has never produced a gerund or the transcript is unavailable
+
+### Memory
+
+The statusline command is a new process on every render,
+ so the last word is kept on disk:
+ `~/.claude/statusline-activity/<session id>.txt`,
+ where the session id is the transcript file name without `.jsonl`.
+A freshly extracted word replaces the stored one,
+ and the file is only written when the word changed.
+A stored file that is not exactly one word the extractor could produce is ignored,
+ and an unwritable directory never blocks rendering.
+Files are tiny and are not pruned.
 
 ### Noise filter categories
 
@@ -125,15 +154,11 @@ Disable the built-in spinner verbs and tips so they don't compete with the statu
 
 ### Limitations
 
-- The transcript is scanned as a raw string,
-   not parsed as JSONL.
-  Gerunds from any source (assistant text,
-   tool output,
-   user messages)
-  can appear.
-   In practice,
-   assistant prose dominates the tail of the transcript.
-- The word reflects the most recent gerund in the last 8KB,
+- Only the final 64KB is read.
+  When the newest assistant text sits behind more than that
+   (for example a very large tool result),
+   it is not seen and the remembered word is shown.
+- The word reflects the most recent gerund in assistant prose and thinking summaries,
   which may lag behind the current activity by one or more tool calls.
 - At the start of a session (empty transcript),
    the fallback "Thinking" is shown.

@@ -1,8 +1,8 @@
-import type { Expression, } from 'typescript/unstable/ast';
+import type { Expression, } from 'typescript/ast';
 import {
   isIdentifier,
   isPropertyAccessExpression,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 /**
  Builds stable authored name for unresolved callable expression.

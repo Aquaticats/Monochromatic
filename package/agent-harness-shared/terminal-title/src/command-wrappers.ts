@@ -53,7 +53,7 @@ function envWrappedCursor(args: readonly string[],): number | typeof COMMAND_TOK
     let cursor = 0;
     while (cursor
       < args.length)
-    {
+      {
       /**
        Current env argument token.
        */
@@ -93,7 +93,7 @@ function niceWrappedCursor(args: readonly string[],): number | typeof COMMAND_TO
     let cursor = 0;
     while (cursor
       < args.length)
-    {
+      {
       /**
        Current nice argument token.
        */
@@ -129,7 +129,7 @@ function timeoutWrappedCursor(args: readonly string[],): number | typeof COMMAND
     let cursor = 0;
     while (cursor
       < args.length)
-    {
+      {
       /**
        Current timeout argument token.
        */

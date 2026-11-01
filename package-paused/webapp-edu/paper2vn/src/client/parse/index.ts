@@ -5,7 +5,7 @@
  * extractor. Returns the unified plain-text representation that the
  * dialogue generator feeds into the LLM.
  */
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core';
 
 import { extractPdf, } from './pdf.ts';
 import { extractText, } from './text.ts';

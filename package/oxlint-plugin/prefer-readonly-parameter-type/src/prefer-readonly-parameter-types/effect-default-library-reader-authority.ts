@@ -32,7 +32,7 @@ import type {
   CallExpression,
   Expression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isGetAccessorDeclaration,
   isIdentifier,
@@ -40,12 +40,12 @@ import {
   isMethodDeclaration,
   isMethodSignatureDeclaration,
   isSetAccessorDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import type {
   Checker,
   Project,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Reader whose result is built from the operand's own values, so it carries them.
@@ -83,7 +83,7 @@ export const NOT_A_VERIFIED_READER: unique symbol = Symbol(
  */
 export type ReaderResultRelation =
   | typeof READER_RESULT_CARRIES_OPERAND
-  | typeof READER_RESULT_FRESH;
+    | typeof READER_RESULT_FRESH;
 
 /**
  Verified readers by default-library interface owner and member name.
@@ -98,7 +98,7 @@ export type ReaderResultRelation =
  reading: the prototype it hands back is reachable from the operand, and writing through
  it changes what the operand does. Measured as the largest single root cause on the
  argument side, named by 53 findings through `isPlainObject` in
- `package/module/toml-edit/src/value-encoders.ts`.
+ `package/toml-edit/core/src/value-encoders.ts`.
  */
 const VERIFIED_READERS: Readonly<Record<string, Readonly<Record<string, ReaderResultRelation>>>> = {
   ObjectConstructor: {

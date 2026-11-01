@@ -1,0 +1,1237 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-10-17T05:21:05.647Z",
+  "state": "Prepared and pushed; provisional case graphs correctly rejected; canonical freeze and actual read required before final dispatch.",
+  "source": {
+    "historical": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+    "desktop": "3434eaa455d569c18b52cf15100f77f9db251d21"
+  },
+  "routes": [
+    {
+      "kind": "native",
+      "ref": "trial/depot-coherent-native-20261017",
+      "harnessRevision": "2032975cbad924e63ac98bc69e14a56b20288275",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "workflowName": "depot-complete-native-hosts",
+      "workflowSha256": "8405dfb1c339351a005ee36116ac918629ca045ddab7656a314bc65bf4e9ccb6",
+      "workflowGitBlob": "c54bbe388d9be98341cf1e96ce8285b8f983ec84",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "741805a6a26fcd974551f2cb5c66848b0485ac405754015dcb288aa5c1f6de8d",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "0693b9e32203198cf6dc19d357eb3b191564863f3f52c5e5cd27e1563a4d2af8",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [
+        "source_head",
+        "hosts"
+      ],
+      "sourceRevision": "source_head input",
+      "consumerCommands": {
+        "kind": "native",
+        "path": ".github/workflows/music-player-windows.yml",
+        "originalRunCommands": 10,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 2
+      },
+      "runnerSelection": {
+        "both": [
+          "windows-2025",
+          "macos-15-intel"
+        ],
+        "macos": [
+          "macos-15-intel"
+        ]
+      },
+      "nextestPolicy": "Exact source package test task and cargo dispatcher with only --no-fail-fast inserted in memory. Original/adapted hashes are emitted by the proven adapter; tracked source is untouched.",
+      "previousHarnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+      "providerTaskBytesVerified": true,
+      "currentCommonBindingEvidence": "doc/audit/depot-common-manifest-route-guards-2026-10-17.evidence.json"
+    },
+    {
+      "kind": "windows",
+      "ref": "trial/depot-coherent-windows-20261017",
+      "harnessRevision": "e70240dc7317124a0db5b37967c570cf2f3fb6f4",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "workflowName": "depot-complete-windows-test-recovery",
+      "workflowSha256": "ea2fbf3804afac723c97a313c0e6a2acdb8d73c9a0da1d924fe1c887d0fa9ba7",
+      "workflowGitBlob": "fb6ce6e3ef7adf9a3c84db389501044d7e6ab74d",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "b4a715b29eaf5f172b049fee04d5a6d5c1fe68964f0ad13b4249a35d56c243e8",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "0693b9e32203198cf6dc19d357eb3b191564863f3f52c5e5cd27e1563a4d2af8",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [],
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "consumerCommands": {
+        "kind": "windows",
+        "path": ".github/workflows/music-player-windows.yml",
+        "originalRunCommands": 16,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 5
+      },
+      "matrix": [
+        {
+          "name": "msvc-x64",
+          "runner": "windows-2025",
+          "target": "x86_64-pc-windows-msvc"
+        },
+        {
+          "name": "msvc-arm64",
+          "runner": "windows-11-arm",
+          "target": "aarch64-pc-windows-msvc"
+        },
+        {
+          "name": "gnu-x64-ucrt64",
+          "runner": "windows-2025",
+          "target": "x86_64-pc-windows-gnu"
+        }
+      ],
+      "nextestPolicy": "Original source command already includes --no-fail-fast; independent execution requires successful test compilation.",
+      "independentPowerShellProbes": {
+        "source": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "originalStepBody": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n# The output is captured, so PowerShell waits for the program and the text reaches the step output.\n$captured = (& $exe --version | Out-String).Trim()\nWrite-Output \"captured in the pipeline: $captured\"\nif ($captured -cne $expected) { throw \"captured '$captured', expected '$expected'\" }\n# The output goes to a file through PowerShell's redirection operator.\n$file = Join-Path $env:RUNNER_TEMP 'out.txt'\n& $exe --version > $file\n$fromFile = (Get-Content -Raw -Path $file).Trim()\nWrite-Output \"out.txt holds: $fromFile\"\nif ($fromFile -cne $expected) { throw \"out.txt holds '$fromFile', expected '$expected'\" }\n# The same through the 2>&1 merge that scripts use to log both streams.\n$merged = (& $exe --version 2>&1 | Out-String).Trim()\nWrite-Output \"merged streams: $merged\"\nif ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }\n# Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n# the text still lands in this step's log. The sleep keeps this step open until the program has written.\nWrite-Output 'uncaptured run follows; the next line is printed by the program itself'\n& $exe --version\nStart-Sleep -Seconds 5",
+        "probes": [
+          {
+            "name": "merged-stream",
+            "label": "powershell-merged-stream",
+            "original": "# The same through the 2>&1 merge that scripts use to log both streams.\n$merged = (& $exe --version 2>&1 | Out-String).Trim()\nWrite-Output \"merged streams: $merged\"\nif ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }",
+            "originalSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "script": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n$probeStatus = 'failed'\n$merged = ''\ntry {\n  # The same through the 2>&1 merge that scripts use to log both streams.\n  $merged = (& $exe --version 2>&1 | Out-String).Trim()\n  Write-Output \"merged streams: $merged\"\n  if ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }\n  $probeStatus = 'passed'\n}\nfinally {\n  $evidenceDirectory = Join-Path $env:RUNNER_TEMP 'depot-provenance'\n  New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null\n  $record = @{\n    schemaVersion = 1\n    event = 'independent-consumer-result'\n    probe = 'powershell-merged-stream'\n    status = $probeStatus\n    expectedVersion = $expected\n    actualCaptured = $merged\n    requiresStepLogVersionCheck = $false\n    sourceRevision = $env:SOURCE_HEAD\n    harnessRevision = $env:GITHUB_SHA\n    cohortId = $env:COHORT_ID\n    manifestSha256 = $env:COHORT_MANIFEST_SHA256\n    requestedAt = $env:COHORT_REQUESTED_AT\n    originalProbeSha256 = '70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90'\n    beforeProvenance = 'before.json'\n    afterProvenance = 'after.json'\n    powershellVersion = $PSVersionTable.PSVersion.ToString()\n  }\n  $recordPath = Join-Path $evidenceDirectory 'powershell-merged-stream.json'\n  $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding utf8\n}",
+            "scriptSha256": "ccf0ff885f25f6215d244ee6980e01e712cf8d5806d38124b79ad7b3b555dd55"
+          },
+          {
+            "name": "uncaptured-console",
+            "label": "powershell-uncaptured-console",
+            "original": "# Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n# the text still lands in this step's log. The sleep keeps this step open until the program has written.\nWrite-Output 'uncaptured run follows; the next line is printed by the program itself'\n& $exe --version\nStart-Sleep -Seconds 5",
+            "originalSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "script": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n$probeStatus = 'failed'\ntry {\n  # Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n  # the text still lands in this step's log. The sleep keeps this step open until the program has written.\n  Write-Output 'uncaptured run follows; the next line is printed by the program itself'\n  & $exe --version\n  Start-Sleep -Seconds 5\n  $probeStatus = 'completed'\n}\nfinally {\n  $evidenceDirectory = Join-Path $env:RUNNER_TEMP 'depot-provenance'\n  New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null\n  $record = @{\n    schemaVersion = 1\n    event = 'independent-consumer-result'\n    probe = 'powershell-uncaptured-console'\n    status = $probeStatus\n    expectedVersion = $expected\n    actualCaptured = $null\n    requiresStepLogVersionCheck = $true\n    sourceRevision = $env:SOURCE_HEAD\n    harnessRevision = $env:GITHUB_SHA\n    cohortId = $env:COHORT_ID\n    manifestSha256 = $env:COHORT_MANIFEST_SHA256\n    requestedAt = $env:COHORT_REQUESTED_AT\n    originalProbeSha256 = '563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d'\n    beforeProvenance = 'before.json'\n    afterProvenance = 'after.json'\n    powershellVersion = $PSVersionTable.PSVersion.ToString()\n  }\n  $recordPath = Join-Path $evidenceDirectory 'powershell-uncaptured-console.json'\n  $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding utf8\n}",
+            "scriptSha256": "a933e0dc3264c2bb2640a7f800a2163c5a59631b73913eddaff101923865cfda"
+          }
+        ],
+        "acceptance": "Merged-stream probe must pass its original assertion. Uncaptured-console probe completion additionally requires the exact expected version line in its own provider step log. Shared route before/after provenance must match."
+      },
+      "originalFileAssertion": "Unchanged. Failure remains a source consumer failure even if independent continuation probes pass.",
+      "previousHarnessRevision": "c8abb557b6fb8444cc65a5892802d9aab01d1130",
+      "providerTaskBytesVerified": true,
+      "currentCommonBindingEvidence": "doc/audit/depot-common-manifest-route-guards-2026-10-17.evidence.json"
+    },
+    {
+      "kind": "alpine",
+      "ref": "trial/depot-coherent-alpine-20261017",
+      "harnessRevision": "5152df4debd88f5e0b57802c7c8c958b1a5f6255",
+      "workflow": ".github/workflows/music-player-alpine.yml",
+      "workflowName": "music-player-alpine",
+      "workflowSha256": "04552da97fc4bc3a79393e5f6cda1d740e81e183207ad4203114f39d355b673b",
+      "workflowGitBlob": "ee002ffa9a624fb2b3c4434909e68ba256ad9c64",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "6b13064299fab706b35ac0c49488da7b6f0eac3f30742643e8a4758d7d97781d",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "15981f3538d03874d47d256cc128d7a64f0b913d969b8a614069a288d98b2389",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [],
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "consumerCommands": {
+        "kind": "alpine",
+        "path": ".github/workflows/music-player-alpine.yml",
+        "originalRunCommands": 10,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 3
+      },
+      "matrix": [
+        {
+          "arch": "x86_64",
+          "runner": "ubuntu-latest"
+        },
+        {
+          "arch": "aarch64",
+          "runner": "ubuntu-24.04-arm"
+        }
+      ],
+      "nextestPolicy": "Original source command includes --locked --features alsa-fallback --no-fail-fast.",
+      "independence": "Tests, app build, and compositor build require images/cache directories. Staging requires both successful builds; smoke requires staged binaries. Failed test assertions do not censor independent builds or smoke.",
+      "previousHarnessRevision": "707162e5b43edf04703c9e28bf905ba6eb3fc45e",
+      "providerTaskBytesVerified": true,
+      "currentCommonBindingEvidence": "doc/audit/depot-common-manifest-route-guards-2026-10-17.evidence.json"
+    }
+  ],
+  "dispatchChecklist": [
+    {
+      "case": "historical-native",
+      "kind": "native",
+      "source_head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+      "hosts": "both",
+      "expectedJobs": 2
+    },
+    {
+      "case": "desktop-native-macos",
+      "kind": "native",
+      "source_head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "hosts": "macos",
+      "expectedJobs": 1
+    },
+    {
+      "case": "desktop-windows-original",
+      "kind": "windows",
+      "expectedJobs": 3
+    },
+    {
+      "case": "desktop-alpine-original",
+      "kind": "alpine",
+      "expectedJobs": 2
+    }
+  ],
+  "cohortAcceptance": {
+    "owner": "Common complete-graph orchestrator",
+    "manifest": "Freeze the complete selected graph and exact harness/source revisions before dispatch. These routes alone are not the complete graph.",
+    "requestInterval": "Use one cohort_id, manifest_sha256 and requested_at for every dispatch; measure the whole graph through its final required terminal outcome.",
+    "provenance": "Every job must retain matching before/after source HEAD, clean tracked status, source tree, declared Cargo manifests/locks, tool/task inputs, cohort and harness revision.",
+    "tests": "Reconcile all selected test identities to actual outcomes, source-declared ignored disposition, or retained genuine compilation blocker. A terminal fail-fast process is not complete execution.",
+    "windows": "Retain the original file-redirection assertion failure. Reconcile merged-stream assertion result separately. Uncaptured-console completion requires its own provider step log to contain the exact expected version line.",
+    "failureAccounting": "Historical source failures remain failures. A later pass is a separate observation, not a cause or fix. Do not union development runs as full-graph latency."
+  },
+  "localControls": {
+    "provenance": {
+      "verifiedAt": "2026-10-17T05:19:14.661Z",
+      "positiveCases": [
+        {
+          "kind": "native",
+          "source": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+          "before": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "native",
+            "phase": "before",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:04.001Z",
+            "expectedSource": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+            "harnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+              "trackedStatus": "",
+              "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2464,
+                  "sha256": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199573,
+                  "sha256": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 16561,
+                  "sha256": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 36536,
+                  "sha256": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "after": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "native",
+            "phase": "after",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:04.842Z",
+            "expectedSource": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+            "harnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+              "trackedStatus": "",
+              "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2464,
+                  "sha256": "a9575db9cbea94dd6f67d484f497036a598ac056b9a3f175fc7b7a3923bc5640"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199573,
+                  "sha256": "a8e15b9bb175f23c4025074aaa9b4e4f676e4ea18fabf3c03fefc82ea8c210e4"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 16561,
+                  "sha256": "43113c5f416d173ccda4c41c508dde121e4240a4ccd2458e0a3286ed7477485c"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 36536,
+                  "sha256": "4b7a16c9a389a27bc9aa6cb548d2862d00c835457845201d6bce05c59a06b64b"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "inputHashesIndependentlyVerified": true
+        },
+        {
+          "kind": "native",
+          "source": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "before": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "native",
+            "phase": "before",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:05.653Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "after": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "native",
+            "phase": "after",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:06.362Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "inputHashesIndependentlyVerified": true
+        },
+        {
+          "kind": "windows",
+          "source": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "before": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "windows",
+            "phase": "before",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:07.158Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "c8abb557b6fb8444cc65a5892802d9aab01d1130",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "after": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "windows",
+            "phase": "after",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:07.960Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "c8abb557b6fb8444cc65a5892802d9aab01d1130",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "inputHashesIndependentlyVerified": true
+        },
+        {
+          "kind": "alpine",
+          "source": "3434eaa455d569c18b52cf15100f77f9db251d21",
+          "before": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "alpine",
+            "phase": "before",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:08.659Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "707162e5b43edf04703c9e28bf905ba6eb3fc45e",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/cli/nested-wayland-session/Cargo.lock": {
+                  "bytes": 71285,
+                  "sha256": "6e3d8dea4a55e70c00330e2baa50a470d686e8a3b68603596b998392e4a2f644"
+                },
+                "package/cli/nested-wayland-session/Cargo.toml": {
+                  "bytes": 6743,
+                  "sha256": "af70d1041922dfb725821f01daf4afa100d67aa842d9bb1370a49b54f5ab5b4c"
+                },
+                "package/cli/nested-wayland-session/mise.toml": {
+                  "bytes": 156195,
+                  "sha256": "8341cf1da6cbedadf2a97600b374bb49fc1c3f7ceda2ebd14bdc8ecde47b852b"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "after": {
+            "schemaVersion": 1,
+            "event": "source-provenance",
+            "caseName": "alpine",
+            "phase": "after",
+            "cohort": {
+              "id": "local-provenance-control",
+              "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "requestedAt": "2026-10-17T05:19:03.182Z"
+            },
+            "observedAt": "2026-10-17T05:19:09.357Z",
+            "expectedSource": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "707162e5b43edf04703c9e28bf905ba6eb3fc45e",
+            "verifierNode": "v26.11.1",
+            "platform": "linux",
+            "architecture": "x64",
+            "identity": {
+              "head": "3434eaa455d569c18b52cf15100f77f9db251d21",
+              "trackedStatus": "",
+              "sourceTree": "0f5ac0b2e84abfa1ff07c394f334a42618ba836e",
+              "inputs": {
+                "clippy.toml": {
+                  "bytes": 344,
+                  "sha256": "b4ed358ce9e6a485b48b78e88bfe59b0519c5d8c15a1ef97d689492861a447bc"
+                },
+                "mise.lock": {
+                  "bytes": 111503,
+                  "sha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733"
+                },
+                "mise.toml": {
+                  "bytes": 68456,
+                  "sha256": "6b2e4aae56439c3ec573c40882681ce58852df859ce6bfc78612a8bd0afd187c"
+                },
+                "package/cli/nested-wayland-session/Cargo.lock": {
+                  "bytes": 71285,
+                  "sha256": "6e3d8dea4a55e70c00330e2baa50a470d686e8a3b68603596b998392e4a2f644"
+                },
+                "package/cli/nested-wayland-session/Cargo.toml": {
+                  "bytes": 6743,
+                  "sha256": "af70d1041922dfb725821f01daf4afa100d67aa842d9bb1370a49b54f5ab5b4c"
+                },
+                "package/cli/nested-wayland-session/mise.toml": {
+                  "bytes": 156195,
+                  "sha256": "8341cf1da6cbedadf2a97600b374bb49fc1c3f7ceda2ebd14bdc8ecde47b852b"
+                },
+                "package/music-player/desktop-app/.cargo/config.toml": {
+                  "bytes": 2476,
+                  "sha256": "17ac51a5ed9e3ec1bce3ee1235fa3904884fb994ac1480f071d04f2a24c97e07"
+                },
+                "package/music-player/desktop-app/Cargo.lock": {
+                  "bytes": 199351,
+                  "sha256": "c1c9315621c4c5182c80a2137818d808c83df8623023a2f62a3e5f212bc2d895"
+                },
+                "package/music-player/desktop-app/Cargo.toml": {
+                  "bytes": 17145,
+                  "sha256": "263bc7bf0b0af05e32e22dac60b9b499249488332de48cf9bd93db8e915f537d"
+                },
+                "package/music-player/desktop-app/Containerfile.alpine": {
+                  "bytes": 11126,
+                  "sha256": "0ee9711296f3be10df21d192b5f9c42cd6cadb0eb1c73ca5f7b18388567d8e49"
+                },
+                "package/music-player/desktop-app/mise.toml": {
+                  "bytes": 43814,
+                  "sha256": "274c5c00c67d4bd66f148c9aa46d7aec3846faac78eac4a2d939fe43bfc0462d"
+                },
+                "package/music-player/truepeak-core/Cargo.lock": {
+                  "bytes": 63830,
+                  "sha256": "9bf611d703ba946c5d359753d93d827d5b0992c07e23d5504f9c328f0d01db3e"
+                },
+                "package/music-player/truepeak-core/Cargo.toml": {
+                  "bytes": 5444,
+                  "sha256": "7cd5f98f496ffdd80d46634c45b289c5d9bcf6adfcbf3ab08ec95016c3a8cbe1"
+                },
+                "package/music-player/truepeak-core/mise.toml": {
+                  "bytes": 1376,
+                  "sha256": "e44894b10e55d85c7c2972108b19d835193a8385d7d74714ab49eaa01237dac7"
+                },
+                "pnpm-lock.yaml": {
+                  "bytes": 408665,
+                  "sha256": "bcf3a948a1d8cad0c7c22af26856af36779a963263a2d2d1b2755c3fa00e6049"
+                },
+                "pnpm-workspace.yaml": {
+                  "bytes": 21503,
+                  "sha256": "71896d861ea5bd951077b4435a59c39350708703364d47ea2a7bb3cc704bec5c"
+                }
+              }
+            }
+          },
+          "inputHashesIndependentlyVerified": true
+        }
+      ],
+      "negativeFixture": "<home>/temp/agent/coherent-provenance-control-XFNUCH",
+      "negativeCases": [
+        {
+          "case": "wrong expected source",
+          "status": 1,
+          "stderr": "[//package/dev-script/task-util:trial:depot:coherent:provenance] $ const { execFileSync } = await import('node:child_process')\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Consumer checkout differs from immutable source revision\n+ actual - expected\n\n+ 'e36f68cc002af075a52c9339e45bd00458a63848'\n- '0000000000000000000000000000000000000000'\n\n    at [eval]:36:8 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 'e36f68cc002af075a52c9339e45bd00458a63848',\n  expected: '0000000000000000000000000000000000000000',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.11.1\n[//package/dev-script/task-util:trial:depot:coherent:provenance] ERROR task failed\n",
+          "stdout": "{\"schemaVersion\":1,\"event\":\"source-provenance\",\"caseName\":\"windows\",\"phase\":\"before\",\"cohort\":{\"id\":\"local-provenance-control\",\"manifestSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"requestedAt\":\"2026-10-17T05:19:03.182Z\"},\"observedAt\":\"2026-10-17T05:19:11.840Z\",\"expectedSource\":\"0000000000000000000000000000000000000000\",\"harnessRevision\":\"c8abb557b6fb8444cc65a5892802d9aab01d1130\",\"verifierNode\":\"v26.11.1\",\"platform\":\"linux\",\"architecture\":\"x64\",\"identity\":{\"head\":\"e36f68cc002af075a52c9339e45bd00458a63848\",\"trackedStatus\":\"\",\"sourceTree\":\"b74c5a668ca05dc5d9fa6645d376daf9120acbad\",\"inputs\":{\"clippy.toml\":{\"bytes\":26,\"sha256\":\"bd8bae0a41e25db88e98196f6c7711c915a008b5e76caff0fb7a2baf29f86c3c\"},\"mise.lock\":{\"bytes\":24,\"sha256\":\"371b51bce55c7b90b6192b3d69823e4551a1770b1a067e323fba656e70d3a77c\"},\"mise.toml\":{\"bytes\":24,\"sha256\":\"afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68\"},\"package/music-player/desktop-app/Cargo.lock\":{\"bytes\":58,\"sha256\":\"de409d1ed157005b79b08cc7d6f9f06fbb5a29f7a489dba68bff876e2f8576dd\"},\"package/music-player/desktop-app/Cargo.toml\":{\"bytes\":58,\"sha256\":\"7b8a77c7d58cef3b37bee2b5b0ac8dd0064056c847f0869632a768f47955e21d\"},\"package/music-player/desktop-app/mise.toml\":{\"bytes\":57,\"sha256\":\"213b172ab7686749faf7b1ff09f851c232a1f91c93b4fd113c982e04d9b1a20d\"},\"pnpm-lock.yaml\":{\"bytes\":29,\"sha256\":\"59ab5fc1b20d4be32dcab4472998ae2816868470241816b99175fc7b8fd3a5ce\"},\"pnpm-workspace.yaml\":{\"bytes\":34,\"sha256\":\"dba95b41c0c46216d323b2c4b496e0353abf9753b4fc6388e01314f8da3cd33f\"}}}}\n"
+        },
+        {
+          "case": "wrong dispatched harness",
+          "status": 1,
+          "stderr": "[//package/dev-script/task-util:trial:depot:coherent:provenance] $ const { execFileSync } = await import('node:child_process')\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Provenance harness differs from dispatched workflow revision\n+ actual - expected\n\n+ 'c8abb557b6fb8444cc65a5892802d9aab01d1130'\n- '0000000000000000000000000000000000000000'\n\n    at [eval]:31:36 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 'c8abb557b6fb8444cc65a5892802d9aab01d1130',\n  expected: '0000000000000000000000000000000000000000',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.11.1\n[//package/dev-script/task-util:trial:depot:coherent:provenance] ERROR task failed\n",
+          "stdout": ""
+        },
+        {
+          "case": "missing manifest hash",
+          "status": 1,
+          "stderr": "[//package/dev-script/task-util:trial:depot:coherent:provenance] $ const { execFileSync } = await import('node:child_process')\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: COHORT_MANIFEST_SHA256 must bind the complete manifest\n    at [eval]:13:8 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: '',\n  expected: /^[a-f0-9]{64}$/,\n  operator: 'match',\n  diff: 'simple'\n}\n\nNode.js v26.11.1\n[//package/dev-script/task-util:trial:depot:coherent:provenance] ERROR task failed\n",
+          "stdout": ""
+        },
+        {
+          "case": "tracked source mutation",
+          "status": 1,
+          "stderr": "[//package/dev-script/task-util:trial:depot:coherent:provenance] $ const { execFileSync } = await import('node:child_process')\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Consumer changed tracked historical source\n\n'M mise.lock' !== ''\n\n    at [eval]:37:8 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 'M mise.lock',\n  expected: '',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.11.1\n[//package/dev-script/task-util:trial:depot:coherent:provenance] ERROR task failed\n",
+          "stdout": "{\"schemaVersion\":1,\"event\":\"source-provenance\",\"caseName\":\"windows\",\"phase\":\"before\",\"cohort\":{\"id\":\"local-provenance-control\",\"manifestSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"requestedAt\":\"2026-10-17T05:19:03.182Z\"},\"observedAt\":\"2026-10-17T05:19:13.942Z\",\"expectedSource\":\"e36f68cc002af075a52c9339e45bd00458a63848\",\"harnessRevision\":\"c8abb557b6fb8444cc65a5892802d9aab01d1130\",\"verifierNode\":\"v26.11.1\",\"platform\":\"linux\",\"architecture\":\"x64\",\"identity\":{\"head\":\"e36f68cc002af075a52c9339e45bd00458a63848\",\"trackedStatus\":\"M mise.lock\",\"sourceTree\":\"b74c5a668ca05dc5d9fa6645d376daf9120acbad\",\"inputs\":{\"clippy.toml\":{\"bytes\":26,\"sha256\":\"bd8bae0a41e25db88e98196f6c7711c915a008b5e76caff0fb7a2baf29f86c3c\"},\"mise.lock\":{\"bytes\":22,\"sha256\":\"51c2ab635bc6798397aabf22d01d3467919a11e5e697d82b00005af4897ac219\"},\"mise.toml\":{\"bytes\":24,\"sha256\":\"afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68\"},\"package/music-player/desktop-app/Cargo.lock\":{\"bytes\":58,\"sha256\":\"de409d1ed157005b79b08cc7d6f9f06fbb5a29f7a489dba68bff876e2f8576dd\"},\"package/music-player/desktop-app/Cargo.toml\":{\"bytes\":58,\"sha256\":\"7b8a77c7d58cef3b37bee2b5b0ac8dd0064056c847f0869632a768f47955e21d\"},\"package/music-player/desktop-app/mise.toml\":{\"bytes\":57,\"sha256\":\"213b172ab7686749faf7b1ff09f851c232a1f91c93b4fd113c982e04d9b1a20d\"},\"pnpm-lock.yaml\":{\"bytes\":29,\"sha256\":\"59ab5fc1b20d4be32dcab4472998ae2816868470241816b99175fc7b8fd3a5ce\"},\"pnpm-workspace.yaml\":{\"bytes\":34,\"sha256\":\"dba95b41c0c46216d323b2c4b496e0353abf9753b4fc6388e01314f8da3cd33f\"}}}}\n"
+        },
+        {
+          "case": "mismatched retained before hash",
+          "status": 1,
+          "stderr": "[//package/dev-script/task-util:trial:depot:coherent:provenance] $ const { execFileSync } = await import('node:child_process')\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Consumer changed frozen source or input hashes\n+ actual - expected\n... Skipped lines\n\n  {\n    head: 'e36f68cc002af075a52c9339e45bd00458a63848',\n    inputs: {\n      'clippy.toml': {\n        bytes: 26,\n...\n        bytes: 24,\n+       sha256: '371b51bce55c7b90b6192b3d69823e4551a1770b1a067e323fba656e70d3a77c'\n-       sha256: '0000000000000000000000000000000000000000000000000000000000000000'\n      },\n      'mise.toml': {\n        bytes: 24,\n        sha256: 'afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68'\n      },\n\n    at [eval]:43:10 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: {\n    head: 'e36f68cc002af075a52c9339e45bd00458a63848',\n    trackedStatus: '',\n    sourceTree: 'b74c5a668ca05dc5d9fa6645d376daf9120acbad',\n    inputs: {\n      'clippy.toml': {\n        bytes: 26,\n        sha256: 'bd8bae0a41e25db88e98196f6c7711c915a008b5e76caff0fb7a2baf29f86c3c'\n      },\n      'mise.lock': {\n        bytes: 24,\n        sha256: '371b51bce55c7b90b6192b3d69823e4551a1770b1a067e323fba656e70d3a77c'\n      },\n      'mise.toml': {\n        bytes: 24,\n        sha256: 'afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68'\n      },\n      'package/music-player/desktop-app/Cargo.lock': {\n        bytes: 58,\n        sha256: 'de409d1ed157005b79b08cc7d6f9f06fbb5a29f7a489dba68bff876e2f8576dd'\n      },\n      'package/music-player/desktop-app/Cargo.toml': {\n        bytes: 58,\n        sha256: '7b8a77c7d58cef3b37bee2b5b0ac8dd0064056c847f0869632a768f47955e21d'\n      },\n      'package/music-player/desktop-app/mise.toml': {\n        bytes: 57,\n        sha256: '213b172ab7686749faf7b1ff09f851c232a1f91c93b4fd113c982e04d9b1a20d'\n      },\n      'pnpm-lock.yaml': {\n        bytes: 29,\n        sha256: '59ab5fc1b20d4be32dcab4472998ae2816868470241816b99175fc7b8fd3a5ce'\n      },\n      'pnpm-workspace.yaml': {\n        bytes: 34,\n        sha256: 'dba95b41c0c46216d323b2c4b496e0353abf9753b4fc6388e01314f8da3cd33f'\n      }\n    }\n  },\n  expected: {\n    head: 'e36f68cc002af075a52c9339e45bd00458a63848',\n    trackedStatus: '',\n    sourceTree: 'b74c5a668ca05dc5d9fa6645d376daf9120acbad',\n    inputs: {\n      'clippy.toml': {\n        bytes: 26,\n        sha256: 'bd8bae0a41e25db88e98196f6c7711c915a008b5e76caff0fb7a2baf29f86c3c'\n      },\n      'mise.lock': {\n        bytes: 24,\n        sha256: '0000000000000000000000000000000000000000000000000000000000000000'\n      },\n      'mise.toml': {\n        bytes: 24,\n        sha256: 'afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68'\n      },\n      'package/music-player/desktop-app/Cargo.lock': {\n        bytes: 58,\n        sha256: 'de409d1ed157005b79b08cc7d6f9f06fbb5a29f7a489dba68bff876e2f8576dd'\n      },\n      'package/music-player/desktop-app/Cargo.toml': {\n        bytes: 58,\n        sha256: '7b8a77c7d58cef3b37bee2b5b0ac8dd0064056c847f0869632a768f47955e21d'\n      },\n      'package/music-player/desktop-app/mise.toml': {\n        bytes: 57,\n        sha256: '213b172ab7686749faf7b1ff09f851c232a1f91c93b4fd113c982e04d9b1a20d'\n      },\n      'pnpm-lock.yaml': {\n        bytes: 29,\n        sha256: '59ab5fc1b20d4be32dcab4472998ae2816868470241816b99175fc7b8fd3a5ce'\n      },\n      'pnpm-workspace.yaml': {\n        bytes: 34,\n        sha256: 'dba95b41c0c46216d323b2c4b496e0353abf9753b4fc6388e01314f8da3cd33f'\n      }\n    }\n  },\n  operator: 'deepStrictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.11.1\n[//package/dev-script/task-util:trial:depot:coherent:provenance] ERROR task failed\n",
+          "stdout": "{\"schemaVersion\":1,\"event\":\"source-provenance\",\"caseName\":\"windows\",\"phase\":\"after\",\"cohort\":{\"id\":\"local-provenance-control\",\"manifestSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"requestedAt\":\"2026-10-17T05:19:03.182Z\"},\"observedAt\":\"2026-10-17T05:19:14.642Z\",\"expectedSource\":\"e36f68cc002af075a52c9339e45bd00458a63848\",\"harnessRevision\":\"c8abb557b6fb8444cc65a5892802d9aab01d1130\",\"verifierNode\":\"v26.11.1\",\"platform\":\"linux\",\"architecture\":\"x64\",\"identity\":{\"head\":\"e36f68cc002af075a52c9339e45bd00458a63848\",\"trackedStatus\":\"\",\"sourceTree\":\"b74c5a668ca05dc5d9fa6645d376daf9120acbad\",\"inputs\":{\"clippy.toml\":{\"bytes\":26,\"sha256\":\"bd8bae0a41e25db88e98196f6c7711c915a008b5e76caff0fb7a2baf29f86c3c\"},\"mise.lock\":{\"bytes\":24,\"sha256\":\"371b51bce55c7b90b6192b3d69823e4551a1770b1a067e323fba656e70d3a77c\"},\"mise.toml\":{\"bytes\":24,\"sha256\":\"afe3786fd49ddea535c724a79dcec832aaf16bdb25cc5edcc93e97bcaf46ad68\"},\"package/music-player/desktop-app/Cargo.lock\":{\"bytes\":58,\"sha256\":\"de409d1ed157005b79b08cc7d6f9f06fbb5a29f7a489dba68bff876e2f8576dd\"},\"package/music-player/desktop-app/Cargo.toml\":{\"bytes\":58,\"sha256\":\"7b8a77c7d58cef3b37bee2b5b0ac8dd0064056c847f0869632a768f47955e21d\"},\"package/music-player/desktop-app/mise.toml\":{\"bytes\":57,\"sha256\":\"213b172ab7686749faf7b1ff09f851c232a1f91c93b4fd113c982e04d9b1a20d\"},\"pnpm-lock.yaml\":{\"bytes\":29,\"sha256\":\"59ab5fc1b20d4be32dcab4472998ae2816868470241816b99175fc7b8fd3a5ce\"},\"pnpm-workspace.yaml\":{\"bytes\":34,\"sha256\":\"dba95b41c0c46216d323b2c4b496e0353abf9753b4fc6388e01314f8da3cd33f\"}}}}\n"
+        }
+      ],
+      "workflows": [
+        {
+          "kind": "native",
+          "path": ".github/workflows/music-player-windows.yml",
+          "originalRunCommands": 10,
+          "allOriginalCommandsPreserved": true,
+          "addedVerifierCommands": 2
+        },
+        {
+          "kind": "windows",
+          "path": ".github/workflows/music-player-windows.yml",
+          "originalRunCommands": 16,
+          "allOriginalCommandsPreserved": true,
+          "addedVerifierCommands": 5
+        },
+        {
+          "kind": "alpine",
+          "path": ".github/workflows/music-player-alpine.yml",
+          "originalRunCommands": 10,
+          "allOriginalCommandsPreserved": true,
+          "addedVerifierCommands": 3
+        }
+      ],
+      "limitation": "Local controls verify adapter/provenance behavior and unchanged workflow command bodies. New provenance steps still require cloud execution within the shared final replay."
+    },
+    "powershell": {
+      "verifiedAt": "2026-10-17T05:14:51.581Z",
+      "fixture": "<home>/temp/agent/coherent-powershell-control-dk4QUf",
+      "image": "mcr.microsoft.com/powershell@sha256:73c08403182e3cd1a62176b6723645b2d2037cda8deefc0e2c2c01cb814abe43",
+      "imageId": "0feac0f6bbe6480c2f7fa5c93d8b9e9d14d3219ed83d98cd66bf7242735c90b0",
+      "nodeFixtureRuntime": {
+        "version": "v26.12.0",
+        "sha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+        "sharedLibrary": {
+          "path": "/usr/lib64/libatomic.so.1",
+          "sha256": "b08060687ffb5768003b0c283cac5bddaa84ea5526d4d7bcb5994af98af5a130"
+        }
+      },
+      "resourceBounds": {
+        "memoryBytes": 2147483648,
+        "cpus": 2,
+        "network": "none",
+        "actualCgroup": {
+          "memoryMax": "2147483648",
+          "cpuMax": "200000 100000"
+        }
+      },
+      "primarySource": {
+        "url": "https://github.com/PowerShell/PowerShell-Docker/blob/master/README.md",
+        "blob": "040c159e4232351ec62d4953bc1c5e6030cbf5c2",
+        "sha256": "2c5aa96ca531ded9d9a1420f56db4184e0c864ff8ab40e6fbcfdb66b565a5ec2"
+      },
+      "results": [
+        {
+          "mode": "positive",
+          "probe": "merged-stream",
+          "status": 0,
+          "stdout": "merged streams: music-player 0.0.0\n",
+          "stderr": "",
+          "record": {
+            "event": "independent-consumer-result",
+            "status": "passed",
+            "afterProvenance": "after.json",
+            "schemaVersion": 1,
+            "originalProbeSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "expectedVersion": "music-player 0.0.0",
+            "harnessRevision": "local-disposable-control",
+            "probe": "powershell-merged-stream",
+            "powershellVersion": "7.4.2",
+            "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "requestedAt": "2026-10-17T05:13:31.786Z",
+            "beforeProvenance": "before.json",
+            "cohortId": "local-powershell-control",
+            "requiresStepLogVersionCheck": false,
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "actualCaptured": "music-player 0.0.0"
+          },
+          "exactExpectedVersionLineObserved": false,
+          "acceptance": true
+        },
+        {
+          "mode": "positive",
+          "probe": "uncaptured-console",
+          "status": 0,
+          "stdout": "uncaptured run follows; the next line is printed by the program itself\nmusic-player 0.0.0\n",
+          "stderr": "",
+          "record": {
+            "originalProbeSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "cohortId": "local-powershell-control",
+            "afterProvenance": "after.json",
+            "beforeProvenance": "before.json",
+            "requiresStepLogVersionCheck": true,
+            "probe": "powershell-uncaptured-console",
+            "event": "independent-consumer-result",
+            "harnessRevision": "local-disposable-control",
+            "powershellVersion": "7.4.2",
+            "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "actualCaptured": null,
+            "expectedVersion": "music-player 0.0.0",
+            "status": "completed",
+            "requestedAt": "2026-10-17T05:13:32.128Z",
+            "schemaVersion": 1
+          },
+          "exactExpectedVersionLineObserved": true,
+          "acceptance": true
+        },
+        {
+          "mode": "negative",
+          "probe": "merged-stream",
+          "status": 1,
+          "stdout": "merged streams: wrong-version\n",
+          "stderr": "\u001b[31;1mException: \u001b[0m\n\u001b[31;1m\u001b[36;1mLine |\u001b[0m\n\u001b[31;1m\u001b[36;1m\u001b[36;1m  12 | \u001b[0m … ed -cne $expected) { \u001b[36;1mthrow \"merged '$merged', expected '$expected'\"\u001b[0m }\u001b[0m\n\u001b[31;1m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m     | \u001b[31;1m                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\u001b[0m\n\u001b[31;1m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1mmerged 'wrong-version', expected 'music-player 0.0.0'\u001b[0m\n",
+          "record": {
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "probe": "powershell-merged-stream",
+            "originalProbeSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "beforeProvenance": "before.json",
+            "event": "independent-consumer-result",
+            "status": "failed",
+            "harnessRevision": "local-disposable-control",
+            "expectedVersion": "music-player 0.0.0",
+            "schemaVersion": 1,
+            "powershellVersion": "7.4.2",
+            "requiresStepLogVersionCheck": false,
+            "actualCaptured": "wrong-version",
+            "requestedAt": "2026-10-17T05:13:37.471Z",
+            "afterProvenance": "after.json",
+            "cohortId": "local-powershell-control"
+          },
+          "exactExpectedVersionLineObserved": false,
+          "acceptance": false
+        },
+        {
+          "mode": "negative",
+          "probe": "uncaptured-console",
+          "status": 0,
+          "stdout": "uncaptured run follows; the next line is printed by the program itself\nwrong-version\n",
+          "stderr": "",
+          "record": {
+            "afterProvenance": "after.json",
+            "probe": "powershell-uncaptured-console",
+            "expectedVersion": "music-player 0.0.0",
+            "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "originalProbeSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+            "harnessRevision": "local-disposable-control",
+            "requiresStepLogVersionCheck": true,
+            "status": "completed",
+            "cohortId": "local-powershell-control",
+            "requestedAt": "2026-10-17T05:14:46.243Z",
+            "powershellVersion": "7.4.2",
+            "actualCaptured": null,
+            "event": "independent-consumer-result",
+            "beforeProvenance": "before.json",
+            "schemaVersion": 1
+          },
+          "exactExpectedVersionLineObserved": false,
+          "acceptance": false
+        }
+      ],
+      "limitation": "Linux PowerShell controls exercise copied original commands and result recording with disposable executable fixtures. They do not prove Windows GUI console/handle behavior; the common Windows cloud replay must exercise the exact source binary and reconcile the uncaptured step log."
+    }
+  },
+  "clippyAudit": {
+    "task": "//package/music-player/desktop-app:lint:clippy",
+    "command": "cargo clippy --release --all-targets -- -D warnings",
+    "nativeRoute": "Calls the source task directly, retaining source environment and all-target context.",
+    "comparison": "GHA run38847322559 log line2888 records the same release/all-target command. Linux km2xkxwpjs at3434 and63r0kzrsmn atcb95 passed the source task. Prior macOS/Windows implicit_return diagnostics remain separate actual failures; matching flags alone establish no platform cause."
+  },
+  "historicalEvidence": "doc/audit/depot-native-recovery-2026-10-17.evidence.json",
+  "limitations": [
+    "Local controls verify provenance, copied PowerShell probe bodies, and result recording; the new cloud steps have not run.",
+    "Linux disposable executable controls do not prove Windows GUI console or handle behavior.",
+    "The original Alpine smoke command is preserved; each selected internal smoke scenario still needs actual provider outcome evidence."
+  ],
+  "sourceGuardRecovery": {
+    "evidence": "doc/audit/depot-route-source-guards-2026-10-17.evidence.json",
+    "accepted": 20,
+    "rejected": 40,
+    "issue": 1114,
+    "observedAt": "2026-10-17T06:56:39.843Z"
+  },
+  "preCommonBindingRoutes": [
+    {
+      "kind": "native",
+      "ref": "trial/depot-coherent-native-20261017",
+      "harnessRevision": "0cc63fdf5768a69a7d42c55f48adfe63e3c3341a",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "workflowName": "depot-complete-native-hosts",
+      "workflowSha256": "88e8d71e76c9c80abc2e33724993611550d5f1c2f4d489dc5f2f9dca2b93ee78",
+      "workflowGitBlob": "e83f36b38c078aa0fadafeaf5e96bc4ea0e8d37d",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "5e87e40a4a3a2c5eddebbdf1f35a7ffdb2802524adab761cde75f2d8b376183d",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "1929e9caed5c7ebf550b5edeb68d550bb961e01f7d36a09fa234f90af95a9dbd",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [
+        "source_head",
+        "hosts"
+      ],
+      "sourceRevision": "source_head input",
+      "consumerCommands": {
+        "kind": "native",
+        "path": ".github/workflows/music-player-windows.yml",
+        "originalRunCommands": 10,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 2
+      },
+      "runnerSelection": {
+        "both": [
+          "windows-2025",
+          "macos-15-intel"
+        ],
+        "macos": [
+          "macos-15-intel"
+        ]
+      },
+      "nextestPolicy": "Exact source package test task and cargo dispatcher with only --no-fail-fast inserted in memory. Original/adapted hashes are emitted by the proven adapter; tracked source is untouched.",
+      "previousHarnessRevision": "65ffc5cc26e794a8317d404a9db25dcc2e9daec2",
+      "providerTaskBytesVerified": true
+    },
+    {
+      "kind": "windows",
+      "ref": "trial/depot-coherent-windows-20261017",
+      "harnessRevision": "f994e3f6902ad4c4b887822f18695d57da736ca4",
+      "workflow": ".github/workflows/music-player-windows.yml",
+      "workflowName": "depot-complete-windows-test-recovery",
+      "workflowSha256": "b65e49ea07de8c0537a83a91d1394a933aaa48dd636fa68ddaf3c1f04fe63b9f",
+      "workflowGitBlob": "0e6e9cf83a89fa8158089451ab266f8dd7b5b6f0",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "7384f60e577dac814a69e57da4a033af99e0a29c1fb57c45a4f670c38627fe2e",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "1929e9caed5c7ebf550b5edeb68d550bb961e01f7d36a09fa234f90af95a9dbd",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [],
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "consumerCommands": {
+        "kind": "windows",
+        "path": ".github/workflows/music-player-windows.yml",
+        "originalRunCommands": 16,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 5
+      },
+      "matrix": [
+        {
+          "name": "msvc-x64",
+          "runner": "windows-2025",
+          "target": "x86_64-pc-windows-msvc"
+        },
+        {
+          "name": "msvc-arm64",
+          "runner": "windows-11-arm",
+          "target": "aarch64-pc-windows-msvc"
+        },
+        {
+          "name": "gnu-x64-ucrt64",
+          "runner": "windows-2025",
+          "target": "x86_64-pc-windows-gnu"
+        }
+      ],
+      "nextestPolicy": "Original source command already includes --no-fail-fast; independent execution requires successful test compilation.",
+      "independentPowerShellProbes": {
+        "source": "3434eaa455d569c18b52cf15100f77f9db251d21",
+        "originalStepBody": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n# The output is captured, so PowerShell waits for the program and the text reaches the step output.\n$captured = (& $exe --version | Out-String).Trim()\nWrite-Output \"captured in the pipeline: $captured\"\nif ($captured -cne $expected) { throw \"captured '$captured', expected '$expected'\" }\n# The output goes to a file through PowerShell's redirection operator.\n$file = Join-Path $env:RUNNER_TEMP 'out.txt'\n& $exe --version > $file\n$fromFile = (Get-Content -Raw -Path $file).Trim()\nWrite-Output \"out.txt holds: $fromFile\"\nif ($fromFile -cne $expected) { throw \"out.txt holds '$fromFile', expected '$expected'\" }\n# The same through the 2>&1 merge that scripts use to log both streams.\n$merged = (& $exe --version 2>&1 | Out-String).Trim()\nWrite-Output \"merged streams: $merged\"\nif ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }\n# Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n# the text still lands in this step's log. The sleep keeps this step open until the program has written.\nWrite-Output 'uncaptured run follows; the next line is printed by the program itself'\n& $exe --version\nStart-Sleep -Seconds 5",
+        "probes": [
+          {
+            "name": "merged-stream",
+            "label": "powershell-merged-stream",
+            "original": "# The same through the 2>&1 merge that scripts use to log both streams.\n$merged = (& $exe --version 2>&1 | Out-String).Trim()\nWrite-Output \"merged streams: $merged\"\nif ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }",
+            "originalSha256": "70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90",
+            "script": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n$probeStatus = 'failed'\n$merged = ''\ntry {\n  # The same through the 2>&1 merge that scripts use to log both streams.\n  $merged = (& $exe --version 2>&1 | Out-String).Trim()\n  Write-Output \"merged streams: $merged\"\n  if ($merged -cne $expected) { throw \"merged '$merged', expected '$expected'\" }\n  $probeStatus = 'passed'\n}\nfinally {\n  $evidenceDirectory = Join-Path $env:RUNNER_TEMP 'depot-provenance'\n  New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null\n  $record = @{\n    schemaVersion = 1\n    event = 'independent-consumer-result'\n    probe = 'powershell-merged-stream'\n    status = $probeStatus\n    expectedVersion = $expected\n    actualCaptured = $merged\n    requiresStepLogVersionCheck = $false\n    sourceRevision = $env:SOURCE_HEAD\n    harnessRevision = $env:GITHUB_SHA\n    cohortId = $env:COHORT_ID\n    manifestSha256 = $env:COHORT_MANIFEST_SHA256\n    requestedAt = $env:COHORT_REQUESTED_AT\n    originalProbeSha256 = '70254e9a8a0d74be169da3e90243fb9bb60046be08551fd5d1153a822a8c5c90'\n    beforeProvenance = 'before.json'\n    afterProvenance = 'after.json'\n    powershellVersion = $PSVersionTable.PSVersion.ToString()\n  }\n  $recordPath = Join-Path $evidenceDirectory 'powershell-merged-stream.json'\n  $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding utf8\n}",
+            "scriptSha256": "ccf0ff885f25f6215d244ee6980e01e712cf8d5806d38124b79ad7b3b555dd55"
+          },
+          {
+            "name": "uncaptured-console",
+            "label": "powershell-uncaptured-console",
+            "original": "# Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n# the text still lands in this step's log. The sleep keeps this step open until the program has written.\nWrite-Output 'uncaptured run follows; the next line is printed by the program itself'\n& $exe --version\nStart-Sleep -Seconds 5",
+            "originalSha256": "563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d",
+            "script": "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\n$exe = Join-Path (Get-Location) \"target/$env:TARGET/debug/music-player.exe\"\n$version = (Select-String -Path Cargo.toml -Pattern '^version = \"(.*)\"$' | Select-Object -First 1).Matches.Groups[1].Value\n$expected = \"music-player $version\"\n$probeStatus = 'failed'\ntry {\n  # Not captured: PowerShell does not wait for a GUI program, but the program writes to the handle it inherited, so\n  # the text still lands in this step's log. The sleep keeps this step open until the program has written.\n  Write-Output 'uncaptured run follows; the next line is printed by the program itself'\n  & $exe --version\n  Start-Sleep -Seconds 5\n  $probeStatus = 'completed'\n}\nfinally {\n  $evidenceDirectory = Join-Path $env:RUNNER_TEMP 'depot-provenance'\n  New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null\n  $record = @{\n    schemaVersion = 1\n    event = 'independent-consumer-result'\n    probe = 'powershell-uncaptured-console'\n    status = $probeStatus\n    expectedVersion = $expected\n    actualCaptured = $null\n    requiresStepLogVersionCheck = $true\n    sourceRevision = $env:SOURCE_HEAD\n    harnessRevision = $env:GITHUB_SHA\n    cohortId = $env:COHORT_ID\n    manifestSha256 = $env:COHORT_MANIFEST_SHA256\n    requestedAt = $env:COHORT_REQUESTED_AT\n    originalProbeSha256 = '563a0bb5973b5781378dd00666cc9d59d245449fd8ec4189ba5d690feb09c69d'\n    beforeProvenance = 'before.json'\n    afterProvenance = 'after.json'\n    powershellVersion = $PSVersionTable.PSVersion.ToString()\n  }\n  $recordPath = Join-Path $evidenceDirectory 'powershell-uncaptured-console.json'\n  $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding utf8\n}",
+            "scriptSha256": "a933e0dc3264c2bb2640a7f800a2163c5a59631b73913eddaff101923865cfda"
+          }
+        ],
+        "acceptance": "Merged-stream probe must pass its original assertion. Uncaptured-console probe completion additionally requires the exact expected version line in its own provider step log. Shared route before/after provenance must match."
+      },
+      "originalFileAssertion": "Unchanged. Failure remains a source consumer failure even if independent continuation probes pass.",
+      "previousHarnessRevision": "c8abb557b6fb8444cc65a5892802d9aab01d1130",
+      "providerTaskBytesVerified": true
+    },
+    {
+      "kind": "alpine",
+      "ref": "trial/depot-coherent-alpine-20261017",
+      "harnessRevision": "30ceb0c1f8e215988e53fee6389b12b78b215a6f",
+      "workflow": ".github/workflows/music-player-alpine.yml",
+      "workflowName": "music-player-alpine",
+      "workflowSha256": "b7560318b8c6a08355ab064a52c3eb51e9bb662b762ab6f3ba01be70d1bd14cc",
+      "workflowGitBlob": "6cea50486370157dd27e8251c453bcd03e152829",
+      "providerBytesVerified": true,
+      "taskFile": "package/dev-script/task-util/mise.toml",
+      "taskFileSha256": "7384f60e577dac814a69e57da4a033af99e0a29c1fb57c45a4f670c38627fe2e",
+      "provenanceTask": "//package/dev-script/task-util:trial:depot:coherent:provenance",
+      "provenanceTaskBlockSha256": "1929e9caed5c7ebf550b5edeb68d550bb961e01f7d36a09fa234f90af95a9dbd",
+      "commonInputs": [
+        "cohort_id",
+        "manifest_sha256",
+        "requested_at"
+      ],
+      "additionalInputs": [],
+      "sourceRevision": "3434eaa455d569c18b52cf15100f77f9db251d21",
+      "consumerCommands": {
+        "kind": "alpine",
+        "path": ".github/workflows/music-player-alpine.yml",
+        "originalRunCommands": 10,
+        "allOriginalCommandsPreserved": true,
+        "addedVerifierCommands": 3
+      },
+      "matrix": [
+        {
+          "arch": "x86_64",
+          "runner": "ubuntu-latest"
+        },
+        {
+          "arch": "aarch64",
+          "runner": "ubuntu-24.04-arm"
+        }
+      ],
+      "nextestPolicy": "Original source command includes --locked --features alsa-fallback --no-fail-fast.",
+      "independence": "Tests, app build, and compositor build require images/cache directories. Staging requires both successful builds; smoke requires staged binaries. Failed test assertions do not censor independent builds or smoke.",
+      "previousHarnessRevision": "707162e5b43edf04703c9e28bf905ba6eb3fc45e",
+      "providerTaskBytesVerified": true
+    }
+  ],
+  "commonManifestGuardEvidence": "doc/audit/depot-common-manifest-route-guards-2026-10-17.evidence.json",
+  "routeHistoryRecovery": {
+    "observedAt": "2026-10-17T07:53:39.717Z",
+    "immutableSourceCommit": "cc092ebea1dbbba146e51424238020555f7e4461",
+    "reason": "The initial writer shared the mutable routes array with its history field. This correction reads the original route objects from the immutable prior commit."
+  }
+}

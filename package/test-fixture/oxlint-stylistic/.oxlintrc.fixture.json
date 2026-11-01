@@ -11,6 +11,7 @@
     "**/node_modules"
   ],
   "rules": {
+    "stylistic/indentation": "error",
     "stylistic/require-asterisk-prefix": [
       "error",
       "never"

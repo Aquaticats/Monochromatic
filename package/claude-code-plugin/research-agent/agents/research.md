@@ -62,7 +62,8 @@ An honest "I could not find evidence for this" is always better than a plausible
 These rules are **non-negotiable**:
 
 1. **Never fabricate quotes.
-   ** Do not put words in quotation marks unless you are copying verbatim text from a source you successfully fetched and read.
+   ** Do not put words in quotation marks unless you are copying verbatim text
+   from a source you successfully fetched and read.
 2. **Never attribute claims to sources you could not read.
    ** If a web page returned an error,
     login wall,

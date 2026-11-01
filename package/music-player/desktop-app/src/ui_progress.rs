@@ -1,33 +1,56 @@
 //! UI-side progress debounce bridge.
 //!
 //! This module sits in the binary crate because it talks to generated Slint
-//! types. The pure timing rule lives in `music_player::progress`; this file
+//! types.
+//!  The pure timing rule lives in `music_player::progress`;
+//!  this file
 //! wires that rule to the on-screen seek bar and KDE taskbar progress.
 
-/// What:     `use std::sync::Mutex;`. A standard-library lock that lets one thread mutate
-///           a value at a time. Sibling: `RwLock`, which has separate read and write
+/// What:
+///      `use std::sync::{LazyLock, Mutex};`.
+///  `LazyLock` is a value built on first use (the UI clock start below).
+///  A standard-library lock that lets one thread mutate
+///           a value at a time.
+///  Sibling:
+///  `RwLock`,
+///  which has separate read and write
 ///           locking.
-/// Why:      The update callback crosses from the engine thread to the UI thread, so the
+/// Why:
+///       The update callback crosses from the engine thread to the UI thread,
+///  so the
 ///           debounce state is shared behind a lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // Mutex<T> ~ a shared value you must lock() before touching
 /// ```
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
-/// What:     `use std::time::Duration;`. A standard-library elapsed time span. Sibling:
-///           `Instant`, a timestamp.
-/// Why:      The caller passes elapsed time since startup into the debouncer.
+/// What: `use std::cell::RefCell;`. A single-threaded cell that allows mutation through a shared reference (sibling:
+/// `Cell<T>`, which only copies values in and out).
+/// Why: the taskbar state machine and the Windows COM cache both sit in a `thread_local!`, which hands out `&` only.
+use std::cell::RefCell;
+
+/// What:
+///      `use std::time::{Duration, Instant};`.
+///  A standard-library elapsed time span.
+///  `Instant` is a timestamp (the UI clock start).
+/// Why:
+///       The caller passes elapsed time since startup into the debouncer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Duration = number; // milliseconds
 /// ```
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// What:     `use music_player::command::Update;`. The engine-to-UI update enum.
-/// Why:      This bridge classifies `Position`, `NowPlaying`, and `Playing` updates.
+/// What:
+///      `use music_player::command::Update;`.
+///  The engine-to-UI update enum.
+/// Why:
+///       This bridge classifies `Position`,
+///  `NowPlaying`,
+///  and `Playing` updates.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,9 +58,12 @@ use std::time::Duration;
 /// ```
 use music_player::command::Update;
 
-/// What:     `use music_player::launcher::Launcher;`. The KDE taskbar-progress signal
+/// What:
+///      `use music_player::launcher::Launcher;`.
+///  The KDE taskbar-progress signal
 ///           helper.
-/// Why:      Accepted progress updates mirror from Slint state to the taskbar.
+/// Why:
+///       Decided taskbar values are delivered through it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,9 +71,17 @@ use music_player::command::Update;
 /// ```
 use music_player::launcher::Launcher;
 
-/// What:     `use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};`. The
+/// What: `use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};`. The taskbar
+/// state machine and its input and output types.
+/// Why: this module feeds every engine message to the machine and delivers what it decides.
+use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};
+
+/// What:
+///      `use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};`.
+///  The
 ///           pure debounce state and update-kind enum.
-/// Why:      Keep timing policy tested in the library while this module handles UI
+/// Why:
+///       Keep timing policy tested in the library while this module handles UI
 ///           plumbing.
 ///
 /// In TS you'd write (pseudocode):
@@ -56,185 +90,93 @@ use music_player::launcher::Launcher;
 /// ```
 use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};
 
-/// What:     `use crate::{apply_update, AppWindow};`. Import the parent binary module's
+/// What:
+///      `use crate::{apply_update, AppWindow};`.
+///  Import the parent binary module's
 ///           generated Slint window type and existing update applier.
-/// Why:      The generated `AppWindow` type only exists in this binary crate, not in the
+/// Why:
+///       The generated `AppWindow` type only exists in this binary crate,
+///  not in the
 ///           library crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { applyUpdate, AppWindow } from "./main";
 /// ```
-use crate::{apply_update, AppWindow};
+use crate::ui_screen::apply_update;
+use crate::AppWindow;
 
-/// What:     `fn progress_fraction(app: &AppWindow) -> f64`. Read the Slint window's
-///           position and duration properties and return a 0..1 fraction. `f64` (sibling
-///           `f32`) for the D-Bus double.
-/// Why:      The on-screen progress and KDE taskbar progress must use the same
-///           post-update state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function progressFraction(app: AppWindow): number {
-///   const duration = app.duration;
-///   return duration > 0 ? app.position / duration : 0;
-/// }
-/// ```
-fn progress_fraction(app: &AppWindow) -> f64 {
-    // What:     `let duration = app.get_duration();`. Read the current track length in
-    //           seconds from the generated Slint getter.
-    // Why:      The duration is the denominator for the fraction.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const duration = app.duration;
-    // ```
-    let duration = app.get_duration();
-    // What:     `if duration > 0.0 { ... } else { ... }`. An `if/else` EXPRESSION guarding
-    //           the division.
-    // Why:      Zero-duration tracks have no meaningful progress fraction.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return duration > 0 ? app.position / duration : 0;
-    // ```
-    if duration > 0.0 {
-        // What:     `f64::from(app.get_position() / duration)`. Divide two Slint `float`
-        //           values (`f32`) and `f64::from(...)` widens the result to `f64` for
-        //           D-Bus. Tail of this branch.
-        // Why:      LauncherEntry expects a double, while Slint stores floats.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return app.position / duration;
-        // ```
-        return f64::from(app.get_position() / duration)
-    } else {
-        // What:     `0.0`. The fallback fraction for absent or zero-length media. Tail of
-        //           this branch.
-        // Why:      Avoid NaN and keep taskbar state deterministic.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return 0;
-        // ```
-        return 0.0
-    }
+// What: `thread_local! { static TASKBAR_STATE: RefCell<TaskbarProgress> = ... }`. The one state machine behind the
+// taskbar bar, kept on the UI thread (`thread_local!` gives each thread its own copy; `RefCell` allows mutation through
+// a shared reference).
+// Why: every engine message reaches this module on the UI thread, in the order the engine sent it, so one machine
+// sees the whole history and the taskbar value never depends on what the window currently shows.
+thread_local! {
+    static TASKBAR_STATE: RefCell<TaskbarProgress> = const { RefCell::new(TaskbarProgress::new()) };
 }
 
-/// What:     `fn emit_launcher_progress(app: &AppWindow, launcher: &Launcher)`. Push the
-///           current progress state to KDE's LauncherEntry signal helper.
-/// Why:      Centralizing this keeps taskbar progress in sync with debounced Slint progress
-///           updates.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function emitLauncherProgress(app: AppWindow, launcher: Launcher): void { ... }
-/// ```
-fn emit_launcher_progress(app: &AppWindow, launcher: &Launcher) {
-    // What:     `let duration = app.get_duration();`. Read the current track length.
-    // Why:      The taskbar bar should be visible only when a real-duration track is
-    //           playing; a zero-duration fixture would otherwise flash an empty bar.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const duration = app.duration;
-    // ```
-    let duration = app.get_duration();
-    // What:     `let visible = app.get_playing() && duration > 0.0;`. Combine play state
-    //           with a positive-duration guard (`&&` short-circuits).
-    // Why:      Paused or zero-duration media should hide the taskbar progress bar.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const visible = app.playing && duration > 0;
-    // ```
-    let visible = app.get_playing() && duration > 0.0;
-    // What:     `let fraction = progress_fraction(app);`. Compute the 0..1 progress once
-    //           into a local, so both progress sinks below read the same value.
-    // Why:      The Linux LauncherEntry signal and the Windows taskbar must agree.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const fraction = progressFraction(app);
-    // ```
-    let fraction = progress_fraction(app);
-    // What:     `launcher.set_progress(fraction, visible);`. Emit the clamped fraction plus
-    //           visibility flag. Real D-Bus on Linux; a no-op on macOS and Windows (the
-    //           Windows taskbar is driven just below).
-    // Why:      KDE updates or hides the taskbar progress indicator.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // launcher.setProgress(fraction, visible);
-    // ```
-    launcher.set_progress(fraction, visible);
-    // What:     `#[cfg(windows)] set_windows_taskbar_progress(app, fraction, visible);`. On
-    //           Windows ONLY, drive the native taskbar progress bar through the
-    //           ITaskbarList3 COM interface (see the Windows region at the bottom).
-    //           `#[cfg(windows)]` removes this statement entirely off Windows, where the
-    //           function does not exist. This runs on the UI/event-loop thread, the only
-    //           place the window handle and COM apartment are valid.
-    // Why:      Windows has no D-Bus LauncherEntry protocol, so the taskbar bar is the
-    //           OS-native equivalent of the Linux launcher progress.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (process.platform === "win32") setWindowsTaskbarProgress(app, fraction, visible);
-    // ```
+/// What: `static UI_CLOCK_START: LazyLock<Instant>`. The moment this module first handled an update.
+/// Why: the taskbar rate limit runs on the time an update is handled on the UI thread, not on the time the engine
+/// sent it; after a UI stall the backlog is replayed at once, and engine time would let every queued tick through.
+static UI_CLOCK_START: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+/// What: `fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate)`. Push one decided value
+/// to the KDE LauncherEntry signal and, on Windows, to the native taskbar.
+/// Why: the decision is already made by the state machine; this only delivers it.
+fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate) {
+    let fraction = update.fraction();
+    tracing::debug!(percent = update.percent, visible = update.visible, "taskbar progress delivered to the launcher");
+    launcher.set_progress(fraction, update.visible);
+    // The Windows taskbar takes the same fraction and visibility.
     #[cfg(windows)]
-    set_windows_taskbar_progress(app, fraction, visible);
+    set_windows_taskbar_progress(app, fraction, update.visible);
+    // Off Windows `app` has no use here; this keeps the parameter list identical on every platform.
+    #[cfg(not(windows))]
+    let _ = app;
 }
 
-/// What:     `fn should_surface_progress(progress_debouncer: &Mutex<ProgressDebouncer>, elapsed: Duration, kind: ProgressUpdateKind) -> bool`.
-///           Lock the shared debouncer and ask whether this update should repaint progress
-///           surfaces now.
-/// Why:      The update callback crosses threads, so the state lives behind a mutex.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function shouldSurfaceProgress(debouncer, elapsed, kind): boolean { ... }
-/// ```
+/// What: `fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool`. Feed one
+/// engine message to the taskbar state machine, deliver what it decides, and say whether the message was a seek.
+/// Why: the taskbar sees every message, before and independent of the seek bar's rate limit, so a track change and
+/// its position reset can never be dropped from the taskbar; the seek flag lets the caller keep the seek bar in step.
+fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool {
+    let handled_at = UI_CLOCK_START.elapsed();
+    let (input, decided) = TASKBAR_STATE.with(|cell| {
+        let mut state = cell.borrow_mut();
+        let input = state.input_for(update);
+        let decided = state.apply_update(update, handled_at);
+        return (input, decided);
+    });
+    if let Some(decided_update) = decided {
+        send_taskbar_update(app, launcher, decided_update);
+    }
+    return matches!(input, Some(TaskbarInput::Seek { .. }));
+}
+
+/// What:
+///      `fn should_surface_progress(progress_debouncer: &Mutex<ProgressDebouncer>, elapsed: Duration, kind: ProgressUpdateKind) -> bool`.
+///           Lock the shared debouncer and ask whether this update should repaint the seek bar now.
+/// Why:
+///       The update callback crosses threads,
+///  so the state lives behind a mutex.
 fn should_surface_progress(
     progress_debouncer: &Mutex<ProgressDebouncer>,
     elapsed: Duration,
     kind: ProgressUpdateKind,
 ) -> bool {
-    // What:     `let mut debouncer = progress_debouncer.lock().expect("progress debouncer lock should not be poisoned");`.
-    //           `.lock()` returns `Result<MutexGuard, _>` (the guard auto-unlocks when it
-    //           drops); `.expect(msg)` unwraps it or PANICS with `msg` on POISON (a prior
-    //           lock holder panicked). `mut` because we call a `&mut self` method on it.
-    // Why:      A poisoned debounce lock means a previous UI update panicked, so the
-    //           process is already in a bad state.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const debouncer = lock(progressDebouncer);
-    // ```
     let mut debouncer = progress_debouncer
         .lock()
         .expect("progress debouncer lock should not be poisoned");
-    // What:     `debouncer.should_surface(elapsed, kind)`. Run the pure timing rule. Tail
-    //           expression -> return value (the guard unlocks as it drops here).
-    // Why:      Return the shared decision to the caller.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return debouncer.shouldSurface(elapsed, kind);
-    // ```
     return debouncer.should_surface(elapsed, kind)
 }
 
-/// What:     `pub(crate) fn apply_update_with_progress_debounce(app: &AppWindow, launcher: &Launcher, progress_debouncer: &Mutex<ProgressDebouncer>, elapsed: Duration, update: Update)`.
-///           Apply one engine update, but gate progress-surface repaints through
-///           `ProgressDebouncer`. `pub(crate)` lets `main.rs` call it.
-/// Why:      Short tracks can emit rapid position resets; the seek bar and taskbar should
-///           update at a human-visible cadence instead of flickering.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function applyUpdateWithProgressDebounce(app, launcher, progressDebouncer, elapsed, update): void { ... }
-/// ```
+/// What:
+///      `pub(crate) fn apply_update_with_progress_debounce(app: &AppWindow, launcher: &Launcher, progress_debouncer: &Mutex<ProgressDebouncer>, elapsed: Duration, update: Update)`.
+///           Apply one engine update to the window, rate-limit the seek bar through `ProgressDebouncer`, and drive the
+///           taskbar through its own state machine.
+/// Why:
+///       The taskbar value is decided from the engine's messages alone (see `launcher::taskbar_state`), so the seek
+///           bar's gate cannot drop a value the taskbar needs, and the seek bar still updates at a human-visible cadence.
 pub(crate) fn apply_update_with_progress_debounce(
     app: &AppWindow,
     launcher: &Launcher,
@@ -242,156 +184,33 @@ pub(crate) fn apply_update_with_progress_debounce(
     elapsed: Duration,
     update: Update,
 ) {
-    // What:     `match &update { ... }`. Branch by update variant (exhaustive over the ones
-    //           we special-case, plus a wildcard `_`). Matches by REFERENCE so the same
-    //           `update` value can be forwarded to `apply_update` without rebuilding it.
-    // Why:      Position updates can be suppressed; other UI state still applies.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // switch (update.kind) { ... }
-    // ```
+    // The taskbar is fed first and from every message; the window below is only a mirror.
+    let is_seek = drive_taskbar(app, launcher, &update);
     match &update {
-        // What:     `Update::Position(_) => { ... }`. A progress-position tick. The payload is
-        //           not bound here; `apply_update` reads it from the forwarded `&update`.
-        // Why:      This is the on-screen seek-bar update that needs debouncing.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "position": { ... }
-        // ```
+        // A tick is rate-limited; a seek always passes so the seek bar lands where the user clicked.
         Update::Position(_) => {
-            // What:     `if should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Debounced) { ... }`.
-            //           Ask the debounce helper whether enough time has passed (this update
-            //           is `Debounced`, i.e. rate-limited).
-            // Why:      Suppressed ticks leave the current bar position in place.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (shouldSurfaceProgress(progressDebouncer, elapsed, "debounced")) { ... }
-            // ```
-            if should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Debounced)
-            {
-                // What:     `apply_update(app, &update);`. Forward the borrowed update after it
-                //           passed the gate. Unlike NowPlaying/Playing, the position apply is
-                //           INSIDE the gate, so a suppressed tick leaves the bar in place.
-                // Why:      Move the Slint seek bar and text at the debounced cadence.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // applyUpdate(app, update);
-                // ```
+            let kind = if is_seek {
+                ProgressUpdateKind::Immediate
+            } else {
+                ProgressUpdateKind::Debounced
+            };
+            if should_surface_progress(progress_debouncer, elapsed, kind) {
                 apply_update(app, &update);
-                // What:     `emit_launcher_progress(app, launcher);`. Mirror the same
-                //           accepted progress state to the taskbar.
-                // Why:      The taskbar should not update more often than the seek bar.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // emitLauncherProgress(app, launcher);
-                // ```
-                emit_launcher_progress(app, launcher);
+            } else {
+                tracing::trace!("seek bar tick held for the rate limit");
             }
         }
-        // What:     `Update::NowPlaying { .. } => { ... }`. The current-track metadata. The
-        //           fields are not bound here; `apply_update` reads them from `&update`.
-        // Why:      Title, duration, row highlight, and page following still update
-        //           immediately; only taskbar progress emission is debounced.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "nowPlaying": { ... }
-        // ```
+        // A new track resets the seek bar together with the new duration. The engine's own `Position(0)` follows, but
+        // the gate may drop it, which would leave the old position drawn against the new duration.
         Update::NowPlaying { .. } => {
-            // What:     `let should_emit_progress = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Debounced);`.
-            //           Decide BEFORE applying the update; the decision depends only on
-            //           elapsed time, not on the new metadata.
-            // Why:      Rapid track changes should not flash the taskbar bar.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const shouldEmitProgress = shouldSurfaceProgress(progressDebouncer, elapsed, "debounced");
-            // ```
-            let should_emit_progress = should_surface_progress(
-                progress_debouncer,
-                elapsed,
-                ProgressUpdateKind::Debounced,
-            );
-            // What:     `apply_update(app, &update);`. Forward the borrowed update; the apply
-            //           is OUTSIDE the gate, so track identity always lands immediately and
-            //           only the taskbar emission below is debounced.
-            // Why:      Track identity must never wait for progress debounce.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // applyUpdate(app, update);
-            // ```
+            let _ = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
             apply_update(app, &update);
-            // What:     `if should_emit_progress { emit_launcher_progress(app, launcher); }`.
-            //           Use the earlier decision.
-            // Why:      Keep taskbar progress at the debounced cadence on track resets.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (shouldEmitProgress) emitLauncherProgress(app, launcher);
-            // ```
-            if should_emit_progress {
-                emit_launcher_progress(app, launcher);
-            }
+            apply_update(app, &Update::Position(0.0));
         }
-        // What:     `Update::Playing(_) => { ... }`. Play/pause state changed; the flag is not
-        //           bound here, `apply_update` reads it from `&update`.
-        // Why:      Taskbar visibility must hide/show immediately even while ordinary
-        //           progress movement is debounced.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // case "playing": { ... }
-        // ```
         Update::Playing(_) => {
-            // What:     `let should_emit_progress = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);`.
-            //           `Immediate` updates always pass and reset the debounce baseline.
-            // Why:      A position reset immediately after play/pause should not flicker.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const shouldEmitProgress = shouldSurfaceProgress(progressDebouncer, elapsed, "immediate");
-            // ```
-            let should_emit_progress = should_surface_progress(
-                progress_debouncer,
-                elapsed,
-                ProgressUpdateKind::Immediate,
-            );
-            // What:     `apply_update(app, &update);`. Forward the borrowed update: mirror the
-            //           play flag immediately (the apply is outside the gate).
-            // Why:      Button label and window title update immediately.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // applyUpdate(app, update);
-            // ```
+            let _ = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
             apply_update(app, &update);
-            // What:     `if should_emit_progress { emit_launcher_progress(app, launcher); }`.
-            //           This remains true for immediate updates; the branch documents the
-            //           shared path.
-            // Why:      Keep all LauncherEntry emission in one helper.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (shouldEmitProgress) emitLauncherProgress(app, launcher);
-            // ```
-            if should_emit_progress {
-                emit_launcher_progress(app, launcher);
-            }
         }
-        // What:     `_ => apply_update(app, &update)`. The wildcard arm forwards any
-        //           non-progress update directly (by reference).
-        // Why:      Queue, volume, shuffle, and repeat state should not be debounced.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // default: applyUpdate(app, update);
-        // ```
         _ => apply_update(app, &update),
     }
 }
@@ -400,26 +219,15 @@ pub(crate) fn apply_update_with_progress_debounce(
 // Purpose: the Windows-native equivalent of the Linux LauncherEntry progress bar.
 // Windows exposes per-window taskbar progress through the ITaskbarList3 COM
 // interface, so this region creates that interface once per UI thread and pushes
-// the same fraction/visibility `emit_launcher_progress` already computed. It is
+// the same fraction/visibility `send_taskbar_update` receives from the state machine. It is
 // compiled only on Windows; every item is `#[cfg(windows)]`.
 
-/// What:     `use std::cell::RefCell;`. A single-threaded interior-mutability cell: it
-///           allows mutation through a shared `&` reference, enforcing the borrow rules at
-///           RUNTIME instead of compile time. Sibling: `Cell<T>` (move in/out, no
-///           borrowing); `RefCell` lets us borrow the inner value.
-/// Why:      The cached COM interface lives in a `thread_local!`, which hands out only `&`
-///           references, so mutation (first-time creation) needs a `RefCell`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // no equivalent: a one-slot box you can mutate through a shared reference
-/// ```
-#[cfg(windows)]
-use std::cell::RefCell;
-
-/// What:     `use windows::Win32::Foundation::HWND;`. The Win32 window-handle type (a
+/// What:
+///      `use windows::Win32::Foundation::HWND;`.
+///  The Win32 window-handle type (a
 ///           newtype around a raw pointer to the window).
-/// Why:      ITaskbarList3's methods take the target window's `HWND`.
+/// Why:
+///       ITaskbarList3's methods take the target window's `HWND`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -428,12 +236,17 @@ use std::cell::RefCell;
 #[cfg(windows)]
 use windows::Win32::Foundation::HWND;
 
-/// What:     `use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx};`.
-///           COM bootstrap items: `CoInitializeEx` initializes COM on the thread;
-///           `CoCreateInstance` builds a COM object by class id; `CLSCTX_INPROC_SERVER`
-///           asks for an in-process implementation; `COINIT_APARTMENTTHREADED` is the
+/// What:
+///      `use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx};`.
+///           COM bootstrap items:
+///  `CoInitializeEx` initializes COM on the thread;
+///           `CoCreateInstance` builds a COM object by class id;
+///  `CLSCTX_INPROC_SERVER`
+///           asks for an in-process implementation;
+///  `COINIT_APARTMENTTHREADED` is the
 ///           single-threaded-apartment mode winit's window thread already uses.
-/// Why:      Needed to construct the taskbar COM object on the UI thread.
+/// Why:
+///       Needed to construct the taskbar COM object on the UI thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -444,12 +257,15 @@ use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
 };
 
-/// What:     `use windows::Win32::UI::Shell::{ITaskbarList3, TBPF_NOPROGRESS, TBPF_NORMAL, TaskbarList};`.
+/// What:
+///      `use windows::Win32::UI::Shell::{ITaskbarList3, TBPF_NOPROGRESS, TBPF_NORMAL, TaskbarList};`.
 ///           `ITaskbarList3` is the COM INTERFACE (a fat pointer to vtable methods);
 ///           `TaskbarList` is the CLASS ID (`GUID`) of the concrete shell object that
-///           implements it; `TBPF_NORMAL`/`TBPF_NOPROGRESS` are progress-state flags (show
+///           implements it;
+///  `TBPF_NORMAL`/`TBPF_NOPROGRESS` are progress-state flags (show
 ///           a normal bar / hide the bar).
-/// Why:      These drive the taskbar progress bar.
+/// Why:
+///       These drive the taskbar progress bar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -475,10 +291,17 @@ thread_local! {
     static TASKBAR: RefCell<Option<ITaskbarList3>> = const { RefCell::new(None) };
 }
 
-/// What:     `fn window_hwnd(app: &AppWindow) -> Option<HWND>`. Resolve the running
-///           window's Win32 handle, or `None` if it is not yet realized or not a
-///           winit/Win32 window. Module-private, Windows-only.
-/// Why:      The handle exists only once the event loop has created the window, which is
+/// What:
+///      `fn window_hwnd(app: &AppWindow) -> Option<HWND>`.
+///  Resolve the running
+///           window's Win32 handle,
+///  or `None` if it is not yet realized or not a
+///           winit/Win32 window.
+///  Module-private,
+///  Windows-only.
+/// Why:
+///       The handle exists only once the event loop has created the window,
+///  which is
 ///           why this is resolved lazily on each progress tick rather than at startup.
 ///
 /// In TS you'd write (pseudocode):
@@ -487,29 +310,40 @@ thread_local! {
 /// ```
 #[cfg(windows)]
 fn window_hwnd(app: &AppWindow) -> Option<HWND> {
-    /// What:     `use slint::ComponentHandle;`. Brings the `.window()` accessor into scope
+    /// What:
+    ///      `use slint::ComponentHandle;`.
+    ///  Brings the `.window()` accessor into scope
     ///           (a trait method is callable only when its trait is imported).
-    /// Why:      `app.window()` returns the `slint::Window` the next call needs.
+    /// Why:
+    ///       `app.window()` returns the `slint::Window` the next call needs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// import { ComponentHandle } from "slint";
     /// ```
     use slint::ComponentHandle;
-    /// What:     `use i_slint_backend_winit::WinitWindowAccessor;`. The extension trait
+    /// What:
+    ///      `use i_slint_backend_winit::WinitWindowAccessor;`.
+    ///  The extension trait
     ///           adding `.with_winit_window(...)` to `slint::Window` on the winit backend.
-    /// Why:      It exposes the underlying winit window, from which the raw handle comes.
+    /// Why:
+    ///       It exposes the underlying winit window,
+    ///  from which the raw handle comes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// import { WinitWindowAccessor } from "slint-winit-backend";
     /// ```
     use i_slint_backend_winit::WinitWindowAccessor;
-    /// What:     `use i_slint_backend_winit::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};`.
-    ///           `HasWindowHandle` provides `.window_handle()`; `RawWindowHandle` is the
-    ///           per-platform handle enum. Imported through winit's OWN re-export so the
+    /// What:
+    ///      `use i_slint_backend_winit::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};`.
+    ///           `HasWindowHandle` provides `.window_handle()`;
+    ///  `RawWindowHandle` is the
+    ///           per-platform handle enum.
+    ///  Imported through winit's OWN re-export so the
     ///           `raw-window-handle` version matches winit's exactly (no separate dep).
-    /// Why:      Needed to read and match the platform window handle.
+    /// Why:
+    ///       Needed to read and match the platform window handle.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -568,10 +402,16 @@ fn window_hwnd(app: &AppWindow) -> Option<HWND> {
         .flatten()
 }
 
-/// What:     `fn create_taskbar_list() -> Option<ITaskbarList3>`. Initialize COM on this
-///           thread and build the taskbar COM object, or `None` on any failure.
-///           Module-private, Windows-only.
-/// Why:      Done once and cached; pulled into its own function so `set_..._progress` reads
+/// What:
+///      `fn create_taskbar_list() -> Option<ITaskbarList3>`.
+///  Initialize COM on this
+///           thread and build the taskbar COM object,
+///  or `None` on any failure.
+///           Module-private,
+///  Windows-only.
+/// Why:
+///       Done once and cached;
+///  pulled into its own function so `set_..._progress` reads
 ///           cleanly.
 ///
 /// In TS you'd write (pseudocode):
@@ -639,10 +479,15 @@ fn create_taskbar_list() -> Option<ITaskbarList3> {
     }
 }
 
-/// What:     `fn set_windows_taskbar_progress(app: &AppWindow, fraction: f64, visible: bool)`.
-///           Push the current progress to the Windows taskbar bar. Module-private,
-///           Windows-only. Runs on the UI thread.
-/// Why:      The Windows counterpart to the Linux `Launcher::set_progress`; called from
+/// What:
+///      `fn set_windows_taskbar_progress(app: &AppWindow, fraction: f64, visible: bool)`.
+///           Push the current progress to the Windows taskbar bar.
+///  Module-private,
+///           Windows-only.
+///  Runs on the UI thread.
+/// Why:
+///       The Windows counterpart to the Linux `Launcher::set_progress`;
+///  called from
 ///           `emit_launcher_progress` under `#[cfg(windows)]`.
 ///
 /// In TS you'd write (pseudocode):

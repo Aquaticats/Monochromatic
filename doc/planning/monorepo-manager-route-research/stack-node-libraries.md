@@ -43,7 +43,8 @@ Nothing under `/var/home/user/Monochromatic` was modified
     which systemd rejects at `src/core/dbus-manager.c:1142-1144` before it loads or creates a unit.
   - `GetUnitByPIDFD` was called with an fd of `/dev/null` to test fd passing;
     it is a read-only query.
-  - Watch probes on the checkout only registered inotify watches (at most 41,209 for about 2 seconds, one process at a time).
+  - Watch probes on the checkout only registered inotify watches (at most 41,209 for about 2 seconds, one process at a
+  - time).
   - Event probes wrote only to fixtures under `SCRATCH/node-libs/ev/`, which is `tmpfs`;
     inotify events come from the VFS layer, so the filesystem difference is assumed not to matter (unverified).
 
@@ -53,7 +54,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
 
 - Catalog: `'chokidar': '>=5.0.0'` (`pnpm-workspace.yaml:71`);
   the lockfile resolves `chokidar@5.0.0` and `readdirp@5.1.1` (`node_modules/.pnpm`, verified, measured).
-- `package/dev-script/file-enforcer` (`package.json:33`):
+- `package/file-enforcer/core` (`package.json:33`):
   one chokidar watcher per directory derived by `watchDirs` (`src/watch/watch-filter.ts:28-60`),
   with `atomic: true`, `awaitWriteFinish: false`, `depth: 0`, `followSymlinks: false`, `ignoreInitial: true`
   (`src/watch/watch-dir.ts:231-241`),
@@ -65,11 +66,12 @@ Nothing under `/var/home/user/Monochromatic` was modified
   and a write to a managed destination emits `{ kind: 'protected' }` (`:451-496`),
   each after waiting for chokidar's `ready` (commit `a4728812b` "wait for chokidar readiness").
   It pins nothing about scale, overflow, bursts, or new directories (verified, source).
-- `package/dev-script/watch-restart` (`package.json:35`):
+- `package/watch-restart/cli` (`package.json:35`):
   recursive chokidar with `awaitWriteFinish` defaulting to `{ stabilityThreshold: 50, pollInterval: 10 }`
   (`src/watcher-types.ts:36-56`).
   Its atomic-save test is skipped with
-  "Empirical flake rate ~20% on Linux EVEN IN ISOLATION ... chokidar occasionally reports zero events on the destination path"
+  "Empirical flake rate ~20% on Linux EVEN IN ISOLATION ... chokidar occasionally reports zero events on the
+  destination path"
   (`src/watcher.unit.test.ts:213-223`, verified, source).
 - The 2026-05 dev-server evaluation that picked chokidar compared single-directory use,
   not whole-repository watching
@@ -118,14 +120,16 @@ Documentation problems are collected in "Documentation problems recorded".
 
 ### Watching
 
-- `chokidar` 5.0.0, 2025-11-25, MIT, 1 direct (`readdirp`), 1 transitive; `paulmillr/chokidar` pushed 2026-08-16, 48 open, 12,240 stars.
+- `chokidar` 5.0.0, 2025-11-25, MIT, 1 direct (`readdirp`), 1 transitive; `paulmillr/chokidar` pushed 2026-08-16, 48
+- open, 12,240 stars.
 - `readdirp` 5.1.1, 2026-08-06, MIT, 0 dependencies; pushed 2026-08-06, 0 open.
 - `@parcel/watcher` 2.6.0, 2026-07-20, MIT, 4 direct plus 12 optional platform binaries, 17 transitive;
   install script `node scripts/build-from-source.js`;
   `parcel-bundler/watcher` pushed 2026-08-04, 83 open, 838 stars.
 - `watcher` 2.3.1, 2024-04-06, no `license` field in `package.json` (MIT `license` file), 3 direct, 5 transitive;
   `fabiospampinato/watcher` pushed 2026-07-17, 15 open, 140 stars.
-- `watchpack` 2.5.2, 2026-06-11, MIT, 1 direct (`graceful-fs`); `webpack/watchpack` pushed 2026-09-13, 13 open, 400 stars.
+- `watchpack` 2.5.2, 2026-06-11, MIT, 1 direct (`graceful-fs`); `webpack/watchpack` pushed 2026-09-13, 13 open, 400
+- stars.
 - `node-watch` 0.7.4, 2023-08-01, MIT, 0 dependencies; pushed 2026-01-14, 8 open, 341 stars.
 - `nsfw` 2.3.1, 2026-04-02, MIT, 1 direct; install script `node-gyp rebuild` (no prebuilt binary);
   `axosoft/node-simple-file-watcher` pushed 2026-06-22, 67 open, 930 stars.
@@ -138,14 +142,18 @@ Documentation problems are collected in "Documentation problems recorded".
 
 ### D-Bus and cgroups
 
-- `@homebridge/dbus-native` 0.7.9, 2026-08-15, MIT, 6 direct, 15 transitive; `homebridge/dbus-native` pushed 2026-08-15, 0 open, 16 stars;
+- `@homebridge/dbus-native` 0.7.9, 2026-08-15, MIT, 6 direct, 15 transitive; `homebridge/dbus-native` pushed
+- 2026-08-15, 0 open, 16 stars;
   `engines.node` `>=8.0`.
-- `dbus-native` 0.15.2, 2026-08-20, MIT, 1 direct (`xml2js`); `sidorares/dbus-native` pushed 2026-09-12, 15 open, 269 stars;
+- `dbus-native` 0.15.2, 2026-08-20, MIT, 1 direct (`xml2js`); `sidorares/dbus-native` pushed 2026-09-12, 15 open, 269
+- stars;
   `engines.node` `>=22.12.0`.
 - `dbus-next` 0.10.2, 2021-10-10, MIT, 8 direct including optional native `usocket`, 99 transitive;
   `dbusjs/node-dbus-next` pushed 2024-06-05, 51 open.
-- `@jellybrick/dbus-next` 0.11.3, 2026-08-05, MIT, 2 direct, 8 transitive; `JellyBrick/node-dbus-next` pushed 2026-08-05, 1 open, 3 stars.
-- `@balena/systemd` 0.5.11, 2026-02-19, Apache-2.0, 1 direct (`@mapbox/node-pre-gyp`), 54 transitive, Rust build fallback;
+- `@jellybrick/dbus-next` 0.11.3, 2026-08-05, MIT, 2 direct, 8 transitive; `JellyBrick/node-dbus-next` pushed
+- 2026-08-05, 1 open, 3 stars.
+- `@balena/systemd` 0.5.11, 2026-02-19, Apache-2.0, 1 direct (`@mapbox/node-pre-gyp`), 54 transitive, Rust build
+- fallback;
   `balena-io-modules/systemd` pushed 2026-09-07, 8 open, 1 star.
 - cgroup packages:
   `https://registry.npmjs.org/-/v1/search?text=cgroup` returned only metric readers and container-id parsers,
@@ -154,17 +162,21 @@ Documentation problems are collected in "Documentation problems recorded".
 
 ### JSON-RPC
 
-- `vscode-jsonrpc` 9.0.2, 2026-08-28, MIT, 0 dependencies; `Microsoft/vscode-languageserver-node` pushed 2026-09-10, 88 open (repository-wide), 1,788 stars.
+- `vscode-jsonrpc` 9.0.2, 2026-08-28, MIT, 0 dependencies; `Microsoft/vscode-languageserver-node` pushed 2026-09-10, 88
+- open (repository-wide), 1,788 stars.
 - `json-rpc-2.0` 1.8.0, 2026-08-28, MIT, 0 dependencies; `shogowada/json-rpc-2.0` pushed 2026-08-28, 5 open, 246 stars.
-- `jayson` 4.3.0, 2025-12-22, MIT, 12 direct including `@types/node`, `@types/ws`, `commander`, `ws`, `uuid`, `stream-json`;
+- `jayson` 4.3.0, 2025-12-22, MIT, 12 direct including `@types/node`, `@types/ws`, `commander`, `ws`, `uuid`,
+- `stream-json`;
   `tedeh/jayson` pushed 2025-12-22, 2 open, 726 stars.
 
 ### Processes
 
-- `execa` 10.0.1, 2026-07-31, MIT, 12 direct, 17 transitive, `engines.node` `>=22`; `sindresorhus/execa` pushed 2026-07-31, 2 open, 7,603 stars.
+- `execa` 10.0.1, 2026-07-31, MIT, 12 direct, 17 transitive, `engines.node` `>=22`; `sindresorhus/execa` pushed
+- 2026-07-31, 2 open, 7,603 stars.
 - `tinyexec` 1.3.1, 2026-09-03, MIT, 0 dependencies; `tinylibs/tinyexec` pushed 2026-09-15, 11 open, 379 stars.
 - `nano-spawn` 2.1.0, 2026-04-01, MIT, 0 dependencies; `sindresorhus/nano-spawn` pushed 2026-04-01, 3 open, 592 stars.
-- `node-pty` 1.1.0, 2025-12-22, MIT, native (`node scripts/prebuild.js || node-gyp rebuild`); pushed 2026-09-14, 62 open.
+- `node-pty` 1.1.0, 2025-12-22, MIT, native (`node scripts/prebuild.js || node-gyp rebuild`); pushed 2026-09-14, 62
+- open.
 
 ### Hashing
 
@@ -177,7 +189,8 @@ Documentation problems are collected in "Documentation problems recorded".
   Both are uninstallable:
   `blake3@3.0.0` depends on `blake3-wasm@2.1.7` and `blake3-wasm@3.0.0` on `@c4312/blake3-internal@2.1.7`,
   and neither version was ever published
-  (`pnpm add` failed with `ERR_PNPM_NO_MATCHING_VERSION`; `pnpm view blake3-wasm versions time` lists only 2.1.5 and 3.0.0;
+  (`pnpm add` failed with `ERR_PNPM_NO_MATCHING_VERSION`; `pnpm view blake3-wasm versions time` lists only 2.1.5 and
+  3.0.0;
   verified, measured).
 
 ## C1: recursive watching of the repository
@@ -186,7 +199,8 @@ Documentation problems are collected in "Documentation problems recorded".
 
 - `chokidar` 5.0.0 (verified, source):
   - `fs.watch` on every file (`handler.js:393`) and every directory (`:549`), shared per path (`:155-221`).
-  - A directory event re-reads that directory with `readdirp`, throttled to once per 1,000 ms per directory with one trailing re-read
+  - A directory event re-reads that directory with `readdirp`, throttled to once per 1,000 ms per directory with one
+  - trailing re-read
     (`handler.js:453`, `:495-517`).
   - A new directory is read before its `fs.watch` is registered (`handler.js:545-549`),
     the race tracked as open issue #1471.
@@ -195,7 +209,8 @@ Documentation problems are collected in "Documentation problems recorded".
   - `_handleError` emits `error` except for `ENOENT` and `ENOTDIR` (`index.js:552-563`).
   - With `atomic` (default when not polling) it ignores paths matching `DOT_RE` (`index.js:15`, `:658`)
     and delays `unlink` by 100 ms (`index.js:486-500`).
-  - Overflow handling inherits libuv, which skips `IN_Q_OVERFLOW` (`deps/uv/src/unix/linux.c:2617-2619`, per the prior research).
+  - Overflow handling inherits libuv, which skips `IN_Q_OVERFLOW` (`deps/uv/src/unix/linux.c:2617-2619`, per the prior
+  - research).
 - `@parcel/watcher` 2.6.0 (verified, source, files shipped in `src/`):
   - One inotify fd on a native thread, `inotify_add_watch` per non-ignored directory only
     (`src/linux/InotifyBackend.cc:67-79`).
@@ -205,14 +220,16 @@ Documentation problems are collected in "Documentation problems recorded".
     open issues #97 "folders created via `mkdir -p` not watched recursively" and #243.
   - A failed `inotify_add_watch` during `subscribe` throws (`:73-76`),
     but a failure for a directory created later only removes it from the tree (`:179-183`).
-  - Linux builds define `WATCHMAN` (`binding.gyp:39-51`), and the `default` backend returns Watchman when it is available
+  - Linux builds define `WATCHMAN` (`binding.gyp:39-51`), and the `default` backend returns Watchman when it is
+  - available
     (`src/Backend.cc:39-43`).
   - `getEventsSince` uses `DirTree::getCached(root)` (`src/DirTree.cc:31-47`, `src/shared/BruteForceBackend.cc:6-16`),
     so with a live subscription on the same root it diffs the in-memory tree instead of the disk.
   - Linux crawls with `src/unix/legacy.cc` (`binding.gyp:45`).
   - Ignore globs are converted with `picomatch.makeRe` and matched with `std::regex` (`wrapper.js:26-44`);
     open issues #244 (regex slowdown) and #250 (stack overflow on long paths).
-  - Debounce: first event after 500 ms of quiet is sent at once, later ones batched in 50 ms windows (`src/Debounce.hh:9-10`, `Debounce.cc:70-99`).
+  - Debounce: first event after 500 ms of quiet is sent at once, later ones batched in 50 ms windows
+  - (`src/Debounce.hh:9-10`, `Debounce.cc:70-99`).
 - `watcher` 2.3.1 (verified, source):
   per-directory `fs.watch` on Linux (`dist/constants.js:11` `HAS_NATIVE_RECURSION = IS_MAC || IS_WINDOWS`),
   default `depth` 20, `debounce` 300 ms, `limit` 10,000,000 (`dist/constants.js:4-6`).
@@ -245,11 +262,13 @@ the positive control on a 101-directory, 500-file fixture gave chokidar 601 watc
 - `@parcel/watcher` with one `RegExp` ignore:
   466 and 486 ms, 5,481 watches, maximum delay 38 and 39 ms, RSS 97 and 96 MiB.
 - `watcher`:
-  `ready` after 1,103 and 1,145 ms, 5,483 watches (it also watches parent directories), maximum delay 40 and 39 ms, RSS 224 and 247 MiB.
+  `ready` after 1,103 and 1,145 ms, 5,483 watches (it also watches parent directories), maximum delay 40 and 39 ms, RSS
+  224 and 247 MiB.
 - `watchpack`:
   no `ready` event; watch count stable after 563 and 579 ms, 5,481 watches, maximum delay 107 and 115 ms, RSS 209 MiB.
 - `node-watch` was not run on the checkout:
-  `node node-watch-skip.ts` on the fixture registered 664 watches where pruning `node_modules` and `dist` would give 601,
+  `node node-watch-skip.ts` on the fixture registered 664 watches where pruning `node_modules` and `dist` would give
+  601,
   so on the checkout it would try to watch every path outside `.git`
   (99,417 directories plus 873,905 files per the prior census, more than `max_user_watches` 524,288; inference).
 - The deepest non-excluded directory is 17 levels below the root (`node max-depth.ts`, verified, measured),
@@ -257,7 +276,8 @@ the positive control on a 101-directory, 500-file fixture gave chokidar 601 watc
 
 ### Event delivery on fixtures
 
-`node SCRATCH/node-libs/watch-events.ts <lib> <absolute fixture root>` (output `watch-events.jsonl`, verified, measured).
+`node SCRATCH/node-libs/watch-events.ts <lib> <absolute fixture root>` (output `watch-events.jsonl`, verified,
+measured).
 Each scenario starts a fresh watcher, waits 2.5 seconds, discards events seen so far, then acts.
 A first run without that discard reported watchpack's initial-scan events as scenario events;
 that run is kept as `watch-events-v1-contaminated.jsonl` and not used.
@@ -271,14 +291,16 @@ that run is kept as `watch-events-v1-contaminated.jsonl` and not used.
 - A tree with `tree/x/y/pre.txt` renamed into the root, then `tree/x/y/post.txt` written 1 second later:
   `@parcel/watcher` reported only `tree` and missed both files; the other four reported all three.
 - 300 later writes without a flood: 300 of 300 for all five.
-- 30,000 synchronous create and unlink pairs while the JavaScript thread was busy (about 0.7 to 0.95 seconds), then 300 writes:
+- 30,000 synchronous create and unlink pairs while the JavaScript thread was busy (about 0.7 to 0.95 seconds), then 300
+- writes:
   chokidar 0, `watcher` 0, `watchpack` 0, `node-watch` 0, all with no `error` event;
   `@parcel/watcher` 300 of 300.
   The flood in the same directory as the later writes gave the same results.
 - `watchpack` reported 104 to 302 `change` events for files written up to about 2 seconds before `startTime`
   (`preActionEvents`), explained as `"scan (file)"` (`watchpack-trace.ts`);
   after the flood it delivered 0 (`changesBeforeFlood` 302, `changes` 302).
-- Inotify watches per fixture: chokidar and `node-watch` 303 (one per file), `@parcel/watcher` and `watchpack` 3, `watcher` 5.
+- Inotify watches per fixture: chokidar and `node-watch` 303 (one per file), `@parcel/watcher` and `watchpack` 3,
+- `watcher` 5.
 - A raw `fs.watch` control on the flood directory received exactly 16,384 events,
   the `max_queued_events` limit (`watchpack-debug.ts raw`).
 
@@ -294,7 +316,8 @@ A rescan through `getEventsSince` therefore needs a process without a subscripti
 ### Loss detection without FFI
 
 `node canary-probe.ts <root> control|flood` (verified, measured):
-a `worker_threads` worker overwrites a different pre-created `canary-<n>` file every 20 ms inside the chokidar-watched root,
+a `worker_threads` worker overwrites a different pre-created `canary-<n>` file every 20 ms inside the chokidar-watched
+root,
 and the main thread records which sequence numbers produced `change` events.
 
 - Control, no flood: 48 written, 48 seen, 0 missing, and 300 of 300 later writes seen.
@@ -302,7 +325,8 @@ and the main thread records which sequence numbers produced `change` events.
 - A first variant that created new `canary-<n>` files found no gap (93 written, 93 seen):
   chokidar's directory re-read reports every file present after the flood,
   so only modification canaries reveal loss.
-- Because libuv shares one inotify instance per loop, an overflow anywhere drops canary events too (inference from the measured gap).
+- Because libuv shares one inotify instance per loop, an overflow anywhere drops canary events too (inference from the
+- measured gap).
   The canary does not locate lost paths; a gap means "rescan".
 
 ### Designs and disqualifying problems
@@ -313,7 +337,8 @@ and the main thread records which sequence numbers produced `change` events.
   one `watch(root, { ignored, ignoreInitial: true, followSymlinks: false })`;
   the daemon re-hashes each changed path again at least 60 ms after its last event to cover the 50 ms throttle,
   re-reads each `addDir` directory after a short delay to cover #1471,
-  and runs a worker-thread modification canary that triggers a stat and hash rescan on a gap (all unverified at repository scale).
+  and runs a worker-thread modification canary that triggers a stat and hash rescan on a gap (all unverified at
+  repository scale).
 - Pros:
   incumbent in two packages with regression tests;
   1 transitive dependency and no native code;
@@ -382,7 +407,8 @@ and the main thread records which sequence numbers produced `change` events.
 #### Own inotify reader through `node:ffi` (prior research)
 
 - Pros: sees `IN_Q_OVERFLOW` directly (measured in the prior research).
-- Cons: Stability 1 experimental module and hand-written directory walking, which the user ranks after a documented library path.
+- Cons: Stability 1 experimental module and hand-written directory walking, which the user ranks after a documented
+- library path.
 
 #### C1 ranking
 
@@ -420,10 +446,13 @@ chokidar > `@parcel/watcher` > `watcher` > `node:ffi` reader > Watchman > `watch
 - `FreezeUnit` and `ThawUnit` reply only when the freezer operation completes, and fail with
   "Unit has a pending job", "Unit is not active", or "Unit is frozen by a parent slice"
   (`src/core/dbus-unit.c:797-852`, verified, source).
-  `systemctl freeze` documents that a unit is thawed automatically before a job runs against it (`man/systemctl.xml:632-645`).
+  `systemctl freeze` documents that a unit is thawed automatically before a job runs against it
+  (`man/systemctl.xml:632-645`).
 - `KillUnit(name, whom, signal)` with `SIGKILL` writes `cgroup.kill` (`src/core/unit.c:4145-4152`, verified, source).
-- `systemd-run --scope` prints "Running as unit: ..." through `log_info` unless `--quiet` (`src/run/run.c:2843-2847`, `:2259-2268`),
-  expands `${VAR}` unless `--expand-environment=no` (`:2849-2866`), and then `execvpe`s the command with its own environment (`:2869`)
+- `systemd-run --scope` prints "Running as unit: ..." through `log_info` unless `--quiet` (`src/run/run.c:2843-2847`,
+- `:2259-2268`),
+  expands `${VAR}` unless `--expand-environment=no` (`:2849-2866`), and then `execvpe`s the command with its own
+  environment (`:2869`)
   (verified, source).
 
 ### D-Bus library probe
@@ -435,7 +464,8 @@ chokidar > `@parcel/watcher` > `watcher` > `node:ffi` reader > Watchman > `watch
 
 - `@homebridge/dbus-native` 0.7.9:
   `Version` came back undecoded as `[[{"type":"s","child":[]}],["259.8-1.fc44"]]`;
-  the transient call reached systemd's mode check ("Job mode probe-invalid-mode is invalid.") as a plain object, not an `Error`;
+  the transient call reached systemd's mode check ("Job mode probe-invalid-mode is invalid.") as a plain object, not an
+  `Error`;
   p50 0.47 and 0.50 ms, p90 0.57 and 0.59 ms (two runs);
   `h` failed locally with "Unknown data type format: h", and the connection kept working.
 - `dbus-native` 0.15.2:
@@ -479,7 +509,8 @@ chokidar > `@parcel/watcher` > `watcher` > `node:ffi` reader > Watchman > `watch
 - Stdio and terminal:
   the task inherits the daemon's pipes and exact `env` and `cwd`;
   `detached: true` gives it its own session, so Ctrl+C in the daemon's terminal reaches only the daemon.
-  Node's `'pipe'` stdio is a socketpair (`deps/uv/src/unix/process.c:207`), so `echo x > /dev/stdout` inside a task fails:
+  Node's `'pipe'` stdio is a socketpair (`deps/uv/src/unix/process.c:207`), so `echo x > /dev/stdout` inside a task
+  fails:
   `spawnSync('sh', ['-c', 'echo via-dev-stdout > /dev/stdout; ...'])` printed
   `sh: line 1: /dev/stdout: No such device or address` and `/proc/self/fd/1 -> socket:[...]` (verified, measured).
   Repository sources mention `/dev/std*` only in 3 `wg-quicker` comments (`rg`, verified, measured).
@@ -496,12 +527,16 @@ chokidar > `@parcel/watcher` > `watcher` > `node:ffi` reader > Watchman > `watch
 
 #### Option P2: transient service through D-Bus from JavaScript
 
-- `StartTransientUnit` of `<tool>-task-<id>.service` with `Type=exec`, `ExecStart`, full `Environment`, `WorkingDirectory`, `AddRef=true`,
-  and `StandardOutputFile` and `StandardErrorFile` pointing at daemon-created FIFOs or `AF_UNIX` sockets, because fds cannot be passed.
-- The task is a child of the user manager: exit status comes from unit properties (`ExecMainStatus`, `Result`) or `JobRemoved`,
+- `StartTransientUnit` of `<tool>-task-<id>.service` with `Type=exec`, `ExecStart`, full `Environment`,
+- `WorkingDirectory`, `AddRef=true`,
+  and `StandardOutputFile` and `StandardErrorFile` pointing at daemon-created FIFOs or `AF_UNIX` sockets, because fds
+  cannot be passed.
+- The task is a child of the user manager: exit status comes from unit properties (`ExecMainStatus`, `Result`) or
+- `JobRemoved`,
   and the daemon must pass its entire environment explicitly.
 - A socket path breaks `/dev/stdout` reopening the same way pipes do (inference);
-  a FIFO path avoids that but Node has no `mkfifo` API, so it needs the `mkfifo` command or FFI (verified by absence in `node:fs`, inference).
+  a FIFO path avoids that but Node has no `mkfifo` API, so it needs the `mkfifo` command or FFI (verified by absence in
+  `node:fs`, inference).
 - Not probed: every step creates a unit (unverified).
 - Ranked after P1 because it adds signal handling, environment marshalling, and FIFO plumbing for the same placement.
 
@@ -509,7 +544,8 @@ chokidar > `@parcel/watcher` > `watcher` > `node:ffi` reader > Watchman > `watch
 
 - Freeze and kill through `cgroup.freeze` and `cgroup.kill` in daemon-owned cgroups (prior research).
 - Placement before exec without FFI needs a launcher that joins a cgroup and execs:
-  none is installed (`cgexec` absent), a Node `process.execve` launcher is Stability 1 and 42.80 to 46.19 ms (prior research),
+  none is installed (`cgexec` absent), a Node `process.execve` launcher is Stability 1 and 42.80 to 46.19 ms (prior
+  research),
   and a post-spawn `cgroup.procs` write lets the task fork before it moves (inference).
 - With `node:ffi` `pidfd_spawnp` and `POSIX_SPAWN_SETCGROUP` it is the fastest path (0.41 to 0.43 ms, prior research).
 
@@ -522,7 +558,8 @@ Placement: P1 > P3 with `node:ffi` > P2 > P3 without FFI.
 - P3 with `node:ffi` over P2: P2 is unprobed and needs FIFO plumbing and property-based exit tracking.
 - P2 over P3 without FFI: P2 still places the task before exec, while a post-spawn write can let children escape.
 
-D-Bus client: `@homebridge/dbus-native` > `dbus-native` > `systemctl` CLI > `@jellybrick/dbus-next` > `dbus-next` > `@balena/systemd`.
+D-Bus client: `@homebridge/dbus-native` > `dbus-native` > `systemctl` CLI > `@jellybrick/dbus-next` > `dbus-next` >
+`@balena/systemd`.
 
 - `@homebridge/dbus-native` over `dbus-native`:
   both completed every needed call at 0.43 to 0.50 ms p50;
@@ -531,7 +568,8 @@ D-Bus client: `@homebridge/dbus-native` > `dbus-native` > `systemctl` CLI > `@je
   so migrating key-helper to it is a separate decision worth taking.
 - `dbus-native` over the `systemctl` CLI: about 0.45 ms per call against 6.97 ms for a process.
 - `systemctl` over `@jellybrick/dbus-next`: the fork wedges its connection after an fd-typed call.
-- `@jellybrick/dbus-next` over `dbus-next`: `dbus-next` is unmaintained since 2021 and was removed from this repository for advisories.
+- `@jellybrick/dbus-next` over `dbus-next`: `dbus-next` is unmaintained since 2021 and was removed from this repository
+- for advisories.
 - `dbus-next` over `@balena/systemd`: `@balena/systemd` lacks the needed methods entirely.
 
 ## C3: JSON-RPC 2.0 over a Unix socket
@@ -545,14 +583,16 @@ server and 200 clients in one process, two runs (verified, measured).
   a request cancelled after 50 ms rejected on the client with code `-32800`,
   and the server's `CancellationToken` saw it 51.1 to 51.3 ms after the handler started.
   Fan-out of 1,000 notifications to each of 200 clients took 3,580 and 3,613 ms.
-  100,000 notifications to one client that never reads: 343 write promises settled within 3 seconds, and the heap grew 81 MiB.
+  100,000 notifications to one client that never reads: 343 write promises settled within 3 seconds, and the heap grew
+  81 MiB.
 - `json-rpc-2.0` 1.8.0 with `readLines` and newline-delimited frames:
   the same fan-out took 992 and 912 ms.
   It has no server-side cancellation; `.timeout()` only rejects the client promise (`README.md` "With timeout").
 
 ### Source facts
 
-- `vscode-jsonrpc` frames with `Content-Length` headers (`SocketMessageReader` and `SocketMessageWriter`, `lib/node/main.d.ts:32`).
+- `vscode-jsonrpc` frames with `Content-Length` headers (`SocketMessageReader` and `SocketMessageWriter`,
+- `lib/node/main.d.ts:32`).
   Every write goes through a `Semaphore` whose waiting array has no bound (`lib/common/semaphore.js`),
   and a write resolves on the socket write callback (`lib/node/ril.js:79-97`).
   `createClientPipeTransport` listens and closes its server after the first connection (`lib/node/main.js:213-220`),
@@ -612,15 +652,19 @@ the task prints a line and exits at once, leaving a `sleep 3` grandchild in its 
 - S1, `child_process.spawn` directly:
   exact `env`, `detached: true`, task status from `exit`, streams read to their own end.
 - S2, `execa` with `extendEnv: false`, `buffer: false`, `detached: true`:
-  richer errors, but its completion waits for stdio close, `cleanup` is off when detached, and it adds 17 transitive dependencies.
+  richer errors, but its completion waits for stdio close, `cleanup` is off when detached, and it adds 17 transitive
+  dependencies.
 - S3, `nano-spawn` (incumbent) or `tinyexec`:
-  0 dependencies, but they cannot drop inherited environment variables, which undermines a cache key over the declared environment.
+  0 dependencies, but they cannot drop inherited environment variables, which undermines a cache key over the declared
+  environment.
 
 Ranking: S1 > S2 > S3.
 
-- S1 over S2: the daemon needs the `exit` time separately from stdio close, and cgroup kill replaces `execa`'s process-group kill.
+- S1 over S2: the daemon needs the `exit` time separately from stdio close, and cgroup kill replaces `execa`'s
+- process-group kill.
 - S2 over S3: S2 can pass an exact environment.
-- `nano-spawn` stays appropriate for short helper commands such as `git` queries, where inheriting the environment is intended.
+- `nano-spawn` stays appropriate for short helper commands such as `git` queries, where inheriting the environment is
+- intended.
 
 ## C5: hashing
 
@@ -639,11 +683,14 @@ Ranking: S1 > S2 > S3.
 - The prior research measured `sha256` at 2,322 to 2,334 MiB/s with a 256 MiB buffer,
   so run-to-run spread on this host exceeds 30 percent; only differences of more than 2 times are treated as real.
 
-Ranking: `node:crypto` `sha256` > `hash-wasm` XXH3-128 as an optional pre-filter > `blake3-jit` > `@node-rs/xxhash` > `@noble/hashes` BLAKE3.
+Ranking: `node:crypto` `sha256` > `hash-wasm` XXH3-128 as an optional pre-filter > `blake3-jit` > `@node-rs/xxhash` >
+`@noble/hashes` BLAKE3.
 
-- `sha256` over an XXH3 pre-filter: the design doc measured a full sequential rehash of tracked files at a 437 ms median,
+- `sha256` over an XXH3 pre-filter: the design doc measured a full sequential rehash of tracked files at a 437 ms
+- median,
   so a pre-filter has no measured need and adds a dependency last released 2024-11-19.
-- XXH3-128 over `blake3-jit`: 4.9 to 5.6 times the throughput if a pre-filter is ever needed; 128 bits keeps collisions unlikely (inference).
+- XXH3-128 over `blake3-jit`: 4.9 to 5.6 times the throughput if a pre-filter is ever needed; 128 bits keeps collisions
+- unlikely (inference).
 - `blake3-jit` over `@node-rs/xxhash`: a cryptographic hash usable as the key itself.
 - `@node-rs/xxhash` over `@noble/hashes` BLAKE3: the latter is 25 to 29 times slower than `sha256`.
 
@@ -652,21 +699,27 @@ Ranking: `node:crypto` `sha256` > `hash-wasm` XXH3-128 as an optional pre-filter
 Recorded without culling, per the user's decision.
 
 - `chokidar` 5.0.0:
-  - `README.md` says "events are not reported twice", while later distinct changes within 50 ms are dropped (`index.js:525-528`, #1455, measured).
-  - `README.md` describes the `atomic` default in terms of `useFsEvents`, which exists nowhere in the v5 code (`rg useFsEvents` matches only `README.md`).
+  - `README.md` says "events are not reported twice", while later distinct changes within 50 ms are dropped
+  - (`index.js:525-528`, #1455, measured).
+  - `README.md` describes the `atomic` default in terms of `useFsEvents`, which exists nowhere in the v5 code
+  - (`rg useFsEvents` matches only `README.md`).
   - The troubleshooting section calls `ENOSPC` file-handle exhaustion, prints "ENOSP",
-    and says `fs.watch` handle exhaustion "can't seem to be solved by ... OS tuning" beside the `max_user_watches` command.
+    and says `fs.watch` handle exhaustion "can't seem to be solved by ... OS tuning" beside the `max_user_watches`
+    command.
   - `README.md` does not state that every file gets its own watch (measured 41,209).
 - `@parcel/watcher` 2.6.0:
-  - `README.md` says Linux queries use "fts (brute force)", while Linux builds use `src/unix/legacy.cc` (`binding.gyp:39-46`).
-  - `README.md` says `ignore` takes "paths or glob patterns", while `index.d.ts` and `wrapper.js:12-25` also accept `RegExp`.
+  - `README.md` says Linux queries use "fts (brute force)", while Linux builds use `src/unix/legacy.cc`
+  - (`binding.gyp:39-46`).
+  - `README.md` says `ignore` takes "paths or glob patterns", while `index.d.ts` and `wrapper.js:12-25` also accept
+  - `RegExp`.
   - `README.md` does not mention that new directories are not crawled, that overflow is dropped,
     or that `getEventsSince` reuses a live subscription's in-memory tree.
 - `watcher` 2.3.1: no `license` field in `package.json`;
   `readme.md` says chokidar is "not very actively maintened" (chokidar pushed 2026-08-16);
   the silent `depth` 20 default appears only in the options list.
 - `watchpack` 2.5.2: `README.md` documents no `ready` or `error` event,
-  and does not say that files modified within `FS_ACCURACY` (2,000 ms) before `startTime` are reported as changed (measured).
+  and does not say that files modified within `FS_ACCURACY` (2,000 ms) before `startTime` are reported as changed
+  (measured).
 - `node-watch` 0.7.4: `README.md:71-72` says Linux lacks native recursion and `skip` makes watching efficient,
   while on Node 26 it uses Node's recursion and `skip` no longer prunes watches (measured).
 - Watchman: `website/docs/install.md` says to download RPM and DEB files from the latest release,
@@ -674,12 +727,15 @@ Recorded without culling, per the user's decision.
 - `@homebridge/dbus-native` 0.7.9: `README.md:33-34` clones `sidorares/node-dbus`, a different repository;
   variant results are returned undecoded with no documentation of the shape (measured);
   `index.d.ts` types only the client path (repository note in `dbus-native.d.ts`); `engines.node` `>=8.0`.
-- `dbus-native` 0.15.2: `README.md` calls `docs/api.md` "the complete reference", but the npm tarball ships no `docs/` directory.
-- `@jellybrick/dbus-next` 0.11.3: `README.md` says the earliest supported Node is 6.3.0 while `engines.node` is `>=12.20.0`,
+- `dbus-native` 0.15.2: `README.md` calls `docs/api.md` "the complete reference", but the npm tarball ships no `docs/`
+- directory.
+- `@jellybrick/dbus-next` 0.11.3: `README.md` says the earliest supported Node is 6.3.0 while `engines.node` is
+- `>=12.20.0`,
   and links documentation to the upstream `acrisci.github.io` site.
 - `@balena/systemd` 0.5.11: the `test` script is `echo 'No tests yet'`.
 - systemd 259:
-  - `man/org.freedesktop.systemd1.xml:580-582`, `:2181-2183`, `:2213`, `:2225` mark `FreezeUnit`, `ThawUnit`, `Freeze`, `Thaw`,
+  - `man/org.freedesktop.systemd1.xml:580-582`, `:2181-2183`, `:2213`, `:2225` mark `FreezeUnit`, `ThawUnit`, `Freeze`,
+  - `Thaw`,
     `FreezerState`, and `CanFreeze` as "not documented".
   - `KillUnit` prose names the argument `who` (`:1333`) while the signature says `whom` (`dbus-manager.c:3099`),
     and says "will fail of no matching process" (`:1342`).
@@ -689,7 +745,8 @@ Recorded without culling, per the user's decision.
   its example `NotificationType<string, void>` passes two type arguments to a class declared `NotificationType<P>`
   (`lib/common/messages.d.ts:274`); the listen-once behavior of `createClientPipeTransport` is undocumented.
 - `jayson` 4.3.0: `README.md:346` says notifications set `id` to `null`, while `:385` says `id` is omitted since 3.6.1.
-- `execa` 10.0.1: `cleanup` is documented as "Kill the subprocess when the current process exits" (`types/arguments/options.d.ts:326-330`),
+- `execa` 10.0.1: `cleanup` is documented as "Kill the subprocess when the current process exits"
+- (`types/arguments/options.d.ts:326-330`),
   while `lib/terminate/cleanup.js:5-8` skips detached subprocesses;
   `readme.md` links `docs/*.md` pages the npm tarball does not ship.
 - `tinyexec` 1.3.1: `README.md:61` says `timeout` means the process "will be forcibly killed",
@@ -698,7 +755,8 @@ Recorded without culling, per the user's decision.
 - `hash-wasm` 4.12.0: `README.md` benchmarks are for 4.10.0 and include no BLAKE3 or XXH3 figures.
 - `@node-rs/xxhash` 1.7.8: `README.md` types inputs as `BufferLike` (including `ArrayBuffer` and `number[]`),
   while the shipped `index.d.ts` accepts `Uint8Array | string`;
-  the package description "Fastest xxhash implementation in Node.js" is contradicted on this host by `hash-wasm` XXH3 at 2.4 to 2.6 times its throughput.
+  the package description "Fastest xxhash implementation in Node.js" is contradicted on this host by `hash-wasm` XXH3
+  at 2.4 to 2.6 times its throughput.
 - `blake3` and `blake3-wasm` 3.0.0: published manifests depend on versions that were never published.
 
 ## Corrections to prior research
@@ -712,12 +770,14 @@ Claims in `stack-typescript.md` that are wrong or incomplete given these librari
 2.  `:201` "chokidar builds on `fs.watch` (inference ..., unverified here)":
     verified, with one watch per file and per directory (41,209 on the checkout), 1,739 to 1,776 ms to `ready`,
     226 to 231 ms of main-thread blocking, 403 to 404 MiB RSS, silent overflow loss,
-    and dropped changes within 50 ms; chokidar is therefore no cheaper than the recursive `fs.watch` it measured (41,205 watches).
+    and dropped changes within 50 ms; chokidar is therefore no cheaper than the recursive `fs.watch` it measured
+    (41,205 watches).
 3.  `:340-342` (yikes 3) "the daemon must walk and watch directories itself" is wrong:
     `@parcel/watcher`, `watcher`, and `watchpack` already watch per directory with pruning (5,481 to 5,483 watches),
     each with its own defects.
 4.  `:336-339` (yikes 2) "Without the FFI reader, the only backstop is a periodic full rescan" is wrong:
-    a worker-thread modification canary detected the loss window without FFI (34 of 90 canaries missing during a flood, 0 of 48 without).
+    a worker-thread modification canary detected the loss window without FFI (34 of 90 canaries missing during a flood,
+    0 of 48 without).
     It detects loss; it still does not locate the lost paths.
 5.  `:329-335` (yikes 1) "Every race-free and loss-free path runs through ... `node:ffi`" is too broad:
     loss detection has the canary, and freeze, thaw, and kill have D-Bus calls at 0.43 to 0.50 ms p50;
@@ -726,8 +786,10 @@ Claims in `stack-typescript.md` that are wrong or incomplete given these librari
     the incumbent `@homebridge/dbus-native` does the same over D-Bus without a process per call,
     `FreezeUnit` replies after the freeze completes (`dbus-unit.c:797-852`),
     and `KillUnit` with `SIGKILL` uses `cgroup.kill` (`unit.c:4145-4152`).
-7.  `:131-132` "Pause, end, limits: `fs.writeFile` to `cgroup.freeze`, `cgroup.kill`" applies only to a daemon-owned delegated subtree;
-    with the `systemd-run --scope` fallback the scopes are systemd-owned under a slice, so direct writes would bypass systemd's state.
+7.  `:131-132` "Pause, end, limits: `fs.writeFile` to `cgroup.freeze`, `cgroup.kill`" applies only to a daemon-owned
+7. delegated subtree;
+    with the `systemd-run --scope` fallback the scopes are systemd-owned under a slice, so direct writes would bypass
+    systemd's state.
     The design doc's process model (`monorepo-manager-from-scratch-design.md:352-363`) assumes the delegated subtree.
 8.  `:137-140` NDJSON with `mcp-stdio` `readLines`: still sound, but incomplete.
     Only `readLines`, the types, and the drain-aware writer pattern are reusable;
@@ -737,8 +799,10 @@ Claims in `stack-typescript.md` that are wrong or incomplete given these librari
 9.  `:252-256` Ctrl+C and exit handling miss two Node-wide facts:
     `'pipe'` stdio is a socketpair, so `> /dev/stdout` inside tasks fails with `ENXIO` (measured),
     which the FFI `pipe2` design avoided and the `systemd-run` fallback does not;
-    and every spawn library settles on stdio close, 3 seconds after `exit` when a grandchild keeps stdout open (measured).
-10. `:243-247` BLAKE3 "needs a library: `@noble/hashes` ... or `hash-wasm`" omits that `@noble/hashes` BLAKE3 runs at 64 to 65 MiB/s,
+    and every spawn library settles on stdio close, 3 seconds after `exit` when a grandchild keeps stdout open
+    (measured).
+10. `:243-247` BLAKE3 "needs a library: `@noble/hashes` ... or `hash-wasm`" omits that `@noble/hashes` BLAKE3 runs at
+10. 64 to 65 MiB/s,
     that `blake3-jit` reaches 1,129 to 1,225 MiB/s,
     and that the `blake3` and `blake3-wasm` packages cannot be installed.
 11. `:322-323` "No other third-party library is required" held only for the all-FFI design;
@@ -746,7 +810,8 @@ Claims in `stack-typescript.md` that are wrong or incomplete given these librari
 12. `:716-727` "That path is slower and loses overflow detection":
     the non-FFI path loses the `IN_Q_OVERFLOW` signal but not loss detection (canary),
     and its freeze and kill calls are sub-millisecond over D-Bus.
-13. The design doc summary (`monorepo-manager-from-scratch-design.md:190-195`) says Node needs `node:ffi` for watch-overflow detection;
+13. The design doc summary (`monorepo-manager-from-scratch-design.md:190-195`) says Node needs `node:ffi` for
+13. watch-overflow detection;
     that is no longer required.
 
 ## Revised Node design
@@ -762,20 +827,25 @@ Libraries per capability, each chosen by the ranking in its section.
   - The watcher module belongs next to file-enforcer's watch code so both share one owner (`RCI`).
   - If 403 MiB RSS or 41,209 watches prove too costly, switch to `@parcel/watcher` with a `RegExp` ignore,
     `backend: 'inotify'`, and a per-new-directory subscription plus walk.
-- Placement: `systemd-run --user --scope --quiet --expand-environment=no --unit=... --slice=...` spawned with `child_process`.
-  Measure its per-task cost first; if it is too high, the fast path is `node:ffi` `pidfd_spawnp` into a delegated subtree,
+- Placement: `systemd-run --user --scope --quiet --expand-environment=no --unit=... --slice=...` spawned with
+- `child_process`.
+  Measure its per-task cost first; if it is too high, the fast path is `node:ffi` `pidfd_spawnp` into a delegated
+  subtree,
   which changes the process model to the one in the design doc.
 - Freeze, thaw, kill, unit state: `@homebridge/dbus-native` calling `FreezeUnit`, `ThawUnit`, `KillUnit`, `GetUnit`,
   with a slice-level freeze for a global pause, retries on "Unit has a pending job",
   and a decoder for its raw variant shape.
   Consider migrating key-helper and this daemon to `dbus-native` 0.15.2 as one follow-up decision.
-- RPC: `json-rpc-2.0` with `mcp-stdio` `readLines`, newline-delimited frames on a socket in a 0700 directory under `$XDG_RUNTIME_DIR`,
-  a bounded per-subscriber queue with drain-aware writes, and a hand-written cancel notification backed by `AbortController`.
+- RPC: `json-rpc-2.0` with `mcp-stdio` `readLines`, newline-delimited frames on a socket in a 0700 directory under
+- `$XDG_RUNTIME_DIR`,
+  a bounded per-subscriber queue with drain-aware writes, and a hand-written cancel notification backed by
+  `AbortController`.
 - Processes: `child_process.spawn` with an exact `env`, `detached: true`, task status from `exit`,
   and cgroup emptiness (unit inactive) as the end of the task tree;
   `nano-spawn` only for helper commands.
 - Hashing: `node:crypto` `sha256`; no hashing library.
-- `node:ffi` becomes optional: needed only if `systemd-run` placement is too slow or a precise overflow signal is required.
+- `node:ffi` becomes optional: needed only if `systemd-run` placement is too slow or a precise overflow signal is
+- required.
 
 ## Remaining yikes
 
@@ -785,7 +855,8 @@ Ranked by severity, most severe first.
     `systemd-run --scope` starts a process, talks to systemd, and pays the attach lock for every task;
     measuring it creates scopes, which this research did not do.
 2.  **No Node library reports inotify overflow.**
-    chokidar, `watcher`, `watchpack`, and `node-watch` lost 300 of 300 writes with no error, and `@parcel/watcher` drops the signal in C++.
+    chokidar, `watcher`, `watchpack`, and `node-watch` lost 300 of 300 writes with no error, and `@parcel/watcher`
+    drops the signal in C++.
     The canary detects loss windows but was measured only on a fixture, and each detection costs a full rescan.
 3.  **The incumbent watcher is heavy and lossy at repository scale.**
     41,209 watches, 403 to 404 MiB RSS, 226 to 231 ms of startup blocking,
@@ -798,14 +869,16 @@ Ranked by severity, most severe first.
 5.  **Tasks cannot reopen `/dev/stdout` or `/dev/stderr`.**
     Node stdio pipes are sockets; fixing it needs per-task log files, `mkfifo`, or FFI `pipe2`.
 6.  **Two process models do not mix.**
-    systemd-owned scopes under a slice (no FFI) and daemon-owned delegated cgroups (FFI) need different freeze, kill, and doctor checks.
+    systemd-owned scopes under a slice (no FFI) and daemon-owned delegated cgroups (FFI) need different freeze, kill,
+    and doctor checks.
 7.  **D-Bus from JavaScript cannot pass fds.**
     Transient services need FIFOs or sockets for stdio;
     two `dbus-next` variants wedge their connection after an fd-typed call;
     the incumbent returns raw variants and non-`Error` errors;
     systemd leaves the freeze methods undocumented.
 8.  **Library-built RPC still needs daemon code for its hard parts.**
-    `json-rpc-2.0` has no cancellation, and `vscode-jsonrpc` queues writes without bound (81 MiB for 100,000 notifications to a paused client).
+    `json-rpc-2.0` has no cancellation, and `vscode-jsonrpc` queues writes without bound (81 MiB for 100,000
+    notifications to a paused client).
 9.  **Maintenance signals are uneven.**
     `hash-wasm` and `xxhash-wasm` were last released 2024-11-19, `fb-watchman` 2022-09-21, `dbus-next` 2021-10-10;
     `@homebridge/dbus-native` has 16 stars and `@jellybrick/dbus-next` 3.

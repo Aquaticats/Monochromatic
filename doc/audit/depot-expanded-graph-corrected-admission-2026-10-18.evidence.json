@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-10-18T15:29:50.448Z",
+  "source": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+  "application": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "remoteMatches": true,
+  "cleanWorktree": true,
+  "driverSha256": "28eda050606b50a28d5590db1d4dd2af1f2951ed22d0ae8abd476c1882c82521",
+  "planSha256": "d13d924dd3f16595856dd2c8711b2b080e2e01053407f53a9dd7f7dce11c4dd9",
+  "workflows": [
+    {
+      "path": ".github/workflows/readonly-semantic-bridge.yml",
+      "bytes": 4263,
+      "sha256": "1d621b7fb8ec67a9dfee8fa07ba5604e3d35131df2cba7cd9fae98889335af85",
+      "samples": 4,
+      "maximumMinutes": 30,
+      "maximumParallelJobs": 1
+    },
+    {
+      "path": ".depot/workflows/expanded-graph.yml",
+      "bytes": 3735,
+      "sha256": "81ccd0fa319edc2844887581232fc3fb1f89744e11b4a6fcded59f26b8bc667f",
+      "samples": 2,
+      "maximumMinutes": 30,
+      "maximumParallelJobs": 1
+    }
+  ],
+  "expectedScheduledOwnerCommands": 222,
+  "independentLocalPreflight": {
+    "reviewer": "/root/rust_research_completion",
+    "driverSource": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+    "controlsPassed": 12,
+    "actualApplicationCommandsExecuted": 0,
+    "strictUnmodifiedJsonConsumer": true,
+    "stagedAndUnstagedSourceMutationRejected": true,
+    "bothExternalSignalsCleanOwnedGroups": true,
+    "freshSelectedToolInstallPassed": true,
+    "officialMise2026109ExecutableSha256": "6ab6646b52b83f6bbd51c9d0d3ae54264ffa90efd1ac6d7c0ec5a86bbc6a0030",
+    "freshInstallResourceLimits": {
+      "cpus": 2,
+      "memoryBytes": 2147483648
+    }
+  },
+  "ratesUsdPerMinute": {
+    "nativeFourCpu": 0.012,
+    "depotGithubLinuxFourCpu": 0.012,
+    "standardPublicGithubNominal": 0,
+    "uniformAdmissionProxy": 0.012
+  },
+  "rateSource": "https://depot.dev/docs/github-actions/runner-types.md",
+  "priorSetupFailureRun": "39135886118",
+  "priorNominalDepotComputeUsd": 0.0142,
+  "priorUniformAdmissionProxyUsd": 0.0296,
+  "correctedFullWindowDepotNominalReservationUsd": 1.44,
+  "correctedSixSampleUniformProxyUsd": 2.16,
+  "twoNativeCorrectionWindowsProxyReserveUsd": 0.72,
+  "campaignConservativeProxyIncludingPriorFailureUsd": 2.9096,
+  "campaignProxyGuardUsd": 3,
+  "maximumConcurrentParentResearchJobs": 2,
+  "nativeDispatchMustWaitForRegistryAndCacheProbeSlotRelease": true,
+  "originalAdmissionRetainedAndSuperseded": true,
+  "actualInvoiceOrBillableVmLifetimeObserved": false,
+  "cacheBoundary": "No explicit repository package/compiler cache restoration or prepared snapshot; provider image/tool/registry caches are observed rather than assumed absent",
+  "executionBoundary": "One four-CPU Linux job containing shared prerequisite and parallel consumer branches; not a distributed cross-job artifact DAG or whole-repository pipeline"
+}

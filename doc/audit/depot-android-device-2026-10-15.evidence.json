@@ -1,0 +1,360 @@
+{
+  "cloudRun": "38826684750",
+  "cloudRevision": "1c48affeed",
+  "startedAt": "2026-10-16T00:06:57.446Z",
+  "finishedAt": "2026-10-16T00:06:59.264Z",
+  "elapsedSeconds": 1.818,
+  "expectedTests": 16,
+  "hashes": [
+    {
+      "path": "artifacts/debug/app-debug.apk",
+      "sha256": "fa99361a4495754f1b33e86a1a58a364e3ba81b15fd1c28f0cfade6bdd944cfb"
+    },
+    {
+      "path": "artifacts/androidTest/debug/app-debug-androidTest.apk",
+      "sha256": "9fcfa2bc13867b28977988fa5a33d989391c4d99e5aae9ccc7237108716ed583"
+    }
+  ],
+  "device": {
+    "sdk": "37",
+    "abi": "x86_64",
+    "pageSize": 16384
+  },
+  "scope": "All four existing instrumented test classes, without a class filter; private headed AVD; host audio disabled",
+  "recordedAt": "2026-10-16T00:35:18.764Z",
+  "results": [
+    {
+      "label": "before-fixtures",
+      "total": 16,
+      "passed": 9,
+      "failed": 2,
+      "skipped": 5,
+      "cases": [
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "truePeakServiceOpensAndResolvesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "symphoniaRegistryInitializesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "opusDecoderConstructsOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "decodeFromContentFd",
+          "status": -4,
+          "stack": "org.junit.AssumptionViolatedException: no indexed MediaStore audio (grant READ_MEDIA_AUDIO)\n\tat org.junit.Assume.assumeTrue(Assume.java:68)\n\tat dev.monochromatic.musicplayer.NativeBridgeTest.decodeFromContentFd(NativeBridgeTest.kt:1038)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativePingCrossesJniBoundary",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "aaudioOutputLatencyOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "benchmarkNativeDecode",
+          "status": -4,
+          "stack": "org.junit.AssumptionViolatedException: missing fixture bench.opus\n\tat org.junit.Assume.assumeTrue(Assume.java:68)\n\tat dev.monochromatic.musicplayer.NativeBridgeTest.benchmarkNativeDecode(NativeBridgeTest.kt:515)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintMatchesTheReferenceKnownAnswersOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativeTruePeakInterpolatesInterSamplePeaks",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "measureAndCacheMeasuresThenCachesOneTrack",
+          "status": -4,
+          "stack": "org.junit.AssumptionViolatedException: device library is empty; nothing to sweep\n\tat org.junit.Assume.assumeTrue(Assume.java:68)\n\tat dev.monochromatic.musicplayer.PeakSweepWorkerTest.measureAndCacheMeasuresThenCachesOneTrack(PeakSweepWorkerTest.kt:288)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "workerSweepsBoundedShareAndSucceeds",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "autoAdvancesOnceOnNaturalEnd",
+          "status": -4,
+          "stack": "org.junit.AssumptionViolatedException: need >= 3 indexed tracks\n\tat org.junit.Assume.assumeTrue(Assume.java:68)\n\tat dev.monochromatic.musicplayer.RustEngineTest.autoAdvancesOnceOnNaturalEnd(RustEngineTest.kt:654)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "playsPausesSeeksThroughRustEngine",
+          "status": -4,
+          "stack": "org.junit.AssumptionViolatedException: no indexed MediaStore audio (grant READ_MEDIA_AUDIO)\n\tat org.junit.Assume.assumeTrue(Assume.java:68)\n\tat dev.monochromatic.musicplayer.RustEngineTest.playsPausesSeeksThroughRustEngine(RustEngineTest.kt:232)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "migratesEveryLegacyCombination",
+          "status": -2,
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:474)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:196)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.migratesEveryLegacyCombination(SessionStoreTest.kt:34)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "currentPlaybackModeWinsOverLegacyKeys",
+          "status": -2,
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:474)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:196)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.currentPlaybackModeWinsOverLegacyKeys(SessionStoreTest.kt:52)\n"
+        }
+      ]
+    },
+    {
+      "label": "with-fixtures",
+      "total": 16,
+      "passed": 14,
+      "failed": 2,
+      "skipped": 0,
+      "cases": [
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "truePeakServiceOpensAndResolvesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "symphoniaRegistryInitializesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "opusDecoderConstructsOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "decodeFromContentFd",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativePingCrossesJniBoundary",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "aaudioOutputLatencyOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "benchmarkNativeDecode",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintMatchesTheReferenceKnownAnswersOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativeTruePeakInterpolatesInterSamplePeaks",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "measureAndCacheMeasuresThenCachesOneTrack",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "workerSweepsBoundedShareAndSucceeds",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "autoAdvancesOnceOnNaturalEnd",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "playsPausesSeeksThroughRustEngine",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "migratesEveryLegacyCombination",
+          "status": -2,
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:474)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:196)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.migratesEveryLegacyCombination(SessionStoreTest.kt:34)\n"
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "currentPlaybackModeWinsOverLegacyKeys",
+          "status": -2,
+          "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:474)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:196)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.currentPlaybackModeWinsOverLegacyKeys(SessionStoreTest.kt:52)\n"
+        }
+      ]
+    },
+    {
+      "label": "context-experiment",
+      "total": 16,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "truePeakServiceOpensAndResolvesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "symphoniaRegistryInitializesOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "opusDecoderConstructsOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "decodeFromContentFd",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativePingCrossesJniBoundary",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "aaudioOutputLatencyOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "benchmarkNativeDecode",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "fingerprintMatchesTheReferenceKnownAnswersOnDevice",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+          "name": "nativeTruePeakInterpolatesInterSamplePeaks",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "measureAndCacheMeasuresThenCachesOneTrack",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+          "name": "workerSweepsBoundedShareAndSucceeds",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "autoAdvancesOnceOnNaturalEnd",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.RustEngineTest",
+          "name": "playsPausesSeeksThroughRustEngine",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "migratesEveryLegacyCombination",
+          "status": 0
+        },
+        {
+          "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+          "name": "currentPlaybackModeWinsOverLegacyKeys",
+          "status": 0
+        }
+      ]
+    }
+  ],
+  "fixturePreparation": {
+    "indexedAudioBefore": 0,
+    "indexedAudioAfter": 3,
+    "indexedFormats": [
+      "flac",
+      "opus",
+      "mp3"
+    ],
+    "durationSeconds": 10,
+    "privateExternalFiles": [
+      "bench.opus",
+      "bench.flac"
+    ],
+    "readMediaAudioGranted": true,
+    "source": "Synthetic 440 Hz tone from desktop-e2e waveBytes"
+  },
+  "runtimeAssertions": {
+    "naturalEndIndex": 1,
+    "playingPositionSeconds": 0.62,
+    "durationSeconds": 10,
+    "pausedPositionsSeconds": [
+      0.62,
+      0.62
+    ],
+    "seekTargetSeconds": 5,
+    "positionAfterSeekSeconds": 5.6,
+    "serviceResolvedGain": 1
+  },
+  "limitations": [
+    "Original source still fails both SessionStoreTest cases; the isolated test-context experiment passes them.",
+    "One x86_64 API 37 emulator with 16 KiB pages; no physical arm64 device execution.",
+    "Reported native benchmark timings are functional checks, not performance comparisons.",
+    "The targetContext experiment clears disposable app preferences and is not a production-device test fix."
+  ],
+  "contextExperiment": {
+    "cloudRun": "38828426717",
+    "cloudRevision": "bf426f7c13",
+    "hashes": [
+      {
+        "path": "debug/app-debug.apk",
+        "sha256": "6beaf6af78a7dd3b8c631d679441c49c0507493e194635521990111638a86170"
+      },
+      {
+        "path": "androidTest/debug/app-debug-androidTest.apk",
+        "sha256": "890feba6b83193d96027a12e80a054568121531f2225010d4ec4982a971c83f2"
+      }
+    ],
+    "change": "SessionStoreTest uses instrumentation targetContext on the disposable emulator",
+    "elapsedSeconds": 5.925,
+    "junitSeconds": 5.115,
+    "productionApplicationChanged": false
+  },
+  "cleanup": {
+    "emulatorUnit": "depot-trial-fold",
+    "state": "inactive",
+    "gracefulEmulatorShutdown": true
+  }
+}

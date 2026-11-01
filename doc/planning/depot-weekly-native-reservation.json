@@ -1,0 +1,15 @@
+{
+  "id": "weekly-native-2026-10-19-r13",
+  "profile": "weekly-native-matrix",
+  "provider": "depot-native",
+  "meters": {
+    "nativeMinutes": 120,
+    "buildMinutes": 30,
+    "githubRunnerMinutes": 0,
+    "passingTestResults": 0,
+    "storageGb": 1
+  },
+  "reservedUsd": 10,
+  "hasGithubEquivalent": true,
+  "used": true
+}

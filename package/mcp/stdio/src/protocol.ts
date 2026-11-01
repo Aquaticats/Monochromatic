@@ -4,7 +4,10 @@
 
 import type { ResultMeta, } from './protocol-meta.ts';
 
-import type { ToolDefinition, } from './protocol-tool.ts';
+import type {
+  ResourceContents,
+  ToolDefinition,
+} from './protocol-tool.ts';
 
 //region Protocol revision: every version this server accepts on the wire
 
@@ -128,6 +131,20 @@ export type ToolsCapability = {
 };
 
 /**
+ Resources capability sub-object declared in {@link ServerCapabilities}.
+ Present only when the server exposes a resource provider answering `resources/list`
+ and `resources/read`.
+ 
+ @example
+ ```ts
+ const resources: ResourcesCapability = {};
+ ```
+ */
+export type ResourcesCapability = {
+  readonly listChanged?: boolean;
+};
+
+/**
  Server capabilities reported by `server/discover`.
  Only `tools` is relevant for a stdio tool server.
  
@@ -138,6 +155,66 @@ export type ToolsCapability = {
  */
 export type ServerCapabilities = {
   readonly tools?: ToolsCapability;
+  readonly resources?: ResourcesCapability;
+};
+
+//endregion
+
+//region Resource listing and reading: dynamic payloads hosts fetch on demand
+
+/**
+ Descriptor advertising one readable resource.
+ 
+ @example
+ ```ts
+ const descriptor: ResourceDescriptor = {
+   uri: 'search-fetch://response/abc',
+   name: 'full response',
+ };
+ ```
+ */
+export type ResourceDescriptor = {
+  readonly uri: string;
+  readonly name: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+};
+
+/**
+ Payload returned from `resources/list`.
+ `nextCursor` stays absent because a stdio server lists every resource in one page.
+ 
+ @example
+ ```ts
+ const result: ListResourcesResult = {
+   resultType: 'complete',
+   resources: [],
+   ttlMs: 0,
+   cacheScope: 'private',
+ };
+ ```
+ */
+export type ListResourcesResult = McpResult & CacheHint & {
+  readonly resources: readonly ResourceDescriptor[];
+  readonly nextCursor?: string;
+};
+
+/**
+ Payload returned from `resources/read`.
+ 
+ @example
+ ```ts
+ const result: ReadResourceResult = {
+   resultType: 'complete',
+   contents: [{ uri: 'search-fetch://response/abc', text: 'full response text' }],
+   ttlMs: 0,
+   cacheScope: 'private',
+ };
+ ```
+ */
+export type ReadResourceResult = McpResult & CacheHint & {
+  readonly contents: readonly ResourceContents[];
 };
 
 //endregion

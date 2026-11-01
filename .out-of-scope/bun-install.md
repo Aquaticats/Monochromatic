@@ -13,7 +13,7 @@ node_modules; task-pnpm install`). The pnpm migration landed in commit
 `e424ffde build(*): migrate package manager from vlt to pnpm`.
 
 Bun is still the **runtime** for scripts, tests, and CLI binaries (`#!/usr/bin/
-env bun` shebangs, the `@monochromatic-dev/module-test` harness, etc.); that
+env bun` shebangs, the `@monochromatic-dev/test-harness-core` harness, etc.); that
 scope is unchanged. The out-of-scope-ness here is narrowly about Bun's
 `install` subcommand and the package-manager pieces around it (catalog
 resolution, lockfile, HTTP cache).

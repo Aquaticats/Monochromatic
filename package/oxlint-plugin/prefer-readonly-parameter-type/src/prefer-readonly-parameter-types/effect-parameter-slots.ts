@@ -20,13 +20,13 @@ import type {
   BindingPattern,
   Node,
   ParameterDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isArrayBindingPattern,
   isBindingElement,
   isIdentifier,
   isObjectBindingPattern,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import {
   asEffectSlot,

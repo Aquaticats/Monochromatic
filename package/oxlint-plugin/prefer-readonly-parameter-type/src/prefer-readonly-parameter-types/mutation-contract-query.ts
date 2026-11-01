@@ -11,11 +11,11 @@ import {
 import type {
   BindingName,
   SourceFile,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isBindingElement,
   isIdentifier,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import type { EffectCallableDeclaration, } from './effect-summary-model.ts';
 
@@ -94,8 +94,8 @@ export function mutationContractsForDeclaration({
    */
   const jsDocText = sourceFile.text
     .slice(
-      jsDoc.pos,
-      jsDoc.end,
+    jsDoc.pos,
+    jsDoc.end,
     );
   /**
    Relative doc-comment delimiter offset after leading trivia.
@@ -122,7 +122,7 @@ export function mutationContractsForDeclaration({
     .slice(
     commentBodyStartOffset,
     commentEndOffset - COMMENT_CLOSE_WIDTH,
-  );
+    );
   return {
     commentStartOffset,
     commentEndOffset,
@@ -164,15 +164,15 @@ function collectParameterTargets({
   }
   name.elements
     .forEach(function collect(element,): void {
-    if (isBindingElement(element,) && (element.name !== undefined)) {
-      collectParameterTargets({
-        name: element.name,
-        parameterIndex,
-        sourceFile,
-        targetIndexes,
-      },);
-    }
-  },);
+      if (isBindingElement(element,) && (element.name !== undefined)) {
+        collectParameterTargets({
+          name: element.name,
+          parameterIndex,
+          sourceFile,
+          targetIndexes,
+        },);
+      }
+    },);
 }
 
 /**
@@ -205,12 +205,12 @@ export function mutationTargetIndexes({
       parameter,
       parameterIndex,
     ): void {
-    collectParameterTargets({
-      name: parameter.name,
-      parameterIndex,
-      sourceFile,
-      targetIndexes,
+      collectParameterTargets({
+        name: parameter.name,
+        parameterIndex,
+        sourceFile,
+        targetIndexes,
+      },);
     },);
-  },);
   return targetIndexes;
 }

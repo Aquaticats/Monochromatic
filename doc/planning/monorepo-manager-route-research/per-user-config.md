@@ -5,7 +5,7 @@ the unset `XDG_CONFIG_HOME`,
 the root-owned `XDG_CONFIG_DIRS` entries,
 the `/home` symlink,
 and the `??` home fallback,
-which lives at `package/dev-script/file-enforcer/src/jetbrains/options-dir.ts:334-338`
+which lives at `package/file-enforcer/core/src/jetbrains/options-dir.ts:334-338`
 rather than the path this research cited.
 
 Every decision it feeds applies to meow 0.x only (user,
@@ -126,21 +126,21 @@ All measurements are from the development machine on 2026-09-17.
    an `rg` for `homedir()`,
    `os.homedir`,
    and `process.env.HOME`
-   over `file-enforcer.config.ts` and `package/dev-script/file-enforcer/src/`
+   over `file-enforcer.config.ts` and `package/file-enforcer/core/src/`
    returns exactly one hit,
-   `package/dev-script/file-enforcer/src/jetbrains/options-dir.ts:336`).
+   `package/file-enforcer/core/src/jetbrains/options-dir.ts:336`).
 - That lookup is
    `process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config')`,
    then `JetBrains`
    (Verified:
-   `package/dev-script/file-enforcer/src/jetbrains/options-dir.ts:332-340`).
+   `package/file-enforcer/core/src/jetbrains/options-dir.ts:332-340`).
   It uses `??`,
    so an empty `XDG_CONFIG_HOME` is treated as set,
    and it does not check that the value is absolute.
 - The forbidden-strings runtime cache is the repository's only other outside write,
    and it is a Rust implementation with a fuller policy
    (Verified:
-   `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`):
+   `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`):
    the `FORBIDDEN_STRINGS_CACHE_DIR` override must be platform-absolute or the call fails with
    `CacheRootError::InvalidOverride`;
    Windows uses `%LOCALAPPDATA%`;
@@ -158,13 +158,13 @@ All measurements are from the development machine on 2026-09-17.
    `etcetera`,
    or `xdg` dependency appears in any manifest
    (Verified:
-   `grep` over `package/cli/forbidden-strings/Cargo.toml`
+   `grep` over `package/forbidden-strings/cli/Cargo.toml`
    and `rg --glob '*.toml' 'etcetera|^dirs |"dirs"|directories-next|dirs-next' .` returning no match).
 - The repository's TypeScript XDG helper for terminal lookup does implement
    `XDG_CONFIG_DIRS` and `XDG_DATA_DIRS` search lists,
    also with `??` and no absolute check
    (Verified:
-   `package/cli/terminal-exec/src/xdg-paths.ts:85-135`).
+   `package/terminal-exec/cli/src/xdg-paths.ts:85-135`).
 - The repository's `.editorconfig` begins with `root = true`,
    and `/home/user/.editorconfig` does not exist
    (Verified:
@@ -172,10 +172,10 @@ All measurements are from the development machine on 2026-09-17.
 - file-enforcer writes managed files through a same-directory temporary file and an atomic rename,
    with an explicit "watch echo suppression" concern
    (Verified:
-   `package/dev-script/file-enforcer/src/io/write-atomic.ts:33`,
+   `package/file-enforcer/core/src/io/write-atomic.ts:33`,
    `:75`,
    `:107`,
-   and `package/dev-script/file-enforcer/src/io/write.ts:138`).
+   and `package/file-enforcer/core/src/io/write.ts:138`).
 
 ### The concrete case: LI14
 
@@ -603,7 +603,7 @@ matches where the user's other tools already are,
  measured;
 the absolute-path check follows the XDG specification's explicit instruction
  and reuses the repository's own Rust policy in
- `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`,
+ `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`,
  so no new dependency;
 the override pair covers both "use this file instead" and "use no file",
  which are the two needs Bazel covers with `--bazelrc` and `--nohome_rc`
@@ -1341,7 +1341,7 @@ explicit override,
  then the home fallback,
 rather than inventing a second policy
 (Verified shape:
- `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`).
+ `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`).
 The concrete per-platform values differ from that incumbent's,
 because it resolves a cache directory and this resolves a configuration directory:
 macOS uses `$HOME/Library/Application Support/meow/meow.hcl`

@@ -1,5 +1,10 @@
 # TypeScript constant-loop ban handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/css-edit` is now `package/css/core-edit`.
+
 Last updated:
 `2026-07-22T22:06:35-04:00`.
 
@@ -312,7 +317,8 @@ Final verification passed:
 - Ordinary migrated sources contain no `for (;;)` statements.
 - The two runtime-error fixtures use `for (;;)` as approved.
 - Root-inclusive ancestor traversal now has focused start-to-root and root-only tests.
-- The pre-existing production statement at `package/ssg/aquati.cat/src/lib/content.ts` remains unchanged and out of scope.
+- The pre-existing production statement at `package/ssg/aquati.cat/src/lib/content.ts` remains unchanged
+  and out of scope.
 - Scoped commit path inspection contains only task files.
 - An optional repository-wide Oxlint sweep was also attempted.
   It failed on unrelated baseline input with 697 errors and 3,870 warnings,

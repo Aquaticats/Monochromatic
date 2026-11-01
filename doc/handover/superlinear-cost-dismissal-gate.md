@@ -1,0 +1,920 @@
+# Superlinear cost dismissed as acceptable: gate research
+
+## Purpose
+
+State of the research into how to stop agents from waving away superlinear cost with "inputs are short today".
+Written 2026-10-29 for the next session;
+updated the same day with the runs under `Measured results`.
+The owner paused the work,
+then asked to resume it.
+`Open` holds what those runs left undecided.
+No `AGENTS.md` edit,
+decision doc,
+or code change came out of this work.
+
+## Name note
+
+The `thinking-dismissal` name was moved on 2026-10-29 and is now `cost-dismissal` (the `cctd` bin is now `cccd`,
+and the log directory is now `cost-dismissal`);
+the old text stays above for the record.
+
+## Trigger
+
+The owner found a thinking block in an earlier session (`73f0639e`) that read:
+a mild quadratic cost in the gap-finding logic is acceptable because lines are short in practice,
+despite not being strictly linear for unbounded input.
+A second thinking block in the same stretch called the cost negligible for short CLI rows.
+The owner's reply:
+lines might be short now,
+but they can grow.
+The owner then asked for a way to make future agents less likely to do this,
+and rejected a wording-only change for this one case as a band-aid.
+
+## The code behind it
+
+The sentence concerns `readBinRow` in `package/file-enforcer/core/src/toolchain/providers.parse.ts`.
+It tested every column gap with a `.some()` over all gaps,
+inside a `.find()` over the same gaps.
+The fix is commit `58d2bb414d`.
+Its message records a crafted 20,000-gap row taking 2383 ms before and 4.5 ms after.
+That the sentence concerns this function is an inference from the code and the commit,
+because the earlier transcript was not read in full.
+
+## Findings
+
+### The existing rules already cover the failure in text
+
+`RG2` requires a regex replacement to be proven O(n) for unbounded input.
+The dismissal quoted that criterion and overrode it.
+`doc/philosophy/agents.md` says `AGENTS.md` grows only when no rule covers the failure.
+`doc/audit/chain-flatten-skewed-tree.md` reached the same conclusion for a different bug:
+correct in text,
+failed in application,
+same trap twice.
+Its follow-up added sharper text in three places,
+and the class recurred.
+The `PXQ` section of `doc/philosophy/agents.md` records a rule that stayed in `AGENTS.md` and still failed for a month.
+A standards-directed blind review applied `RG2` to this very scan as its top finding
+(see the heading `Blind review: neutral misses, standards catches`),
+so the text does the work once a reviewer is pointed at it.
+
+### The dismissal lived only in thinking
+
+In `73f0639e` the sentence appears only in thinking blocks,
+not in a message or a tool input.
+The stop hook sends no thinking blocks to its detectors
+(`package/claude-code-plugin/stop-reminder/README.md`,
+the Luna section),
+and no document I read gives a reason for that exclusion.
+The first block also leaned on "passes fuzz testing" as reassurance,
+which short random inputs cannot justify.
+
+### Prior art
+
+No published false-positive rate exists for a lint rule of this kind.
+The closest is `react-doctor/js-set-map-lookups`,
+an oxlint rule that flags `includes` and `indexOf` inside loops.
+Its page says a match proves only the modeled source pattern.
+A Sentry experiment found one real quadratic reduce callback and reported no totals.
+`doc/planning/wall-clock-bound-test-remedies-review.md` measured representative quadratic string work at 40 ms to 200 ms
+against a 250 ms bound,
+so an absolute wall-clock bound does not catch it.
+That review recommends raising the input size or adding a two-size ratio check with a positive control.
+
+## Rejected: a nested-scan lint rule
+
+I prototyped a detector in scratch and measured it.
+It parses production TypeScript with Node's type stripping plus `acorn`
+and reports a search call (`indexOf`,
+`includes`,
+`some`,
+`find`,
+and similar)
+inside an iteration callback or loop body.
+
+- Scope:
+  5,404 files selected,
+  5,390 parsed,
+  14 failed to parse.
+- Counts by cumulative tier:
+  1,923 for any scan nested in a scan or loop,
+  1,282 for a search call,
+  653 when the searched collection is declared outside the nest,
+  and 511 when that search also has no start-position argument.
+- False positives:
+  I classified every 12th hit of the 490 tightest-tier hits not on a module-level constant,
+  41 samples.
+  Seven were test fixtures or fuzz packages that the file filter missed,
+  leaving 34.
+  About 19 were harmless (constant character sets and rosters,
+  small fixed domains,
+  string searches,
+  short CLI dedupe).
+  About 10 looked like real superlinear work on document-scale data,
+  and about 5 were unclear.
+- Recall:
+  on the pre-fix code of 8 historical commits that fixed non-regex quadratic work,
+  the tightest tier flagged the changed hunks in 3,
+  a looser tier in 1,
+  and missed the rest,
+  including the accumulator-copy fixes.
+- Cost:
+  about 10 of 34 real-looking hits extrapolates to roughly 140 existing sites.
+  Each suppression needs a justified disable comment and a doc (`LN3`),
+  so the rule would demand hundreds of docs.
+
+Limits of this evidence:
+one rater (me),
+no measurement of the data sizes behind any hit,
+and a file filter that leaked tests and fuzz packages.
+Conclusion:
+a lint rule is not viable as a gate at a tolerable false-positive rate.
+The owner called the proposal laughable without a measured false-positive rate,
+and the measurement agrees.
+
+## Measured results
+
+Two of the three directions got one run each on 2026-10-29;
+the owner has since constrained the Luna direction
+(see `Decisions on record`).
+Limits shared by both runs:
+one bug (`readBinRow` before `58d2bb414d`),
+one sample per arm,
+and no false-positive rate measured.
+`diff` of `parse-after.ts` against `package/file-enforcer/core/src/toolchain/providers.parse.ts` prints nothing,
+so the scratch post-fix parser is byte-identical to production and `parse-before.ts` differs from it only by the fix.
+
+### The ratio gate separates the parsers only on an exposing shape
+
+`ratio-gate.ts` ran unchanged at sizes 2,000 to 16,000 gaps,
+best of five.
+All three of its generators read doubling ratios near 2 for both parsers,
+so none separates them.
+
+The reason is `gaps.find` inside `readBinRow`:
+it returns at the first gap whose following word
+is itself followed by a column gap.
+In `'x  '.repeat(n)` and in a repeated valid row the first gap
+already matches,
+so the nested `gaps.some` scan runs a constant number of times.
+This is the prediction about repeated valid rows under `Ratio-test gate`,
+extended:
+the "many short columns" shape is inert too.
+
+`ratio-gate-2.ts` adds the shape that exposes the scan:
+`z` followed by `  a b` repeated n times.
+Each gap there is followed by a word that is single-space separated from the next word,
+so every gap fails the version-column test,
+`gaps.find` walks all n gaps,
+and each walk runs `gaps.some` over all of them.
+Sizes 1,000 to 8,000 gaps,
+best of three:
+
+- Failing gaps,
+  then a version match (the row parses),
+  pre-fix 3.28,
+  3.45,
+  5.15;
+  post-fix 2.00,
+  2.00,
+  2.01.
+- Failing gaps,
+  no match (the row parses to nothing),
+  pre-fix 3.72,
+  0.77,
+  5.05;
+  post-fix 2.27,
+  1.58,
+  1.85.
+
+A 20,000-gap row of the exposing shape takes 518.6 ms pre-fix and 2.8 ms post-fix.
+`58d2bb414d` records 2383 ms and 4.5 ms on its own crafted row:
+same class,
+different shape and process state,
+so absolute numbers do not carry over.
+
+Two confounds a gate must control:
+
+- Cold ratios are unreadable.
+  The unwarmed pre-fix series on the no-match shape reads
+  4.64,
+  17.25,
+  13.20,
+  66.64 ms,
+  non-monotonic.
+  `ratio-gate-warmup.ts` discards two best-of-five
+  timings at the largest size first,
+  then reads 3.51,
+  3.79,
+  4.54 pre-fix and 1.98,
+  2.08,
+  2.04 post-fix.
+  The non-monotonic point is a warmup or execution-order effect consistent with JIT tier-up;
+  no V8 trace was taken,
+  so the cause stays unproven.
+- Spread and ordering.
+  Ten best-of-three samples of one identical 4,000-gap pre-fix input read
+  12.181 to 12.888 ms (about 5.8%),
+  and the spread probe in `ratio-gate.ts`
+  (post-fix,
+  best of five) reads 0.293 to 0.304 ms. That separates a doubling ratio near 4
+  from one near 2 under these conditions only:
+  each spread covers one arm,
+  one size,
+  one process,
+  and the arms ran in fixed pre-then-post order.
+
+`bin-list-scaling.ts` never ran as a comparison:
+its "old" arm `parse-old.ts` is byte-identical
+to `parse-new.ts` and `parse-after.ts`,
+so it would compare the fix with itself.
+
+### Blind review: neutral misses, standards catches
+
+Two fresh subagents read only `blind-review/providers.parse.ts`,
+the pre-fix module,
+with the fix,
+this handover,
+and git history unavailable to them:
+
+- Neutral review prompt:
+  six findings (1 major,
+  2 minor,
+  3 nits),
+  all correctness and robustness.
+  The cost of the nested `gaps.some` scan is not among them,
+  and the arm reported
+  no findings in `findColumnGaps`.
+- Standards review prompt against `AGENTS.md`:
+  its first and only major finding is the target,
+  `readBinRow` under `RG2`,
+  naming the `gaps.find` over `gaps.some` per candidate
+  and "probe stdout is unbounded".
+
+So the rule text does the work once a reviewer is pointed at it,
+and a neutral reviewer
+shares the author's blind spot.
+`RG2` is worded for code replacing a regex;
+the reviewer generalized its criterion,
+"proven O(n) for unbounded input",
+to this scan.
+
+By-products of the neutral arm,
+all in gap semantics the fix left untouched and so present
+in production:
+a path column containing a two-character space run parses its tail as the version;
+`parseBinList` splits on `\n` while `readBinRow` guards other line terminators;
+`parseCargoBinstallList` normalizes `cargoVer` but not `binstallVer`.
+Two are fixed in `c42e90ea02`:
+`splitRows` keeps every terminator-separated row in one pass,
+and both version columns normalize alike.
+The first is dropped:
+it would change `readBinRow`'s documented shortest-prefix contract,
+and the owner ruled on 2026-10-29
+that `file-enforcer` is dead and nothing new gets built on it.
+
+## Open
+
+The owner chose three directions after the lint rule failed.
+The runs under `Measured results` narrow what each one would mean;
+none is built.
+
+### Ratio-test gate
+
+The idea is a helper that runs a function at sizes n and 2n on adversarial input and fails when
+the time ratio is far above 2,
+with a self-test proving a synthetic quadratic trips it.
+The first session predicted,
+unmeasured,
+that repeating valid rows would not expose the bug,
+because the first matching gap returns early;
+`Measured results` confirms that and extends it to the "many short columns" shape.
+Two roles remain possible and they differ sharply:
+
+- A regression gate for a known bug:
+  run the function at n and 2n on the exposing shape,
+  require the ratio near 2,
+  and prove the shape exercises the suspected path.
+  This works,
+  but only where someone has already understood the bug well enough
+  to write the exposing shape.
+- A discovery gate for unknown bugs:
+  take the maximum ratio over a portfolio of generated shapes,
+  so nobody has to know the shape in advance.
+  Untried.
+  The inert generators are the demonstration of what one hand-authored shape costs:
+  two "adversarial" inputs were written in this research that never reached the nested scan.
+
+Untouched:
+where the gate runs (a package task,
+a sidecar,
+CI) and what it demands of callers.
+
+### Separate-reviewer gate
+
+The test ran:
+an independent review shown only the code and not the author's reasoning
+(`doc/agent/self-review.md` says same-session review is not independent review).
+A standards-directed arm caught the bug;
+a neutral arm missed it,
+so the gate means
+routing candidate diffs through `project-code-review` rather than a general review.
+Untouched:
+recall on a corpus (the eight historical fix commits used for the lint rule are
+the natural set),
+false-positive rate,
+per-diff cost,
+and determinism.
+
+### Luna
+
+Luna is `openai/gpt-6-luna-decisions`,
+the model the `ccsr` Stop hook uses to label the situation of the final message
+(`doc/handover/stop-reminder-luna.md`).
+Findings so far:
+the hook sends the final message only,
+with no thinking blocks,
+and runs at the end of the turn,
+long after a mid-turn dismissal.
+The handover records that a Luna label for uncertainty is not built and needs its own calibration under #1772.
+Thinking blocks are readable in the session transcript,
+so a detector could read them.
+An experiment would replay thinking blocks through Luna,
+with the two dismissal blocks as positives and a sample of other blocks as negatives.
+That sends reasoning text to an external provider,
+which the hook does not do today,
+so it needed the owner's authorization first.
+On 2026-10-29 the owner ruled thinking-block text off limits to external providers,
+even mere summaries,
+which blocks the replay-through-Luna shape as proposed.
+ The direction stays open:
+ the owner corrected a wider reading that day,
+ and any detector it yields must keep thinking text on this machine.
+
+### Local calibration, 2026-10-29
+
+The named experiment ran locally,
+in the shape the text rule allows
+(`dismissal-calibrate.ts` in the scratch directory):
+a rule detector flags a thinking block
+when one sentence carries both a cost term and a size-dismissal term.
+It caught both known dismissal blocks of session `73f0639e`
+(blocks 1201 and 1202),
+and flagged 128 of 48,252 thinking blocks
+across an 11-transcript negative sample
+(0.27 percent,
+an upper bound since flagged negatives are unreviewed).
+Scanning is local and stream-based;
+output carries session id,
+block index and pattern ids only,
+never thinking text.
+The shadow trigger is built
+(commit `ee637f1b3b`,
+then moved off `Stop` alone on the owner's steer):
+the `cctd` Claude Code hook
+of `package/claude-code-plugin/thinking-dismissal`,
+one handler registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `.claude/settings.local.json`,
+appending one metadata-only record per event to
+`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`.
+Each event sees a part of the turn the others miss:
+`PreToolUse` names the action a dismissal led to before it runs
+(and is where a graduated gate could demand a proof),
+`PostToolUse` proves the action ran,
+`Stop` sees turn-ending thinking with no tool call after it.
+Observations are kept once per event type,
+joinable on the block hash.
+It records and never denies.
+On the owner's correction the detector measures overall dismissals,
+not thinking-only ones,
+so every leg scans assistant prose (thinking and visible text alike)
+and a harness without thinking summaries is still worth covering.
+The runtime set is the owner's:
+Codex,
+pi,
+dsh,
+Claude Code "for now"
+(2026-10-29).
+The Codex leg is the same `cctd` hook,
+registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `~/.codex/hooks.json`
+and reading Codex response-item rollouts
+(reasoning summaries and assistant messages);
+its handlers await one `/hooks` trust step in Codex,
+whose trust hash I could not derive
+(16 candidate shapes tried,
+no match).
+The pi leg is `package/pi-plugin/thinking-dismissal`,
+registered in `~/.pi/agent/settings.json`,
+folding `message_end` and recording at `tool_call`,
+`tool_result`,
+and `turn_end`.
+All four legs share one log.
+The DSH side is built
+(`package/dsh-plugin/thinking-dismissal`,
+installed in the `web` profile):
+ one handler-equivalent plugin folding reasoning blocks in a
+`ctx.sessionProjections` unit
+and recording at `tools/pre-execute`,
+`tools/result`,
+and `agent/turn-stopping`,
+writing the same shared log as `cctd`,
+so both agent runtimes are observed.
+Any Luna leg over non-thinking text stays open.
+
+## Scratch artifacts
+
+All in `/var/home/user/temp/agent/`,
+uncommitted,
+and safe to delete:
+
+- `nested-scan-detect.ts` (detector and repo scan),
+  `sample-hits.ts` and `sample-12.txt`
+  (the classified sample),
+  `recall.ts` (historical fix-commit test),
+  `tier3-hits.json` (the 511 hits).
+- `parse-before.ts` (pre-fix parser) and `parse-after.ts` (post-fix,
+  byte-identical to production);
+  `parse-old.ts` and `parse-new.ts`,
+  both byte-identical to `parse-after.ts`,
+  which is why `bin-list-scaling.ts` is not a comparison.
+- `ratio-gate.ts` (run),
+  `ratio-gate-2.ts` (run,
+  exposing shapes),
+  `ratio-gate-warmup.ts` (run),
+  `bin-list-scaling.ts` (never run),
+  and `blind-review/providers.parse.ts` (pre-fix copy given to the two reviewers).
+- `recall.ts` (the lint rule's historical test),
+  `recall-extract.ts` (corpus extractor),
+  and `blind-recall/`
+  (13 hash-free case snippets,
+  `manifest.tsv` mapping cases to commits,
+  `verdicts.tsv` with the scored reviews).
+
+`nested-scan-detect.ts` needs Node's experimental `stripTypeScriptTypes` and the `acorn` copy in `node_modules/.pnpm`.
+
+## Decisions on record
+
+- Rejected by the owner:
+  a wording-only change for this single case.
+- Rejected by measurement:
+  the nested-scan lint rule.
+- Measured 2026-10-29:
+  the ratio gate separates the parsers only on the exposing shape and after warmup;
+  a neutral blind review misses the cost bug;
+  a standards review catches it under `RG2`.
+- Decided by the owner 2026-10-29:
+  thinking-block text,
+  even mere summaries,
+  never goes to an external provider.
+  The owner clarified the same day
+  that the constraint covers thinking text only:
+  every other kind of text,
+  code and diffs included,
+  may go to external models.
+  The Luna direction stays open;
+  only routes that carry thinking text off this machine are ruled out.
+- Accepted by the owner 2026-10-29:
+  `RG2`'s scope widened to any code consuming unbounded input,
+  landed in `cf88f54ed8`
+  (`AGENTS.md` heading `Unbounded input`,
+  `CLAUDE.md` regenerated by file-enforcer).
+- Picked by the owner 2026-10-29:
+  the standards-review gate,
+  measured at 6 of 8 recall on the reconstructed historical corpus
+  (see `Recall measurement results`).
+- Decided by the owner 2026-10-29:
+  the gate runs in shadow,
+  observe and record and never block,
+  and no `AGENTS.md` rule backs it in that phase.
+  Built as `doc/runbook/standards-review-gate.md`
+  with `doc/audit/standards-review-gate-shadow.md`
+  (commit `d6c6777974`).
+- Subject named 2026-10-29 at the owner's question "shadowing who":
+  the gate shadows agent landings in this repo,
+  Claude Code first and every harness that lands here,
+  triggered by the landing session on its own diffs while shadowing.
+  An empty log means no run happened,
+  never that there was nothing to catch.
+- Terms defined 2026-10-29 at the owner's "define it":
+  `doc/runbook/standards-review-gate.md` now defines landing
+  (the `cli-git` transaction step that places the commit on the real index and branch),
+  agent (a session editing under `AGENTS.md` and landing through `cli-git`),
+  candidate diff,
+  reviewer,
+  and `May run it`
+  (permitted,
+  required by nothing,
+  checked by nothing).
+- Built 2026-10-29 at the owner's "what are you even doing without a hook":
+  the mechanical trigger,
+  the local git config hook `hook.standards-review-shadow` on `post-commit`
+  starting `mise run shadow-review` in a detached systemd user unit,
+  with the runner living in the `shadow_review` var of `mise.no-env.toml`.
+  Reviewer route pinned to `openai/gpt-6.1-sol` through `pi`
+  after `pi`'s default route answered `402` `billing_error`
+  (`doc/troubleshooting/pi-advisor-provider-billing.md`),
+  and `--no-tools` is the recursion guard.
+  First measured per-diff cost:
+  195.5 s on a 106-line diff replay,
+  and the reviewer demanded linearity proof even on the fix diff.
+- Built 2026-10-29 at the owner's "you already named work,
+  why didn't you do it":
+  the ratio-proof helper,
+  `measureTwoSizeRatio` and `expectLinearTimeGrowth`
+  in `package/test-harness/core-expect`
+  (commit `d4988f4c9b`),
+  whose self-test shows a synthetic quadratic tripping the bound
+  while one-pass work passes it.
+- Ruled by the owner 2026-10-29:
+  `file-enforcer` is dead as of that day
+  and nothing new gets built on it,
+  which drops the third blind-review by-product
+  rather than changing `readBinRow`'s parse contract.
+- Corrected by the owner 2026-10-29:
+  fixing the repository's other superlinear sites
+  was never requested work,
+  so the tier-3 hit list stays a research artifact
+  and no site gets fixed without a separate request.
+- Ruled by the owner 2026-10-29:
+  graduation is premature ("Not yet"),
+  and the missing piece is a Claude Code hook,
+  which is now built as `cctd`
+  (commit `ee637f1b3b`).
+- Paused 2026-10-29 at the owner's question "are you launching a full
+  (non-decision) model to review every commit"
+  and its answer "that's excessively expensive":
+  the trigger fired `pi --model openai/gpt-6.1-sol --thinking xhigh`
+  on every code landing.
+  The runner now logs a skip and exits unless `SHADOW_REVIEW_ALLOW=1`
+  (the `shadow_review` var of `mise.no-env.toml`,
+  commit `8b66809261`).
+  Measured spend before the pause:
+  65 priced runs,
+  9167.9 s of reviewer wall clock
+  (median 133.4 s,
+  p90 240.0 s,
+  max 418.1 s).
+
+## Shadow runs so far
+
+Sixty-five priced runs by 2026-10-29 night,
+every one scored under the pre-registered rule
+by the uniform scoring pass of 2026-10-29.
+That pass re-judged the whole log
+after the first two scoring passes disagreed on the `yes` share
+(5 of 38 against 11 of 27),
+so the counts below are one instrument reading:
+
+- Named superlinear cost (`yes`):
+  16 of 65.
+  Eight name cost the changed lines introduce
+  even under the strict reading named below:
+  the scratch-plumbing commit
+  (`2972f3c6a06f`,
+  `scratchParent` re-walks the ancestor chain per command,
+  O(r x d)),
+  the ratio helper's own commit
+  (`d4988f4c9b57`,
+  both runs,
+  whose three `RG2` findings were real enough to fix forward),
+  `8b4374358e26`,
+  `c1367ce73bad`,
+  `ee637f1b3b78`,
+  `efa90b57bd63`,
+  `8667f7ac7cef`,
+  and `e0a89e56e15f`.
+- Cost gestured at as unverified,
+  never named (`partial`):
+  17 of 65.
+  The runner sends the diff and the touched files' excerpts,
+  so a callee outside the excerpt draws a "remains unverified" hedge
+  instead of a cost finding.
+- Named nothing (`no`):
+  32 of 65.
+
+The score counts what a review NAMED,
+never whether the named cost is a true defect,
+so this is a naming rate and not recall:
+a quiet review of a clean diff scores `no`,
+and no ground truth says which landings carried superlinear cost.
+Reading note for the rule's "of the changed region":
+scored as the code the diff changes or annotates or claims about,
+cost across call boundaries included.
+Under the strict reading
+(the cost must be introduced by the changed lines themselves)
+the counts are 9 `yes`,
+17 `partial`,
+39 `no`,
+or 11 `yes` counting the two hook commits whose changed lines
+only re-cadence an existing quadratic walk
+(`a1649fa56f6c`,
+`8fe47e652253`).
+
+Cost of the instrument itself:
+65 priced runs,
+9167.9 s of reviewer wall clock
+(median 133.4 s,
+p90 240.0 s,
+max 418.1 s),
+the spend the owner's cost correction then paused
+(the pause entry above).
+
+The determinism pair on `d4988f4c9b57` agrees at the verdict level
+(both runs named cost,
+and the `Math.min` spread finding and the O(n)-proof claim recurred),
+while run 2 found three defects run 1 missed
+(`repeats: 0` passing vacuously on `NaN`,
+thenable `run` outliving the timing call,
+verdict ignoring the spread),
+all fixed in `9d2deb9bf7`.
+Cost spread on the identical diff:
+332.7 s against 158.1 s.
+
+Design finding from the `partial` cluster:
+the corpus reviews that reached 6 of 8 saw whole files,
+these see diffs.
+Sending the touched files' text beside the diff
+landed as the runner improvement in `35e9853f82`,
+and a replay of `d4988f4c9b57` with it
+returned the union of both diff-only runs' findings
+(six major ones in 235.6 s),
+then named one more defect,
+a base timing below the resolution floor suppressing the ratio,
+fixed in `b3c6836984`.
+
+## Next action
+
+Build the standards-review gate as the procedure
+that routes candidate diffs through a standards review before landing.
+Incumbent check done 2026-10-29:
+no repo owner carries a pre-landing review duty
+(nothing in `doc/agent/`,
+`doc/runbook/`,
+or git-policy package docs),
+`doc/agent/self-review.md` only obliges delegating to a separate reviewer when asked,
+git-policy owns landing without a review requirement,
+and `project-code-review` is a harness skill invoked on request.
+Where the gate lives is decided:
+it runs in shadow,
+built as `doc/runbook/standards-review-gate.md`
+with its log at `doc/audit/standards-review-gate-shadow.md`,
+per the owner's 2026-10-29 ruling
+that everything runs as shadow
+and that no `AGENTS.md` rule backs it in that phase,
+since a mandate would not count as shadow.
+Next:
+the trigger's model call is paused
+(the pause entry above),
+and the uniform scoring pass of 2026-10-29 settled all 65 entries
+(heading `Shadow runs so far`),
+so nothing accumulates on its own now.
+Graduation goes back to the owner
+(`AGENTS.md` rule versus git-policy landing check),
+which is the decision the shadow exists to support.
+Queue while that decision is open
+(written here because an unwritten queue item is lost):
+a truth-check of the named-cost cluster
+and a sample of the `no` landings,
+since the log measures naming
+and no ground truth yet says which landings carried superlinear cost;
+and what replaces the per-commit review if more collection is wanted.
+Owner decisions 2026-10-30 at the cost-correction question:
+the replacement instrument is the Luna decision-model leg
+(`openai/gpt-6-luna-decisions`
+through the Decisions API),
+graduation waits for the truth-check first,
+and no `AGENTS.md` rule backs any of it.
+Parity run for the Luna leg,
+pre-registered before it runs:
+catch is Luna's top choice `yes`
+on at least 6 of the 8 ground-truth cost cases of `blind-recall/`
+(cases 01,
+02,
+03,
+04,
+09,
+10,
+12,
+13),
+and specificity is top choice `yes`
+on at most 1 of the 4 clean probes
+(cases 05,
+07,
+08,
+11);
+case 06,
+the regex site,
+is reported and counted by neither side.
+A failing parity leaves the per-landing instrument at nothing
+and returns the choice to the owner.
+Parity run of 2026-10-30,
+three repeats,
+with probabilities identical to two decimals on every repeat
+(so no run-to-run spread to discount):
+catch is 5 of the 8
+(01,
+02,
+03,
+09,
+12),
+missing 04
+(`yes` 0.39 against `no` 0.45),
+10
+(0.14),
+and 13
+(0.12),
+short of the 6 of 8 bar;
+specificity is 0 of 4,
+inside its bar;
+case 06 reads `no`
+(0.32),
+where the full reviewer caught the cost.
+Luna latency 391 to 1124 ms per case,
+median about 520 ms,
+against the full route's median 133.4 s,
+roughly 250 times cheaper in wall clock.
+Per the pre-registered rule the failing parity leaves the per-landing
+instrument at nothing and returns the choice to the owner:
+wire Luna at 5 of 8 anyway,
+take a deterministic landing sample on the pinned full-model route,
+or collect nothing until the graduation call.
+The parity script is `~/temp/agent/luna-parity.ts`,
+with the three raw runs beside it.
+Truth-check of 2026-10-30
+(`doc/audit/standards-review-gate-truth-check.md`):
+of the 16 named-cost entries 14 name a real defect at the named commit
+and 2 over-claim a path-limit-bounded walk
+(`2972f3c6a06f`,
+`c1367ce73bad`),
+while the 8 largest quiet landings are all correct quiet
+(0 missed),
+so the graduation evidence now has measured precision
+(14 of 16)
+beside the naming rates.
+Several named costs are still present in the tree,
+among them the cost-dismissal hook's own `readRecordedKeys`
+whole-log rescan per event;
+site fixes stay unauthorized
+and need a separate request.
+Graduation goes to the owner
+with the measurement and the truth-check both in hand.
+Owner decisions 2026-10-30
+at the parity question and the graduation question:
+wire the Luna leg anyway at its measured 5 of 8
+(commit `fb0de80915`,
+default route `openai/gpt-6-luna-decisions` through the Decisions API,
+the pinned full review kept behind `SHADOW_REVIEW_ALLOW=1`),
+and graduation stays held:
+keep shadowing.
+Fixed 2026-10-31 at the owner's "why do I keep seeing this in codex":
+Codex rejects the cost-dismissal hook's stdout,
+which carried a logger record behind the protocol JSON,
+and fails every event as "hook returned invalid post-tool-use JSON output"
+(`doc/troubleshooting/codex-hook-stdout-strict-json.md`).
+`runHookPlugin` now installs `MONOCHROMATIC_LOG_CONSOLE=stderr`,
+with the matching logger-core knob in the same commit
+(`21015b9adf`),
+verified with one bounded `codex exec` session
+whose `PreToolUse`,
+`PostToolUse`,
+and `Stop` events all completed with no failure cards.
+Queue
+(written here because an unwritten queue item is lost):
+live verification of the first Luna entries
+on real code landings in `doc/audit/standards-review-gate-shadow.md`,
+the owner's later graduation call
+(`AGENTS.md` rule versus git-policy landing check),
+site fixes of the named real costs
+(the cost-dismissal hook's own `readRecordedKeys` whole-log rescan per event
+among them),
+which need a separate request,
+and a rebuild of the other eight `package/claude-code-plugin/*` bundles
+so every committed bundle carries the stderr routing;
+their polluted stdout is invisible in Claude Code today.
+Then wire the two miss shapes into the gate:
+cost must be accounted across call boundaries,
+and an inline complexity claim is never proof
+(`RG2` already demands proof for unbounded input).
+The ratio-proof helper is built
+(`measureTwoSizeRatio` and `expectLinearTimeGrowth`
+in `package/test-harness/core-expect`),
+so an author can land an exposing shape with a proof attached;
+what is left there is adoption,
+not code.
+The Luna direction stays open under the thinking-text constraint.
+
+## Recall measurement results
+
+Scoring rule,
+written before the first verdict landed:
+a case is a catch when the review names the superlinear cost of the changed region
+(nested scan,
+repeated work per item,
+accumulator growth) at any severity;
+a miss is a review with no cost finding;
+partial when cost is gestured at but not named.
+One blind standards reviewer per case read only its hash-free snippet and `AGENTS.md`
+(after the `RG2` widening of `cf88f54ed8`);
+the corpus is the scratch `blind-recall/`
+(extracted by `recall-extract.ts`),
+with verdicts in `blind-recall/verdicts.tsv`.
+
+### Which commits the 8 were
+
+The first session counted 8 qualifying commits
+but never named them.
+Fix-commit bodies reconstruct them:
+the 8 non-regex superlinear fixes are `58d2bb414d`,
+`3d49942409`,
+`eb93c91bcf`,
+`86d98c8284`,
+`566de2e511`,
+`4008eeb99b`,
+`be0897f009`,
+and `725c6df76c`.
+The other 5 candidates
+(`25c469152d`,
+`d16977a5d9`,
+`c436b4c48e`,
+`adf0c5f9a6`,
+`304ae283d5`)
+are audit-driven linearization work,
+so they double as specificity probes.
+
+### Result: 6 of 8 caught
+
+Catches,
+each naming the cost at major or blocker severity under `RG2`
+(and `ITR` for the accumulator case):
+
+- `58d2bb414d`:
+  `gaps.some` per candidate gap,
+  O(n^2) when nothing matches;
+  the reviewer scoped `findColumnGaps` correctly as linear.
+- `3d49942409`:
+  work growing with anchor-and-place pairs,
+  quadratic on repeated words.
+- `eb93c91bcf`:
+  per-offset re-comparison and per-place slicing,
+  quadratic in page words.
+- `86d98c8284`:
+  placings times places double loop with per-pair slicing.
+- `566de2e511`:
+  an O(n^2) census,
+  `fences.slice(0, index + 1).filter(...)` recomputed per line.
+- `be0897f009`:
+  blocker,
+  spread-copy accumulators per element,
+  with the module's own "one linear pass" claim falsified.
+
+Misses:
+
+- `4008eeb99b`:
+  the review cleared `RG2` as "monotone-cursor single linear passes"
+  and trusted the code's own "ONE LINEAR PASS" comment,
+  while `nearestScheme` re-read to the text's end at every run
+  (the fix's measured defect).
+- `725c6df76c`:
+  no cost finding at all,
+  although the excerpt holds the quadratic site
+  (per-entry spread copies of the whole pending record
+  plus a whole-journal `writeJournal` per entry,
+  the twice-per-entry rewrite the fix measured at 3.46 GB for 4403 entries).
+
+Specificity probes:
+no superlinear claim on `25c469152d`,
+`c436b4c48e`,
+`adf0c5f9a6`,
+or `304ae283d5`
+(each review either passed `RG2` explicitly
+or judged the pattern O(n)),
+and one cost claim on `d16977a5d9`
+that is correct:
+its body measures the re-export matcher quadratic at
+4.2/17/73/250/1010 ms per doubling.
+Two probes also named the exact duplication their fix unified (`UTL`).
+
+### Reading the number
+
+The lint rule's tightest tier caught 3 of the same 8
+(a looser tier 4),
+missing the accumulator-copy class;
+the standards review caught 6 of 8,
+including that class at blocker severity.
+Both misses share a shape:
+the cost sat behind an inline complexity claim
+or in composition across a call boundary
+(`writeJournal` per entry),
+where each function alone reads as a linear pass.
+
+Limits of this evidence:
+one reviewer route per case (fresh subagents on the default child route),
+a prompt equivalent to `project-code-review`
+rather than the skill's own procedure,
+hunk-window excerpts rather than full diffs
+(case 13 is 1339 lines across 14 files),
+no per-diff cost or run-to-run determinism measured,
+and specificity probed on 4 non-superlinear cases only.

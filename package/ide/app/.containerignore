@@ -1,0 +1,3 @@
+# The image extends a prepared native toolchain and does not copy application files.
+*
+!Containerfile

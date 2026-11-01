@@ -5,6 +5,8 @@ import type {
 import {
   BUN_TEST_BAN_REASON,
   invokesBunTest,
+  PROCESS_NAME_WAIT_BAN_REASON,
+  waitsOnProcessName,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
@@ -25,6 +27,17 @@ const BUN_TEST_DENY_OUTPUT: GuardrailOutput = {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
     permissionDecisionReason: BUN_TEST_BAN_REASON,
+  },
+};
+
+/**
+ Deny response for loops that wait on a process found by name.
+ */
+const PROCESS_NAME_WAIT_DENY_OUTPUT: GuardrailOutput = {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: PROCESS_NAME_WAIT_BAN_REASON,
   },
 };
 
@@ -80,6 +93,9 @@ function guardrailHandler(event: ReadonlyDeep<PreToolUseInput>,): GuardrailOutpu
 
     if (((typeof command) === 'string') && invokesBunTest(command,))
       return BUN_TEST_DENY_OUTPUT;
+
+    if (((typeof command) === 'string') && waitsOnProcessName(command,))
+      return PROCESS_NAME_WAIT_DENY_OUTPUT;
 
     return {};
   }

@@ -498,7 +498,7 @@ Dolphin.
 
 The repository already contains a route that works,
  and it is not Xilem.
-`package/desktop-app/file-manager/` is a GTK4 application whose dependency comment
+`package/file-manager/app/` is a GTK4 application whose dependency comment
 at `Cargo.toml:20` through `:26` records the reason for the choice:
 `GtkDropTarget` and `GtkDragSource` give native Wayland drag-and-drop,
  "the
@@ -619,7 +619,7 @@ copy/move/link negotiation on X11 needs more than that,
 Two ways to reduce the risk before committing to the integration:
 
 - Test the incoming direction without Dolphin first.
-  `package/cli/nested-wayland-session`
+  `package/nested-wayland-session/cli`
   implements a `drop-file` command (`src/protocol.rs:303`,
    parsed at `:455` through
   `:480`) that drives a real `wl_data_device` drop against a nested client,
@@ -838,9 +838,9 @@ Wayland prototype result attached to be worth a maintainer's time.
    and
   [#312][xilem-issue-312].
 - This repository:
-   `package/desktop-app/file-manager/Cargo.toml:20-26`,
-`package/desktop-app/file-manager/src/dnd.rs:1-8`,
-`package/cli/nested-wayland-session/src/protocol.rs:303,455-480`.
+   `package/file-manager/app/Cargo.toml:20-26`,
+`package/file-manager/app/src/dnd.rs:1-8`,
+`package/nested-wayland-session/cli/src/protocol.rs:303,455-480`.
 
 [xilem-commit]: https://github.com/linebender/xilem/commit/271a27a6d4a930f7878d404f9014e3c50a3a9b88
 [xilem-base-commit]: https://github.com/linebender/xilem/commit/4ebfeed68a14b968260dca19fee45ed0822b9fdf

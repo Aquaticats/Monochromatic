@@ -19,7 +19,8 @@ run,
 ## Verdict
 
 - iOS runtime model:
-   App UI code executes as JavaScript on top of Web Components (Custom Elements) inside the host WebView's JavaScriptCore engine.
+   App UI code executes as JavaScript on top of Web Components (Custom Elements) inside the host WebView's
+   JavaScriptCore engine.
    On iOS the host is Capacitor/Cordova's out-of-process WKWebView WebContent process,
    which holds the dynamic-codesigning (JIT) entitlement;
    the app's own process runs only AOT-native Swift/ObjC (the Cordova/Capacitor plugins).
@@ -58,7 +59,8 @@ run,
    platform.
   js only touches window/document and detects window.
   cordova).
-   It is a WKWebView UI layer that inherits ALL three iOS walls and ALL functional requirements (kopia static-lib linking,
+   It is a WKWebView UI layer that inherits ALL three iOS walls
+   and ALL functional requirements (kopia static-lib linking,
    in-app HTTP server,
    streaming HTTPS,
    background transfer,
@@ -93,8 +95,10 @@ js (DOM-only APIs,
 cordova detection at line 83) + onsenui/`package.json` (rollup UMD/ESM,
  no native artifact).
  iOS JIT-entitlement-restricted-to-WKWebView-WebContent:
- Apple docs <https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.allow-jit> (on iOS the JIT entitlement is functional only for WebKit's out-of-process content renderer;
- third-party app processes cannot allocate executable memory) and WebKit JavaScriptCore JIT tiers <https://webkit.org/blog/10300/speculation-in-javascriptcore/>
+ Apple docs <https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.allow-jit>
+ (on iOS the JIT entitlement is functional only for WebKit's out-of-process content renderer;
+ third-party app processes cannot allocate executable memory)
+ and WebKit JavaScriptCore JIT tiers <https://webkit.org/blog/10300/speculation-in-javascriptcore/>
 
 ## Wall 1: link and call a Go/Rust static library
 
@@ -109,7 +113,8 @@ framework/xcframework/staticlib/dart:
 ffi/gomobile/JSI/TurboModule/cinterop returns nothing).
  kopia as a Go gomobile c-archive .
 xcframework or a Rust staticlib must be linked into a Capacitor/Cordova NATIVE plugin (Swift/ObjC),
- which links the static lib at the Xcode/CocoaPods/SwiftPM level and is exposed to the JS UI via the WKWebView message bridge (window.
+ which links the static lib at the Xcode/CocoaPods/SwiftPM level
+ and is exposed to the JS UI via the WKWebView message bridge (window.
 cordova / Capacitor.
 Plugins).
  JS app code calls the plugin by serialized messages;
@@ -137,7 +142,8 @@ Onsen UI contributes nothing to background execution;
  The background-transfer story is entirely the substrate's:
  a Capacitor/Cordova native plugin wrapping background URLSession for uploads/downloads and BGProcessingTask (short,
  idle/charging) for deferred work.
- A multi-hour kopia snapshot is NOT expressible as a long-running foreground service on iOS and must be restructured around background URLSession chunked transfer driven from the native plugin,
+ A multi-hour kopia snapshot is NOT expressible as a long-running foreground service on iOS
+ and must be restructured around background URLSession chunked transfer driven from the native plugin,
  with the WebView UI showing progress when foregrounded.
  No Onsen API touches this.
 
@@ -154,7 +160,8 @@ Feasible:
 
 Mechanism:
  Not via Onsen (UI layer has no networking/server code).
- An in-app local HTTP/S3 endpoint for kopia to target is provided by a Capacitor/Cordova native plugin wrapping a native server (e.g. a GCDWebServer-style Swift/ObjC HTTP server) bound to 127.0.0.1.
+ An in-app local HTTP/S3 endpoint for kopia to target is provided by a Capacitor/Cordova native plugin wrapping a
+ native server (e.g. a GCDWebServer-style Swift/ObjC HTTP server) bound to 127.0.0.1.
  The Onsen DOM UI only triggers start/stop and shows status over the WKWebView bridge.
 
 Source:
@@ -182,7 +189,8 @@ Source:
 ## Audio (music-player port)
 
 Decode:
- symphonia 0.6 (all features) + libopus decode is pure Rust and runs unchanged as an AOT-compiled native static lib inside a Capacitor/Cordova plugin;
+ symphonia 0.6 (all features) + libopus decode is pure Rust
+ and runs unchanged as an AOT-compiled native static lib inside a Capacitor/Cordova plugin;
  no DOM/Onsen involvement.
  Web Audio decode in the WebView is NOT needed and would not cover symphonia's format range.
 
@@ -203,7 +211,8 @@ Rust core reuse:
  links into a native iOS plugin,
  and outputs through cpal's CoreAudio backend.
  What CANNOT be reused:
- the Slint UI (winit + femtovg/software renderer) has no place in a WebView app and must be fully rewritten as Onsen DOM components;
+ the Slint UI (winit + femtovg/software renderer) has no place in a WebView app
+ and must be fully rewritten as Onsen DOM components;
  Onsen drives only the player chrome and sends control messages to the Rust core over the bridge.
 
 Source:
@@ -228,7 +237,8 @@ js + css/onsenui.
  On-device signal that confirms viability:
  the Onsen DOM renders with the iOS (flat) auto-styling,
  tapping the button performs the ons-navigator pushPage transition smoothly at 60fps,
- and touch/scroll respond inside the WKWebView with no console errors (inspect via Safari Web Inspector attached to the device).
+ and touch/scroll respond inside the WKWebView
+ with no console errors (inspect via Safari Web Inspector attached to the device).
  This proves the UI layer works;
  it does NOT exercise walls 1/2/3,
  which belong to the substrate vet.
@@ -242,7 +252,8 @@ js + npm to fetch the onsenui package;
  OR Cordova CLI) to generate and build the iOS WKWebView shell;
  CocoaPods (Capacitor/Cordova plugin deps).
  For the later supporting-stack vets:
- Go toolchain + gomobile (kopia c-archive) or the Rust toolchain with aarch64-apple-ios target (Rust staticlib for kopia and for the music-player core),
+ Go toolchain + gomobile (kopia c-archive) or the Rust toolchain
+ with aarch64-apple-ios target (Rust staticlib for kopia and for the music-player core),
  plus cargo-lipo/xcframework tooling.
 
 ## Supporting-stack vets this framework drags in
@@ -270,7 +281,8 @@ js + npm to fetch the onsenui package;
 - Onsen UI is pure JavaScript on top of Web Components,
    framework-agnostic,
    no native code:
-   /tmp/agent/onsen-audit-20260612/onsenui/`README.md` ("core library is written in pure Javascript on top of Web Components") + onsenui/`package.json` (main=js/onsenui.
+   /tmp/agent/onsen-audit-20260612/onsenui/`README.md`
+   ("core library is written in pure Javascript on top of Web Components") + onsenui/`package.json` (main=js/onsenui.
   js,
    module=esm/index.
   js,
@@ -320,7 +332,8 @@ js + npm to fetch the onsenui package;
 - Corrections:
    CITATION DEFECT (wall-2,
    substance still correct):
-   The audit attributes the iOS restriction "the JIT entitlement is functional only for WebKit's out-of-process content renderer;
+   The audit attributes the iOS restriction "the JIT entitlement is functional only for WebKit's out-of-process content
+   renderer;
    third-party app processes cannot allocate executable memory" to Apple's page com.
   apple.
   security.
@@ -328,7 +341,8 @@ js + npm to fetch the onsenui package;
   allow-jit.
    That page is a macOS HARDENED RUNTIME entitlement;
    it does not govern iOS and does not state the WKWebView/iOS restriction attributed to it.
-   (The Mozilla platform-tilt issue #3 explicitly frames allow-jit as the *macOS* model that iOS does NOT extend to third parties.
+   (The Mozilla platform-tilt issue #3 explicitly frames allow-jit as the *macOS* model that iOS does NOT extend
+to third parties.
   ) The actual iOS mechanism is the private dynamic-codesigning entitlement (plus com.
   apple.
   private.
@@ -337,7 +351,8 @@ js + npm to fetch the onsenui package;
   security.
   cs.
   single-jit) carried by the WebContent process.
-   Verified in primary source WebKit/Source/JavaScriptCore/`entitlements.plist` (<https://github.com/WebKit/WebKit/blob/main/Source/JavaScriptCore/entitlements.plist>),
+   Verified in primary source WebKit/Source/JavaScriptCore/`entitlements.plist`
+   (<https://github.com/WebKit/WebKit/blob/main/Source/JavaScriptCore/entitlements.plist>),
    which lists dynamic-codesigning=true and verified-jit=true and where com.
   apple.
   security.

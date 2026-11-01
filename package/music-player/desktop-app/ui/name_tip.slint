@@ -1,0 +1,32 @@
+// Tooltip content that shows one name in full, for the rows and folder names that were shortened with an ellipsis (OV1).
+// It takes plain text, not markup, so a file name that holds `*`, `_`, `[`, `<` or `$` appears exactly as it is on disk.
+import { Theme } from "theme.slint";
+
+// A small surface with one wrapped line of text. Use it as the only child of a `Tooltip`.
+export component FullNameTip inherits Rectangle {
+    // The complete name.
+    in property <string> text;
+
+    // Widest the tip grows before the name wraps onto a second line.
+    property <length> widest: 420px;
+    // Padding around the text on every side.
+    property <length> pad: 8px;
+
+    width: min(root.widest, label.preferred-width + 2 * root.pad);
+    height: label.preferred-height + 2 * root.pad;
+    background: Theme.surface-high;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.outline-variant;
+
+    label := Text {
+        x: root.pad;
+        y: root.pad;
+        width: root.width - 2 * root.pad;
+        text: root.text;
+        wrap: word-wrap;
+        font-size: Theme.body-medium;
+        color: Theme.on-surface;
+        accessible-role: none;
+    }
+}

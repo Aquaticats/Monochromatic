@@ -1,5 +1,22 @@
 # cli-git policies platform implementation grilling handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/fs-id` is now `package/fs-id/core`;
+> `@monochromatic-dev/module-fs-id` is now `@monochromatic-dev/fs-id-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
@@ -43,13 +60,21 @@ absolute path.
 
 - `package/git-policy/cli/package.json` maps both its package import and `git` binary to the same
   `dist/final/node/index.mjs` artifact.
-- The package-root import exposes authoring declarations and `repositoryPolicyPlugin` without starting cli-git or enabling
+- The package-root import exposes authoring declarations and `repositoryPolicyPlugin` without starting cli-git
+or enabling
   the optional policy.
-- `package/git-policy/repository/src/index.ts` remains the canonical repository-policy source.
-  File-enforcer generates `package/git-policy/cli/src/optional/repository-policy.ts` for self-contained source-level
+- `package/git-policy/repository/src/index.ts`
+  (deleted 2026-10-13: now `package/git-policy/cli/src/native/policy_dependent_version.rs`)
+  remains the canonical repository-policy source.
+  File-enforcer generates `package/git-policy/cli/src/optional/repository-policy.ts`
+  (deleted 2026-09-14 and 2026-10-13: now `package/git-policy/cli/src/native/policy_dependent_version.rs`)
+  for self-contained source-level
   trusted config bundling.
 - `package/git-policy/api` owns the cycle-free policy contract used by separately owned policy source packages.
-- `package/git-policy/cli/src/bin.ts` runs the configurable policy engine before a sequential fixed-transform `RULES` array.
+- `package/git-policy/cli/src/bin.ts`
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/main.rs`)
+  runs the configurable policy engine before a sequential fixed-transform `RULES`
+array.
 - Current policy order is:
   - `require-root`
   - `linked-worktree-only`
@@ -289,7 +314,8 @@ or dynamically loaded code.
 
 `git cli-git trust` owns the first TypeScript build.
 Ordinary Git commands never build an untrusted TypeScript config.
-A previously trusted path explicitly relaxed through `CLI_GIT_NO_PARANOID` is the exception described below.
+A previously trusted path explicitly relaxed through `CLI_GIT_NO_PARANOID` is the exception
+(see the bullet that begins `Under CLI_GIT_NO_PARANOID`).
 
 - Lazily import Rolldown only for trust builds.
 - Call Rolldown's public `rolldown()` API with Node platform targeting,
@@ -760,7 +786,8 @@ Unless later grilling changes them:
   fixed registry order,
   keep-going collection,
   and immediate stop on a thrown policy.
-- Added flag-position parsing for `--no-enforce-require-root` and `--cli-git-keep-going` while preserving option values and
+- Added flag-position parsing for `--no-enforce-require-root` and `--cli-git-keep-going`
+while preserving option values and
   post-`--` pathspec bytes.
 - Added Optique `git cli-git status` and built-in-only `check` dispatch.
   Direct check requires exactly one scope source,
@@ -768,7 +795,8 @@ Unless later grilling changes them:
   and preserves preceding Git global options such as `-C`.
   Optique still owns command and option parsing;
   the small pre-separator scan enforces Git's pathspec boundary rather than duplicating Optique's grammar.
-- Kept the package-root authoring import side-effect free and continued resolving forwarded Git through an absolute path.
+- Kept the package-root authoring import side-effect free and continued resolving forwarded Git through an absolute
+path.
 - Changed built CLI integration tests to execute `dist/final/node/bin.mjs`.
   Disposable repositories verify exact settled event bytes,
   stderr and stdout routing,
@@ -1034,7 +1062,8 @@ Unless later grilling changes them:
   package assets are accepted only when contained in the sole JavaScript bundle.
 - A source-capture Rolldown plugin supplies exact no-follow bytes for the entry and resolved relative local graph.
   Bare package imports are bundled but excluded from invalidation and disclosed before consent.
-  The entry identity and every tracked source are re-captured after complete build output and must still match exact bytes,
+  The entry identity and every tracked source are re-captured after complete build output
+  and must still match exact bytes,
   metadata,
   and identity.
 - Root approval executes and validates only the private stored candidate bundle.
@@ -1432,7 +1461,8 @@ Unless later grilling changes them:
   and build pass.
   The full cli-git unit suite also passed through the process tool both sequentially and with its normal parallelism.
 - Two synchronous Pi Bash attempts to run the same cli-git unit task lost their tool results and led to Pi restarts.
-  The priority investigation traced the recurrent batch failure to `EDQUOT` from Pi's unguarded full-output spill stream,
+  The priority investigation traced the recurrent batch failure to `EDQUOT` from Pi's unguarded full-output spill
+  stream,
   installed a local Pi patch,
   and passed source,
   external consumer,
@@ -1514,7 +1544,8 @@ Unless later grilling changes them:
   File-enforcer maintains its cli-local mirror under
   `package/git-policy/cli/src/optional/forbidden-strings/` so the single cli-git MJS artifact exports the inert
   plugin without a package cycle or secondary runtime chunk.
-- Root `cli-git.config.ts` registers `forbiddenStringsPlugin` under namespace `security` and points it at the repository's
+- Root `cli-git.config.ts` registers `forbiddenStringsPlugin` under namespace `security`
+and points it at the repository's
   release scanner binary.
   Default plugin behavior still resolves `forbidden-strings` from `PATH`.
 - Scanner invocation uses an argument array without a shell.
@@ -1569,7 +1600,8 @@ Unless later grilling changes them:
   added p95 was 1,152.066 ms,
   and worst added latency was 1,205.014 ms.
   Every sample remained below the strict 2,000 ms ceiling.
-  The committed harness is `package/git-policy/cli/perf/manual-push-latency-benchmark.ts`;
+  The committed harness is `package/git-policy/cli/perf/manual-push-latency-benchmark.ts`
+  (deleted 2026-10-13 with the performance harness, no replacement yet);
   raw samples live in `package/git-policy/cli/perf/manual-push-latency-2026-07-10.json`.
 - The latest hosted forbidden-strings workflow at pre-integration `origin/main` revision `ef179a737` failed on one
   credential-shaped patch-context line and credential-shaped literals in the concurrently landed forbidden-regex tests.
@@ -1579,16 +1611,19 @@ Unless later grilling changes them:
   baseline plus shared appendix against every `origin/main...HEAD` changed file,
   then passed locally for all 20 changed paths.
   A full-tree run with the active repository rules also passed with no findings.
-  The first integration push used the explicit `security/forbidden-strings` lifecycle escape because intermediate commits
+  The first integration push used the explicit `security/forbidden-strings` lifecycle escape because intermediate
+  commits
   retained the old remote violation before later commits removed it;
   every other policy remained enforced.
-  Hosted push workflow [29130940967](https://github.com/Aquaticat/Monochromatic/actions/runs/29130940967) then passed its
+  Hosted push workflow [29130940967](https://github.com/Aquaticat/Monochromatic/actions/runs/29130940967) then passed
+  its
   independent full-tree scan at revision `295a61834`.
 - A following unescaped incremental push exposed a path-semantics mismatch:
   explicit `candidate-N` temporary paths bypassed the scanner's `--all` exclusions and reported its canonical rules
   sources as findings.
   The wrapper blocked the push and left remote `main` unchanged.
-  Commit `298876aeb` filters the configured rules file and four canonical self-match sources before materialization while
+  Commit `298876aeb` filters the configured rules file and four canonical self-match sources before materialization
+  while
   retaining unrelated nested basename candidates.
   Focused unit,
   type,
@@ -1653,7 +1688,8 @@ Unless later grilling changes them:
 
 - Reconciled `doc/decision/cli-git-policies-platform.md` with every settled grilling revision.
 - Added canonical implementation interface `package/git-policy/cli/SPEC.md`.
-- A disposable TypeScript 7.0.1-rc consumer compiled both authoring examples and proved statically known unknown policy IDs
+- A disposable TypeScript 7.0.1-rc consumer compiled both authoring examples
+and proved statically known unknown policy IDs
   and wrong option values are rejected.
 - An Optique 1.1.1 fixture parsed every documented management form and rejected missing,
   conflicting,
@@ -1802,8 +1838,15 @@ local,
 global,
 unrelated-key preservation,
 and root-task fixtures.
-The fresh-context procedure is `doc/runbook/remove-retired-hk-git-config.md`.
+The fresh-context procedure is `doc/runbook/remove-retired-hk-git-config.md`
+(deleted 2026-10-13 with the hk cleanup, no replacement).
 Automated verification never touches real per-user Git state.
+(Retired 2026-10-13:
+the task `cleanup:hk-git-config`,
+the fixture task `test:hk-config-cleanup`
+and `doc/runbook/remove-retired-hk-git-config.md` (deleted 2026-10-13 with the hk cleanup, no replacement) are deleted;
+the manual removal is in
+`doc/troubleshooting/cli-git-hk-retirement-stale-hook-config.md`.)
 
 Current documentation now treats hk/Pkl behavior as historical evidence,
 points local enforcement to cli-git,
@@ -2093,7 +2136,8 @@ a later phase does not wait to record an earlier phase's work.
   scanner,
   normalizer,
   and post-commit paths.
-- Set budgets from measured baselines in the implementation spec and fail repeatable benchmark fixtures when they regress.
+- Set budgets from measured baselines in the implementation spec and fail repeatable benchmark fixtures
+when they regress.
 - Run package lint,
   type checks,
   tests,

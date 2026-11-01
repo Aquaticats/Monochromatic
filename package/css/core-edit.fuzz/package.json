@@ -1,0 +1,23 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/css-core-edit.fuzz",
+  "description": "Property-based fuzz campaign for module-css-edit: byte round-trip identity, parser totality, and a postcss differential oracle.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/css-core-edit": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "postcss": "catalog:",
+    "typescript": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/css/core-edit.fuzz"
+  }
+}

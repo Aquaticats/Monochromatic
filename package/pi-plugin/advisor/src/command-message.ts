@@ -6,7 +6,7 @@
 
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { ADVISOR_MESSAGE_TYPE, } from './constants.ts';
+import { ADVISOR_MESSAGE_TYPE, } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
 import type { AdvisorRunResult, } from './types.ts';
 
 //region Public API

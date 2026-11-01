@@ -16,7 +16,11 @@ Design:
 [`doc/planning/monorepo-manager-from-scratch-design.md`](../planning/monorepo-manager-from-scratch-design.md).
 Session state:
 [`doc/handover/monorepo-manager.md`](../handover/monorepo-manager.md).
-Supersedes `package/dev-script/file-enforcer/DECISION.rust-migration.md` for the tool's file enforcement.
+Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool's file enforcement.
+Amended 2026-10-29 by [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md) (accepted):
+file enforcement is a standalone Rust library and CLI that meow links instead of rewriting,
+configured in JSONC rather than HCL,
+and the root `mise.toml` is no longer generated.
 
 ## Context
 
@@ -49,6 +53,9 @@ Supersedes `package/dev-script/file-enforcer/DECISION.rust-migration.md` for the
 
 - The tool is written in Rust,
    and file-enforcer's functionality is rewritten in Rust inside the same binary.
+  Amended 2026-10-29:
+   meow links the standalone `monochromatic-file-enforcer` library
+   (`doc/decision/file-enforcer-rust-rewrite.md`).
 - Rust is approved for this tool,
    for the approval question in `doc/planning/load-bearing-code-languages.md`.
 - Supported platforms,
@@ -71,6 +78,14 @@ Supersedes `package/dev-script/file-enforcer/DECISION.rust-migration.md` for the
    asked which record stands on 2026-09-17,
    with `file-enforcer.config.ts:718-721` and the generated header in `mise.toml:1` as evidence,
    the user answered "Correct the record".
+  Amended 2026-10-29:
+   `mise.no-env.toml` becomes the hand-written `mise.toml`,
+   with committed and gitignored `.config/mise/conf.d/` fragments,
+   so nothing generates `mise.toml` (`doc/decision/file-enforcer-rust-rewrite.md`).
+  Done at the Rust file-enforcer cutover (2026-10-31):
+   `mise.no-env.toml` is gone, the root `mise.toml` is hand-written,
+   and the static environment is the committed `.config/mise/conf.d/20-env.toml`
+   beside the gitignored `10-bin.local.toml` that `file-enforcer` writes.
 - The tool does not own Meta Package Manager's lifecycle (user,
    2026-09-17).
 - As many builds as possible ship;
@@ -93,6 +108,11 @@ Supersedes `package/dev-script/file-enforcer/DECISION.rust-migration.md` for the
    formatter,
    and language server are in
    [`monorepo-manager-hcl-front-end.md`](monorepo-manager-hcl-front-end.md).
+  Amended at the Rust file-enforcer cutover (2026-10-31):
+   meow's own configuration stays HCL,
+   while its file-enforcement configuration is JSONC (`file-enforcer.config.jsonc`),
+   read by the linked `monochromatic-file-enforcer` library
+   (`doc/decision/file-enforcer-rust-rewrite.md`).
 - Every line meow writes is a JSON object,
    whether it is a log line,
    a warning,
@@ -116,7 +136,7 @@ and ranked under speed-first weights
 
 - `DECISION.rust-migration.md` is superseded;
    the TypeScript file-enforcer keeps running until the Rust tool replaces it.
-- `package/dev-script/vm-builder` must replace its `exec` import from file-enforcer's `/ts` subpath,
+- `package/vm-builder/cli` must replace its `exec` import from file-enforcer's `/ts` subpath,
    and the `file-enforcer-perf` fixture,
    a `prefer-readonly-parameter-type` fixture read,
    and the `sync:files` tasks need migration.
@@ -126,8 +146,13 @@ and ranked under speed-first weights
    the replacement lands with the rewrite rather than ahead of it,
    the rewrite keeps only its byte-identical gate and the performance fixture retires unmeasured,
    the `prefer-readonly-parameter-type` read moves to a new fixture package
-   that really depends on `@monochromatic-dev/module-toml-edit`,
+   that really depends on `@monochromatic-dev/toml-edit-core`,
    and the `sync:files` tasks leave with Mise.
+  Done at the Rust file-enforcer cutover (2026-10-31):
+   vm-builder's runner landed in `472bb6f502`,
+   `file-enforcer-perf` is removed,
+   the plugin's read moved to `package/test-fixture/effect-subject-toml-edit`,
+   and `sync:files` and `prepare:pnpm` now run `file-enforcer write`.
 - Superseded on 2026-09-17 with `gxhash`:
    the AES-specific startup check.
   Every build raised above its target's baseline,

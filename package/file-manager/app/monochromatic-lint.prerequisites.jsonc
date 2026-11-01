@@ -1,0 +1,5 @@
+// Prerequisites of the rust/avoidable-closure check for this package (package/linter/monochromatic-lint/README.md,
+// section "Prerequisite manifest"): the GTK 4 development files that gtk4-rs links.
+{
+  "pkg-config": ["gtk4"],
+}

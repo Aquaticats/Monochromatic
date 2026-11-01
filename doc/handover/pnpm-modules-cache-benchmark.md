@@ -105,6 +105,17 @@ Relevant source paths in the clone:
   makes `pnpm prune` call install with `modulesCacheMaxAge: 0`,
    `pruneDirectDependencies: true`,
   and `pruneStore: true`.
+  Update (2026-10-29):
+   the handler passes a fourth option,
+   `optimisticRepeatInstall: false`
+   (`prune.ts:55-65`),
+   and the `pnpm` 12 pacquet CLI that this repo's toolchain runs implements prune
+   differently:
+   a separate `run_prune` entry point with `prune_direct_dependencies: true`
+   and no `modulesCacheMaxAge` or store override
+   (`pnpm/crates/cli/src/cli_args/prune.rs:66-71`,
+   `pnpm/crates/package-manager/src/install/entry_points.rs:71-84`).
+   See `doc/troubleshooting/pnpm-prune-before-install.md`.
 
 ## Local observations already made
 

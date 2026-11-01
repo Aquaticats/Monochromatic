@@ -2,11 +2,11 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   BUN_TEST_BAN_REASON,
   invokesBunTest,
-} from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
+} from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer';
 
 await describe({
   name: 'bun test guard helpers',

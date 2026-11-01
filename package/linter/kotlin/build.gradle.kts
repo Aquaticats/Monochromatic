@@ -16,11 +16,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Standalone Kotlin/JVM build for the monorepo-wide detekt rule set. It compiles the
 // custom rules into a plugin jar and runs the detekt CLI over an arbitrary source
-// tree, the Kotlin parallel of package/linter/rust (a standalone linter invoked by
+// tree, the Kotlin parallel of package/linter/monochromatic-lint (a standalone linter invoked by
 // the root `lint:detekt` task over package/). detekt and the CLI resolve from
 // mavenCentral; nothing here ships in any application.
 plugins {
-    kotlin("jvm") version "2.4.0"
+    kotlin("jvm") version "2.4.21"
     // What:     Backtick-delimited `maven-publish` applies Gradle's built-in Maven publication plugin.
     //           Backticks let Kotlin use a plugin name containing a hyphen.
     // Why:      The build needs standard POM generation and Maven repository layout staging.
@@ -35,7 +35,7 @@ plugins {
 }
 
 // detekt 2.0.x is the active upgrade target for the repo's custom Kotlin rule set.
-val detektVersion = "2.0.0-alpha.5"
+val detektVersion = "2.0.0-alpha.6"
 
 // Holds the detekt CLI and its dependencies, used as the classpath for the
 // detektCheck runner. Kept separate from the compile classpath so the runner gets
@@ -47,14 +47,9 @@ dependencies {
     // time, so it must not be bundled into the plugin jar.
     compileOnly("dev.detekt:detekt-api:$detektVersion")
     detektCli("dev.detekt:detekt-cli:$detektVersion")
-    testImplementation("dev.detekt:detekt-test:$detektVersion") {
-        // detekt 2.0.0-alpha.5 metadata asks for detekt-api-test-fixtures at runtime,
-        // but only the test-fixtures sources variant is published. The lint() helper
-        // used here does not need those fixtures, so keep the normal API jar below.
-        exclude(group = "dev.detekt", module = "detekt-api")
-    }
+    testImplementation("dev.detekt:detekt-test:$detektVersion")
     testImplementation("dev.detekt:detekt-api:$detektVersion")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -2,7 +2,8 @@
  * Deliberately minimal styling -- system font, generous spacing,
  * no theming. Goal is legibility, not visual identity.
  */
-/* stylelint-disable function-disallowed-list, unit-disallowed-list, property-disallowed-list -- Prototype demo stylesheet uses platform colors and compact layout shorthands pending a full CSS-token pass. */
+/* Prototype demo stylesheet uses platform colors and compact layout shorthands
+   pending a full CSS-token pass. */
 
 :root {
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;

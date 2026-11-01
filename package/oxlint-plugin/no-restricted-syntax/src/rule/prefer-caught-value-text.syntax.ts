@@ -277,7 +277,7 @@ export function isDuplicateFallback(
     for (const templateExpression of expressions) {
       if (
         (templateExpression.type === 'UnaryExpression')
-        && (templateExpression.operator === 'typeof')
+          && (templateExpression.operator === 'typeof')
           && (identifierName({ expression: templateExpression.argument, },) === identifier)
       ) {
         return true;

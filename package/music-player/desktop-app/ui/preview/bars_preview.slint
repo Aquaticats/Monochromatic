@@ -1,0 +1,39 @@
+// Preview windows for the top bars against the Fold captures: cover top row with the picker closed, and the inner right header.
+// Each window is rendered by name with `slint-viewer --component`; the window sets the scheme before it draws.
+import { Theme } from "../theme.slint";
+import { CoverTopRow, UnfoldedTrackHeader } from "../bars.slint";
+
+// Cover top row, closed, dark: the caret points down and the search button shows (capture fold-search-cover-player-dark-s100).
+export component CoverClosedDark inherits Window {
+    width: 443px;
+    height: 56px;
+    background: Theme.canvas;
+    init => {
+        Theme.scheme-override = 2;
+    }
+    CoverTopRow {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        folder-title: "Camellia";
+        picker-open: false;
+        show-search: true;
+    }
+}
+
+// Inner right header, dark: the folder title, then search and settings (capture fold-search-inner-player-dark-s100).
+export component InnerRightHeaderDark inherits Window {
+    width: 437px;
+    height: 56px;
+    background: Theme.canvas;
+    init => {
+        Theme.scheme-override = 2;
+    }
+    UnfoldedTrackHeader {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        folder-title: "Camellia";
+        show-search: true;
+    }
+}

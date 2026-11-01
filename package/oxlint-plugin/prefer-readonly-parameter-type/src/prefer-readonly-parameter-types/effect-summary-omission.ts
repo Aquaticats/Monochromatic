@@ -4,14 +4,14 @@
  @module
  */
 
-import { caughtValueStack, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   DIRECT_SUMMARY_FAILURE_REASON,
   type EffectSummaryOmissionReason,
-  TYPESCRIPT_TUPLE_SERIALIZATION_FAILURE_REASON,
 } from './effect-cache-envelope.ts';
+import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 
 /**
  Omission lifecycle logger.
@@ -19,22 +19,15 @@ import {
 const l = tagged({ tag: 'effect-summary-omission', },);
 
 /**
- Stable fragment identifying known TypeScript instantiated-tuple serializer panic.
- */
-const TYPESCRIPT_TUPLE_PANIC_FRAGMENT = 'checker.TypeData is *checker.TypeReference, not *checker.TupleType';
+ Restored external omissions already reported by this process,
+ keyed by source,
+ count and reasons.
 
-/**
- Classifies caught summary failure into bounded persisted category.
- 
- @param detail - Caught failure stack retained at debug level.
- 
- @returns known tuple panic or general direct-summary failure category.
+ A fresh scan reports an installed package's omission once per process because the package's index is
+ built once. Every source depending on that package restores the same record, so without this set a
+ warm run would repeat the line once per dependent source.
  */
-function omissionReason(detail: string,): EffectSummaryOmissionReason {
-  return detail.includes(TYPESCRIPT_TUPLE_PANIC_FRAGMENT,)
-    ? TYPESCRIPT_TUPLE_SERIALIZATION_FAILURE_REASON
-    : DIRECT_SUMMARY_FAILURE_REASON;
-}
+const reportedExternalOmissions = new Set<string>();
 
 /**
  Records one fresh direct-summary omission without exposing stack noise at warning level.
@@ -80,12 +73,12 @@ export function recordDirectSummaryOmission({
   readonly error: unknown;
 }): void {
   /**
-   Complete caught detail used for debug log and bounded category.
+   Complete caught detail retained for the debug log.
    */
   const detail = caughtValueStack(error,);
   allOmittedKeys.add(key,);
   sourceOmittedKeys.add(key,);
-  sourceOmissionReasons.add(omissionReason(detail,),);
+  sourceOmissionReasons.add(DIRECT_SUMMARY_FAILURE_REASON,);
   l.debug(`omitting ${key} from the effect index: ${detail}`,);
 }
 
@@ -167,4 +160,49 @@ export function restoreCachedSummaryOmissions({
   l.warn(
     `restored ${String(restoredKeys.length,)} omitted callable summaries for ${sourceFileName} from effect cache: ${reasons.join(',')}`,
   );
+}
+
+/**
+ Forgets which restored external omissions this process has reported.
+ 
+ @example
+ ```ts
+ clearReportedExternalOmissions();
+ ```
+ */
+export function clearReportedExternalOmissions(): void {
+  reportedExternalOmissions.clear();
+}
+
+/**
+ Reports omissions recorded from installed package implementations that a restored source depends on.
+ 
+ A restored source never opens those implementations, so the report a fresh scan made when it did is
+ made here from the record the source persisted.
+ 
+ @param records - Validated records restored with the source entry.
+ 
+ @example
+ ```ts
+ restoreExternalOmissions(hit.externalOmissions);
+ ```
+ */
+export function restoreExternalOmissions(records: readonly ExternalOmissionRecord[],): void {
+  records.forEach(function restoreRecord(record,): void {
+    /**
+     Deterministic comma-separated reason categories for one-line warning.
+     */
+    const renderedReasons = record.reasons
+      .join(',',);
+    /**
+     Identity of what this record would report.
+     */
+    const reportKey = `${record.sourceFileName}\0${String(record.omittedCount,)}\0${renderedReasons}`;
+    if (reportedExternalOmissions.has(reportKey,))
+      return;
+    reportedExternalOmissions.add(reportKey,);
+    l.warn(
+      `restored ${String(record.omittedCount,)} omitted callable summaries for ${record.sourceFileName} from effect cache: ${renderedReasons}`,
+    );
+  },);
 }

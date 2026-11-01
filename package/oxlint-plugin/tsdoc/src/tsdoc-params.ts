@@ -93,9 +93,9 @@ export function extractDocParamNames(docComment: ReadonlyDeep<ParsedDocComment>,
   return docComment.params
     .blocks
     .map(
-      function getParamName(block: ReadonlyDeep<ParsedParamBlock>,): string {
-        return block.parameterName;
-      },
+    function getParamName(block: ReadonlyDeep<ParsedParamBlock>,): string {
+      return block.parameterName;
+    },
     );
 }
 

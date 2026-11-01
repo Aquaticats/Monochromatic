@@ -23,13 +23,13 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isIdentifier,
   isShorthandPropertyAssignment,
   isTypeNode,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { expressionCanCarryMutableState, } from './effect-primitive-origin.ts';
 import type { EffectSlot, } from './effect-slot-identity.ts';
@@ -96,9 +96,9 @@ export function packagedCallableOrigins({
        `accessorShorthandEffect` in the call-edge fixture measured that.
        */
       const symbol = isShorthandPropertyAssignment(node.parent,)
-          && (node.parent
-            .name
-            === node)
+        && (node.parent
+          .name
+          === node)
         ? checker.getShorthandAssignmentValueSymbol(node.parent,)
         : checker.getSymbolAtLocation(node,);
       if (symbol === undefined)

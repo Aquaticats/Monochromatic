@@ -20,7 +20,7 @@ and only the second is open:
 - VoiceOver fidelity (does VoiceOver read each control correctly and navigate sanely).
    This runbook.
 
-The element-tree dumps in `../decisions/ios-iphone-x-vet-reports/vet-ui-automation.md` are the headless half of
+The element-tree dumps in `../decision/ios-iphone-x-vet-report/vet-ui-automation.md` are the headless half of
 this:
  they show what each rendering model exposes (labels,
  roles,
@@ -335,6 +335,6 @@ Status:
   `ideviceinstaller -n uninstall dev.monochromatic.iosvet.hellodevice`;
    removing it is safe because `anchor`
   keeps the certificate trusted.
-- Record the checklist results in `../decisions/ios-iphone-x-music-player-kopia-stack.md` under the accessibility
+- Record the checklist results in `../decision/ios-iphone-x-music-player-kopia-stack.md` under the accessibility
   section,
    replacing "owner-owed sweep" with the per-framework outcome.

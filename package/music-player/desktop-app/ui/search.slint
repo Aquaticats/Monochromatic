@@ -1,0 +1,562 @@
+// Search page for the folded cover and the right pane of the unfolded inner panel (D47 to D77). The caller
+// places the page and supplies the inset that keeps content clear of the crease, so this component draws only
+// its own header, status block and result rows.
+import { Theme } from "theme.slint";
+import { StateLayer } from "state_layer.slint";
+import { ListView } from "std-widgets.slint";
+import { Focus, FocusStop, FocusRing, Keys } from "focus.slint";
+import { Scrollbar } from "scrollbar.slint";
+
+// One piece of a result line. The Rust side splits every line at each visible query match, so a line is a
+// sequence of plain and emphasized pieces that together read as the full text.
+export struct SearchSegment {
+    // Text of this piece, including any trailing space.
+    text: string,
+    // Whether this piece is a query match, drawn bold on a primary tint (D59).
+    emphasized: bool,
+}
+
+// One Search result. kind 0 is a folder and kind 1 a track; a track's parent folder is its second line (D77).
+export struct SearchRow {
+    // 0 for a folder result, 1 for a track result.
+    kind: int,
+    // Title line: the folder name or the track file name without its extension, split into segments.
+    title-segments: [SearchSegment],
+    // Second line: the parent folder of a track, split into segments. Empty when `has-parent` is false.
+    parent-segments: [SearchSegment],
+    // Whether the second line is shown. A folder has none.
+    has-parent: bool,
+    // Whether this track is the current track. Reported to assistive technology only.
+    current: bool,
+    // Whether the current track is playing. Reported to assistive technology only.
+    playing: bool,
+    // What a screen reader announces for the row: the name once, the kind, and the parent folder of a track (D77). It is
+    // built in Rust because the title and the parent line arrive as pieces that an expression cannot join.
+    spoken: string,
+    // Caller-chosen handle that `open` reports back, such as the library index of a track.
+    index: int,
+}
+
+// Search page. Shows the status block when `rows` is empty and the result list otherwise.
+export component SearchPage inherits Rectangle {
+    background: Theme.canvas;
+    clip: true;
+
+    // Result rows to draw, in the order the caller ranked them.
+    in property <[SearchRow]> rows: [];
+    // Current query text. Assigning it from the caller updates the field, which is how Search clears or restores it.
+    in property <string> query: "";
+    // Headline of the status block shown when `rows` is empty, such as "Search your music". Empty hides the block.
+    in property <string> status-title: "";
+    // Support line under the status headline, or empty for none.
+    in property <string> status-detail: "";
+    // Cover arrangement: centers the status block with a magnifier glyph. False aligns it to `content-start-x`.
+    in property <bool> compact: false;
+    // Scroll position of the result list; 0 at the top and negative when scrolled down.
+    in-out property <length> scroll-y <=> results.content-y;
+    // Distance from the top to scroll to when `anchor-tick` changes, limited to the end of the list.
+    in property <length> anchor-offset: 0px;
+    // Changes after a refresh re-ranks the results, so the first visible row keeps its place on screen (D111).
+    in property <int> anchor-tick: 0;
+    // Result the keyboard highlights (Up and Down move it, Enter opens it), by the `index` of its row; -1 for none. The
+    // query field keeps the typing focus, so this is an active-descendant highlight: the ring and nothing else.
+    in property <int> ring: -1;
+    // Left inset of the header, the Back target and the result rows, measured from this page's left edge. The
+    // inner caller sets it to half the crease plus the standard 16 px inset, and the cover leaves it at 16 px.
+    in property <length> content-start-x: 16px;
+    // Fires with each edit of the query text.
+    callback query-edited(string);
+    // Fires when the Back arrow is tapped.
+    callback back();
+    // Fires when the Clear control is tapped. The field is emptied before this fires.
+    callback clear();
+    // Fires with the `index` of a result row when the row is tapped.
+    callback open(int);
+
+    // Header height, the full-content Search header from the Android layout.
+    property <length> header-height: 72px;
+    // Minimum height of one result row.
+    property <length> row-height: 72px;
+    // Inset between the page's right edge and the Clear target.
+    property <length> end-inset: 16px;
+    // Nominal glyph size, drawn inside its 48 px target.
+    property <length> icon-size: 24px;
+    // Distance from the edge of a result row's rounded shape to the start of its content, on each side (D126). The shape
+    // starts this far before `content-start-x` and ends this far after the end inset, so the glyph and the title keep their
+    // D58 columns.
+    property <length> row-shape-margin: 8px;
+    // Corner radius of a result row's rounded shape, all four corners (D109, D126).
+    property <length> row-radius: 21.3px;
+    // Diameter of the filled circle that holds a result's glyph, centered in the 48 px slot (D109, D126).
+    property <length> row-circle: 40px;
+    // Diameter of the circle that holds the glyph of a status state (D126).
+    property <length> status-circle: 72px;
+    // Drawn size of the magnifier glyph in the status circle.
+    property <length> status-glyph: 32px;
+    // Distance from the bottom of the divider to the status circle on both layouts (D126).
+    property <length> status-top: 72px;
+    // Height of the status headline line, the Material 3 title medium line.
+    property <length> status-title-height: 24px;
+    // Height of the status support line, the Material 3 body medium line.
+    property <length> status-detail-height: 20px;
+    // Gap between the status circle and the headline.
+    property <length> status-title-gap: 24px;
+    // Gap between the headline and the support line: 8 px on the cover and 12 px on the inner panel.
+    property <length> status-detail-gap: root.compact ? 8px : 12px;
+    // Height of the status block from the circle's top to the support line's bottom (the line and its gap only when shown).
+    property <length> status-block-height: root.status-circle + root.status-title-gap + root.status-title-height + (root.status-detail != "" ? root.status-detail-gap + root.status-detail-height : 0px);
+    // Fill behind an emphasized match (D59), the theme's OKLCH-derived match role (the primary moved toward the neutral
+    // end, kept legible under both text roles).
+    property <color> match-fill: Theme.match-fill;
+
+    // Top of the region below the header and divider.
+    property <length> body-top: header-height + 1px;
+
+    // Glyph paths on a 24 by 24 grid, copied from the Android icon set.
+    property <string> back-path: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+    property <string> clear-path: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z";
+    property <string> track-path: "M12 3v10.55c-0.59-0.34-1.27-0.55-2-0.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z";
+    property <string> folder-path: "M20 6 h-8 l-2 -2 L4 4 c-1.1 0 -1.99 0.9 -1.99 2 L2 18 c0 1.1 0.9 2 2 2 h16 c1.1 0 2 -0.9 2 -2 L22 8 c0 -1.1 -0.9 -2 -2 -2 ZM20 18 L4 18 L4 8 h16 v10 Z";
+    property <string> search-path: "M15.5 14 h-0.79 l-0.28 -0.27 C15.41 12.59 16 11.11 16 9.5 C16 5.91 13.09 3 9.5 3 S3 5.91 3 9.5 S5.91 16 9.5 16 c1.61 0 3.09 -0.59 4.23 -1.57 l0.27 0.28 v0.79 l5 4.99 L20.49 19 l-4.99 -5 ZM9.5 14 C7.01 14 5 11.99 5 9.5 S7.01 5 9.5 5 S14 7.01 14 9.5 S11.99 14 9.5 14 Z";
+
+    // Pointer shield over the whole page. A Rectangle passes pointer events through to whatever sits under it, and the
+    // player stays alive beneath Search (the unfolded layout keeps the folder picker and the deck usable on purpose), so
+    // without this a click on the empty part of the page reached the hidden track list, mode group and pause button.
+    // It is the first child, so it is under the header and the result rows, which keep their own touch areas; it takes
+    // no keyboard focus, so the query field keeps typing. It is not a control, so it has no hover or pressed layer and
+    // keeps the default cursor.
+    page-shield := TouchArea {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        mouse-cursor: default;
+    }
+
+    // Header: Back, the query field, and Clear. Back and each result share the same left inset (D58).
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.header-height;
+        // The header is the canvas tone, so the status strip above it, the header and the results are one tone (D126).
+        background: Theme.canvas;
+
+        // Circular hover and pressed layer, 40 px centered in the 48 px Back target.
+        StateLayer {
+            x: root.content-start-x + 4px;
+            y: (parent.height - Theme.touch-target) / 2 + 4px;
+            width: 40px;
+            height: 40px;
+            radius: 20px;
+            tint: Theme.on-surface;
+            hovered: back-touch.has-hover;
+            pressed: back-touch.pressed;
+        }
+        Path {
+            x: root.content-start-x + (Theme.touch-target - root.icon-size) / 2;
+            y: (parent.height - root.icon-size) / 2;
+            width: root.icon-size;
+            height: root.icon-size;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: root.back-path;
+            fill: Theme.on-surface;
+        }
+        back-touch := TouchArea {
+            x: root.content-start-x;
+            y: (parent.height - Theme.touch-target) / 2;
+            width: Theme.touch-target;
+            height: Theme.touch-target;
+            mouse-cursor: pointer;
+            accessible-role: button;
+            accessible-label: "Back";
+            clicked => {
+                Focus.ring-visible = false;
+                root.back();
+            }
+            Tooltip {
+                text: @markdown("Back (\{Keys.texts.back})");
+            }
+        }
+        back-stop := FocusStop {
+            label: "search-back";
+            x: root.content-start-x;
+            y: (parent.height - Theme.touch-target) / 2;
+            width: Theme.touch-target;
+            height: Theme.touch-target;
+            activated => { root.back(); }
+        }
+        FocusRing {
+            x: root.content-start-x + 4px;
+            y: (parent.height - Theme.touch-target) / 2 + 4px;
+            width: 40px;
+            height: 40px;
+            round: true;
+            active: back-stop.ring;
+        }
+
+        field := TextInput {
+            x: root.content-start-x + Theme.touch-target;
+            y: (parent.height - Theme.touch-target) / 2;
+            width: root.width - root.content-start-x - Theme.touch-target - Theme.touch-target - root.end-inset;
+            height: Theme.touch-target;
+            font-size: Theme.body-large;
+            color: Theme.on-surface;
+            single-line: true;
+            vertical-alignment: center;
+            // Reports each user edit to the caller.
+            edited => {
+                root.query-edited(self.text);
+            }
+            // The query field is a text field: it keeps every bare key (zone 7) except the few the Search page takes.
+            changed has-focus => {
+                if (self.has-focus) {
+                    Focus.zone = 7;
+                    Focus.label = "search-field";
+                } else if (Focus.zone == 7) {
+                    Focus.zone = 0;
+                    Focus.label = "";
+                }
+            }
+        }
+        // Placeholder shown only while the field is empty.
+        Text {
+            x: field.x;
+            y: field.y;
+            width: field.width;
+            height: field.height;
+            text: "Search music";
+            font-size: Theme.body-large;
+            color: Theme.on-surface-variant;
+            vertical-alignment: center;
+            visible: field.text == "";
+        }
+
+        // Clear appears only while the field has text (D65 keeps focus where it is).
+        // Circular hover and pressed layer, 40 px centered in the 48 px Clear target.
+        StateLayer {
+            x: root.width - root.end-inset - Theme.touch-target + 4px;
+            y: (parent.height - Theme.touch-target) / 2 + 4px;
+            width: 40px;
+            height: 40px;
+            radius: 20px;
+            tint: Theme.on-surface;
+            disabled: field.text == "";
+            hovered: clear-touch.has-hover;
+            pressed: clear-touch.pressed;
+        }
+        Path {
+            x: root.width - root.end-inset - Theme.touch-target + (Theme.touch-target - root.icon-size) / 2;
+            y: (parent.height - root.icon-size) / 2;
+            width: root.icon-size;
+            height: root.icon-size;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: root.clear-path;
+            fill: Theme.on-surface;
+            visible: field.text != "";
+        }
+        clear-touch := TouchArea {
+            x: root.width - root.end-inset - Theme.touch-target;
+            y: (parent.height - Theme.touch-target) / 2;
+            width: Theme.touch-target;
+            height: Theme.touch-target;
+            visible: field.text != "";
+            mouse-cursor: pointer;
+            accessible-role: button;
+            accessible-label: "Clear";
+            clicked => {
+                Focus.ring-visible = false;
+                field.text = "";
+                root.clear();
+            }
+        }
+        clear-stop := FocusStop {
+            label: "search-clear";
+            x: root.width - root.end-inset - Theme.touch-target;
+            y: (parent.height - Theme.touch-target) / 2;
+            width: Theme.touch-target;
+            height: Theme.touch-target;
+            enabled: field.text != "";
+            activated => {
+                field.text = "";
+                root.clear();
+                field.focus();
+            }
+        }
+        FocusRing {
+            x: root.width - root.end-inset - Theme.touch-target + 4px;
+            y: (parent.height - Theme.touch-target) / 2 + 4px;
+            width: 40px;
+            height: 40px;
+            round: true;
+            active: clear-stop.ring;
+        }
+    }
+
+    // Divider under the header, one logical pixel in the outline-variant role (D126).
+    divider := Rectangle {
+        x: 0px;
+        y: root.header-height;
+        width: root.width;
+        height: 1px;
+        background: Theme.outline-variant;
+    }
+
+    // Focus the field whenever the page is shown (D63, D75).
+    init => {
+        field.text = root.query;
+        field.focus();
+        // The field's focus change is not reported for the focus it takes here, so the zone is set by hand.
+        Focus.zone = 7;
+        Focus.label = "search-field";
+    }
+
+    // Keeps the field in step with a query the caller sets, such as a cleared query, and returns the list to its
+    // first row whenever the query changes.
+    changed query => {
+        if (field.text != root.query) {
+            field.text = root.query;
+        }
+        results.content-y = 0px;
+    }
+
+    // Scrolls just enough to keep the highlighted result inside the list when the keyboard moves it.
+    changed ring => {
+        if (root.ring >= 0) {
+            if (root.ring * root.row-height < -results.content-y) {
+                results.content-y = -(root.ring * root.row-height);
+            } else if ((root.ring + 1) * root.row-height > -results.content-y + results.visible-height) {
+                results.content-y = results.visible-height - (root.ring + 1) * root.row-height;
+            }
+        }
+    }
+
+    // Moves the list to the offset Rust computed so a re-ranked list leaves the first visible row where it was.
+    changed anchor-tick => {
+        results.content-y = -min(root.anchor-offset, max(0px, results.content-height - results.visible-height));
+    }
+
+    // Status block for an empty result set (D126). All five states share one block that starts 72 px under the divider on
+    // both layouts: a 72 px circle in the secondary-container role holding the 32 px magnifier, the headline 24 px below it,
+    // and the support line under that. The cover centers the block with 16 px at each side; the inner panel aligns the
+    // circle's left edge to `content-start-x`. Desktop has no on-screen keyboard, so the block scrolls only when the window
+    // is shorter than the block.
+    if root.rows.length == 0 && root.status-title != "" : status-scroll := Flickable {
+        x: 0px;
+        y: root.body-top;
+        width: root.width;
+        height: root.height - root.body-top;
+        content-width: self.width;
+        content-height: max(self.height, root.status-top + root.status-block-height);
+
+        status-block := VerticalLayout {
+            x: root.compact ? root.end-inset : root.content-start-x;
+            y: root.status-top;
+            width: root.width - self.x - root.end-inset;
+            height: root.status-block-height;
+
+            HorizontalLayout {
+                alignment: root.compact ? LayoutAlignment.center : LayoutAlignment.start;
+                status-circle-box := Rectangle {
+                    width: root.status-circle;
+                    height: root.status-circle;
+                    border-radius: root.status-circle / 2;
+                    background: Theme.secondary-container;
+                    status-glyph-path := Path {
+                        x: (parent.width - root.status-glyph) / 2;
+                        y: (parent.height - root.status-glyph) / 2;
+                        width: root.status-glyph;
+                        height: root.status-glyph;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        commands: root.search-path;
+                        fill: Theme.on-secondary-container;
+                    }
+                }
+            }
+            Rectangle { height: root.status-title-gap; }
+            status-title-text := Text {
+                text: root.status-title;
+                height: root.status-title-height;
+                font-size: Theme.title-medium;
+                font-weight: 500;
+                letter-spacing: 0.15px;
+                color: Theme.on-surface;
+                horizontal-alignment: root.compact ? TextHorizontalAlignment.center : TextHorizontalAlignment.left;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            if root.status-detail != "" : Rectangle { height: root.status-detail-gap; }
+            if root.status-detail != "" : status-detail-text := Text {
+                text: root.status-detail;
+                height: root.status-detail-height;
+                font-size: Theme.body-medium;
+                color: Theme.on-surface-variant;
+                horizontal-alignment: root.compact ? TextHorizontalAlignment.center : TextHorizontalAlignment.left;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+    }
+
+    // Result list below the header. Rows keep the fixed 72 px height, and the list returns to its first row when
+    // the query changes.
+    results := ListView {
+        x: 0px;
+        y: root.body-top;
+        width: root.width;
+        height: root.height - root.body-top;
+        visible: root.rows.length > 0;
+
+        for row[i] in root.rows: result-row := Rectangle {
+            width: results.width;
+            height: root.row-height;
+
+            // The row is flat on the canvas. Its rounded shape starts one margin before the content and ends one margin after
+            // the end inset, and it bounds the hover and pressed layer, the keyboard ring and the pointer target (D126). The
+            // page's right edge is the window's edge on the folded layout and the pane's edge on the unfolded one, and the
+            // scrollbar's 4 px track starts where the shape ends.
+            result-shape := Rectangle {
+                x: root.content-start-x - root.row-shape-margin;
+                y: 0px;
+                width: parent.width - self.x - root.end-inset + root.row-shape-margin;
+                height: parent.height;
+                border-radius: root.row-radius;
+
+                // Hover and pressed layer, rounded like the shape so it never leaves it.
+                StateLayer {
+                    width: parent.width;
+                    height: parent.height;
+                    radius: root.row-radius;
+                    tint: Theme.on-surface;
+                    hovered: row-touch.has-hover;
+                    pressed: row-touch.pressed;
+                }
+                // The D117 pair of rings, drawn just inside the shape's own edge and following its corners (D120). No fill goes
+                // with it.
+                FocusRing {
+                    inside: true;
+                    radius: root.row-radius;
+                    active: row.index == root.ring && Focus.ring-visible;
+                }
+                // Tapping the shape opens the result.
+                row-touch := TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+                    mouse-cursor: pointer;
+                    // A result is one button that opens it, announced with its name, kind and parent folder; the playing
+                    // track reads as checked, like a track row in the list. The pieces of the title and the parent line
+                    // stay as they are and add no label of their own to the row.
+                    accessible-role: button;
+                    accessible-label: row.spoken;
+                    accessible-checkable: row.kind == 1;
+                    accessible-checked: row.current;
+                    accessible-action-default => { root.open(row.index); }
+                    clicked => { root.open(row.index); }
+                }
+            }
+
+            // Filled circle in the 48 px slot, centered on the same axis as the Back arrow (D58, D126).
+            row-circle := Rectangle {
+                x: root.content-start-x + (Theme.touch-target - root.row-circle) / 2;
+                y: (parent.height - root.row-circle) / 2;
+                width: root.row-circle;
+                height: root.row-circle;
+                border-radius: root.row-circle / 2;
+                background: Theme.secondary-container;
+
+                // Glyph, 24 px centered in the circle.
+                row-glyph := Path {
+                    x: (parent.width - root.icon-size) / 2;
+                    y: (parent.height - root.icon-size) / 2;
+                    width: root.icon-size;
+                    height: root.icon-size;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    commands: row.kind == 0 ? root.folder-path : root.track-path;
+                    fill: Theme.on-secondary-container;
+                }
+            }
+
+            // Title and optional parent line, starting at the same inset as the query text (D58).
+            VerticalLayout {
+                x: root.content-start-x + Theme.touch-target;
+                width: parent.width - root.content-start-x - Theme.touch-target - root.end-inset;
+                height: parent.height;
+                alignment: center;
+
+                HorizontalLayout {
+                    alignment: stretch;
+                    for segment[position] in row.title-segments: Rectangle {
+                        // Only the last piece may shrink: it takes the whole deficit and ends in an ellipsis (OV1), and every
+                        // earlier piece keeps its full width so a highlighted match is never cut in the middle.
+                        preferred-width: title-text.preferred-width;
+                        // The slot has no layout of its own, so it takes its height from the text it holds; without it the line
+                        // collapsed to nothing and the title and the parent line were drawn on top of each other.
+                        preferred-height: title-text.preferred-height;
+                        min-height: title-text.preferred-height;
+                        min-width: position == row.title-segments.length - 1 ? 0px : title-text.preferred-width;
+                        horizontal-stretch: position == row.title-segments.length - 1 ? 1 : 0;
+                        Rectangle {
+                            x: 0px;
+                            width: min(parent.width, title-text.preferred-width);
+                            background: segment.emphasized ? root.match-fill : transparent;
+                        }
+                        title-text := Text {
+                            x: 0px;
+                            width: parent.width;
+                            text: segment.text;
+                            font-size: Theme.body-large;
+                            font-weight: segment.emphasized ? 700 : 400;
+                            color: Theme.on-surface;
+                            vertical-alignment: center;
+                            wrap: no-wrap;
+                            overflow: elide;
+                        }
+                    }
+                }
+                if row.has-parent : HorizontalLayout {
+                    alignment: stretch;
+                    for segment[position] in row.parent-segments: Rectangle {
+                        preferred-width: parent-text.preferred-width;
+                        preferred-height: parent-text.preferred-height;
+                        min-height: parent-text.preferred-height;
+                        min-width: position == row.parent-segments.length - 1 ? 0px : parent-text.preferred-width;
+                        horizontal-stretch: position == row.parent-segments.length - 1 ? 1 : 0;
+                        Rectangle {
+                            x: 0px;
+                            width: min(parent.width, parent-text.preferred-width);
+                            background: segment.emphasized ? root.match-fill : transparent;
+                        }
+                        parent-text := Text {
+                            x: 0px;
+                            width: parent.width;
+                            text: segment.text;
+                            font-size: Theme.body-medium;
+                            font-weight: segment.emphasized ? 700 : 400;
+                            color: Theme.on-surface-variant;
+                            vertical-alignment: center;
+                            wrap: no-wrap;
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Scrollbar (D22), the same as the other lists: always visible and draggable for the pointer. The wheel passes through it.
+    Scrollbar {
+        x: root.width - self.width;
+        y: results.y;
+        height: results.height;
+        visible: root.rows.length > 0;
+        content-y: results.content-y;
+        content-height: results.content-height;
+        scroll-to(y) => {
+            results.content-y = y;
+        }
+    }
+}

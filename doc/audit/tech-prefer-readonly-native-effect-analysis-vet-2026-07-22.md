@@ -38,7 +38,9 @@ Prior compatible report:
 
 ## Context
 
-The incumbent project JavaScript rule opens TypeScript 7.0.2 through `typescript/unstable/sync`.
+The incumbent project JavaScript rule opens TypeScript 7.0.2 through `typescript/unstable/sync`
+(`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20).
 Its cold 13-file package run took 62.9 seconds because `buildEffectSummaryIndex` eagerly indexed
 337 non-declaration sources from an 834-source semantic project.
 The same command completed in 1.0 second with a valid warm cache.

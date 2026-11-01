@@ -39,7 +39,6 @@ housekeeping),
 and [`pi-plugin`](package/pi-plugin/) does the same for the Pi coding agent
 (advisor,
 guardrail,
-morph-compact,
 model selection).
 Harness-agnostic logic (session discovery,
 usage projection,
@@ -47,25 +46,27 @@ shell-command analysis,
 terminal titles) lives in
 [`agent-harness-shared`](package/agent-harness-shared/).
 
-**Pluggable Rust linter**:
-[`linter/rust`](package/linter/rust/) is a Rust linter written in Rust
-whose rules ship as plugins
-([`rust-linter-plugin/builtin`](package/rust-linter-plugin/builtin/))
-over shared crates
-([`rust-linter-core`](package/rust-module/rust-linter-core/),
-[`rust-linter-pattern`](package/rust-module/rust-linter-pattern/)).
-It enforces the repo's per-file code-line budget (`max-lines`)
-and rustdoc coverage (`require-rustdoc`) across all crates.
+**Unified linter**:
+[`linter/monochromatic-lint`](package/linter/monochromatic-lint/) is one Rust executable
+that lints Rust,
+Markdown,
+and MDX,
+including Rust fences in Markdown and the Markdown inside rustdoc.
+It enforces the repo's per-file code-line budget (`rust/max-lines`),
+rustdoc coverage (`rust/require-rustdoc`),
+and the Markdown rules across the whole tree,
+under the root `monochromatic-lint.config.jsonc`,
+from `mise run lint` and `mise run format`.
 A sibling Gradle-based Kotlin linter lives in
 [`linter/kotlin`](package/linter/kotlin/).
 
 **Policy-aware git tooling**:
 [`git-policy-cli`](package/git-policy/cli/) wraps git with policy guards
 (rejecting bulk staging and pathspec-less commits,
-guarding worktree removal) behind a side-effect-free policy authoring API.
-[`cli/forbidden-strings`](package/cli/forbidden-strings/) is a gitignore-aware Rust scanner
+guarding worktree removal) as a native Rust executable configured by data in `cli-git.config.jsonc`.
+[`forbidden-strings/cli`](package/forbidden-strings/cli/) is a gitignore-aware Rust scanner
 for banned tokens and leaked credentials,
-with a coverage-guided [`cargo-fuzz` harness](package/cli/forbidden-strings.fuzz/).
+with a coverage-guided [`cargo-fuzz` harness](package/forbidden-strings/cli.fuzz/).
 
 **Custom Oxlint plugins**:
 [`oxlint-tsdoc`](package/oxlint-plugin/tsdoc/) enforces TSDoc correctness
@@ -81,12 +82,12 @@ alongside [`stylistic`](package/oxlint-plugin/stylistic/),
 and [`test-import`](package/oxlint-plugin/test-import/) plugins.
 
 **Wayland-native desktop applications**:
-[`desktop-app/file-manager`](package/desktop-app/file-manager/) is a native file manager
+[`file-manager/app`](package/file-manager/app/) is a native file manager
 presenting a Niri-like horizontal strip of columns on GTK4,
 with native Wayland drag-and-drop.
-[`desktop-app/terminal`](package/desktop-app/terminal/) is a Slint terminal
+[`terminal/app`](package/terminal/app/) is a Slint terminal
 backed by Ghostty's libghostty-vt core.
-[`cli/nested-wayland-session`](package/cli/nested-wayland-session/) hosts one Wayland client
+[`nested-wayland-session/cli`](package/nested-wayland-session/cli/) hosts one Wayland client
 fullscreen on the GPU (dmabuf) path for GUI testing,
 screenshotting the framebuffer and injecting synthetic input
 over a Unix-socket control API.
@@ -110,7 +111,7 @@ See [`PHILOSOPHY.tool-choices.md`](doc/philosophy/tool-choices.md) for the full
 analysis of h3 vs Elysia vs Hono.
 
 **Monorepo-aware CSS build tool**:
-[`build-tool-css`](package/build-tool/css/) resolves `@import` through
+[`build-tool-css`](package/css/cli/) resolves `@import` through
 `package.json` exports mappings and `node_modules`,
 processes custom `@mixin`/`@apply` syntax,
 and generates CSS strings for Shadow DOM injection,
@@ -150,13 +151,38 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise](https://mise.jdx.dev/) (task runner and tool version manager).
-All other tools (Node,
+Install [Mise][mise-home] as the task runner,
+`curl`,
+`jq` and `tar`.
+Install [rustup](https://rustup.rs/) as well,
+with the minimal profile and no default toolchain,
+and put `~/.cargo/bin` on `PATH`
+(the `Dockerfile` runs `rustup-init -y --no-modify-path --profile minimal --default-toolchain none`
+after checking `rustup-init` against the checksum that rust-lang publishes beside it).
+The plan's `rust` entry runs `rustup toolchain install`,
+and every `cargo-binstall` tool runs `cargo binstall`,
+a cargo subcommand,
+so `mpm-shadow install` needs rustup before its first run;
+`mpm-shadow` does not provision rustup itself.
+rustup installs no toolchain at this step:
+the locked nightly arrives with the `rust` entry,
+and that entry's `RUSTUP_TOOLCHAIN` selects it for the `cargo` and `rustc` proxies.
+The toolchain commands are the Rust program `mpm-shadow`
+(see [Provision the toolchain](#clone-and-bootstrap) for the one prebuilt archive a fresh machine needs).
+Mise runs tasks only;
+every tool this repository runs (Node,
 pnpm,
 dprint,
 Rust nightly,
 Java,
-and Bun for explicit Bun islands) are installed automatically by Mise.
+Bun for explicit Bun islands,
+and the rest) is provisioned from `toolchain.lock.json` by the repository
+toolchain,
+recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
+The `bin`-sourced tools resolve their releases through the GitHub API,
+so `mpm-shadow install` reads `GITHUB_TOKEN` from the environment or the machine's
+`gh` login;
+an unauthenticated machine can exhaust the API quota mid-install.
 
 ### Clone and bootstrap
 
@@ -165,11 +191,9 @@ git clone https://github.com/Aquaticat/Monochromatic.git
 cd Monochromatic
 ```
 
-On first entry,
-Mise warns about missing tools.
 Trust the configuration so Mise evaluates environment variables,
 templates,
-and the `enter` hook:
+and tasks:
 
 ```sh
 mise trust
@@ -180,16 +204,126 @@ under `package/`.
 See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
-The `enter` hook is a `bootstrap` task that runs `mise install` then `mise upgrade`,
-so entering the trusted directory installs and updates the pinned tools
-automatically;
-it is plain cross-platform Mise with no separate task-runner shell to install
-first.
+A fresh machine has neither `mpm-shadow` nor `file-enforcer`.
+Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platform into a throwaway directory,
+check it against the SHA-256 recorded beside it,
+run its `install` from the repository root,
+and remove the throwaway copy
+(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
+
+```sh
+# Run from the repository root; platform is linux-x64 or linux-arm64.
+platform=linux-x64
+work="$(mktemp --directory)"
+url="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].url' toolchain.lock.json)"
+sum="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].sha256' toolchain.lock.json)"
+curl --fail --silent --show-error --location --output "${work}/mpm-shadow.tar.gz" "${url}"
+echo "${sum}  ${work}/mpm-shadow.tar.gz" | sha256sum --check
+tar --extract --gzip --file "${work}/mpm-shadow.tar.gz" --wildcards --strip-components=1 \
+  --directory "${work}" '*/mpm-shadow'
+"${work}/mpm-shadow" install
+rm --recursive --force "${work}"
+```
+
+That `install` converges every tool to the versions `toolchain.lock.json` records,
+Node and `file-enforcer` among them,
+and installs the managed `mpm-shadow` into the toolchain root
+(`<data home>/monochromatic-dev/toolchain/mpm-shadow/<version>/`) and links it into `.cache/toolchain-bin`.
+The first run is by this binary and not by a task,
+because the `toolchain:*` tasks need Node 24 or newer
+(the entry uses `import.meta.main` and `Error.isError`),
+and this install is what provides it (the Node that the lock names is newer than that).
+The downloaded copy is not kept:
+nothing scans or updates a copy left in `~/.local/bin`,
+so one placed there would become an older repository copy after the next lock bump,
+and no older copy of this repository's tools stays when a newer one is present.
+
+From then on,
+and in any existing checkout,
+use the task:
+
+```sh
+mise run toolchain:install
+```
+
+Every `toolchain:*` task runs an `mpm-shadow` at least at the version that `toolchain.lock.json` names,
+and never the one on `PATH`:
+it runs the newest installed copy
+(`.cache/toolchain-bin/mpm-shadow`,
+or a finished version folder under the `mpm-shadow` folder of either toolchain root,
+`toolchain` or `toolchain-global`:
+the newest copy wins wherever it is)
+whose version is at or above the lock's,
+and says `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` when that copy is newer.
+Only when there is none does the task download the lock's archive,
+check its SHA-256 against the lock,
+and install it into the toolchain root as `mpm-shadow install` would.
+A copy older than the lock never runs;
+on a platform for which the lock has no archive row,
+the `mpm-shadow` on `PATH` is used only when it is at or above the lock's version.
+So a checkout whose `mpm-shadow` is older than the lock needs no extra step
+(an old copy would stop on `tools.mpm-shadow.options.tagPrefix is not a known field`,
+see `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`).
+
+The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:install`,
+and `mpm-shadow install` runs the same work without the task wrapper.
+The install stages its own bootstrap tools first:
+`bin` as a standalone release binary
+(SHA-256 checked against the release `checksums.txt` values),
+then `uv`,
+then [mpm][mpm-home] as the PyPI wheel `meta-package-manager` 8.2.0
+(SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`).
+Then it installs the remaining tools
+and rebuilds the gitignored `.cache/toolchain-bin` directory that
+`.config/mise/conf.d/20-env.toml` puts first on `PATH`.
 Then install dependencies and build all packages:
 
 ```sh
 mise run prepareAndBuild
 ```
+
+### Tool inventory and drift
+
+- `mise run toolchain:update` re-resolves the floating requests and the
+  channel stamps to their current upstream versions and rewrites
+  `toolchain.lock.json` as a reviewable diff
+  (`mpm-shadow update`);
+  `mise run toolchain:outdated` reports what it would move without writing;
+  explicit pins never move without a plan edit.
+- `mise run toolchain:list` prints observed versus locked versions and exits
+  non-zero on drift
+  (`mpm-shadow list` runs the same check),
+  and `mise run toolchain:lock:check` is the offline gate that fails when
+  `toolchain.plan.jsonc` and `toolchain.lock.json` disagree.
+- `mpm installed` lists what every package manager on the machine holds,
+  `mpm outdated` lists available upgrades,
+  and `mpm sbom` exports the inventory as SPDX or CycloneDX.
+- `mpm-shadow bin --json` prints the
+  exposure directory,
+  PATH directories,
+  and one absolute path per linked binary as JSON
+  (`exposureDir`,
+  `pathDirs`,
+  `bins`),
+  which is what IDE integrations read.
+
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what the sync installs
+(the semantics `mise install` had against `mise.lock`),
+so the explicit pins still install exactly.
+The install installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`;
+re-resolving versions is a separate update action,
+the `pnpm update` analogue.
+
+Version bumps change the plan in `toolchain.plan.jsonc` and the lock
+`mpm-shadow` writes from it (`toolchain.lock.json`),
+never a hand-edited lock.
+Upgrades of a single machine package name their tool
+(`mpm upgrade <package>`);
+a bare `mpm upgrade --all` moves every manager's packages and rewrites the
+toolchain state all sessions' builds share.
 
 ## Essential commands
 
@@ -212,9 +346,9 @@ mise run test
 mise run buildAndTest
 
 # Build and test a specific file
-mise run buildAndTest -- package/module/async-time/src/wait.unit.test.ts
+mise run buildAndTest -- package/async-time/core/src/wait.unit.test.ts
 
-# Lint all files (oxlint, dprint, stylelint, markdown, rust, detekt)
+# Lint all files (oxlint, dprint, markdown, rust, detekt)
 mise run lint
 
 # Format all files
@@ -231,8 +365,8 @@ mise run watch:test
 Run a task in a specific package with the monorepo path prefix:
 
 ```sh
-mise run //package/module/async-time:test:unit
-mise run //package/webapp-productivity/done:build
+mise run //package/async-time/core:test:unit
+mise run //package/done/app:build
 ```
 
 ## Project structure
@@ -249,7 +383,7 @@ package/
                               WireGuard helpers, forbidden-strings scanner,
                               nested Wayland compositor)
   config/                   Shared configurations (cosign, dotfiles, dprint, oxlint,
-                              rolldown, stylelint, tofu, typescript, lfs-r2-worker)
+                              rolldown, tofu, typescript, lfs-r2-worker)
   desktop-app/              Desktop applications (GTK4/Qt/Electron file managers,
                               Slint terminal, Electron infrastructure)
   desktop-daemon/           Background services (hall-monitor)
@@ -257,12 +391,11 @@ package/
                               deps-cube, page-weight, vm-builder, watch-restart)
   figma/                    Figma and Penpot tooling (kiwi parser, to-penpot converter)
   fuzz/                     Coverage-guided fuzzing harnesses (forbidden-strings)
-  git-policy/               Policy-aware git wrapper, policy authoring API,
-                              forbidden-strings policy
+  git-policy/               Policy-aware git wrapper (native Rust executable) and its fuzz sidecar
   intellij-plugin/          IntelliJ plugins (islands-black theme)
   kwin/                     KWin scripting (key-helper script and service)
   learning/                 Learning exercises (rust)
-  linter/                   Custom linters (pluggable Rust linter, Kotlin linter)
+  linter/                   Custom linters (unified Rust/Markdown linter, Kotlin linter)
   mcp/                      Model Context Protocol servers (stdio framework, mvm)
   module/                   Core TypeScript libraries (logger, test harness, observable,
                               memoize, css/jsonc/toml editing, image diff, kv-store)
@@ -272,13 +405,12 @@ package/
   oxlint-plugin/            Custom Oxlint plugins (tsdoc, no-restricted-syntax,
                               stylistic, prefer-readonly-parameter-type, test-import)
   pi-plugin/                Pi coding-agent plugins (advisor, guardrail, statusline,
-                              spawn, morph-compact, search-fetch)
+                              spawn)
   pi-shared/                Shared Pi plugin logic (model selection, model review)
   rolldown-plugin/          Rolldown/tsdown plugins (import-attributes)
   runtime-error/            Runtime error reproductions (bun)
-  rust-linter-plugin/       Rule plugins for the Rust linter (builtin)
-  rust-module/              Rust libraries (forbidden-regex, rust-linter-core,
-                              rust-linter-pattern)
+  rust-module/              Rust libraries (forbidden-regex, jsonc-edit)
+  search-fetch/             Web search and page fetch (core, mcp, pi-plugin, dsh-plugin)
   shim/                     API-compatible dependency shims
   ssg/                      Static site generator for aquati.cat
   stub/                     Dependency blocklist stubs
@@ -293,7 +425,22 @@ package-deprecated/         Deprecated packages retained for reference
 ## Technical stack
 
 - **Task runner**:
-  [Mise](https://mise.jdx.dev/) with Node (`shell = "node --input-type=module-typescript -e"`) for cross-platform task logic
+  [Mise][mise-home] with Node
+  (`shell = "node --input-type=module-typescript -e"`)
+  for cross-platform task logic
+- **Toolchain manager**:
+  [mpm][mpm-home] (Meta Package Manager) for the tool manifest,
+  machine inventory,
+  outdated detection,
+  upgrade coordination,
+  release-age cooldown,
+  and SBOM export,
+  plus the toolchain plan (`toolchain.plan.jsonc`) and the confirmed per-family install
+  routes (`bin`,
+  `cargo-binstall`,
+  `rustup`,
+  `android-sdk`),
+  with versions fixed in `toolchain.lock.json`
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
   Bun stays installed only for explicit Bun islands,
@@ -313,12 +460,11 @@ package-deprecated/         Deprecated packages retained for reference
   Oxlint (with custom JS plugins for TSDoc and restricted syntax),
   the in-repo pluggable Rust linter plus Clippy,
   detekt,
-  Stylelint,
   Harper (prose)
 - **Formatter**:
   dprint (orchestrates all formatters including oxlint auto-fix)
 - **Testing**:
-  `@monochromatic-dev/module-test` unit files executed through Node-based `mise run` tasks,
+  `@monochromatic-dev/test-harness-core` unit files executed through Node-based `mise run` tasks,
   Playwright in Podman for browser and e2e tests,
   `cargo-fuzz` for coverage-guided fuzzing
 - **HTTP framework**:
@@ -344,3 +490,6 @@ some tools (e.g. Zellij) have no native Windows support.
 [LGPL-3.0-or-later](LICENSE) for code,
 with root package metadata also declaring
 [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) for shareable documentation and content.
+
+[mpm-home]: https://mpm.run/
+[mise-home]: https://mise.jdx.dev/

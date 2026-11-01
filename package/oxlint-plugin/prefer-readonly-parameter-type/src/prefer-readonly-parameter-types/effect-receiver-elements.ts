@@ -4,13 +4,13 @@
  @module
  */
 
-import type { CallExpression, } from 'typescript/unstable/ast';
-import { isPropertyAccessExpression, } from 'typescript/unstable/ast/is';
+import type { CallExpression, } from 'typescript/ast';
+import { isPropertyAccessExpression, } from 'typescript/ast/is';
 import {
   type Checker,
   type Type,
   TypeFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 /**
  Tests whether every type this call's receiver is instantiated over is primitive.

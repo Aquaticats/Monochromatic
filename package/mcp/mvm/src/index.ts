@@ -40,7 +40,7 @@ const server = createMcpServer({
     title: 'mvm VM manager',
     instructions:
       'Manages throwaway virtual machines for running commands that could crash or exhaust the host. '
-      + 'Nothing records which backend a VM was created on, so every follow-up call must repeat the '
+        + 'Nothing records which backend a VM was created on, so every follow-up call must repeat the '
         + 'same `backend` argument used at create time, and `list_vms` only ever shows one backend at a time. '
         + 'Prefer `run_in_vm` for one-shot commands: it creates, runs, and destroys in a single call, '
         + 'leaving no VM to track. Creating or updating Windows images on the libvirt backend takes '

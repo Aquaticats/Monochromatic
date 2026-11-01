@@ -1,0 +1,7 @@
+// Prerequisites of the rust/avoidable-closure check for this package (package/linter/monochromatic-lint/README.md,
+// section "Prerequisite manifest"): libghostty-vt-sys compiles vendored Ghostty with zig, and the Slint renderer
+// links the system font libraries.
+{
+  "executables": ["zig"],
+  "pkg-config": ["fontconfig", "freetype2"],
+}

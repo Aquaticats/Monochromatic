@@ -12,9 +12,17 @@ Incumbent responsibilities and their owners:
 [`doc/planning/unified-linter-coverage-ledger.md`](unified-linter-coverage-ledger.md).
 
 Status:
-confirmed by the user as the shared understanding on 2026-09-23;
-implementation awaits the user's go-ahead,
-and no product code exists.
+confirmed by the user as the shared understanding on 2026-09-23.
+On 2026-10-04,
+the cli-git rewrite's implementing agent was also assigned ownership of the unified linter.
+The user replaced HCL configuration with JSONC and explicitly required container tests,
+mutation testing,
+and fuzzing.
+The historical `monochromatic-lint.config.hcl` is now `monochromatic-lint.config.jsonc` (2026-10-04).
+Other settled behavior remains unchanged.
+The user authorized implementation on 2026-10-04 with "Do it."
+They subsequently selected a simple handwritten configuration merge for now,
+removing the separate deepmerge port and fork-test prerequisite.
 
 ## Goal and scope
 
@@ -54,11 +62,11 @@ and no product code exists.
    and heavy dependencies would compile once per crate.
 - Binary:
    `monochromatic-lint`.
-- A separate crate,
-   `monochromatic-deepmerge`,
-   in `package/rust-module/monochromatic-deepmerge`:
-   a Rust port of deepmerge-ts,
-   licensed BSD-3-Clause with upstream's notice.
+- Configuration merging is a handwritten internal module over JSONC values.
+  Keep the agreed ordered merge semantics,
+  but do not build a generic deepmerge library,
+  port customizers,
+  or wait for the upstream fork.
 - Dependencies:
   - `ra_ap_syntax`,
      pinned exactly,
@@ -68,12 +76,11 @@ and no product code exists.
      and `satteri-ast` 0.5.3,
      pinned with `=` and upgraded together
      ([`doc/audit/tech-unified-linter-markdown-parser-vet-2026-09-23.md`](../audit/tech-unified-linter-markdown-parser-vet-2026-09-23.md));
-  - `hcl-edit` 0.9.7,
-     unpatched,
-     for configuration
-     ([`doc/audit/tech-meow-hcl-front-end-vet-2026-09-17.md`](../audit/tech-meow-hcl-front-end-vet-2026-09-17.md);
-     its two patches fix write-back only);
-  - `monochromatic-deepmerge` for rule-setting merges.
+  - `monochromatic-jsonc-edit`,
+     the repository's Rust JSONC package at `package/jsonc-edit/core-rust`,
+     for configuration;
+     no HCL dependency or compatibility parser;
+  - no external configuration-merge dependency.
 - Build-time C or assembly inside dependencies is allowed
    (`psm`,
    pulled in by Sätteri through `stacker`).
@@ -150,7 +157,7 @@ configuration uses `ignores` such as `**/*.md/**` when a block must reach real f
 ## Configuration
 
 - File name:
-   `monochromatic-lint.config.hcl`.
+   `monochromatic-lint.config.jsonc`.
 - Lookup:
    for each linted file,
    the nearest configuration file in its directory or an ancestor is used alone;
@@ -162,34 +169,36 @@ configuration uses `ignores` such as `**/*.md/**` when a block must reach real f
 - No built-in rule defaults:
    a rule runs only if the configuration turns it on.
 - Shape:
-   one-label HCL blocks,
-   as meow uses,
-   each `config "<name>" { }` with `files`,
+   an ordered JSONC array of configuration objects,
+   each with optional `name` and the existing `files`,
    `ignores`,
-   and `rules`.
+   and `rules` fields.
+  Array order preserves the existing block-merge order;
+   changing the syntax does not change lookup or merging.
 - A block with only `ignores` removes matching files from linting entirely.
 - Every other block needs `files`;
    it applies to a file when one `files` pattern matches and no `ignores` pattern does.
 - A rule setting is always an object:
-   `"rust/max-lines" = { severity = "error", max = 300 }`,
+   `"rust/max-lines": { "severity": "error", "max": 300 }`,
    with severity `off`,
    `warn`,
    or `error`.
 - For each file,
-   the `rules` objects of every applying block merge in block order in one deepmerge-ts call:
+   the `rules` objects of every applying block merge together in block order through the internal merge function:
    objects merge key by key,
    arrays concatenate,
    and any other value,
    or a value whose type differs from the first,
    takes the last one.
-  So a later `{ severity = "warn" }` keeps an earlier `max`,
+  So a later `{ "severity": "warn" }` keeps an earlier `max`,
    and a later `exclude` list adds to an earlier one.
-- Values are literals only;
-   `null`,
-   duplicate keys,
-   variables,
+- JSONC comments and trailing commas are accepted.
+  The configuration schema continues to reject `null` and duplicate keys,
+   even though the generic JSONC value model can represent null.
+  Variables,
    functions,
-   and expressions are configuration errors.
+   imports,
+   and expressions are not configuration features.
 - Rule options have per-rule defaults,
    such as `max = 300` for `rust/max-lines`.
 
@@ -206,6 +215,40 @@ Rust:
    public and private,
    and on the file itself,
    with today's hardcoded cxx-qt carve-out.
+- `rust/no-anonymous-functions`:
+   added by the user on 2026-10-04;
+   reject parsed closure expressions,
+   including named-variable bindings,
+   nested closures,
+   and `move`,
+   `async`,
+   and `const` modifiers.
+   Named functions,
+   methods,
+   function pointers,
+   and async blocks remain allowed.
+   No automatic extraction fix;
+   captured state may require redesigning the callback interface.
+   Macro token trees remain opaque to the current unexpanded syntax frontend.
+   Rollout (user, 2026-10-05):
+   `warn` everywhere at cutover,
+   raised to `error` once the count reaches zero.
+   The differential run of 2026-10-05 measured 1,215 findings in `.rs` files
+   and 207 in Markdown snippets and doc tests.
+   The user chose this over a per-file burn-down list,
+   so nothing blocks a new closure until the rule is raised.
+
+The user also requested explicit Rust type annotations on 2026-10-04,
+including declaration types and generic call arguments.
+The subsequent anonymous-function ban supersedes the inline closure in the motivating example;
+a named callback is now required instead.
+The user selected full semantic enforcement (option A) on 2026-10-04.
+Add `rust/require-explicit-types` for declaration annotations and explicit generic arguments on resolved calls.
+This supersedes the Rust parity plan's decision D1 restriction against semantic analysis for this rule.
+Preserve `_` for unnameable function-item types such as `.map::<String, _>(user_name)`.
+Method-name heuristics are not an acceptable substitute for callee resolution.
+Standalone snippets can lack resolution context;
+the implementation must expose that coverage boundary rather than report an unchecked call as verified.
 
 Markdown (numbers in each rule's documentation):
 
@@ -305,10 +348,10 @@ there are no directive comments.
 
 ## Distribution and consumers
 
-- `monochromatic-lint` and `monochromatic-deepmerge` publish through `.github/workflows/cargo-publish.yml`
+- `monochromatic-lint` publishes through `.github/workflows/cargo-publish.yml`
    to crates.io with GitHub release assets in cargo-binstall's default naming,
    like `forbidden-strings`.
-  The first publish claims both crate names and waits for the user's go-ahead.
+  The first publish claims the crate name and still waits for the user's explicit approval.
 - Root `mise.toml` installs the binary as `"cargo:monochromatic-lint"` through cargo-binstall;
    `mise.lock` pins the version.
   Linter changes reach the repository through a release.
@@ -321,7 +364,8 @@ there are no directive comments.
   Rust linting thereby joins `mise run lint`,
    which it never did before.
 - `package/git-policy/markdown-lint` keeps its policy and calls `monochromatic-lint`:
-   it writes a one-rule configuration for `markdown/lfs-image-url` to a temporary file created with a proper temporary-file call,
+   it writes a one-rule configuration for `markdown/lfs-image-url`
+   to a temporary file created with a proper temporary-file call,
    passes `--config`,
    `--stdin`,
    `--stdin-filename`,
@@ -330,69 +374,139 @@ there are no directive comments.
 
 ## Draft repository configuration
 
-```hcl
-# monochromatic-lint.config.hcl
-config "ignored-trees" {
-  ignores = ["package-paused/", "package-deprecated/", ".out-of-scope/"]
-}
-
-config "rust" {
-  files = ["**/*.rs"]
-  rules = {
-    "rust/max-lines"       = { severity = "error", max = 300 }
-    "rust/require-rustdoc" = { severity = "error" }
+```jsonc
+// monochromatic-lint.config.jsonc
+[
+  {
+    "name": "ignored-trees",
+    "ignores": [
+      "package-paused/",
+      "package-deprecated/",
+      ".out-of-scope/"
+    ]
+  },
+  {
+    "name": "rust",
+    "files": [
+      "**/*.rs"
+    ],
+    "rules": {
+      "rust/max-lines": {
+        "severity": "error",
+        "max": 300
+      },
+      "rust/require-rustdoc": {
+        "severity": "error"
+      },
+      "rust/no-anonymous-functions": {
+        "severity": "warn"
+      }
+    }
+  },
+  {
+    "name": "rust-exemptions",
+    "files": [
+      "**/tests/**/*.rs",
+      "**/*_tests.rs",
+      "**/fuzz/**/*.rs",
+      "**/*.fuzz/**/*.rs",
+      "**/build.rs",
+      "**/fixture/**/*.rs",
+      "**/test-fixture/**/*.rs",
+      "**/invalid/**/*.rs",
+      "doc/audit/**/*.rs"
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**"
+    ],
+    "rules": {
+      "rust/max-lines": {
+        "severity": "off"
+      },
+      "rust/require-rustdoc": {
+        "severity": "off"
+      }
+    }
+  },
+  {
+    "name": "markdown",
+    "files": [
+      "**/*.md",
+      "**/*.mdx"
+    ],
+    "rules": {
+      "markdown/heading-increment": {
+        "severity": "error"
+      },
+      "markdown/commands-show-output": {
+        "severity": "error"
+      },
+      "markdown/no-duplicate-heading": {
+        "severity": "error"
+      },
+      "markdown/single-h1": {
+        "severity": "error"
+      },
+      "markdown/no-trailing-punctuation": {
+        "severity": "error"
+      },
+      "markdown/no-bare-urls": {
+        "severity": "error"
+      },
+      "markdown/no-emphasis-as-heading": {
+        "severity": "error"
+      },
+      "markdown/fenced-code-language": {
+        "severity": "error"
+      },
+      "markdown/link-image-reference-definitions": {
+        "severity": "error"
+      },
+      "markdown/link-image-style": {
+        "severity": "error"
+      },
+      "markdown/no-pipe-tables": {
+        "severity": "error"
+      },
+      "markdown/semantic-line-breaks": {
+        "severity": "error"
+      },
+      "markdown/lfs-image-url": {
+        "severity": "error",
+        "exclude": [
+          "package/ssg/"
+        ]
+      }
+    }
+  },
+  {
+    "name": "rustdoc",
+    "files": [
+      "**/*.rs/*.md"
+    ],
+    "rules": {
+      "markdown/single-h1": {
+        "severity": "off"
+      }
+    }
+  },
+  {
+    "name": "snippet-burn-down",
+    "files": [
+      "**/*.md/*.rs",
+      "**/*.mdx/*.rs"
+    ],
+    "rules": {
+      "rust/require-rustdoc": {
+        "severity": "warn"
+      },
+      "rust/max-lines": {
+        "severity": "warn"
+      }
+    }
   }
-}
-
-# Exemptions for real Rust files only; snippets inside Markdown stay linted.
-config "rust-exemptions" {
-  files = [
-    "**/tests/**/*.rs", "**/*_tests.rs", "**/fuzz/**/*.rs", "**/*.fuzz/**/*.rs",
-    "**/build.rs", "**/fixture/**/*.rs", "**/test-fixture/**/*.rs", "**/invalid/**/*.rs",
-    "doc/audit/**/*.rs",
-  ]
-  ignores = ["**/*.md/**", "**/*.mdx/**"]
-  rules = {
-    "rust/max-lines"       = { severity = "off" }
-    "rust/require-rustdoc" = { severity = "off" }
-  }
-}
-
-config "markdown" {
-  files = ["**/*.md", "**/*.mdx"]
-  rules = {
-    "markdown/heading-increment"                 = { severity = "error" }
-    "markdown/commands-show-output"              = { severity = "error" }
-    "markdown/no-duplicate-heading"              = { severity = "error" }
-    "markdown/single-h1"                         = { severity = "error" }
-    "markdown/no-trailing-punctuation"           = { severity = "error" }
-    "markdown/no-bare-urls"                      = { severity = "error" }
-    "markdown/no-emphasis-as-heading"            = { severity = "error" }
-    "markdown/fenced-code-language"              = { severity = "error" }
-    "markdown/link-image-reference-definitions"  = { severity = "error" }
-    "markdown/link-image-style"                  = { severity = "error" }
-    "markdown/no-pipe-tables"                    = { severity = "error" }
-    "markdown/semantic-line-breaks"              = { severity = "error" }
-    "markdown/lfs-image-url"                     = { severity = "error", exclude = ["package/ssg/"] }
-  }
-}
-
-# Rustdoc keeps level-1 sections such as `# Safety` and `# Examples`.
-config "rustdoc" {
-  files = ["**/*.rs/*.md"]
-  rules = {
-    "markdown/single-h1" = { severity = "off" }
-  }
-}
-
-# Snippet backlog at cutover: warn until the 905 findings are fixed, then delete this block.
-config "snippet-burn-down" {
-  files = ["**/*.md/*.rs", "**/*.mdx/*.rs"]
-  rules = {
-    "rust/require-rustdoc" = { severity = "warn" }
-    "rust/max-lines"       = { severity = "warn" }
-  }
-}
+]
 ```
 
 ## Build order
@@ -413,14 +527,13 @@ config "snippet-burn-down" {
      and the 13 rules with the 137 TypeScript tests ported.
 4.  Processors and fix mapping.
 5.  Configuration:
-     HCL parsing,
+     JSONC parsing through the repository package,
      lookup,
      block matching.
-    Rule-setting merge lands with `monochromatic-deepmerge`,
-     which waits for the user's deepmerge-ts fork and its fuller tests;
-     upstream deepmerge-ts 8.0.2 defines the semantics,
-     and a fork test that disagrees is decided case by case.
-    No interim merge code is written.
+    Rule-setting merge is handwritten inside this crate,
+     as authorized on 2026-10-04.
+    Preserve the agreed one-call semantics,
+     using the repository's public JSON merge corpus as an independent regression source.
 6.  Differential comparison against both incumbents over the whole repository,
      processors off,
      expecting identical findings and fixes
@@ -440,6 +553,39 @@ config "snippet-burn-down" {
 8.  Fix the 905 snippet findings,
      then delete the burn-down block.
 
+## Required verification
+
+Container tests,
+mutation testing,
+and fuzzing are release acceptance requirements,
+not optional follow-up work.
+The combined plan specifies their concrete targets and gates:
+[`cli-git-rust-implementation.md`](cli-git-rust-implementation.md#verification-gates).
+
+- Container tests exercise the installed binary,
+  file walking,
+  configuration lookup and merges,
+  stdin fixing,
+  atomic writes,
+  process shutdown,
+  and cli-git's selected-rule integration in disposable fixtures.
+- Mutation tests target configuration precedence,
+  rule predicates,
+  fix safety,
+  virtual-to-host position mapping,
+  and error/exit handling.
+  Surviving non-equivalent mutants require stronger tests;
+  exclusions and equivalent mutants require evidence.
+- Fuzzing covers JSONC schema handling,
+  merge value shapes,
+  Markdown/MDX and Rust snippets,
+  Unicode and BOM positions,
+  nested processors,
+  and overlapping or adversarial edits.
+  Minimized failures become deterministic regressions.
+- Resource limits apply to test and fuzz subprocesses.
+  They do not silently adopt a production parse-time budget that the earlier design deferred.
+
 ## Deferred until a consumer exists
 
 - `extends` and sharing between configuration files.
@@ -455,7 +601,7 @@ config "snippet-burn-down" {
    `--format`,
    `--lsp`,
    and a flag for running one rule.
-- `deepmergeCustom` customizers in the deepmerge port.
+- A generic deepmerge package and customizers.
 - A parse time budget.
 
 ## Not replicated from ESLint
@@ -517,7 +663,8 @@ and fence `filename=` metadata.
   The parity harness gates every upgrade.
 - Build cost:
    about 28.5 s for a clean dev build of the Markdown side alone.
-- The configuration merge depends on the deepmerge-ts fork's timeline.
+- Handwritten merging must preserve all-input type-mismatch semantics;
+   a left-fold pairwise merge is not equivalent.
 - Rust linting joining `mise run lint` exposes the Rust files no package task covered,
    handled by the `*.fuzz` and `doc/audit` exemptions.
 - `mise run lint` is already red on existing Markdown debt (#294);
@@ -525,10 +672,6 @@ and fence `filename=` metadata.
 
 ## Licences
 
-- `monochromatic-deepmerge`:
-   BSD-3-Clause,
-   with deepmerge-ts's notice (Copyright (c) 2021,
-   Rebecca Stevens).
 - `monochromatic-lint`:
    LGPL-3.0-or-later,
    carrying markdownlint's MIT notice for the rule logic ported from it,

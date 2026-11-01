@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
@@ -88,9 +88,9 @@ await describe({
               .map(function name(block,): string {
                 return block.parameterName;
               },),).toEqual([
-              'a',
-              'b',
-            ],);
+                'a',
+                'b',
+              ],);
           },
         },),
 

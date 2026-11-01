@@ -1,6 +1,7 @@
 # TODO: AI Auto-Commit Automation
 
-Build an intelligent auto-commit system with debouncing and AI-generated commit messages to replace manual "forgot what changes" commits.
+Build an intelligent auto-commit system with debouncing and AI-generated commit messages
+to replace manual "forgot what changes" commits.
 
 ## Problem Statement and Motivation
 

@@ -95,7 +95,8 @@ However,
 a state's other questions can enter training while one of its questions is held out.
 The measured synthetic layout demonstrates that this split permits shared states.
 It does not quantify leakage or calibration inflation in the real benchmark.
-The guard's future qualification requires its own state/family separation rather than adopting this split unit implicitly.
+The guard's future qualification requires its own state/family separation
+rather than adopting this split unit implicitly.
 
 ### Fit and serving temperature intervals differ
 

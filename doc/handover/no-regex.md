@@ -1,5 +1,31 @@
 # HANDOVER.no-regex
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/deps-cube` is now `package/dependency-catalog/cli-cube`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/test-expect` is now `package/test-harness/core-expect`;
+> `package/module/zip-writer` is now `package/zip-writer/core`;
+> `package/module/image-diff` is now `package/llm/image-diff`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/matrix` is now `package/test-harness/core-matrix`;
+> `package/module/test` is now `package/test-harness/core`;
+> `package/module/dom` is now `package/dom/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 State of the lint-failure refactor triggered by the oxlint rule
 `no-restricted-syntax/no-regex`.
  Resume from here after compaction.
@@ -268,6 +294,7 @@ above;
   disable with the reason.
 - **`chai`'s `.to.throw(string)` does substring matching** (verified in
   `package/module/test/src/expect.unit.test.ts:99-105`).
+  The file moved on 2026-10-04 to `package/module/test-expect/src/expect.unit.test.ts`.
    So
   `.toThrow(/foo/,)` swaps cleanly to `.toThrow('foo',)`.
    Similarly
@@ -357,6 +384,124 @@ unless the user asks otherwise.
   `module/es/.../regexp/t global/.unit.test.ts`,
   `module/or-throw/regexp-or-throw.unit.test.ts`).
 
+### Patterns added since the sweep
+
+`claude-code-plugin/statusline` carried two justified disables that the sweep left standing.
+ They were replaced on 2026-10-12 in commit
+`c436b4c48e`.
+ The anchored-grammar shape below recurs in the paused packages as anchored capture grammars over
+ literal separators,
+ without the optional groups:
+`package-paused/webapp-forge/server/src/worker/render.ts`,
+`package-paused/webapp-forge/server/src/worker/render-phase2.ts`,
+ and
+`package-paused/webapp-forge/server/src/server/routes/me.ts`.
+ No paused site uses a `\b` boundary,
+ though several bound a run between literal delimiters instead,
+ which is a different shape from the scanner below:
+`package-paused/webapp-forge/server/src/storage/adapter-s3.ts`
+ and
+`package-paused/webapp-content/messages-demo/src/client/composer/helpers.ts`.
+
+- Word-boundary scanner for
+  `\b[a-z]+-?[a-z]*ing\b`:
+  attempt a match only where a word starts with a member of the pattern's first character class,
+  and advance one character everywhere else.
+  Two properties of this pattern make the attempt deterministic,
+  and each needs checking before the shape is reused elsewhere.
+  A leading `\b` reduces to "the previous character is not a word character,
+  or the index is zero" only because every member of `[a-z]` is itself a word character;
+  for a class of non-word characters,
+  as in `\b-`,
+  the same assertion demands the opposite.
+  Greediness also does not imply a longest overall match in general;
+  it does here because each optional piece either extends the run past a literal hyphen or fails
+  outright,
+  which leaves one reachable end position per start.
+  `charAt` returns `''` out of bounds,
+  which is what both text edges want,
+  so neither needs a bounds check.
+  See
+  `package/claude-code-plugin/statusline/src/gerund.ts`.
+- Anchored grammar with optional groups such as
+  `^(?<family>[A-Za-z]+)(?: (?<version>\d+\.\d+))?(?: \((?<context>\S+) context\))?$`:
+  the optional groups need no backtracking because they begin with disjoint characters after their
+  shared literal separator,
+  a digit for the version and an opening parenthesis for the context,
+  so one character decides which group applies and a single left-to-right pass over character runs
+  replaces the engine.
+  Disjoint first characters are the condition to verify;
+  separators that no piece can contain are not sufficient on their own.
+  `\S+` becomes a run up to the first whitespace character,
+  where staying exact means covering the whole ECMAScript whitespace and line-terminator set,
+  and a character-list constant is one way to express it.
+  `$` without `m` requires the actual end of input,
+  so a trailing line terminator fails the whole name instead of being tolerated.
+  See
+  `package/claude-code-plugin/statusline/src/model.ts`.
+- Equivalence evidence for any such replacement:
+  record golden outputs from the regex implementation over a generated adversarial corpus,
+  replay the same corpus against the replacement,
+  and prove the comparison can fail by mutating the replacement.
+  Read the pattern literal out of the source file rather than retyping it,
+  and count how much of the corpus the grammar actually accepts,
+  since a corpus of near misses can pass while barely reaching the accepting path.
+  Here 521,210 display names,
+  8,584 of them accepted by the grammar,
+  and 140,156 gerund texts,
+  51,606 of them holding at least one match,
+  replayed identically.
+  A one-character change to a length threshold then diverged on 5,159 gerund texts while the filtered
+  public API reported none of them,
+  so the raw match list has to be compared alongside the exported function.
+- Identifier-token scanner for runtime-compiled patterns interpolating a parsed identifier,
+  such as the four `RegExp` constructions `prefer-describe-function-ref-name` compiled per lookup
+  from `String.raw` templates interpolating the name,
+  to classify an imported file's export surface (audit issues #712 through #716,
+  replaced 2026-10-17 in commits `d16977a5d9` and `e47e2d39c5`):
+  compare the name as literal text,
+  never as pattern source,
+  and replace `\b` with maximal identifier-part runs.
+  Interpolating an identifier carries two inherent defect classes:
+  a `$` in the name compiles as an end-of-input anchor so the name never matches,
+  and ASCII `\b` misreads every non-ASCII neighbour,
+  rejecting names that end in a non-ASCII letter while accepting a name followed by `$` or a
+  non-ASCII letter inside a longer identifier.
+  Literal token comparison fixes both,
+  which is a behaviour change that needs an owner decision and its own corpus classes.
+  The run matcher must exempt the `\s` set from the non-ASCII identifier-part over-approximation,
+  or a no-break space inside a brace list is swallowed into the token;
+  that exemption was the single divergence the first cut of the replacement produced.
+  Where the pattern was quadratic on adversarial repetition,
+  the re-export shape `export\s*\{[^}]*\bNAME\b[^}]*\}` rescanning the brace-free remainder per
+  unterminated opener,
+  the cursor scan resumes past each closing brace it has ruled out,
+  since every opener before that brace shares the same first closing brace,
+  the same from-clause verdict,
+  and a segment containing the current one,
+  and it stops entirely once no closing brace exists ahead.
+  Measured,
+  that turns the audit's four-times-per-doubling series (1010 ms at 240 KB of openers) into
+  0.6 ms,
+  and one megabyte costs 2.7 ms.
+  See
+  `package/oxlint-plugin/no-restricted-syntax/src/rule/prefer-describe-function-ref-name.export-scan.ts`.
+- Differential evidence when the replacement intentionally fixes pattern defects,
+  so byte-identical outputs are the wrong bar:
+  read the patterns from the pre-refactor commit (`git show` against the replacement commit's
+  parent) and assert the fragments are present,
+  compare classification verdicts pair by pair over a template corpus and a seeded fuzz corpus,
+  pass each divergence through a predicate naming the defect class it belongs to and fail on any
+  unclassified one,
+  and pin both directions with controls:
+  pairs that must diverge exactly as documented and pairs that must agree.
+  Finish with a mutation suite in which every single-point mutation of the replacement must be
+  detected by the corpus,
+  since an undetected mutation names a corpus gap rather than a safe replacement;
+  the first probe here missed the digit-zero token edge until a mutation exposed it.
+  The `prefer-describe-function-ref-name` probe compared 40,859 pairs with zero unclassified
+  divergences and detected all fifteen mutations.
+
 ### Files where source-of-truth IS regex (kept with disables)
 
 - `package/dev-script/deps-cube/src/scripts/filter.ts` (user-typed
@@ -379,6 +524,7 @@ unless the user asks otherwise.
   `\p{Lower}` Unicode property classes have no string-API equivalent).
 - `package/module/test/src/expect-matchers.ts:toMatch` (the matcher's
   contract is RegExp).
+  The file moved on 2026-10-04 to `package/module/test-expect/src/expect-matchers.ts`.
 
 ### If a downstream test fails
 

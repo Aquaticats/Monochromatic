@@ -7,193 +7,69 @@
 import { openAsBlob, } from 'node:fs';
 import { readFile, } from 'node:fs/promises';
 
-//region Gerund filters
+import { findGerundInText, } from './gerund.ts';
 
-/**
- Words ending in "-ing" that are not meaningful activity verbs.
- */
-const NOISE_GERUNDS = new Set([
-  'beginning',
-  'completing',
-  'continuing',
-  'ending',
-  'finishing',
-  'starting',
-  'stopping',
-  'waiting',
-  'pending',
-  'asking',
-  'calling',
-  'coming',
-  'doing',
-  'getting',
-  'giving',
-  'going',
-  'having',
-  'keeping',
-  'knowing',
-  'letting',
-  'looking',
-  'making',
-  'meaning',
-  'putting',
-  'saying',
-  'seeing',
-  'showing',
-  'telling',
-  'trying',
-  'turning',
-  'wanting',
-  'working',
-  'reading',
-  'searching',
-  'anything',
-  'everything',
-  'nothing',
-  'something',
-  'thing',
-  'according',
-  'assuming',
-  'concerning',
-  'considering',
-  'depending',
-  'during',
-  'excluding',
-  'following',
-  'including',
-  'providing',
-  'regarding',
-  'supposing',
-  'amazing',
-  'annoying',
-  'boring',
-  'confusing',
-  'corresponding',
-  'exciting',
-  'existing',
-  'frustrating',
-  'interesting',
-  'missing',
-  'lint-missing',
-  'outstanding',
-  'overwhelming',
-  'remaining',
-  'surprising',
-  'surrounding',
-  'underlying',
-  'bring',
-  'cling',
-  'fling',
-  'king',
-  'ring',
-  'sing',
-  'sling',
-  'spring',
-  'sting',
-  'string',
-  'swing',
-  'wing',
-  'wring',
-  'sibling',
-  'being',
-  'needing',
-  'running',
-  'thinking',
-  'using',
-  'quizzical-crafting',
-  'crafting',
-  'wild-nibbling',
-  'nibbling',
-  'purring',
-  'hatching',
-  'purring-hatching',
-  'beaming',
-  'hidden-beaming',
-  'nnothing',
-  'nstring',
-],);
-
-/**
- Minimum word length to consider as a gerund candidate.
- */
-const MIN_GERUND_LENGTH = 5;
-
-/**
- Matches words ending in "-ing", including hyphenated compounds.
- */
-// oxlint-disable-next-line no-restricted-syntax/no-regex -- bounded transcript tail, simple word-character class, global scan without nested quantifiers.
-const GERUND_PATTERN = /\b[a-z]+-?[a-z]*ing\b/gu;
+//region Transcript tail
 
 /**
  Number of bytes to read from the end of the transcript.
+ Large enough to hold several typical JSONL entries (median entry is under 1 KB,
+ 95th percentile about 6 KB), small enough to stay a single cheap read.
  */
-const TAIL_BYTES = 8_192;
+const TAIL_BYTES = 65_536;
 
-//endregion Gerund filters
+/**
+ Substring that marks a JSONL entry as an assistant message before paying for `JSON.parse`.
+ */
+const ASSISTANT_ENTRY_MARKER = '"type":"assistant"';
+
+//endregion Transcript tail
 
 //region Gerund extraction
 
 /**
- Finds the last meaningful gerund in text.
- 
- @param value - text to scan
- 
- @returns capitalized gerund, or empty string when none is found
- 
- @example
- ```ts
- findGerundInText('I am compiling and testing');
- ```
+ Fields this module reads from transcript JSON objects, each unverified until narrowed.
  */
-function findGerundInText(value: string,): string {
+type TranscriptObject = {
   /**
-   Lowercased text for case-insensitive matching.
+   Content blocks of an assistant message.
    */
-  const lowercaseValue = value.toLowerCase();
+  readonly content?: unknown;
   /**
-   Raw `-ing` matches across lowercased text.
+   Message of a transcript entry.
    */
-  const matches = lowercaseValue.match(GERUND_PATTERN,) ?? [];
+  readonly message?: unknown;
   /**
-   Matches that survive length and noise filters.
+   Text of a `text` content block.
    */
-  const candidates = matches
-    .filter(function isLongEnough(word,): boolean {
-      return word.length >= MIN_GERUND_LENGTH;
-    },)
-    .filter(function isNotNoise(word,): boolean {
-      return !NOISE_GERUNDS.has(word,);
-    },);
-
+  readonly text?: unknown;
   /**
-   Last surviving candidate.
+   Summary text of a `thinking` content block.
    */
-  const last = candidates.at(-1,);
-  if (last === undefined)
-    return '';
-
-  return last.charAt(0,)
-    .toUpperCase()
-    + last.slice(1,);
-}
+  readonly thinking?: unknown;
+  /**
+   Kind of a transcript entry or content block.
+   */
+  readonly type?: unknown;
+};
 
 /**
- Reads transcript tail without loading the entire file.
+ Reads the complete JSONL lines in the transcript tail without loading the entire file.
  
  @param transcriptPath - path to session transcript JSONL
  
- @returns transcript tail text
+ @returns complete lines in file order; the first line is dropped when the read began mid-file, since it is cut off
  
  @example
  ```ts
- await readTranscriptTail({ transcriptPath: '/tmp/session.jsonl' });
+ await readTranscriptTailLines({ transcriptPath: '/tmp/session.jsonl' });
  ```
  */
-async function readTranscriptTail({
+async function readTranscriptTailLines({
   transcriptPath,
 }: Readonly<{
   transcriptPath: string;
-}>,): Promise<string> {
+}>,): Promise<readonly string[]> {
   /**
    Blob view of the transcript.
    */
@@ -205,16 +81,156 @@ async function readTranscriptTail({
     0,
     blob.size - TAIL_BYTES,
   );
-  return await blob
+  /**
+   Tail of the transcript decoded as UTF-8 text.
+   */
+  const tail = await blob
     .slice(
-      start,
-      blob.size,
+    start,
+    blob.size,
     )
     .text();
+  /**
+   Non-empty lines, including a possibly cut-off first one.
+   */
+  const lines = tail.split('\n',)
+    .filter(function isNotBlank(line,): boolean {
+      return line.length > 0;
+    },);
+
+  if (start === 0)
+    return lines;
+  return lines.slice(1,);
+}
+
+/**
+ Parses one JSONL line.
+ 
+ @param line - one transcript JSONL line
+ 
+ @returns parsed value, or `undefined` when the line is not valid JSON, such as a line cut off by the tail window
+ 
+ @example
+ ```ts
+ parseJsonLine('{"type":"assistant"}');
+ ```
+ */
+function parseJsonLine(line: string,): unknown {
+  try {
+    return JSON.parse(line,);
+  }
+  catch (_error: unknown) {
+    return undefined;
+  }
+}
+
+/**
+ Narrows a parsed JSON value to an object whose fields are read by name.
+ 
+ @param value - parsed JSON value
+ 
+ @returns whether the value is a non-null object
+ 
+ @example
+ ```ts
+ isRecord({ type: 'text' });
+ ```
+ */
+function isRecord(value: unknown,): value is TranscriptObject {
+  return ((typeof value) === 'object') && (value !== null);
+}
+
+/**
+ Wraps a value in a list when it is a string.
+ 
+ @param value - parsed JSON field
+ 
+ @returns the string alone, or nothing for any other value
+ 
+ @example
+ ```ts
+ stringsOf('Compiling');
+ ```
+ */
+function stringsOf(value: unknown,): readonly string[] {
+  if ((typeof value) !== 'string')
+    return [];
+  return [value,];
+}
+
+/**
+ Collects the prose of one assistant content block.
+ 
+ @param block - parsed content block
+ 
+ @returns the block's text for `text` blocks and its summary for `thinking` blocks, otherwise nothing; tool_use and tool_result blocks carry no prose, and the thinking signature is an opaque token
+ 
+ @example
+ ```ts
+ proseOfBlock({ type: 'text', text: 'Compiling' });
+ ```
+ */
+function proseOfBlock(block: unknown,): readonly string[] {
+  if (!isRecord(block,))
+    return [];
+  if (block.type === 'text')
+    return stringsOf(block.text,);
+  if (block.type === 'thinking')
+    return stringsOf(block.thinking,);
+  return [];
+}
+
+/**
+ Collects the prose of an assistant JSONL entry.
+ 
+ Text blocks and thinking summaries both describe what Claude is doing.
+ Tool calls, tool results, and every non-assistant entry carry no such words, so they are ignored.
+ 
+ @param line - one transcript JSONL line
+ 
+ @returns joined assistant text and thinking blocks, or empty string for other entries and unparsable lines
+ 
+ @example
+ ```ts
+ assistantTextOfLine('{"type":"assistant","message":{"content":[{"type":"text","text":"Compiling"}]}}');
+ ```
+ */
+function assistantTextOfLine(line: string,): string {
+  if (!line.includes(ASSISTANT_ENTRY_MARKER,))
+    return '';
+
+  /**
+   Parsed entry.
+   */
+  const entry = parseJsonLine(line,);
+  if (!isRecord(entry,))
+    return '';
+  if (entry.type !== 'assistant')
+    return '';
+
+  /**
+   Assistant message of the entry.
+   */
+  const { message, } = entry;
+  if (!isRecord(message,))
+    return '';
+
+  /**
+   Content blocks of the assistant message.
+   */
+  const { content, } = message;
+  if (!Array.isArray(content,))
+    return '';
+
+  return content
+    .flatMap(proseOfBlock,)
+    .join('\n',);
 }
 
 /**
  Extracts a context-aware activity word from transcript path.
+ 
+ Walks the tail entries from newest to oldest and stops at the first assistant text holding a gerund.
  
  @param transcriptPath - path to session transcript JSONL
  
@@ -232,38 +248,19 @@ async function readActivityWord({
 }>,): Promise<string> {
   try {
     /**
-     Tail of the transcript decoded as UTF-8 text.
+     Complete JSONL lines from the end of the transcript.
      */
-    const tail = await readTranscriptTail({ transcriptPath, },);
-    return findGerundInText(tail,);
-  }
-  catch (_error: unknown) {
-    return '';
-  }
-}
+    const lines = await readTranscriptTailLines({ transcriptPath, },);
 
-/**
- Reads complete transcript text for small test fixtures.
- 
- @param transcriptPath - path to session transcript JSONL
- 
- @returns transcript text, or empty string when unreadable
- 
- @example
- ```ts
- await readTranscriptForTest({ transcriptPath: '/tmp/session.jsonl' });
- ```
- */
-async function readTranscriptForTest({
-  transcriptPath,
-}: Readonly<{
-  transcriptPath: string;
-}>,): Promise<string> {
-  try {
-    return await readFile(
-      transcriptPath,
-      'utf8',
-    );
+    for (const line of lines.toReversed()) {
+      /**
+       Gerund found in this entry's assistant prose.
+       */
+      const word = findGerundInText(assistantTextOfLine(line,),);
+      if (word.length > 0)
+        return word;
+    }
+    return '';
   }
   catch (_error: unknown) {
     return '';
@@ -273,8 +270,7 @@ async function readTranscriptForTest({
 //endregion Gerund extraction
 
 export {
-  findGerundInText,
+  assistantTextOfLine,
   readActivityWord,
-  readTranscriptForTest,
-  readTranscriptTail,
+  readTranscriptTailLines,
 };

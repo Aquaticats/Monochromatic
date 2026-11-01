@@ -1,0 +1,1050 @@
+{
+  "run": "38822116503",
+  "revision": "ef616a2900269c52c61d24f816520504a3d74dd2",
+  "status": "completed",
+  "conclusion": "success",
+  "collectedAt": "2026-10-15T23:38:11.062Z",
+  "cadPerUsd": 1.4196,
+  "valuedUsdPerSecond": 0.0017561676215522369,
+  "configurations": [
+    {
+      "job": 116720904776,
+      "name": "sizing (4, 4)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 4,
+        "buildJobs": 4,
+        "logicalCpus": 4,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 16779534336
+      },
+      "jobSeconds": 1494,
+      "estimatedJobBaseMinutes": 49.8,
+      "estimatedGrossJobComputeUsd": 0.2988,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 510.72906575799993,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8167343220000038,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8085388579999563,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 207.76811853699996,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.891315370000084,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 542.704307155,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.9254477849998511,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8757796910000034,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 200.25821550100017,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 4,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.9055184490000829,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            510.72906575799993,
+            542.704307155
+          ],
+          "meanSeconds": 526.7166864564999,
+          "minSeconds": 510.72906575799993,
+          "maxSeconds": 542.704307155,
+          "spreadSeconds": 31.975241397000104,
+          "baseMinutes": 17.55722288188333,
+          "grossComputeUsd": 0.10534333729129998,
+          "timeValueUsd": 0.9250027904861867,
+          "combinedUsdIfCriticalPath": 1.0303461277774868
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            207.76811853699996,
+            200.25821550100017
+          ],
+          "meanSeconds": 204.01316701900006,
+          "minSeconds": 200.25821550100017,
+          "maxSeconds": 207.76811853699996,
+          "spreadSeconds": 7.509903035999798,
+          "baseMinutes": 6.800438900633336,
+          "grossComputeUsd": 0.04080263340380001,
+          "timeValueUsd": 0.3582813182890966,
+          "combinedUsdIfCriticalPath": 0.3990839516928966
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            0.8167343220000038,
+            0.8085388579999563,
+            0.9254477849998511,
+            0.8757796910000034
+          ],
+          "meanSeconds": 0.8566251639999537,
+          "minSeconds": 0.8085388579999563,
+          "maxSeconds": 0.9254477849998511,
+          "spreadSeconds": 0.11690892699989486,
+          "baseMinutes": 0.02855417213333179,
+          "grossComputeUsd": 0.00017132503279999073,
+          "timeValueUsd": 0.0015043773768235935,
+          "combinedUsdIfCriticalPath": 0.0016757024096235842
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.891315370000084,
+            0.9055184490000829
+          ],
+          "meanSeconds": 0.8984169095000835,
+          "minSeconds": 0.891315370000084,
+          "maxSeconds": 0.9055184490000829,
+          "spreadSeconds": 0.014203078999998953,
+          "baseMinutes": 0.02994723031666945,
+          "grossComputeUsd": 0.0001796833819000167,
+          "timeValueUsd": 0.0015777706871190728,
+          "combinedUsdIfCriticalPath": 0.0017574540690190896
+        }
+      ]
+    },
+    {
+      "job": 116720905114,
+      "name": "sizing (16, 16)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 16,
+        "buildJobs": 16,
+        "logicalCpus": 16,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 67435597824
+      },
+      "jobSeconds": 773,
+      "estimatedJobBaseMinutes": 103.06666666666666,
+      "estimatedGrossJobComputeUsd": 0.6184,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 247.634974362,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.7982254160000012,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.7586403589999827,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 126.07746101299999,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.9725943410000182,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 245.62831591599993,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.7940914930000436,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.866193247999996,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 118.83779902099992,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 16,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.7993423650000477,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            247.634974362,
+            245.62831591599993
+          ],
+          "meanSeconds": 246.63164513899997,
+          "minSeconds": 245.62831591599993,
+          "maxSeconds": 247.634974362,
+          "spreadSeconds": 2.006658446000074,
+          "baseMinutes": 32.88421935186666,
+          "grossComputeUsd": 0.19730531611119997,
+          "timeValueUsd": 0.4331265096432729,
+          "combinedUsdIfCriticalPath": 0.6304318257544729
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            126.07746101299999,
+            118.83779902099992
+          ],
+          "meanSeconds": 122.45763001699996,
+          "minSeconds": 118.83779902099992,
+          "maxSeconds": 126.07746101299999,
+          "spreadSeconds": 7.239661992000066,
+          "baseMinutes": 16.32768400226666,
+          "grossComputeUsd": 0.09796610401359997,
+          "timeValueUsd": 0.21505612484787862,
+          "combinedUsdIfCriticalPath": 0.31302222886147857
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            0.7982254160000012,
+            0.7586403589999827,
+            0.7940914930000436,
+            0.866193247999996
+          ],
+          "meanSeconds": 0.8042876290000059,
+          "minSeconds": 0.7586403589999827,
+          "maxSeconds": 0.866193247999996,
+          "spreadSeconds": 0.10755288900001325,
+          "baseMinutes": 0.10723835053333412,
+          "grossComputeUsd": 0.0006434301032000047,
+          "timeValueUsd": 0.0014124638924648283,
+          "combinedUsdIfCriticalPath": 0.002055893995664833
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.9725943410000182,
+            0.7993423650000477
+          ],
+          "meanSeconds": 0.885968353000033,
+          "minSeconds": 0.7993423650000477,
+          "maxSeconds": 0.9725943410000182,
+          "spreadSeconds": 0.17325197599997044,
+          "baseMinutes": 0.11812911373333773,
+          "grossComputeUsd": 0.0007087746824000264,
+          "timeValueUsd": 0.0015559089352586205,
+          "combinedUsdIfCriticalPath": 0.002264683617658647
+        }
+      ]
+    },
+    {
+      "job": 116720905117,
+      "name": "sizing (16, 4)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 16,
+        "buildJobs": 4,
+        "logicalCpus": 16,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 67435597824
+      },
+      "jobSeconds": 1393,
+      "estimatedJobBaseMinutes": 185.73333333333332,
+      "estimatedGrossJobComputeUsd": 1.1143999999999998,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 486.38963640199995,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8165162780000246,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8262204060000368,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 200.77225097,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.9390539489999646,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 466.84808084600013,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.9395033319999929,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8161602139999159,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 205.7513756240001,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.8388846769998781,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            486.38963640199995,
+            466.84808084600013
+          ],
+          "meanSeconds": 476.61885862400004,
+          "minSeconds": 466.84808084600013,
+          "maxSeconds": 486.38963640199995,
+          "spreadSeconds": 19.54155555599982,
+          "baseMinutes": 63.54918114986667,
+          "grossComputeUsd": 0.3812950868992,
+          "timeValueUsd": 0.837022607336652,
+          "combinedUsdIfCriticalPath": 1.218317694235852
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            200.77225097,
+            205.7513756240001
+          ],
+          "meanSeconds": 203.26181329700006,
+          "minSeconds": 200.77225097,
+          "maxSeconds": 205.7513756240001,
+          "spreadSeconds": 4.979124654000117,
+          "baseMinutes": 27.101575106266676,
+          "grossComputeUsd": 0.16260945063760004,
+          "timeValueUsd": 0.35696181521018744,
+          "combinedUsdIfCriticalPath": 0.5195712658477875
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            0.8165162780000246,
+            0.8262204060000368,
+            0.9395033319999929,
+            0.8161602139999159
+          ],
+          "meanSeconds": 0.8496000574999926,
+          "minSeconds": 0.8161602139999159,
+          "maxSeconds": 0.9395033319999929,
+          "spreadSeconds": 0.12334311800007702,
+          "baseMinutes": 0.11328000766666567,
+          "grossComputeUsd": 0.0006796800459999941,
+          "timeValueUsd": 0.0014920401122504056,
+          "combinedUsdIfCriticalPath": 0.0021717201582503996
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.9390539489999646,
+            0.8388846769998781
+          ],
+          "meanSeconds": 0.8889693129999214,
+          "minSeconds": 0.8388846769998781,
+          "maxSeconds": 0.9390539489999646,
+          "spreadSeconds": 0.10016927200008652,
+          "baseMinutes": 0.11852924173332285,
+          "grossComputeUsd": 0.0007111754503999372,
+          "timeValueUsd": 0.001561179124043998,
+          "combinedUsdIfCriticalPath": 0.002272354574443935
+        }
+      ]
+    },
+    {
+      "job": 116720905153,
+      "name": "sizing (8, 4)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 8,
+        "buildJobs": 4,
+        "logicalCpus": 8,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 33664888832
+      },
+      "jobSeconds": 1488,
+      "estimatedJobBaseMinutes": 99.2,
+      "estimatedGrossJobComputeUsd": 0.5952000000000001,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 510.49860036000007,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 1.0733464359999634,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.9959307949999929,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 222.49327773500002,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.8620558439999586,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 510.4693412260001,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.9401074879998341,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8066950370001141,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 211.03492445099982,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 4,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.9322936110000591,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            510.49860036000007,
+            510.4693412260001
+          ],
+          "meanSeconds": 510.4839707930001,
+          "minSeconds": 510.4693412260001,
+          "maxSeconds": 510.49860036000007,
+          "spreadSeconds": 0.02925913399997171,
+          "baseMinutes": 34.03226471953334,
+          "grossComputeUsd": 0.20419358831720003,
+          "timeValueUsd": 0.8964954208280845,
+          "combinedUsdIfCriticalPath": 1.1006890091452846
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            222.49327773500002,
+            211.03492445099982
+          ],
+          "meanSeconds": 216.7641010929999,
+          "minSeconds": 211.03492445099982,
+          "maxSeconds": 222.49327773500002,
+          "spreadSeconds": 11.458353284000196,
+          "baseMinutes": 14.450940072866661,
+          "grossComputeUsd": 0.08670564043719997,
+          "timeValueUsd": 0.38067409585440226,
+          "combinedUsdIfCriticalPath": 0.46737973629160223
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            1.0733464359999634,
+            0.9959307949999929,
+            0.9401074879998341,
+            0.8066950370001141
+          ],
+          "meanSeconds": 0.9540199389999762,
+          "minSeconds": 0.8066950370001141,
+          "maxSeconds": 1.0733464359999634,
+          "spreadSeconds": 0.26665139899984924,
+          "baseMinutes": 0.06360132926666508,
+          "grossComputeUsd": 0.00038160797559999045,
+          "timeValueUsd": 0.0016754189271869983,
+          "combinedUsdIfCriticalPath": 0.002057026902786989
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.8620558439999586,
+            0.9322936110000591
+          ],
+          "meanSeconds": 0.8971747275000088,
+          "minSeconds": 0.8620558439999586,
+          "maxSeconds": 0.9322936110000591,
+          "spreadSeconds": 0.07023776700010054,
+          "baseMinutes": 0.059811648500000585,
+          "grossComputeUsd": 0.00035886989100000354,
+          "timeValueUsd": 0.0015755892073104668,
+          "combinedUsdIfCriticalPath": 0.0019344590983104704
+        }
+      ]
+    },
+    {
+      "job": 116720905170,
+      "name": "sizing (8, 8)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 8,
+        "buildJobs": 8,
+        "logicalCpus": 8,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 33664888832
+      },
+      "jobSeconds": 958,
+      "estimatedJobBaseMinutes": 63.86666666666667,
+      "estimatedGrossJobComputeUsd": 0.3832,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 326.548723544,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8063977679999662,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8046708510000026,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 142.93866688999998,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.8091131630000309,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 314.319581985,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8034948119999608,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8091817729999311,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 141.26000115599996,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 8,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.906346978000016,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            326.548723544,
+            314.319581985
+          ],
+          "meanSeconds": 320.4341527645,
+          "minSeconds": 314.319581985,
+          "maxSeconds": 326.548723544,
+          "spreadSeconds": 12.22914155899997,
+          "baseMinutes": 21.36227685096667,
+          "grossComputeUsd": 0.12817366110580003,
+          "timeValueUsd": 0.5627360839245381,
+          "combinedUsdIfCriticalPath": 0.6909097450303381
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            142.93866688999998,
+            141.26000115599996
+          ],
+          "meanSeconds": 142.09933402299998,
+          "minSeconds": 141.26000115599996,
+          "maxSeconds": 142.93866688999998,
+          "spreadSeconds": 1.6786657340000204,
+          "baseMinutes": 9.473288934866666,
+          "grossComputeUsd": 0.0568397336092,
+          "timeValueUsd": 0.24955024945532872,
+          "combinedUsdIfCriticalPath": 0.3063899830645287
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            0.8063977679999662,
+            0.8046708510000026,
+            0.8034948119999608,
+            0.8091817729999311
+          ],
+          "meanSeconds": 0.8059363009999652,
+          "minSeconds": 0.8034948119999608,
+          "maxSeconds": 0.8091817729999311,
+          "spreadSeconds": 0.005686960999970347,
+          "baseMinutes": 0.05372908673333101,
+          "grossComputeUsd": 0.00032237452039998607,
+          "timeValueUsd": 0.0014153592368497164,
+          "combinedUsdIfCriticalPath": 0.0017377337572497026
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.8091131630000309,
+            0.906346978000016
+          ],
+          "meanSeconds": 0.8577300705000235,
+          "minSeconds": 0.8091131630000309,
+          "maxSeconds": 0.906346978000016,
+          "spreadSeconds": 0.09723381499998507,
+          "baseMinutes": 0.057182004700001565,
+          "grossComputeUsd": 0.0003430920282000094,
+          "timeValueUsd": 0.0015063177778438586,
+          "combinedUsdIfCriticalPath": 0.0018494098060438681
+        }
+      ]
+    },
+    {
+      "job": 116720905271,
+      "name": "sizing (16, 8)",
+      "conclusion": "success",
+      "hardware": {
+        "trialHardware": true,
+        "runnerCpus": 16,
+        "buildJobs": 8,
+        "logicalCpus": 16,
+        "cpuModel": "AMD EPYC 9R45 96-Core Processor",
+        "memoryBytes": 67435597824
+      },
+      "jobSeconds": 924,
+      "estimatedJobBaseMinutes": 123.2,
+      "estimatedGrossJobComputeUsd": 0.7392000000000001,
+      "measurements": [
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "cold",
+          "elapsedSeconds": 312.716865504,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8088670699999784,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.8256830619999673,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "source-change",
+          "elapsedSeconds": 142.51926763299997,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 1,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.8603427900000242,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "cold",
+          "elapsedSeconds": 293.85290461599993,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "unchanged-1",
+          "elapsedSeconds": 0.8502990229999414,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "unchanged-2",
+          "elapsedSeconds": 0.9410542940000305,
+          "version": "music-player 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "source-change",
+          "elapsedSeconds": 142.02537654000008,
+          "version": "music-player-sizing 0.1.4"
+        },
+        {
+          "trialSizing": true,
+          "runnerCpus": 16,
+          "buildJobs": 8,
+          "round": 2,
+          "phase": "source-unchanged",
+          "elapsedSeconds": 0.8921281149999705,
+          "version": "music-player-sizing 0.1.4"
+        }
+      ],
+      "summaries": [
+        {
+          "phase": "cold",
+          "samples": [
+            312.716865504,
+            293.85290461599993
+          ],
+          "meanSeconds": 303.28488505999997,
+          "minSeconds": 293.85290461599993,
+          "maxSeconds": 312.716865504,
+          "spreadSeconds": 18.863960888000065,
+          "baseMinutes": 40.43798467466666,
+          "grossComputeUsd": 0.24262790804799997,
+          "timeValueUsd": 0.5326190952485637,
+          "combinedUsdIfCriticalPath": 0.7752470032965636
+        },
+        {
+          "phase": "source-change",
+          "samples": [
+            142.51926763299997,
+            142.02537654000008
+          ],
+          "meanSeconds": 142.27232208650003,
+          "minSeconds": 142.02537654000008,
+          "maxSeconds": 142.51926763299997,
+          "spreadSeconds": 0.4938910929998883,
+          "baseMinutes": 18.96964294486667,
+          "grossComputeUsd": 0.11381785766920002,
+          "timeValueUsd": 0.24985404549136253,
+          "combinedUsdIfCriticalPath": 0.3636719031605625
+        },
+        {
+          "phase": "baseline-unchanged",
+          "samples": [
+            0.8088670699999784,
+            0.8256830619999673,
+            0.8502990229999414,
+            0.9410542940000305
+          ],
+          "meanSeconds": 0.8564758622499794,
+          "minSeconds": 0.8088670699999784,
+          "maxSeconds": 0.9410542940000305,
+          "spreadSeconds": 0.13218722400005212,
+          "baseMinutes": 0.1141967816333306,
+          "grossComputeUsd": 0.0006851806897999836,
+          "timeValueUsd": 0.0015041151779244476,
+          "combinedUsdIfCriticalPath": 0.0021892958677244313
+        },
+        {
+          "phase": "source-unchanged",
+          "samples": [
+            0.8603427900000242,
+            0.8921281149999705
+          ],
+          "meanSeconds": 0.8762354524999973,
+          "minSeconds": 0.8603427900000242,
+          "maxSeconds": 0.8921281149999705,
+          "spreadSeconds": 0.03178532499994624,
+          "baseMinutes": 0.11683139366666631,
+          "grossComputeUsd": 0.0007009883619999978,
+          "timeValueUsd": 0.0015388163305366683,
+          "combinedUsdIfCriticalPath": 0.0022398046925366662
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Two cold/source samples per configuration on one ephemeral runner; no independent machine replication.",
+    "Second cold round retains the base image and operating-system page cache while using fresh Cargo caches.",
+    "Step costs exclude runner setup and cleanup; job cost estimates use GitHub intervals, not an invoice.",
+    "Combined cost applies only when the measured build determines relevant CI completion.",
+    "Cash charges depend on remaining included allowances; gross values express usage at published rates."
+  ]
+}

@@ -1,0 +1,33 @@
+diff --git a/internal/llm/client.go b/internal/llm/client.go
+index e0b7aa9..d3d6203 100644
+--- a/internal/llm/client.go
++++ b/internal/llm/client.go
+@@ -16,6 +16,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"io"
++	"math"
+ 	"net/http"
+ 	"os"
+ 	"strings"
+@@ -71,7 +72,19 @@ var httpClientWithHeaderTimeout = func(timeout time.Duration) *http.Client {
+ 	}
+ 	t = t.Clone()
+ 	if timeout > 0 {
+-		t.ResponseHeaderTimeout = timeout + responseHeaderTimeoutMargin
++		headerTimeout := timeout + responseHeaderTimeoutMargin
++		if headerTimeout < timeout {
++			// The sum overflowed int64 nanoseconds: ValidateTimeoutSec accepts
++			// up to 9223372036s, and adding the margin to values near that
++			// maximum wraps negative. Go's HTTP/2 transport arms its header
++			// timer on `d != 0`, so a negative duration fires immediately and
++			// every request fails with "http2: timeout awaiting response
++			// headers"; the HTTP/1 transport checks `d > 0` and would silently
++			// drop the cap instead. Saturate to keep the intended ordering
++			// (context deadline first) at every accepted timeout.
++			headerTimeout = time.Duration(math.MaxInt64)
++		}
++		t.ResponseHeaderTimeout = headerTimeout
+ 	}
+ 	return &http.Client{Transport: t}
+ }

@@ -9,13 +9,13 @@ import type {
   Model,
 } from '@earendil-works/pi-ai';
 import type { ExtensionContext, } from '@earendil-works/pi-coding-agent';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   buildCostRanking,
   canonicalSlug,
   resolveEffectiveScope,
-} from '@monochromatic-dev/pi-shared-model-selection/ts';
+} from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 import { REVIEW_OUTPUT_TOKENS, } from './constants.ts';
 import type {
   GoalReviewEvidence,
@@ -54,10 +54,10 @@ type PromptedReviewerOutcome =
     readonly eligible: true;
     readonly prompted: PromptedReviewer;
   }
-  | {
-    readonly eligible: false;
-    readonly diagnostic: string;
-  };
+    | {
+      readonly eligible: false;
+      readonly diagnostic: string;
+    };
 
 /**
  Candidate authentication outcome.
@@ -67,10 +67,10 @@ type AuthenticatedReviewerOutcome =
     readonly authenticated: true;
     readonly candidate: GoalReviewerCandidate;
   }
-  | {
-    readonly authenticated: false;
-    readonly diagnostic: string;
-  };
+    | {
+      readonly authenticated: false;
+      readonly diagnostic: string;
+    };
 
 /**
  Candidate not present in finite authenticated reviewer pool.

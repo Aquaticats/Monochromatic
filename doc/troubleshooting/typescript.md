@@ -1,6 +1,6 @@
-# TypeScript aggregator (native tsc 7.0.1-rc and classic tsc6 6.0.x): seven failure modes from dprint baseUrl warnings through native LSP ScriptKindUnknown panic on non-source files
+# TypeScript aggregator (native tsc 7.0.1-rc through 7.0.2 and classic tsc6 6.0.x): nine failure modes from dprint baseUrl warnings through `using` downlevel helpers
 
-This file aggregates seven distinct TypeScript-related failure modes
+This file aggregates nine distinct TypeScript-related failure modes
 encountered across the workspace.
  Each section follows the
 troubleshooting-doc canonical structure (Symptom / Root cause /
@@ -41,7 +41,8 @@ This tells TypeScript to resolve non-relative paths from the project root,
 ### Note
 
 Setting `baseUrl` may or may not completely resolve the warnings,
- but it helps TypeScript understand that non-relative paths in the `paths` mapping should be resolved from the project root.
+ but it helps TypeScript understand that non-relative paths
+in the `paths` mapping should be resolved from the project root.
 
 ### Verification
 
@@ -84,7 +85,8 @@ correct response.
 ### Problem
 
 You encounter TypeScript error TS2677:
- "A type predicate's type must be assignable to its parameter's type" when using complex conditional types in type predicates:
+ "A type predicate's type must be assignable to its parameter's type"
+when using complex conditional types in type predicates:
 
 ```ts
 export function maybeAsyncSchemaIsSchemaAsync<
@@ -125,7 +127,8 @@ export function maybeAsyncSchemaIsSchemaAsync<const Input = unknown,
 
 ### Why This Works
 
-- The intersection type `SchemaAsync<Input, Output> & MyMaybeAsyncSchema` is always assignable to `MyMaybeAsyncSchema` (since it includes it)
+- The intersection type `SchemaAsync<Input, Output> & MyMaybeAsyncSchema`
+  is always assignable to `MyMaybeAsyncSchema` (since it includes it)
 - It preserves the specific type information of the input parameter
 - It avoids the conditional type complexity that TypeScript cannot verify
 - The type guard remains useful for narrowing types in calling code
@@ -830,7 +833,7 @@ exists in a directory covered by a `tsconfig.json`:
 
 ```txt
 panic: ScriptKind must be specified when parsing source file:
-  /var/home/user/Monochromatic/package/module/test/architecture.svg
+  /var/home/user/Monochromatic/package/test-harness/core/architecture.svg
 ```
 
 ### Root cause
@@ -1267,11 +1270,767 @@ panicking).
 - neovim/nvim-lspconfig#4018: filetype mismatch in LSP.
 ````
 
+## Type check of a test file is only as current as the last build
+
+### Symptom
+
+`mise run //package/<path>:lint:types` reports zero errors while test files in
+that package carry real type errors.
+The same command,
+ run again after `mise run //package/<path>:build` and with no source change in
+between,
+ reports them.
+
+Observed 2026-08-20 in `package/translation-repair`,
+ adding two required fields to `ChunkRepairOutcome`:
+ the type check named the source construction sites,
+ stayed silent about five test files whose fixtures were missing the same
+fields,
+ and named all seven test-file errors on the next run after a build.
+
+### Root cause
+
+Test files in this package import the BUILT bundle,
+ not the source:
+
+```ts
+// package/translation-repair/assembly/src/repair-round-record.unit.test.ts
+import { describeJudgedRound, } from '../dist/final/node/index.mjs';
+```
+
+251 of the package's test files import `../dist/final/node/index.mjs` or
+`../../dist/final/node/index.mjs`.
+TypeScript resolves those imports to `dist/final/node/index.d.mts`,
+ which rolldown emits during `build` and which `lint:types` never regenerates.
+
+So a test file is always checked against the declarations of the last
+successful build.
+Change a type in `src/`,
+ run `lint:types`,
+ and every source file is checked against the change while every test file is
+checked against the shape it had before.
+
+### Verification
+
+A positive control,
+ with the same source state throughout and only the build between the two runs:
+
+```bash
+# One required field added to a widely constructed type, filled in at every
+# source construction site so the source half is clean.
+mise run //package/translation-repair/<package>:lint:types   # 0 errors
+mise run //package/translation-repair/<package>:build
+mise run //package/translation-repair/<package>:lint:types   # 7 errors, 5 test files
+```
+
+### Workaround
+
+Build before type-checking whenever a change could reach a test file:
+
+```bash
+mise run //package/<path>:build && mise run //package/<path>:lint:types
+```
+
+`mise run //package/translation-repair/<package>:buildAndTest` already does this
+for the test half,
+ and its description says so:
+ "Build the node bundle,
+ then run unit tests against the built dist".
+The same ordering is what the type check needs and nothing states it.
+
+### What does not work
+
+Deleting `dist/final/types/tsconfig.tsbuildinfo` does not surface the errors.
+The incremental build info is not involved,
+ and clearing it was the first cause guessed here.
+Verified by clearing it against a stale `index.d.mts`:
+ the test-file errors stayed hidden.
+Only the rebuild changes the answer.
+
+### Why we do not file this upstream
+
+Not a TypeScript defect.
+TypeScript resolves a declaration file that exists on disk and reports what it
+says;
+ the declarations being stale is a property of when this repo runs its own
+build.
+The fix,
+ if the ordering is judged worth enforcing rather than documenting,
+ belongs in the `lint:types` task definition.
+
+## `using` downlevel helpers: 2381 bytes inlined per emitted file, and a `null` `Symbol.asyncDispose` guard that diverges from the spec
+
+### Problem
+
+Two symptoms share one emit path.
+Both were measured with the installed `typescript@7.0.2` and with a compiler built from
+`microsoft/TypeScript` main at `fed0bf24149fb1ed36039212648bafdafc1ea10e` (2026-10-08).
+
+Symptom 1 is size and duplication.
+Every `.js` file `tsc` emits from a source containing `using` or `await using` starts with both helper
+definitions verbatim.
+On a three-function fixture the helper block is 2381 bytes of a 3264 byte emit,
+ and the same bytes repeat
+in every other emitted file of the program that uses `using`:
+
+```text
+# node <repo>/node_modules/.pnpm/typescript@7.0.2/node_modules/typescript/bin/tsc \
+#   --project tsconfig.json   (target es2025, two one-line `using` files)
+out/a.js   bytes=2678   __disposeResources occurrences=2
+out/b.js   bytes=2678   __disposeResources occurrences=2
+```
+
+In this workspace 7 of the 135 ignored stray `.js` files carry the helper,
+ for example
+`package/logger/core/src/create-logger.unit.test.js:1`.
+
+Symptom 2 is behavior.
+`await using` on an object whose `[Symbol.asyncDispose]` is `null` and whose `[Symbol.dispose]` is
+callable throws in the downlevel output and completes natively.
+The downlevel path reports `TypeError: Object not disposable.`
+
+A third surprise frames both:
+ `target: esnext` emits no helper at all and keeps native `using`,
+ while
+every named target downlevels,
+ including `es2025` and (on upstream main) `es2026`,
+ even though explicit
+resource management is in the ES2026 edition (tc39/ecma262#3000,
+ merged 2026-06-24).
+
+### Root cause
+
+Three separate mechanisms,
+ cited against `microsoft/TypeScript` main at `fed0bf24149f`.
+
+**1.
+ Only the floating `esnext` target skips the transform.**
+`tsc/internal/transformers/estransforms/definitions.go:10` builds the chain that owns `using`:
+
+```go
+// tsc/internal/transformers/estransforms/definitions.go:10
+NewESNextTransformer = transformers.Chain(newUsingDeclarationTransformer, esDecoratorAndClassFields)
+```
+
+`tsc/internal/transformers/estransforms/definitions.go:24` selects that chain by target:
+
+```go
+// tsc/internal/transformers/estransforms/definitions.go:27-30
+case core.ScriptTargetESNext:
+	return esDecoratorAndClassFields(opts)
+case core.ScriptTargetES2026, core.ScriptTargetES2025, core.ScriptTargetES2024, core.ScriptTargetES2023, core.ScriptTargetES2022, core.ScriptTargetES2021:
+	return NewESNextTransformer(opts)
+```
+
+The `esnext` arm omits `newUsingDeclarationTransformer`,
+ so `using` survives into the output.
+Every named edition arm includes it,
+ so `tsc/internal/transformers/estransforms/using.go:21` rewrites each
+`using` into an `env` record plus `try`/`catch`/`finally` calling the two helpers.
+The file's own comment at `tsc/internal/transformers/estransforms/definitions.go:11` records
+`// 2026: no new downlevel syntax`,
+ which is why `es2026` still routes through the `using` transform:
+the gate is the floating target,
+ not edition membership.
+
+**2.
+ Without `importHelpers`,
+ the printer has nowhere to point but the file itself.**
+The helper carries both an inline text body and an import name:
+
+```go
+// tsc/internal/printer/helpers.go:70-72
+var addDisposableResourceHelper = &EmitHelper{
+	Name:       "typescript:addDisposableResource",
+	ImportName: "__addDisposableResource",
+```
+
+`tsc/internal/printer/printer.go:4635` skips per-file text only when helpers are external or disabled:
+
+```go
+// tsc/internal/printer/printer.go:4638
+shouldSkip := p.Options.NoEmitHelpers || (sourceFile != nil && p.emitContext.HasRecordedExternalHelpers(sourceFile))
+```
+
+External helpers are recorded only when `importHelpers` is set for that file,
+`tsc/internal/compiler/program.go:493` gated at `tsc/internal/compiler/program.go:496`:
+
+```go
+// tsc/internal/compiler/program.go:496
+if !optionsForFile.ImportHelpers.IsTrue() {
+```
+
+`tsc` ships no runtime module of its own,
+ so with neither option set the only choices are per-file text or
+an unresolvable reference.
+That is the mechanism behind "into every .js file".
+
+**3.
+ The inlined helper treats `null` as present,
+ the spec treats it as absent.**
+
+```js
+// tsc/internal/printer/helpers.go:78-87 (emitted text)
+if (async) {
+    if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
+    dispose = value[Symbol.asyncDispose];
+}
+if (dispose === void 0) {
+    if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
+    dispose = value[Symbol.dispose];
+    if (async) inner = dispose;
+}
+if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
+```
+
+The guard is `dispose === void 0`,
+ so a `null` `Symbol.asyncDispose` skips the `Symbol.dispose` fallback
+and reaches the `typeof` check,
+ which throws.
+The merged spec's `GetDisposeMethod` uses `GetMethod`,
+ and `GetMethod` returns `undefined` for a property
+value that is `undefined` **or** `null`,
+ then falls back to `%Symbol.dispose%`:
+
+```text
+# tc39/ecma262 PR 3000, sec-getdisposemethod
+1. If kind is sync-dispose, return ? GetMethod(value, %Symbol.dispose%).
+1. Let asyncMethod be ? GetMethod(value, %Symbol.asyncDispose%).
+1. If asyncMethod is not undefined, return asyncMethod.
+1. Let syncMethod be ? GetMethod(value, %Symbol.dispose%).
+```
+
+Engines implement the fallback,
+ which is why native output succeeds on the same input.
+`tslib@2.8.1` carries the identical guard at
+`node_modules/.pnpm/tslib@2.8.1/node_modules/tslib/tslib.es6.js:305`,
+ so `importHelpers` does not avoid
+symptom 2.
+
+An earlier hypothesis in this workspace was that the stray `.js` files came from a bare `tsc <file>`
+invocation.
+That specific attribution is not established:
+ TS 7 rejects file arguments in a directory containing a
+`tsconfig.json` with `TS5112` unless `--ignoreConfig` is passed (measured),
+ and
+`package/logger/core` has one.
+What the evidence does support is emit produced outside
+`package/config/typescript/tsconfig.options.json`,
+ whose `target: esnext` would have emitted no helper.
+Finding the emitting task is tracked separately in `doc/handover/slopo-cluster-issue-triage.md`.
+
+### Verification
+
+Versions under test:
+ `typescript@7.0.2` from `node_modules/.pnpm/typescript@7.0.2`,
+ upstream
+`microsoft/TypeScript` main `fed0bf24149fb1ed36039212648bafdafc1ea10e`,
+ `node v26.10.0`,
+ `tslib@2.8.1`,
+`rolldown@1.2.12`.
+
+Minimal reproduction of symptom 2,
+ zero diagnostics under both targets:
+
+```ts
+// repro.ts
+async function main(): Promise<void> {
+  await using resource = {
+    [Symbol.asyncDispose]: null,
+    [Symbol.dispose]: () => { console.log('sync dispose ran'); },
+  } as unknown as AsyncDisposable;
+  console.log('body completed');
+}
+
+await main();
+
+export {};
+```
+
+```sh
+# tsc = node <repo>/node_modules/.pnpm/typescript@7.0.2/node_modules/typescript/bin/tsc
+$tsc repro.ts --ignoreConfig --target es2025 --module esnext --lib ESNext,DOM --outDir out-downlevel
+node out-downlevel/repro.js
+# TypeError: Object not disposable.
+
+$tsc repro.ts --ignoreConfig --target esnext --module esnext --lib ESNext,DOM --outDir out-native
+node out-native/repro.js
+# body completed
+# sync dispose ran
+```
+
+Catalog of emit shapes that carry no helper,
+ measured on the three-function fixture:
+
+- `--target esnext`:
+   native `using` and `await using`,
+   293 bytes.
+- `--target es2025 --importHelpers`:
+   `import { __addDisposableResource, __disposeResources } from "tslib";`,
+  952 bytes,
+   with `tslib` resolvable from the output directory.
+- `rolldown` `transformSync` with `target: ['firefox153']` or `['chrome154', 'firefox153', 'node26']`:
+  native `using`,
+   288 bytes.
+
+Catalog of emit shapes that carry disposal machinery:
+
+- `--target es2015`:
+   4061 bytes,
+   helper text inlined.
+- `--target es2020` through `--target es2025`:
+   3264 bytes each,
+   helper text inlined.
+- `--target es2025 --importHelpers` with `tslib` unresolvable:
+   `error TS2354: This syntax requires an
+  imported helper but module 'tslib' cannot be found.`
+- `--target es2025 --noEmitHelpers`:
+   no helper text,
+   and running the output throws
+  `ReferenceError: __disposeResources is not defined`.
+- `rolldown` `transformSync` with `target: 'es2022'`,
+   `'es2025'`,
+   or `['firefox140']`:
+   598 bytes,
+  `import _usingCtx2 from "@oxc-project/runtime/helpers/usingCtx";`,
+   one shared helper module instead of
+  per-file text.
+
+Catalog of disposal semantics that match between native emit and the inlined helper,
+ measured by running a
+twelve-case fixture compiled three ways (native `esnext`,
+ inline `es2025`,
+ `es2025` with `tslib`) and
+diffing the event logs:
+
+- Nested scopes dispose in reverse acquisition order.
+- Early `return` disposes before returning.
+- A body throw disposes,
+   then the original error propagates.
+- A body throw plus a disposer throw yields `SuppressedError` with `.error` holding the disposer's error,
+  `.suppressed` holding the body error,
+   `instanceof Error` true,
+   and prototype name `SuppressedError`.
+- Two failing disposers nest with the later acquisition as `.error`.
+- `for...of` with `using` inside the body disposes per iteration,
+   including on `break`.
+- `for (using x of iterable)` disposes each yielded resource and the disposable iterable itself.
+- `await using` with an async disposer awaits it.
+- `await using null` is a no-op.
+- `for await` combined with `await using` disposes per iteration across `continue`.
+- A synchronous `[Symbol.dispose]` returning a thenable under `await using` is not awaited.
+
+Catalog of semantics that differ:
+
+- `null` `[Symbol.asyncDispose]` with a callable `[Symbol.dispose]`:
+   native falls back and completes,
+   the
+  helper throws `TypeError: Object not disposable.`
+- `SuppressedError` message text:
+   native `An error was suppressed during disposal`,
+   helper
+  `An error was suppressed during disposal.`
+  The spec creates "a newly created *SuppressedError* object" without passing a message,
+   so this string is
+  implementation-defined and the difference is cosmetic.
+
+### Workarounds
+
+1. **Compile with `target: esnext`.**
+   No helper text,
+    native syntax,
+    and symptom 2 disappears because the engine implements the fallback.
+   This workspace already sets `target: esnext` in `package/config/typescript/tsconfig.options.json`.
+   Tradeoffs:
+    `esnext` floats,
+    so a compiler upgrade can start preserving other syntax with no config
+   change;
+    the output only runs where `using` parses,
+    which per mdn/browser-compat-data means Chrome 134,
+   Firefox 141,
+    Node 24.0.0,
+    Deno 1.37 for `using` and 2.2.10 for `await using`,
+    Bun 1.0.23,
+    with Safari
+   recorded as preview;
+    and the option governs all downleveling,
+    not disposal alone.
+2. **Set `importHelpers: true` with `tslib` available at runtime.**
+   Fixture emit drops from 3264 to 952 bytes and one copy of the helper serves the whole dependency graph.
+   `tslib@2.8.1` exports both helpers at `tslib.es6.js:305` and `tslib.es6.js:334`.
+   Tradeoffs:
+    adds a runtime dependency;
+    the per-scope `try`/`catch`/`finally` scaffolding stays in every
+   function;
+    symptom 2 is unchanged because `tslib` carries the same guard;
+    and `importHelpers` applies to
+   module files.
+3. **Let the bundler own the transform.**
+   `rolldown` and oxc import one shared `@oxc-project/runtime/helpers/usingCtx` when the target lacks
+   support and preserve native `using` when it does not.
+   This workspace's shipped artifacts take the preserving path:
+    `.browserslistrc` resolves to chrome 154,
+   firefox 153,
+    android 154,
+    and_chr 154,
+    and_ff 157,
+    and node 26.x,
+    all above the thresholds,
+    and
+   `package/cloudflare-worker/rand/dist/final/neutral/worker.mjs:1` contains
+   `using flushAtExit=flushOnExit(ctx)`.
+   Tradeoffs:
+    the final emitter decides shipping syntax,
+    not `tsc`;
+    and
+   `package/config/rolldown/src/browserslist-targets.ts` prefers a generated targets JSON over a fresh
+   `browserslist` query when that file exists,
+    so verify what the build actually reads.
+4. **Hand-write `try`/`finally`.**
+   No helpers and no target coupling.
+   Tradeoffs:
+    loses the `SuppressedError` composition and the reverse-order guarantee,
+    and reintroduces the
+   cleanup duplication `using` exists to remove.
+
+### What does not work
+
+- Reaching for a named edition target.
+  `es2025` downlevels (measured),
+   and upstream main routes `es2026` through the same transform
+  (`tsc/internal/transformers/estransforms/definitions.go:29`),
+   so the feature being in ES2026 does not
+  move the gate.
+- `lib: ESNext` on its own.
+  `lib` selects type declarations;
+   the target arm selects the transform.
+- Polyfilling `Symbol.dispose` to make downleveling unnecessary.
+  The helper itself throws `TypeError: Symbol.dispose is not defined.` when the symbol is missing,
+   so
+  downleveling buys parser compatibility only,
+   never runtime compatibility.
+- `noEmitHelpers: true` without `importHelpers`.
+  The output references identifiers nothing defines,
+   and executing it throws
+  `ReferenceError: __disposeResources is not defined` (measured).
+- Treating `Symbol.dispose` availability as syntax availability.
+  Per mdn/browser-compat-data,
+   `Symbol.dispose` and `Symbol.asyncDispose` exist in Node 18.18.0 and 20.4.0
+  and in Chrome 125 and 127,
+   well before the `using` syntax in Node 24.0.0 and Chrome 134.
+  That gap is exactly the population where the 2381 bytes still earn their place.
+
+### Upstream filing decision (6 constraints)
+
+Symptom 2 is the only candidate;
+ symptom 1 is documented,
+ intended behavior of `importHelpers`.
+
+1. **Upstream's fault?**
+   Yes.
+   The guard is TypeScript's own emitted text at `tsc/internal/printer/helpers.go:82`,
+    and it contradicts
+   `GetDisposeMethod` as merged in tc39/ecma262#3000.
+   Not a wording issue and not an architectural restriction.
+2. **Can upstream fix it?**
+   Yes.
+   One token,
+    prototyped and built here.
+3. **Are they supporting this use case?**
+   Yes.
+   `using` downlevel emit is a documented feature with conformance baselines under
+   `tsc/testdata/baselines/reference/conformance/usingDeclarations*`,
+    including
+   `usingDeclarationsWithImportHelpers.js`.
+4. **Would the repo welcome our contribution?**
+   No for an agent-filed report or pull request.
+   `CONTRIBUTING.md:15` ("Instructions for autonomous coding agents") states a pull request is acceptable
+   only if a specific human operator chose that specific issue and will shepherd it through review,
+    and
+   `CONTRIBUTING.md:25` bans automated comments with an immediate block for inauthentic activity.
+   No blanket ban on human-filed reports that disclose AI assistance was found in `CONTRIBUTING.md` or
+   `.github/ISSUE_TEMPLATE/`.
+   Per that section's own instruction to surface it and stop,
+    this is handed to the operator.
+5. **Will they likely fix it?**
+   No signal either way,
+    which meets the constraint.
+   The helper text is actively maintained,
+    a related emit bug is open at microsoft/TypeScript#63522
+   ("Declarations that shadow global `Symbol` break emit for `using` declarations"),
+    and duplicate searches
+   over `gh search issues` and `gh search prs` for `asyncDispose null`,
+    `Object not disposable`,
+    and
+   `addDisposableResource asyncDispose null` returned no matches in `microsoft/TypeScript` or
+   `microsoft/tslib`.
+6. **Minimal fix prototyped?**
+   Yes,
+    in a disposable clone at `${HOME}/temp/agent/upstream-prototype.Dqh0XXSR/ts`,
+    origin
+   `https://github.com/microsoft/TypeScript.git`,
+    HEAD `fed0bf24149fb1ed36039212648bafdafc1ea10e`,
+    built
+   with `GOMAXPROCS=2 go build -p 2 -o ./tsc-patched ./cmd/tsc` (4m27s,
+    go 1.27.1).
+
+The prototyped diff:
+
+```diff
+--- a/tsc/internal/printer/helpers.go
++++ b/tsc/internal/printer/helpers.go
+@@ -79,7 +79,7 @@ var addDisposableResourceHelper = &EmitHelper{
+             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
+             dispose = value[Symbol.asyncDispose];
+         }
+-        if (dispose === void 0) {
++        if (dispose === void 0 || dispose === null) {
+             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
+             dispose = value[Symbol.dispose];
+             if (async) inner = dispose;
+```
+
+Verification command and output:
+
+```sh
+# Recompiles the twelve-case fixture with the patched binary at target es2025, then runs
+# native, inline-downlevel, patched-downlevel, and tslib variants and diffs their event logs.
+node ${HOME}/temp/agent/ts-dispose-probe/sem/runner.mjs
+# native vs downlevel: 11 difference(s)
+# native vs patched:    1 difference(s)   <- only the implementation-defined message text
+# downlevel vs tslib:   IDENTICAL
+```
+
+`tslib` needs the same one-token change at `tslib.es6.js:305` for the `importHelpers` path to match.
+
+Outcome:
+ constraints 1,
+ 2,
+ 3,
+ 5,
+ and 6 hold.
+Constraint 4 fails for an agent filing,
+ so the draft is kept below and is not fileable from a session.
+
+### Draft upstream issue (do not file as-is; a human operator must choose and shepherd it per `CONTRIBUTING.md`)
+
+~~~md
+Title: `__addDisposableResource` helper throws on a `null` `Symbol.asyncDispose` instead of falling back to `Symbol.dispose`
+
+Labels: Bug, Domain: JS Emit
+
+The `__addDisposableResource` emit helper treats only `undefined` as an absent async disposer.
+`GetDisposeMethod` in the merged explicit resource management text uses `GetMethod`, which returns
+`undefined` for a property value that is `undefined` or `null`, and then falls back to `%Symbol.dispose%`.
+
+Reproduction, TypeScript 7.0.2 and main at fed0bf24149fb1ed36039212648bafdafc1ea10e:
+
+```ts
+// repro.ts
+async function main(): Promise<void> {
+  await using resource = {
+    [Symbol.asyncDispose]: null,
+    [Symbol.dispose]: () => { console.log('sync dispose ran'); },
+  } as unknown as AsyncDisposable;
+  console.log('body completed');
+}
+
+await main();
+
+export {};
+```
+
+```sh
+tsc repro.ts --ignoreConfig --target es2025 --module esnext --lib ESNext,DOM --outDir out
+node out/repro.js
+```
+
+Expected (matches V8 with `--target esnext`, and matches the spec): `body completed`, then
+`sync dispose ran`.
+Actual: `TypeError: Object not disposable.`
+
+Cause, `tsc/internal/printer/helpers.go:82`:
+
+```js
+if (dispose === void 0) {
+```
+
+Suggested fix:
+
+```diff
+-        if (dispose === void 0) {
++        if (dispose === void 0 || dispose === null) {
+```
+
+Built and verified against a twelve-case disposal fixture: with this change the `es2025` output matches
+`esnext` output on every case except the implementation-defined `SuppressedError` message text.
+`tslib`'s copy of the helper needs the same change.
+~~~
+
+### References
+
+- `tsc/internal/transformers/estransforms/definitions.go:10,24,27,29` (target gate)
+- `tsc/internal/transformers/estransforms/using.go:21` (transform entry)
+- `tsc/internal/printer/helpers.go:70,82,98` (helper text and the `null` guard)
+- `tsc/internal/printer/printer.go:4635,4638` (per-file inline versus external helpers)
+- `tsc/internal/compiler/program.go:493,496` (`importHelpers` gate)
+- tc39/ecma262#3000,
+   `sec-getdisposemethod` and `sec-disposeresources`,
+   merged 2026-06-24
+- mdn/browser-compat-data `javascript/statements.json` (`using`,
+   `await_using`) and
+  `javascript/builtins/Symbol.json` (`dispose`,
+   `asyncDispose`)
+- babel/babel#16409,
+   which aligned Babel's helper to the same `GetDisposeMethod` fallback
+- microsoft/TypeScript#63522,
+   an open `using` emit bug involving shadowed `Symbol`
+- `doc/handover/slopo-cluster-issue-triage.md`,
+   which tracks the stray emitted `.js` files in this
+  workspace
+
+## Task-tsc 0.0.2 converted compiler process failures into successful checks
+
+### Symptom and scope
+
+During the Pi factory-scope migration on 2026-10-14,
+the TypeScript subprocess printed `fatal error: newosproc`,
+but the repository's `task-tsc` wrapper returned exit zero.
+The [native incident record](pi-sdk-staging.md#overlapping-native-verification-and-oxlint-1870-stop-before-completing-checks)
+retains the separate thread-allocation failure.
+This section concerns the owned wrapper's incorrect result,
+not the cause of the Go runtime's failed thread allocation.
+
+The original log is `${HOME}/temp/agent/pi-factory-scopes-types-20261014.log`.
+A zero wrapper status was not accepted as verification once that diagnostic was observed.
+An isolated bounded retry completed successfully,
+but could not repair the wrapper's error handling.
+
+### Owned source cause
+
+Before the repair,
+`package/monorepo-task/core-exec/src/tsc-filter.ts:203`
+only preserved a failed subprocess status when recognized TypeScript diagnostic headers survived filtering:
+
+```ts
+// Historical tsc-filter.ts condition, replaced on 2026-10-14
+if (stdoutResult.hasRemainingErrors || stderrResult.hasRemainingErrors)
+  process.exitCode = subprocessError.exitCode ?? 1;
+```
+
+`package/monorepo-task/core-exec/src/tsc-output-filter.ts:331`
+sets that flag for retained recognized diagnostic headers:
+
+```ts
+// tsc-output-filter.ts:331,339
+if (isDiagnosticLine(line)) {
+  if (isSuppressedDiagnostic(line)) {
+    droppingContinuation = true;
+  } else {
+    droppingContinuation = false;
+    hasRemainingErrors = true;
+    kept.push(line);
+  }
+}
+```
+
+A Go panic,
+an unfamiliar diagnostic,
+or an empty failed process has no matching `error TS` header.
+The separate signal branch also does not cover ordinary nonzero process exits.
+Consequently the wrapper could print a failure and leave its own default exit status at zero.
+
+### Repair and compatibility boundary
+
+`package/monorepo-task/core-exec/src/tsc-filter.ts:204`
+now preserves failure unless `isFullySuppressedCompilerFailure` accounts for the output.
+`package/monorepo-task/core-exec/src/tsc-suppressed-failure.ts:53`
+requires actual removal of known diagnostics and rejects remaining stderr:
+
+```ts
+// tsc-suppressed-failure.ts:53
+if ((stdout === filteredStdout) && (stderr === filteredStderr)) return false;
+if (filteredStderr.trim().length > 0) return false;
+return filteredStdout.split('\n').every(isEmissionMetadata);
+```
+
+Its stdout metadata recognizer accepts blank lines and `TSFILE: ` records with a nonblank path.
+That preserves the configured compiler's emitted-file reporting:
+`package/config/typescript/tsconfig.options.json:132` sets `"listEmittedFiles": true`.
+Unknown output remains a failure instead of silently expanding the suppression policy.
+This may surface unfamiliar future compiler metadata for explicit review;
+it does not remove any diagnostic from the existing filter.
+
+### Verification and rejected approaches
+
+The fixture executes the built `dist/final/node/tsc-filter.mjs`
+against a disposable Node executable named `tsc`.
+Only the child process receives the modified executable search path.
+No actual thread exhaustion is induced.
+The source is `package/monorepo-task/core-exec/src/tsc-failure-fixture.ts`;
+its per-case directory is removed after the child and output descriptors close.
+
+The original built wrapper failed the expected-status assertions for:
+
+- A Go panic with exit status two.
+- A silent failure with exit status two.
+- A non-TypeScript diagnostic with exit status seven.
+- A panic beside otherwise suppressed dependency diagnostics.
+
+The repaired artifact preserves those statuses while allowing successful output,
+known suppressed diagnostics,
+and emitted-file metadata accompanying known suppression.
+Emission metadata alone cannot explain an unsuccessful process.
+The current fixture also checks literal quotes,
+backslashes,
+newlines,
+and statement delimiters when embedding output into its temporary executable.
+
+```bash
+# From the repository root; each check consumes rebuilt task-util output
+mise run //package/monorepo-task/core-exec:build:js
+mise run //package/monorepo-task/core-exec:test:tsc-failure
+mise run //package/monorepo-task/core-exec:test:unit -- src/tsc-filter.unit.test.ts
+```
+
+The original failure log is `${HOME}/temp/agent/tsc-wrapper-failure-red-20261014.log`.
+The repaired process and existing filter suite log is
+`${HOME}/temp/agent/tsc-wrapper-failure-tests-final-20261014.log`.
+The completed changed-file lint reports zero warnings and zero errors across four files;
+the task-util and real Pi package type checks also pass.
+The final process catalog is retained in `tsc-failure.unit.test.ts` and passes through `test:tsc-failure`.
+
+The first success-control assertion incorrectly expected a trailing newline.
+The initial report that this control passed is retracted.
+Installed `nano-spawn` 2.1.0 removes the final newline at `node_modules/nano-spawn/source/result.js:73`:
+
+```js
+// nano-spawn/source/result.js:73
+const getOutput = output => output.at(-1) === '\n'
+  ? output.slice(0, output.at(-2) === '\r' ? -2 : -1)
+  : output;
+```
+
+The expected successful wrapper output now matches that incumbent behavior.
+The fixture captures wrapper output through separate disposable file descriptors,
+so its own subprocess library does not normalize the observed bytes again.
+The mistaken newline expectation does not invalidate the separate nonzero-status failures.
+
+### Upstream filing decision
+
+- Responsibility belongs to the repository-owned failure wrapper;
+  no upstream defect is established by this false-success result.
+- The repair is implemented in that owned wrapper.
+- Upstream supported-use boundaries are not needed to change local failure handling.
+- No external contribution or issue filing is proposed,
+  so contribution-policy permission is not asserted.
+- No prediction about an upstream maintainer's disposition is made.
+- The built-wrapper process fixture supplies failing-before and passing-after evidence for the local repair.
+
+There is nothing to file upstream from this wrapper defect.
+The independent Go thread failure remains bounded by its existing incident evidence.
+
 ## Related Documentation
 
 - [VSCode](vscode.md):
    VSCode extension configuration for TypeScript tools.
-- [Toolchain](./TROUBLESHOOTING.toolchain.md):
-   build tools and toolchain management.
-- [Stylelint](stylelint.md):
-   CSS linting configuration issues.

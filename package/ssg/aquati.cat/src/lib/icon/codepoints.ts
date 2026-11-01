@@ -25,7 +25,7 @@ import {
 } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 /**
  Absolute directory of this module, used to locate the sibling codepoints file.
@@ -84,10 +84,10 @@ function parseLine(line: string,): readonly [
  */
 export const ICON_CODEPOINTS: Readonly<Record<string, string>> = Object
   .fromEntries(
-    raw
-      .trim()
-      .split('\n',)
-      .map(function parseEachLine(line,) {
-        return parseLine(line,);
-      },),
+  raw
+    .trim()
+    .split('\n',)
+    .map(function parseEachLine(line,) {
+      return parseLine(line,);
+    },),
   );

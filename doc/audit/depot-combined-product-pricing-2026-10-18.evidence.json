@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "calculatedAt": "2026-10-18T12:41:35.052Z",
+  "purpose": "Combined-product pricing arithmetic; workload/critical-path normalization remains open",
+  "sourcePaths": [
+    "doc/audit/depot-included-allowance-2026-10-18.evidence.json",
+    "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+    "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz"
+  ],
+  "primaryUrls": [
+    "https://depot.dev/pricing",
+    "https://depot.dev/docs/ci/overview",
+    "https://depot.dev/docs/github-actions/runner-types"
+  ],
+  "primaryWording": {
+    "planWording": "The Developer plan is perfect for solo developers, side-projects, and experiments. It includes 500 Docker build minutes, 2,000 GitHub Actions minutes, 2,000 Depot CI minutes, and 1 user, with additional usage billed monthly.\nThe Startup plan is great for teams building production applications. It includes 5,000 Docker build minutes, 20,000 GitHub Actions minutes, 20,000 Depot CI minutes, and unlimited users, with additional usage billed monthly.\nThe Business plan is for dev teams looking to scale, and includes additional security controls and deployment models.",
+    "storageWording": "You are charged monthly for build usage and storage. See usage granularity above for how build time is measured.\n\nStorage is a single combined total that covers your container build cache, Depot Cache, and Depot Registry. All three draw from your plan's included storage, and anything above that amount is billed at $0.20 per GB per month. Storage is billed as the average storage used over the month, sampled hourly.\n\nData transfer into and out of Depot Registry is free on the default Standard CDN speed. If you switch your organization to Fast CDN speed, data served out of the registry is billed at $0.10 per GB, from the first GB. Read more in our registry documentation.",
+    "testsWording": "The Developer and Startup plans each include 1,000,000 passing test results per month at no charge. After that, it's $0.000001 per passing test, or $1 per 1 million tests. Failed, errored, and skipped tests are free.\n\nRead more in our test results documentation"
+  },
+  "plans": {
+    "developer": {
+      "feeUsd": 20,
+      "buildBaseMinutes": 500,
+      "native2CpuBaseMinutes": 2000,
+      "githubLinux2CpuBaseMinutes": 2000,
+      "combinedStorageAverageGb": 25,
+      "passingResults": 1000000
+    },
+    "startup": {
+      "feeUsd": 200,
+      "buildBaseMinutes": 5000,
+      "native2CpuBaseMinutes": 20000,
+      "githubLinux2CpuBaseMinutes": 20000,
+      "combinedStorageAverageGb": 250,
+      "passingResults": 1000000
+    }
+  },
+  "rates": {
+    "default16Cpu32GbBuildBaseMinuteUsd": 0.04,
+    "native2CpuBaseMinuteUsd": 0.006,
+    "githubLinux2CpuBaseMinuteUsd": 0.006,
+    "combinedStorageGbMonthUsd": 0.2,
+    "additionalPassingResultUsd": 0.000001
+  },
+  "scenarios": [
+    {
+      "name": "No overage, Developer baseline",
+      "usage": {
+        "buildBaseMinutes": 0,
+        "native2CpuBaseMinutes": 0,
+        "githubLinux2CpuBaseMinutes": 0,
+        "combinedStorageAverageGb": 25,
+        "passingResults": 1000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 20
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      }
+    },
+    {
+      "name": "Native CI only at Startup native allowance",
+      "usage": {
+        "buildBaseMinutes": 0,
+        "native2CpuBaseMinutes": 20000,
+        "githubLinux2CpuBaseMinutes": 0,
+        "combinedStorageAverageGb": 25,
+        "passingResults": 1000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 0,
+          "native": 108,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 128
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      }
+    },
+    {
+      "name": "Both separate Linux compute allowances at Startup amounts",
+      "usage": {
+        "buildBaseMinutes": 0,
+        "native2CpuBaseMinutes": 20000,
+        "githubLinux2CpuBaseMinutes": 20000,
+        "combinedStorageAverageGb": 25,
+        "passingResults": 1000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 0,
+          "native": 108,
+          "githubLinux": 108,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 236
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      }
+    },
+    {
+      "name": "Build allowance boundary without CI overage",
+      "usage": {
+        "buildBaseMinutes": 5000,
+        "native2CpuBaseMinutes": 0,
+        "githubLinux2CpuBaseMinutes": 0,
+        "combinedStorageAverageGb": 25,
+        "passingResults": 1000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 180,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      }
+    },
+    {
+      "name": "Combined product boundary",
+      "usage": {
+        "buildBaseMinutes": 5000,
+        "native2CpuBaseMinutes": 20000,
+        "githubLinux2CpuBaseMinutes": 20000,
+        "combinedStorageAverageGb": 250,
+        "passingResults": 1000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 180,
+          "native": 108,
+          "githubLinux": 108,
+          "storage": 45,
+          "passingResults": 0
+        },
+        "totalUsd": 461
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 0
+        },
+        "totalUsd": 200
+      }
+    },
+    {
+      "name": "Explicit mixed Developer illustration",
+      "usage": {
+        "buildBaseMinutes": 1000,
+        "native2CpuBaseMinutes": 10000,
+        "githubLinux2CpuBaseMinutes": 10000,
+        "combinedStorageAverageGb": 50,
+        "passingResults": 2000000
+      },
+      "assumption": "Hypothetical monthly input, not a forecast of repository events",
+      "developer": {
+        "lineItems": {
+          "fee": 20,
+          "builds": 20,
+          "native": 48,
+          "githubLinux": 48,
+          "storage": 5,
+          "passingResults": 1
+        },
+        "totalUsd": 142
+      },
+      "startup": {
+        "lineItems": {
+          "fee": 200,
+          "builds": 0,
+          "native": 0,
+          "githubLinux": 0,
+          "storage": 0,
+          "passingResults": 1
+        },
+        "totalUsd": 201
+      }
+    }
+  ],
+  "limits": [
+    "Separate named product entitlements, no transferability assumption",
+    "Scenarios restrict GitHub Depot runners to Linux, avoiding undocumented mixed Windows/Linux allocation and Mac normalization",
+    "Generic Sandbox SDK uses CI compute rates, but included-credit eligibility is not established and is not credited",
+    "Storage uses combined hourly-sampled monthly average; logical disk and compressed manifests are not billed-byte measurements",
+    "Passing-result scenarios count uploaded results, not distinct test names; API rows do not independently prove billed counts",
+    "No additional members, tax, FX fees, unspecified services or subscription changes",
+    "Standard GitHub public-repository compute is free and omitted; artifact/storage charges are separate",
+    "No claim of whole-CI speed or current invoice",
+    "USD200 ceiling comparisons apply only to the explicitly enumerated hypothetical line items"
+  ],
+  "completeRepositoryForecast": false
+}

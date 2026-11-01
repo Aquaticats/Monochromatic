@@ -54,7 +54,9 @@ fail closed when proof is unavailable,
 and avoid recomputing unchanged semantic summaries on each Oxlint process invocation.
 
 Oxlint JavaScript plugins do not receive TypeScript parser services.
-The plugin therefore retains the selected `typescript/unstable/sync` bridge.
+The plugin therefore retains the selected `typescript/unstable/sync` bridge
+(`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20).
 Oxlint's language server does not execute JavaScript plugins,
 so the performance boundary covered here is CLI lint and fix execution.
 

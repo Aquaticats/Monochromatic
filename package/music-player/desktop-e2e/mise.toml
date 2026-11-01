@@ -1,0 +1,22 @@
+[tasks.run]
+description = "Run the keyboard end-to-end suite against the existing release binary of the desktop app (use the desktop app's test:e2e task to build first)"
+run = "node src/cli.ts --app-dir ../desktop-app"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."format:dprint"]
+description = "Format this package's files with dprint"
+run = "dprint fmt src"
+
+[tasks."test:unit"]
+extends = "test:unit"

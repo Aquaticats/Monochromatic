@@ -1,0 +1,532 @@
+{
+  "preparedAt": "2026-10-17T06:27:26.200Z",
+  "state": "prepared-no-device-operations",
+  "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+  "sourceTree": "ee83d524cb9dbd385bddd2e745b3624873290f58",
+  "trackedStatus": "",
+  "legacyHarness": "/home/user/temp/agent/depot-android-device/mise.toml",
+  "legacyHarnessSha256": "0f83f853d6df0439ca56c530699e6b0e14516f68fd893105e85fad41a10f31cc",
+  "stagedHarness": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/runtime/mise.toml",
+  "stagedHarnessSha256": "f7450a475640ff27bfad6bef131591d7420e3f9793d392019af11a89b227174c",
+  "bodies": {
+    "prepare": {
+      "originalSha256": "ccae89f5877d524df028d13587ac1752bc36aa8e28fec0e34a6b75e44f04af6d",
+      "adaptedSha256": "e107966035912057269c101119ff0be9f58264bed0455bab6e5639e02804daa5"
+    },
+    "launch": {
+      "originalSha256": "9e89085c49b0e99f99ca657f0b634605eb372054f4dacdd3efb4b48288cc6040",
+      "adaptedSha256": "fc209af22d08ae2ec95215d44ace936695b633ebae1036f17e4f15dcbc1d290b"
+    },
+    "boot": {
+      "originalSha256": "f16ebe2f71ffece72b278a1d7491a55010ace2362acaac9b7134cabe38069d95",
+      "adaptedSha256": "6bc4f003f8ee6872a09ea53f8f015116fa9c60ea7c99e14958268223401579b0"
+    },
+    "complete-install": {
+      "originalSha256": "056e355da88820771dd729cf7f52d8904b6023f0a91076a98219cabda15dde7a",
+      "adaptedSha256": "4499e01ff45b1c228a1f96f15e985eb4160b0b2b061f4090bb1f357848a28ddd"
+    },
+    "fixtures": {
+      "originalSha256": "12161c0b5a768328a7f8b927a05d99a77d270e70918704284ca257df244f509d",
+      "adaptedSha256": "0a00c8c5d022b7e948d9229c8bad98e50519e2e67d79dfbb203fec0fe59bbbc8"
+    },
+    "complete-instrument": {
+      "originalSha256": "c9adac9000703f68f34e40de1462d461fc8900c033d8744f0fb5b7c7c26c5b9f",
+      "adaptedSha256": "4e88a843a4b6cea79e7bb206ca8944ed1890b111a2233022ab604f26e02f89a7"
+    },
+    "shutdown": {
+      "originalSha256": "8dc2392c87197d86850bbee9db5b90b94ddb0cde73d84e3b38bed6fffc37bdfb",
+      "adaptedSha256": "748d378b425138bb62af82f664ed0b544a788614a97fcbf7afe70e6391c6fa67"
+    }
+  },
+  "parsedTasks": {
+    "prepare": {
+      "sha256": "e107966035912057269c101119ff0be9f58264bed0455bab6e5639e02804daa5",
+      "noLegacyUnit": true
+    },
+    "launch": {
+      "sha256": "fc209af22d08ae2ec95215d44ace936695b633ebae1036f17e4f15dcbc1d290b",
+      "noLegacyUnit": true
+    },
+    "boot": {
+      "sha256": "6bc4f003f8ee6872a09ea53f8f015116fa9c60ea7c99e14958268223401579b0",
+      "noLegacyUnit": true
+    },
+    "complete-install": {
+      "sha256": "4499e01ff45b1c228a1f96f15e985eb4160b0b2b061f4090bb1f357848a28ddd",
+      "noLegacyUnit": true
+    },
+    "fixtures": {
+      "sha256": "0a00c8c5d022b7e948d9229c8bad98e50519e2e67d79dfbb203fec0fe59bbbc8",
+      "noLegacyUnit": true
+    },
+    "complete-instrument": {
+      "sha256": "4e88a843a4b6cea79e7bb206ca8944ed1890b111a2233022ab604f26e02f89a7",
+      "noLegacyUnit": true
+    },
+    "shutdown": {
+      "sha256": "748d378b425138bb62af82f664ed0b544a788614a97fcbf7afe70e6391c6fa67",
+      "noLegacyUnit": true
+    }
+  },
+  "expected": [
+    "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+    "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+    "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+    "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys",
+    "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination"
+  ],
+  "testSources": [
+    {
+      "name": "NativeBridgeTest.kt",
+      "sha256": "1aff28a51f63fd45c83c9812a948d265bfd8e187a9057278d45ccdb28b8628d1"
+    },
+    {
+      "name": "PeakSweepWorkerTest.kt",
+      "sha256": "b879a7915627276d84de6eee3b9470682d92537686434703b20ad89c7711858a"
+    },
+    {
+      "name": "RustEngineTest.kt",
+      "sha256": "8d6f656a06aa72a5f31481353019efe692753b041f66de766406fb95fdd99a8a"
+    },
+    {
+      "name": "SessionStoreTest.kt",
+      "sha256": "24b4950034a13c141cace7d9be92c8a22b91943f1f5f268ca75903d3b98965f3"
+    }
+  ],
+  "fixtureInputs": [
+    {
+      "name": "tone.wav",
+      "bytes": 441044,
+      "sha256": "4eeb8600ab8757f8674821ea93e31035deb902a68c86ae24c08841db370fc01e"
+    },
+    {
+      "name": "depot-trial.flac",
+      "bytes": 71147,
+      "sha256": "ba9b4c9709e97c7d96c82d816d20af3d8851edcfbffd1769bb6b7a2abb5dd269"
+    },
+    {
+      "name": "depot-trial.opus",
+      "bytes": 98890,
+      "sha256": "db5d33a5786b0bc477d3a6506b20c037282eb7d34c1f87ae87a8bf3e34aa30ea"
+    },
+    {
+      "name": "depot-trial.mp3",
+      "bytes": 40456,
+      "sha256": "54c3927ce4b70c7d1bf1779833e401ce9f453caba0c72873a157f590c3b0c3c4"
+    }
+  ],
+  "launchPlan": {
+    "unit": "depot-coherent-android-a038cc3c",
+    "adbPort": 5097,
+    "consolePort": 5802,
+    "transportPort": 5803,
+    "serial": "emulator-5802",
+    "sdk": "/home/user/Android/Sdk",
+    "runtime": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/runtime",
+    "display": {
+      "DISPLAY": ":0",
+      "WAYLAND_DISPLAY": "wayland-0",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "XAUTHORITY": "/run/user/1000/xauth_QLhJqY"
+    },
+    "privateHome": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/runtime/home",
+    "privateAndroidUserHome": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/runtime/home/.android",
+    "privateAndroidAvdHome": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/runtime/home/.android/avd",
+    "ownedIni": "/home/user/.android/avd/Pixel_9_Pro_Fold.ini",
+    "ownedDirectory": "/mnt/encrypted/Archive/home-user-offload/.android/avd/Pixel_9_Pro_Fold.avd",
+    "ownedIniSha256": "1c0f119a19dc07a2daabe6406955ee258fe03d61656fb77053957fd43d94db0e",
+    "ownedConfigSha256": "9416909bb6e2d4ed75827b532a4a12151be8eed95d5e8a06246393548c21119e",
+    "launchForm": [
+      "systemd-run",
+      "--user",
+      "--unit=depot-coherent-android-a038cc3c",
+      "--collect",
+      "--property=MemoryMax=12G",
+      "--setenv=<private HOME/ANDROID_USER_HOME/ANDROID_AVD_HOME and actual display variables>",
+      "/home/user/Android/Sdk/emulator/emulator",
+      "-avd",
+      "DepotTrialFold",
+      "-ports",
+      "5802,5803",
+      "-no-snapshot",
+      "-no-audio",
+      "-no-boot-anim",
+      "-gpu",
+      "host",
+      "-camera-back",
+      "none",
+      "-camera-front",
+      "none",
+      "-memory",
+      "4096",
+      "-cores",
+      "4",
+      "-no-metrics"
+    ],
+    "deviceProbeCommands": [
+      [
+        "shell",
+        "getprop",
+        "ro.build.version.sdk"
+      ],
+      [
+        "shell",
+        "getprop",
+        "ro.product.cpu.abi"
+      ],
+      [
+        "shell",
+        "getconf",
+        "PAGE_SIZE"
+      ],
+      [
+        "shell",
+        "settings",
+        "get",
+        "system",
+        "font_scale"
+      ],
+      [
+        "shell",
+        "settings",
+        "get",
+        "secure",
+        "display_density_forced"
+      ],
+      [
+        "shell",
+        "settings",
+        "get",
+        "global",
+        "display_size_forced"
+      ],
+      [
+        "shell",
+        "getconf",
+        "_NPROCESSORS_ONLN"
+      ],
+      [
+        "shell",
+        "cat",
+        "/proc/meminfo"
+      ]
+    ],
+    "shutdownSequence": [
+      [
+        "shell",
+        "sync"
+      ],
+      {
+        "waitMs": 8000
+      },
+      [
+        "shell",
+        "sync"
+      ],
+      [
+        "emu",
+        "kill"
+      ]
+    ],
+    "actualGuestSettings": null
+  },
+  "historicalConsumer": {
+    "providerRun": "j80v9dqfb4",
+    "providerJob": "sk8lkf9xfp",
+    "providerAttempt": "s57prgfpx8",
+    "passed": 13,
+    "failed": 2,
+    "skipped": 0,
+    "elapsedSeconds": 6.041
+  },
+  "limitations": [
+    "No final coherent producer was supplied.",
+    "No emulator, adb server, install, fixture push, instrumentation, or shutdown was run.",
+    "Fresh runtime task bodies were syntax-checked and parsed through mise but require the actual final producer/device boundary.",
+    "Current guest settings and resource peaks are unmeasured; owned config and historical guest values are not fresh guest evidence."
+  ],
+  "unitBindingCorrection": {
+    "scope": "Parsed task boundary only; no emulator, adb, or systemd-run execution.",
+    "beforeHarnessSha256": "d229f7af50416d54b2cca276d638f6d61f3a9b9bef81e81922e7807c182aef91",
+    "afterHarnessSha256": "f7450a475640ff27bfad6bef131591d7420e3f9793d392019af11a89b227174c",
+    "beforeLaunchSha256": "07126c292b95fcd74361a9244edc0997b2370f33daf38933c23cc26d00a8f346",
+    "afterLaunchSha256": "fc209af22d08ae2ec95215d44ace936695b633ebae1036f17e4f15dcbc1d290b",
+    "before": {
+      "launchUnit": "depot-trial-fold",
+      "bootUnit": "depot-coherent-android-a038cc3c",
+      "mismatch": true
+    },
+    "after": {
+      "launchUnit": "depot-coherent-android-a038cc3c",
+      "bootUnit": "depot-coherent-android-a038cc3c",
+      "mismatch": false
+    },
+    "deviceOperations": 0
+  },
+  "catalogPrefixControl": {
+    "scope": "Actual Mise-parsed catalog prefix only; no adb/emulator/systemd execution",
+    "taskBodySha256": "4e88a843a4b6cea79e7bb206ca8944ed1890b111a2233022ab604f26e02f89a7",
+    "actual": {
+      "accepted": true,
+      "count": 15,
+      "expected": [
+        "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+        "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+        "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+        "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+        "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+        "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+        "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination",
+        "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys"
+      ]
+    }
+  },
+  "previousContractControls": {
+    "preparationTaskSha256": "6067bb80fedc962ae5c57428ef358622f9694fca48abfd99574404929e50b96c",
+    "scope": "Historical five controls before the settled common manifest schema; retained separately from current acceptance.",
+    "controls": {
+      "scope": "Offline byte/provenance join controls; synthetic cohort/receipt/archive fields, historical real APK bytes. Not final provider proof.",
+      "results": [
+        {
+          "name": "missing-producer",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "historical-apk-hashes-with-fixture-provenance",
+          "exitCode": 0,
+          "expected": 0,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-apk-hash",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-cohort-join",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-source",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        }
+      ]
+    }
+  },
+  "previousSettledSchemaControls": {
+    "revision": "9098a77232c1f2201c09d96f3850143c7c31c808^",
+    "preparationTaskSha256": "ba298e6feefe9f6523da4517f611a86587b4e75f0f2f951c9198936c5ae6d2a9",
+    "scope": "Historical nine settled-schema controls before exact final route/workflow/wave binding",
+    "controls": {
+      "scope": "Offline byte/provenance join controls; synthetic cohort/receipt/archive fields, historical real APK bytes. Not final provider proof.",
+      "results": [
+        {
+          "name": "missing-producer",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "historical-apk-hashes-with-fixture-provenance",
+          "exitCode": 0,
+          "expected": 0,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-apk-hash",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-cohort-join",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-source",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-case-manifest",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-producer-route",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-producer-harness",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        },
+        {
+          "name": "wrong-outer-bytes",
+          "exitCode": 1,
+          "expected": 1,
+          "deviceOperations": 0
+        }
+      ]
+    }
+  },
+  "contractControls": {
+    "scope": "Offline byte/provenance join controls; synthetic cohort/receipt/archive fields, historical real APK bytes. Not final provider proof.",
+    "results": [
+      {
+        "name": "missing-producer",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "historical-apk-hashes-with-fixture-provenance",
+        "exitCode": 0,
+        "expected": 0,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-apk-hash",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-cohort-join",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-source",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-case-manifest",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-producer-route",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-producer-harness",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-outer-bytes",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "self-consistent-wrong-route",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "self-consistent-wrong-workflow",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-producer-wave",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      },
+      {
+        "name": "wrong-receipt-wave",
+        "exitCode": 1,
+        "expected": 1,
+        "deviceOperations": 0
+      }
+    ]
+  },
+  "requiredFinalInput": {
+    "schemaVersion": 1,
+    "kind": "coherent",
+    "cohort": {
+      "id": null,
+      "manifestSha256": null,
+      "manifestPath": null,
+      "requestedAt": null
+    },
+    "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+    "harness": {
+      "producerRevision": null,
+      "consumerHarnessSha256": "f7450a475640ff27bfad6bef131591d7420e3f9793d392019af11a89b227174c"
+    },
+    "producer": {
+      "runId": null,
+      "jobId": null,
+      "attemptId": null,
+      "workflowPath": ".depot/workflows/depot-complete-native.yml",
+      "receiptPath": null,
+      "receiptSha256": null,
+      "routeId": "native.producers",
+      "wave": "native-android"
+    },
+    "archive": {
+      "path": null,
+      "sha256": null
+    },
+    "artifacts": [
+      {
+        "name": "app-debug.apk",
+        "localPath": null,
+        "sha256": null
+      },
+      {
+        "name": "app-debug-androidTest.apk",
+        "localPath": null,
+        "sha256": null
+      }
+    ],
+    "caseManifestSha256": null
+  },
+  "preparationTaskPath": "/var/mnt/encrypted/temp/agent/depot-coherent-android-consumer-20261017/mise.toml",
+  "preparationTaskSha256": "280adb512e35477fc73a86b5797ebfceaf7577a69328a68535e770c81c641cb5"
+}

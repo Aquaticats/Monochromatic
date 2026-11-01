@@ -128,12 +128,12 @@ function webFetchValue(url: string,): string {
  */
 type SearchToolTitleName =
   | 'WebSearch'
-  | 'AskUserQuestion'
-  | 'WebFetch'
-  | 'NotebookEdit'
-  | 'LSP'
-  | 'Skill'
-  | 'ToolSearch';
+    | 'AskUserQuestion'
+    | 'WebFetch'
+    | 'NotebookEdit'
+    | 'LSP'
+    | 'Skill'
+    | 'ToolSearch';
 
 /**
  Title entries for search, web, notebook, LSP, skill, and discovery tools.

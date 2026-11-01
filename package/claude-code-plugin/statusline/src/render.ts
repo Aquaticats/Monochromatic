@@ -8,7 +8,7 @@ import {
   YELLOW,
   color,
 } from './ansi.ts';
-import { readActivityWord, } from './activity.ts';
+import { readRememberedActivityWord, } from './activity-memory.ts';
 import { formatContextWindowSegment, } from './context-window.ts';
 import { readEffortIndicator, } from './effort.ts';
 import { formatModelDisplay, } from './model.ts';
@@ -77,7 +77,7 @@ function formatModelSegment({
 }
 
 /**
- Reads activity word when transcript path is available.
+ Reads activity word, remembered across renders, when transcript path is available.
  
  @param input - statusline input payload
  
@@ -98,7 +98,7 @@ async function activitySegment(input: StatuslineInput,): Promise<string> {
   if (transcriptPath.length === 0)
     return '';
 
-  return await readActivityWord({ transcriptPath, },);
+  return await readRememberedActivityWord({ transcriptPath, },);
 }
 
 /**

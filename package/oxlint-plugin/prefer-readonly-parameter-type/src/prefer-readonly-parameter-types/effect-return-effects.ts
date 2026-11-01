@@ -14,11 +14,11 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import type {
   Checker,
   Project,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { expressionOrigins, } from './effect-binding-origins.ts';
 import { expressionElementOrigins, } from './effect-element-origin.ts';
@@ -107,9 +107,9 @@ export function recordReturnEffects({
     addEffectSlots({
       target: summary.directReturned,
       values: expressionOrigins({
-    project,
-    bindingOriginBySymbolId,
-    node: returned,
+        project,
+        bindingOriginBySymbolId,
+        node: returned,
       },),
     },);
     /* And the same question asked of the result's elements, because a returned container of

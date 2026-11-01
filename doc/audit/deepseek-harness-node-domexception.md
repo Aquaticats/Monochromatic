@@ -51,7 +51,8 @@ The dependency path is based on primary evidence:
 DeepSeek's pinned lockfile and package manifests,
 published npm manifests,
 and source at the exact package revisions selected by the lockfile.
-The investigation also checked current upstream package manifests to determine whether an ordinary update would remove the dependency.
+The investigation also checked current upstream package manifests to determine whether an ordinary update would remove
+the dependency.
 
 No secondary article is used.
 No third-party install or build command was needed to establish provenance.
@@ -94,7 +95,8 @@ DeepSeek resolves both paths to `gaxios@7.1.5`
 (<https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/pnpm-lock.yaml#L18071-L18085>,
 <https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/pnpm-lock.yaml#L18146-L18155>).
 
-`gaxios@7.1.5` declares `node-fetch@^3.3.2` and selects it as the default server-side fetch implementation through a dynamic import
+`gaxios@7.1.5` declares `node-fetch@^3.3.2`
+and selects it as the default server-side fetch implementation through a dynamic import
 (<https://github.com/googleapis/google-cloud-node/blob/gaxios-v7.1.5/core/packages/gaxios/package.json#L102-L105>,
 <https://github.com/googleapis/google-cloud-node/blob/gaxios-v7.1.5/core/packages/gaxios/src/gaxios.ts#L670-L677>).
 
@@ -110,7 +112,8 @@ The current `gaxios@7.3.1` manifest still depends on `node-fetch@^3.3.2`
 
 DeepSeek resolves `fetch-blob@3.2.0`,
 which declares `node-domexception@^1.0.0`.
-Its `from.js` imports that package and uses it to throw a `NotReadableError` when a file-backed blob changes before it is read
+Its `from.js` imports that package and uses it to throw a `NotReadableError` when a file-backed blob changes
+before it is read
 (<https://github.com/node-fetch/fetch-blob/blob/b8c8176ba48a2118c65c9d646089e7d9fa3cb8c2/package.json#L50-L54>,
 <https://github.com/node-fetch/fetch-blob/blob/b8c8176ba48a2118c65c9d646089e7d9fa3cb8c2/from.js#L1-L3>,
 <https://github.com/node-fetch/fetch-blob/blob/b8c8176ba48a2118c65c9d646089e7d9fa3cb8c2/from.js#L83-L90>).
@@ -163,7 +166,8 @@ but a DeepSeek-only request does not need to execute it.
 (<https://github.com/earendil-works/pi/blob/b4f293684bba718d59cc1157679bcf6157b3a7f5/packages/ai/src/api/google-generative-ai.lazy.ts>,
 <https://github.com/earendil-works/pi/blob/b4f293684bba718d59cc1157679bcf6157b3a7f5/packages/ai/src/api/google-vertex.lazy.ts>).
 When Google's API code does load,
-`@google/genai` bypasses `GoogleAuth` for an API-key request and uses it for ambient or explicit Google Cloud credentials
+`@google/genai` bypasses `GoogleAuth` for an API-key request and uses it for ambient
+or explicit Google Cloud credentials
 (<https://github.com/googleapis/js-genai/blob/v1.52.0/src/node/_node_auth.ts#L29-L51>).
 
 `gaxios` imports `node-fetch` only when its default adapter first needs a fetch implementation.

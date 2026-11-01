@@ -1,10 +1,12 @@
 package dev.monochromatic.musicplayer
 
+import dev.monochromatic.musicplayer.core.SweepPauseGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -173,6 +175,125 @@ class PeakSweepCoordinatorTest {
         assertEquals((0 until SERIAL_COUNT).toList(), seen)
     }
 
+    /** While the gate is paused no worker claims a track; resuming completes every item exactly once. */
+    @Test
+    fun pausedGateStopsClaimsAndResumeFinishesEveryItemOnce() = runBlocking {
+        val gate = SweepPauseGate()
+        gate.pause()
+        val seen = ConcurrentHashMap.newKeySet<Int>()
+        val calls = AtomicInteger(0)
+        val sweep = launch(Dispatchers.Default) {
+            sweepTracksInParallel(
+                items = (0 until PAUSE_ITEMS).toList(),
+                workers = FEW_WORKERS,
+                dispatcher = Dispatchers.Default,
+                flushBatch = Int.MAX_VALUE,
+                notifyEvery = Int.MAX_VALUE,
+                maxTracks = Int.MAX_VALUE,
+                process = { item ->
+                    calls.incrementAndGet()
+                    seen.add(item)
+                    SweepOutcome.MEASURED
+                },
+                onFlush = { },
+                onProgress = { _, _ -> },
+                pauseGate = gate,
+            )
+        }
+        delay(SETTLE_MS)
+        assertEquals("a paused gate must stop every claim", 0, calls.get())
+        gate.resume()
+        withTimeout(WAIT_MS) { sweep.join() }
+        assertEquals("resume continues the same sweep", PAUSE_ITEMS, calls.get())
+        assertEquals((0 until PAUSE_ITEMS).toSet(), seen)
+    }
+
+    /** Pausing mid-sweep holds the claims at the current count, and a resumed sweep still covers each item once. */
+    @Test
+    fun pauseMidSweepHoldsClaimsThenResumes() = runBlocking {
+        val gate = SweepPauseGate()
+        val calls = AtomicInteger(0)
+        val seen = ConcurrentHashMap.newKeySet<Int>()
+        val sweep = launch(Dispatchers.Default) {
+            sweepTracksInParallel(
+                items = (0 until PAUSE_ITEMS).toList(),
+                workers = FEW_WORKERS,
+                dispatcher = Dispatchers.Default,
+                flushBatch = Int.MAX_VALUE,
+                notifyEvery = Int.MAX_VALUE,
+                maxTracks = Int.MAX_VALUE,
+                process = { item ->
+                    calls.incrementAndGet()
+                    seen.add(item)
+                    delay(PER_ITEM_MS)
+                    SweepOutcome.MEASURED
+                },
+                onFlush = { },
+                onProgress = { _, _ -> },
+                pauseGate = gate,
+            )
+        }
+        delay(SETTLE_MS)
+        gate.pause()
+        // In-flight decodes may still finish, but no worker may claim after the gate closed.
+        delay(PER_ITEM_MS * 3)
+        val atPause = calls.get()
+        delay(SETTLE_MS)
+        assertEquals("no claims while paused", atPause, calls.get())
+        assertTrue("the sweep must not have finished while paused", atPause < PAUSE_ITEMS)
+        gate.resume()
+        withTimeout(WAIT_MS) { sweep.join() }
+        assertEquals(PAUSE_ITEMS, calls.get())
+        assertEquals((0 until PAUSE_ITEMS).toSet(), seen)
+    }
+
+    /** Cancelling the scope while the gate is paused ends the sweep instead of hanging, and still flushes. */
+    @Test
+    fun cancelWhilePausedDoesNotHangAndStillFlushes() = runBlocking {
+        val gate = SweepPauseGate()
+        gate.pause()
+        val flushes = AtomicInteger(0)
+        val sweep = launch(Dispatchers.Default) {
+            sweepTracksInParallel(
+                items = (0 until PAUSE_ITEMS).toList(),
+                workers = FEW_WORKERS,
+                dispatcher = Dispatchers.Default,
+                flushBatch = Int.MAX_VALUE,
+                notifyEvery = Int.MAX_VALUE,
+                maxTracks = Int.MAX_VALUE,
+                process = { SweepOutcome.MEASURED },
+                onFlush = { flushes.incrementAndGet() },
+                onProgress = { _, _ -> },
+                pauseGate = gate,
+            )
+        }
+        delay(SETTLE_MS)
+        withTimeout(WAIT_MS) { sweep.cancelAndJoin() }
+        assertTrue("the final flush must run even when cancelled while paused", flushes.get() >= 1)
+    }
+
+    /** A sweep with no gate is unaffected: it runs to the end exactly as before. */
+    @Test
+    fun noGateMeansNoPause() = runBlocking {
+        val calls = AtomicInteger(0)
+        val tally = sweepTracksInParallel(
+            items = (0 until PAUSE_ITEMS).toList(),
+            workers = FEW_WORKERS,
+            dispatcher = Dispatchers.Default,
+            flushBatch = Int.MAX_VALUE,
+            notifyEvery = Int.MAX_VALUE,
+            maxTracks = Int.MAX_VALUE,
+            process = {
+                calls.incrementAndGet()
+                SweepOutcome.MEASURED
+            },
+            onFlush = { },
+            onProgress = { _, _ -> },
+        )
+        assertEquals(PAUSE_ITEMS, calls.get())
+        assertEquals(PAUSE_ITEMS, tally.processed)
+    }
+
     private companion object {
         private const val ITEM_COUNT = 500
         private const val MANY_WORKERS = 8
@@ -187,5 +308,7 @@ class PeakSweepCoordinatorTest {
         private const val SERIAL_COUNT = 30
         private const val PER_ITEM_MS = 20L
         private const val SETTLE_MS = 80L
+        private const val PAUSE_ITEMS = 60
+        private const val WAIT_MS = 5_000L
     }
 }

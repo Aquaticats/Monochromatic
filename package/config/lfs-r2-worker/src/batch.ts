@@ -9,8 +9,8 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { authorized, } from './authorize.ts';
 import { lfsJson, } from './lfs-json.ts';
@@ -426,18 +426,18 @@ export async function handleBatch({
     const results = await Promise.all(
       batch.objects
         .map(function resolve(object: BatchObject,): Promise<Record<string, unknown>> {
-        return resolveObject({
-          object,
-          operation: batch.operation,
-          env,
-          origin: url.origin,
-          ...batch.operation === 'upload'
-            ? { authorization: nonNullishOrThrow(request.headers
-              .get('Authorization',),), }
-            : {},
-          l: hl,
-        },);
-      },),
+          return resolveObject({
+            object,
+            operation: batch.operation,
+            env,
+            origin: url.origin,
+            ...batch.operation === 'upload'
+              ? { authorization: nonNullishOrThrow(request.headers
+                .get('Authorization',),), }
+              : {},
+            l: hl,
+          },);
+        },),
     );
     return lfsJson({
       body: {

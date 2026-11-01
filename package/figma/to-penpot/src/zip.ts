@@ -4,7 +4,7 @@
  @module figma-to-penpot-zip
  */
 
-import { ZipWriter, } from '@monochromatic-dev/module-zip-writer/ts';
+import { ZipWriter, } from '@monochromatic-dev/zip-writer-core/ts';
 
 import { ZERO_UUID, } from './constants.ts';
 import type { PenpotDocument, } from './types.ts';

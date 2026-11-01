@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T02:01:20Z",
+  "purpose": "Observe whether the same push workflow executes on both GitHub Actions and native Depot CI after automatic registration.",
+  "repo": "Aquaticats/Monochromatic",
+  "orgId": "l4zncjjbj5",
+  "pullRequest": 1776,
+  "mergeCommit": "96bfd0ab29633a254a071e2054628b08ed189156",
+  "mergedAt": "2026-10-19T01:54:50Z",
+  "markerCommit": "3cf4d341f1552e1b5e7050ab9d467f3f36840267",
+  "markerPushedAt": "2026-10-19T02:00:43Z",
+  "workflows": {
+    "github": ".github/workflows/duplicate-control.yml",
+    "depot": ".depot/workflows/duplicate-control.yml",
+    "trigger": "push on main, paths probe/duplicate-control.txt",
+    "sideEffects": "none; each copy echoes its provider and the commit SHA"
+  },
+  "observations": {
+    "github": {
+      "runId": 39187939149,
+      "workflowName": "duplicate-control",
+      "event": "push",
+      "headSha": "3cf4d341f1552e1b5e7050ab9d467f3f36840267",
+      "conclusion": "success",
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39187939149",
+      "check": {
+        "name": "probe",
+        "app": "github-actions",
+        "conclusion": "success"
+      }
+    },
+    "depot": {
+      "runId": "ps_sjdqrdsgtl",
+      "workflow": "duplicate-control.yml",
+      "workflowId": "ntsj5gspwv",
+      "trigger": "push",
+      "status": "finished",
+      "job": "probe",
+      "jobId": "4kpq9gqdqk",
+      "attemptId": "qrr40v9dwr",
+      "logLine": "depot push 3cf4d341f1552e1b5e7050ab9d467f3f36840267",
+      "check": {
+        "name": "duplicate-control / probe",
+        "app": "depot-code-access",
+        "conclusion": "success"
+      }
+    }
+  },
+  "result": "One marker push produced one GitHub Actions run and one native Depot run for the same workflow and commit. Both providers wrote successful checks on the commit.",
+  "cleanup": {
+    "commit": "833d49ecfb4566b2e1fe2be76820a363004ab8c2",
+    "result": "Both workflow copies and the marker were removed; the cleanup push was a direct push to main."
+  },
+  "limits": [
+    "One side-effect-free duplicate observation; no deployment, artifact, or external-write workflow was exercised.",
+    "The duplicate warning for side-effecting workflows is documented and now observed for a no-op workflow.",
+    "No claim about cancellation, ordering, or check overwrite between the two providers."
+  ]
+}

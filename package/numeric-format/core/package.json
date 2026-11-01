@@ -1,0 +1,42 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/numeric-format-core",
+  "description": "Numeric formatters for the gaps Intl.DurationFormat / Intl.NumberFormat explicitly do not cover: magnitude-adaptive sub-millisecond durations and IEC binary byte units.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/numeric-format/core"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

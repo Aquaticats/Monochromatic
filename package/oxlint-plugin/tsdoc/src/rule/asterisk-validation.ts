@@ -63,8 +63,8 @@ export const noMultiAsterisks: CreateOnceRule = {
         // Skip first line (opening) and last line (closing)
         lines
           .slice(
-            1,
-            -1,
+          1,
+          -1,
           )
           .forEach(function checkLine(
             line,

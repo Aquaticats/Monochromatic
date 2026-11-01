@@ -4,7 +4,7 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isClassLikeDeclaration,
   isGetAccessorDeclaration,
@@ -16,11 +16,11 @@ import {
   isSetAccessorDeclaration,
   isStringLiteral,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 import {
   type Project,
   SymbolFlags,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { callableDeclaration, } from './effect-call-resolution.ts';
 import {
@@ -227,7 +227,7 @@ export function exportedCallable({
    */
   const handle = resolved.valueDeclaration
     ?? resolved.declarations
-    .at(0,);
+      .at(0,);
   /**
    Resolved implementation declaration node.
    */

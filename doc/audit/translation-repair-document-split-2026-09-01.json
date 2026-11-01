@@ -1,0 +1,69 @@
+{
+  "format": "translation-repair-document-split-audit-v2",
+  "afterStateMethod": "ordered Intl.Segmenter word-token subsequence plus prior Markdown link-target multiset containment",
+  "afterStateLimitations": [
+    "does not assert punctuation, Markdown syntax, code syntax, or duplicate non-link punctuation preservation",
+    "link-target containment does not assert link-target ordering",
+    "exact byte assignment is established separately by split-time source and raw-part reassembly checks"
+  ],
+  "preSplitDigests": {
+    "handover": "285c54e35836750d110a544bd9e93ae08980b0cb989e4eef95820af478a670aa",
+    "history": "56bdbdf2a0d5b7198b0ff75b428d7b00a2e9218ae28e25f9421895f5ce51aa8d",
+    "interfaceComparison": "933df3bccd51b986bd325d6fd540c4b972d4a5288ebbb205096cfba66398eac9",
+    "runContinuity": "14c7e46f7b54867af4539cca0ba493302da06ff5a7e16a76d32d8be18a281806"
+  },
+  "probes": [
+    {
+      "name": "history-pre-split-source",
+      "sourceDigest": "56bdbdf2a0d5b7198b0ff75b428d7b00a2e9218ae28e25f9421895f5ce51aa8d",
+      "finalAggregateDigest": "a21237604d73583259aedbecaafbb5246d987c0d713992227a7abca3648c3e44",
+      "sourceWordCount": 197497,
+      "finalWordCount": 200755,
+      "sourceWordsRemainOrdered": true,
+      "sourceLinkTargetCount": 3,
+      "finalLinkTargetCount": 94,
+      "sourceLinkTargetsRemain": true
+    },
+    {
+      "name": "handover-unreplaced-baseline",
+      "sourceDigest": "d3aea1d37d7601a78f9738043a2603372c457ad33381ca9eb0a08dace3688d11",
+      "finalAggregateDigest": "6b71be36a306f2a32a1a9196de770236f2b2f9c024ea33d941243731dddaa446",
+      "sourceWordCount": 18212,
+      "finalWordCount": 19351,
+      "sourceWordsRemainOrdered": true,
+      "sourceLinkTargetCount": 0,
+      "finalLinkTargetCount": 17,
+      "sourceLinkTargetsRemain": true
+    },
+    {
+      "name": "continuity-committed-baseline",
+      "sourceDigest": "1d6ea172c2ef2f18859e1a5f4724e78ce7b1195a39e7962f7d5544aa45c27a08",
+      "finalAggregateDigest": "20110c8bae6ca051c209af58e67985927c23fa111fab7790c120c37c3285f22d",
+      "sourceWordCount": 9227,
+      "finalWordCount": 9486,
+      "sourceWordsRemainOrdered": true,
+      "sourceLinkTargetCount": 0,
+      "finalLinkTargetCount": 8,
+      "sourceLinkTargetsRemain": true
+    },
+    {
+      "name": "interface-unreplaced-baseline",
+      "sourceDigest": "908bb378ed5078c281703a15215d2a20304fa4e92f90e4c33b0cc067040e4be4",
+      "finalAggregateDigest": "5c68070745b6fd58124e07b02b45335a3702a0cde274194a2dd3a0a83dc419e1",
+      "sourceWordCount": 22206,
+      "finalWordCount": 22854,
+      "sourceWordsRemainOrdered": true,
+      "sourceLinkTargetCount": 1,
+      "finalLinkTargetCount": 11,
+      "sourceLinkTargetsRemain": true
+    }
+  ],
+  "requiredMarkers": {
+    "currentHandover": true,
+    "candidateMResult": true,
+    "continuityStop": true,
+    "historySegmentCountIsFortyFour": true,
+    "everyHistorySegmentHasStop": true,
+    "implementationStop": true
+  }
+}

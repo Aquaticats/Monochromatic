@@ -1,0 +1,103 @@
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:35:27
+   |
+LL |     let _ = thread::spawn(move || { let f = |n: i32| n + 1; f(2) });
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+   = note: `#[warn(avoidable_closure)]` on by default
+
+warning: this closure captures no variables, so a named function can take its place; also, it is the initializer of a `let` statement, not a direct call argument
+  --> $DIR/adversarial.rs:35:45
+   |
+LL |     let _ = thread::spawn(move || { let f = |n: i32| n + 1; f(2) });
+   |                                             ^^^^^^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:42:27
+   |
+LL |     let _ = thread::spawn(move || { let n = 3; n + 1 });
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures `offset`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/adversarial.rs:54:20
+   |
+LL |         (1..3).map(|x| x + offset).sum::<i32>() + base
+   |                    ^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures no variables, so a named function can take its place; also, it is the initializer of a `let` statement, not a direct call argument
+  --> $DIR/adversarial.rs:63:17
+   |
+LL |         let g = || 1 + 1;
+   |                 ^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures `p`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/adversarial.rs:74:24
+   |
+LL |     let _ = (0..1).map(|_| p.a.len() + p.b.len()).count();
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:79:27
+   |
+LL |     let _ = thread::spawn(move || 7);
+   |                           ^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:86:27
+   |
+LL |     let _ = thread::spawn(move || { let _ = n; });
+   |                           ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:104:23
+   |
+LL |     let _ = spawn_it!(move || 3);
+   |                       ^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures no variables, so a named function can take its place
+  --> $DIR/adversarial.rs:19:28
+   |
+LL | macro_rules! closure_inside_macro_body {
+...
+LL |         std::thread::spawn(move || 1 + 1)
+   |                            ^^^^^^^^^^^^^
+...
+LL |     let _ = closure_inside_macro_body!(1);
+   |             ----------------------------- in this macro invocation
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call
+  --> $DIR/adversarial.rs:119:19
+   |
+LL |     let _ = apply(|x| x + 1);
+   |                   ^^^^^^^^^
+   |
+   = help: move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call
+
+warning: this closure captures `n`, but it is not a direct argument of a call or method call
+  --> $DIR/adversarial.rs:126:13
+   |
+LL |     let _ = (move || n).clone()();
+   |             ^^^^^^^^^^^
+   |
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: 12 warnings emitted

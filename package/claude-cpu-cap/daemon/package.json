@@ -1,0 +1,28 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/claude-cpu-cap-daemon",
+  "description": "Caps the CPU use of Claude Code tool commands and logs CPU temperature, power and fan samples on the host.",
+  "type": "module",
+  "files": [
+    "src",
+    "systemd",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/claude-cpu-cap/daemon"
+  },
+  "private": true,
+  "sideEffects": true,
+  "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*"
+  }
+}

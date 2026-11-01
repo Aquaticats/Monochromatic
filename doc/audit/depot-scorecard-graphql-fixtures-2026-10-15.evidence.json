@@ -1,0 +1,265 @@
+{
+  "fixtureComparisons": 13,
+  "deterministicVariations": 32,
+  "rejectedIncompleteCases": 11,
+  "results": [
+    {
+      "name": "empty",
+      "baseline": {
+        "allowed": true,
+        "requests": 0
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 0
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 0
+      }
+    },
+    {
+      "name": "minute spent",
+      "baseline": {
+        "allowed": false,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 2,
+          "hour": 2,
+          "day": 2
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2,
+        "spent": {
+          "label": "minute",
+          "max": 2
+        }
+      }
+    },
+    {
+      "name": "hour spent",
+      "baseline": {
+        "allowed": false,
+        "requests": 4
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 0,
+          "hour": 4,
+          "day": 4
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 4,
+        "spent": {
+          "label": "hour",
+          "max": 4
+        }
+      }
+    },
+    {
+      "name": "day spent",
+      "baseline": {
+        "allowed": false,
+        "requests": 8
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 8
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 8,
+        "spent": {
+          "label": "day",
+          "max": 8
+        }
+      }
+    },
+    {
+      "name": "minute boundary",
+      "baseline": {
+        "allowed": true,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 1,
+          "hour": 2,
+          "day": 2
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2
+      }
+    },
+    {
+      "name": "hour boundary",
+      "baseline": {
+        "allowed": true,
+        "requests": 4
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 3,
+          "day": 4
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 4
+      }
+    },
+    {
+      "name": "day boundary",
+      "baseline": {
+        "allowed": true,
+        "requests": 7
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 7
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 7
+      }
+    },
+    {
+      "name": "cancelled and skipped",
+      "baseline": {
+        "allowed": true,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 0
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2
+      }
+    },
+    {
+      "name": "failed consumes",
+      "baseline": {
+        "allowed": false,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 2,
+          "hour": 2,
+          "day": 2
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2,
+        "spent": {
+          "label": "minute",
+          "max": 2
+        }
+      }
+    },
+    {
+      "name": "queued null consumes",
+      "baseline": {
+        "allowed": false,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 2,
+          "hour": 2,
+          "day": 2
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2,
+        "spent": {
+          "label": "minute",
+          "max": 2
+        }
+      }
+    },
+    {
+      "name": "missing analysis retains legacy gap",
+      "baseline": {
+        "allowed": true,
+        "requests": 2
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 0
+        },
+        "requests": 1,
+        "points": 1,
+        "visited": 2
+      }
+    },
+    {
+      "name": "790 old history calls",
+      "baseline": {
+        "allowed": false,
+        "requests": 790
+      },
+      "candidate": {
+        "allowed": false,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 8
+        },
+        "requests": 8,
+        "points": 8,
+        "visited": 790,
+        "spent": {
+          "label": "day",
+          "max": 8
+        }
+      }
+    },
+    {
+      "name": "926 skipped runs allow",
+      "baseline": {
+        "allowed": true,
+        "requests": 926
+      },
+      "candidate": {
+        "allowed": true,
+        "used": {
+          "minute": 0,
+          "hour": 0,
+          "day": 0
+        },
+        "requests": 10,
+        "points": 10,
+        "visited": 926
+      }
+    }
+  ]
+}

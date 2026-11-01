@@ -44,7 +44,7 @@ into an anonymous one,
  so property-key inference runs:
 
 ```js
-// package/module/p-memoize-fork/dist/final/neutral/index.mjs
+// package/upstream-fork/p-memoize/dist/final/neutral/index.mjs
 let memoized=mimicFunction({to:function({args}){/* … */},from:fn,ignoreNonConfigurable:!0});
 ```
 
@@ -87,7 +87,7 @@ execution;
 Set the name explicitly before any code reads it:
 
 ```ts
-// package/module/p-memoize-fork/src/p-memoize.ts
+// package/upstream-fork/p-memoize/src/p-memoize.ts
 to: Object.defineProperty(
   function memoized(/* … */) { /* … */ },
   'name',

@@ -29,6 +29,7 @@
     "no-restricted-syntax/no-rest-params": "error",
     "no-restricted-syntax/no-switch": "error",
     "no-restricted-syntax/no-sync": "error",
+    "no-restricted-syntax/no-system-tmpdir": "error",
     "no-restricted-syntax/no-trim-left-right": "error",
     "no-restricted-syntax/no-try-finally": "error",
     "no-restricted-syntax/no-useless-spread": "error",

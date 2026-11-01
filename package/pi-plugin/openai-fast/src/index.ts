@@ -8,7 +8,7 @@ import {
   type ExtensionAPI,
   type SessionStartEvent,
 } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ForeignBorrowed,
   ForeignHostCapability,
@@ -127,15 +127,15 @@ export function registerOpenAIFast({
     /**
      Session logger exposes binding lifecycle without payloads or credentials.
      */
-    const sl = tagged({
-      tag: sessionStart.name,
-      l,
-    },);
-    binding.bind(ctx.modelRegistry,);
-    synchronize(binding.getProvider()
-      .getModels(),);
-    sl.debug('bound priority dispatch to the unchanged original pi provider',);
-  },
+      const sl = tagged({
+        tag: sessionStart.name,
+        l,
+      },);
+      binding.bind(ctx.modelRegistry,);
+      synchronize(binding.getProvider()
+        .getModels(),);
+      sl.debug('bound priority dispatch to the unchanged original pi provider',);
+    },
   );
 }
 

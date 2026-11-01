@@ -1,0 +1,30 @@
+diff --git a/packages/ai/src/api/openai-completions.ts b/packages/ai/src/api/openai-completions.ts
+index 0e5b606..73e8f74 100644
+--- a/packages/ai/src/api/openai-completions.ts
++++ b/packages/ai/src/api/openai-completions.ts
+@@ -722,14 +722,23 @@ export const streamSimple: StreamFunction<"openai-completions", SimpleStreamOpti
+ ): AssistantMessageEventStream => {
+ 	getClientApiKey(model.provider, options?.apiKey, options?.headers);
+ 
++	// A caller that names no reasoning level leaves the endpoint's own default
++	// in charge. Pinning the off level to null keeps every format's explicit
++	// off dispatch from firing on the empty selection, while a named "off" or
++	// thinking level still reaches those branches unchanged.
++	const dispatchedModel: Model<"openai-completions"> =
++		options?.reasoning === undefined
++			? { ...model, thinkingLevelMap: { ...model.thinkingLevelMap, off: null } }
++			: model;
++
+ 	const base = {
+-		...buildBaseOptions(model, context, options, options?.apiKey),
++		...buildBaseOptions(dispatchedModel, context, options, options?.apiKey),
+ 		toolChoice: options?.toolChoice,
+ 	} satisfies OpenAICompletionsOptions;
+ 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
+ 	const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
+ 
+-	return stream(model, context, {
++	return stream(dispatchedModel, context, {
+ 		...base,
+ 		reasoningEffort,
+ 		thinkingBudgets: options?.thinkingBudgets,

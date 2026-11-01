@@ -38,7 +38,8 @@ the `SPEC.md` heading holds the rules.
   whose `HEAD` names a private copy of the target branch
   and whose `objects/info/alternates` names the real object store,
   so hooks see the real branch name and upstream.
-  New objects stay in the shadow store until landing migrates them into the real store as a pack kept with a `.keep` file,
+  New objects stay in the shadow store until landing migrates them into the real store
+as a pack kept with a `.keep` file,
   and no `refs/cli-git/` ref is ever created.
   `SPEC.md` "Private preparation" and "Object migration";
   the decision's "Private `HEAD` shape:
@@ -205,7 +206,7 @@ and every new behavior goes into sibling modules per MXL:
   `using`/`await using` cleanup,
   and custom error classes.
 - Git always runs with an argument array and no shell.
-- Unit tests sit beside the module as `*.unit.test.ts` on `@monochromatic-dev/module-test`,
+- Unit tests sit beside the module as `*.unit.test.ts` on `@monochromatic-dev/test-harness-core`,
   run through `mise run //package/git-policy/cli:test:unit`.
 - Real-Git disposable fixtures follow `src/worktree-copy-fixture.unit.test.ts`:
   `/usr/bin/git`,

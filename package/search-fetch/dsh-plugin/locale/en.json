@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Search and Fetch",
+    "description": "Connects the shared Exa-first web_search and blocklist-enforced web_fetch MCP server, giving agents the same search behavior the pi extension has."
+  }
+}

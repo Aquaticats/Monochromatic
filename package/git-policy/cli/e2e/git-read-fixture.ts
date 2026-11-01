@@ -265,8 +265,8 @@ export async function changedPaths({
   },);
   return text.split('\0',)
     .filter(function nonEmpty(path,) {
-    return path !== '';
-  },);
+      return path !== '';
+    },);
 }
 
 /**
@@ -309,8 +309,8 @@ export async function firstParentChain({
   return [
     ...text.split('\n',)
       .filter(function nonEmpty(line,) {
-    return line !== '';
-  },),
+        return line !== '';
+      },),
     oldest,
   ];
 }

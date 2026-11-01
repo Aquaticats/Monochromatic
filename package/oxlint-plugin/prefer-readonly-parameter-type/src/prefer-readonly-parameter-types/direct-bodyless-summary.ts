@@ -8,7 +8,7 @@
  @module
  */
 
-import type { Checker, } from 'typescript/unstable/sync';
+import type { Checker, } from 'typescript/sync';
 
 import { addOpaqueEffect, } from './effect-call-resolution.ts';
 import { expressionCanCarryMutableState, } from './effect-primitive-origin.ts';

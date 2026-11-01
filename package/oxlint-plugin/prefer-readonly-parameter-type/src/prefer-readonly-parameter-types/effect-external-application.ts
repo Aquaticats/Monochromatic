@@ -7,7 +7,7 @@
 import type {
   CallExpression,
   Node,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 
 import { addOpaqueEffect, } from './effect-call-resolution.ts';
 import { formalActualPositions, } from './effect-formal-actual-mapping.ts';

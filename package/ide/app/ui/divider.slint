@@ -1,0 +1,112 @@
+// Draggable boundary between the project tree and the source view. The owner holds the width and its bounds.
+// The divider has two halves. `SidebarDivider` is the 1px layout cell between the tree and the source: it keeps
+// the Tab order tree, divider, source and is the accessible slider. `SidebarDividerGrip` is placed over the
+// layout by the owner: it paints the line with its states and takes pointer drags in a narrow zone on the line.
+import { Palette } from "std-widgets.slint";
+
+export component SidebarDivider inherits Rectangle {
+    // Width currently given to the sidebar, and the range the owner accepts.
+    in property <length> value;
+    in property <length> minimum;
+    in property <length> maximum;
+    out property <bool> has-focus: keys.has-focus;
+    // The owner clamps the requested width; this component never stores one.
+    callback resize(length);
+    callback shortcut(string, bool, bool, bool);
+    private property <length> step: 16px;
+    forward-focus: keys;
+    // Slint 1.18.1 has no splitter or separator role; slider is its adjustable-value role.
+    accessible-role: slider;
+    accessible-label: "Sidebar width";
+    accessible-orientation: horizontal;
+    accessible-value: root.value / 1px;
+    accessible-value-minimum: root.minimum / 1px;
+    accessible-value-maximum: root.maximum / 1px;
+    accessible-value-step: root.step / 1px;
+    accessible-action-increment => { root.resize(root.value + root.step); }
+    accessible-action-decrement => { root.resize(root.value - root.step); }
+    accessible-action-set-value(text) => {
+        if text.is-float() { root.resize(text.to-float() * 1px); }
+    }
+
+    // A pointer press never takes keyboard focus; Tab reaches this zero-size scope between tree and source.
+    keys := FocusScope {
+        width: 0px;
+        height: 0px;
+        key-pressed(event) => {
+            if event.modifiers.control {
+                root.shortcut(event.text, true, event.modifiers.shift, event.modifiers.alt);
+                return accept;
+            }
+            if event.text == Key.LeftArrow {
+                root.resize(root.value - root.step);
+            } else if event.text == Key.RightArrow {
+                root.resize(root.value + root.step);
+            } else if event.text == Key.Home {
+                root.resize(root.minimum);
+            } else if event.text == Key.End {
+                root.resize(root.maximum);
+            } else {
+                return reject;
+            }
+            accept
+        }
+    }
+}
+
+// The pointer and painting half. This one element is narrower than the 48px minimum that every other custom
+// interactive element keeps: the application runs on desktops only, a drag of this line is rare, and the width
+// is also adjustable by keyboard. The exception is this element's alone.
+export component SidebarDividerGrip inherits Rectangle {
+    // Width currently given to the sidebar; a drag is measured from the width at its press.
+    in property <length> value;
+    // Whether the keyboard half has focus; the pointer never takes it.
+    in property <bool> keyboard-focus;
+    // Columns on each side of the line that belong to the divider. With the line that is a 5px zone,
+    // the grab area Qt gives a 1px splitter handle (`QSplitterHandle::resizeEvent`).
+    // Three columns would still clear the tree scrollbar's thumb and buttons; four would not.
+    out property <length> reach: 2px;
+    callback resize(length);
+    private property <bool> emphasized: grip.has-hover || grip.pressed || root.keyboard-focus;
+    width: 2 * root.reach + 1px;
+
+    // The line. At rest it is one faint column. Under the pointer it is three columns in stronger ink,
+    // beside the resize cursor; a drag uses full ink. Keyboard focus draws the three columns in the accent color.
+    Rectangle {
+        x: root.emphasized ? root.reach - 1px : root.reach;
+        width: root.emphasized ? 3px : 1px;
+        height: parent.height;
+        background: root.keyboard-focus ? Palette.accent-background : Palette.foreground;
+        opacity: grip.pressed || root.keyboard-focus ? 1 : (grip.has-hover ? 0.6 : 0.2);
+    }
+    // Keyboard focus also shows a handle in the middle of the line, so focus differs from a drag by color
+    // and by shape, and from the resting line by weight, color, and shape. The user chose a 96px handle on
+    // 2026-10-06; it stays inside the divider's height and centered on it.
+    Rectangle {
+        visible: root.keyboard-focus;
+        y: (parent.height - self.height) / 2;
+        width: parent.width;
+        height: min(96px, parent.height);
+        border-radius: self.width / 2;
+        background: Palette.accent-background;
+    }
+    grip := TouchArea {
+        private property <length> press-pointer;
+        private property <length> press-value;
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: col-resize;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                self.press-pointer = self.absolute-position.x + self.mouse-x;
+                self.press-value = root.value;
+            }
+        }
+        moved => {
+            // Any held button reports movement; only a left-button press recorded a drag origin.
+            if !self.pressed { return; }
+            // The divider moves with the width, so the drag is measured in window coordinates from the press.
+            root.resize(self.press-value + self.absolute-position.x + self.mouse-x - self.press-pointer);
+        }
+    }
+}

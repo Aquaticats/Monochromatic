@@ -1,0 +1,206 @@
+// Lazy project navigation. Native code keeps filesystem paths outside display strings.
+import { Surface } from "surface.slint";
+import { ScrollView, Palette } from "std-widgets.slint";
+
+export struct TreeEntry {
+    label: string,
+    depth: int,
+    directory: bool,
+    expanded: bool,
+    selected: bool,
+    recency: string,
+    ignored: bool,
+}
+
+export component ProjectTree inherits Rectangle {
+    in property <[TreeEntry]> entries;
+    in property <string> project-label;
+    in property <string> project-path;
+    in property <string> error-message;
+    in-out property <int> focused-row: -1;
+    // Ink for text and marks on a selected row. The owner passes the ink native code chooses from the
+    // selection fill; the palette's own selection ink, the fallback here, is black in the dark scheme.
+    in property <brush> selected-ink: Palette.selection-foreground;
+    // Hover and focus tint of a selected row. The owner passes the opposite of the selected ink, so the tint
+    // moves the fill away from the text; the fallback matches the palette's own selection ink.
+    in property <brush> selected-tint: Palette.foreground;
+    out property <bool> tree-has-focus: tree-focus.has-focus;
+    out property <length> scroll-y: view.content-y;
+    out property <length> viewport-height: view.visible-height;
+    callback activate(int);
+    callback user-focus(int);
+    callback navigate(string, int);
+    callback shortcut(string, bool, bool, bool);
+    private property <length> row-height: 48px;
+    // The name of a row that git ignores is drawn at this share of its ink, over whatever fill the row has.
+    private property <float> ignored-opacity: 0.8;
+    private property <int> first-visible: max(0, floor(-view.content-y / root.row-height) - 1);
+    background: Surface.background;
+    forward-focus: tree-focus;
+    accessible-role: navigation;
+    accessible-label: "Project files";
+    accessible-description: root.project-path;
+
+    public function reveal(index: int) {
+        if index < 0 || index >= root.entries.length { return; }
+        root.focused-row = index;
+        if view.content-y + index * root.row-height < 0px {
+            view.content-y = -index * root.row-height;
+        } else if view.content-y + (index + 1) * root.row-height > view.visible-height {
+            view.content-y = view.visible-height - (index + 1) * root.row-height;
+        }
+    }
+
+    changed entries => {
+        root.focused-row = min(root.focused-row, root.entries.length - 1);
+    }
+
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 32px;
+            Text {
+                x: 12px;
+                width: parent.width - 24px;
+                height: parent.height;
+                text: root.project-label;
+                color: Palette.foreground;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        view := ScrollView {
+            vertical-stretch: 1;
+            content-width: self.visible-width;
+            content-height: max(self.visible-height, root.entries.length * root.row-height);
+            accessible-role: tree;
+            accessible-label: "Project directories and files";
+            accessible-item-count: root.entries.length;
+            accessible-delegate-focus: root.focused-row - root.first-visible;
+
+            // Fixed-height windowing retains native ScrollView physics without ListView's random-seek rounding.
+            for slot in ceil(view.visible-height / root.row-height) + 2: Rectangle {
+                private property <int> index: root.first-visible + slot;
+                private property <TreeEntry> entry: index < root.entries.length ? root.entries[index] :
+                    { label: "", depth: 0, directory: false, expanded: false, selected: false, recency: "", ignored: false };
+                visible: index < root.entries.length;
+                x: 0px;
+                y: index * root.row-height;
+                width: max(48px, view.visible-width);
+                height: root.row-height;
+                background: entry.selected ? Palette.selection-background : transparent;
+                border-width: tree-focus.has-focus && index == root.focused-row ? 1px : 0px;
+                border-color: Palette.foreground;
+                accessible-role: list-item;
+                // A second channel for the dimmed name: the label says it too, so it is not opacity alone.
+                accessible-label: entry.ignored ? entry.label + ", ignored by git" : entry.label;
+                // The row's texts are not read on their own, so the slot badge's shortcut is part of the description.
+                accessible-description: entry.directory ? "Directory"
+                    : (entry.recency == "" ? "Source file" : "Source file, Ctrl+" + entry.recency);
+                accessible-expandable: entry.directory;
+                accessible-expanded: entry.expanded;
+                accessible-item-selectable: true;
+                accessible-item-selected: entry.selected;
+                accessible-item-index: index;
+                accessible-action-default => { root.activate(index); }
+                accessible-action-expand => { if entry.directory { root.activate(index); } }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    background: entry.selected ? root.selected-tint : Palette.foreground;
+                    opacity: row-touch.has-hover || (tree-focus.has-focus && index == root.focused-row) ? 0.08 : 0;
+                }
+                Text {
+                    x: 8px + entry.depth * 16px;
+                    width: 24px;
+                    height: parent.height;
+                    text: entry.directory ? (entry.expanded ? "▾" : "▸") : entry.recency;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: entry.selected ? root.selected-ink : Palette.foreground;
+                    // The arrow repeats the expanded state and the badge the shortcut in the description.
+                    accessible-role: none;
+                }
+                Text {
+                    x: 32px + entry.depth * 16px;
+                    width: max(0px, parent.width - self.x - 12px);
+                    height: parent.height;
+                    text: entry.label;
+                    font-size: 14px;
+                    font-weight: entry.selected || entry.expanded ? 600 : 400;
+                    color: entry.selected ? root.selected-ink : Palette.foreground;
+                    opacity: entry.ignored ? root.ignored-opacity : 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    // The row carries the name; its text is not read a second time.
+                    accessible-role: none;
+                }
+                // The layout row enforces 48px minima; input stays exactly inside those same bounds.
+                row-touch := TouchArea {
+                    private property <int> pressed-index: -1;
+                    private property <[TreeEntry]> pressed-entries;
+                    width: parent.width;
+                    height: parent.height;
+                    pointer-event(event) => {
+                        if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                            self.pressed-index = index;
+                            self.pressed-entries = root.entries;
+                        }
+                    }
+                    clicked => {
+                        // Scrolling can reuse this input item for another row before release.
+                        if self.pressed-index != index || self.pressed-entries != root.entries { return; }
+                        tree-focus.focus();
+                        root.focused-row = index;
+                        root.user-focus(index);
+                        root.activate(index);
+                    }
+                }
+            }
+        }
+        if root.error-message != "": Text {
+            text: root.error-message;
+            color: Palette.foreground;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+    }
+
+    tree-focus := FocusScope {
+        width: 0px;
+        height: 0px;
+        key-pressed(event) => {
+            if event.modifiers.control {
+                root.shortcut(event.text, true, event.modifiers.shift, event.modifiers.alt);
+                return accept;
+            }
+            if event.text == Key.UpArrow {
+                root.reveal(max(0, root.focused-row - 1));
+            } else if event.text == Key.DownArrow {
+                root.reveal(min(root.entries.length - 1, root.focused-row + 1));
+            } else if event.text == Key.Home {
+                root.reveal(0);
+            } else if event.text == Key.End {
+                root.reveal(root.entries.length - 1);
+            } else if event.text == Key.PageUp {
+                root.reveal(max(0, root.focused-row - max(1, floor(view.visible-height / root.row-height))));
+            } else if event.text == Key.PageDown {
+                root.reveal(min(root.entries.length - 1,
+                    root.focused-row + max(1, floor(view.visible-height / root.row-height))));
+            } else if event.text == Key.Return || event.text == Key.Space {
+                root.user-focus(root.focused-row);
+                root.activate(root.focused-row);
+                return accept;
+            } else if event.text == Key.LeftArrow || event.text == Key.RightArrow {
+                root.navigate(event.text, root.focused-row);
+            } else {
+                return reject;
+            }
+            root.user-focus(root.focused-row);
+            accept
+        }
+    }
+}

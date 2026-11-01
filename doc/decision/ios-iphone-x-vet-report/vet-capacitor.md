@@ -20,7 +20,8 @@ run,
 
 - iOS runtime model:
    WKWebView-JIT.
-   App UI/logic is HTML/CSS/JS run entirely inside an out-of-process WKWebView content process (the one surface holding iOS dynamic-codesigning/JIT).
+   App UI/logic is HTML/CSS/JS run entirely inside an out-of-process WKWebView content process
+   (the one surface holding iOS dynamic-codesigning/JIT).
    Native side calls JS via WKWebView.
   evaluateJavaScript;
    JS calls native via WKScriptMessageHandler.
@@ -36,7 +37,8 @@ run,
 - Confidence:
    high
 - Key finding:
-   Capacitor's iOS shell is a native UIKit app whose app code runs as HTML/JS inside an out-of-process WKWebView (the only JIT-entitled surface) with zero in-app-process JS engine,
+   Capacitor's iOS shell is a native UIKit app whose app code runs as HTML/JS inside an out-of-process WKWebView
+   (the only JIT-entitled surface) with zero in-app-process JS engine,
    so wall 2 is structurally a non-issue (no-jit-needed);
    native plugins are plain Swift/ObjC compiled AOT,
    so linking and calling a Go/Rust static lib (kopia,
@@ -59,10 +61,12 @@ Capacitor does not embed a managed/scripted runtime in the app process.
  The app process itself runs only AOT-compiled Swift/ObjC (the CapacitorBridge + native plugins).
  Native-to-JS is evaluateJavaScript;
  JS-to-native is the WKScriptMessageHandler bridge.
- Grepping the iOS core for an in-process JS engine (import JavaScriptCore / JSContext( / JSVirtualMachine) returns empty,
+ Grepping the iOS core for an in-process JS engine
+ (import JavaScriptCore / JSContext( / JSVirtualMachine) returns empty,
  so no app-process interpreter or JIT is needed.
  This is the structurally safest answer to wall 2 of any candidate:
- Capacitor lands directly on the only JIT-blessed surface and needs nothing from the app process beyond ordinary native AOT code.
+ Capacitor lands directly on the only JIT-blessed surface and needs nothing
+ from the app process beyond ordinary native AOT code.
 
 Source:
  /tmp/agent/capacitor-audit-20260612/ios/Capacitor/Capacitor/CapacitorBridge.
@@ -118,9 +122,11 @@ shared (in WebViewAssetHandler's HTTP interceptor) and no BGTaskScheduler/BGProc
  idle/charging) exist;
  there is no foreground-service equivalent.
  A multi-hour kopia snapshot cannot run continuously in the background and must be restructured:
- do chunked work under a BGProcessingTask and push the actual pCloud upload through a background URLSession (which the OS continues after suspension).
+ do chunked work under a BGProcessingTask
+ and push the actual pCloud upload through a background URLSession (which the OS continues after suspension).
  The pCloud transfer maps cleanly to background URLSession;
- the kopia compute (dedup/snapshot via the linked Go lib) does not get unbounded background CPU and must checkpoint/resume across BGProcessingTask windows.
+ the kopia compute (dedup/snapshot via the linked Go lib) does not get unbounded background CPU
+ and must checkpoint/resume across BGProcessingTask windows.
  The community @capacitor/background-runner plugin exists but runs JS,
  not the native kopia compute,
  so the heavy path stays in a custom native plugin.
@@ -131,8 +137,10 @@ swift:
 142 (URLSession.
 shared,
  only URLSession in core);
- rg 'BGTaskScheduler|BGProcessingTask|beginBackgroundTask' over ios/Capacitor returns empty (no background scheduler in core);
- Apple docs <https://developer.apple.com/documentation/backgroundtasks/bgprocessingtask> and <https://developer.apple.com/documentation/foundation/url_loading_system/downloading_files_in_the_background>
+ rg 'BGTaskScheduler|BGProcessingTask|beginBackgroundTask'
+ over ios/Capacitor returns empty (no background scheduler in core);
+ Apple docs <https://developer.apple.com/documentation/backgroundtasks/bgprocessingtask>
+ and <https://developer.apple.com/documentation/foundation/url_loading_system/downloading_files_in_the_background>
 
 ## In-app HTTP server (kopia S3 target)
 
@@ -183,7 +191,8 @@ shared and merges headers).
  (2) For the kopia/pCloud streaming upload,
  the native side uses Foundation URLSession (incl.
  background URLSession with streamed bodies) or Go net/http inside the linked lib.
- cploud-bound streaming HTTPS with backpressure is best done natively (URLSession upload tasks or the Go http client in the gomobile lib),
+ cploud-bound streaming HTTPS with backpressure is best done natively
+ (URLSession upload tasks or the Go http client in the gomobile lib),
  not from JS.
  ATS (App Transport Security) applies to HTTPS the same as any iOS app.
 
@@ -204,7 +213,8 @@ Decode:
 
 Output:
  cpal 0.18 reused as-is:
- cpal has a dedicated iOS CoreAudio/AudioUnit backend (RemoteIO + AVAudioSession) selected by cfg(not(target_os="macos")),
+ cpal has a dedicated iOS CoreAudio/AudioUnit backend (RemoteIO + AVAudioSession) selected by
+ cfg(not(target_os="macos")),
  so low-latency output works through the same crate.
  No AVAudioEngine rewrite of the core is required;
  AVAudioSession category/activation may need a thin Swift shim in the plugin.
@@ -227,9 +237,11 @@ h
 Minimal app:
  Capacitor iOS scaffold (npx cap add ios) opened as App.
 xcworkspace,
- with a custom CAPPlugin that links a Rust staticlib (rustup target aarch64-apple-ios) or Go gomobile c-archive via a bridging header.
+ with a custom CAPPlugin that links a Rust staticlib (rustup target aarch64-apple-ios)
+ or Go gomobile c-archive via a bridging header.
  On-device signals on the iPhone X:
- (1) WebView UI shows a value returned from the linked Rust/Go function (wall-1 FFI through the WKScriptMessageHandler bridge),
+ (1) WebView UI shows a value returned from the linked Rust/Go function
+ (wall-1 FFI through the WKScriptMessageHandler bridge),
  (2) audible tone via cpal's iOS RemoteIO backend (native audio output works),
  (3) an in-process 127.0.0.1 HTTP 200 from a plugin-hosted listener (embedded-server path for kopia).
  Pass = all three observed with no execmem/codesign kill (none expected,
@@ -255,7 +267,8 @@ xcframework;
    called from a CAPPlugin Swift bridge
 - In-app TCP HTTP/S3 server vet:
    embed Go net/http (in the gomobile lib) or Swift Network.
-  framework NWListener bound to 127.0.0.1 as kopia's target endpoint (Capacitor's URLSchemeHandler does not provide a real socket)
+  framework NWListener bound to 127.0.0.1 as kopia's target endpoint
+  (Capacitor's URLSchemeHandler does not provide a real socket)
 - Streaming HTTPS upload vet:
    background URLSession upload tasks (and ATS config) for the pCloud transfer,
    plus checkpoint/resume of kopia compute across BGProcessingTask windows
@@ -266,7 +279,8 @@ xcframework;
    cpal iOS RemoteIO/AVAudioSession output latency + AVAudioSession category shim,
    true-peak normalization + on-disk peak cache running in the Rust core
 - Bridge-throughput vet:
-   WKScriptMessageHandler + evaluateJavaScript round-trip cost for high-frequency UI<->native audio/queue state (two-axis pagination,
+   WKScriptMessageHandler + evaluateJavaScript round-trip cost for high-frequency UI<->native audio/queue state
+   (two-axis pagination,
    session persistence)
 - QA:
    in-process UI test (XCUITest driving the WKWebView),
@@ -310,10 +324,12 @@ xcframework;
   swift:
   132-187
 - Capacitor core ships no background scheduler (no BGTaskScheduler/BGProcessingTask):
-   rg 'BGTaskScheduler|BGProcessingTask|beginBackgroundTask' over /tmp/agent/capacitor-audit-20260612/ios/Capacitor empty
+   rg 'BGTaskScheduler|BGProcessingTask|beginBackgroundTask'
+   over /tmp/agent/capacitor-audit-20260612/ios/Capacitor empty
 - cpal has an iOS CoreAudio/AudioUnit (RemoteIO/AVAudioSession) backend,
    so the Rust audio core is reusable via FFI without AVAudioEngine rewrite:
-   <https://raw.githubusercontent.com/RustAudio/cpal/master/src/host/coreaudio/mod.rs> (cfg(not(target_os="macos")) mod ios;
+   <https://raw.githubusercontent.com/RustAudio/cpal/master/src/host/coreaudio/mod.rs>
+   (cfg(not(target_os="macos")) mod ios;
    RemoteIO/AVAudioSession comment)
 - Min iOS deployment target 15.0:
    /tmp/agent/capacitor-audit-20260612/ios/Capacitor.
@@ -335,7 +351,8 @@ xcframework;
    No false,
    fabricated,
    or contradicted claims found.
-   Every line-level citation verifies exactly against the genuine ionic-team/capacitor clone (remote = <https://github.com/ionic-team/capacitor.git>,
+   Every line-level citation verifies exactly against the genuine ionic-team/capacitor clone
+   (remote = <https://github.com/ionic-team/capacitor.git>,
    HEAD 28bb2c6).
 
 Verified true:
@@ -376,10 +393,12 @@ Verified true:
 Caveat worth surfacing to a reader making the toolchain-install call (per schema:
  unsupported-by-cited-source,
  though not false):
- the wall-2 verdict's actual linchpin is the POSITIVE claim that "WKWebView is the out-of-process WebContent process that already carries the JIT (dynamic-codesigning) entitlement.
+ the wall-2 verdict's actual linchpin is the POSITIVE claim that "WKWebView is the out-of-process WebContent process
+ that already carries the JIT (dynamic-codesigning) entitlement.
 " None of the cited Capacitor sources state this;
  the grep only proves the NEGATIVE (the app process embeds no in-process JS engine).
- The positive claim is nonetheless correct as iOS platform architecture (WebContent runs out-of-process with dynamic-codesigning;
+ The positive claim is nonetheless correct as iOS platform architecture
+ (WebContent runs out-of-process with dynamic-codesigning;
  third-party in-app JavaScriptCore is jitless),
  which is precisely why no-jit-needed is the safe answer,
  so wall-2 stays confirmed,

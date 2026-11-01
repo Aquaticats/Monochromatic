@@ -1,5 +1,544 @@
 # Batched axioms with a three-call assessment ceiling
 
+## Decisions HTTP contract intake on 2026-10-13
+
+The user supplied LLM Gateway's October 12 announcement and Decisions guide,
+then explicitly excluded introducing the `openai` npm package.
+Keep direct HTTP transport.
+Do not install an SDK or upgrade dependencies for this endpoint.
+
+Read-only checks confirmed the
+[announcement](https://llmgateway.io/changelog/openai-compatible-decisions-api),
+[Decisions guide](https://docs.llmgateway.io/features/decisions),
+and [HTTP reference](https://docs.llmgateway.io/v1_decisions).
+No inference request was made.
+The announcement keeps Jev available on `/v1/systemone`;
+its deprecation date is to be announced separately.
+This intake does not adopt a different model or qualification policy.
+
+The new wire contract requires an explicit adapter,
+not only a changed URL:
+
+- `state` becomes string `input` for the current text-only assessment.
+  Preserve the exact retained `originalRequestBody` string inside that outer envelope.
+  Never parse and reconstruct the original request.
+- Question IDs become `name` values in an ordered question array.
+  The local decoder must check original count,
+  names,
+  ordering,
+  answer types,
+  and option membership.
+- Legacy `noul` becomes `predicate`;
+  choice criteria become `choices`;
+  score criteria become `levels`.
+  Existing structured question instructions also need explicit text encoding.
+- Answer maps become arrays,
+  and probability records become arrays of named values.
+  A question-level `refusal` must remain unresolved for that original question,
+  never become zero probability,
+  permission,
+  or a lost batch member.
+- Recheck the final encoded wire size under the existing one-MiB limit.
+  Preserve the original preparation-inclusive deadline,
+  attempts,
+  cancellation,
+  source/evidence identities,
+  and code-owned admission.
+
+Vendor descriptions of calibrated probabilities are not qualification evidence for this guard.
+The new endpoint does not establish complete host receipt,
+source authority,
+applicable scope,
+delegation,
+or installed activation.
+Its transport implementation and decoder checks remain unimplemented.
+
+## Accepted next policy-consumer slice
+
+The user accepted this slice on 2026-10-08.
+The bounded native-program checkpoint is verified.
+The next work is the missing policy consumer,
+not another runtime ownership matrix or provider trial.
+Acceptance does not authorize installed activation or adopt semantic thresholds.
+
+The standalone private `contract/integration/action-policy/evaluate.mjs#evaluateBoundPolicy`
+remains unconfigured and withholds execution.
+The new fixed-bootstrap evaluator can consume original typed estimates
+and produce nonempty rule inputs through the canonical native reviewer.
+Independent source/delegation and operation coverage remain unresolved.
+Execution fixtures that separately authorize inert programs do not establish those missing premises.
+
+- [x] Establish the per-clause consumption contract from existing definitions and evidence.
+  Retain original clause identity,
+  authority,
+  scope,
+  conditions,
+  and whole-operation binding.
+  Separate permissions,
+  prohibitions,
+  and authorization prerequisites.
+  Identify exactly which estimates can support which conclusions;
+  unsupported meanings and missing qualification remain unresolved.
+- [ ] Compute decision-relevant missing premises from the existing source and operation owners.
+  The configured compiler now replaces the unconditional empty rule program with supported inputs;
+  sufficient decision-specific coverage is still unfinished.
+  Unknown coverage is not absence,
+  and potentially outcome-changing instructions cannot be ignored.
+  Preserve the accepted use of qualified inspected-form estimates;
+  do not replace it with a universal code-proof-only requirement.
+- [ ] Exercise the canonical native handler without injecting final decisions.
+  Cover denial,
+  approval where justified,
+  eligible incumbent approval requests,
+  unresolved premises,
+  and unspecified policy.
+  Deterministic transport doubles can verify wiring,
+  but cannot establish model accuracy.
+  Preserve the original deadline,
+  evidence closure,
+  currentness,
+  cancellation,
+  and Allow/Deny/Stop behavior.
+
+The immediate deliverable is an explicit mapping from the current clause/effect evidence
+to the existing resolver's supported inputs,
+with regression cases for misleading lowerings and missing premises.
+If existing evidence cannot justify an operative branch,
+record its exact missing premise rather than inventing a cutoff,
+default permission,
+or automatic approval request.
+Installation remains a later step.
+
+### Existing source-association consumer
+
+Already-owned context-source association is authorized implementation,
+not another source-inventory grant.
+The actual SDK 1.1.0 serializer control failed `proc_6ab2` because the canonical reviewer had no source-use consumer.
+The original run,
+manager-copy,
+context-clone,
+and request-observation owners now carry that association.
+The canonical consumer can account for a specific contribution without resolving the global request domain.
+Expanded local matrix `proc_2731` passed 15 modes.
+Identity omission `proc_92e5` and payload-custody omission `proc_7738` failed as intended.
+Both guards are restored.
+Context-handler parity passed `proc_3ece`;
+full native `proc_c4d5` and action `proc_2fa4` passed on SDK 1.1.0.
+
+- [x] Preserve the original context carrier through actual native serialization.
+- [x] Consume its particular association without assigning composite authority or complete governing coverage.
+- [x] Finish guard sensitivity and full restored regression.
+- [ ] Continue remaining decision-specific domain and delegation consumption.
+  No production semantic policy,
+  new provider trial,
+  or installed activation is adopted by these mechanisms.
+
+The user accepted express same-source incorporation in
+[scoped incorporation of quoted policy text](pi-auto-mode-quoted-unit-incorporation.md).
+The original pair producer and canonical scope consumer are now implemented privately.
+The target still needs its separate admitted conditional-effect estimate;
+incorporation adds no permission or authority enlargement.
+Initial actual-serializer control passed `proc_d760`;
+expanded native controls passed `proc_84c5` and `proc_7c37`.
+Original selection and request-scope controls passed `proc_8f62`.
+Guard sensitivity is verified and every omission is restored.
+Full native `proc_3c3a` passed with 36 incorporation scenarios;
+full action `proc_0b25` also passed.
+The original binding segment preserves full-policy dependency-check bounds without caching across an `await`.
+
+The rendered-input consumers now also cover retained host,
+append,
+context,
+run-replacement,
+forced,
+and custom-section inputs.
+Forced projection identity passed restored native `proc_38d6` and action `proc_3eaf`.
+Custom-section controls passed `proc_49c5` and `proc_73fc` before deliberate omissions;
+both the source-membership and native shadowing omissions failed and are restored.
+Full restored native `proc_744b`,
+action `proc_09ee`,
+and ten-document render `proc_fed3` passed.
+These contributions are partial lineage,
+not governing-domain completeness or new source-authority grants.
+See [original rendered prompt-input contributions](../handover/pi-auto-mode-current-frontier.md#original-rendered-prompt-input-contributions).
+
+### Clause consumption contract
+
+The lowering operation consumes an operation-bound relationship already admitted by trusted code policy,
+not a wire answer or probability vector.
+It remains a pure operation,
+like the existing resolver,
+not an evidence-authentication endpoint.
+Authored established relationships and admitted estimates share this mapping;
+neither form turns the lowerer into an empirical qualification producer.
+The native evaluator must obtain any operative relationship through the original owners;
+callers cannot provide an interpreter,
+qualification flag,
+or completeness callback to make one appear.
+
+- `permission` produces an applicable `permit` directive with code-established priority.
+- `prohibition` produces an applicable `prohibit` directive with code-established priority.
+- `prerequisite` produces an applicable authorization requirement,
+   never a directive permission or legacy `require-approval` effect.
+  Satisfaction and channel sufficiency require separate code-established inputs.
+  Missing inputs remain unresolved.
+  Valid scope and any waivers must already be resolved before this lowering.
+- `none` contributes no operative directive or requirement.
+  It does not grant permission or establish complete governing coverage.
+- `unknown` and `unsupported` retain an interpretation gap.
+  They cannot become the kernel's bounded `effect: 'unresolved'` merely by changing the label.
+
+Original clause handles and source occurrences authenticate associations.
+Generated clause identifiers only correlate resolver output with those handles.
+Unregistered sources retain unknown authority;
+there is no user-tier default.
+A priority value in an authored unit fixture is not native authority evidence.
+
+The current relation owner marks every captured estimate as semantically unqualified.
+That describes the owner's transport guarantee,
+not a prohibition on implementing a downstream configured consumer.
+The fixed-bootstrap compiler now authenticates the original batch and reported model,
+then applies the captured synchronous admission function before lowering.
+The function cannot return completeness,
+source authority,
+authorization satisfaction,
+or an action verdict.
+No default production policy or probability threshold is supplied.
+The rule index does not interpret its clauses.
+Current source views do not establish exhaustive governing/delegation coverage,
+and the current native-read fact does not establish whole-operation coverage.
+The first implementation must preserve these limits rather than promote their metadata into proofs.
+It may therefore derive the same unresolved outcome while identifying the particular missing premises.
+Do not send an assessment request that has no admissible consumer under the current contract.
+Unconfigured or out-of-profile native operations still skip assessment.
+Configured local controls exercise admitted relationships,
+not provider accuracy or production policy adoption.
+
+Implementation `f172216`,
+canonical control `proc_b9d8`,
+action `proc_83cd`,
+and expanded full native `proc_daa0` verify the connected compiler mechanism.
+Restored full native `proc_d5a8` and action `proc_059a` passed after model-match and abstention sensitivity checks.
+The canonical fixture outcomes remain unresolved because the independent coverage producers are unfinished.
+
+Positive lowering and approval-composition tests may use authored established relationships.
+Canonical native tests must separately show that raw estimates,
+missing source coverage,
+and member-only facts do not gain that status.
+Passing those tests verifies consumption logic,
+not semantic-model quality.
+
+## Proposed expansion of request-source accounting
+
+The authorization requirement in the initial proposal is withdrawn for the narrow whole-request consumer.
+Independent review and the existing observer source confirmed that exact complete request bytes are already owned.
+Selecting and consuming that input through the same owner adds no source origin or parallel inventory.
+Treating that missing consumer as a new authorization requirement was an incorrect scope reading.
+
+The configured compiler now consumes original tagged,
+untagged,
+and orphan-heading candidates.
+It derives source-local interpretation,
+authority,
+and inspected-operation uses rather than demanding blanket premises.
+The remaining request-domain boundary is different:
+ordinary request material is retained in the original terminal request
+but is not associated with the current governing-source set.
+
+The authorized next step is original whole-request-material selection and actual assessment
+through the existing request and judgment owners.
+It does not reconstruct messages,
+assign authority to transport roles,
+or establish request-wide governing sufficiency.
+The exact original request body must remain authoritative as an observation,
+not as instruction authority.
+Reuse its existing JSON-format validation if structured access is actually needed;
+do not add a raw-span parser,
+re-encode the request,
+construct a parallel message inventory,
+or infer authority from transport roles or equal text.
+Host authority registration remains the accepted mechanism;
+this proposal does not change its tier/scope policy or make registration prove coverage.
+
+The initial proposal incorrectly treated any additional governing-input accounting as source-inventory expansion.
+That restriction does not block a consumer of the already-retained whole request.
+A broader addition of origins,
+persisted provenance,
+a parallel message inventory,
+or unaccepted authority or closed-world policy remains a separate proposal.
+A model-generated completeness statement is not a substitute for code-established input scope.
+Production admission profiles,
+semantic cutoffs,
+additional paid trials,
+and installed activation remain outside this proposal.
+Contextual-heading meaning and valid delegation remain separate obligations,
+not facts granted by scope approval.
+
+The consumer must retain an original assessment associated with the complete unchanged request,
+including whitespace,
+escaped text,
+and structured message content.
+Equal bytes from an independent request cannot substitute for its capability.
+An authored operative answer cannot produce a request-wide priority or directive.
+An authored `none` answer concerns only this bounded semantic use;
+origin association,
+contextual-heading meaning,
+delegation,
+and request-wide governing sufficiency remain independent obligations.
+No additional grant is awaited for that implementation.
+
+## Incremental rule-relevance cache direction
+
+The user refined the rule-indexed proposal:
+reparse `AGENTS.md` when it changes,
+classify which changed rules are relevant to auto-mode,
+and preserve repository-scoped cached classifications.
+This replaces repeating static relevance work on every action.
+It does not cache whether a particular action is allowed.
+
+Define relevance against a versioned auto-mode remit:
+could the rule affect an approval,
+block,
+or confirmation decision in a supported situation?
+This is distinct from applicability to the current action.
+A rule excluded from the guard's question set remains an instruction for the coding agent.
+
+Reuse the existing source owner and exact rule index for change detection.
+The package's existing `context.ts#getReusableApproval` is an action/session-branch approval lookup,
+not a repository policy cache.
+Do not put relevance classifications into its verdict entries.
+
+### Repository namespace and rule versions
+
+Use canonical remote repository identity and the primary branch as the shared namespace/baseline.
+The current repository has remote `origin`;
+`git symbolic-ref refs/remotes/origin/HEAD` returned `refs/remotes/origin/main`.
+This identifies a baseline,
+not authority or the currently governing policy.
+
+The working tree's actual instructions remain authoritative inputs to the existing source checks.
+Different branches and uncommitted edits need distinct policy-revision manifests,
+even when they share a remote.
+Do not reuse a main-branch classification blindly or make unrelated main-branch commits invalidate all rule entries.
+
+A policy-revision manifest can reference cached rule entries keyed by:
+
+- Exact rule text and heading/scope context.
+- Policy file's relative scope.
+- Relevance question and answer-schema version.
+- Classifier model and qualification-profile version.
+- Auto-mode remit version.
+
+A new manifest reuses unchanged eligible entries.
+Changed or added rules are classified together;
+deleted rules leave the active manifest.
+Heading changes count as changes to affected descendants.
+Shared-context,
+scope,
+or unresolved dependency changes require wider reclassification.
+An unchanged paragraph alone is not sufficient proof that its classification inputs are unchanged.
+
+Cached classifications are semantic data,
+not live source ownership,
+instruction precedence,
+human approval,
+or execution permission.
+Each use still binds to the actual current source occurrence.
+A late result must not replace a newer revision's active selection.
+
+### Classification and action-time behavior
+
+Submit changed and context-affected rules in a single classification request,
+with the complete current policy as context.
+Keep relevant and uncertain rules in the action-time question set.
+Only a qualified irrelevant classification can remove a rule from that set.
+Malformed,
+missing,
+stale,
+or unavailable classifications cannot silently remove rules.
+
+The full current policy still accompanies guard-model assessments.
+Caching reduces repeated classification and question selection;
+it does not authorize truncating policy.
+
+Refresh independently of actions when possible.
+If classification is needed inside a pending action judgment,
+it must not create a second deadline or evade that judgment's attempt budget.
+Until refresh is usable,
+keep affected rules unresolved/included rather than reuse stale exclusions.
+Record maintenance inference costs separately and include them when evaluating workload cost.
+
+### Accepted one-call classification contract
+
+The user clarified:
+“Sorry,
+one API call.”
+Use one batched request with a relevance question for each changed or context-affected rule.
+No subset-output interface or model switch is needed.
+
+The current public Gateway System One source,
+`apps/gateway/src/systemone/systemone.ts` in `theopenco/llmgateway`,
+defines `noul`,
+`choice`,
+and `score`.
+Its `choice` result is one highest-probability option;
+the option probabilities sum to one.
+Those probabilities are not independent relevance scores for a set of rules.
+This source was fetched from the repository's current `main` branch,
+rather than inferred from the existing binary adapter.
+
+The accepted request shape preserves per-rule uncertainty and the existing typed Jev contract.
+Implement the private incremental cache and its source-bound refresh path.
+No production threshold,
+new private-data route,
+or installed-plugin cutover is selected by this clarification.
+
+### Private implementation evidence
+
+The source-bound cache,
+Git-derived namespace,
+one-shot transport,
+and native resource drain have passed their recorded controls.
+The private `before_provider_request` hook implements lazy change-on-use refresh,
+not an automatic filesystem watcher.
+Across two native runs,
+`proc_e53e` reconciled question counts `[205, 0, 1, 0]`
+without replaying the successful worker to repair its printed summary.
+The existing tool judgments did not acquire new inference attempts.
+
+`proc_f465` verified the first real cold relevance batch:
+205 independent questions in one 255,046-byte request,
+with complete current policy and verbatim selected-rule context.
+Same-owner warm and restarted-owner persistent reads required no additional request.
+Returned usage modeled US$0.002494044 of maintenance cost at 42 nanoUSD per input token.
+That cost must be amortized against measured usage before making a workload-average claim.
+Raw probabilities remain unqualified;
+all indexed rules remain candidates.
+No production cutoff or cache-based permission follows from this interface result.
+
+### Required checks
+
+- Unchanged rules reuse classifications without another inference request.
+- Added,
+  edited,
+  deleted,
+  and heading-moved rules produce the correct delta.
+- Same-remote worktrees with different policy contents do not exchange stale exclusions.
+- Classifier,
+  remit,
+  and schema changes invalidate affected entries.
+- Unknown or malformed classifications preserve candidate rules.
+- Older in-flight results cannot become the current revision's selection.
+- Cached relevance cannot authorize an action or bypass original source/currentness checks.
+
+## Proposed rule-indexed assessment
+
+The incremental relevance-cache direction refines this earlier all-rule proposal.
+Keep the all-rule form as a comparison or conservative fallback,
+not a requirement to repeat static relevance classification for every action.
+
+The user proposed parsing `AGENTS.md` into one question per rule.
+This is a proposed next baseline,
+not an adopted runtime policy or production change.
+
+The current protected file has 205 literal tagged rule headers
+and 31,421 bytes,
+measured with `rg --count '^[A-Z0-9]{3}:' AGENTS.md` and `wc --bytes AGENTS.md`.
+Its SHA-256 remains
+`15890c665cdb1c054f8c56c2f212cb75297292b812dc0a2e8065e21156483c39`.
+The existing private `contract/policy-index.mjs` preserves exact tagged paragraphs,
+source spans,
+heading ancestry,
+and unclassified material.
+Reuse it rather than introduce another rule parser.
+
+The proposed unit is one rule paired with the complete proposed operation and relevant established facts.
+Use a fixed question template with the original rule as data;
+do not ask a model to paraphrase rules into newly generated questions.
+A possible binary baseline is:
+
+> Would executing the complete proposed operation violate this selected rule,
+> given the supplied established facts?
+
+Bind each question to its exact original rule occurrence and original judgment.
+Include heading context and the complete governing policy so exceptions and cross-references are not discarded.
+Other governing instruction sources still require collection and authority handling;
+indexing this file is not proof of complete instruction coverage.
+
+Batch questions under the same original deadline and attempt budget,
+not one API call or judgment per rule.
+The local selection contract allows up to 512 questions per batch,
+so 205 is within that local bound.
+The private action-relation wire now carries all indexed rules with original program/rule identity.
+`proc_ca71` verified a 205-question,
+454,012-byte native request using fake transport and canonical original evidence capture.
+Its original five-second budget was unchanged,
+and no tool executed.
+The real 205-rule relevance canary is a different predicate and input shape.
+The later copied-input full-rule interface canary returned HTTP 400 with `max_tokens_exceeded`.
+No scores or usage were returned,
+and `proc_48e7` reconciled that consumed request without replay.
+TypeSafe documents a 64k-token total and a 32k-token state-plus-longest-question limit.
+Neither native fake transport nor the successful relevance predicate establishes
+real full-rule action-assessment acceptance,
+latency,
+cost,
+or accuracy.
+
+A separate encoding keeps native binding bookkeeping in code rather than duplicating it in model state.
+`proc_ba2b` measured 315,353 bytes instead of 454,012,
+while preserving all 205 questions and every other state field exactly.
+That is a byte/content measurement,
+not an exact token count.
+The separately frozen 315,353-byte live trial was also rejected with `max_tokens_exceeded`;
+`proc_e51c` retained the failure without replay.
+A shared-guidance prototype measured 256,710 bytes in `proc_0c8c`:
+it keeps the verbatim question sentence and criteria per head,
+places the remaining original instruction text once in state,
+and names that field explicitly in every question.
+Content reconstruction is checked,
+including full-body equality and positive controls in `proc_eda4`.
+The separately frozen trial passed in `proc_ca7b`:
+one request returned all 205 estimates and reported 62,053 input tokens.
+Its measured preparation-inclusive elapsed time was 1,001.814279 ms;
+modeled cost was US$0.002606226.
+That verifies acceptance of this input,
+not broader token fit,
+semantic equivalence,
+or the workload-average cost target.
+The archived original judgment remained closed and no tools executed.
+Keep each rule ID and text inside its question:
+TypeSafe documents question-map keys as correlation only,
+not inference input.
+
+The benefit is explicit question coverage of the indexed rules
+rather than a manually selected set of rule-specific heads.
+The risks are compound rules,
+missing contextual facts,
+irrelevant workflow rules,
+and policy interactions.
+A binary violation score merges satisfied and inapplicable cases.
+Uncertainty must remain unresolved,
+and a low violation score does not establish permission or prove that no instruction applies.
+The answer contract and deterministic combination must preserve those distinctions where they affect the result.
+
+Code still owns source eligibility,
+precedence,
+verified approval facts,
+and the final decision.
+Do not AND every answer without accounting for priorities and exceptions,
+or let a per-rule model result invent an approval record.
+Rules may themselves permit actions;
+a separate human grant is not universally required.
+
+Prefer measuring this all-rule baseline before expanding prerequisite-only predicates.
+Measure complete serialized input,
+returned usage,
+deadline behavior,
+and semantic references over complete operations.
+The earlier two-slot mean of US$0.000803628 is not a forecast for 205 rules.
+No new full-rule inference run or threshold adoption follows from this proposal alone.
+
 ## Accepted requirements
 
 On 2026-10-01,

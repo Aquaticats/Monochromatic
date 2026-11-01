@@ -1,14 +1,24 @@
-//! The quarter-measure answer's probe: an even pass plus frontier zoom.
+//! The quarter-measure answer's probe:
+//!  an even pass plus frontier zoom.
 //!
 //! The under-read of an evenly-placed probe is governed by how many bins sit near the
-//! track's crest; the clamp tail is tracks where that count is one or two (needles).
-//! Zooming cannot find a needle, but it climbs every heard hill: after a sparse even
-//! pass, repeatedly decode the undecoded neighbors of the loudest decoded bin until the
-//! track's bin budget is spent. That collapses the mid-tail (p90 under-read 0.63 -> 0.36
-//! at the full quarter budget), so a much smaller margin buys the same clamp count and
-//! every track keeps more loudness. Byte-rate profiles from container framing were also
+//! track's crest;
+//!  the clamp tail is tracks where that count is one or two (needles).
+//! Zooming cannot find a needle,
+//!  but it climbs every heard hill:
+//!  after a sparse even
+//! pass,
+//!  repeatedly decode the undecoded neighbors of the loudest decoded bin until the
+//! track's bin budget is spent.
+//!  That collapses the mid-tail (p90 under-read 0.63 -> 0.36
+//! at the full quarter budget),
+//!  so a much smaller margin buys the same clamp count and
+//! every track keeps more loudness.
+//!  Byte-rate profiles from container framing were also
 //! measured as a needle locator and refuted (crest slots rank at the 60th byte-rank
-//! percentile, worse than chance), so the probe stays purely decode-driven.
+//! percentile,
+//!  worse than chance),
+//!  so the probe stays purely decode-driven.
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
@@ -19,7 +29,8 @@ use std::collections::HashSet;
 /// Imports the shared dB conversion.
 use truepeak_core::peak_dbtp;
 
-/// Convert a linear peak to dBTP, treating silence as a very negative level.
+/// Convert a linear peak to dBTP,
+///  treating silence as a very negative level.
 fn db(peak: f64) -> f64 {
     if peak <= 0.0 {
         return f64::NEG_INFINITY
@@ -28,7 +39,10 @@ fn db(peak: f64) -> f64 {
     }
 }
 
-/// One probed long track: its true level, its probe's level, and its provenance.
+/// One probed long track:
+///  its true level,
+///  its probe's level,
+///  and its provenance.
 #[derive(Clone, Copy, Debug)]
 pub struct ZoomRow {
     /// Full-track true peak in dBTP.
@@ -41,8 +55,12 @@ pub struct ZoomRow {
 
 /// Evenly spaced single-bin sample indices at `coverage` over `n` bins.
 ///
-/// What: the pass-one placement, one bin every `1 / coverage` bins, endpoints included.
-/// Why: mirrors the shipped even placement shape so pass one slights no region.
+/// What:
+///  the pass-one placement,
+///  one bin every `1 / coverage` bins,
+///  endpoints included.
+/// Why:
+///  mirrors the shipped even placement shape so pass one slights no region.
 fn even_indices(n: usize, coverage: f64) -> Vec<usize> {
     // The count is proportional to coverage; a single sample sits mid-track.
     let count = ((coverage * n as f64).round() as usize).max(1);
@@ -58,12 +76,20 @@ fn even_indices(n: usize, coverage: f64) -> Vec<usize> {
         .collect()
 }
 
-/// The zoom probe over one track: even pass one, then loudest-neighbor expansion.
+/// The zoom probe over one track:
+///  even pass one,
+///  then loudest-neighbor expansion.
 ///
-/// What: decodes `pass1_coverage` of the bins evenly, then pops the loudest decoded bin
-/// and decodes its undecoded neighbors, repeating until `total_coverage` of the bins is
-/// spent; returns the loudest decoded bin (linear) and the decoded seconds.
-/// Why: local hills lead to crests; spending the budget climbing them shrinks the
+/// What:
+///  decodes `pass1_coverage` of the bins evenly,
+///  then pops the loudest decoded bin
+/// and decodes its undecoded neighbors,
+///  repeating until `total_coverage` of the bins is
+/// spent;
+///  returns the loudest decoded bin (linear) and the decoded seconds.
+/// Why:
+///  local hills lead to crests;
+///  spending the budget climbing them shrinks the
 /// under-read far more than spreading it evenly.
 fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, f64) {
     let bins = &track.bin_peaks;
@@ -76,17 +102,19 @@ fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, 
     let mut used = 0usize;
     let mut peak = 0.0f32;
     // Decode a bin: mark, count, track the max, and enqueue it for expansion.
+    // The closure parameters keep names of their own so none shadows the outer
+    // frontier state it is handed by mutable reference.
     let decode = |index: usize,
-                      decoded: &mut Vec<bool>,
-                      heap: &mut BinaryHeap<(u32, usize)>,
-                      used: &mut usize,
-                      peak: &mut f32| {
-        decoded[index] = true;
-        *used += 1;
-        if bins[index] > *peak {
-            *peak = bins[index];
+                      decoded_flags: &mut Vec<bool>,
+                      loud_heap: &mut BinaryHeap<(u32, usize)>,
+                      used_count: &mut usize,
+                      peak_value: &mut f32| {
+        decoded_flags[index] = true;
+        *used_count += 1;
+        if bins[index] > *peak_value {
+            *peak_value = bins[index];
         }
-        heap.push((bins[index].to_bits(), index));
+        loud_heap.push((bins[index].to_bits(), index));
     };
     for index in even_indices(n, pass1_coverage) {
         if used >= budget_bins {
@@ -112,9 +140,15 @@ fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, 
 
 /// Evaluate the zoom policy over the corpus at the full decoded-seconds budget.
 ///
-/// What: full-scans short tracks, spreads the remaining budget as one proportional
-/// coverage over long tracks, probes each with the zoom, and returns the decoded total
-/// plus one row per long track. Why: rows carry everything the margin decision needs.
+/// What:
+///  full-scans short tracks,
+///  spreads the remaining budget as one proportional
+/// coverage over long tracks,
+///  probes each with the zoom,
+///  and returns the decoded total
+/// plus one row per long track.
+///  Why:
+///  rows carry everything the margin decision needs.
 pub fn evaluate_zoom(
     tracks: &[Track],
     short_scan_max_secs: f64,
@@ -153,26 +187,33 @@ pub fn evaluate_zoom(
     return (decoded, rows)
 }
 
-/// One margin's outcome over the zoom rows: the three measures of the letter.
+/// One margin's outcome over the zoom rows:
+///  the three measures of the letter.
 #[derive(Clone, Copy, Debug)]
 pub struct ZoomMeasures {
     /// Loud long tracks whose under-read exceeds `margin + too_loud` (cold-start clamps).
     pub clamped: usize,
-    /// Of the clamped tracks, how many are safe-provenance.
+    /// Of the clamped tracks,
+    ///  how many are safe-provenance.
     pub clamped_safe: usize,
     /// Mean needless attenuation across `all_tracks` tracks in dB.
     pub avg_quiet_db: f64,
     /// Worst needless attenuation in dB.
     pub worst_quiet_db: f64,
-    /// Worst true overshoot above the ceiling after gain, in dB (the clamp catches it).
+    /// Worst true overshoot above the ceiling after gain,
+    ///  in dB (the clamp catches it).
     pub worst_over_db: f64,
 }
 
 /// Measure one margin assignment over the rows (margin may depend on provenance).
 ///
-/// What: applies attenuate-only gain from `probe + margin` toward the ceiling and
-/// accumulates the letter's three measures; `all_tracks` divides the quiet average so
-/// exact short tracks count as zero error. Why: this is the decision surface the
+/// What:
+///  applies attenuate-only gain from `probe + margin` toward the ceiling and
+/// accumulates the letter's three measures;
+///  `all_tracks` divides the quiet average so
+/// exact short tracks count as zero error.
+///  Why:
+///  this is the decision surface the
 /// answer reports.
 pub fn measure_zoom(
     rows: &[ZoomRow],
@@ -210,7 +251,8 @@ pub fn measure_zoom(
     }
 }
 
-/// The under-read quantile over the loud long rows, sorted ascending.
+/// The under-read quantile over the loud long rows,
+///  sorted ascending.
 pub fn zoom_under_read_quantile(rows: &[ZoomRow], ceiling_dbtp: f64, fraction: f64) -> f64 {
     let mut values: Vec<f64> = rows
         .iter()

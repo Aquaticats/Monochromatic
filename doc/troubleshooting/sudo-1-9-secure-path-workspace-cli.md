@@ -31,7 +31,7 @@ That directory is present in interactive user's `PATH` but absent from sudo comm
 ### CLI crossed privilege boundary too late
 
 Before `e43e24afa`,
-`package/cli/wg-quicker/src/index.ts:93-101` at `3b92eb5c8` loaded config directly in original process:
+`package/wg/cli-quicker/src/index.ts:93-101` at `3b92eb5c8` loaded config directly in original process:
 
 ```ts
 /**
@@ -48,7 +48,7 @@ await (subcommand === 'up' ? up({ config, },) : down({ config, },));
 Because `loadConfig()` ran before any privilege transition,
 normal root-only mode on `/etc/wireguard/<interface>.conf` produced `EACCES`.
 
-Current `package/cli/wg-quicker/src/index.ts:94-115` restores caller context,
+Current `package/wg/cli-quicker/src/index.ts:94-115` restores caller context,
 delegates,
 and reads config only in root child:
 
@@ -61,7 +61,7 @@ if (delegated)
 const config = await loadConfig({
 ```
 
-`package/cli/wg-quicker/src/privilege-context.ts:154-186` opens internal context with `O_NOFOLLOW`,
+`package/wg/cli-quicker/src/privilege-context.ts:154-186` opens internal context with `O_NOFOLLOW`,
 then checks regular-file type,
 owner against `SUDO_UID`,
 link count,
@@ -70,11 +70,12 @@ and bounded size before parsing and applying allowlisted values.
 Context carries caller `HOME`,
 cache locations,
 `IPINFO_TOKEN`,
-runtime directory,
-exemption UID,
-companion command,
-and original path under private name.
+and runtime directory.
 It never assigns original path to privileged `PATH`.
+Until 2026-10-31 it also carried the exemption UID,
+a companion command and the original path under the private
+name `WG_QUICKER_CALLER_PATH`;
+see "Change record" below.
 
 ### sudo intentionally replaces command search path
 
@@ -185,7 +186,7 @@ $ fixture_path="$fixture_directory/restricted.conf"
 $ printf '[Interface]\nExemptMark = invalid\n' > "$fixture_path"
 $ chmod 000 "$fixture_path"
 $ node --input-type=module-typescript --eval \
-  "const { loadConfig } = await import('./package/cli/wg-quicker/src/config.ts'); await loadConfig({ arg: process.argv[1], expandAllowedIps: true });" \
+  "const { loadConfig } = await import('./package/wg/cli-quicker/src/config.ts'); await loadConfig({ arg: process.argv[1], expandAllowedIps: true });" \
   "$fixture_path"
 ConfigError: Config file does not exist or is unreadable: .../restricted.conf
 ```
@@ -219,7 +220,7 @@ No command against `mx-que-mx1` was used for verification.
 - Exact paths containing slash bypass sudo path iteration by inspected and tested source path.
 
 The regression test is
-`package/cli/wg-quicker/src/privilege-launch.unit.test.ts`.
+`package/wg/cli-quicker/src/privilege-launch.unit.test.ts`.
 It executes built artifact and confirms fake sudo receives:
 
 ```text
@@ -228,25 +229,26 @@ It executes built artifact and confirms fake sudo receives:
 ```
 
 Fake sudo reads private file while parent retains it and confirms every allowlisted value.
-`package/cli/wg-quicker/src/privilege-context-data.unit.test.ts` checks valid schema plus malformed JSON,
+`package/wg/cli-quicker/src/privilege-context-data.unit.test.ts` checks valid schema plus malformed JSON,
 arrays,
 versions,
 UIDs,
 unknown keys,
 non-string values,
 and invalid home.
-`package/cli/wg-quicker/src/application-exemption-command.unit.test.ts` checks explicit path,
-missing path,
-captured caller path,
-and paired repository release.
+`package/wg/cli-quicker/src/application-exemption-command.unit.test.ts` checks the paired repository release,
+the secure path,
+a caller path that is never searched,
+relative path entries that are skipped,
+and a missing companion that stops a start with every searched location.
 
 Verification commands:
 
 ```console
-mise run //package/cli/wg-quicker:buildAndTest
-mise run //package/cli/wg-quicker:lint:types
-mise run //package/cli/wg-quicker:lint:oxlint
-mise run //package/cli/wg-quicker:test:integration:bypass
+mise run //package/wg/cli-quicker:buildAndTest
+mise run //package/wg/cli-quicker:lint:types
+mise run //package/wg/cli-quicker:lint:oxlint
+mise run //package/wg/cli-quicker:test:integration:bypass
 ```
 
 All passed after fix.
@@ -270,15 +272,13 @@ validates private file against it,
 and restores only allowlisted values.
 Application watcher uses sudo identity for desktop cgroup selection.
 Source-file `~` expansion and ASN cache selection retain caller context.
-Rust companion resolves to exact configured,
-paired workspace,
-privileged-path,
-or captured-caller-path executable before network mutation.
+Rust companion resolves to the exact paired workspace or privileged-path executable,
+and a missing companion stops a start with `ExemptMark` and rolls it back.
 
 Tradeoff:
 this intentionally executes current user-owned workspace runtime,
 bundle,
-and selected paired or caller-path companion as root after sudo authentication.
+and the paired repository build of the companion as root after sudo authentication.
 That matches local-development workflow but is inappropriate when workspace integrity is not trusted.
 
 ### Install root-owned artifact and invoke exact path
@@ -308,6 +308,8 @@ and package currently targets repository-local development rather than published
   and companion selection.
 - Resolving `wg-quicker-exempt` only after interface setup:
   discovers missing companion after network mutation.
+  The owner chose that this failure aborts and rolls back through the existing cleanup of `up`,
+  so the mutation is undone.
 - Re-executing by bare `node` and bare `wg-quicker`:
   both names can disappear or resolve differently under `secure_path`.
 
@@ -316,7 +318,8 @@ and package currently targets repository-local development rather than published
 No `.out-of-scope/` entry matches sudo command lookup.
 
 Broad open and closed searches for `secure_path` found sudo tracker discussions,
-including issue `#348` about whether path should reset by default and pull request `#409` about configure-time secure path control.
+including issue `#348` about whether path should reset by default
+and pull request `#409` about configure-time secure path control.
 Exact search for `secure_path` plus `command not found` found no matching issue or pull request.
 No duplicate needs a comment because observed behavior matches documented policy.
 
@@ -346,3 +349,23 @@ Nothing to file or comment upstream.
 Sudo 1.9.17p2 behaves as documented by applying `secure_path` to bare command lookup.
 The actionable defect was `wg-quicker` reading privileged config before elevation and relying on bare workspace command name.
 ```
+
+## Change record
+
+2026-10-31:
+the private context no longer carries `WG_QUICKER_EXEMPT_COMMAND`,
+`WG_QUICKER_EXEMPT_UID` or the caller
+`PATH` (`WG_QUICKER_CALLER_PATH`).
+Each let the caller choose which program runs as root in place of the update-traffic process watch,
+or which user it follows,
+and the owner's policy is that the behavior has no toggle and always enforces the policy.
+The companion is now found only in the paired repository build and the privileged `PATH`;
+a missing companion was first reported as `POLICY NOT IN FORCE` and never searched for in the caller's `PATH`.
+Later the owner chose "Abort up as before",
+verbatim "`up` fails and rolls back,
+as before this branch":
+a config with `ExemptMark` whose companion is not found now stops `up` with `WatcherMissingError`,
+naming the searched locations and how to install,
+and rolls back through the cleanup of `up`.
+A config without `ExemptMark` is unaffected.
+Text above that names the removed settings is kept as the record of the first design.

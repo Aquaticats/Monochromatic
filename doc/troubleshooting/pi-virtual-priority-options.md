@@ -477,7 +477,8 @@ the integration uses extension APIs at the consumer boundary.
     the inspected upstream README says new-contributor issues and PRs are auto-closed for maintainer review.
     No contribution is proposed here.
 5.  Upstream direction:
-    [issue 4643][tier-issue] contains a maintainer preference for an extension rather than a general `/fast` abstraction.
+    [issue 4643][tier-issue] contains a maintainer preference
+for an extension rather than a general `/fast` abstraction.
     [Issue 6738][profile-issue] contains a maintainer's concern about Fast effectiveness outside Codex harnesses.
     Neither comment proves current backend behavior for this installation.
 6.  Prototype:
@@ -635,7 +636,8 @@ await this.runNpmCommand(args);
 
 The executed npm `11.19.1` log records
 `npm uninstall pi-openai-codex-fast --prefix <agent-dir>/npm --legacy-peer-deps`.
-It also records failure to reuse the installed tree lock metadata because `node_modules/ajv` was missing from that lockfile.
+It also records failure to reuse the installed tree lock metadata because `node_modules/ajv` was missing from
+that lockfile.
 Npm reported removing the incumbent and changing 80 packages.
 Those entries include active provider,
  process,

@@ -16,7 +16,7 @@ import {
   cssVar,
   hCss as $,
   hHtml as h,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

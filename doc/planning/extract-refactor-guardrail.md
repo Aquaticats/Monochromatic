@@ -7,9 +7,9 @@ Status:
 ## The problem
 
 Previous session was extracting the logger out of `package/module/es` into a new
-`package/module/logger`.
+`package/logger/core`.
  Claude started modifying `module/es` before
-`module/logger` was verified end-to-end and committed as a standalone addition.
+`logger/core` was verified end-to-end and committed as a standalone addition.
 When interrupted,
  Claude's reflex was to shim `module/es` rather than revert it.
 
@@ -107,8 +107,8 @@ Empirically verified in this repo (pnpm 11.0.0-rc.
   edit this package?
   ".
   - `...{package/module/es}` → 40 packages (module/es + 39 dependents).
-  - `...{package/module/logger}` → 39 packages (because `module/es` already
-    lists `@monochromatic-dev/module-logger` in its `package.json:50`,
+  - `...{package/logger/core}` → 39 packages (because `module/es` already
+    lists `@monochromatic-dev/logger-core` in its `package.json:50`,
      so
     logger transitively inherits all of module/es's dependents).
 - The trailing-ellipsis form `{<pkg-path>}...` is the opposite direction

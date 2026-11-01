@@ -1,5 +1,10 @@
 # Handover: split readonly diagnostics by evidence
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/caught-value` is now `package/caught-value/core`.
+
 Live document.
 Update it after each implementation decision,
 landed increment,
@@ -27,7 +32,8 @@ The user selected the full split rather than the minimal sound-readonly reportin
 
 The final shared Oxlint configuration must contain all three rule entries.
 Only `prefer-readonly-parameter-types` remains enabled at `error` initially.
-The projected-readonly-capability correctness rule and unresolved-effect audit rule must be set to `off` because the full workspace is
+The projected-readonly-capability correctness rule and unresolved-effect audit rule must be set
+to `off` because the full workspace is
 not ready for them.
 
 Each disabled configuration entry must have a comment linking to one newly opened GitHub tracking issue.

@@ -1,0 +1,84 @@
+# No [tools] here: the Rust toolchain (nightly + rust-src + llvm-tools-preview) is
+# managed repo-wide in the root mise.toml [tools], so every crate shares one
+# channel. mise still applies that toolchain to tasks run here; cargo-fuzz needs the
+# nightly it provides.
+
+[tasks.list]
+description = "List all fuzz targets"
+run = "cargo fuzz list --fuzz-dir ."
+
+[tasks."format:clippy"]
+description = "Apply Clippy's machine-applicable suggestions to every Rust target"
+run = "cargo clippy --fix --allow-dirty --allow-staged --all-targets"
+
+[tasks."lint:clippy"]
+description = "Run Clippy over every Rust target with warnings denied"
+run = "cargo clippy --release --all-targets -- -D warnings"
+
+[tasks.lint]
+description = "cargo check for the shared generator library and artifact decoder helper"
+run = "cargo check --lib --bin decode_artifact"
+
+[tasks.build]
+description = "Build all fuzz targets (AddressSanitizer instrumented)"
+# `--target x86_64-unknown-linux-gnu` is load-bearing: cargo-fuzz defaults to
+# `x86_64-unknown-linux-musl` on Linux, but the ASAN flags it sets via RUSTFLAGS
+# conflict with musl's static libc. Forcing gnu picks a target where dynamic libc
+# satisfies the sanitizer. macOS / Windows hosts would need a per-platform switch.
+#
+# `--sanitizer address` is explicit even though it is the default: it pins
+# AddressSanitizer (heap/stack overflow, use-after-free) so a future cargo-fuzz default
+# change cannot silently drop it. A Rust panic is a logic abort, not a memory error, so
+# libFuzzer (not ASAN) reports it.
+run = "cargo fuzz build --fuzz-dir . --sanitizer address --target x86_64-unknown-linux-gnu"
+
+[tasks.smoke]
+description = "Run every fuzz target for 30s as a smoke test (AddressSanitizer instrumented)"
+# `--target x86_64-unknown-linux-gnu` and `--sanitizer address` rationale: see build.
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { mkdirSync } = await import('node:fs')
+const targets = execFileSync('cargo', ['fuzz', 'list', '--fuzz-dir', '.'], { encoding: 'utf8' }).split('\\n').map((line) => line.trim()).filter(Boolean)
+for (const target of targets) {
+  console.log(`--- ${target} ---`)
+  // Dual corpus: gitignored scratch first (libFuzzer writes new discoveries
+  // only to the first dir), committed seeds/<target> second. Explicit corpus
+  // positionals replace cargo-fuzz's default corpus/<target>, and cargo-fuzz
+  // only auto-creates the default, so both dirs are created here.
+  mkdirSync(`corpus/${target}`, { recursive: true })
+  mkdirSync(`seeds/${target}`, { recursive: true })
+  execFileSync('cargo', ['fuzz', 'run', '--fuzz-dir', '.', target, '--sanitizer', 'address', '--target', 'x86_64-unknown-linux-gnu', `corpus/${target}`, `seeds/${target}`, '--', '-max_total_time=30', '-rss_limit_mb=2048'], { stdio: 'inherit' })
+}
+"""
+
+[tasks.run]
+description = "Run or replay one fuzz target. Pass libFuzzer flags (e.g. -max_total_time=30) and/or input paths after --."
+usage = """
+arg "target" help="Fuzz target name (e.g. fuzz_compile)"
+arg "[args]" var=#true help="libFuzzer flags (-flag=v) and/or input paths to replay (artifacts/<target>/crash-...)"
+"""
+# `--target x86_64-unknown-linux-gnu` rationale: see build. Inputs (crash artifacts or
+# corpus dirs) go BEFORE `--` (cargo-fuzz CORPUS slot, suppressing the default corpus);
+# libFuzzer flags go AFTER `--`. With no input the command fuzzes the dual corpus:
+# gitignored scratch corpus/<target> first (libFuzzer writes new discoveries only to
+# the first dir), committed seeds/<target> second. Both dirs are created up front
+# because cargo-fuzz only auto-creates its default corpus positional.
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+const { execFileSync } = await import('node:child_process')
+const { mkdirSync } = await import('node:fs')
+const target = process.env.usage_target
+const extras = parseUsageArgs(process.env.usage_args ?? '')
+const flags = extras.filter((part) => part.startsWith('-'))
+const replays = extras.filter((part) => !part.startsWith('-'))
+const corpusDirs = [`corpus/${target}`, `seeds/${target}`]
+if (replays.length === 0) {
+  for (const dir of corpusDirs) {
+    mkdirSync(dir, { recursive: true })
+  }
+}
+const inputs = replays.length === 0 ? corpusDirs : replays
+execFileSync('cargo', ['fuzz', 'run', '--fuzz-dir', '.', target, '--sanitizer', 'address', '--target', 'x86_64-unknown-linux-gnu', ...inputs, '--', ...flags], { stdio: 'inherit' })
+"""

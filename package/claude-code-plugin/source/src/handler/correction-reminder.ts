@@ -110,12 +110,12 @@ const RIGHT_SINGLE_QUOTE = '’';
 function normaliseApostrophes(prompt: string,): string {
   return prompt
     .replaceAll(
-      LEFT_SINGLE_QUOTE,
-      "'",
+    LEFT_SINGLE_QUOTE,
+    "'",
     )
     .replaceAll(
-      RIGHT_SINGLE_QUOTE,
-      "'",
+    RIGHT_SINGLE_QUOTE,
+    "'",
     );
 }
 

@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T18:09:15.125Z",
+  "scope": "Local source/body/identity/interval/arithmetic/privacy joins for the terminal managed-host successor; no cloud allocation",
+  "ledger": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
+    "bytes": 140903,
+    "sha256": "9b536e96fabfe522fa0921dddfa7b7da3c14730c5c9625c99b7286850425cb17",
+    "rows": 37
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+    "bytes": 392421,
+    "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
+    "uncompressedBytes": 3179766,
+    "records": 41
+  },
+  "previousSnapshotVerification": {
+    "path": "doc/audit/depot-owned-allocation-follow-on-verification-2026-10-18.evidence.json",
+    "bytes": 2761,
+    "sha256": "4d8ae3af1e17999cb444a620e088d83e52b5ae084bcd457c7d59b79d7cef106e",
+    "rows": 35,
+    "retainedUnmodified": true
+  },
+  "checks": {
+    "passed": true,
+    "recordedAt": "2026-10-18T18:09:06.351Z",
+    "bodyJoins": 41,
+    "zipMembers": 4,
+    "intervalJoins": 37,
+    "baselineUnchanged": true,
+    "uniqueIdentityJoins": 37
+  },
+  "privacy": {
+    "recordedAt": "2026-10-18T18:09:06.891Z",
+    "passed": true,
+    "selectedValueJoins": 1611,
+    "sourcePointerJoins": 79,
+    "privateOriginalHashesVerified": 8,
+    "publicActorControl": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39140975786",
+      "httpStatus": 200,
+      "authorizationHeaderSent": false,
+      "actorAndTriggeringActorIdsMatchPublicResponse": true
+    },
+    "nonpublicActorEmailPublished": false,
+    "newPrivateOriginalsNotPublished": true,
+    "credentialSignedUrlOrConnectionMaterialFound": false,
+    "historyRewritePerformed": false
+  },
+  "products": {
+    "standard-public-github-actions": {
+      "rows": 17,
+      "nominalProviderIntervalProxy": {
+        "usd": "0",
+        "numerator": "0",
+        "denominator": "60000000000"
+      }
+    },
+    "github-actions-runners": {
+      "rows": 9,
+      "nominalProviderIntervalProxy": {
+        "usd": "0.8381",
+        "numerator": "50286000000",
+        "denominator": "60000000000"
+      }
+    },
+    "native-ci": {
+      "rows": 8,
+      "nominalProviderIntervalProxy": {
+        "usd": "0.4244",
+        "numerator": "25464000000",
+        "denominator": "60000000000"
+      }
+    },
+    "buildkit": {
+      "rows": 3,
+      "nominalProviderIntervalProxy": {
+        "usd": "0",
+        "numerator": "0",
+        "denominator": "60000000000"
+      }
+    }
+  },
+  "nominalKnownProviderIntervalProxy": {
+    "usd": "1.2625",
+    "numerator": "75750000000",
+    "denominator": "60000000000"
+  },
+  "rootGraphSubtotal": {
+    "usd": "0.487",
+    "numerator": "29220000000",
+    "denominator": "60000000000",
+    "runs": [
+      "39135886118",
+      "39140975786",
+      "gb01kjx2qk",
+      "fnvwqfg0bb"
+    ],
+    "actualInvoiceObserved": false
+  },
+  "terminalOsAppend": {
+    "recordedAt": "2026-10-18T18:06:32.326Z",
+    "runId": "39148580870",
+    "source": {
+      "record": "inputs/terminal-depot-os-owner-selected@c97f47141b8bcdd2"
+    },
+    "addedKeys": [
+      "depot:github-actions-runners:run:39148580870:job:117737397295:attempt:1",
+      "depot:github-actions-runners:run:39148580870:job:117737397487:attempt:1"
+    ],
+    "nominalProviderIntervalAddition": {
+      "usd": "0.6584",
+      "numerator": "39504000000",
+      "denominator": "60000000000"
+    },
+    "releasedReservationUsd": "1.92",
+    "separateCampaignGuardUsd": "2",
+    "sourceQualifiedOwnerSeal": {
+      "path": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+      "bytes": 14201235,
+      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35"
+    }
+  },
+  "terminalOsPrivacyInspection": {
+    "recordedAt": "2026-10-18T18:08:38.647Z",
+    "privateOriginalSha256": "ad869f05370f2ceed2e68ef8f3460fab92809743e188af8ff0b243ecd3ed8e36",
+    "privateOriginalBytes": 9166,
+    "valuesInspected": 329,
+    "stringValuesInspected": 228,
+    "standardPublicGithubUrlsKeptPrivate": 12,
+    "unnecessaryFieldsActuallyPresent": [
+      "/jobs/2/run_url",
+      "/jobs/2/url",
+      "/jobs/2/html_url",
+      "/jobs/2/check_run_url",
+      "/jobs/1/run_url",
+      "/jobs/1/url",
+      "/jobs/1/html_url",
+      "/jobs/1/check_run_url",
+      "/jobs/0/run_url",
+      "/jobs/0/url",
+      "/jobs/0/html_url",
+      "/jobs/0/check_run_url"
+    ],
+    "actorEmailFieldsPresent": false,
+    "credentialSignedUrlOrConnectionMaterialFound": false,
+    "fullRawOriginalPublished": false
+  },
+  "actualInvoiceObserved": false,
+  "billableVmLifetimeObserved": false,
+  "baselineNotModified": true,
+  "buildkitRequestWindowProxyExcludedFromNominalProviderIntervals": true
+}

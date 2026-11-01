@@ -10,9 +10,9 @@
   "dependencies": {
     "@libsql/client": "catalog:",
     "@libsql/kysely-libsql": "catalog:",
-    "@monochromatic-dev/module-hyperscript": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
     "@tursodatabase/database": "catalog:",
     "aws4fetch": "catalog:",
     "better-auth": "catalog:",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "nano-spawn": "catalog:",
     "typescript": "catalog:"

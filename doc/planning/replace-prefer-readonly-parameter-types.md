@@ -52,7 +52,8 @@ The migration-specific acceptance gate is complete.
 - File-enforcer now stages lock-owner metadata privately and publishes it by same-directory rename.
   Commit `d2240c4c5` adds a deterministic pause at the stage-to-publish boundary,
   where contenders observe no owner before publication and a live complete owner afterward.
-  Commits `965d4cf32` and `b8a649536` use one-shot release operations and prevent a vanished predecessor observation from
+  Commits `965d4cf32` and `b8a649536` use one-shot release operations
+  and prevent a vanished predecessor observation from
   deleting its successor.
   Commit `4e28505f8` releases 8 writers together against one manifest lock.
   Commit `920bc0439` starts a real competing `acquireManifestLock()` while owner metadata remains privately staged,
@@ -87,7 +88,8 @@ or rewritten as readonly acceptance failures.
 The user corrected the TOML migration on 2026-07-13:
 `ForeignBorrowed` is an ownership-boundary marker,
 not a type annotation to repeat on every AST descendant or callback.
-The correction is now recorded in the prefer-readonly guidance message and `package/ownership-marker/foreign-borrowed/README.md`.
+The correction is now recorded in the prefer-readonly guidance message
+and `package/ownership-marker/foreign-borrowed/README.md`.
 
 The implemented semantic rule applies that correction:
 
@@ -284,7 +286,8 @@ The semantic-rule implementation and shared-configuration migration are complete
 - commit `7efe445aa` adds exact standard-library `Array<T>` to `ReadonlyArray<T>` suggestions;
 - commit `03a2a0618` caches exact-source direct effect scans after a workspace shadow run consumed CPU for more than ten
   minutes without completing;
-- commit `b6dcba729` rejects inferred-project sentinels without poisoning later configured snapshots and skips non-enforced
+- commit `b6dcba729` rejects inferred-project sentinels without poisoning later configured snapshots
+and skips non-enforced
   or declaration inputs;
 - commit `42478177d` catalogs exact observational String,
   identity-search,
@@ -317,7 +320,8 @@ The semantic-rule implementation and shared-configuration migration are complete
   and propagates destructured object-literal call effects by declared mutation target;
 - commit `dbb5616ee` moves `ForeignBorrowed` into shared plugin configuration for package-wide foreign-boundary use;
 - commits `1c662eb1a` and `6a21274b0` migrate TSDoc and stylistic plugin foreign inputs and verified context effects;
-- commits `f3c61a669` and `807cdcb2c` preserve current callable identities across direct-summary cache hits and always index
+- commits `f3c61a669` and `807cdcb2c` preserve current callable identities across direct-summary cache hits
+and always index
   configured active source despite stale external-library metadata;
 - a repeat one-worker workspace sweep reports zero semantic bridge failures across 1,315 replacement-rule diagnostics;
 - commit `37e48c19b` removes caller-owned coercion hooks from `module-or-throw` failure formatting;
@@ -352,7 +356,8 @@ The semantic-rule implementation and shared-configuration migration are complete
   preserves named type-alias package provenance,
   and audits `StdoutWriter.write` as receiver mutation;
 - after the user rejected an absent `message` mutation contract as unsupported,
-  commit `c6e026a82` moves MCP response serialization to ownership-known call sites and passes primitive text through the
+  commit `c6e026a82` moves MCP response serialization to ownership-known call sites
+  and passes primitive text through the
   generic writer;
 - after the user required a dedicated package seam,
   commit `092963df8` moves semantic rule source,
@@ -444,7 +449,8 @@ The semantic-rule implementation and shared-configuration migration are complete
   parser,
   filesystem,
   and retained callback ingress uses exact `ForeignBorrowed` boundaries;
-- observational inputs now use explicit readonly data structures or `ReadonlyDeep` only when the complete reachable value
+- observational inputs now use explicit readonly data structures or `ReadonlyDeep` only
+when the complete reachable value
   is capability-free;
   exported hyperscript and Penpot option bags retain their mutable public declarations,
   and reflective `Object.entries`,
@@ -482,7 +488,7 @@ The semantic-rule implementation and shared-configuration migration are complete
   reflection,
   coercion,
   and formatting contracts;
-  `package/module/test` now passes type lint,
+  `package/test-harness/core` now passes type lint,
   Oxlint with no findings,
   build,
   and unit tests;
@@ -506,7 +512,7 @@ The semantic-rule implementation and shared-configuration migration are complete
   or root configuration writes;
   the host/provider and residual phases own those mixed boundaries;
 - the coercion phase centralizes arbitrary caught-value rendering in
-  `@monochromatic-dev/module-caught-value`;
+  `@monochromatic-dev/caught-value-core`;
   `caughtValueText` preserves `Error.message` and exact JavaScript string conversion,
   while `caughtValueStack` preserves available stack detail;
   both expose conversion hooks through one authoritative `@mutates` contract;
@@ -660,30 +666,30 @@ The semantic-rule implementation and shared-configuration migration are complete
   two-argument and three-argument `child_process.spawn` behavior is covered by the semantic fixture;
 - `3e1851bc7` and `a52f7ea13` remove the reverse development dependency from
   `module-caught-value` to `module-test`;
-  caught-value consumer tests now live in `package/module/test` and the caught-value package task delegates to those
+  caught-value consumer tests now live in `package/test-harness/core` and the caught-value package task delegates to those
   exact tests;
 - commits `c3a01aa05` through `f815b434b` make `prefer-caught-value-text` resolve global `Error` and `String`
   bindings before reporting and cover block-bodied arrow formatters without exceeding the source-line limit;
-- `package/dev-script/task-util`,
+- `package/monorepo-task/core-exec`,
   `package/oxlint-plugin/no-restricted-syntax`,
   `package/oxlint-plugin/prefer-readonly-parameter-type`,
   `package/oxlint-plugin/tsdoc`,
   `package/oxlint-plugin/stylistic`,
-  `package/module/or-throw`,
-  `package/dev-script/page-weight`,
-  `package/module/image-diff`,
+  `package/or-throw/core`,
+  `package/page-weight/cli`,
+  `package/llm/image-diff`,
   `package/mcp/stdio`,
   `package/mcp/mvm`,
-  `package/module/zip-writer`,
-  `package/module/pnpm-workspace-catalog`,
-  `package/module/fs-id`,
-  `package/module/dom`,
-  `package/module/test`,
-  `package/module/jsonc-edit`,
-  `package/cli/mutation-test`,
-  `package/dev-script/catalog-tighten`,
+  `package/zip-writer/core`,
+  `package/dependency-catalog/core-pnpm`,
+  `package/fs-id/core`,
+  `package/dom/core`,
+  `package/test-harness/core`,
+  `package/jsonc-edit/core-ts`,
+  `package/mutation-test/cli`,
+  `package/dependency-catalog/cli-tighten`,
   `package/agent-harness-shared/terminal-title`,
-  `package/cli/git-clone-size`,
+  `package/git-clone-size/cli`,
   `package/pi-shared/model-selection`,
   `package/pi-plugin/advisor`,
   `package/pi-plugin/auto-mode`,
@@ -693,9 +699,9 @@ The semantic-rule implementation and shared-configuration migration are complete
   `package/pi-plugin/thinking-default`,
   `package/agent-harness-shared/session-discovery`,
   `package/typeface/aquaticat`,
-  `package/cli/android-exempt-unused`,
-  `package/cli/terminal-exec`,
-  and `package/webapp-productivity/wc` now pass package Oxlint under replacement rule with one JavaScript-plugin worker.
+  `package/android-exempt-unused/cli`,
+  `package/terminal-exec/cli`,
+  and `package/wc/app` now pass package Oxlint under replacement rule with one JavaScript-plugin worker.
 
 Final root semantic,
 consumer,
@@ -713,12 +719,12 @@ Verified package tasks:
 - `mise run //package/oxlint-plugin/tsdoc:lint:oxlint`;
 - `mise run //package/config/oxlint:lint:types`;
 - `mise run //package/config/oxlint:lint:oxlint`;
-- `mise run //package/dev-script/task-util:lint:oxlint`;
+- `mise run //package/monorepo-task/core-exec:lint:oxlint`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:lint:types`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:lint:oxlint`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:test:unit`;
-- `mise run //package/module/caught-value:buildAndTest`;
-- built-package consumer import and calls from `package/dev-script/page-weight`;
+- `mise run //package/caught-value/core:buildAndTest`;
+- built-package consumer import and calls from `package/page-weight/cli`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:types`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:oxlint`;
@@ -733,11 +739,11 @@ Verified package tasks:
 - `mise run //package/pi-plugin/auto-mode:lint:oxlint`;
 - `mise run //package/pi-plugin/auto-mode:build:js:node`;
 - `mise run //package/pi-plugin/auto-mode:test:unit`;
-- `mise run //package/module/test:lint:types`;
-- `mise run //package/module/test:lint:oxlint`;
-- `mise run //package/module/test:buildAndTest`;
-- `mise run //package/cli/mutation-test:buildAndTest`;
-- `mise run //package/module/jsonc-edit:buildAndTest`;
+- `mise run //package/test-harness/core:lint:types`;
+- `mise run //package/test-harness/core:lint:oxlint`;
+- `mise run //package/test-harness/core:buildAndTest`;
+- `mise run //package/mutation-test/cli:buildAndTest`;
+- `mise run //package/jsonc-edit/core-ts:buildAndTest`;
 - `mise run //package/git-policy/cli:build`;
 - `mise run //package/git-policy/cli:test:unit`;
 - `OXLINT_THREADS=1 mise run lint:oxlint` in stable root processes `proc_21` and `proc_26`.
@@ -816,7 +822,7 @@ A repository scan on 2026-07-12 found:
    comprising 190 TypeScript library names and 173 package type names;
 - 122 uses of `ReadonlyDeep` across the repository;
 - one output-level false-positive suppression in
-  `package/dev-script/task-util/src/oxlint-suppress.ts`.
+  `package/monorepo-task/core-exec/src/oxlint-suppress.ts`.
 
 The active disable reasons include external SDK types,
 mutable-by-design accumulators and caches,
@@ -844,7 +850,9 @@ semantic-analysis,
 declaration-generation,
 or TypeScript compiler components.
 
-The selected independent bridge is TypeScript 7.0.2's `typescript/unstable/sync` API.
+The selected independent bridge is TypeScript 7.0.2's `typescript/unstable/sync` API
+(`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+2026-10-20).
 One project-owned adapter owns the native client,
 project discovery,
 snapshots,
@@ -1002,8 +1010,8 @@ Delete the obsolete dedicated configuration files:
 - `package/config/oxlint/src/rule/prefer-readonly-parameter-types.allow-pkg-unbash.ts`.
 
 Remove the obsolete output suppression and its dedicated test cases from
-`package/dev-script/task-util/src/oxlint-suppress.ts` and
-`package/dev-script/task-util/src/oxlint-suppress.unit.test.ts`.
+`package/monorepo-task/core-exec/src/oxlint-suppress.ts` and
+`package/monorepo-task/core-exec/src/oxlint-suppress.unit.test.ts`.
 
 ### Migrate source directives and explanatory types
 
@@ -1095,8 +1103,10 @@ implementation details that have a correctness-dominant answer do not.
 
 Current checkpoint:
 
-- the technology vet selected TypeScript 7.0.2's `typescript/unstable/sync` API and rejected every TypeScript 6
-  fallback;
+- the technology vet selected TypeScript 7.0.2's `typescript/unstable/sync` API
+  (`typescript/unstable/sync` was renamed `typescript/sync` in 7.1.0-beta,
+  2026-10-20) and rejected every
+  TypeScript 6 fallback;
 - real Oxlint-boundary probes covered imported semantic types,
   mapped readonly state,
   representative direct and higher-order effects,
@@ -1397,7 +1407,8 @@ Higher-order propagation should instead come from machine-readable program struc
   strings;
 - use conservative signature-local `@mutates` effects for bodyless or opaque callables when specialization cannot be
   proved;
-- prototype TypeScript-level effect metadata only if a bodyless generic API needs expressiveness that generated summaries
+- prototype TypeScript-level effect metadata only if a bodyless generic API needs expressiveness that generated
+summaries
   cannot carry.
 
 ### Chosen test and declaration exemptions
@@ -1586,7 +1597,8 @@ projects.
 
 For mixed ownership,
 do not automatically split one domain type into mutable and immutable sibling types.
-Prefer a local projection unless an independently meaningful domain distinction already exists or is separately designed.
+Prefer a local projection unless an independently meaningful domain distinction already exists
+or is separately designed.
 
 ### Chosen declaration publication
 
@@ -1614,19 +1626,23 @@ The implementation suite must retain this corpus and add package-level README an
 
 ### Chosen semantic bridge
 
-Use TypeScript 7's project-native synchronous API through `typescript/unstable/sync`.
+Use TypeScript 7's project-native synchronous API through `typescript/sync`.
 Do not install or fall back to TypeScript 6.
 The repository accepts the API's unstable compatibility status in exchange for matching its installed TypeScript 7
-compiler semantics.
+compiler semantics
+(the 7.1.0-beta export rename,
+2026-10-20,
+dropped the `unstable/` path segment and changed no symbol names).
 
 The rule will keep one process-scoped `API` client,
 open projects through snapshots,
 provide unsaved current-file text through virtual filesystem callbacks,
-and invalidate changed files with `updateSnapshot`.
+and invalidate changed files with `snapshot.update` and its `fileNotifications`.
 Oxlint's synchronous JavaScript-rule visitors require the synchronous TypeScript API rather than its asynchronous
 counterpart.
 
-The disposable Oxlint-boundary prototype proved representative feasibility with installed TypeScript 7.0.2:
+The disposable Oxlint-boundary prototype proved representative feasibility with installed TypeScript 7.0.2
+(2026-era evidence):
 
 - one fixture covering imported aliases,
   generics,
@@ -1678,7 +1694,7 @@ packaging,
 and platform probes remain mandatory before the replacement can be enabled and declared complete.
 
 Readonly detection must isolate the unstable detail behind a tested adapter.
-TypeScript 7.0.2 exposes transient mapped-property readonly state through `Symbol.checkFlags`,
+TypeScript 7.0.2 (2026-era evidence) exposes transient mapped-property readonly state through `Symbol.checkFlags`,
 whose upstream `CheckFlagsReadonly` value is `1 << 3` but whose enum is not exported.
 Pin adapter contract tests to the installed TypeScript version and fail closed with a dedicated semantic-bridge
 diagnostic when the expected capability disappears.
@@ -1686,7 +1702,7 @@ Do not misreport unavailable readonly semantics as `opaqueEffect`,
 which is reserved for unresolved mutation effects.
 
 The published `no-restricted-syntax` package must declare TypeScript 7 as a runtime dependency and prove that its built
-artifact resolves `typescript/unstable/sync` in a disposable external consumer.
+artifact resolves `typescript/sync` in a disposable external consumer.
 It may not rely on the monorepo root's development dependency.
 
 Oxlint's language server currently does not support JavaScript plugins.
@@ -1707,7 +1723,8 @@ transitive or root dependency.
 not proof that the resulting capability is soundly immutable.
 The semantic rule must still inspect the resolved projection and its reachable effects.
 The probe showed that `ReadonlyDeep<Map<...>>` and `ReadonlyDeep<Set<...>>` produce useful collection projections,
-while `ReadonlyDeep<AbortController>` retains `abort()` and must produce `projectedReadonlyCapability` when used as a supposedly
+while `ReadonlyDeep<AbortController>` retains `abort()` and must produce `projectedReadonlyCapability`
+when used as a supposedly
 nonmutating contract.
 
 Suggestions may introduce `ReadonlyDeep<T>` only when the target package already declares `type-fest` or when the

@@ -19,10 +19,10 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
  */
 type ManualGoalReviewDecision =
   | { readonly action: 'accept'; }
-  | {
-    readonly action: 'reject';
-    readonly reason: string;
-  };
+    | {
+      readonly action: 'reject';
+      readonly reason: string;
+    };
 
 /**
  Injectable manual-review dialog capability.
@@ -258,7 +258,7 @@ async function promptManualGoalReview(
         },
       };
     },
-  );
+    );
 }
 
 export { promptManualGoalReview, };

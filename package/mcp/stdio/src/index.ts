@@ -24,9 +24,13 @@ export {
   DEFAULT_CACHE_HINT,
   type DiscoverResult,
   isSupportedProtocolVersion,
+  type ListResourcesResult,
   type ListToolsResult,
   type McpResult,
   PROTOCOL_VERSION,
+  type ReadResourceResult,
+  type ResourceDescriptor,
+  type ResourcesCapability,
   RESULT_TYPE_COMPLETE,
   type ResultType,
   type ServerCapabilities,
@@ -76,7 +80,9 @@ export {
 export { requireProtocolVersion, } from './server-request-version.ts';
 export {
   buildDiscoverResult,
+  buildListResourcesResult,
   buildListToolsResult,
+  buildReadResourceResult,
   buildToolCallResult,
   serverInfoMeta,
 } from './server-result.ts';
@@ -87,6 +93,7 @@ export {
   type McpServerHandle,
   NO_RESPONSE,
   type RegisteredTool,
+  type ResourceProvider,
   type ToolEntry,
 } from './server-types.ts';
 export { createMcpServer, } from './server.ts';

@@ -1,0 +1,24 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/dependency-catalog-cli-tighten.matrix",
+  "description": "Containerised end-to-end matrix verifying catalog-tighten across pnpm install layouts.",
+  "type": "module",
+  "main": "src/matrix.unit.matrix.test.ts",
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dependency-catalog/cli-tighten.matrix"
+  },
+  "private": true,
+  "sideEffects": true
+}

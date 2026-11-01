@@ -139,9 +139,9 @@ const reservationAfterLostRaces: ScenarioDefinition = {
       lostMarkers,
     } = await LATER_WINNERS
       .reduce<Promise<Readonly<{
-      winners: readonly AttemptRecord[];
-      lostMarkers: readonly string[];
-    }>>>(
+        winners: readonly AttemptRecord[];
+        lostMarkers: readonly string[];
+      }>>>(
       async function landWhileReplaying(
         previous,
         label,
@@ -196,7 +196,7 @@ const reservationAfterLostRaces: ScenarioDefinition = {
         winners: [first,],
         lostMarkers: [],
       },),
-    );
+      );
     /**
      Whether the victim lost its last race and holds the reservation.
      */
@@ -324,10 +324,10 @@ const reservationAfterLostRaces: ScenarioDefinition = {
         name: 'reserved-lands-first',
         holds: (victimCommit !== '') && (blockedCommit !== '')
           && (await isAncestor({
-          repository: context.repository,
-          oid: victimCommit,
-          ref: blockedCommit,
-        },)),
+            repository: context.repository,
+            oid: victimCommit,
+            ref: blockedCommit,
+          },)),
         detail: `victim ${victimCommit} is not an ancestor of the later commit ${blockedCommit}`,
       },
     ];

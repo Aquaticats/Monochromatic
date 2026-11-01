@@ -4,15 +4,15 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import type { SourceFile, } from 'typescript/unstable/ast';
-import { isCallExpression, } from 'typescript/unstable/ast/is';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import type { SourceFile, } from 'typescript/ast';
+import { isCallExpression, } from 'typescript/ast/is';
 
 import { callersAreEnumerable, } from './effect-caller-enumeration.ts';
 import type {
   Project,
   SignatureUsage,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import type { EffectAnalysisBudget, } from './effect-analysis-budget.ts';
 import { parameterSlotTable, } from './effect-parameter-slots.ts';
@@ -67,7 +67,7 @@ function signatureUsages({
   readonly declaration: EffectCallableDeclaration;
 }): readonly SignatureUsage[] | typeof SIGNATURE_USAGE_UNAVAILABLE {
   try {
-    return project.checker
+    return project.languageService
       .getSignatureUsage(declaration,);
   }
   catch (error) {
@@ -97,15 +97,15 @@ function unknownInboundSummary(
   const emptyBySlot = parameterSlotTable({ declaration, },)
     .parameterOfSlot
     .map(function emptyOrigins(): readonly EffectSlot[] {
-    return [];
-  },);
+      return [];
+    },);
   /**
    Foreign origins per formal, empty for the same reason ordinary origins are.
    */
   const foreignOrigins = declaration.parameters
     .map(function emptyForeignOrigins(): readonly ParameterIndex[] {
-    return [];
-  },);
+      return [];
+    },);
   return {
     /* This summary is a caller standing in for an inbound nothing could name, not the
      * callee. It declares no parameters of its own, so it owns no slots either; giving it
@@ -143,22 +143,22 @@ function unknownInboundSummary(
        * the length still has to match the formal-indexed list beside it. */
       capturedOriginsByFormal: foreignOrigins
         .map(function noCaptures(): readonly EffectSlot[] {
-        return [];
-      },),
+          return [];
+        },),
       foreignOriginsByFormal: foreignOrigins,
       directForeignByFormal: declaration.parameters
         .map(function ordinaryArgument(): boolean {
-        return false;
-      },),
+          return false;
+        },),
       foreignInbound: true,
       callbackKeysByCalleeSlot: emptyBySlot
         .map(function unavailableCallback() {
-        return OWNED_CALLABLE_UNAVAILABLE;
-      },),
+          return OWNED_CALLABLE_UNAVAILABLE;
+        },),
       callbackFileNamesByCalleeSlot: emptyBySlot
         .map(function unavailableCallbackFile() {
-        return OWNED_CALLABLE_UNAVAILABLE;
-      },),
+          return OWNED_CALLABLE_UNAVAILABLE;
+        },),
     },],
   };
 }
@@ -436,7 +436,7 @@ export function completeForeignBorrowedGraph({
         || (callerSummary.calls
           .length
           !== (priorCallCount
-          + 1))
+            + 1))
         || (exactEdge === undefined)
         || (!exactEdge.foreignInbound)
         || (exactEdge.calleeKey !== key)) {

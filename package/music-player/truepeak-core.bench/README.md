@@ -94,6 +94,6 @@ Run with `mise run //package/music-player/truepeak-core.bench:<task>`.
 - `run`:
    evaluate and search a corpus (pass the `tracks.jsonl` path after `--`).
 - `lint`,
-   `lint:clippy`,
-   `lint:rust`:
-   the checks.
+   `lint:clippy`:
+   the checks;
+   the repository's Rust rules run from the root `mise run lint`.

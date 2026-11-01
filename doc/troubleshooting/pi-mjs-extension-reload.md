@@ -349,7 +349,8 @@ every extension edit requires a process restart before testing.
 
 Ranking:
 restart Pi after each build is preferred over a TypeScript development entry because it verifies the shipped artifact.
-A TypeScript entry is preferred over relying only on build ordering because it preserves a usable reload loop for extension-only edits.
+A TypeScript entry is preferred over relying only on build ordering because it preserves a usable reload loop
+for extension-only edits.
 
 ## What does not work
 

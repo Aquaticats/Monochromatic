@@ -106,10 +106,12 @@ When no section fits,
 
 ### Runtime environment checks
 
-Do not put detection logic or compatibility warnings in `AGENTS.md` when a hook can enforce the same constraint automatically and silently.
+Do not put detection logic or compatibility warnings in `AGENTS.md`
+when a hook can enforce the same constraint automatically and silently.
 `AGENTS.md` text is passive;
  an agent reads it once and may not apply it consistently.
-A hook fires on every session start and injects a warning directly into context only when the condition is actually violated.
+A hook fires on every session start and injects a warning directly into context only
+when the condition is actually violated.
 
 ### Removed: "Detecting the Current Shell"
 
@@ -175,7 +177,8 @@ Global personal settings (relevant excerpt):
 Do not include syntax examples for standard tools (e.g. `rg`,
  `gh`,
  `curl`) or explain why a well-known tool is useful.
-Any competent agent or developer already knows how to use `ripgrep` or when to reach for official documentation over source code.
+Any competent agent or developer already knows how to use `ripgrep` or when to reach for official documentation
+over source code.
 Explaining these things wastes tokens on every context load and signals distrust of the reader.
 
 Removed:
@@ -228,7 +231,8 @@ Example:
 
 ### Inline pointers to this philosophy doc
 
-Do not add per-rule "(see doc/philosophy/`agents.md`)" / "(rationale in doc/philosophy/`agents.md`)" pointers to `AGENTS.md`.
+Do not add per-rule "(see doc/philosophy/`agents.md`)" / "(rationale in doc/philosophy/`agents.md`)" pointers to
+`AGENTS.md`.
 Normal operation needs the rule,
  its cue,
  and the tokens to act,
@@ -237,7 +241,9 @@ Normal operation needs the rule,
  which it must not.
 Rationale,
  mechanism,
- and examples relocated here stay discoverable through the single global note at the top of `AGENTS.md` plus the section-name correspondence (each subsection under "Relocated rule rationale" is named for the `AGENTS.md` section it came from).
+ and examples relocated here stay discoverable through the single global note at the top of `AGENTS.md` plus the
+ section-name correspondence
+ (each subsection under "Relocated rule rationale" is named for the `AGENTS.md` section it came from).
 If a rule is genuinely crippled without relocated detail,
  move the detail back into `AGENTS.md` rather than pointing here.
 A specific reference (exact section heading) is acceptable only when unavoidable;
@@ -249,7 +255,8 @@ How a task is wired internally is not an agent-facing rule.
 Agents run tests with `mise run test` (or a package's `:test`),
  so they never need to know that Rust packages run on `cargo nextest run` instead of `cargo test`,
  that the fuzz crate scopes its run to `--lib`,
- or that Rust unit tests live in co-located `<name>_tests.rs` sidecars declared from the source file with `#[cfg(test)] #[path = "..."] mod tests;`.
+ or that Rust unit tests live in co-located `<name>_tests.rs` sidecars declared from the source file
+ with `#[cfg(test)] #[path = "..."] mod tests;`.
 The runner choice lives in the mise tasks;
  the sidecar layout lives in the source files themselves.
 An agent editing a Rust file sees the existing `mod tests;` stub at the bottom and the sibling `*_tests.rs` beside it,
@@ -259,7 +266,8 @@ Restating that in `AGENTS.md` spends tokens every session to describe what the c
  and it invites the rule to drift from the implementation it documents.
 Keep `AGENTS.md` to rules that change what an agent decides at a fork it would otherwise get wrong;
  leave runner choice and test-file mechanics to the tasks and the code.
-This is the test-tooling instance of the general rule above ("Code examples for rules that are self-explanatory" and "Detailed sub-rules for generic workflows"):
+This is the test-tooling instance of the general rule above
+("Code examples for rules that are self-explanatory" and "Detailed sub-rules for generic workflows"):
  a convention an agent will copy from its surroundings does not need a written rule.
 
 ### Removed: 2026-09 rule-by-rule optimization
@@ -319,8 +327,9 @@ work.
 
 `bun test` specifically:
  never substitute it for a missing mise task.
- The custom `@monochromatic-dev/module-test` harness runs tests as a side effect of import,
- so `bun test <file>` prints `PASS` log lines (from the harness) and then reports `0 pass / 0 fail` (bun's runner finds no `bun:test` registrations).
+ The custom `@monochromatic-dev/test-harness-core` harness runs tests as a side effect of import,
+ so `bun test <file>` prints `PASS` log lines (from the harness)
+ and then reports `0 pass / 0 fail` (bun's runner finds no `bun:test` registrations).
  The misleading summary suggests the run was broken when in fact every test passed.
  Use `mise run //package/<path>:test:unit`;
  if no such task exists,
@@ -359,14 +368,16 @@ API:
 #### Git cleanup and worktree safety reviews: the cli-git tool-cache allowlist
 
 When the review touches `cli-git`'s linked-worktree guard,
- account for the baked-in tool-cache allowlist (`DEFAULT_ALLOWED_WORKTREE_DIRS` in `package/git-policy/cli/src/allowed-worktree-dirs.ts`,
+ account for the baked-in tool-cache allowlist
+ (`default_allowed_worktree_dirs` in `package/git-policy/cli/src/native/effective_target.rs`,
  currently uv's git cache):
  repositories whose git-dir resolves under an allowed dir bypass that guard,
  so destructive git is not actually blocked there.
 
 #### Command execution conventions: the bash-output path substitution
 
-`~` in Bash tool output is a display substitution for `/var/home/user` or `/home/user` applied by the `bash-output-filter` hook,
+`~` in Bash tool output is a display substitution for `/var/home/user`
+or `/home/user` applied by the `bash-output-filter` hook,
  plus stripping of the current cwd prefix.
  It applies only at the start of a line,
  so paths inside JSON or error messages are unaffected.
@@ -440,9 +451,9 @@ Remediate a max-lines violation by splitting:
  constants to `constants.ts`,
  types to `types.ts`.
  Pattern examples:
- `package/module/hyperscript/src/index.ts` (76 lines,
+ `package/hyperscript/core/src/index.ts` (76 lines,
  pure re-exports),
- `package/module/image-diff/src/index.ts` (75 lines,
+ `package/llm/image-diff/src/index.ts` (75 lines,
  pure re-exports).
 
 #### Name the verification step: the inline-citation examples
@@ -532,8 +543,10 @@ Non-zero-match silent failures (same shape,
  `head -N` truncating before later files have a chance,
  where one noisy file consumes the cap and buries everything alphabetically later (remove or raise the cap,
  or surface that the result is truncated);
- denylist filters (`rg -v 'a|b|c'`) hide whatever you forgot to keep and discard whatever you forgot to include (prefer allowlist patterns:
- a positive shape like literal `' cat '` with surrounding spaces for prose-form English usage of a word that is also a shell command);
+ denylist filters (`rg -v 'a|b|c'`) hide whatever you forgot to keep
+ and discard whatever you forgot to include (prefer allowlist patterns:
+ a positive shape like literal `' cat '` with surrounding spaces for prose-form English usage of a word
+ that is also a shell command);
  `-l` (filenames only) hides the context needed to tell real matches from noise (default to full lines,
  switch to `-l` only after confirming the noise cost is concrete);
  narrow `--type` on the first pass feels thorough but skips matches in unexpected file kinds (widen first).
@@ -619,7 +632,8 @@ See [`doc/troubleshooting/ydotool-interrupted-key-release.md`](../troubleshootin
 #### Verify on a throwaway: why a guard test needs a throwaway
 
 When the behavior under test is whether a guard blocks a destructive operation,
- running that operation against real state means a broken guard (the exact failure you are testing for) damages real state,
+ running that operation against real state means a broken guard (the exact failure you are testing for) damages real
+ state,
  while a passing guard tells you nothing a throwaway would not have.
  So build both the allowed case and the rejected case as fixtures.
 
@@ -665,16 +679,24 @@ A test file covering sync matchers but skipping async matchers is the same as no
  and refusing stops that state says another turn could still advance,
  the PreToolUse guardrail (`ccgr`),
  the roadmap PostToolUse type-check.
- Flagging the machinery at all lets agents game the surface pattern (swapping one hedge for a novel one that passes but carries the same epistemic gap) and reframes an internalized rule as an external gate to dodge.
+ Flagging the machinery at all lets agents game the surface pattern
+ (swapping one hedge for a novel one that passes but carries the same epistemic gap)
+ and reframes an internalized rule as an external gate to dodge.
  The rule the agent must own stays (the hedge-phrase list);
  the fact that a hook backstops it is omitted.
 
-`ccsr`'s forced-continuation detector is the one exception to that reasoning,
- and the exception proves the rule.
- It reads none of the response text,
- so there is no surface pattern to swap:
- knowing it exists cannot help an agent rewrite its way past it,
- and satisfying it means doing the work.
+`ccsr`'s forced-continuation detector was the one exception to that reasoning while it read none of the response text:
+ there was no surface pattern to swap,
+ so knowing it existed could not help an agent rewrite its way past it,
+ and satisfying it meant doing the work.
+ Since 2026-10-18 it asks Luna what situation the final message describes
+ (announces a next step, waits on background work, waits on the user, pauses, or is closed),
+ so it now conditions on wording too,
+ and the reasoning for not naming it applies again.
+ Two properties keep it from being a pure wording gate:
+ the state-based releases (depth limit, no tool call since the last block) still read no text,
+ and a background wait is blocked only when no background task is running,
+ which is state the agent cannot rewrite.
  Every other detector conditions on wording,
  which is exactly why naming them would let an agent rewrite around them.
 
@@ -695,7 +717,8 @@ A test file covering sync matchers but skipping async matchers is the same as no
  `doc/troubleshooting/claude-code-opus-5-premature-turn-end.md`.
  The trailing-question rule is dropped from `AGENTS.md` entirely rather than reworded:
  "ask via the question tool,
- never end on a bare question" restates standard harness behavior the `AskUserQuestion` tool and its description already carry,
+ never end on a bare question" restates standard harness behavior the `AskUserQuestion` tool
+ and its description already carry,
  so it fails the Purpose test for non-obvious project knowledge.
  Exception:
  the `bash-output-filter` `~` substitution stays named,
@@ -777,7 +800,8 @@ The helper-shape allowlist suppresses the report when a function ends in `return
 Failure that shows why the config,
  not a plain-language rule,
  must decide:
- a redesign of `package/webapp-productivity/wc/src/styles-colors.ts` extracted five inline `l` channel values inside `cssOklch({...})` calls (e.g. `l: 0.16,`) into standalone named constants (`L_BLACK`,
+ a redesign of `package/wc/app/src/styles-colors.ts` extracted five inline `l` channel values inside
+ `cssOklch({...})` calls (e.g. `l: 0.16,`) into standalone named constants (`L_BLACK`,
  `L_NEAR_BLACK`,
  `L_MID`,
  `L_NEAR_WHITE`,
@@ -796,7 +820,8 @@ A Markdown `\<`,
  or regex escaping makes text safe only in its own grammar;
  carried into another language it is either inert or actively wrong.
 The destination grammar is the only authority,
- so normalize source semantics as needed and encode for the exact destination subcontext at the final interpolation boundary.
+ so normalize source semantics as needed
+ and encode for the exact destination subcontext at the final interpolation boundary.
 The rule reaches every text-emitting transformer:
  serializers,
  code generators,
@@ -834,7 +859,8 @@ A verification that depends on a resource the user just made available (a connec
 So it runs before unrelated work and before other parts of the same task.
 
 The trap is the "these are all part of the same task" rationalization:
- a scope expansion ("do all of X too") or a long multi-item task list feels like a license to keep working through the list and leave the resource-gated check for the end.
+ a scope expansion ("do all of X too") or a long multi-item task list feels like a license to keep working through the
+ list and leave the resource-gated check for the end.
 It is not.
 The resource's availability window,
  not the task-list order,
@@ -873,7 +899,7 @@ A name-based reference (rule tag,
  because it does not depend on where the referenced content currently sits.
 The rule reaches TSDoc and code comments,
  not only markdown prose:
- this is the exact failure fixed in `package/desktop-app/terminal/Cargo.toml` and
+ this is the exact failure fixed in `package/terminal/app/Cargo.toml` and
 `package/music-player/desktop-app/Cargo.toml`,
  where "the slint dependency above" became "the slint dependency in this file".
 
@@ -901,3 +927,83 @@ Failure that produced this rule:
  when the device was merely unplugged or unauthorized at that moment;
  a single reconnect by the user made it appear immediately,
  and the on-device verification then succeeded.
+
+#### Architecture decisions: the clearnet leak behind OWK
+
+OWK keeps a concern that spans components inside the owner the user named or approved,
+ and its trigger names the three moments such a leak can pass:
+ designing,
+ briefing,
+ and merging.
+
+Failure that produced this rule (issue #1819,
+ 2026-10-31):
+ the user asked "Make our wg auto make update traffics go through clearnet",
+ which named the `package/wg/*` tools as the owner.
+The coordinating session's brief proposed that the toolchain re-execute itself into the slice the wg exemption watches,
+ framed as a suggestion ("The likely shape is ...").
+The worker built it in both the TypeScript toolchain and `mpm-shadow`,
+ and the merge review checked only that traffic from the slice left the tunnel,
+ not which component decided.
+The user's correction:
+ "mpm-shadow should never determine itself goes through clearnet.
+ Our wg set of pkgs should determine that!"
+
+The severity sentence carries the two harms the user named:
+ a tool routing around a VPN on its own can expose someone whose safety depends on the tunnel
+ ("Imagine somewhere where if some people detect you're accessing crates.io you're paid a visit"),
+ and the bypass route can itself fail on unusual networks.
+The user rejected "Tunnel leaks" as too specific,
+ so the sentence speaks of leaks in general.
+
+"Named or approved" excludes an owner an agent adopted and recorded on its own,
+ which `QGR`'s "adopt + record unasked" would otherwise let it quote back as authority.
+Approval means the user accepted the ownership itself:
+ approving a release that carries a design is not approving who owns the concern,
+ and that release approval is how the self-placement nearly shipped in `mpm-shadow` 0.2.1.
+"Cross-component" keeps the rule from asking who owns every helper inside one package.
+
+How the wg tools present their bypasses (warned on every start,
+ no toggle,
+ always enforced) is the user's policy for those tools;
+ it lives in their READMEs,
+ not in `AGENTS.md`.
+The interview that settled this wording is recorded in `doc/planning/agents-md-ownership-and-brief-rules.md`;
+ the rejected drafts `CWN` and `LKF` are reserved codes.
+
+#### Before briefing an agent: why BRQ quotes sources and demotes derivations
+
+On 2026-10-31 (issue #1819) three instructions reached workers in the coordinating session's own wording:
+
+- The clearnet mechanism,
+   already framed as a suggestion ("The likely shape is ... for example ..."),
+   was built as written.
+   OWK,
+   firing at brief time,
+   rejects that design;
+   BRQ makes such ideas revisable rather than binding.
+- An opt-in,
+   off-by-default,
+   fail-closed policy for the wg bypasses,
+   inferred from the user's remark about severity,
+   went to a worker as a requirement.
+   The user's actual policy was the opposite.
+- A note told a worker to name "0.2.0's archive per the bootstrap design".
+   The bootstrap decision says "a prebuilt `mpm-shadow` archive with its SHA-256 in the lock" and names no version;
+   the worker wrote a tag-pinned request that `PIN` forbids.
+   A citation sat beside a paraphrase that contradicted it,
+   which a quote would have exposed.
+
+So requirements are only what the user said or decided,
+ quoted with their source,
+ and "notes" covers mid-task corrections,
+ since the third instance was a note rather than a brief.
+Derivations are suggestions because the opt-in policy was presented as following from the user's words.
+The policy clause closes the relabel path:
+ without it,
+ a coordinator could send "Suggest making every bypass opt-in" and let a worker build it.
+
+Considered and not chosen:
+ tightening `ASK` to "ask before acting on them or briefing an agent with them",
+ defining "settled" in `QGR`,
+ and a policy-versus-scope clause in `VR2`.

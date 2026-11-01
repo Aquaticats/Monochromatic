@@ -34,7 +34,7 @@ The explicitly named `try` and `prepareAndBuild--allowFailure` remain tolerant.
 
 ### Resolution verification
 
-`package/dev-script/task-util/src/build-and-test.unit.test.ts`
+`package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
 exercises the generated task through real mise subprocesses.
 Its helpers extract original task and variable definitions from `mise.toml`,
 replace only the build/test phase implementations,
@@ -55,13 +55,13 @@ Verified commands:
 
 ```sh
 # Repository root: build the selected package and run its orchestration regression fixture.
-mise run buildAndTest -- package/dev-script/task-util/src/build-and-test.unit.test.ts
+mise run buildAndTest -- package/monorepo-task/core-exec/src/build-and-test.unit.test.ts
 ```
 
 ```sh
 # Repository root: package checks.
-mise run //package/dev-script/task-util:lint:types
-mise run //package/dev-script/task-util:lint:oxlint
+mise run //package/monorepo-task/core-exec:lint:types
+mise run //package/monorepo-task/core-exec:lint:oxlint
 ```
 
 Sensitivity control used copied test helpers and configuration in a disposable tree.

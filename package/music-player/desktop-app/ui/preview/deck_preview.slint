@@ -1,0 +1,68 @@
+// Preview windows for the transport deck. Each exported case renders the deck with the sample data
+// from the Fold captures, so a screenshot can be compared with the matching reference.
+import { Theme } from "../theme.slint";
+import { TransportDeck } from "../deck.slint";
+
+// Window that shows only the deck, sized to the deck's content height. The scheme is forced
+// before the first frame so the preview is independent of the host appearance.
+export component DeckPreview inherits Window {
+    // Forced scheme: 1 light, 2 dark.
+    in property <int> scheme: 2;
+    // Font multiplier passed to the deck; 2.0 reproduces the 200 percent text capture.
+    in property <float> text-scale: 1.0;
+    // Typeface for the preview. Roboto, used by the capture, is not installed here; Arimo is the Arial-metric face used instead.
+    in property <string> font-family: "Arimo";
+    // Folder name shown in the shuffle segment of the preview.
+    in property <string> folder: "Camellia";
+    // Logical width of the pane that holds the deck; 443 for the cover, 414 for the inner pane.
+    in property <length> deck-width: 443px;
+
+    width: root.deck-width;
+    height: deck.height;
+    background: Theme.deck;
+
+    init => {
+        Theme.scheme-override = root.scheme;
+    }
+
+    deck := TransportDeck {
+        width: root.width;
+        title: "Another Xronixle";
+        subtitle: "1 of 16";
+        position-seconds: 66;
+        duration-seconds: 275;
+        playing: true;
+        mode: 1;
+        shuffle-folder-label: root.folder;
+        text-scale: root.text-scale;
+        font-family: root.font-family;
+    }
+}
+
+// Cover pane at 100 percent text, dark scheme.
+export component CoverDark100 inherits DeckPreview {
+    scheme: 2;
+    text-scale: 1.0;
+    deck-width: 443px;
+}
+
+// Cover pane at 100 percent text, light scheme.
+export component CoverLight100 inherits DeckPreview {
+    scheme: 1;
+    text-scale: 1.0;
+    deck-width: 443px;
+}
+
+// Cover pane at 200 percent text, dark scheme: the mode control takes four rows.
+export component CoverDark200 inherits DeckPreview {
+    scheme: 2;
+    text-scale: 2.0;
+    deck-width: 443px;
+}
+
+// Inner pane at 100 percent text, dark scheme: the mode control takes two rows.
+export component InnerDark100 inherits DeckPreview {
+    scheme: 2;
+    text-scale: 1.0;
+    deck-width: 414px;
+}

@@ -7,11 +7,11 @@
   "private": true,
   "module": "src/index.ts",
   "dependencies": {
-    "@monochromatic-dev/module-dom": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-hyperscript": "workspace:*",
-    "@monochromatic-dev/module-observable": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
+    "@monochromatic-dev/dom-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/observable-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "h3": "catalog:"
   },
   "devDependencies": {

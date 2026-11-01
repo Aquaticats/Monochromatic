@@ -1,0 +1,558 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-18T15:29:05.459960+00:00",
+  "application": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "Independent local-only driver/bootstrap preflight; explicitly fake owning commands; no cloud dispatch and no application test credit",
+  "originalSource": "815591bf307b1237d31b1c4e644463d7c13654fa",
+  "correctedSource": "234ccc92dabb81e998e0a0bb5e838713924dd83f",
+  "bindings": {
+    "driverSha256": "28eda050606b50a28d5590db1d4dd2af1f2951ed22d0ae8abd476c1882c82521",
+    "bootstrapSha256": "1604818b95edd02e3a5f3c4d7b78888fb06df6534cb080d5ab9a89f635014442",
+    "planSha256": "d13d924dd3f16595856dd2c8711b2b080e2e01053407f53a9dd7f7dce11c4dd9"
+  },
+  "runtime": "v26.12.0",
+  "resourceBounds": {
+    "cpus": 2,
+    "memoryBytes": 2147483648,
+    "pids": 256,
+    "networkDuringDriverFixtures": "none",
+    "driverContainerLifetimeMaximumSeconds": 180,
+    "installContainerLifetimeMaximumSeconds": 520,
+    "actualCgroup": {
+      "cpuMax": "200000 100000",
+      "memoryMax": "2147483648",
+      "pidsMax": "256"
+    }
+  },
+  "originalGithubRun": {
+    "runId": "39135886118",
+    "jobs": [
+      {
+        "jobId": "117700197567",
+        "name": "graph (github-2, github, 2, ubuntu-24.04)",
+        "conclusion": "failure",
+        "failedSteps": [
+          "Install only locked Node pnpm Rust and Nextest"
+        ],
+        "graphStep": "skipped"
+      },
+      {
+        "jobId": "117700197707",
+        "name": "graph (depot-1, github-depot, 1, depot-ubuntu-24.04-4)",
+        "conclusion": "failure",
+        "failedSteps": [
+          "Install only locked Node pnpm Rust and Nextest"
+        ],
+        "graphStep": "skipped"
+      },
+      {
+        "jobId": "117700197734",
+        "name": "graph (depot-2, github-depot, 2, depot-ubuntu-24.04-4)",
+        "conclusion": "failure",
+        "failedSteps": [
+          "Install only locked Node pnpm Rust and Nextest"
+        ],
+        "graphStep": "skipped"
+      },
+      {
+        "jobId": "117700197742",
+        "name": "graph (github-1, github, 1, ubuntu-24.04)",
+        "conclusion": "failure",
+        "failedSteps": [
+          "Install only locked Node pnpm Rust and Nextest"
+        ],
+        "graphStep": "skipped"
+      }
+    ],
+    "applicationOwnerExecutionCredit": false
+  },
+  "selectedToolInstall": {
+    "freshIsolatedState": true,
+    "credentialEnvironmentInjected": false,
+    "miseExecutableSha256": "6ab6646b52b83f6bbd51c9d0d3ae54264ffa90efd1ac6d7c0ec5a86bbc6a0030",
+    "miseVersion": {
+      "stdout": "2026.10.9 linux-x64 (2026-10-13)\n",
+      "stderr": "",
+      "status": 0
+    },
+    "configSha256": "f67fe7f09b64b0beb50cfd2d620f18534a8eba672498899ee47fbc55b70e8248",
+    "lockSha256": "80b1dda5ef694b0d19f9dd5a9d755057702833b82d56433250033b5e02a9ecc4",
+    "steps": [
+      {
+        "args": [
+          "install",
+          "--locked",
+          "node",
+          "pnpm",
+          "rust",
+          "cargo-binstall"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 35568
+      },
+      {
+        "args": [
+          "install",
+          "--locked",
+          "cargo:cargo-nextest"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 6487
+      },
+      {
+        "args": [
+          "exec",
+          "node",
+          "pnpm",
+          "rust",
+          "cargo:cargo-nextest",
+          "--",
+          "node",
+          "--input-type=module",
+          "-e",
+          "import{execFileSync}from'node:child_process';for(const[tool,args]of[['node',['--version']],['pnpm',['--version']],['rustc',['--version','--verbose']],['cargo',['nextest','--version']]])console.log(tool,execFileSync(tool,args,{encoding:'utf8'}).trim())"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 209
+      }
+    ],
+    "actualToolVersions": "node v26.12.0\npnpm 12.14.0\nrustc rustc 1.101.0-nightly (5d8fec066 2026-10-16)\nbinary: rustc\ncommit-hash: 5d8fec0669a64607db9ccbf663e7c23125bf4748\ncommit-date: 2026-10-16\nhost: x86_64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\ncargo cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)\nrelease: 0.9.148\ncommit-hash: cd1d6d5467322dbc0d39a80cb671d000ac302798\ncommit-date: 2026-10-07\nhost: x86_64-unknown-linux-gnu\n",
+    "sourceRecord": "install/result"
+  },
+  "originalControls": [
+    {
+      "mode": "success",
+      "driverStatus": 0,
+      "elapsedMilliseconds": 3044,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 0
+    },
+    {
+      "mode": "producer-failure",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 1075,
+      "fakeOwnerCalls": 44,
+      "retainedLogs": 44,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "failed_requires_classification": 1,
+        "succeeded": 43
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 1
+    },
+    {
+      "mode": "consumer-failure",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 2829,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "failed_requires_classification": 1,
+        "succeeded": 221
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 2
+    },
+    {
+      "mode": "budget-skip",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 297,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "not_started_campaign_budget": 44
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 3
+    },
+    {
+      "mode": "timeout",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 11127,
+      "fakeOwnerCalls": 3,
+      "retainedLogs": 3,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "command_budget_exhausted": 1,
+        "not_started_campaign_budget": 41,
+        "succeeded": 2
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 4
+    },
+    {
+      "mode": "linger-cleanup",
+      "driverStatus": 0,
+      "elapsedMilliseconds": 6128,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": true,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 5
+    },
+    {
+      "mode": "changed-source",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 117,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {},
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 6
+    },
+    {
+      "mode": "staged-source",
+      "driverStatus": 0,
+      "elapsedMilliseconds": 3052,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": true,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 7
+    },
+    {
+      "mode": "existing-target",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 118,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {},
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 8
+    },
+    {
+      "mode": "external-sigterm",
+      "driverStatus": null,
+      "elapsedMilliseconds": 1705,
+      "fakeOwnerCalls": 3,
+      "retainedLogs": 2,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": true,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {
+        "succeeded": 2
+      },
+      "sourceRecord": "original/fixtures",
+      "caseIndex": 9
+    }
+  ],
+  "correctedControls": [
+    {
+      "mode": "success",
+      "driverStatus": 0,
+      "elapsedMilliseconds": 2939,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 0
+    },
+    {
+      "mode": "producer-failure",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 1126,
+      "fakeOwnerCalls": 44,
+      "retainedLogs": 44,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "failed_requires_classification": 1,
+        "succeeded": 43
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 1
+    },
+    {
+      "mode": "consumer-failure",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 2895,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "failed_requires_classification": 1,
+        "succeeded": 221
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 2
+    },
+    {
+      "mode": "budget-skip",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 362,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "not_started_campaign_budget": 44
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 3
+    },
+    {
+      "mode": "timeout",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 11155,
+      "fakeOwnerCalls": 3,
+      "retainedLogs": 3,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "command_budget_exhausted": 1,
+        "not_started_campaign_budget": 41,
+        "succeeded": 2
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 4
+    },
+    {
+      "mode": "linger-cleanup",
+      "driverStatus": 0,
+      "elapsedMilliseconds": 6103,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": true,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 5
+    },
+    {
+      "mode": "changed-source",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 160,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {},
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 6
+    },
+    {
+      "mode": "staged-source",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 160,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {},
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 7
+    },
+    {
+      "mode": "existing-target",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 156,
+      "fakeOwnerCalls": 0,
+      "retainedLogs": 0,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": null,
+      "states": {},
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 8
+    },
+    {
+      "mode": "external-sigterm",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 4854,
+      "fakeOwnerCalls": 3,
+      "retainedLogs": 3,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": false,
+      "childGone": null,
+      "cancellationSignal": "SIGTERM",
+      "changedTrackedFiles": [],
+      "states": {
+        "cancelled_by_driver_signal": 1,
+        "not_started_campaign_cancelled": 41,
+        "succeeded": 2
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 9
+    },
+    {
+      "mode": "external-sigint",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 4857,
+      "fakeOwnerCalls": 3,
+      "retainedLogs": 3,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": false,
+      "childGone": null,
+      "cancellationSignal": "SIGINT",
+      "changedTrackedFiles": [],
+      "states": {
+        "cancelled_by_driver_signal": 1,
+        "not_started_campaign_cancelled": 41,
+        "succeeded": 2
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 10
+    },
+    {
+      "mode": "final-source-newlines",
+      "driverStatus": 1,
+      "elapsedMilliseconds": 2959,
+      "fakeOwnerCalls": 222,
+      "retainedLogs": 222,
+      "stagedMutationEscapedGuard": false,
+      "orphanSurvivedDriverTermination": null,
+      "childGone": null,
+      "cancellationSignal": null,
+      "changedTrackedFiles": [
+        "LICENSE",
+        "README.md"
+      ],
+      "states": {
+        "succeeded": 222
+      },
+      "sourceRecord": "corrected/fixtures",
+      "caseIndex": 11
+    }
+  ],
+  "verification": {
+    "strictOriginalJsonParsing": true,
+    "escapeRepairApplied": false,
+    "actualNewlineWorkflowSeparatorsVerified": true,
+    "gitNewlineSeparatedNamesVerified": [
+      "LICENSE",
+      "README.md"
+    ],
+    "logByteLengthAndSha256Joins": 1878,
+    "signalHandlerRemovalAsserted": true,
+    "defaultRustConcurrencyOverrideKeysAbsentInFakeChildren": true,
+    "allConfiguredControlsPassed": true,
+    "originalSourceBodyLengthAndSha256Joins": 31,
+    "credentialPatternCandidates": 0,
+    "targetedMarkdownLintAndRenderedInspection": "passed"
+  },
+  "corrections": [
+    {
+      "claim": "Browser image preparation absent",
+      "status": "Retracted after coordinator cited complete frozen browser branch; actual command index2 invokes prepare:matched-image",
+      "completeCommandEnumeration": {
+        "shared": 42,
+        "modulesA": 83,
+        "modulesB": 87,
+        "browser": 8,
+        "rust": 2,
+        "total": 222
+      }
+    },
+    {
+      "claim": "Expanded graph initial nominal Depot reservation USD1.20",
+      "status": "Superseded by USD1.44 using currently published Linux4 rate0.012/min for both native4CPU and DepotGHA4CPU; original admission retained by coordinator",
+      "allProviderUniformProxyUsd": "2.16",
+      "campaignGuardUsd": "3",
+      "currentRateBodySha256": "db1cbad74236617620aaaa77dc395b86fd94e836b87e9d75ee874ff80fd98705"
+    }
+  ],
+  "sourceFixtureBoundary": "Actual immutable commit and all tree objects with all 13863 index paths; omitted application files carry skip-worktree flags, README and LICENSE remain ordinary tracked files; every owning command is an explicitly fake executable",
+  "unexercised": [
+    "Application owning commands and test cases",
+    "Provider setup actions and four-CPU initial resource guard",
+    "pnpm graph dependency installation",
+    "Real inner Podman image build, browsers and Cargo owners",
+    "Actual provider cancellation, allocation release, invoices, artifact-upload action and cache behavior"
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz",
+    "bytes": 1096903,
+    "sha256": "4f173723e155cff0ae91c7c3c794c9ceeed930603f2960bb03b94cc87a233d01",
+    "uncompressedBytes": 4797567,
+    "uncompressedSha256": "64cd4f163a412c864a9978e1a596ad8089948ffd2a5bd6553d887cca8e21bce0",
+    "records": 31
+  }
+}

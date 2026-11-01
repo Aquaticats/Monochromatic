@@ -2,11 +2,25 @@
 
 ## Authority and current status
 
+On 2026-10-15 the user raised the preparation-inclusive assessment budget to 15 seconds.
+This supersedes the five-second deadline recorded in the historical decisions and measurements.
+The accepted ceiling remains three sequential bundles with at most three parallel calls in each bundle.
+The average USD 0.001 per judgment constraint remains removed.
+Preparation, retries, conversion, and all bundles share one original deadline.
+
+The user also reaffirmed that each decision must not receive the full transcript,
+and directed inspection of the legacy auto-mode context selector.
+Its existing contract selects the larger of the latest five visible messages and the complete latest-user span,
+preserving the selected messages without truncation.
+Local capture and provenance retention must remain distinct from judge-input selection.
+The native assessment's complete source-receipt serialization diverged from this incumbent boundary.
+
 The user corrected the design:
 
 > These are NOT reasoning models.
 > Instead of asking them to reason through which action should be taken,
-> get them to emit probabilities for the axioms and then we deterministically algorithmically parse through them ourselves
+> get them to emit probabilities for the axioms
+> and then we deterministically algorithmically parse through them ourselves
 > and get the final action.
 
 This is the required architecture.
@@ -81,6 +95,18 @@ Use only evidence needed for the assessment and keep complete current `AGENTS.md
 The remaining correctness and final shared-design gates are unchanged.
 
 ### Drex private-input authorization
+
+On 2026-10-14,
+after explicitly approving the prepared complete-input Drex check,
+the user stated:
+"You may send anything to Drex and Jev and use my credits freely."
+This renews standing authorization for task-relevant assessment inputs and credit use on both named routes.
+Do not ask again for these provider inputs or ordinary assessment credit use.
+This does not change the five-second production assessment deadline,
+authorize the represented tool actions,
+or adopt a different production provider.
+The user also reported enabling yolo;
+that report does not itself establish a verified runtime configuration.
 
 On 2026-10-01,
 the user separately authorized sending Drex whatever this work needs,
@@ -931,6 +957,16 @@ No coding-plan fallback or model substitution is authorized.
 
 ### Three-call ceiling and parallel batched axioms
 
+On 2026-10-15 the user replaced the three-call ceiling with at most three sequential call bundles.
+Each bundle permits at most three parallel calls.
+The maximum is therefore nine calls arranged within three sequential bundles,
+not nine sequential calls.
+Preserve every selected question and its answer identity when dividing provider requests.
+The user clarified that only the average USD 0.001 per judgment cost limit is removed.
+The five-second preparation-inclusive deadline remains.
+The historical three-call and five-second decisions in this section describe the superseded design
+where they conflict with this update.
+
 On 2026-10-01,
 the user allowed at most three decision-model calls per eventual decision
 and required termination as early as possible.
@@ -956,7 +992,8 @@ voting,
 or repeated uncertainty sampling.
 The deterministic evaluator stops after any settled outcome,
 including a code-only outcome before inference.
-The [batched assessment proposal](pi-auto-mode-batched-assessment.md) records the implications and remaining qualification.
+The [batched assessment proposal](pi-auto-mode-batched-assessment.md) records the implications
+and remaining qualification.
 Production adoption and thresholds remain unapproved.
 
 ### Q12: Necessity-based retention accepted

@@ -13,7 +13,7 @@ import {
   cssS,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * FAB stacking order above all other fixed elements.

@@ -41,15 +41,15 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { isFunctionLikeDeclaration, } from 'typescript/unstable/ast/is';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { isFunctionLikeDeclaration, } from 'typescript/ast/is';
 
 import {
   buildEffectSummaryIndex,
@@ -257,7 +257,7 @@ function externalCaptureFixture(): ExternalCaptureFixture {
    Consumer root, outside every repository lockfile's reach.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'readonly-external-capture-',
   ),);
   /**

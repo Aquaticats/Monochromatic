@@ -68,7 +68,7 @@ so a package's `main`,
 Directory granularity,
  rather than exact-file matching,
  is what admits the Electron packages:
-`package/desktop-app/file-manager-electron` declares `main: dist/app/main.mjs`,
+`package/file-manager/variant-electron` declares `main: dist/app/main.mjs`,
 so `dist/app/**` is eventual and its tests may import `../dist/app/strip.js`.
 
 ## Rule behavior
@@ -97,7 +97,7 @@ For each static `import` declaration,
 The own-package versus cross-package distinction is the reason this is a custom rule rather than configuration.
 Native `no-restricted-imports` matches specifier strings only,
 so banning `@monochromatic-dev/*/ts` would also hit the 83 legitimate cross-package sites
-and the 537 `@monochromatic-dev/module-test/ts` harness imports.
+and the 537 `@monochromatic-dev/test-harness-core/ts` harness imports.
 
 ### Fixture allowlist
 
@@ -114,7 +114,7 @@ Default list,
 ```
 
 The three literal `test-` names are listed individually rather than as a `**/test-*.ts` prefix glob.
-A prefix glob would also match `package/cli/mutation-test/src/container/test-run.ts`,
+A prefix glob would also match `package/mutation-test/cli/src/container/test-run.ts`,
 which is real package behavior imported by `mutant-loop.ts` and `main.ts`,
 and would silently exempt it.
 
@@ -176,8 +176,8 @@ Dynamic `import()`,
  and `export ... from` are out of scope by decision.
 Consequence to accept knowingly:
 `await import('./toml-set.ts')` remains a legal bypass,
-and 3 such sites exist today in `package/module/toml-edit/src/toml-get-raw.unit.test.ts`,
-`package/module/toml-edit/src/toml-get-node.unit.test.ts`,
+and 3 such sites exist today in `package/toml-edit/core/src/toml-get-raw.unit.test.ts`,
+`package/toml-edit/core/src/toml-get-node.unit.test.ts`,
 and `package/pi-plugin/thinking-default/src/index.unit.test.ts`.
 Adding the dynamic form later is a small change.
 
@@ -200,10 +200,10 @@ which the anti-laundering clause brings into scope.
 
 Largest concentrations by violating file count:
 `git-policy/cli` 42,
-`dev-script/file-enforcer` 36,
-`module/toml-edit` 24,
+`file-enforcer/core` 36,
+`toml-edit/core` 24,
 `pi-plugin/auto-mode` 19,
-`module/logger` 16.
+`logger/core` 16.
 
 Stage-one categorization below predates implementation and is retained
 as the shape of the work rather than as a current count.
@@ -225,7 +225,7 @@ The 411 group is the dominant cost and the reason this is not a mechanical migra
 `package/git-policy/cli` alone accounts for 88 of those sites.
 
 The build bundles rather than preserving module structure,
-verified as one emitted `.mjs` from 75 source files in `package/module/toml-edit`
+verified as one emitted `.mjs` from 75 source files in `package/toml-edit/core`
 and one from 209 in `package/git-policy/cli`.
 Consequently no internal module exists as a separate file under `dist/final`,
 and exporting the symbol from the bundle entry is the only route to it.
@@ -247,7 +247,7 @@ and models it in `package/oxlint-plugin/tsdoc/src/tsdoc-doc-model.ts`.
 so annotated declarations still reach `.d.mts` and type imports in tests keep resolving.
 
 Widening exports does not create false unused-export findings.
-`package/cli/unused-export/src/resolve.ts` defines `DIST_MARKER = '/dist/final/'`
+`package/mutation-test/cli-unused-export/src/resolve.ts` defines `DIST_MARKER = '/dist/final/'`
 and maps built-dist imports back to source precisely so test usage counts.
 That marker is hardcoded to `dist/final`,
 so imports under `dist/app` do not map back;
@@ -274,9 +274,9 @@ Measured across every package having a build task:
  5 emit code only.
 Those 5 are `kwin/key-helper`,
 `ssg/aquati.cat`,
-`webapp-productivity/done`,
-`webapp-productivity/done-postcss`,
- and `webapp-productivity/wc`.
+`done/app`,
+`done/variant-postcss`,
+ and `wc/app`.
 Only 4 type-import sites are actually at risk,
  all in `ssg/aquati.cat`;
 they have no compliant form until that package emits declarations.
@@ -416,7 +416,8 @@ measured across every test file,
 
 ## Shapes that satisfy the effect rule
 
-`prefer-readonly-parameter-type/prefer-readonly-parameter-types` rejects any parameter reaching a call whose implementation it cannot inspect,
+`prefer-readonly-parameter-type/prefer-readonly-parameter-types`
+rejects any parameter reaching a call whose implementation it cannot inspect,
 which covers `Object.keys`,
 `Object.entries`,
 `Array.prototype.filter`,
@@ -452,7 +453,9 @@ and the repo-wide report is unchanged at 697 sites across 357 files.
 Old and new shipping-target derivation were compared across all 165 package manifests in the repo with no mismatch,
 so the restructure is behavior-neutral.
 
-`package/oxlint-plugin/tsdoc` still carries 35 findings of the same rule and is not covered by the self-hosting override in `package/config/oxlint/src/overrides.ts`.
+`package/oxlint-plugin/tsdoc` still carries 35 findings of the same rule
+and is not covered by the self-hosting override
+in `package/config/oxlint/src/overrides.ts`.
 Measured breakdown:
  23 name the `context` parameter and reach only `context.*` methods,
  which is exactly the shape `ForeignHostCapability` cleared here;

@@ -53,7 +53,7 @@ Grilling session started 2026-09-25 from the request "optimize my `AGENTS.md`".
 Read-only subagent audit;
 working files lived in the session scratchpad,
 not committed.
-Token counts via `mise run //package/module/token-count:count` (Claude `count_tokens` endpoint).
+Token counts via `mise run //package/llm/token-count:count` (Claude `count_tokens` endpoint).
 
 - `AGENTS.md`:
    17431 tokens (`claude-opus-5-5`),
@@ -112,7 +112,7 @@ Token counts via `mise run //package/module/token-count:count` (Claude `count_to
    PXF,
    CXL.
 - Side finding:
-   `package/module/token-count` claims all current Claude models share one tokenizer;
+   `package/llm/token-count` claims all current Claude models share one tokenizer;
    Opus 5.5 and Sonnet 4.6 differ by 36% on the same file.
 
 ## Adopted without asking (from audit)
@@ -140,7 +140,7 @@ Token counts via `mise run //package/module/token-count:count` (Claude `count_to
 ## Rule walk
 
 Each batch is measured with a scratch script:
-RLM per rule plus `mise run //package/module/token-count:count -- --model claude-opus-5-5`.
+RLM per rule plus `mise run //package/llm/token-count:count -- --model claude-opus-5-5`.
 
 - Batch 1 (pre-response checklist and its absorbers):
    19 rules become 9,
@@ -1317,7 +1317,7 @@ IMM:
  Prefer immutable patterns.
 
 UTL:
- Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/module-async-time`) before writing helpers.
+ Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/async-time-core`) before writing helpers.
 
 XNC:
  Name extracted concepts by role and boundary behavior,
@@ -1407,7 +1407,7 @@ LOG:
  never remove logging to "clean up".
 
 TLG:
- Production code logs only via tagged loggers from `@monochromatic-dev/module-logger`;
+ Production code logs only via tagged loggers from `@monochromatic-dev/logger-core`;
  raw `console` only for exact terminal output (CLI output,
  prompts).
 
@@ -1564,7 +1564,7 @@ PP4:
  document with `@throws`.
 
 PP5:
- Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/module-or-throw`);
+ Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/or-throw-core`);
  build multi-line error messages with `dedent` (`string-dedent`).
 
 PP6:
@@ -2006,14 +2006,16 @@ SK3:
 
 #### SK1 to SK3 consumers (checked 2026-09-29)
 
-- The synced `setup-matt-pocock-skills` skill finds the block by its `## Agent skills` heading and writes `### Issue tracker`-style subheadings;
+- The synced `setup-matt-pocock-skills` skill finds the block
+  by its `## Agent skills` heading
+  and writes `### Issue tracker`-style subheadings;
    no skill matches the bold labels,
    so they are cosmetic.
 - Consumer skills (`code-review`,
    `to-spec`,
    `wayfinder`) expect the tracker info in context;
    the synced `code-review` skill checks `docs/agents/issue-tracker.md`,
-   which does not exist here (`doc/agent/`),
+   which does not exist here (moved on 2026-07-15 to `doc/agent/issue-tracker.md`),
    so SK1's path pointer is what redirects agents.
 
 ### Batch 20
@@ -2146,7 +2148,7 @@ only the #423-gated JCH follow-up remains (issue comment posted on #423).
 ### Walk totals
 
 Rule text only (no headings),
-Opus 5.5 tokens via `mise run //package/module/token-count:count`:
+Opus 5.5 tokens via `mise run //package/llm/token-count:count`:
 276 rules and 17192 tokens become 204 always-loaded rules and 12488 tokens.
 73 codes leave `AGENTS.md` (merged,
 deleted,
@@ -2157,7 +2159,9 @@ no duplicate codes.
 ### Whole-file draft (assembled in scratch)
 
 Assembled from current headings plus approved text with every recorded move:
-`AGENTS.md` 17618 tokens and 42677 bytes (grown from the 17431-token baseline by concurrent additions) become 12927 tokens and 31216 bytes,
+`AGENTS.md` 17618 tokens and 42677 bytes
+(grown from the 17431-token baseline by concurrent additions)
+become 12927 tokens and 31216 bytes,
 a 27% cut;
 31216 bytes fits Codex's default 32768-byte `project_doc_max_bytes` with 1552 to spare.
 The audit's 43.8% estimate assumed dropping clause-per-line breaks (1913 tokens,
@@ -2167,7 +2171,9 @@ Placements chosen during assembly (no earlier record):
 WC2 to "Cross-runtime and scripts",
 VKI to "Hazardous commands",
 VHI to "Communication style",
-ATS with CXD and HDM under "User interfaces",
+ATS with CXD and HDM under "User interfaces"
+(ATS moved on 2026-10-05 to the "Target size" section of `.agents/skills/visual-design-review/SKILL.md`,
+by user decision),
 which sits before "TSDoc comments".
 
 ```text
@@ -2297,7 +2303,8 @@ checked 2026-09-29):
    (`tsdoc/check-mutates` is syntax-only and cannot carry it).
 - Add "Prefer an index scan,
    parser,
-   or string API" to the `no-regex` `regexpConstructor` message (`package/oxlint-plugin/no-restricted-syntax/src/rule/no-regex.ts`),
+   or string API" to the `no-regex` `regexpConstructor` message
+   (`package/oxlint-plugin/no-restricted-syntax/src/rule/no-regex.ts`),
    approved with batch 15.
 
 ### Resume notes
@@ -2331,7 +2338,7 @@ no Voyage request was made for this assessment.
   confirms instruction-following support,
   so a supplied sorting criterion is possible.
   Its retrieval evaluations do not measure adherence to this repository's instructions.
-- Existing Voyage use includes multimodal image embeddings in `package/module/image-diff/src/voyage.ts`
+- Existing Voyage use includes multimodal image embeddings in `package/llm/image-diff/src/voyage.ts`
   and separate guard-model experiments documented in `pi-auto-mode-voyage-fit.md`.
   Neither establishes whether sorting these rules improves adherence.
   The image provider's type-assertion suppression concerns API response types,

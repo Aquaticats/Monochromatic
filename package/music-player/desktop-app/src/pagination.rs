@@ -1,30 +1,57 @@
-//! Pure queue pagination on two axes, picked per track, so a long library can be
-//! browsed a page at a time. No Slint, audio, or I/O, so it is fully unit-tested;
+//! Pure queue pagination on two axes,
+//!  picked per track,
+//!  so a long library can be
+//! browsed a page at a time.
+//!  No Slint,
+//!  audio,
+//!  or I/O,
+//!  so it is fully unit-tested;
 //! the binary maps the result onto UI properties at the property edge.
 //!
 //! Each track's display string is its path relative to the queue's common root
 //! (see the `relpath` module):
 //!
 //! - A track inside a subfolder (its relative path contains `/`) groups by its
-//!   TOP-LEVEL folder under the loaded root (one level only): the page label is
-//!   that single folder (e.g. `Artist`), while any deeper nesting stays visible
+//!   TOP-LEVEL folder under the loaded root (one level only):
+//!    the page label is
+//!   that single folder (e.g. `Artist`),
+//!    while any deeper nesting stays visible
 //!   in the row's full relative path.
-//! - A track sitting directly at the root (no `/`) groups by first letter, with
-//!   fixed buckets: the 26 English letters A-Z (case-insensitive), plus a single
-//!   `#` catch-all for digits, symbols, CJK, and non-English letters.
+//! - A track sitting directly at the root (no `/`) groups by first letter,
+//!    with
+//!   fixed buckets:
+//!    the 26 English letters A-Z (case-insensitive),
+//!    plus a single
+//!   `#` catch-all for digits,
+//!    symbols,
+//!    CJK,
+//!    and non-English letters.
 //!
-//! Pages come out sorted folder-pages-first (case-insensitively by path), then the
-//! A-Z letter pages, then the `#` catch-all. Folder labels are case-folded for the
-//! sort only (never for display or bucketing), so `daniwellP` and `r-906` interleave
-//! with the capitalized folder names instead of trailing after `Zedd`: raw codepoint
-//! order puts every lowercase letter (a-z, 0x61+) after every uppercase one (A-Z,
-//! 0x41-0x5A), which is the surprising "Zedd before daniwellP" ordering this avoids.
+//! Pages come out sorted folder-pages-first (case-insensitively by path),
+//!  then the
+//! A-Z letter pages,
+//!  then the `#` catch-all.
+//!  Folder labels are case-folded for the
+//! sort only (never for display or bucketing),
+//!  so `daniwellP` and `r-906` interleave
+//! with the capitalized folder names instead of trailing after `Zedd`:
+//!  raw codepoint
+//! order puts every lowercase letter (a-z,
+//!  0x61+) after every uppercase one (A-Z,
+//! 0x41-0x5A),
+//!  which is the surprising "Zedd before daniwellP" ordering this avoids.
 
-/// What:     `use std::collections::BTreeMap;`. `BTreeMap<K, V>` is an ordered map that
-///           keeps its keys SORTED (a balanced tree). Sibling the reader might expect:
-///           `HashMap<K, V>`, which is faster but iterates in arbitrary order.
-/// Why:      We group entries by a page key and want the pages to come out in sorted key
-///           order for free; `HashMap` would force a separate sort.
+/// What:
+///      `use std::collections::BTreeMap;`.
+///  `BTreeMap<K, V>` is an ordered map that
+///           keeps its keys SORTED (a balanced tree).
+///  Sibling the reader might expect:
+///           `HashMap<K, V>`,
+///  which is faster but iterates in arbitrary order.
+/// Why:
+///       We group entries by a page key and want the pages to come out in sorted key
+///           order for free;
+///  `HashMap` would force a separate sort.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,10 +59,17 @@
 /// ```
 use std::collections::BTreeMap;
 
-/// What:     `const SEPARATOR: char = '/';`. `char` is a single Unicode scalar value
-///           (sibling: `&str`, a whole string slice). The path separator the display
+/// What:
+///      `const SEPARATOR: char = '/';`.
+///  `char` is a single Unicode scalar value
+///           (sibling:
+///  `&str`,
+///  a whole string slice).
+///  The path separator the display
 ///           strings use.
-/// Why:      `relpath` joins segments with `/`; we split on the same char to find a
+/// Why:
+///       `relpath` joins segments with `/`;
+///  we split on the same char to find a
 ///           track's parent folder.
 ///
 /// In TS you'd write (pseudocode):
@@ -44,9 +78,15 @@ use std::collections::BTreeMap;
 /// ```
 const SEPARATOR: char = '/';
 
-/// What:     `const FOLDER_GROUP: u8 = 0;`. `u8` is an 8-bit unsigned integer (siblings:
-///           `u16`, `u32`, `usize`). The sort-group tag for folder pages.
-/// Why:      The page key pairs this tag with a label so folder pages sort before letter
+/// What:
+///      `const FOLDER_GROUP: u8 = 0;`.
+///  `u8` is an 8-bit unsigned integer (siblings:
+///           `u16`,
+///  `u32`,
+///  `usize`).
+///  The sort-group tag for folder pages.
+/// Why:
+///       The page key pairs this tag with a label so folder pages sort before letter
 ///           pages regardless of how the labels compare as text.
 ///
 /// In TS you'd write (pseudocode):
@@ -55,8 +95,12 @@ const SEPARATOR: char = '/';
 /// ```
 const FOLDER_GROUP: u8 = 0;
 
-/// What:     `const LETTER_GROUP: u8 = 1;`. Sort-group tag for the A-Z letter pages.
-/// Why:      Letter pages sort after folder pages, before the catch-all.
+/// What:
+///      `const LETTER_GROUP: u8 = 1;`.
+///  Sort-group tag for the A-Z letter pages.
+/// Why:
+///       Letter pages sort after folder pages,
+///  before the catch-all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,8 +108,12 @@ const FOLDER_GROUP: u8 = 0;
 /// ```
 const LETTER_GROUP: u8 = 1;
 
-/// What:     `const CATCH_ALL_GROUP: u8 = 2;`. Sort-group tag for the `#` page.
-/// Why:      The catch-all sorts last, after every A-Z letter page.
+/// What:
+///      `const CATCH_ALL_GROUP: u8 = 2;`.
+///  Sort-group tag for the `#` page.
+/// Why:
+///       The catch-all sorts last,
+///  after every A-Z letter page.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,10 +121,16 @@ const LETTER_GROUP: u8 = 1;
 /// ```
 const CATCH_ALL_GROUP: u8 = 2;
 
-/// What:     `const CATCH_ALL_LABEL: &str = "#";`. `&str` is a BORROWED string slice
-///           (here pointing at text baked into the binary); sibling: the owned `String`.
+/// What:
+///      `const CATCH_ALL_LABEL: &str = "#";`.
+///  `&str` is a BORROWED string slice
+///           (here pointing at text baked into the binary);
+///  sibling:
+///  the owned `String`.
 ///           The label of the catch-all page.
-/// Why:      One spot defines the catch-all caption, shared by the key and any test.
+/// Why:
+///       One spot defines the catch-all caption,
+///  shared by the key and any test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,32 +150,58 @@ const CATCH_ALL_LABEL: &str = "#";
 // // no annotation: a plain object is comparable, cloneable, and loggable
 // ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// What:     `pub struct PageEntry { ... }` declares a public record type: one track on a
-///           page, carrying its LOAD-ORDER index plus its display string.
-/// Why:      Filtering hides other tracks, so a clicked row must still know its real
-///           position in the full queue; the index carries that through.
+/// What:
+///      `pub struct PageEntry { ... }` declares a public record type:
+///  one track on a
+///           page,
+///  carrying its LOAD-ORDER index plus its display string.
+/// Why:
+///       Filtering hides other tracks,
+///  so a clicked row must still know its real
+///           position in the full queue;
+///  the index carries that through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type PageEntry = { index: number; name: string };
 /// ```
 pub struct PageEntry {
-    /// What:     `pub index: usize`. `usize` is the pointer-sized unsigned integer used
-    ///           for array indices (siblings: `u32`, `u64`, `i32`). The track's position
-    ///           in the full queue, in load order.
-    /// Why:      `usize` because it indexes the queue's `Vec`; that is the type Rust
-    ///           indexing uses, so no casts are needed on the queue side.
+    /// What:
+    ///      `pub index: usize`.
+    ///  `usize` is the pointer-sized unsigned integer used
+    ///           for array indices (siblings:
+    ///  `u32`,
+    ///  `u64`,
+    ///  `i32`).
+    ///  The track's position
+    ///           in the full queue,
+    ///  in load order.
+    /// Why:
+    ///       `usize` because it indexes the queue's `Vec`;
+    ///  that is the type Rust
+    ///           indexing uses,
+    ///  so no casts are needed on the queue side.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// index: number;
     /// ```
     pub index: usize,
-    /// What:     `pub name: String`. `String` is the OWNED, growable UTF-8 buffer
-    ///           (sibling: the borrowed `&str`). The display string: a folder-relative
-    ///           path (`Artist/Album/01.flac`) for a subfolder track, or a bare filename
+    /// What:
+    ///      `pub name: String`.
+    ///  `String` is the OWNED,
+    ///  growable UTF-8 buffer
+    ///           (sibling:
+    ///  the borrowed `&str`).
+    ///  The display string:
+    ///  a folder-relative
+    ///           path (`Artist/Album/01.flac`) for a subfolder track,
+    ///  or a bare filename
     ///           for a root-level track.
-    /// Why:      Owned, not borrowed, because the entry outlives the input slice it was
+    /// Why:
+    ///       Owned,
+    ///  not borrowed,
+    ///  because the entry outlives the input slice it was
     ///           copied from (the UI keeps it after `paginate` returns).
     ///
     /// In TS you'd write (pseudocode):
@@ -140,28 +220,45 @@ pub struct PageEntry {
 // // no annotation: free in TS
 // ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// What:     `pub struct Page { ... }` declares one page: a label plus the tracks that
-///           belong to it, in load order.
-/// Why:      The UI shows one tab per page (its label) and lists the page's tracks.
+/// What:
+///      `pub struct Page { ... }` declares one page:
+///  a label plus the tracks that
+///           belong to it,
+///  in load order.
+/// Why:
+///       The UI shows one tab per page (its label) and lists the page's tracks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Page = { label: string; entries: PageEntry[] };
 /// ```
 pub struct Page {
-    /// What:     `pub label: String`. The page caption (owned): a relative folder path
-    ///           (`Artist/Album`), a single A-Z letter, or `#`.
-    /// Why:      `String` not `&str` because the label is built fresh (sliced from a path
-    ///           or produced by uppercasing), not borrowed from the input.
+    /// What:
+    ///      `pub label: String`.
+    ///  The page caption (owned):
+    ///  a relative folder path
+    ///           (`Artist/Album`),
+    ///  a single A-Z letter,
+    ///  or `#`.
+    /// Why:
+    ///       `String` not `&str` because the label is built fresh (sliced from a path
+    ///           or produced by uppercasing),
+    ///  not borrowed from the input.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// label: string;
     /// ```
     pub label: String,
-    /// What:     `pub entries: Vec<PageEntry>`. `Vec<T>` is the owned, growable array
-    ///           (sibling: the borrowed slice `&[T]`). This page's tracks.
-    /// Why:      Owned because the page is built up as names are scanned and handed back
+    /// What:
+    ///      `pub entries: Vec<PageEntry>`.
+    ///  `Vec<T>` is the owned,
+    ///  growable array
+    ///           (sibling:
+    ///  the borrowed slice `&[T]`).
+    ///  This page's tracks.
+    /// Why:
+    ///       Owned because the page is built up as names are scanned and handed back
     ///           to the caller.
     ///
     /// In TS you'd write (pseudocode):
@@ -184,10 +281,16 @@ pub fn page_identity(page: &Page) -> String {
     return format!("root:{}", page.label);
 }
 
-/// What:     `fn letter_key(name: &str) -> (u8, String)`. The page key for a root-level
-///           track (one with no folder): a `(group, label)` pair using the first letter.
-///           `(u8, String)` is a TUPLE (a fixed pair of two types). Private helper.
-/// Why:      Fixed A-Z buckets plus a `#` catch-all, so a flat folder is browsable by
+/// What:
+///      `fn letter_key(name: &str) -> (u8, String)`.
+///  The page key for a root-level
+///           track (one with no folder):
+///  a `(group, label)` pair using the first letter.
+///           `(u8, String)` is a TUPLE (a fixed pair of two types).
+///  Private helper.
+/// Why:
+///       Fixed A-Z buckets plus a `#` catch-all,
+///  so a flat folder is browsable by
 ///           first letter without exploding into one page per distinct character.
 ///
 /// In TS you'd write (pseudocode):
@@ -234,10 +337,32 @@ fn letter_key(name: &str) -> (u8, String) {
     }
 }
 
-/// What:     `fn page_key(name: &str) -> (u8, String)`. Decide a track's page: the
+/// What:
+///      `pub fn root_level_folder_label(display_name: &str) -> String`.
+///  The name of the virtual folder that a root-level track sits in: its first letter in upper case for an ASCII
+///  letter, otherwise `#`.
+/// Why:
+///       The picker lists loose files in virtual folders named by their rail letter. Search names the folder of a loose
+///  track result the same way, so opening it selects the page that shows it (the polish review finding LS1: Search
+///  said `Unfiled` while the picker said `A`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rootLevelFolderLabel = (name: string) => /^[a-z]/i.test(name) ? name[0].toUpperCase() : "#";
+/// ```
+pub fn root_level_folder_label(display_name: &str) -> String {
+    return letter_key(display_name).1;
+}
+
+/// What:
+///      `fn page_key(name: &str) -> (u8, String)`.
+///  Decide a track's page:
+///  the
 ///           `(sort-group, label)` pair used both to bucket it and to caption its tab.
 ///           Private helper.
-/// Why:      One spot defines grouping, so the bucket key and the displayed label can
+/// Why:
+///       One spot defines grouping,
+///  so the bucket key and the displayed label can
 ///           never drift apart.
 ///
 /// In TS you'd write (pseudocode):
@@ -281,16 +406,30 @@ fn page_key(name: &str) -> (u8, String) {
     }
 }
 
-/// What:     `fn sort_key(label: &str) -> String`. The case-folded form of a page label,
-///           used ONLY to order pages, never to display or bucket them.
+/// What:
+///      `fn sort_key(label: &str) -> String`.
+///  The case-folded form of a page label,
+///           used ONLY to order pages,
+///  never to display or bucket them.
 ///           `label.to_uppercase()` is Unicode-aware (folds accented and non-English
-///           letters, not just ASCII) and returns a fresh owned `String`. A single linear
-///           pass over `label`, no recursion or rescanning. Private helper.
-/// Why:      Folder labels are raw folder names in mixed case; ordering them as raw
-///           `String`s is codepoint order, which sorts every uppercase letter (A-Z,
-///           0x41-0x5A) before every lowercase one (a-z, 0x61+), so `Zedd` lands before
-///           `daniwellP`. Folding case first gives the human "ignore case" order the tab
-///           bar wants. Letter pages (`A`-`Z`) and the `#` catch-all are already uppercase,
+///           letters,
+///  not just ASCII) and returns a fresh owned `String`.
+///  A single linear
+///           pass over `label`,
+///  no recursion or rescanning.
+///  Private helper.
+/// Why:
+///       Folder labels are raw folder names in mixed case;
+///  ordering them as raw
+///           `String`s is codepoint order,
+///  which sorts every uppercase letter (A-Z,
+///           0x41-0x5A) before every lowercase one (a-z,
+///  0x61+),
+///  so `Zedd` lands before
+///           `daniwellP`.
+///  Folding case first gives the human "ignore case" order the tab
+///           bar wants.
+///  Letter pages (`A`-`Z`) and the `#` catch-all are already uppercase,
 ///           so this is the identity for them.
 ///
 /// In TS you'd write (pseudocode):
@@ -309,10 +448,16 @@ fn sort_key(label: &str) -> String {
     return label.to_uppercase()
 }
 
-/// What:     `pub fn paginate(names: &[String]) -> Vec<Page>`. Group the display strings
-///           into pages. `&[String]` is a BORROWED slice of owned strings (read-only; we
-///           copy out of it, never mutate it).
-/// Why:      The binary calls this whenever the queue changes to rebuild the tabs and the
+/// What:
+///      `pub fn paginate(names: &[String]) -> Vec<Page>`.
+///  Group the display strings
+///           into pages.
+///  `&[String]` is a BORROWED slice of owned strings (read-only;
+///  we
+///           copy out of it,
+///  never mutate it).
+/// Why:
+///       The binary calls this whenever the queue changes to rebuild the tabs and the
 ///           visible page.
 ///
 /// In TS you'd write (pseudocode):
@@ -425,10 +570,15 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
         .collect()
 }
 
-/// What:     `pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize>`. Find
-///           which page holds a given load-order track index. `&[Page]` borrows the pages
-///           read-only; the result is `Some(page_position)` or `None`.
-/// Why:      Auto-follow needs to switch the visible page to the one containing the
+/// What:
+///      `pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize>`.
+///  Find
+///           which page holds a given load-order track index.
+///  `&[Page]` borrows the pages
+///           read-only;
+///  the result is `Some(page_position)` or `None`.
+/// Why:
+///       Auto-follow needs to switch the visible page to the one containing the
 ///           now-playing track when the track changes.
 ///
 /// In TS you'd write (pseudocode):
@@ -458,17 +608,34 @@ pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
         .position(|page| return page.entries.iter().any(|entry| return entry.index == index))
 }
 
-/// What:     `pub fn row_display<'a>(label: &str, name: &'a str) -> &'a str`. Given a page's
-///           LABEL and one of that page's track display NAMES, return the text a row should
-///           SHOW. `<'a>` is a LIFETIME parameter: it ties the returned `&str` to the same
-///           `name` that came in, so the result borrows from `name` and lives exactly as long
-///           as it. `&str` is a BORROWED string slice (sibling: the owned `String`); we hand
-///           back a slice INTO `name`, never a fresh allocation. `label` needs no lifetime
+/// What:
+///      `pub fn row_display<'a>(label: &str, name: &'a str) -> &'a str`.
+///  Given a page's
+///           LABEL and one of that page's track display NAMES,
+///  return the text a row should
+///           SHOW.
+///  `<'a>` is a LIFETIME parameter:
+///  it ties the returned `&str` to the same
+///           `name` that came in,
+///  so the result borrows from `name` and lives exactly as long
+///           as it.
+///  `&str` is a BORROWED string slice (sibling:
+///  the owned `String`);
+///  we hand
+///           back a slice INTO `name`,
+///  never a fresh allocation.
+///  `label` needs no lifetime
 ///           because we never return a piece of it.
-/// Why:      A FOLDER tab already names its top-level folder, so repeating it on every row
-///           (`Ado/B/C.opus` under the `Ado` tab) is noise; show `B/C.opus` instead. A LETTER
-///           or `#` tab groups loose root-level files that have no folder segment to strip, so
-///           their names stay whole. One pure helper keeps both flavours' trimming identical
+/// Why:
+///       A FOLDER tab already names its top-level folder,
+///  so repeating it on every row
+///           (`Ado/B/C.opus` under the `Ado` tab) is noise;
+///  show `B/C.opus` instead.
+///  A LETTER
+///           or `#` tab groups loose root-level files that have no folder segment to strip,
+///  so
+///           their names stay whole.
+///  One pure helper keeps both flavours' trimming identical
 ///           and unit-tested.
 ///
 /// In TS you'd write (pseudocode):
@@ -519,14 +686,21 @@ pub fn row_display<'a>(label: &str, name: &'a str) -> &'a str {
     }
 }
 
-/// What:     `#[cfg(test)] #[path = "pagination_tests.rs"] mod tests;` declares the
+/// What:
+///      `#[cfg(test)] #[path = "pagination_tests.rs"] mod tests;` declares the
 ///           test-only child module and aims it at the flat sibling file instead of the
-///           default `pagination/tests.rs` lookup. `#[cfg(test)]` compiles it only under
-///           `cargo test` / `cargo nextest run`. The file stays the `tests` CHILD of
-///           pagination, so its `use super::*` still reaches the private module items.
-/// Why:      Keep `pagination.rs` to production code; the tests live beside it without
+///           default `pagination/tests.rs` lookup.
+///  `#[cfg(test)]` compiles it only under
+///           `cargo test` / `cargo nextest run`.
+///  The file stays the `tests` CHILD of
+///           pagination,
+///  so its `use super::*` still reaches the private module items.
+/// Why:
+///       Keep `pagination.rs` to production code;
+///  the tests live beside it without
 ///           inflating this file or its max-lines budget (sibling `*_tests.rs` files are
-///           exempt from the linter), matching every other module's convention.
+///           exempt from the linter),
+///  matching every other module's convention.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

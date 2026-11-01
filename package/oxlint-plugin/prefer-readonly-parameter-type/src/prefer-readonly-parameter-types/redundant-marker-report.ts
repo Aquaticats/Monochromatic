@@ -9,7 +9,7 @@ import type { Context, } from '@oxlint/plugins';
 import type {
   Project,
   Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { classifyReadonlyType, } from './readonly-classifier.ts';
 import { isForeignBorrowedType, } from './foreign-borrowed-identity.ts';

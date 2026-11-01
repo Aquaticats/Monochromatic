@@ -1,0 +1,6 @@
+# nextest settings for the x86_64-pc-windows-gnu test run (mise task test:windows-gnu), passed with --config-file.
+# Under Wine a few tests block forever instead of failing (see doc/troubleshooting/music-player-windows-build-and-test.md);
+# a test that has run for five periods of sixty seconds is terminated and reported as a timeout.
+# This file is deliberately not .config/nextest.toml, which nextest would read for every run, including the Linux one.
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 5 }

@@ -61,13 +61,13 @@ export function propagateEffects(
    */
   const effectBitCount = [...summaries.values(),].reduce(
     function total(
-    totalCount,
-    summary,
-  ): number {
-    return totalCount + (summary.slots
-      .slotCount
-      * EFFECT_DIMENSION_COUNT);
-  },
+      totalCount,
+      summary,
+    ): number {
+      return totalCount + (summary.slots
+        .slotCount
+        * EFFECT_DIMENSION_COUNT);
+    },
     0,
   );
   /**

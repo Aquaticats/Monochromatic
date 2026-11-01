@@ -1,0 +1,13 @@
+[Unit]
+Description=Claude session CPU cap reconciler and system degradation watcher
+Documentation=file://%h/Monochromatic/package/claude-cpu-cap/daemon/README.md
+
+[Service]
+# `latest` follows mise upgrades, so the unit never points at a removed node version.
+ExecStart=%h/.local/share/mise/installs/node/latest/bin/node %h/Monochromatic/package/claude-cpu-cap/daemon/src/cpu-watch.ts
+Restart=always
+RestartSec=2
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

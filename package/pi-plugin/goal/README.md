@@ -158,7 +158,7 @@ Restart Pi after package settings change so no previous extension runtime remain
 Do not use `pi install -l` or edit project-local `.pi/settings.json`.
 All state-mutating verification uses disposable agent directories and session files.
 See
-[`doc/troubleshooting/pi-goal-pending-completion-message-omission.md`](../../../doc/troubleshooting/pi-goal-pending-completion-message-omission.md)
+[`doc/troubleshooting/pi-goal-pending-completion-message-omission.md`][goal-troubleshooting]
 for retired completion-tool failure and source trace.
 
 ## Rollback
@@ -186,3 +186,5 @@ then remove it again:
 pi install npm:@narumitw/pi-goal
 pi remove npm:@narumitw/pi-goal
 ```
+
+[goal-troubleshooting]: ../../../doc/troubleshooting/pi-goal-pending-completion-message-omission.md

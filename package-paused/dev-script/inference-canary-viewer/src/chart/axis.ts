@@ -8,12 +8,12 @@
  * Exceeds 100 lines: Y and X axis renderers share the same spatial
  * coordinate conventions and formatter selection logic.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 import {
   HALF,
   QUARTER,
   THREE_QUARTERS,
-} from '@monochromatic-dev/module-const/ts';
+} from '@monochromatic-dev/const-core/ts';
 
 /**
  * Fixed Y axis tick values for score plots (0 to 1)

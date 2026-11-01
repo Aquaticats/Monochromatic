@@ -12,7 +12,7 @@
 import { readFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Logger for build-task probing.
@@ -80,7 +80,7 @@ export function taskNameOfHeader({ line, }: {
   if (quoted.startsWith('"',)
     && quoted.endsWith('"',)
     && (quoted.length >= 2))
-  {
+    {
     return quoted.slice(
       1,
       -1,

@@ -1,6 +1,6 @@
 import { readFile, } from 'node:fs/promises';
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 import { buildHeader, } from './asset-header.ts';
 import {
   buildSearchForm,

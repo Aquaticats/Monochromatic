@@ -1,0 +1,229 @@
+{
+  "observedAt": "2026-10-17T10:48:58.221Z",
+  "formatterControls": {
+    "observedAt": "2026-10-17T10:37:36.997Z",
+    "harnessRevision": "6aefa5d651b8754cbd2d330704e5513cc1157650",
+    "task": "//package/dev-script/task-util:trial:depot:ci:changed-toml-format",
+    "definitionSha256": "27501caed444b4c76c01b7bc89d0e781e2ad63fa74185610fb08b9360980d437",
+    "sourceLockedFormatter": "0.61.1",
+    "base": "${AGENT_SCRATCH}/depot-native-recovery/changed-cargo-controls-mBj5Hb",
+    "rows": [
+      {
+        "name": "valid-native",
+        "phase": "execute",
+        "exitCode": 0,
+        "signal": null,
+        "stdoutSha256": "44ef91f1d3a9607276a73880897a6739f01f0974ad7b4081a0b974d147b34373",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "valid-native",
+        "phase": "verify",
+        "exitCode": 0,
+        "signal": null,
+        "stdoutSha256": "28bb45bf1e51ac68f0ba96b1d9b791f8cbc75d144e8d57ab341d83ba58c0a07b",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "valid-native",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "c11c03b52794d359c1009eff9f36cd3da13fb9d8f7ca4cbf804fea786f851c6d",
+        "boundary": "exclusive-evidence"
+      },
+      {
+        "name": "unselected-positive-control-native",
+        "exitCode": 20,
+        "unselectedObserved": true,
+        "selectedOnlyProbePassed": true
+      },
+      {
+        "name": "valid-desktop",
+        "phase": "execute",
+        "exitCode": 0,
+        "signal": null,
+        "stdoutSha256": "f08d705b4b7ddc1eeeb4cf4807dcce36eca41530f4a738355d6222dc0a608dba",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "valid-desktop",
+        "phase": "verify",
+        "exitCode": 0,
+        "signal": null,
+        "stdoutSha256": "ee8dc2fb7d6149f5d427f7d5aa5af06ad3df3fa7c2cb6a7c7d8e8593baac63b9",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "valid-desktop",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "c11c03b52794d359c1009eff9f36cd3da13fb9d8f7ca4cbf804fea786f851c6d",
+        "boundary": "exclusive-evidence"
+      },
+      {
+        "name": "unselected-positive-control-desktop",
+        "exitCode": 20,
+        "unselectedObserved": true,
+        "selectedOnlyProbePassed": true
+      },
+      {
+        "name": "provisional",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "7834786815f62b1b4c833cc374f99933c6a0ec8c7c1aee8c1409acffd5e24022",
+        "expectedRejection": true
+      },
+      {
+        "name": "wrong-source",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "6f0fc5bb5194408cc6515526f8b74141410bc19b33034e4763690567cd7aef78",
+        "expectedRejection": true
+      },
+      {
+        "name": "expanded-files",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "eca59968807e2c9a16e31df952cf3515ce17a0186dc94e36b580c430b39039a7",
+        "expectedRejection": true
+      },
+      {
+        "name": "wrong-task",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "407f6d8ee88880a0f0475ea8054d96345c17f4c41f2314cffe042bbb64568ad6",
+        "expectedRejection": true
+      },
+      {
+        "name": "escaped-files",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "304dd15b7d7279f81c5f6b422e4a10ea93c80319973d29b576f4842487d4a2f2",
+        "expectedRejection": true
+      },
+      {
+        "name": "missing-gate",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "852635cec23b34abdb3a4ae0a5fb7cb52e74fe54884267dedf660195a1676b4d",
+        "expectedRejection": true
+      },
+      {
+        "name": "symlink-source",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "31167fa94eea871edb8a6fd0f68cdcf2f2847cb8172423eb7be4784b39027cdb",
+        "expectedRejection": true
+      },
+      {
+        "name": "actual-malformed-selected",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "389a0b2a6205067f0ae7bd548b7bdf2a8e18ade36622829ab6bf8b9aaa536610",
+        "stderrSha256": "2315276f9eda136063011364ac42322eac9fb12ffd342e55664ca17dcbbc3450"
+      },
+      {
+        "name": "actual-malformed-selected",
+        "phase": "verify",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "bcdac2ea2cc33044ef287fb168b55456ef7abbf90fa884f107c6d1e133035245"
+      },
+      {
+        "name": "removed-source-guard",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "358a72d5bb24d6ff1e0efe00631fc8507964095a329211896772186455b565e0"
+      },
+      {
+        "name": "removed-source-guard",
+        "phase": "execute",
+        "exitCode": 0,
+        "signal": null,
+        "stdoutSha256": "b31adf2903d3ae3a2a283b2f7d7b1c746a060a7f3d23a0c730ba096cf40405b0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "invalidAcceptanceObserved": true,
+        "originalRejectionTestWouldFail": true
+      },
+      {
+        "name": "removed-source-guard",
+        "phase": "execute",
+        "exitCode": 1,
+        "signal": null,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "358a72d5bb24d6ff1e0efe00631fc8507964095a329211896772186455b565e0"
+      }
+    ],
+    "validCases": [
+      "native",
+      "desktop"
+    ],
+    "unselectedPositiveControls": 2,
+    "symlinkRejected": true,
+    "failedSourceFormatRetained": true,
+    "failedFormatPropagatesThroughVerify": true,
+    "sourceLockfilesUnchanged": true,
+    "removedSourceGuardInvalidAcceptanceObserved": true,
+    "actualFinalProviderAcceptance": false
+  },
+  "installIsolation": {
+    "observedAt": "2026-10-17T10:32:47.203Z",
+    "miseVersion": "2026.10.0 linux-x64 (2026-10-02)",
+    "sourceDprintVersion": "0.61.1",
+    "namedInstallObservedRootLockDrift": {
+      "beforeRust": "nightly-2026-10-13",
+      "afterRust": "nightly-2026-10-17",
+      "beforeSha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+      "afterSha256": "716878be8e23f6ac111c743951b5003743e81d26af0825d1a794311d06b99186",
+      "originalWorktreeRestored": true
+    },
+    "isolatedInstall": {
+      "command": [
+        "mise",
+        "--no-config",
+        "install",
+        "dprint@0.61.1"
+      ],
+      "exitCode": 0,
+      "fixture": "${AGENT_SCRATCH}/depot-native-recovery/dprint-install-isolation-dYsNGV",
+      "lockBeforeAfterSha256": "95704fad9023cea1b8b530d5de696cfbd839f912aba7c0dc2c1c46519ebef733",
+      "unchanged": true
+    },
+    "checkHelp": {
+      "exitCode": 10,
+      "output": "source-dprint-check-help.txt",
+      "sha256": "6b79458e8f6f4acb4a7654cd86480f9c3968dc65420f61b477a9b799486b646e"
+    },
+    "rootStatus": ""
+  },
+  "taskDefinition": {
+    "path": "package/dev-script/task-util/mise.toml",
+    "sha256": "27501caed444b4c76c01b7bc89d0e781e2ad63fa74185610fb08b9360980d437",
+    "text": "[tasks.\"trial:depot:ci:changed-toml-format\"]\ndescription = \"Check only each frozen case's changed Cargo manifest using its source-locked formatter\"\ndir = \"{{config_root}}/../../..\"\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {execFileSync,spawnSync}=await import('node:child_process')\nconst {readFileSync,writeFileSync,mkdirSync,lstatSync,realpathSync,existsSync}=await import('node:fs')\nconst {join,dirname,isAbsolute}=await import('node:path')\nconst {homedir}=await import('node:os')\nconst {createHash}=await import('node:crypto')\nconst {strict:assert}=await import('node:assert')\nconst caseId=process.env.DEPOT_CI_CASE\nconst targets={native:'package/music-player/truepeak-core/Cargo.toml',desktop:'package/music-player/desktop-app/Cargo.toml'}\nassert(Object.hasOwn(targets,caseId),'Changed-Cargo formatting requires the native or desktop case')\nassert(process.env.GITHUB_WORKSPACE&&isAbsolute(process.env.GITHUB_WORKSPACE),'An absolute disposable CI workspace is required')\nconst harness=join(process.env.GITHUB_WORKSPACE,'harness'),source=join(process.env.GITHUB_WORKSPACE,'source')\nconst phase=process.env.DEPOT_CI_FORMAT_PHASE??'execute'\nassert(['execute','verify'].includes(phase),'Unknown changed-Cargo formatting phase')\nconst manifestPath='.depot/manifests/'+caseId+'.json'\nconst manifestBytes=readFileSync(join(harness,manifestPath))\nassert.deepEqual(manifestBytes,execFileSync('git',['show','HEAD:'+manifestPath],{cwd:harness,maxBuffer:1024*1024}),'The case must match the committed harness')\nconst manifest=JSON.parse(manifestBytes)\nassert.equal(manifest.caseId,caseId)\nassert.equal(manifest.completeGraph,true,'Changed-Cargo formatting requires a frozen complete case')\nconst check=manifest.externalChecks.find(item=>item.id==='root.changed-toml-format')\nassert(check&&check.task==='//:lint:dprint'&&check.scope==='files','The original file-format gate is required')\nassert.deepEqual(check.files,[targets[caseId]],'Changed-Cargo formatting refuses any expanded or substituted file scope')\nassert(manifest.changedFiles.includes(targets[caseId]),'The Cargo manifest must be an original changed file')\nconst sourceRevision=execFileSync('git',['rev-parse','HEAD'],{cwd:source,encoding:'utf8'}).trim()\nassert.equal(sourceRevision,manifest.sourceRevision,'The formatter source revision differs from the frozen case')\nconst harnessRevision=execFileSync('git',['rev-parse','HEAD'],{cwd:harness,encoding:'utf8'}).trim()\nconst sha=bytes=>createHash('sha256').update(bytes).digest('hex')\nconst lock=readFileSync(join(source,'mise.lock'),'utf8')\nconst locked=lock.match(/\\[\\[tools\\.dprint\\]\\]\\s+version = \"([^\"]+)\"/u)\nassert(locked,'The source lock must identify its formatter version')\nconst version=locked[1]\nassert(/^\\d+\\.\\d+\\.\\d+$/u.test(version),'The source formatter version must be exact')\nconst directory=process.env.DEPOT_CI_FORMAT_OUTPUT_DIRECTORY??join(homedir(),'temp/agent/depot-complete-ci')\nassert(isAbsolute(directory),'The formatter evidence directory must be absolute')\nmkdirSync(directory,{recursive:true,mode:0o700})\nconst output=join(directory,'changed-toml-format-'+caseId+'-results.json')\nfunction snapshot(){return check.files.map(path=>{const absolute=join(source,path),stat=lstatSync(absolute);assert(stat.isFile()&&!stat.isSymbolicLink()&&realpathSync(absolute).startsWith(realpathSync(source)+'/'),'Changed-Cargo formatting requires a regular source file');const bytes=readFileSync(absolute);assert.deepEqual(bytes,execFileSync('git',['show','HEAD:'+path],{cwd:source,maxBuffer:1024*1024}),'The Cargo input differs from its source commit');return {path,bytes:bytes.length,sha256:sha(bytes)}})}\nconst before=snapshot()\nif(phase==='verify'){\n  assert(existsSync(output),'The changed-Cargo formatter did not retain its result for '+targets[caseId])\n  const record=JSON.parse(readFileSync(output,'utf8'))\n  assert.equal(record.caseId,caseId)\n  assert.equal(record.sourceRevision,sourceRevision)\n  assert.equal(record.harnessRevision,harnessRevision)\n  assert.equal(record.manifestSha256,sha(manifestBytes))\n  assert.deepEqual(record.sourceBefore,before)\n  assert.deepEqual(record.sourceAfter,before)\n  assert.equal(record.conclusion,'passed','Changed-Cargo formatting failed for '+targets[caseId]+'; see '+output)\n  console.log(JSON.stringify({event:'changed-cargo-format-result-verified',caseId,sourceRevision,files:check.files}))\n}else{\n  assert(!existsSync(output),'Formatter evidence must be exclusive to this disposable job')\n  const startedAt=new Date().toISOString(),commands=[]\n  const env={...process.env,MISE_LOCKED:'0'}\n  function observe({args,limit}){const result=spawnSync('mise',args,{cwd:source,env,encoding:'utf8',timeout:limit,maxBuffer:4*1024*1024});const row={command:'mise',args,exitCode:result.status,signal:result.signal,error:result.error?.message,stdout:result.stdout,stderr:result.stderr};commands.push(row);return row}\n  let executionError\n  try{\n    // Disable Mise configuration during the exact tool install to preserve both tracked lockfiles.\n    const installed=observe({args:['--no-config','install','dprint@'+version],limit:300000})\n    assert.equal(installed.exitCode,0,'The source-locked formatter installation failed: '+installed.stderr)\n    const reported=observe({args:['--no-config','exec','dprint@'+version,'--','dprint','--version'],limit:60000})\n    assert.equal(reported.exitCode,0,'The source-locked formatter version command failed')\n    assert.equal(reported.stdout.trim(),'dprint '+version,'The executing formatter version differs from the source lock')\n    const formatted=observe({args:['--no-config','exec','dprint@'+version,'--','dprint','check','--list-different',...check.files],limit:300000})\n    assert.equal(formatted.exitCode,0,'Changed-Cargo formatting failed for '+targets[caseId]+': '+formatted.stdout+formatted.stderr)\n  }catch(error){executionError={name:error.name,message:error.message};throw error}\n  finally{\n    const after=snapshot()\n    writeFileSync(output,JSON.stringify({schemaVersion:1,event:'changed-cargo-format-finished',caseId,checkId:check.id,sourceRevision,harnessRevision,manifestSha256:sha(manifestBytes),originalTask:check.task,sourceMiseSha256:sha(readFileSync(join(source,'mise.toml'))),formatterVersion:version,startedAt,finishedAt:new Date().toISOString(),sourceBefore:before,sourceAfter:after,commands,executionError,conclusion:executionError?'failed':'passed'},null,2)+'\\n',{flag:'wx',mode:0o600})\n    assert.deepEqual(after,before,'Changed-Cargo formatting modified its selected source input')\n    console.log(JSON.stringify({event:'changed-cargo-format-finished',caseId,files:check.files,output,conclusion:executionError?'failed':'passed'}))\n  }\n}\n'''\n"
+  },
+  "controlDriverDefinition": "[tasks.control-changed-cargo-formatter]\nshell = \"node --input-type=module-typescript -e\"\nrun = '''\nconst {execFileSync,spawnSync}=await import('node:child_process');const {readFileSync,writeFileSync,mkdirSync,mkdtempSync,lstatSync,symlinkSync,unlinkSync}=await import('node:fs');const {join,dirname}=await import('node:path');const {homedir}=await import('node:os');const {createHash}=await import('node:crypto');const {strict:assert}=await import('node:assert');const root=join(homedir(),'temp/agent/depot-cohort-root-worktree-20261017');const base=mkdtempSync(join(process.cwd(),'changed-cargo-controls-'));const relative='package/dev-script/task-util/mise.toml';const text=readFileSync(join(root,relative),'utf8');const marker='\\n[tasks.\"trial:depot:ci:changed-toml-format\"]\\n';const start=text.indexOf(marker),end=text.indexOf('\\n[tasks.',start+marker.length);assert(start>=0&&end>start);const definition=text.slice(start,end).trim()+'\\n';const task='//package/dev-script/task-util:trial:depot:ci:changed-toml-format';const revisions={native:'cb95cf6d785c3073c192b95f0632cdae7b910894',desktop:'3434eaa455d569c18b52cf15100f77f9db251d21'};const targets={native:'package/music-player/truepeak-core/Cargo.toml',desktop:'package/music-player/desktop-app/Cargo.toml'};const rows=[];const sha=bytes=>createHash('sha256').update(bytes).digest('hex');function git({cwd,args}){return execFileSync('git',args,{cwd,encoding:'utf8',maxBuffer:4*1024*1024}).trim()}function write({root,path,value}){mkdirSync(dirname(join(root,path)),{recursive:true});writeFileSync(join(root,path),value)}function commit({cwd,files,message}){git({cwd,args:['add','--',...files]});git({cwd,args:['commit','--message',message,'--',...files]});return git({cwd,args:['rev-parse','HEAD']})}function init(cwd){mkdirSync(cwd,{recursive:true});git({cwd,args:['init','--initial-branch=main']});git({cwd,args:['config','user.name','Depot fixture']});git({cwd,args:['config','user.email','depot-fixture@example.invalid']})}\nfunction fixture({name,caseId='native',mutate,malformed=false}){const workspace=join(base,name),source=join(workspace,'source'),harness=join(workspace,'harness');init(source);init(harness);const original=path=>execFileSync('git',['show',revisions[caseId]+':'+path],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024});for(const path of ['dprint.json','package/config/dprint/index.json','mise.lock','mise.toml'])write({root:source,path,value:original(path)});const selected=targets[caseId];write({root:source,path:selected,value:'[package]\\nname=\"fixture\"\\nversion=\"0.0.0\"\\n'});const unselected='package/control/unselected/Cargo.toml';write({root:source,path:unselected,value:'[package]\\nname=\"unselected\"\\nversion=\"0.0.0\"\\n'});if(!malformed){const formatted=spawnSync('mise',['--no-config','exec','dprint@0.61.1','--','dprint','fmt',selected],{cwd:source,env:{...process.env,MISE_LOCKED:'0'},encoding:'utf8',timeout:300000,maxBuffer:4*1024*1024});assert.equal(formatted.status,0,formatted.stderr)}const sourceRevision=commit({cwd:source,files:['dprint.json','package/config/dprint/index.json','mise.lock','mise.toml',selected,unselected],message:'test(fixture): freeze formatter source inputs'});const manifest={caseId,completeGraph:true,sourceRevision,changedFiles:[selected],externalChecks:[{id:'root.changed-toml-format',task:'//:lint:dprint',scope:'files',files:[selected]}]};if(mutate)mutate(manifest);write({root:harness,path:'mise.toml',value:'monorepo_root = true\\n[settings]\\nexperimental = true\\n'});write({root:harness,path:relative,value:definition});const manifestPath='.depot/manifests/'+caseId+'.json';write({root:harness,path:manifestPath,value:JSON.stringify(manifest,null,2)+'\\n'});write({root:harness,path:'control-plan.json',value:JSON.stringify({name,caseId,malformed,expectedScope:[selected],unselectedMustNotBeChecked:unselected})+'\\n'});commit({cwd:harness,files:['mise.toml',relative,manifestPath,'control-plan.json'],message:'test(fixture): freeze formatter control and expected boundary'});return {name,caseId,workspace,source,harness,selected,unselected,manifestPath,manifest,sourceLock:readFileSync(join(source,'mise.lock')),harnessLock:null}}\nfunction run({fixture:unit,phase='execute',caseOverride,outputName='evidence'}){const env={...process.env,GITHUB_WORKSPACE:unit.workspace,DEPOT_CI_CASE:caseOverride??unit.caseId,DEPOT_CI_FORMAT_PHASE:phase,DEPOT_CI_FORMAT_OUTPUT_DIRECTORY:join(unit.workspace,outputName),MISE_TRUSTED_CONFIG_PATHS:unit.workspace,MISE_AUTO_INSTALL:'false'};const result=spawnSync('mise',['run',task],{cwd:unit.harness,env,encoding:'utf8',timeout:360000,maxBuffer:4*1024*1024});assert.deepEqual(readFileSync(join(unit.source,'mise.lock')),unit.sourceLock);writeFileSync(join(unit.workspace,phase+'-'+outputName+'.stdout'),result.stdout);writeFileSync(join(unit.workspace,phase+'-'+outputName+'.stderr'),result.stderr);const row={name:unit.name,phase,exitCode:result.status,signal:result.signal,error:result.error?.message,stdoutSha256:sha(result.stdout),stderrSha256:sha(result.stderr)};rows.push(row);return {result,row}}\nfor(const caseId of ['native','desktop']){const unit=fixture({name:'valid-'+caseId,caseId});const first=run({fixture:unit});assert.equal(first.result.status,0,first.result.stderr);const record=JSON.parse(readFileSync(join(unit.workspace,'evidence','changed-toml-format-'+caseId+'-results.json'),'utf8'));assert.equal(record.conclusion,'passed');assert.deepEqual(record.commands.at(-1).args.slice(-1),[unit.selected]);assert(record.commands.every(row=>row.args[0]==='--no-config'));assert.equal(run({fixture:unit,phase:'verify'}).result.status,0);const repeated=run({fixture:unit});assert.notEqual(repeated.result.status,0);repeated.row.boundary='exclusive-evidence';const all=spawnSync('mise',['--no-config','exec','dprint@0.61.1','--','dprint','check','--list-different'],{cwd:unit.source,env:{...process.env,MISE_LOCKED:'0'},encoding:'utf8',timeout:300000,maxBuffer:4*1024*1024});assert.notEqual(all.status,0);assert((all.stdout+all.stderr).includes(unit.unselected));rows.push({name:'unselected-positive-control-'+caseId,exitCode:all.status,unselectedObserved:true,selectedOnlyProbePassed:true})}\nconst negatives=[['provisional',doc=>{doc.completeGraph=false}],['wrong-source',doc=>{doc.sourceRevision='0'.repeat(40)}],['expanded-files',doc=>{doc.externalChecks[0].files.push('package/control/unselected/Cargo.toml')}],['wrong-task',doc=>{doc.externalChecks[0].task='//:format'}],['escaped-files',doc=>{doc.externalChecks[0].files=['../outside.toml'];doc.changedFiles=['../outside.toml']}],['missing-gate',doc=>{doc.externalChecks=[]}]];for(const [name,mutate] of negatives){const unit=fixture({name,mutate});const observed=run({fixture:unit});assert.notEqual(observed.result.status,0);observed.row.expectedRejection=true}\nconst symbolic=fixture({name:'symlink-source'});const selectedBytes=readFileSync(join(symbolic.source,symbolic.selected));const outside=join(symbolic.workspace,'outside.toml');writeFileSync(outside,selectedBytes);unlinkSync(join(symbolic.source,symbolic.selected));symlinkSync(outside,join(symbolic.source,symbolic.selected));const symlinkResult=run({fixture:symbolic});assert.notEqual(symlinkResult.result.status,0);symlinkResult.row.expectedRejection=true;\nconst malformed=fixture({name:'actual-malformed-selected',malformed:true});const failed=run({fixture:malformed});assert.notEqual(failed.result.status,0);const failedRecord=JSON.parse(readFileSync(join(malformed.workspace,'evidence','changed-toml-format-native-results.json'),'utf8'));assert.equal(failedRecord.conclusion,'failed');assert((failedRecord.commands.at(-1).stdout+failedRecord.commands.at(-1).stderr).includes(malformed.selected));assert.notEqual(run({fixture:malformed,phase:'verify'}).result.status,0);\nconst guard=fixture({name:'removed-source-guard',mutate:doc=>{doc.sourceRevision='0'.repeat(40)}});assert.notEqual(run({fixture:guard}).result.status,0);const sourceGuard=\"assert.equal(sourceRevision,manifest.sourceRevision,'The formatter source revision differs from the frozen case')\";assert.equal(definition.split(sourceGuard).length,2);writeFileSync(join(guard.harness,relative),definition.replace(sourceGuard,''));commit({cwd:guard.harness,files:[relative],message:'test(fixture): remove source guard to demonstrate control sensitivity'});const removed=run({fixture:guard,outputName:'removed-guard-evidence'});assert.equal(removed.result.status,0,removed.result.stderr);removed.row.invalidAcceptanceObserved=true;removed.row.originalRejectionTestWouldFail=true;writeFileSync(join(guard.harness,relative),definition);commit({cwd:guard.harness,files:[relative],message:'test(fixture): restore source guard after sensitivity control'});assert.notEqual(run({fixture:guard,outputName:'restored-guard-evidence'}).result.status,0);\nconst proof={observedAt:new Date().toISOString(),harnessRevision:git({cwd:root,args:['rev-parse','HEAD']}),task,definitionSha256:sha(definition),sourceLockedFormatter:'0.61.1',base,rows,validCases:['native','desktop'],unselectedPositiveControls:2,symlinkRejected:true,failedSourceFormatRetained:true,failedFormatPropagatesThroughVerify:true,sourceLockfilesUnchanged:true,removedSourceGuardInvalidAcceptanceObserved:true,actualFinalProviderAcceptance:false};writeFileSync('changed-cargo-formatter-controls.json',JSON.stringify(proof,null,2)+'\\n');console.log(JSON.stringify({harnessRevision:proof.harnessRevision,rows:rows.length,validCases:proof.validCases,sourceLockfilesUnchanged:true,unselectedPositiveControls:2,removedSourceGuardInvalidAcceptanceObserved:true}));\n'''\n",
+  "sourceFormatOutcome": "Not measured by the synthetic Cargo fixtures",
+  "actualFinalProviderAcceptance": false
+}

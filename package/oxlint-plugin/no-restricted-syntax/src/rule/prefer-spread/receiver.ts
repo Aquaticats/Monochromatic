@@ -75,7 +75,7 @@ export type CopyCall =
     readonly method: 'concat' | 'slice' | 'toSpliced';
     readonly receiver: ESTree.Expression
   }
-  | { readonly method: 'none'; };
+    | { readonly method: 'none'; };
 
 /**
  Whether an argument list is empty or a single literal `0`.

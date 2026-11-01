@@ -30,7 +30,7 @@ Two places in the workspace shell out to the external `zstd` command-line tool:
   `zstd -z -f --no-check -T0 --exclude-compressed --no-content-size -r --adapt dist` to write a
   `<file>.zst` companion next to every compressible asset in `dist/`.
    The companions are read by
-  `package/dev-script/page-weight/src/size.ts` (`wireSize`) and exist for precompressed serving.
+  `package/page-weight/cli/src/size.ts` (`wireSize`) and exist for precompressed serving.
 
 Both depend on the `zstd` binary being installed,
  which the workspace declares as a mise tool
@@ -192,13 +192,20 @@ command's speed comes entirely from it choosing a weak level.
     <tr><th>Configuration</th><th>tmpfs (RAM) mean</th><th>SSD (btrfs+LUKS) mean</th><th>Output bytes (kept)</th><th>Ratio vs raw</th></tr>
   </thead>
   <tbody>
-    <tr><td>current: <code>zstd -T0 --adapt</code> (CLI)</td><td>13.8 ms &plusmn; 0.4</td><td>33.4 ms &plusmn; 34.6</td><td>404,644 (level-3-equiv, nondeterministic)</td><td>32.18%</td></tr>
-    <tr><td>zstd CLI <code>-19 -T0</code> (matched ratio)</td><td>216.6 ms &plusmn; 4.9</td><td>232.1 ms &plusmn; 1.9</td><td>374,726</td><td>29.80%</td></tr>
-    <tr><td><b>proposed: node worker_threads (8), level 19</b></td><td><b>168.1 ms &plusmn; 9.4</b></td><td><b>177.3 ms &plusmn; 4.2</b></td><td>374,726</td><td>29.80%</td></tr>
-    <tr><td>proposed: node worker_threads (8), level 15</td><td>141.4 ms &plusmn; 10.5</td><td>146.4 ms &plusmn; 4.0</td><td>375,774</td><td>29.88%</td></tr>
-    <tr><td>node sequential, level 19 (simple fallback)</td><td>243.4 ms &plusmn; 3.4</td><td>257.4 ms &plusmn; 3.6</td><td>374,726</td><td>29.80%</td></tr>
-    <tr><td>node async parallel, level 19 (rejected)</td><td>980.9 ms &plusmn; 38.2</td><td>987.3 ms &plusmn; 24.7</td><td>374,726</td><td>29.80%</td></tr>
-    <tr><td>bun parallel, level 19 (reference only; Bun being removed)</td><td>74.1 ms &plusmn; 2.8</td><td>88.3 ms &plusmn; 2.2</td><td>374,726</td><td>29.80%</td></tr>
+    <tr><td>current: <code>zstd -T0 --adapt</code> (CLI)</td><td>13.8 ms &plusmn; 0.4</td><td>33.4 ms &plusmn;
+34.6</td><td>404,644 (level-3-equiv, nondeterministic)</td><td>32.18%</td></tr>
+    <tr><td>zstd CLI <code>-19 -T0</code> (matched ratio)</td><td>216.6 ms &plusmn; 4.9</td><td>232.1 ms &plusmn;
+1.9</td><td>374,726</td><td>29.80%</td></tr>
+    <tr><td><b>proposed: node worker_threads (8), level 19</b></td><td><b>168.1 ms &plusmn;
+9.4</b></td><td><b>177.3 ms &plusmn; 4.2</b></td><td>374,726</td><td>29.80%</td></tr>
+    <tr><td>proposed: node worker_threads (8), level 15</td><td>141.4 ms &plusmn; 10.5</td><td>146.4 ms &plusmn;
+4.0</td><td>375,774</td><td>29.88%</td></tr>
+    <tr><td>node sequential, level 19 (simple fallback)</td><td>243.4 ms &plusmn; 3.4</td><td>257.4 ms &plusmn;
+3.6</td><td>374,726</td><td>29.80%</td></tr>
+    <tr><td>node async parallel, level 19 (rejected)</td><td>980.9 ms &plusmn; 38.2</td><td>987.3 ms &plusmn;
+24.7</td><td>374,726</td><td>29.80%</td></tr>
+    <tr><td>bun parallel, level 19 (reference only; Bun being removed)</td><td>74.1 ms &plusmn;
+2.8</td><td>88.3 ms &plusmn; 2.2</td><td>374,726</td><td>29.80%</td></tr>
   </tbody>
 </table>
 
@@ -239,7 +246,9 @@ All measurements were taken on one machine.
     <tr><th>RAM</th><td>62 GiB total, ~41 GiB available, ~43 GiB in buff/cache during runs</td></tr>
     <tr><th>OS / kernel</th><td>Fedora 44, Linux 7.0.9-ogc3.2.fc44.x86_64</td></tr>
     <tr><th>tmpfs backend</th><td><code>/tmp</code>, tmpfs (RAM-backed), 32 GiB</td></tr>
-    <tr><th>SSD backend</th><td><code>/var/home</code>, btrfs on LUKS (<code>/dev/mapper/luks-...</code>), 882 GiB, opts <code>rw,relatime,seclabel,ssd,discard=async,space_cache=v2</code>; no <code>compress=</code> mount option, so btrfs transparent compression does not interfere</td></tr>
+    <tr><th>SSD backend</th><td><code>/var/home</code>, btrfs on LUKS (<code>/dev/mapper/luks-...</code>), 882 GiB,
+opts <code>rw,relatime,seclabel,ssd,discard=async,space_cache=v2</code>; no <code>compress=</code> mount option,
+so btrfs transparent compression does not interfere</td></tr>
     <tr><th>zstd CLI</th><td>Zstandard CLI v1.5.7 (Yann Collet), <code>/usr/bin/zstd</code></td></tr>
     <tr><th>Bun</th><td>1.3.14</td></tr>
     <tr><th>Node</th><td>26.3.0</td></tr>
@@ -280,10 +289,14 @@ byte-identical.
 <table>
   <thead><tr><th>Dataset</th><th>Files</th><th>Raw bytes</th><th>Purpose</th></tr></thead>
   <tbody>
-    <tr><td><code>real</code></td><td>138</td><td>1,257,418</td><td>the actual ssg <code>dist/</code> text assets (HTML/CSS/JS/SVG/JSON/XML); the workload the decision is about</td></tr>
-    <tr><td><code>many</code></td><td>2,000</td><td>5,791,137</td><td>synthetic small HTML files; stresses cross-file parallelism and filesystem metadata (creating many files)</td></tr>
-    <tr><td><code>large</code></td><td>1</td><td>33,554,432</td><td>one 32 MiB compressible file (repeated blog text); exposes in-frame multithreading scaling</td></tr>
-    <tr><td><code>incompressible</code></td><td>1</td><td>8,388,608</td><td>8 MiB seeded random bytes; worst-case compress time and the keep-if-smaller guard</td></tr>
+    <tr><td><code>real</code></td><td>138</td><td>1,257,418</td><td>the actual ssg <code>dist/</code> text assets (HTML/CSS/JS/SVG/JSON/XML);
+the workload the decision is about</td></tr>
+    <tr><td><code>many</code></td><td>2,000</td><td>5,791,137</td><td>synthetic small HTML files;
+stresses cross-file parallelism and filesystem metadata (creating many files)</td></tr>
+    <tr><td><code>large</code></td><td>1</td><td>33,554,432</td><td>one 32 MiB compressible file (repeated blog text);
+exposes in-frame multithreading scaling</td></tr>
+    <tr><td><code>incompressible</code></td><td>1</td><td>8,388,608</td><td>8 MiB seeded random bytes;
+worst-case compress time and the keep-if-smaller guard</td></tr>
   </tbody>
 </table>
 
@@ -1012,7 +1025,8 @@ codecs were measured across three independent clips;
 <tr><td>aac</td><td>cartoon audio, n=3</td><td>+6.0 to 6.3%</td><td>remove (compress)</td></tr>
 <tr><td>m4a</td><td>cartoon audio, n=3</td><td>+5.8 to 6.0%</td><td>remove (compress)</td></tr>
 <tr><td>ogg (vorbis)</td><td>cartoon audio, n=3</td><td>+3.6 to 3.9%</td><td>remove (compress)</td></tr>
-<tr><td>png</td><td>site icons + frames</td><td>+0 to 15% (icons compress, photos do not)</td><td>remove (compress)</td></tr>
+<tr><td>png</td><td>site icons + frames</td><td>+0 to 15% (icons compress,
+photos do not)</td><td>remove (compress)</td></tr>
 <tr><td>jpg / jpeg</td><td>site + frames, n=7</td><td>+1.0 to 1.3% (every file)</td><td>remove (compress)</td></tr>
 <tr><td>mp3</td><td>cartoon audio, n=3</td><td>+0.7%</td><td>keep (skip)</td></tr>
 <tr><td>flac</td><td>cartoon audio, n=3</td><td>+0.3%</td><td>keep (skip)</td></tr>

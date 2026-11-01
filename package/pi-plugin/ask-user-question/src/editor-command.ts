@@ -1,7 +1,7 @@
 import {
   INVALID_EXEC,
   tokenizeExec,
-} from '@monochromatic-dev/cli-terminal-exec/ts/tokenize.ts';
+} from '@monochromatic-dev/terminal-exec-cli/ts/tokenize.ts';
 
 //region Types
 

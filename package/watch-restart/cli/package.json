@@ -1,0 +1,48 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/watch-restart-cli",
+  "description": "Watch source files and restart a long-running child process on content change. Replaces watchexec in editord's dev loop; reusable as a library for any workspace dev server.",
+  "type": "module",
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": "./dist/final/node/index.mjs",
+    "./ts": "./src/index.ts"
+  },
+  "main": "dist/final/node/index.mjs",
+  "types": "dist/final/node/index.d.mts",
+  "bin": {
+    "watch-restart": "src/cli.ts"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@optique/core": "catalog:",
+    "@optique/run": "catalog:",
+    "chokidar": "catalog:",
+    "ignore": "catalog:",
+    "picomatch": "catalog:",
+    "ts-pattern": "catalog:"
+  },
+  "version": "0.0.3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/watch-restart/cli"
+  },
+  "private": false,
+  "sideEffects": false
+}

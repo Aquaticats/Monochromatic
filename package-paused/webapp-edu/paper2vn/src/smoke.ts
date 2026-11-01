@@ -38,7 +38,7 @@
  */
 // oxlint-disable-next-line eslint-plugin-import/no-unassigned-import -- side-effect: installs localStorage shim
 import './smoke-storage-shim.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 
 import { generateChapters, } from './client/dialogue/generator.ts';
 // oxlint-disable-next-line eslint-plugin-import/no-unassigned-import -- side-effect: typesafe-i18n runtime registers locale loaders

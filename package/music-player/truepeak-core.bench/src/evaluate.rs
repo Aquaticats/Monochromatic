@@ -1,22 +1,33 @@
 //! Scoring a window policy against the corpus with the shared truepeak-core math.
 //!
 //! For one candidate `(window_count, window_seconds, probe_margin_db)` this simulates
-//! the short/long split, the probe windows (placed by `truepeak_core::WindowPlacement`
-//! and read from the per-second bins), the probe and exact gains (`truepeak_core` gain
-//! math), the gain error against the bounds, and the decoded-seconds cost under the
+//! the short/long split,
+//!  the probe windows (placed by `truepeak_core::WindowPlacement`
+//! and read from the per-second bins),
+//!  the probe and exact gains (`truepeak_core` gain
+//! math),
+//!  the gain error against the bounds,
+//!  and the decoded-seconds cost under the
 //! plan's amended accounting (a probe-then-full track pays both the probe and the full
-//! scan). A long track whose probe gain leaves the `+0.5 / -2.0 dB` bounds is a
+//! scan).
+//!  A long track whose probe gain leaves the `+0.5 / -2.0 dB` bounds is a
 //! violator the classifier must route to a full scan.
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
 
-/// Imports the shared gain, dB, window, and policy math the score is built from.
+/// Imports the shared gain,
+///  dB,
+///  window,
+///  and policy math the score is built from.
 use truepeak_core::{
     Policy, WindowPlacement, default_policy, peak_dbtp, probe_estimated_peak,
 };
 
-/// One policy under test: the window count, the seconds per window, and the probe margin.
+/// One policy under test:
+///  the window count,
+///  the seconds per window,
+///  and the probe margin.
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate {
     /// Number of probe windows on a long track.
@@ -48,30 +59,45 @@ pub struct Report {
     pub worst_too_quiet_db: f64,
 }
 
-/// A long track whose probe gain would leave the bounds, plus its probe features.
+/// A long track whose probe gain would leave the bounds,
+///  plus its probe features.
 #[derive(Clone, Debug)]
 pub struct Violator {
-    /// Track path, for the reviewable exception list (never a classifier input).
+    /// Track path,
+    ///  for the reviewable exception list (never a classifier input).
     pub path: String,
-    /// Gain error in dB the probe would have shipped (signed: positive is too loud).
+    /// Gain error in dB the probe would have shipped (signed:
+    ///  positive is too loud).
     pub error_db: f64,
-    /// Sampled maximum peak the probe saw (linear), a legal classifier feature.
+    /// Sampled maximum peak the probe saw (linear),
+    ///  a legal classifier feature.
     pub sampled_max: f64,
-    /// Track duration in seconds, a legal classifier feature.
+    /// Track duration in seconds,
+    ///  a legal classifier feature.
     pub duration_secs: f64,
 }
 
-/// Compute the exact gain in dB for a full-track peak, clamped to never amplify.
+/// Compute the exact gain in dB for a full-track peak,
+///  clamped to never amplify.
 ///
-/// What: `min(0, -1 - 20*log10(peak))`. Why: this is the truth the probe gain is
-/// scored against; using `truepeak_core::peak_dbtp` keeps it identical to production.
+/// What:
+///  `min(0, -1 - 20*log10(peak))`.
+///  Why:
+///  this is the truth the probe gain is
+/// scored against;
+///  using `truepeak_core::peak_dbtp` keeps it identical to production.
 fn exact_gain_db(full_peak: f64, ceiling_dbtp: f64) -> f64 {
     return (ceiling_dbtp - peak_dbtp(full_peak)).min(0.0)
 }
 
-/// Compute the probe gain in dB from a sampled peak and the margin, clamped to unity.
+/// Compute the probe gain in dB from a sampled peak and the margin,
+///  clamped to unity.
 ///
-/// What: inflate the sampled peak by the margin, then `min(0, -1 - dBTP)`. Why: the
+/// What:
+///  inflate the sampled peak by the margin,
+///  then `min(0, -1 - dBTP)`.
+///  Why:
+///  the
 /// shared `probe_estimated_peak` is the production inflation step.
 fn probe_gain_db(sampled_max: f64, margin_db: f64, ceiling_dbtp: f64) -> f64 {
     let estimated = probe_estimated_peak(sampled_max, margin_db);
@@ -80,11 +106,19 @@ fn probe_gain_db(sampled_max: f64, margin_db: f64, ceiling_dbtp: f64) -> f64 {
 
 /// The per-window sampled peaks (linear) of one long track's placed probe windows.
 ///
-/// What: place `window_count` windows by frame with `truepeak_core::WindowPlacement`,
-/// map each to the seconds it covers, and take the max of the per-second bins it spans.
-/// Why: the bins are exact per-second meter peaks, so this reproduces the window probe
-/// without decoding, using the shared window placement; the classifier reads the spread
-/// across these windows, so the whole vector is returned, not just its max.
+/// What:
+///  place `window_count` windows by frame with `truepeak_core::WindowPlacement`,
+/// map each to the seconds it covers,
+///  and take the max of the per-second bins it spans.
+/// Why:
+///  the bins are exact per-second meter peaks,
+///  so this reproduces the window probe
+/// without decoding,
+///  using the shared window placement;
+///  the classifier reads the spread
+/// across these windows,
+///  so the whole vector is returned,
+///  not just its max.
 pub fn sampled_windows(track: &Track, candidate: Candidate) -> Vec<f64> {
     let placement = WindowPlacement::plan(
         track.decoded_frames,
@@ -115,7 +149,10 @@ pub fn sampled_windows(track: &Track, candidate: Candidate) -> Vec<f64> {
 
 /// The largest sampled window peak (linear) of one long track.
 ///
-/// What: the max over `sampled_windows`. Why: the probe gain is decided from the loudest
+/// What:
+///  the max over `sampled_windows`.
+///  Why:
+///  the probe gain is decided from the loudest
 /// window the probe saw.
 fn sampled_max_peak(track: &Track, candidate: &Candidate) -> f64 {
     return sampled_windows(track, *candidate)
@@ -125,8 +162,12 @@ fn sampled_max_peak(track: &Track, candidate: &Candidate) -> f64 {
 
 /// Score one candidate over every track in the corpus.
 ///
-/// What: classifies each track short/accepted/violator, sums the amended decoded cost,
-/// and tracks the worst accepted errors. Why: this is the single evaluation the search
+/// What:
+///  classifies each track short/accepted/violator,
+///  sums the amended decoded cost,
+/// and tracks the worst accepted errors.
+///  Why:
+///  this is the single evaluation the search
 /// and the final report both call.
 pub fn evaluate(tracks: &[Track], candidate: Candidate) -> Report {
     let policy: Policy = default_policy();

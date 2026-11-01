@@ -430,7 +430,8 @@ missing built-in adapters are not automatically permanent gaps.
 The design choice is whether each gap fits a local definition,
 justifies a full MPM class,
 or stays clearer as a provider-specific command at the repository boundary.
-[`mpm-manager-extensibility.md`](../troubleshooting/mpm-manager-extensibility.md) contains the source trace and runtime fixture.
+[`mpm-manager-extensibility.md`](../troubleshooting/mpm-manager-extensibility.md) contains the source trace
+and runtime fixture.
 
 ### Restore is machine-scoped and version support is uneven
 

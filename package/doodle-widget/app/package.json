@@ -1,0 +1,27 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/doodle-widget-app",
+  "private": true,
+  "description": "Doodling widget that generates a single self-contained HTML file with canvas drawing and SVG/raster background support",
+  "type": "module",
+  "main": "src/build.ts",
+  "version": "0.0.1",
+  "dependencies": {
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "jspdf": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/doodle-widget/app"
+  },
+  "sideEffects": true
+}

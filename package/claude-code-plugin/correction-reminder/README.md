@@ -1,6 +1,7 @@
 # correction-reminder
 
-Claude Code `UserPromptSubmit` hook that detects correction phrases in user input and reminds Claude to re-check evidence before its next substantive response.
+Claude Code `UserPromptSubmit` hook that detects correction phrases in user input
+and reminds Claude to re-check evidence before its next substantive response.
 
 ## What it does
 
@@ -43,7 +44,9 @@ The hook fires on any of the following patterns in user input (case-insensitive,
 
 Session evidence (`1cbe8d82`):
  four consecutive user corrections each produced a fresh error in the revision.
- The blind spot that produced the original claim was active for each revision because each was framed as a small patch rather than as a change-of-approach moment that warrants concrete re-verification.
+ The blind spot that produced the original claim was active for each revision
+ because each was framed as a small patch
+ rather than as a change-of-approach moment that warrants concrete re-verification.
 
 This hook fires before the response is written,
  which is the highest-leverage point at which to redirect.

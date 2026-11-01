@@ -1,7 +1,7 @@
 # `arbitrary::Unstructured::choose` returns the first choice on empty input
 
 Status:
- **diagnosed and worked around** in `package/rust-module/jsonc-edit.fuzz/src/generators.rs`.
+ **diagnosed and worked around** in `package/jsonc-edit/core-rust.fuzz/src/generators.rs`.
  This is a documented behavior of the `arbitrary` crate,
  not a defect in it;
  the defect was an unbounded retry loop built on top of it.
@@ -97,5 +97,5 @@ After the change all thirteen sidecar tests finished in well under a second.
 - `arbitrary` 1.4.2,
    `src/unstructured.rs`:
    `choose` (line 419) and `int_in_range` (line 300).
-- `package/rust-module/jsonc-edit.fuzz/src/generators.rs`:
+- `package/jsonc-edit/core-rust.fuzz/src/generators.rs`:
    `fresh_key` and its two call sites.

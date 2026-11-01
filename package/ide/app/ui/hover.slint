@@ -1,0 +1,80 @@
+// Transient language information beside one source line: hover content, or a note about a request that failed.
+// Native code owns the text, the anchoring line, and every dismissal; this markup only sizes and places it.
+import { ScrollView, Palette } from "std-widgets.slint";
+
+export component LanguagePopup inherits Rectangle {
+    // Hidden while empty.
+    in property <string> text;
+    // A note says why an action could not be done; hover content describes source.
+    in property <bool> note;
+    // Left edge of the anchoring character and the top and bottom of its line, in the parent's coordinates.
+    in property <length> anchor-x;
+    in property <length> anchor-top;
+    in property <length> anchor-bottom;
+    // The area the popup must stay inside, in the parent's coordinates.
+    in property <length> area-width;
+    in property <length> area-height;
+    // The pointer may move from the hovered text into the popup to scroll it without dismissing it.
+    out property <bool> pointer-inside: touch.has-hover;
+    // Which side of the anchoring line the popup took; it never covers that line.
+    out property <bool> placed-below: root.below;
+
+    private property <length> margin: 8px;
+    private property <length> inset: 8px;
+    // Three channels separate a note from hover content: weight, typeface, and a leading bar.
+    private property <length> bar: root.note ? 4px : 0px;
+    private property <length> widest: max(160px, min(640px, root.area-width * 0.6));
+    private property <length> inner-width: min(root.widest - 2 * root.inset - root.bar, body.preferred-width + 1px);
+    private property <length> natural-height: body.preferred-height + 2 * root.inset;
+    private property <length> space-below: root.area-height - root.anchor-bottom - root.margin;
+    private property <length> space-above: root.anchor-top - root.margin;
+    // Below when it fits, else above when that fits, else on the roomier side with a scrolling body.
+    private property <bool> below: root.natural-height <= root.space-below
+        || (root.natural-height > root.space-above && root.space-below >= root.space-above);
+
+    visible: root.text != "";
+    width: root.inner-width + 2 * root.inset + root.bar;
+    height: max(0px, min(root.natural-height, 320px, root.below ? root.space-below : root.space-above));
+    x: max(root.margin, min(root.anchor-x, root.area-width - self.width - root.margin));
+    y: root.below ? root.anchor-bottom : root.anchor-top - self.height;
+    background: Palette.alternate-background;
+    border-width: 1px;
+    border-color: Palette.foreground;
+    border-radius: 4px;
+    clip: true;
+
+    // Takes the pointer so a click on the popup never reaches the source beneath it.
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+    }
+
+    Rectangle {
+        visible: root.note;
+        x: 0px;
+        width: root.bar;
+        height: parent.height;
+        background: Palette.foreground;
+    }
+
+    ScrollView {
+        x: root.bar + root.inset;
+        y: root.inset;
+        width: root.inner-width;
+        height: parent.height - 2 * root.inset;
+        content-width: root.inner-width;
+        content-height: body.preferred-height;
+        body := Text {
+            width: root.inner-width;
+            text: root.text;
+            wrap: word-wrap;
+            color: Palette.alternate-foreground;
+            font-family: root.note ? "Inter Variable" : "JetBrains Mono";
+            font-size: 14px;
+            font-weight: root.note ? 600 : 400;
+            // The text element itself is the accessible node: its label is the shown text.
+            accessible-description: root.note ? "Language note" : "Hover information";
+            accessible-live-region: root.note ? AccessibleLiveness.assertive : AccessibleLiveness.polite;
+        }
+    }
+}

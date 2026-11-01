@@ -77,16 +77,16 @@ export async function configure({
       previous,
       [key, value,],
     ) {
-    await previous;
-    await realGit({
-      repository,
-      args: [
-        'config',
-        key,
-        value,
-      ],
-    },);
-  },
+      await previous;
+      await realGit({
+        repository,
+        args: [
+          'config',
+          key,
+          value,
+        ],
+      },);
+    },
     Promise.resolve(),
   );
 }

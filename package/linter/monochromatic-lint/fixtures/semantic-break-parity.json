@@ -1,0 +1,471 @@
+{
+  "sources": {
+    "package/cli/markdown-lint/src/semantic-break-points.ts": "52831a3e68594c78ba757261d5d525e260a3ed3105e2c8b38f08c7da971d6f46",
+    "package/cli/markdown-lint/src/block-starters.ts": "3dc7fa43e05ea9b790f3035a9282b5c4f20468220aaf8922fcf68f4a80994eb2"
+  },
+  "breaks": [
+    {
+      "slice": "left, right word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        5
+      ]
+    },
+    {
+      "slice": "first. second word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        6
+      ]
+    },
+    {
+      "slice": "left; right word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        5
+      ]
+    },
+    {
+      "slice": "left: right word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        5
+      ]
+    },
+    {
+      "slice": "really? yes word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        7
+      ]
+    },
+    {
+      "slice": "stop! go word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        5
+      ]
+    },
+    {
+      "slice": "a single sentence here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "e.g. important here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "i.e. important here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "etc. Next sentence.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "Rust vs. Go",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "Dr. Name",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "MR. Name",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "approx. next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "ph.d. next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "3.14 here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "1,000 here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "wait... here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "AGENTS.md here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "crates.io here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "Node.js here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "checker.TupleType here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "9.0.0-rc.3 here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "called \"same concept.\" Two hosts differ.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        22
+      ]
+    },
+    {
+      "slice": "asked \"which rule?\", and moved on.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        20
+      ]
+    },
+    {
+      "slice": "a call to fn(arg.value) reads it.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "AGENTS. md here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        7
+      ]
+    },
+    {
+      "slice": "a tab-separated one,\there.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        20
+      ]
+    },
+    {
+      "slice": "First.\r\nSecond sentence.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "First.\nSecond sentence.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "one, two. three word.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        4,
+        9
+      ]
+    },
+    {
+      "slice": "done.)] next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        7
+      ]
+    },
+    {
+      "slice": "done.” next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        8
+      ]
+    },
+    {
+      "slice": "🚀 first. next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        11
+      ]
+    },
+    {
+      "slice": "🚀 DR. Example here.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "Kst. next",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": [
+        6
+      ]
+    },
+    {
+      "slice": "First.",
+      "trailing": "",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "First.",
+      "trailing": "",
+      "paragraph_tail": false,
+      "expected": [
+        6
+      ]
+    },
+    {
+      "slice": "First.",
+      "trailing": " next",
+      "paragraph_tail": true,
+      "expected": [
+        6
+      ]
+    },
+    {
+      "slice": "First.",
+      "trailing": " next",
+      "paragraph_tail": false,
+      "expected": [
+        6
+      ]
+    },
+    {
+      "slice": "First.",
+      "trailing": "  \r\nNext",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "First.",
+      "trailing": "  \r\nNext",
+      "paragraph_tail": false,
+      "expected": []
+    },
+    {
+      "slice": "First.",
+      "trailing": "                                                                                                                                                                                                                                                                                                            \nNext",
+      "paragraph_tail": true,
+      "expected": []
+    },
+    {
+      "slice": "First.",
+      "trailing": "                                                                                                                                                                                                                                                                                                            \nNext",
+      "paragraph_tail": false,
+      "expected": []
+    }
+  ],
+  "blocks": [
+    {
+      "source": " # h",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " ###### h",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " - item",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " + item",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " * item",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " > quote",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " 1) item",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " 1. item",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " ```rs",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " ~~~",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " <div>",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " | row",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " ---\n",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " _ _ _",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " ===",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " #",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": " 1)",
+      "at": 0,
+      "expected": true
+    },
+    {
+      "source": "",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": "   ",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": "\n",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": "\r",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " #word",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " ####### h",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " ~~ text",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " -word",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " ++ text",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " --- prose",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " 12word",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " 12.x",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " 123",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " ordinary",
+      "at": 0,
+      "expected": false
+    },
+    {
+      "source": " 🚀",
+      "at": 0,
+      "expected": false
+    }
+  ]
+}

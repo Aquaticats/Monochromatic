@@ -1,9 +1,11 @@
 //! Corpus evaluation and corrected-target search for the shared true-peak policy.
 //!
 //! Reads a per-track measurement corpus (full true peak plus per-second bin peaks),
-//! computes the corrected decoded-seconds target (`total decodable seconds / 4`), and
+//! computes the corrected decoded-seconds target (`total decodable seconds / 4`),
+//!  and
 //! ranks window policies by the decided objective using the shared truepeak-core math.
-//! Usage: `truepeak-core-bench <tracks.jsonl> [window_count]`.
+//! Usage:
+//!  `truepeak-core-bench <tracks.jsonl> [window_count]`.
 
 /// The per-track corpus record and loader.
 mod corpus;
@@ -11,7 +13,8 @@ mod corpus;
 mod evaluate;
 /// The classifier that routes risky long tracks to a full scan from probe features.
 mod classify;
-/// The feasible no-classifier model: minimize the fixed margin by probe density.
+/// The feasible no-classifier model:
+///  minimize the fixed margin by probe density.
 mod feasible;
 /// The decided proportional-coverage policy and the margin/clamp tradeoff.
 mod proportional;
@@ -19,7 +22,8 @@ mod proportional;
 mod search;
 /// The bucket-first composite with the FLAC bones-guided probe.
 mod buckets;
-/// The quarter-measure answer's probe: even pass one plus frontier zoom.
+/// The quarter-measure answer's probe:
+///  even pass one plus frontier zoom.
 mod zoom;
 
 /// Imports `anyhow` helpers for application-level error returns.
@@ -29,9 +33,13 @@ use std::env;
 /// Imports the borrowed path type for the corpus location.
 use std::path::Path;
 
-/// Imports the corpus loader, the track record, and the safe-provenance loader.
+/// Imports the corpus loader,
+///  the track record,
+///  and the safe-provenance loader.
 use crate::corpus::{Track, load_safe_paths, load_tracks};
-/// Imports the classifier search, the feature diagnostic, and the per-track dump.
+/// Imports the classifier search,
+///  the feature diagnostic,
+///  and the per-track dump.
 use crate::classify::{diagnose, fit_full_scan_rule, write_long_features};
 /// Imports the feasible no-classifier density search and the provenance margin.
 use crate::feasible::{best_feasible, provenance_margin};
@@ -50,13 +58,19 @@ use crate::buckets::report_buckets;
 
 /// The plan's quarter-library divisor for the benchmark target.
 const TARGET_DIVISOR: f64 = 4.0;
-/// Window counts to sweep: at a fixed threshold (decode budget) more, shorter windows
-/// cover more distinct regions, shrinking the gaps that cause under-read violators.
+/// Window counts to sweep:
+///  at a fixed threshold (decode budget) more,
+///  shorter windows
+/// cover more distinct regions,
+///  shrinking the gaps that cause under-read violators.
 const WINDOW_COUNTS: &[usize] = &[14, 20, 28, 40];
 
 /// Build an inclusive-ish float grid from `start` to `end` stepping by `step`.
 ///
-/// What: a small helper so the sweep grids read declaratively. Why: avoids hand-listing
+/// What:
+///  a small helper so the sweep grids read declaratively.
+///  Why:
+///  avoids hand-listing
 /// dozens of thresholds and margins.
 fn frange(start: f64, end: f64, step: f64) -> Vec<f64> {
     // Count the steps, then map each index to its value (functional, no mutable cursor).
@@ -64,7 +78,8 @@ fn frange(start: f64, end: f64, step: f64) -> Vec<f64> {
     return (0..=steps).map(|index| return start + index as f64 * step).collect()
 }
 
-/// The stage-two shipped policy's coverage, kept locally so the ledger stays
+/// The stage-two shipped policy's coverage,
+///  kept locally so the ledger stays
 /// reproducible now that the engine ships the bucket-zoom policy instead.
 const LEGACY_COVERAGE_FRACTION: f64 = 0.2;
 /// The stage-two shipped policy's probe window length in seconds.
@@ -73,11 +88,17 @@ const LEGACY_PROBE_WINDOW_SECS: f64 = 0.3;
 const LEGACY_PROBE_MARGIN_DB: f64 = 0.8;
 
 /// Evaluate the superseded stage-two proportional policy on the corpus and print its
-/// budget, the under-read distribution, and the margin/clamp tradeoff.
+/// budget,
+///  the under-read distribution,
+///  and the margin/clamp tradeoff.
 ///
-/// What: replays the stage-two even probe from local legacy constants (the engine now
-/// ships the bucket-zoom policy), optionally loading provenance from a metadata
-/// argument. Why: the letter's ledger must stay reproducible for comparison.
+/// What:
+///  replays the stage-two even probe from local legacy constants (the engine now
+/// ships the bucket-zoom policy),
+///  optionally loading provenance from a metadata
+/// argument.
+///  Why:
+///  the letter's ledger must stay reproducible for comparison.
 fn report_proportional(
     tracks: &[Track],
     full_secs: f64,
@@ -128,7 +149,8 @@ fn report_proportional(
 /// The zoom pass-one coverage fraction the answer fixes (a tenth of each long track).
 const ZOOM_PASS1_COVERAGE: f64 = 0.1;
 
-/// The margins the zoom report tables: the dial between loud-kept and cold-start clamps.
+/// The margins the zoom report tables:
+///  the dial between loud-kept and cold-start clamps.
 const ZOOM_MARGINS: &[f64] = &[0.3, 0.4, 0.5, 0.8];
 
 /// The provenance-split margins the zoom report shows when metadata is present.
@@ -138,9 +160,15 @@ const ZOOM_SPLIT_HOT_DB: f64 = 0.5;
 
 /// Evaluate the frontier-zoom answer on the corpus and print the three measures.
 ///
-/// What: runs the zoom probe at the full quarter budget and prints the under-read
-/// distribution plus, per candidate margin (and a provenance split when metadata is
-/// given), the letter's three measures. Why: the committed, reproducible evaluation
+/// What:
+///  runs the zoom probe at the full quarter budget and prints the under-read
+/// distribution plus,
+///  per candidate margin (and a provenance split when metadata is
+/// given),
+///  the letter's three measures.
+///  Why:
+///  the committed,
+///  reproducible evaluation
 /// of the quarter-measure answer.
 fn report_zoom(
     tracks: &[Track],
@@ -203,7 +231,11 @@ fn report_zoom(
     return Ok(())
 }
 
-/// Entry point: load the corpus, compute the target, search, and print the report.
+/// Entry point:
+///  load the corpus,
+///  compute the target,
+///  search,
+///  and print the report.
 fn main() -> Result<()> {
     // Send tracing events (including truepeak-core's) to stderr; the report is stdout.
     tracing_subscriber::fmt()
@@ -335,7 +367,7 @@ fn main() -> Result<()> {
             window_seconds: 56.0 / 28.0,
             probe_margin_db: 0.0,
         };
-        let split = provenance_margin(&tracks, candidate, &safe);
+        let split = provenance_margin(&truepeak_core::default_policy(), &tracks, candidate, &safe);
         println!(
             "\nprovenance-dependent margin at count=28 thr=56s ({} safe-provenance tracks):",
             safe.len()

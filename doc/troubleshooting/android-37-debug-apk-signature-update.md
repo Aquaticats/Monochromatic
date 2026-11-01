@@ -90,6 +90,40 @@ That alternative was not tested here.
   not attempted or authorized;
   all app-data removal occurred on `emulator-5580`.
 
+## Container-path mistake during a separate first-run study
+
+A later first-run study had no installed debug package.
+Its initial unconditional uninstall returned
+`Failure [DELETE_FAILED_INTERNAL_ERROR]`;
+package enumeration and package dump then confirmed absence.
+No underlying Package Manager cause was established from that diagnostic.
+The driver now tests presence before attempting removal.
+
+The next attempt ran ADB inside the owned emulator container but passed a
+host-only APK path:
+
+```text
+adb: failed to stat /home/user/temp/agent/first-run-access-native-private/captured-debug.apk: No such file or directory
+```
+
+This was a local file-path mistake,
+not `INSTALL_FAILED_UPDATE_INCOMPATIBLE` or a proved guest install failure.
+The command had no accepted native frames.
+The container's mounts included the AVD and read-only SDK,
+not the host's private capture directory.
+The correction copies only the retained debug APK into the owned
+container's `/tmp`,
+checks its exact SHA-256 against the retained host artifact,
+then gives that container-visible path to ADB.
+The ensuing install and installed-package hash are separately checked by
+the capture driver;
+launching the copy command alone establishes neither install nor rendering.
+
+This path correction changes no certificate,
+real library or original AVD.
+No new upstream issue or source patch is implied by either local driver
+mistake.
+
 ## Upstream filing decision
 
 No upstream report is filed or drafted.

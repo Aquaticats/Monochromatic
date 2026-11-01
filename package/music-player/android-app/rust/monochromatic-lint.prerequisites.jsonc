@@ -1,0 +1,6 @@
+// Prerequisites of the rust/avoidable-closure check for this package (package/linter/monochromatic-lint/README.md,
+// section "Prerequisite manifest"): the crate imports Android-only NDK APIs, so it compiles for aarch64-linux-android
+// with the variables of cargo-ndk.
+{
+  "android-ndk": true,
+}

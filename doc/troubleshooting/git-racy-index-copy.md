@@ -12,7 +12,8 @@ in the same second Git last cached its stat,
 then looked unmodified to Git reading the private or installed index.
 
 No error is emitted.
-The failure that started the investigation was the packed `built-dependent-version-bump-consumer.ts` direct-fix scenario:
+The failure
+that started the investigation was the packed `built-dependent-version-bump-consumer.ts` direct-fix scenario:
 `git cli-git fix -- package/module/base/package.json` exited 0 with empty stdout
 and rewrote no dependent manifest.
 A missed hand bump from `1.1.0` to `1.2.0` (same byte length) produces that output.

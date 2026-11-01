@@ -13,13 +13,13 @@ accurate and are cited by the successor documents.
 Context:
 the forbidden-regex engine is deliberately always-verbose.
 Its cursor documents the intent directly
-(`package/rust-module/forbidden-regex/src/parse/cursor.rs`,
+(`package/forbidden-strings/core/src/parse/cursor.rs`,
 `skip_ignorable`):
 "verbose mode is always on,
  so a rule may span many lines and carry
 first-column comment lines."
 The rule file format was the only thing preventing exactly that:
-`parse_patterns` (`package/cli/forbidden-strings/src/rule/frx/format.rs`)
+`parse_patterns` (`package/forbidden-strings/cli/src/rule/frx/format.rs`)
 splits on newlines before the engine sees anything,
 so a rule could never span lines
 and per-alternative comments inside a large alternation were impossible.
@@ -32,10 +32,10 @@ and per-alternative comments inside a large alternation were impossible.
 - A comment is a first-column `#` running to end of line,
    nothing else.
   A mid-line unescaped `#` is a literal byte via the `parse_atom` fall-through
-  (`package/rust-module/forbidden-regex/src/parse/grammar.rs`).
+  (`package/forbidden-strings/core/src/parse/grammar.rs`).
 - An unescaped `/` is a literal byte (same fall-through);
   `\/` is the escaped spelling
-  (`package/rust-module/forbidden-regex/src/parse/escape.rs`).
+  (`package/forbidden-strings/core/src/parse/escape.rs`).
 - Flags policy is already engine-external:
   the file format accepts `m` and `x` as no-ops and fails closed on anything else.
 
@@ -90,7 +90,7 @@ Consequences for authors:
    zero such lines exist in `forbidden-strings.append.txt`,
   `forbidden-strings.append.local.txt`,
    or
-  `package/cli/forbidden-strings/data/builtin-rules.txt`
+  `package/forbidden-strings/cli/data/builtin-rules.txt`
   (263 slash-opening lines,
    every one closes on its own line),
   so nothing breaks at cutover.

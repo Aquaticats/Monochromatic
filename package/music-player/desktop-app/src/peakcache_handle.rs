@@ -1,13 +1,23 @@
 //! The synchronous handle the rest of the player uses to reach the peak cache.
 //!
-//! `CacheHandle` holds the actor's two channel senders and nothing else, so it is
-//! cheap to `Clone` and share across the engine thread, the current-track
-//! measurement worker, and the background sweep. Reads block briefly on a
-//! `oneshot` reply (a single indexed lookup, at human-paced track-load frequency);
-//! writes are non-blocking sends. No `Mutex`: the actor owns the only mutable state.
+//! `CacheHandle` holds the actor's two channel senders and nothing else,
+//!  so it is
+//! cheap to `Clone` and share across the engine thread,
+//!  the current-track
+//! measurement worker,
+//!  and the background sweep.
+//!  Reads block briefly on a
+//! `oneshot` reply (a single indexed lookup,
+//!  at human-paced track-load frequency);
+//! writes are non-blocking sends.
+//!  No `Mutex`:
+//!  the actor owns the only mutable state.
 
-/// What:     `use std::collections::HashSet;`. A set of `u64` fingerprints.
-/// Why:      `known_fingerprints` returns the actor's exact-decision fingerprint snapshot.
+/// What:
+///      `use std::collections::HashSet;`.
+///  A set of `u64` fingerprints.
+/// Why:
+///       `known_fingerprints` returns the actor's exact-decision fingerprint snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -15,8 +25,11 @@
 /// ```
 use std::collections::HashSet;
 
-/// What:     `use truepeak_core::Decision;`. The gain decision the cache stores and returns.
-/// Why:      `get` returns an `Option<Decision>` and `upsert` takes one.
+/// What:
+///      `use truepeak_core::Decision;`.
+///  The gain decision the cache stores and returns.
+/// Why:
+///       `get` returns an `Option<Decision>` and `upsert` takes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,10 +37,14 @@ use std::collections::HashSet;
 /// ```
 use truepeak_core::Decision;
 
-/// What:     `#[cfg(test)] use std::path::PathBuf;`. Owned filesystem path buffer,
+/// What:
+///      `#[cfg(test)] use std::path::PathBuf;`.
+///  Owned filesystem path buffer,
 ///           imported only in test builds.
-/// Why:      The test-only `open_at` constructor points the actor at a throwaway
-///           database file; production callers go through `open` (no `PathBuf` here).
+/// Why:
+///       The test-only `open_at` constructor points the actor at a throwaway
+///           database file;
+///  production callers go through `open` (no `PathBuf` here).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,9 +53,13 @@ use truepeak_core::Decision;
 #[cfg(test)]
 use std::path::PathBuf;
 
-/// What:     `use tokio::sync::mpsc::UnboundedSender;`. The cloneable write end of
-///           an unbounded channel; `send` is synchronous.
-/// Why:      The handle enqueues requests without entering the runtime.
+/// What:
+///      `use tokio::sync::mpsc::UnboundedSender;`.
+///  The cloneable write end of
+///           an unbounded channel;
+///  `send` is synchronous.
+/// Why:
+///       The handle enqueues requests without entering the runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,8 +67,11 @@ use std::path::PathBuf;
 /// ```
 use tokio::sync::mpsc::UnboundedSender;
 
-/// What:     `use tokio::sync::oneshot;`. A single-value reply channel.
-/// Why:      Read calls create a reply pair and block on the receiver.
+/// What:
+///      `use tokio::sync::oneshot;`.
+///  A single-value reply channel.
+/// Why:
+///       Read calls create a reply pair and block on the receiver.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,20 +79,31 @@ use tokio::sync::mpsc::UnboundedSender;
 /// ```
 use tokio::sync::oneshot;
 
-/// What:     `use super::service::{self, Read, Upsert};`. The actor module plus its
+/// What:
+///      `use super::service::{self, Read, Upsert};`.
+///  The actor module plus its
 ///           two request types.
-/// Why:      The handle spawns the actor and builds the requests it serves.
+/// Why:
+///       The handle spawns the actor and builds the requests it serves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import * as service from "./peakcache_service";
 /// ```
-use super::service::{self, Read, Upsert};
+use super::service::{self, Read, Upsert, Write};
 
-/// What:     `#[derive(Clone)] pub(crate) struct CacheHandle { .. }`. A shareable
-///           handle to the peak-cache actor, holding only the two channel senders.
-///           `pub(crate)` so the controller, `peak_swap`, and `measure` share it.
-/// Why:      Replaces the old `Arc<Mutex<PeakCache>>`: no lock, just message passing.
+/// What:
+///      `#[derive(Clone)] pub(crate) struct CacheHandle { .. }`.
+///  A shareable
+///           handle to the peak-cache actor,
+///  holding only the two channel senders.
+///           `pub(crate)` so the controller,
+///  `peak_swap`,
+///  and `measure` share it.
+/// Why:
+///       Replaces the old `Arc<Mutex<PeakCache>>`:
+///  no lock,
+///  just message passing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,35 +111,47 @@ use super::service::{self, Read, Upsert};
 /// ```
 #[derive(Clone)]
 pub(crate) struct CacheHandle {
-    /// What:     `read_tx: UnboundedSender<Read>`. The read-request sender.
-    /// Why:      Carries `Get`/`Known` to the actor's read-biased arm.
+    /// What:
+    ///      `read_tx: UnboundedSender<Read>`.
+    ///  The read-request sender.
+    /// Why:
+    ///       Carries `Get`/`Known` to the actor's read-biased arm.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// readTx: Sender<Read>;
     /// ```
     read_tx: UnboundedSender<Read>,
-    /// What:     `write_tx: UnboundedSender<Upsert>`. The write-request sender.
-    /// Why:      Carries fire-and-forget upserts to the actor's write arm.
+    /// What:
+    ///      `write_tx: UnboundedSender<Upsert>`.
+    ///  The write-request sender.
+    /// Why:
+    ///       Carries fire-and-forget upserts to the actor's write arm.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// writeTx: Sender<Upsert>;
     /// ```
-    write_tx: UnboundedSender<Upsert>,
+    write_tx: UnboundedSender<Write>,
 }
 
-/// What:     `impl CacheHandle { .. }`. The handle's constructors and operations.
-/// Why:      Group the cache surface the rest of the crate calls.
+/// What:
+///      `impl CacheHandle { .. }`.
+///  The handle's constructors and operations.
+/// Why:
+///       Group the cache surface the rest of the crate calls.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class CacheHandle { /* open, get, upsert, knownFingerprints */ }
 /// ```
 impl CacheHandle {
-    /// What:     `pub(crate) fn open() -> CacheHandle`. Start the actor on the
+    /// What:
+    ///      `pub(crate) fn open() -> CacheHandle`.
+    ///  Start the actor on the
     ///           standard `peaks.db` location and return a handle.
-    /// Why:      Called once at controller construction.
+    /// Why:
+    ///       Called once at controller construction.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -129,9 +176,13 @@ impl CacheHandle {
         return CacheHandle { read_tx, write_tx }
     }
 
-    /// What:     `#[cfg(test)] pub(crate) fn open_at(path: PathBuf) -> CacheHandle`.
-    ///           Start the actor on an explicit database file. Test-only.
-    /// Why:      Tests must hit a throwaway file, never the real config dir.
+    /// What:
+    ///      `#[cfg(test)] pub(crate) fn open_at(path: PathBuf) -> CacheHandle`.
+    ///           Start the actor on an explicit database file.
+    ///  Test-only.
+    /// Why:
+    ///       Tests must hit a throwaway file,
+    ///  never the real config dir.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -157,11 +208,19 @@ impl CacheHandle {
         return CacheHandle { read_tx, write_tx }
     }
 
-    /// What:     `#[cfg(test)] pub(crate) fn open_degraded() -> CacheHandle`. Start a cache
-    ///           actor with NO database file (degraded: reads miss, writes drop, key set
-    ///           empty). Test-only.
-    /// Why:      Controller tests that never exercise the cache must not open or create the
-    ///           real `peaks.db`; a degraded handle touches no disk at all.
+    /// What:
+    ///      `#[cfg(test)] pub(crate) fn open_degraded() -> CacheHandle`.
+    ///  Start a cache
+    ///           actor with NO database file (degraded:
+    ///  reads miss,
+    ///  writes drop,
+    ///  key set
+    ///           empty).
+    ///  Test-only.
+    /// Why:
+    ///       Controller tests that never exercise the cache must not open or create the
+    ///           real `peaks.db`;
+    ///  a degraded handle touches no disk at all.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -187,9 +246,13 @@ impl CacheHandle {
         return CacheHandle { read_tx, write_tx }
     }
 
-    /// What:     `pub(crate) fn get(&self, fingerprint: u64) -> Option<Decision>`. Block
-    ///           briefly for one cached decision, or `None` on miss/closed actor.
-    /// Why:      `peak_swap` reads the current track's cached gain decision at load time.
+    /// What:
+    ///      `pub(crate) fn get(&self, fingerprint: u64) -> Option<Decision>`.
+    ///  Block
+    ///           briefly for one cached decision,
+    ///  or `None` on miss/closed actor.
+    /// Why:
+    ///       `peak_swap` reads the current track's cached gain decision at load time.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -231,9 +294,11 @@ impl CacheHandle {
         return reply_rx.blocking_recv().ok().flatten()
     }
 
-    /// What:     `pub(crate) fn upsert(&self, fingerprint: u64, decision: Decision)`.
+    /// What:
+    ///      `pub(crate) fn upsert(&self, fingerprint: u64, decision: Decision)`.
     ///           Fire-and-forget a resolved decision to the actor.
-    /// Why:      Sweep workers and the current-track worker store results without blocking on
+    /// Why:
+    ///       Sweep workers and the current-track worker store results without blocking on
     ///           persistence.
     ///
     /// In TS you'd write (pseudocode):
@@ -248,12 +313,15 @@ impl CacheHandle {
         // ```ts
         // writeTx.send({ fingerprint, decision });
         // ```
-        let _ = self.write_tx.send(Upsert { fingerprint, decision });
+        let _ = self.write_tx.send(Write::Put(Upsert { fingerprint, decision }));
     }
 
-    /// What:     `pub(crate) fn known_fingerprints(&self) -> HashSet<u64>`. Block briefly for a
+    /// What:
+    ///      `pub(crate) fn known_fingerprints(&self) -> HashSet<u64>`.
+    ///  Block briefly for a
     ///           snapshot of every fingerprint whose decision is already exact.
-    /// Why:      The sweep seeds its skip-check from one cheap snapshot per run and re-scans
+    /// Why:
+    ///       The sweep seeds its skip-check from one cheap snapshot per run and re-scans
     ///           only tracks with no decision or a mere probe estimate.
     ///
     /// In TS you'd write (pseudocode):

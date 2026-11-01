@@ -4,7 +4,7 @@ Tool:
  Cargo 1.99.0-nightly (`3efb1f477 2026-07-17`) and rustc 1.99.0-nightly
 (`0e29c21d9 2026-07-21`).
 Surface trigger:
- building `package/music-player/desktop-app` or `package/desktop-app/terminal`
+ building `package/music-player/desktop-app` or `package/terminal/app`
 with a lockfile resolving `cfg_aliases` 0.1.1 or 0.2.1,
 then running `cargo report future-incompatibilities`.
 Failure mode:
@@ -302,8 +302,8 @@ Summary [3.024s] 94 tests run: 94 passed, 0 skipped
 Repository-wide remediation advanced every remaining 0.2.1 lock entry to 0.2.2.
 The terminal package pins the first post-release `portable-pty` revision with `nix` 0.29;
 its generated lockfile contains `nix` 0.29.0 and only `cfg_aliases` 0.2.2
-(`package/desktop-app/terminal/Cargo.lock:753-756`,
-`package/desktop-app/terminal/Cargo.lock:2939-2947`).
+(`package/terminal/app/Cargo.lock:753-756`,
+`package/terminal/app/Cargo.lock:2939-2947`).
 
 The terminal Clippy task changed from a notice naming six packages to no future-incompatibility notice.
 Its 16 tests pass,
@@ -334,8 +334,8 @@ A clean verification build fetches and recompiles the affected build scripts.
 
 The repository applies that update in these standalone lockfiles:
 
-- `package/cli/nested-wayland-session/Cargo.lock`;
-- `package/desktop-app/terminal/Cargo.lock`;
+- `package/nested-wayland-session/cli/Cargo.lock`;
+- `package/terminal/app/Cargo.lock`;
 - `package/linter/rust/Cargo.lock`;
 - `package/music-player/android-app/rust/Cargo.lock`;
 - `package/music-player/desktop-app/Cargo.lock`;

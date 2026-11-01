@@ -41,8 +41,8 @@ export function formatResult(result: ScenarioResult,): readonly string[] {
    */
   const attempts = result.attempts
     .map(function attemptSummary(attempt,) {
-    return `${attempt.label}=${attempt.killed ? 'killed' : String(attempt.exitCode,)}`;
-  },)
+      return `${attempt.label}=${attempt.killed ? 'killed' : String(attempt.exitCode,)}`;
+    },)
     .join(' ',);
   return [
     `${result.status
@@ -54,17 +54,17 @@ export function formatResult(result: ScenarioResult,): readonly string[] {
         )}`}${attempts === '' ? '' : ` exits: ${attempts}`}`,
     ...result.violations
       .map(function violationLine(violation,) {
-      return `      ${violation.invariant} [${violation.subject}]: ${violation.detail}`;
-    },),
+        return `      ${violation.invariant} [${violation.subject}]: ${violation.detail}`;
+      },),
     ...(result.detail === undefined ? [] : result.detail
       .split('\n',)
       .slice(
-        0,
-        MAX_DETAIL_LINES,
+      0,
+      MAX_DETAIL_LINES,
       )
       .map(function detailLine(line,) {
-      return `      ${line}`;
-    },)),
+        return `      ${line}`;
+      },)),
   ];
 }
 
@@ -87,9 +87,12 @@ export function summarize(results: readonly ScenarioResult[],): readonly string[
   const counts = [...Map.groupBy(
     results,
     function byGroupAndStatus(result,) {
-    return `${result.group} ${result.status}`;
-  },
-  ),].map(function countEntry([key, grouped,],) {
+      return `${result.group} ${result.status}`;
+    },
+  ),].map(function countEntry([key, grouped,]: readonly [
+    string,
+    readonly ScenarioResult[]
+  ],) {
     return [
       key,
       grouped.length,
@@ -104,8 +107,8 @@ export function summarize(results: readonly ScenarioResult[],): readonly string[
       return left.localeCompare(right,);
     },)
       .map(function countLine([key, value,],) {
-      return `  ${key}: ${String(value,)}`;
-    },),
+        return `  ${key}: ${String(value,)}`;
+      },),
   ];
 }
 

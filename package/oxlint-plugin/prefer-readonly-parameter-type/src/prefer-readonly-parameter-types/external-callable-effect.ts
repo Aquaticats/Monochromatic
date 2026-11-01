@@ -4,14 +4,15 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   CallExpression,
   Node,
   SourceFile,
-} from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
+import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 import {
   type CallableEffectSummary,
   type EffectSummaryIndex,
@@ -36,6 +37,7 @@ import {
   PACKAGE_IMPLEMENTATION_UNAVAILABLE,
   resolvePackageImplementation,
 } from './package-implementation-resolution.ts';
+import { configuredProjectConfigFileName, } from './semantic-file-name.ts';
 
 /**
  External implementation inference logger.
@@ -76,12 +78,20 @@ export type ExternalCallableEffectResolver = (options: {
 }) => ExternalCallableEffect | typeof EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
 
 /**
+ One memoized inference with the omissions met inside the implementation while making it.
+ 
+ The omissions are kept beside the answer because a later caller served from the memo built nothing
+ and met nothing, yet its own summaries depend on the same implementation.
+ */
+type MemoizedExternalEffect = {
+  readonly effect: ExternalCallableEffect | typeof EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
+  readonly omissions: readonly ExternalOmissionRecord[];
+};
+
+/**
  Process cache by exact package implementation and export identity.
  */
-const effectByImplementation = new Map<
-  string,
-  ExternalCallableEffect | typeof EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE
->();
+const effectByImplementation = new Map<string, MemoizedExternalEffect>();
 
 /**
  Recursive package inference keys currently being analyzed.
@@ -112,11 +122,15 @@ export function clearExternalCallableEffectCache(): void {
  
  @param buildIndex - Effect engine callback for external configured project.
  
+ @param onOmissions - Receives the omissions met inside the implementation the answer was drawn from,
+ whether the answer was built now or served from the memo,
+ because the caller's own summaries depend on that implementation either way.
+ 
  @returns proven callable effect or unavailable sentinel.
  
  @example
  ```ts
- externalCallableEffect({ consumerProject: project, call, declaration });
+ externalCallableEffect({ consumerProject: project, call, declaration, buildIndex, onOmissions });
  ```
  */
 export function externalCallableEffect({
@@ -124,11 +138,13 @@ export function externalCallableEffect({
   call,
   declaration,
   buildIndex,
+  onOmissions,
 }: {
   readonly consumerProject: Project;
   readonly call: CallExpression;
   readonly declaration: Node;
   readonly buildIndex: ExternalEffectIndexBuilder;
+  readonly onOmissions: (records: readonly ExternalOmissionRecord[]) => void;
 }): ExternalCallableEffect | typeof EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE {
   /**
    Exact package identity from selected declaration source.
@@ -160,7 +176,7 @@ export function externalCallableEffect({
   if (callIdentity === PACKAGE_CALL_IDENTITY_UNAVAILABLE)
     return EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
   if (!packageVersionIsLocked({
-    configFileName: consumerProject.configFileName,
+    configFileName: configuredProjectConfigFileName({ project: consumerProject, },),
     identity: packageIdentity,
   },))
     return EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
@@ -222,8 +238,10 @@ export function externalCallableEffect({
      Prior exact implementation inference.
      */
     const cached = effectByImplementation.get(cacheKey,);
-    if (cached !== undefined)
-      return cached;
+    if (cached !== undefined) {
+      onOmissions(cached.omissions,);
+      return cached.effect;
+    }
     /**
      Runtime callable declaration selected from exact module export.
      */
@@ -237,7 +255,10 @@ export function externalCallableEffect({
     if ((typeof callable) === 'symbol') {
       effectByImplementation.set(
         cacheKey,
-        EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE,
+        {
+          effect: EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE,
+          omissions: [],
+        },
       );
       return EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
     }
@@ -253,10 +274,18 @@ export function externalCallableEffect({
      Effect summary for exact runtime export declaration.
      */
     const summary = index.get(callable,);
+    /**
+     Omissions in the implementation sources this callable's summary was built from.
+     */
+    const omissions = index.reachedOmissions(callable,);
+    onOmissions(omissions,);
     if (summary === NO_EFFECT_SUMMARY) {
       effectByImplementation.set(
         cacheKey,
-        EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE,
+        {
+          effect: EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE,
+          omissions,
+        },
       );
       return EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
     }
@@ -272,7 +301,10 @@ export function externalCallableEffect({
     };
     effectByImplementation.set(
       cacheKey,
-      result,
+      {
+        effect: result,
+        omissions,
+      },
     );
     return result;
   }

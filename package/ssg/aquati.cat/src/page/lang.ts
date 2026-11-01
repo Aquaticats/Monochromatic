@@ -4,7 +4,7 @@
  Shows the site description as heading and a grid of all posts
  available in the given language.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

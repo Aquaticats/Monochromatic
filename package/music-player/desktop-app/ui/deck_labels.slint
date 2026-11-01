@@ -1,0 +1,35 @@
+// Pure formatting for the transport deck. The previews and the Rust glue call the same functions,
+// so the clock and the seek fraction read identically everywhere. Mirrors the Android helpers
+// `deckClockLabel` and `progressFractionFor`.
+export global DeckLabels {
+    // Formats seconds as `m:ss` from whole seconds. Minutes are not capped at one hour, matching
+    // the Android helper. Zero, negative and NaN inputs render as `0:00`.
+    public pure function clock(seconds: float) -> string {
+        // Guard first so NaN and negative values never reach the integer arithmetic.
+        if !(seconds > 0) {
+            return "0:00";
+        }
+        let total = floor(seconds);
+        let minutes = floor(total / 60);
+        let remainder = mod(total, 60);
+        let pad = remainder < 10 ? "0" : "";
+        return "\{minutes}:\{pad}\{remainder}";
+    }
+
+    // Returns the playhead as a fraction of the duration in the closed range zero to one.
+    // A duration that is not positive yields zero so the slider never divides by zero.
+    public pure function progress-fraction(position: float, duration: float) -> float {
+        if !(duration > 0) {
+            return 0;
+        }
+        let fraction = position / duration;
+        // Catches negative positions and NaN, which compare false against zero.
+        if !(fraction > 0) {
+            return 0;
+        }
+        if fraction > 1 {
+            return 1;
+        }
+        return fraction;
+    }
+}

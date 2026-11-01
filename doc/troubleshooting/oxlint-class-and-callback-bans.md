@@ -1,4 +1,6 @@
-# oxlint 1.78.0: `no-class` silently ignores its `suffixes` option and `promise/prefer-await-to-callbacks` matches parameter names only, so implementing a Node `Writable` trips two rules with no configurable escape
+# oxlint 1.78.0: `no-class` silently ignores its `suffixes` option
+and `promise/prefer-await-to-callbacks` matches parameter names only,
+so implementing a Node `Writable` trips two rules with no configurable escape
 
 Two rules fire on the same small piece of code,
  a Node stream test double,

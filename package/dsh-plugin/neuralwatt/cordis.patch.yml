@@ -1,0 +1,14 @@
+# In-process NeuralWatt provider row for this profile.
+#
+# The package `@monochromatic-dev/dsh-plugin-neuralwatt` exports `apply(ctx)`
+# and `inject`, and serves the `neuralwatt` provider route by writing a mapped
+# model list into the `llm-pi-ai` entry volatile `providers` field: the
+# checked-in snapshot lands at mount and the list fetched live from
+# `https://api.neuralwatt.com/v1/models` lands once the bounded fetch resolves,
+# keeping the snapshot when the API is unreachable. Requests resolve the
+# `NEURALWATT_API_KEY` credential reference. There is no row config: the
+# endpoint, credential name, and fetch bound are package constants.
+- insert:
+    - id: neuralwatt
+      name: '@monochromatic-dev/dsh-plugin-neuralwatt'
+      config: {}

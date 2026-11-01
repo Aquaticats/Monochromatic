@@ -10,8 +10,8 @@ gets its own canonical section.
  The config lives in
 `package/config/tofu/hetzner.tf`.
 
-The shape matches the rest of TROUBLESHOOTING.
-* even though there
+The shape matches the rest of TROUBLESHOOTING,
+ even though there
 is no upstream defect:
  the audit trail justifies each rule and the
 decision not to broaden the firewall.

@@ -213,14 +213,17 @@ unless noted.
   That is a contradiction on a JSON API the RPC layer would use.
 - Kotlin Gradle plugin,
    <https://kotlinlang.org/docs/gradle-compilation-and-caches.html>:
-   one paragraph says a new Kotlin daemon starts "only when ... existing Kotlin daemons do not have the same set of JVM arguments".
-  The next paragraph says a running daemon "will be reused instead of starting a new one" "even if other requested JVM arguments are different".
+   one paragraph says a new Kotlin daemon starts "only when ...
+   existing Kotlin daemons do not have the same set of JVM arguments".
+  The next paragraph says a running daemon "will be reused instead of starting a new one" "even if other requested JVM
+  arguments are different".
   This contradiction sits on exactly the behavior X1 depends on.
 - Kotlin scripting stability
    (matters only if a Kotlin port keeps configuration as scripts):
    <https://kotlinlang.org/docs/custom-script-deps-tutorial.html> says "Kotlin custom scripting is Experimental.
   It may be dropped or changed at any time."
-  <https://kotlinlang.org/docs/components-stability.html> lists "Scripting embedding and extension API Beta 1.5.0" and "Scripting syntax and semantics Alpha 1.2.0".
+  <https://kotlinlang.org/docs/components-stability.html> lists "Scripting embedding and extension API Beta 1.5.0"
+  and "Scripting syntax and semantics Alpha 1.2.0".
 - Gradle,
    <https://docs.gradle.org/current/userguide/gradle_daemon.html>:
    with `--no-daemon`,
@@ -231,7 +234,8 @@ unless noted.
    so this is not specific to Kotlin.
 - systemd,
    used only by the `systemd-run` placement variant:
-   <https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html> and `systemctl.html` returned HTTP 418 with "Checking you are not a bot" (go-away)
+   <https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html> and `systemctl.html` returned HTTP 418
+   with "Checking you are not a bot" (go-away)
    (measured).
   The local `man systemd-run` works.
   It says that after `systemd-run` passes the command to the service manager,
@@ -591,7 +595,8 @@ Triggers:
 
 - <https://kotlinlang.org/docs/native-c-interop.html>:
    "C function pointer-typed parameters are mapped to `CValuesRef<T>`".
-  <https://kotlinlang.org/docs/mapping-function-pointers-from-c.html> shows `accept_fun(f: CPointer<CFunction<(Int) -> Int>>?)` for a function-pointer parameter.
+  <https://kotlinlang.org/docs/mapping-function-pointers-from-c.html> shows
+  `accept_fun(f: CPointer<CFunction<(Int) -> Int>>?)` for a function-pointer parameter.
   The two pages contradict each other.
 - The same interop page says:
    "Every C macro that expands to a constant is represented as a Kotlin property".
@@ -744,7 +749,8 @@ The first two are disqualifying.
    verified).
 - The spawn layer is written on FFM,
    because `ProcessBuilder` can't place a child in a cgroup:
-  - `Linker.nativeLinker().defaultLookup()` resolves `pidfd_spawn` and `posix_spawnattr_setcgroup_np` from the host glibc at run time,
+  - `Linker.nativeLinker().defaultLookup()` resolves `pidfd_spawn` and `posix_spawnattr_setcgroup_np`
+     from the host glibc at run time,
      so there is no sysroot problem.
   - `posix_spawn_file_actions_adddup2` connects the child to pipes made with `pipe2(O_CLOEXEC)`.
   - The flags are `POSIX_SPAWN_SETCGROUP | POSIX_SPAWN_SETSID`.
@@ -904,7 +910,8 @@ The first two are disqualifying.
    (`src/java.base/linux/native/libnio/fs/LinuxNativeDispatcher.c:81-82`,
    `:193-221`,
    verified).
-  The kernel's `vfs_copy_file_range` uses `remap_file_range` for same-superblock copies when the file system lacks `->copy_file_range`
+  The kernel's `vfs_copy_file_range` uses `remap_file_range` for same-superblock copies
+  when the file system lacks `->copy_file_range`
    (`fs/read_write.c:1553-1605`,
    torvalds master,
    verified).
@@ -1048,7 +1055,8 @@ The first two are disqualifying.
      while the full example declares `public class InvokeQsort`
      (measured).
   - The same page says "The default lookup (`Linker.defaultLookup()`) is currently not supported in static executables".
-  - The Oracle blog <https://blogs.oracle.com/java/detaching-graalvm-from-the-java-ecosystem-train> returned 403 to `curl`.
+  - The Oracle blog <https://blogs.oracle.com/java/detaching-graalvm-from-the-java-ecosystem-train> returned 403 to
+     `curl`.
      It was read as a fetched page.
 
 ### R10 maturity
@@ -1070,7 +1078,8 @@ The first two are disqualifying.
    (verified).
   Every 2026 release is on a JDK 25 base,
    and `oracle/graal` was pushed 2026-09-16 (verified).
-  Reachability metadata for `kotlinx-coroutines-core` and `kotlinx-serialization-json` exists in `oracle/graalvm-reachability-metadata` (verified).
+  Reachability metadata for `kotlinx-coroutines-core`
+  and `kotlinx-serialization-json` exists in `oracle/graalvm-reachability-metadata` (verified).
 
 ### Yikes
 
@@ -1130,7 +1139,7 @@ Ranked by severity.
   A Kotlin/Native core would carry every yike of Option 1
    except the file-enforcer port.
 - file-enforcer runs as ordinary daemon tasks:
-   `node package/dev-script/file-enforcer/src/cli.ts --evaluate <config>` in a task cgroup,
+   `node package/file-enforcer/core/src/cli.ts --evaluate <config>` in a task cgroup,
    placed with the same `pidfd_spawn` path.
 - The child writes typed NDJSON events on fd 3:
    `batchAccepted`,
@@ -1251,7 +1260,8 @@ Ranked by severity.
   That comparison needs the same probe run against their docs.
 - Findings that hold for any stack chosen:
   - X1:
-     Kotlin compile daemons defeat the "Gradle daemon disabled" decision unless each Gradle project sets `kotlin.compiler.execution.strategy=in-process`.
+     Kotlin compile daemons defeat the "Gradle daemon disabled" decision
+     unless each Gradle project sets `kotlin.compiler.execution.strategy=in-process`.
   - The race-free glibc spawn-cgroup API is documented only in `NEWS` and a header.
   - `systemd-run --scope` expands `$` in argv by default.
 

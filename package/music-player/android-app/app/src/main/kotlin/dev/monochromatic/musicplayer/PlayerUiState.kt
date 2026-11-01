@@ -28,6 +28,15 @@ import dev.monochromatic.musicplayer.core.PageEntry
 // ```
 import dev.monochromatic.musicplayer.core.PlaybackMode
 
+// What:     This import brings the per-track duration and peak value into scope.
+// Why:      The screen state carries one measure per track it has read.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { TrackMeasure } from "./core/TrackMeasure";
+// ```
+import dev.monochromatic.musicplayer.core.TrackMeasure
+
 // What:     `data class` generates structural equality and `copy`; each `val` is
 //           read-only. `List<T>` is a read-only view, unlike `MutableList<T>`.
 // Why:      Compose replaces whole snapshots, allowing a mode change to repaint
@@ -56,6 +65,12 @@ data class PlayerUiState(
     /** Current track's load-order index, or null when nothing is selected. */
     val currentIndex: Int? = null,
 
+    /** Tab-order index of the page that holds the current track, or null when nothing is selected. */
+    val playingPageIndex: Int? = null,
+
+    /** Every row of the page that holds the current track, which is the folder the deck's title and count read. */
+    val playingItems: List<PageEntry> = emptyList(),
+
     /** Whether audio is currently advancing. */
     val playing: Boolean = false,
 
@@ -70,4 +85,7 @@ data class PlayerUiState(
 
     /** Whether a source scan is still running. */
     val loading: Boolean = false,
+
+    /** Measures of the tracks read so far, keyed by track URI; a track with no entry has not been read yet. */
+    val measures: Map<String, TrackMeasure> = emptyMap(),
 )

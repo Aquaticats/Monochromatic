@@ -5,7 +5,8 @@
 // This file computes the opaque peak-cache KEY for a track from its content
 // URI: the Android source for the desktop player's filesystem
 // `path + size + mtime` fingerprint. The native crate (reached via
-// `NativeBridge.nativeFingerprint`) gxhashes the pieces; the platform-specific
+// `NativeBridge.nativeFingerprint`) hashes the pieces with the shared XXH3-64 fingerprint
+// function; the platform-specific
 // pieces (the file's size and modified-time) are read from the Android content
 // provider HERE.
 // Because the result is hashed, no path, name, or tag is ever stored.
@@ -18,8 +19,11 @@
 //     expose, so a re-encode (a size change) invalidates a stale entry.
 //   - Last-modified comes from `DocumentsContract.Document.COLUMN_LAST_MODIFIED`;
 //     SAF document providers report it (so an in-place edit invalidates the
-//     entry), while MediaStore does NOT carry that column and falls back to zero
-//     (size still guards it).
+//     entry), while MediaStore does NOT carry that column: its rows use zero
+//     without asking (size still guards it). Before 2026-10-15 every MediaStore
+//     row asked anyway, and the media provider logged one `Invalid column
+//     last_modified` exception per track; see
+//     `doc/troubleshooting/music-player-android-mediastore-last-modified-column.md`.
 //
 // Cross-source or cross-device portability is not a goal: the cache is
 // per-install and rebuilt on a miss. The provider queries run on the IO thread
@@ -71,6 +75,17 @@ import android.net.Uri
 // ```
 import android.provider.DocumentsContract
 
+// What:     `import android.provider.MediaStore` pulls in `MediaStore`, whose `AUTHORITY`
+//           constant (`media`) names the media store's content provider.
+// Why:      `queryLastModifiedMs` skips the document column for that provider, which
+//           lacks it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { MediaStore } from "android/provider";
+// ```
+import android.provider.MediaStore
+
 // What:     `import android.provider.OpenableColumns` pulls in `OpenableColumns`,
 //           whose `SIZE` constant is the column name for a file's byte size,
 //           exposed by both SAF and MediaStore providers.
@@ -82,11 +97,22 @@ import android.provider.DocumentsContract
 // ```
 import android.provider.OpenableColumns
 
+// What:     `import android.util.Log` and `java.util.concurrent.ConcurrentHashMap` name the
+//           logcat writer and the thread-safe map whose key set remembers refusing providers.
+// Why:      A refused or failed query is logged, and the IO pool's threads share the set.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Log } from "android/util";
+// ```
+import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
+
 // What:     No import is needed for the fingerprint helper anymore. `of` now calls
 //           `NativeBridge.nativeFingerprint(...)`, and `NativeBridge` is in THIS file's
 //           package (`dev.monochromatic.musicplayer`), so it is visible with no import.
-//           The old pure-Kotlin `core.fingerprint` was removed: gxhash (the new hash)
-//           has no JVM port, so the computation moved into the native crate.
+//           The old pure-Kotlin `core.fingerprint` was removed: the hash is XXH3-64 from
+//           the shared `truepeak-core` crate, so the computation lives in the native crate.
 // Why:      Document why the formerly-imported `core.fingerprint` is gone, so a reader
 //           does not look for it.
 //
@@ -184,6 +210,18 @@ object TrackFingerprint {
      */
     private const val UNKNOWN_MODIFIED_MS: Long = 0L
 
+    // What:     `private const val FINGERPRINT_TAG: String = "TrackFingerprint"` is the
+    //           logcat tag of this object's lines.
+    // Why:      A refused modified-time query is logged under one tag, so a run can count
+    //           them apart from the provider's own lines.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const FINGERPRINT_TAG = "TrackFingerprint";
+    // ```
+    /** Logcat tag of the fingerprint's log lines. */
+    private const val FINGERPRINT_TAG: String = "TrackFingerprint"
+
     // What:     `suspend fun of(context: Context, uri: Uri): Long? = withContext(Dispatchers.IO) { ... }`
     //           declares a function `of` with two named params (`context`, `uri`).
     //           `suspend` marks it a COROUTINE function that may pause/resume (so it
@@ -272,11 +310,11 @@ object TrackFingerprint {
         //             `Long`, so 64-bit integer multiply) to get nanoseconds, passed as
         //             a plain `Long`.
         //           - `NativeBridge.nativeFingerprint(...)` calls into the native crate
-        //             (src/fingerprint.rs) over JNI, which gxhashes the three into the
-        //             cache key `String`.
+        //             (src/fingerprint.rs) over JNI, which hashes the three into the
+        //             `Long` cache key.
         // Why:      Produce the opaque, hashed cache key from the URI plus the two read
         //           file attributes, matching the desktop's `path + size + mtime` key
-        //           and its gxhash, so Android and desktop agree on identical inputs.
+        //           and its shared XXH3-64 function, so Android and desktop agree on identical inputs.
         // Gotcha:   `Long * Long` is 64-bit integer multiply that WRAPS silently on
         //           overflow (no auto-widening like JS numbers); using `Long` for the
         //           constant is what keeps it 64-bit. The conversion to unsigned now
@@ -407,157 +445,86 @@ object TrackFingerprint {
         return null
     }
 
-    // What:     `private fun queryLastModifiedMs(context: Context, uri: Uri): Long = <expr>`
-    //           declares a PRIVATE helper taking `context` and `uri` and returning a
-    //           non-null `Long` (always a value, never null), as an EXPRESSION body
-    //           (`= <expr>` is the return). Its single expression is the
-    //           `runCatching { ... }.getOrDefault(...)` below.
-    // Why:      Read the last-modified time in milliseconds, or substitute
-    //           `UNKNOWN_MODIFIED_MS` when the provider lacks that column (MediaStore
-    //           uses a different one and the query throws, which is treated as
-    //           "unknown" rather than an error).
+    // What:     `private val authoritiesLackingModified: MutableSet<String>` holds the authorities whose provider threw
+    //           `IllegalArgumentException` for the document modified-time column, in a set that many IO threads can
+    //           read and add to at once (`ConcurrentHashMap.newKeySet()`).
+    // Why:      A provider that lacks the column lacks it for every row. Asking again for each row cost one binder
+    //           round trip and one logged exception stack in the provider's process per track (772 to 1,005 a 15 s
+    //           window at 10,000 tracks on the emulator), so it is asked once per process.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const authoritiesLackingModified = new Set<string>();
+    // ```
+    /** Authorities whose provider refused the document modified-time column, which this process does not ask again. */
+    private val authoritiesLackingModified: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    // What:     `internal fun queryLastModifiedMs(context: Context, uri: Uri): Long` reads the last-modified time in
+    //           milliseconds, or `UNKNOWN_MODIFIED_MS` when the provider does not report it.
+    // Why:      The time is the second platform input of the fingerprint. Three cases give the unknown time without a
+    //           query naming the column:
+    //           - A MediaStore URI (authority `media`): the media store has no `last_modified` column (its own column
+    //             is `date_modified`, in seconds), and before 2026-10-15 every MediaStore row asked anyway and read
+    //             the unknown time from the thrown exception. Skipping the query keeps every fingerprint value as
+    //             it was.
+    //           - An authority that already refused the column in this process.
+    //           - A failed query, which is logged. A refusal whose message names the column is remembered for the
+    //             authority; any other failure (a revoked grant, a deleted file) belongs to that one row.
+    //           A document provider of the Storage Access Framework reports the column, and its value is returned as it
+    //           was before.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // function queryLastModifiedMs(context: Context, uri: Uri): number {
-    //   try {
-    //     const cursor = context.contentResolver.query(
-    //       uri, [DocumentsContract.Document.COLUMN_LAST_MODIFIED], null, null, null,
-    //     );
-    //     if (cursor) {
-    //       try {
-    //         return (cursor.moveToFirst() && !cursor.isNull(0))
-    //           ? cursor.getLong(0) : UNKNOWN_MODIFIED_MS;
-    //       } finally { cursor.close(); }
-    //     }
+    //   const authority = uri.authority ?? "";
+    //   if (authority === MediaStore.AUTHORITY || authoritiesLackingModified.has(authority)) {
     //     return UNKNOWN_MODIFIED_MS;
-    //   } catch { return UNKNOWN_MODIFIED_MS; }
+    //   }
+    //   try { return readColumn(uri) ?? UNKNOWN_MODIFIED_MS; }
+    //   catch (error) {
+    //     if (error instanceof IllegalArgumentException && error.message?.includes("last_modified"))
+    //       authoritiesLackingModified.add(authority);
+    //     log(error); return UNKNOWN_MODIFIED_MS;
+    //   }
     // }
     // ```
     /**
-     * Defines query last modified ms behavior for this music-player component; the TypeScript-oriented notes
-     * above explain its call shape and effects.
+     * Last-modified time of [uri] in milliseconds as its provider reports it, or [UNKNOWN_MODIFIED_MS] when the
+     * provider is the media store, has refused the column before in this process, or fails the query.
      */
-    private fun queryLastModifiedMs(context: Context, uri: Uri): Long =
-        // What:     `runCatching { ... }` runs the trailing lambda and CATCHES any
-        //           exception it throws, returning a `Result<T>` (a wrapper that is
-        //           either "success holding the value" or "failure holding the
-        //           exception"). It never re-throws; the failure is captured.
-        // Why:      Some providers (MediaStore) lack the `COLUMN_LAST_MODIFIED` column,
-        //           so the query THROWS; wrapping it in `runCatching` lets us turn that
-        //           throw into a quiet fallback instead of crashing.
-        // Gotcha:   `runCatching` swallows the exception into a `Result`; you MUST then
-        //           unwrap it (here with `.getOrDefault` below), or the failure is lost.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const result = runCatching(() => { ... }); // Result<number>
-        // ```
-        runCatching {
-            // What:     `context.contentResolver` reads the `ContentResolver` off the
-            //           context, beginning the same kind of multi-line query chain as in
-            //           `querySize` (continued by `.query(...)` and `?.use { ... }`).
-            // Why:      Entry point for querying the provider for this URI's mtime.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // context.contentResolver
-            // ```
-            context.contentResolver
-                // What:     `.query(uri, arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED), null, null, null)`
-                //           runs the provider query for just the last-modified column and
-                //           returns a `Cursor?`. `arrayOf(...)` builds the one-element
-                //           `Array<String>` of column names; the three `null`s are the
-                //           unused selection/args/sort arguments.
-                // Why:      Ask for this URI's last-modified column specifically. On a
-                //           provider lacking it, this is the call that THROWS (caught by
-                //           the surrounding `runCatching`).
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // .query(uri, [DocumentsContract.Document.COLUMN_LAST_MODIFIED], null, null, null)
-                // ```
+    internal fun queryLastModifiedMs(context: Context, uri: Uri): Long {
+        /** Authority of the provider that answers for [uri], or empty when the URI names none. */
+        val authority: String = uri.authority.orEmpty()
+        if (authority == MediaStore.AUTHORITY || authority in authoritiesLackingModified) {
+            return UNKNOWN_MODIFIED_MS
+        }
+        try {
+            return context.contentResolver
                 .query(uri, arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED), null, null, null)
-                // What:     `?.use { cursor -> ... }`. `?.` SAFE-CALLs only when the
-                //           `Cursor?` is non-null; `.use { ... }` runs the trailing lambda
-                //           and guarantees the cursor is closed afterward; `cursor` is the
-                //           non-null cursor parameter. Unlike `querySize`, here the lambda
-                //           is used as an EXPRESSION (its value flows out, see below).
-                // Why:      Read the row safely and always release the cursor handle.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // ?.use((cursor) => { ... })
-                // ```
                 ?.use { cursor ->
-                    // What:     `if (cursor.moveToFirst() && !cursor.isNull(0)) { A } else { B }`
-                    //           is an `if/else` used AS AN EXPRESSION (each branch's last
-                    //           value becomes the `if`'s value, which becomes the `use`
-                    //           lambda's value). The condition is "there is a first row AND
-                    //           column 0 is not null" (`!` negates `isNull`).
-                    // Why:      Yield the real mtime when present, otherwise the fallback.
-                    // Gotcha:   This `if` PRODUCES a value (Kotlin), unlike TS where `if`
-                    //           is a statement; that value is what the lambda returns.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // (cursor.moveToFirst() && !cursor.isNull(0)) ? cursor.getLong(0) : UNKNOWN_MODIFIED_MS
-                    // ```
-                    if (cursor.moveToFirst() && !cursor.isNull(0)) {
-                        // What:     `cursor.getLong(0)` reads column 0 as a `Long`. As the
-                        //           `then`-branch's last expression it becomes the branch's
-                        //           value (and so the lambda's value). NOTE: no `return`
-                        //           here, unlike `querySize` (this whole helper is an
-                        //           expression body, so values flow out, they are not
-                        //           `return`ed mid-lambda).
-                        // Why:      The actual last-modified time in milliseconds.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // cursor.getLong(0)
-                        // ```
-                        cursor.getLong(0)
-                    } else {
-                        // What:     `UNKNOWN_MODIFIED_MS` (the `0L` constant) is the
-                        //           `else`-branch's value: used when there is no row or the
-                        //           column is null.
-                        // Why:      Fall back to a stable zero mtime rather than failing.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // UNKNOWN_MODIFIED_MS
-                        // ```
-                        UNKNOWN_MODIFIED_MS
-                    }
-                // What:     `} ?: UNKNOWN_MODIFIED_MS` closes the `?.use { ... }` lambda and
-                //           then applies the ELVIS operator `?:` to its result. `?.use { ... }`
-                //           is `Long?` (null when the `Cursor?` was null, so `.use` never
-                //           ran); `?: UNKNOWN_MODIFIED_MS` substitutes the fallback in that
-                //           null case. The resulting `Long` is the value `runCatching`'s
-                //           lambda produces on success.
-                // Why:      A null cursor (provider returned nothing) must still yield a
-                //           `Long`, so we coalesce it to the unknown-mtime fallback.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // (cursorResult) ?? UNKNOWN_MODIFIED_MS
-                // ```
+                    if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else UNKNOWN_MODIFIED_MS
                 } ?: UNKNOWN_MODIFIED_MS
-        // What:     `}.getOrDefault(UNKNOWN_MODIFIED_MS)` closes the `runCatching { ... }`
-        //           lambda and calls `.getOrDefault(default)` on the resulting
-        //           `Result<Long>`: it returns the success value if the lambda completed,
-        //           or `UNKNOWN_MODIFIED_MS` if the lambda THREW (the failure case). This
-        //           whole `runCatching { ... }.getOrDefault(...)` is the expression body's
-        //           value, hence `queryLastModifiedMs`'s return.
-        // Why:      Turn a thrown "no such column" (MediaStore) into the quiet fallback,
-        //           so a missing mtime never propagates as an error.
-        // Gotcha:   `.getOrDefault(x)` SILENTLY discards the captured exception; use it
-        //           only when "no info, fall back" is genuinely correct (it is here:
-        //           size still guards the cache entry).
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return result.getOrDefault(UNKNOWN_MODIFIED_MS);
-        // ```
-        }.getOrDefault(UNKNOWN_MODIFIED_MS)
+        } catch (refused: IllegalArgumentException) {
+            // Only a refusal that names the column is remembered for the whole provider: another argument failure may
+            // belong to one document, and remembering it would turn every later document of a provider that reports
+            // the column into the unknown time, which changes their fingerprints.
+            if (refused.message?.contains(DocumentsContract.Document.COLUMN_LAST_MODIFIED) != true) {
+                Log.w(FINGERPRINT_TAG, "last-modified time of one track was refused", refused)
+                return UNKNOWN_MODIFIED_MS
+            }
+            // IO threads that race to the first refusal all land here, and the set admits one of them, so one line is
+            // logged per authority.
+            if (authoritiesLackingModified.add(authority)) {
+                Log.w(
+                    FINGERPRINT_TAG,
+                    "provider $authority has no last_modified column; its tracks use the unknown time",
+                    refused,
+                )
+            }
+            return UNKNOWN_MODIFIED_MS
+        } catch (expectedFailure: Exception) {
+            Log.w(FINGERPRINT_TAG, "last-modified time of one track could not be read", expectedFailure)
+            return UNKNOWN_MODIFIED_MS
+        }
+    }
 }

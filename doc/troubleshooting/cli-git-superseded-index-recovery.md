@@ -128,21 +128,103 @@ or fabricate an `index-installed` marker.
 The printed commit-success line alone was insufficient evidence of complete wrapper finalization.
 The later committed history and clean current index were independently checked.
 
+## Separate empty index lock on 2026-10-09
+
+The governing-domain documentation checkpoint `proc_377d` failed before `git add`.
+Cli-git emitted `index-lock-unproven-owner` with exit 2.
+This was an empty main-repository `.git/index.lock`,
+not the historical superseded journal incident.
+
+The native wait preserves a lock when its owner is not proven alive
+and the configured unproven-owner budget expires:
+
+```typescript
+// package/git-policy/cli/src/index-lock/index-lock-wait.ts:350
+if (state.unprovenMs >= timeoutMs)
+  throw new IndexLockUnprovenOwnerError({
+    evidence,
+    verdict,
+    timeoutMs,
+    consequence,
+  },);
+```
+
+The diagnostic reported no PID file,
+no open descriptor found for the lock,
+and inaccessible process-descriptor directories.
+That output alone was not treated as proof of a dead owner.
+Subsequent current-user process inspection found only Git filesystem-monitor daemons,
+not a Git writer.
+The unchanged lock was user-owned,
+zero bytes,
+and inode `185394298`.
+
+After those checks,
+the recovery compared the exact inode,
+size,
+and user ID before moving the lock without overwriting its destination
+to `~/temp/agent/auto-mode-main-index-lock-185394298.empty`.
+No index content,
+journal,
+or ref was restored.
+The scoped documentation commit then passed as `proc_10e4`.
+The lock creator and cause of its abandonment remain unestablished.
+
+This is not a generic permission to delete `index.lock`.
+An active or uncertain writer requires preserving its lock.
+The incident demonstrates an evidence-preserving local recovery,
+not a defect in Git or cli-git's refusal.
+
 ## Upstream filing decision
 
 No external upstream issue was drafted or filed.
 This is repo-owned recovery behavior,
 not a demonstrated fault in native Git or the Pi process harness.
 
--   Upstream fault: not established for an external project.
--   Fixability: no generic recovery change was designed or qualified by this incident.
--   Supported use: local commit interruption is documented;
+-   Upstream fault:
+     not established for an external project.
+-   Fixability:
+     no generic recovery change was designed or qualified by this incident.
+-   Supported use:
+     local commit interruption is documented;
     conflicting index recovery deliberately fails closed.
--   Contribution policy: external contribution policy is not applicable to this repo-owned resolution.
--   Likelihood of an external fix: not assessed because no external defect is claimed.
--   Prototype: the incident-specific administrative recovery was exercised;
+-   Contribution policy:
+     external contribution policy is not applicable to this repo-owned resolution.
+-   Likelihood of an external fix:
+     not assessed because no external defect is claimed.
+-   Prototype:
+     the incident-specific administrative recovery was exercised;
     no generic code fix is represented as tested.
 
 `.out-of-scope/` was inspected;
 no external filing is relevant to this local resolution.
 There is no external issue draft or additive comment to publish.
+
+## Separate owner-probe refusal on 2026-10-19
+
+The protected `.cache/cli-git-bin/git log --max-count=3 --oneline` failed with exit 2
+while a supervised rootless-container worker checkpointed package changes.
+The native wrapper emitted `engine-failure`, code `content-unavailable`:
+
+```text
+# Native recovery diagnostic, distinct from superseded-index recovery.
+probing transaction owner 293 failed: Operation not permitted (os error 1)
+```
+
+An explicitly read-only `/usr/bin/git log --max-count=3 --oneline` succeeded
+and showed the intended five-path commit `3a21255dde` had landed.
+The protected wrapper subsequently succeeded during frozen-source preparation.
+No journal was deleted and no commit was repeated.
+
+`package/git-policy/cli/src/native/recovery_inspect.rs`, `liveness`, propagates the refused signal probe.
+`transaction_owner.rs` records the current process PID;
+`classify_transaction_owner` probes existence before comparing birth identity.
+Shared repository access across PID namespaces is a hypothesis requiring a disposable reproduction,
+not an established cause of this refusal.
+Denied permission does not establish that an owner is dead.
+
+[Repository issue #1784](https://github.com/Aquaticats/Monochromatic/issues/1784)
+tracks read availability and namespace-aware ownership controls.
+This is separate from the unrelated LFS incident in #1770
+and the missing post-commit completion-marker directory in #1781.
+No shared cause is established.

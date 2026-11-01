@@ -1,0 +1,1774 @@
+{
+  "produced": "2026-10-06T20:13:21.754Z",
+  "crops": {
+    "zone-width": {
+      "x": 196,
+      "y": 32,
+      "width": 120,
+      "height": 240,
+      "scale": 4
+    },
+    "query-selection-ink": {
+      "find-selected": {
+        "x": 257,
+        "y": 604,
+        "width": 843,
+        "height": 56,
+        "scale": 2
+      },
+      "search-selected": {
+        "x": 150,
+        "y": 50,
+        "width": 800,
+        "height": 110,
+        "scale": 2
+      }
+    },
+    "selected-row-tint": {
+      "x": 0,
+      "y": 32,
+      "width": 257,
+      "height": 248,
+      "scale": 2
+    },
+    "trailing-cell": {
+      "x": 600,
+      "y": 604,
+      "width": 500,
+      "height": 56,
+      "scale": 2
+    },
+    "divider-focus": {
+      "x": 216,
+      "y": 200,
+      "width": 80,
+      "height": 260,
+      "scale": 4
+    },
+    "clear-plate": {
+      "x": 940,
+      "y": 600,
+      "width": 160,
+      "height": 60,
+      "scale": 4
+    },
+    "padding-click": {
+      "x": 150,
+      "y": 50,
+      "width": 800,
+      "height": 110,
+      "scale": 2
+    },
+    "watch-limit": {
+      "x": 0,
+      "y": 560,
+      "width": 1100,
+      "height": 100,
+      "scale": 1
+    }
+  },
+  "sessions": [
+    {
+      "question": "clear-plate",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-a-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-a-dark-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 23,
+          "pressedSamples": 22
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "clear-plate",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-a-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-a-light-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 21,
+          "pressedSamples": 20
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "clear-plate",
+      "option": "b",
+      "commit": "061bcdf5d",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-b-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-b-dark-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 24,
+          "pressedSamples": 23
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "clear-plate",
+      "option": "b",
+      "commit": "061bcdf5d",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clear": {
+          "absolutePosition": {
+            "x": 996,
+            "y": 608
+          },
+          "accessibleLabel": "Clear find text",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "280"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "valueAfterReleaseOutside": "Latin"
+      },
+      "frames": [
+        {
+          "target": "clear-plate-b-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "clear-plate-b-light-pressed.png",
+          "pixels": "1100x660",
+          "heldSamples": 22,
+          "pressedSamples": 21
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-a-dark.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-a-dark-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-a-light.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-a-light-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "b",
+      "commit": "d74bc6728",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-b-dark.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-b-dark-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "b",
+      "commit": "d74bc6728",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-b-light.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-b-light-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "c",
+      "commit": "2f74ed887",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-c-dark.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-c-dark-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "divider-focus",
+      "option": "c",
+      "commit": "2f74ed887",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "divider-focus-c-light.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "divider-focus-c-light-2x.png",
+          "pixels": "2200x1320"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "padding-click",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clearAfterPaddingClick": {
+          "absolutePosition": {
+            "x": 890,
+            "y": 98
+          },
+          "accessibleLabel": "Clear search query",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "191"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "padding-click-a-dark-before.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "padding-click-a-dark-after.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "padding-click",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clearAfterPaddingClick": {
+          "absolutePosition": {
+            "x": 890,
+            "y": 98
+          },
+          "accessibleLabel": "Clear search query",
+          "accessibleRole": "Button",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "191"
+          },
+          "size": {
+            "height": 48,
+            "width": 48
+          },
+          "typeNamesAndIds": [
+            {
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "padding-click-a-light-before.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "padding-click-a-light-after.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "padding-click",
+      "option": "b",
+      "commit": "e393926fe",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clearAfterPaddingClick": null
+      },
+      "frames": [
+        {
+          "target": "padding-click-b-dark-before.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "padding-click-b-dark-after.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "padding-click",
+      "option": "b",
+      "commit": "e393926fe",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "clearAfterPaddingClick": null
+      },
+      "frames": [
+        {
+          "target": "padding-click-b-light-before.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "padding-click-b-light-after.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-a-dark-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-a-dark-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-a-light-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-a-light-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "b",
+      "commit": "bf446cf9c",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-b-dark-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-b-dark-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "query-selection-ink",
+      "option": "b",
+      "commit": "bf446cf9c",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        }
+      },
+      "frames": [
+        {
+          "target": "query-selection-ink-b-light-find-selected.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "query-selection-ink-b-light-search-selected.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "selected-row-tint",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "selectedRow": {
+          "label": "fixture.ts",
+          "index": 4
+        }
+      },
+      "frames": [
+        {
+          "target": "selected-row-tint-a-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "selected-row-tint-a-dark-focused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "selected-row-tint",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "selectedRow": {
+          "label": "fixture.ts",
+          "index": 4
+        }
+      },
+      "frames": [
+        {
+          "target": "selected-row-tint-a-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "selected-row-tint-a-light-focused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "selected-row-tint",
+      "option": "b",
+      "commit": "3e5c35d38",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "selectedRow": {
+          "label": "fixture.ts",
+          "index": 4
+        }
+      },
+      "frames": [
+        {
+          "target": "selected-row-tint-b-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "selected-row-tint-b-dark-focused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "selected-row-tint",
+      "option": "b",
+      "commit": "3e5c35d38",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "selectedRow": {
+          "label": "fixture.ts",
+          "index": 4
+        }
+      },
+      "frames": [
+        {
+          "target": "selected-row-tint-b-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "selected-row-tint-b-light-focused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "trailing-cell",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "focusedEmpty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "unfocusedText": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "200 matches, none selected",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "Latin",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 772
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "empty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "longUnfocused": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "No matches",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 737
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "trailing-cell-a-dark-focused-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-dark-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-dark-unfocused-text.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-dark-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-dark-long-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-dark-long-unfocused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "trailing-cell",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "focusedEmpty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "unfocusedText": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "200 matches, none selected",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "Latin",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 772
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "empty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "longUnfocused": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "No matches",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 737
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "trailing-cell-a-light-focused-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-light-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-light-unfocused-text.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-light-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-light-long-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-a-light-long-unfocused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "trailing-cell",
+      "option": "b",
+      "commit": "5c4493fb6",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "focusedEmpty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "unfocusedText": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "200 matches, none selected",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "Latin",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 772
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "empty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "longUnfocused": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "No matches",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 737
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "trailing-cell-b-dark-focused-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-dark-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-dark-unfocused-text.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-dark-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-dark-long-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-dark-long-unfocused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "trailing-cell",
+      "option": "b",
+      "commit": "5c4493fb6",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "focusedEmpty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "unfocusedText": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "200 matches, none selected",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "Latin",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 772
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "empty": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 803
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        },
+        "longUnfocused": {
+          "absolutePosition": {
+            "x": 269,
+            "y": 608
+          },
+          "accessibleDescription": "No matches",
+          "accessibleEnabled": true,
+          "accessibleLabel": "Find text",
+          "accessiblePlaceholderText": "Find in file",
+          "accessibleRole": "TextInput",
+          "accessibleValue": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+          "computedOpacity": 1,
+          "handle": {
+            "generation": "1",
+            "index": "245"
+          },
+          "size": {
+            "height": 48,
+            "width": 737
+          },
+          "typeNamesAndIds": [
+            {
+              "id": "FindBar::input",
+              "typeName": "QueryInput"
+            },
+            {
+              "id": "root",
+              "typeName": "Rectangle"
+            }
+          ]
+        }
+      },
+      "frames": [
+        {
+          "target": "trailing-cell-b-light-focused-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-light-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-light-unfocused-text.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-light-empty.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-light-long-typing.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "trailing-cell-b-light-long-unfocused.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "watch-limit",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "message": []
+      },
+      "frames": [
+        {
+          "target": "watch-limit-a-dark.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "watch-limit",
+      "option": "a",
+      "commit": "22de770b8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "message": []
+      },
+      "frames": [
+        {
+          "target": "watch-limit-a-light.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "watch-limit",
+      "option": "b",
+      "commit": "a7ff27343",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "message": [
+          {
+            "label": "File-watch limit reached: changes may show up to 1 s late. Raise it with sudo sysctl fs.inotify.max_user_watches=1048576",
+            "role": "Text",
+            "position": {
+              "y": 628
+            },
+            "size": {
+              "height": 32,
+              "width": 1100
+            }
+          }
+        ]
+      },
+      "frames": [
+        {
+          "target": "watch-limit-b-dark.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "watch-limit",
+      "option": "b",
+      "commit": "a7ff27343",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "message": [
+          {
+            "label": "File-watch limit reached: changes may show up to 1 s late. Raise it with sudo sysctl fs.inotify.max_user_watches=1048576",
+            "role": "Text",
+            "position": {
+              "y": 628
+            },
+            "size": {
+              "height": 32,
+              "width": 1100
+            }
+          }
+        ]
+      },
+      "frames": [
+        {
+          "target": "watch-limit-b-light.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "a",
+      "commit": "3dfe71e4e",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(136,48,136,1)",
+          "srgba(196,107,196,1)"
+        ],
+        "lineColumnOutside": "srgba(136,48,136,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-a-dark-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-a-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-a-dark-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "a",
+      "commit": "3dfe71e4e",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(222,133,222,1)",
+          "srgba(164,75,164,1)"
+        ],
+        "lineColumnOutside": "srgba(222,133,222,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-a-light-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-a-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-a-light-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "b",
+      "commit": "9655769d8",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(136,48,136,1)",
+          "srgba(196,107,196,1)"
+        ],
+        "lineColumnOutside": "srgba(136,48,136,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-b-dark-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-b-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-b-dark-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "b",
+      "commit": "9655769d8",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(222,133,222,1)",
+          "srgba(164,75,164,1)"
+        ],
+        "lineColumnOutside": "srgba(222,133,222,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-b-light-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-b-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-b-light-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "c",
+      "commit": "f1c4c4d48",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(136,48,136,1)",
+          "srgba(196,107,196,1)"
+        ],
+        "lineColumnOutside": "srgba(136,48,136,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-c-dark-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-c-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-c-dark-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "c",
+      "commit": "f1c4c4d48",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(222,133,222,1)",
+          "srgba(164,75,164,1)"
+        ],
+        "lineColumnOutside": "srgba(222,133,222,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-c-light-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-c-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-c-light-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "d",
+      "commit": "f05226ea6",
+      "scheme": "dark",
+      "port": 9394,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(136,48,136,1)",
+          "srgba(196,107,196,1)"
+        ],
+        "lineColumnOutside": "srgba(136,48,136,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-d-dark-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-d-dark-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-d-dark-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "question": "zone-width",
+      "option": "d",
+      "commit": "f05226ea6",
+      "scheme": "light",
+      "port": 9395,
+      "checks": {
+        "windowSize": {
+          "height": 660,
+          "width": 1100
+        },
+        "lineColumnIdleHovered": [
+          "srgba(222,133,222,1)",
+          "srgba(164,75,164,1)"
+        ],
+        "lineColumnOutside": "srgba(222,133,222,1)"
+      },
+      "frames": [
+        {
+          "target": "zone-width-d-light-idle.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-d-light-hovered.png",
+          "pixels": "1100x660"
+        },
+        {
+          "target": "zone-width-d-light-outside.png",
+          "pixels": "1100x660"
+        }
+      ],
+      "passed": true
+    }
+  ]
+}

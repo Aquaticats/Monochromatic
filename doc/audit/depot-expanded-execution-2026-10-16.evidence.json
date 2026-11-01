@@ -1,0 +1,5780 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-16T01:49:43.087Z",
+  "complete": true,
+  "completionMeaning": "Representative execution and measurement completed; browser storage suite retains one failure and one skip. Production rollout remains unimplemented.",
+  "repository": "Aquaticats/Monochromatic",
+  "native": {
+    "runId": "p9sfmw70wq",
+    "jobId": "sfjhrbwvrs",
+    "attemptId": "2gv4q0p1bd",
+    "revision": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+    "status": "finished",
+    "conclusion": "success",
+    "runner": {
+      "cpus": 4,
+      "memoryGiB": 16,
+      "baseMinuteMultiplier": 2
+    },
+    "wholeJobSeconds": 157.92,
+    "normalizedBaseMinutes": 5.263999999999999,
+    "suites": [
+      {
+        "feature": "default",
+        "passed": 58,
+        "skipped": 0,
+        "harnessSeconds": 0.03,
+        "results": [
+          {
+            "name": "bones::tests::hot_frame_wins_the_bones_seed",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::crc8_table_matches_check_vector",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::coded_numbers_decode",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::garbage_is_rejected",
+            "seconds": 0.003
+          },
+          {
+            "name": "bones::tests::walk_confirms_frames_and_byte_spans",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::probe_estimate_is_sampled",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::full_scans_are_exact",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::display_includes_cause",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::equality_distinguishes_variants",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::is_std_error",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::gain_never_exceeds_unity",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::loud_track_is_attenuated_to_ceiling",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::linear_gain_matches_db_form",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::peak_dbtp_reference_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::probe_margin_inflates_in_db",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::silence_gives_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::quiet_track_is_not_amplified",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::flac_bytes_yield_lossless_with_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::broken_flac_keeps_lossless_without_bones",
+            "seconds": 0.003
+          },
+          {
+            "name": "inputs::tests::id3_prefixed_flac_sniffs",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::missing_file_stays_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::other_bytes_stay_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::channel_routing_survives_mid_frame_chunk_split",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::catmull_rom_reproduces_control_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::peak_is_at_least_max_sample",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::detects_inter_sample_peak_above_samples",
+            "seconds": 0.003
+          },
+          {
+            "name": "meter::tests::silence_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::per_sample_feeding_matches_whole_buffer",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::take_peak_segments_match_continuous_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::zero_channels_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::cache_identity_keeps_decoder_independent",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::default_policy_has_decided_constants",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::meter_id_is_stable_and_nonzero",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_is_stable",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::bones_seeds_reach_the_needle",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_changes_with_every_parameter",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::climb_reads_the_hilltop",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::silence_probes_to_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::measure_window_reads_one_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_of_short_track_tags_short",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::bones_seeds_guide_the_lossless_probe",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::probe_seek_finds_a_mid_track_loud_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_upgrades_a_long_track_exactly",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::long_track_probes_with_margin",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::provenance_picks_bucket_coverage",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::silence_yields_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::unknown_duration_full_scans",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::short_track_full_scans_exactly",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::boxed_source_drives_the_meter",
+            "seconds": 0.002
+          },
+          {
+            "name": "source::tests::duration_known_rejects_degenerate_values",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::zero_channels_is_unity",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::seek_to_frame_repositions_and_guards_end",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::degenerate_window_counts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::placement_plan_bundles_length_and_starts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_are_monotonic_and_bounded",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_cover_both_ends",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::window_frames_floors_and_clamps",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::track_shorter_than_window_starts_at_zero",
+            "seconds": 0.002
+          }
+        ]
+      },
+      {
+        "feature": "fingerprint",
+        "passed": 67,
+        "skipped": 0,
+        "harnessSeconds": 0.035,
+        "results": [
+          {
+            "name": "bones::tests::hot_frame_wins_the_bones_seed",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::garbage_is_rejected",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::crc8_table_matches_check_vector",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::coded_numbers_decode",
+            "seconds": 0.003
+          },
+          {
+            "name": "bones::tests::walk_confirms_frames_and_byte_spans",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::probe_estimate_is_sampled",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::full_scans_are_exact",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::display_includes_cause",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::is_std_error",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::every_input_changes_the_key",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::equality_distinguishes_variants",
+            "seconds": 0.003
+          },
+          {
+            "name": "fingerprint::tests::field_boundaries_are_unambiguous",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_fields_sit_at_their_documented_offsets",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_cases_reach_the_vectorized_hash_paths",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_known_answers_match_the_reference",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::the_default_seed_is_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::raw_xxh3_64_known_answers_match_the_reference",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::the_key_uses_all_sixty_four_bits",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_starts_with_the_domain_tag_and_has_the_documented_length",
+            "seconds": 0.003
+          },
+          {
+            "name": "gain::tests::linear_gain_matches_db_form",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::gain_never_exceeds_unity",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::loud_track_is_attenuated_to_ceiling",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::peak_dbtp_reference_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::probe_margin_inflates_in_db",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::quiet_track_is_not_amplified",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::silence_gives_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::flac_bytes_yield_lossless_with_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::id3_prefixed_flac_sniffs",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::missing_file_stays_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::broken_flac_keeps_lossless_without_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::catmull_rom_reproduces_control_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::other_bytes_stay_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::channel_routing_survives_mid_frame_chunk_split",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::detects_inter_sample_peak_above_samples",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::peak_is_at_least_max_sample",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::silence_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::per_sample_feeding_matches_whole_buffer",
+            "seconds": 0.003
+          },
+          {
+            "name": "meter::tests::take_peak_segments_match_continuous_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::cache_identity_keeps_decoder_independent",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::zero_channels_is_zero_peak",
+            "seconds": 0.003
+          },
+          {
+            "name": "policy::tests::default_policy_has_decided_constants",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::meter_id_is_stable_and_nonzero",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_changes_with_every_parameter",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_is_stable",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::climb_reads_the_hilltop",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::measure_window_reads_one_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::bones_seeds_reach_the_needle",
+            "seconds": 0.003
+          },
+          {
+            "name": "probe::tests::silence_probes_to_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_of_short_track_tags_short",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_upgrades_a_long_track_exactly",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::bones_seeds_guide_the_lossless_probe",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::long_track_probes_with_margin",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::provenance_picks_bucket_coverage",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::probe_seek_finds_a_mid_track_loud_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::short_track_full_scans_exactly",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::silence_yields_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::unknown_duration_full_scans",
+            "seconds": 0.002
+          },
+          {
+            "name": "source::tests::boxed_source_drives_the_meter",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::zero_channels_is_unity",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::seek_to_frame_repositions_and_guards_end",
+            "seconds": 0.002
+          },
+          {
+            "name": "source::tests::duration_known_rejects_degenerate_values",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::degenerate_window_counts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::placement_plan_bundles_length_and_starts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_are_monotonic_and_bounded",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_cover_both_ends",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::track_shorter_than_window_starts_at_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::window_frames_floors_and_clamps",
+            "seconds": 0.002
+          }
+        ]
+      },
+      {
+        "feature": "service",
+        "passed": 71,
+        "skipped": 0,
+        "harnessSeconds": 0.047,
+        "results": [
+          {
+            "name": "bones::tests::coded_numbers_decode",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::hot_frame_wins_the_bones_seed",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::crc8_table_matches_check_vector",
+            "seconds": 0.003
+          },
+          {
+            "name": "bones::tests::garbage_is_rejected",
+            "seconds": 0.003
+          },
+          {
+            "name": "bones::tests::walk_confirms_frames_and_byte_spans",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::exact_fingerprints_lists_only_exact_rows",
+            "seconds": 0.004
+          },
+          {
+            "name": "cache::tests::exact_is_not_downgraded_by_a_probe",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::misses_on_absent_or_mismatched_key",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::probe_is_stored_after_an_exact_row_is_removed",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::probe_is_upgraded_by_an_exact",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::a_current_row_hits_after_reopen",
+            "seconds": 0.008
+          },
+          {
+            "name": "cache::tests::remove_drops_only_the_named_key",
+            "seconds": 0.005
+          },
+          {
+            "name": "cache::tests::remove_is_scoped_to_identity",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::remove_of_absent_key_reports_false",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::the_schema_version_moved_past_the_gxhash_rows",
+            "seconds": 0.002
+          },
+          {
+            "name": "cache::tests::round_trips_a_decision",
+            "seconds": 0.003
+          },
+          {
+            "name": "decision::tests::probe_estimate_is_sampled",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::full_scans_are_exact",
+            "seconds": 0.003
+          },
+          {
+            "name": "error::tests::display_includes_cause",
+            "seconds": 0.002
+          },
+          {
+            "name": "cache::tests::reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows",
+            "seconds": 0.007
+          },
+          {
+            "name": "error::tests::equality_distinguishes_variants",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::is_std_error",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::linear_gain_matches_db_form",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::gain_never_exceeds_unity",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::loud_track_is_attenuated_to_ceiling",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::peak_dbtp_reference_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::probe_margin_inflates_in_db",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::quiet_track_is_not_amplified",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::silence_gives_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::flac_bytes_yield_lossless_with_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::broken_flac_keeps_lossless_without_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::id3_prefixed_flac_sniffs",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::missing_file_stays_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::other_bytes_stay_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::catmull_rom_reproduces_control_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::channel_routing_survives_mid_frame_chunk_split",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::detects_inter_sample_peak_above_samples",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::per_sample_feeding_matches_whole_buffer",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::peak_is_at_least_max_sample",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::silence_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::take_peak_segments_match_continuous_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::zero_channels_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::cache_identity_keeps_decoder_independent",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::meter_id_is_stable_and_nonzero",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::default_policy_has_decided_constants",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_changes_with_every_parameter",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::bones_seeds_reach_the_needle",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_is_stable",
+            "seconds": 0.003
+          },
+          {
+            "name": "probe::tests::climb_reads_the_hilltop",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::measure_window_reads_one_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::silence_probes_to_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::bones_seeds_guide_the_lossless_probe",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_of_short_track_tags_short",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::long_track_probes_with_margin",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_upgrades_a_long_track_exactly",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::probe_seek_finds_a_mid_track_loud_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::provenance_picks_bucket_coverage",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::silence_yields_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::short_track_full_scans_exactly",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::unknown_duration_full_scans",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::zero_channels_is_unity",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::boxed_source_drives_the_meter",
+            "seconds": 0.002
+          },
+          {
+            "name": "source::tests::duration_known_rejects_degenerate_values",
+            "seconds": 0.002
+          },
+          {
+            "name": "service::tests::resolves_on_miss_then_serves_from_cache",
+            "seconds": 0.004
+          },
+          {
+            "name": "source::tests::seek_to_frame_repositions_and_guards_end",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::degenerate_window_counts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::placement_plan_bundles_length_and_starts",
+            "seconds": 0.003
+          },
+          {
+            "name": "window::tests::starts_cover_both_ends",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_are_monotonic_and_bounded",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::track_shorter_than_window_starts_at_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::window_frames_floors_and_clamps",
+            "seconds": 0.002
+          }
+        ]
+      },
+      {
+        "feature": "all",
+        "passed": 80,
+        "skipped": 0,
+        "harnessSeconds": 0.053,
+        "results": [
+          {
+            "name": "bones::tests::hot_frame_wins_the_bones_seed",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::coded_numbers_decode",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::crc8_table_matches_check_vector",
+            "seconds": 0.002
+          },
+          {
+            "name": "bones::tests::garbage_is_rejected",
+            "seconds": 0.003
+          },
+          {
+            "name": "bones::tests::walk_confirms_frames_and_byte_spans",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::exact_fingerprints_lists_only_exact_rows",
+            "seconds": 0.004
+          },
+          {
+            "name": "cache::tests::exact_is_not_downgraded_by_a_probe",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::probe_is_upgraded_by_an_exact",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::misses_on_absent_or_mismatched_key",
+            "seconds": 0.004
+          },
+          {
+            "name": "cache::tests::probe_is_stored_after_an_exact_row_is_removed",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::remove_of_absent_key_reports_false",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::remove_is_scoped_to_identity",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::remove_drops_only_the_named_key",
+            "seconds": 0.003
+          },
+          {
+            "name": "cache::tests::the_schema_version_moved_past_the_gxhash_rows",
+            "seconds": 0.002
+          },
+          {
+            "name": "cache::tests::a_current_row_hits_after_reopen",
+            "seconds": 0.013
+          },
+          {
+            "name": "cache::tests::round_trips_a_decision",
+            "seconds": 0.003
+          },
+          {
+            "name": "decision::tests::full_scans_are_exact",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::display_includes_cause",
+            "seconds": 0.002
+          },
+          {
+            "name": "decision::tests::probe_estimate_is_sampled",
+            "seconds": 0.003
+          },
+          {
+            "name": "error::tests::equality_distinguishes_variants",
+            "seconds": 0.002
+          },
+          {
+            "name": "error::tests::is_std_error",
+            "seconds": 0.002
+          },
+          {
+            "name": "cache::tests::reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows",
+            "seconds": 0.009
+          },
+          {
+            "name": "fingerprint::tests::every_input_changes_the_key",
+            "seconds": 0.003
+          },
+          {
+            "name": "fingerprint::tests::field_boundaries_are_unambiguous",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_cases_reach_the_vectorized_hash_paths",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_fields_sit_at_their_documented_offsets",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_known_answers_match_the_reference",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::material_starts_with_the_domain_tag_and_has_the_documented_length",
+            "seconds": 0.003
+          },
+          {
+            "name": "fingerprint::tests::raw_xxh3_64_known_answers_match_the_reference",
+            "seconds": 0.003
+          },
+          {
+            "name": "fingerprint::tests::the_default_seed_is_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::gain_never_exceeds_unity",
+            "seconds": 0.002
+          },
+          {
+            "name": "fingerprint::tests::the_key_uses_all_sixty_four_bits",
+            "seconds": 0.003
+          },
+          {
+            "name": "gain::tests::linear_gain_matches_db_form",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::loud_track_is_attenuated_to_ceiling",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::probe_margin_inflates_in_db",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::quiet_track_is_not_amplified",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::silence_gives_unity_gain",
+            "seconds": 0.002
+          },
+          {
+            "name": "gain::tests::peak_dbtp_reference_points",
+            "seconds": 0.003
+          },
+          {
+            "name": "inputs::tests::flac_bytes_yield_lossless_with_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::broken_flac_keeps_lossless_without_bones",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::missing_file_stays_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::id3_prefixed_flac_sniffs",
+            "seconds": 0.002
+          },
+          {
+            "name": "inputs::tests::other_bytes_stay_uninformed",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::catmull_rom_reproduces_control_points",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::channel_routing_survives_mid_frame_chunk_split",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::detects_inter_sample_peak_above_samples",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::peak_is_at_least_max_sample",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::per_sample_feeding_matches_whole_buffer",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::silence_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::take_peak_segments_match_continuous_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "meter::tests::zero_channels_is_zero_peak",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::cache_identity_keeps_decoder_independent",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::default_policy_has_decided_constants",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::meter_id_is_stable_and_nonzero",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_is_stable",
+            "seconds": 0.002
+          },
+          {
+            "name": "policy::tests::policy_id_changes_with_every_parameter",
+            "seconds": 0.003
+          },
+          {
+            "name": "probe::tests::bones_seeds_reach_the_needle",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::climb_reads_the_hilltop",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::silence_probes_to_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::bones_seeds_guide_the_lossless_probe",
+            "seconds": 0.002
+          },
+          {
+            "name": "probe::tests::measure_window_reads_one_window",
+            "seconds": 0.003
+          },
+          {
+            "name": "resolve::tests::full_scan_of_short_track_tags_short",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::full_scan_upgrades_a_long_track_exactly",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::probe_seek_finds_a_mid_track_loud_window",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::long_track_probes_with_margin",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::provenance_picks_bucket_coverage",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::short_track_full_scans_exactly",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::unknown_duration_full_scans",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::zero_channels_is_unity",
+            "seconds": 0.002
+          },
+          {
+            "name": "resolve::tests::silence_yields_unity_gain",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::boxed_source_drives_the_meter",
+            "seconds": 0.002
+          },
+          {
+            "name": "service::tests::resolves_on_miss_then_serves_from_cache",
+            "seconds": 0.003
+          },
+          {
+            "name": "source::tests::duration_known_rejects_degenerate_values",
+            "seconds": 0.002
+          },
+          {
+            "name": "source::tests::seek_to_frame_repositions_and_guards_end",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::degenerate_window_counts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::placement_plan_bundles_length_and_starts",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_are_monotonic_and_bounded",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::starts_cover_both_ends",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::track_shorter_than_window_starts_at_zero",
+            "seconds": 0.002
+          },
+          {
+            "name": "window::tests::window_frames_floors_and_clamps",
+            "seconds": 0.002
+          }
+        ]
+      }
+    ],
+    "executedTestCases": 276,
+    "uniqueTestNames": 80,
+    "clippy": {
+      "conclusion": "success",
+      "command": "cargo clippy --release --all-features --all-targets -- -D warnings"
+    },
+    "rawMetrics": {
+      "type": "attempt",
+      "snapshot_at": "2026-10-16T01:39:09.101Z",
+      "run": {
+        "run_id": "p9sfmw70wq",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+        "sha": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+        "head_sha": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+        "trigger": "api",
+        "status": "cancelled",
+        "created_at": "2026-10-16T01:35:32.622Z",
+        "started_at": "2026-10-16T01:35:32.934Z",
+        "finished_at": "2026-10-16T01:38:21.451Z"
+      },
+      "workflow": {
+        "workflow_id": "1t7fpd7b9s",
+        "name": "depot-expanded",
+        "status": "cancelled",
+        "created_at": "2026-10-16T01:35:40.207Z",
+        "started_at": "2026-10-16T01:35:40.205Z",
+        "finished_at": "2026-10-16T01:38:21.198Z"
+      },
+      "job": {
+        "job_id": "sfjhrbwvrs",
+        "job_key": "_inline_0.yaml:native",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:35:40.226Z",
+        "started_at": "2026-10-16T01:35:42.943Z",
+        "finished_at": "2026-10-16T01:38:20.863Z"
+      },
+      "attempt": {
+        "attempt": {
+          "attempt_id": "2gv4q0p1bd",
+          "attempt": 1,
+          "status": "finished",
+          "conclusion": "success",
+          "sandbox_id": "cv4hgdvdjdlc85xq3915",
+          "session_id": "f872011b-b52b-4bc7-8db7-4f7a3b7a6985",
+          "created_at": "2026-10-16T01:35:41.382Z",
+          "started_at": "2026-10-16T01:35:42.943Z",
+          "finished_at": "2026-10-16T01:38:20.863Z"
+        },
+        "availability": {
+          "code": "available",
+          "reason": "available"
+        },
+        "stats": {
+          "sample_count": 33,
+          "cpu_sample_count": 32,
+          "memory_sample_count": 33,
+          "peak_cpu_utilization": 0.987987987987988,
+          "average_cpu_utilization": 0.5332700103176736,
+          "peak_memory_utilization": 0.19139371854377543,
+          "average_memory_utilization": 0.08951325810373122,
+          "observed_started_at": "2026-10-16T01:35:44Z",
+          "observed_finished_at": "2026-10-16T01:38:19Z"
+        },
+        "cap": {
+          "raw_sample_count": 33,
+          "returned_sample_count": 33,
+          "max_returned_sample_count": 5000,
+          "downsampled": false,
+          "downsample_strategy": ""
+        },
+        "samples": [
+          {
+            "timestamp": "2026-10-16T01:35:44Z",
+            "memory_utilization": 0.0263833171490463
+          },
+          {
+            "timestamp": "2026-10-16T01:35:45Z",
+            "cpu_utilization": 0.0707070707070707,
+            "memory_utilization": 0.0325931524110682
+          },
+          {
+            "timestamp": "2026-10-16T01:35:49Z",
+            "cpu_utilization": 0.00125,
+            "memory_utilization": 0.03260657829020697
+          },
+          {
+            "timestamp": "2026-10-16T01:35:54Z",
+            "cpu_utilization": 0.045705675539929685,
+            "memory_utilization": 0.03214423983404637
+          },
+          {
+            "timestamp": "2026-10-16T01:35:59Z",
+            "cpu_utilization": 0.15768463073852296,
+            "memory_utilization": 0.039094207196954715
+          },
+          {
+            "timestamp": "2026-10-16T01:36:04Z",
+            "cpu_utilization": 0.2156374501992032,
+            "memory_utilization": 0.054004744461580746
+          },
+          {
+            "timestamp": "2026-10-16T01:36:09Z",
+            "cpu_utilization": 0.10647915620291311,
+            "memory_utilization": 0.041412734470773815
+          },
+          {
+            "timestamp": "2026-10-16T01:36:14Z",
+            "cpu_utilization": 0.189,
+            "memory_utilization": 0.033690657003939396
+          },
+          {
+            "timestamp": "2026-10-16T01:36:19Z",
+            "cpu_utilization": 0.015484515484515484,
+            "memory_utilization": 0.03489630095060106
+          },
+          {
+            "timestamp": "2026-10-16T01:36:24Z",
+            "cpu_utilization": 0.344,
+            "memory_utilization": 0.045223243077250556
+          },
+          {
+            "timestamp": "2026-10-16T01:36:29Z",
+            "cpu_utilization": 0.8190621814475025,
+            "memory_utilization": 0.0682840212997911
+          },
+          {
+            "timestamp": "2026-10-16T01:36:34Z",
+            "cpu_utilization": 0.8963782696177063,
+            "memory_utilization": 0.08747716990279175
+          },
+          {
+            "timestamp": "2026-10-16T01:36:39Z",
+            "cpu_utilization": 0.9066128218071681,
+            "memory_utilization": 0.08434112864286819
+          },
+          {
+            "timestamp": "2026-10-16T01:36:44Z",
+            "cpu_utilization": 0.8977329974811084,
+            "memory_utilization": 0.05887077127525835
+          },
+          {
+            "timestamp": "2026-10-16T01:36:49Z",
+            "cpu_utilization": 0.9304785894206549,
+            "memory_utilization": 0.07227272793847335
+          },
+          {
+            "timestamp": "2026-10-16T01:36:54Z",
+            "cpu_utilization": 0.920506329113924,
+            "memory_utilization": 0.09282579604478483
+          },
+          {
+            "timestamp": "2026-10-16T01:36:59Z",
+            "cpu_utilization": 0.46893787575150303,
+            "memory_utilization": 0.1087227692657704
+          },
+          {
+            "timestamp": "2026-10-16T01:37:04Z",
+            "cpu_utilization": 0.24725274725274726,
+            "memory_utilization": 0.1255043858685543
+          },
+          {
+            "timestamp": "2026-10-16T01:37:09Z",
+            "cpu_utilization": 0.24824824824824826,
+            "memory_utilization": 0.1452133323373772
+          },
+          {
+            "timestamp": "2026-10-16T01:37:14Z",
+            "cpu_utilization": 0.34667333666833416,
+            "memory_utilization": 0.181568904296916
+          },
+          {
+            "timestamp": "2026-10-16T01:37:19Z",
+            "cpu_utilization": 0.9244622311155578,
+            "memory_utilization": 0.19139371854377543
+          },
+          {
+            "timestamp": "2026-10-16T01:37:24Z",
+            "cpu_utilization": 0.9789684526790186,
+            "memory_utilization": 0.17958895328428737
+          },
+          {
+            "timestamp": "2026-10-16T01:37:29Z",
+            "cpu_utilization": 0.8595702148925537,
+            "memory_utilization": 0.15866923662404073
+          },
+          {
+            "timestamp": "2026-10-16T01:37:34Z",
+            "cpu_utilization": 0.9545,
+            "memory_utilization": 0.15986462808117824
+          },
+          {
+            "timestamp": "2026-10-16T01:37:39Z",
+            "cpu_utilization": 0.987987987987988,
+            "memory_utilization": 0.1594027778388045
+          },
+          {
+            "timestamp": "2026-10-16T01:37:44Z",
+            "cpu_utilization": 0.853220169745382,
+            "memory_utilization": 0.15086587156169337
+          },
+          {
+            "timestamp": "2026-10-16T01:37:49Z",
+            "cpu_utilization": 0.5762118940529735,
+            "memory_utilization": 0.0629192841028315
+          },
+          {
+            "timestamp": "2026-10-16T01:37:54Z",
+            "cpu_utilization": 0.6696696696696697,
+            "memory_utilization": 0.05504244286556106
+          },
+          {
+            "timestamp": "2026-10-16T01:37:59Z",
+            "cpu_utilization": 0.7217478653942743,
+            "memory_utilization": 0.07344370870626764
+          },
+          {
+            "timestamp": "2026-10-16T01:38:04Z",
+            "cpu_utilization": 0.9128693039559339,
+            "memory_utilization": 0.07871739403197703
+          },
+          {
+            "timestamp": "2026-10-16T01:38:09Z",
+            "cpu_utilization": 0.29247633283507724,
+            "memory_utilization": 0.09671905688813509
+          },
+          {
+            "timestamp": "2026-10-16T01:38:14Z",
+            "cpu_utilization": 0.24862431215607803,
+            "memory_utilization": 0.1278282834940289
+          },
+          {
+            "timestamp": "2026-10-16T01:38:19Z",
+            "cpu_utilization": 0.2565,
+            "memory_utilization": 0.06235197968249505
+          }
+        ]
+      }
+    },
+    "logSha256": "f364ec0b39ab9a5747b4a34f12106a4451882bfd8c428297898500b8da8484ce",
+    "warningsTrackedBy": [
+      1011,
+      1012
+    ]
+  },
+  "historicalSelection": {
+    "historyPath": "doc/audit/depot-change-stream-2026-10-15.evidence.json",
+    "historySha256": "ecd67610d9171174028774160f0385cc8b437ea7f1e0ae78b26e6802a30845a9",
+    "window": {
+      "start": "2026-10-08T00:00:00Z",
+      "endExclusive": "2026-10-15T00:00:00Z",
+      "days": 7
+    },
+    "native": {
+      "selector": "Existing affectedGroups includes musicCore",
+      "count": 68,
+      "events": [
+        {
+          "runId": 37791998645,
+          "headSha": "6c0e006f4aaf40dd2857f93afaf34777bb491319",
+          "observedAt": "2026-10-08T14:23:01Z"
+        },
+        {
+          "runId": 37792902973,
+          "headSha": "04a9596c8b06483f6a07ac072fc410bd9044ad1b",
+          "observedAt": "2026-10-08T14:29:36Z"
+        },
+        {
+          "runId": 37795976366,
+          "headSha": "e36886bf203401ad79af575d6fff8e9cd20f9d17",
+          "observedAt": "2026-10-08T14:51:59Z"
+        },
+        {
+          "runId": 37799625137,
+          "headSha": "67d45a314c5933466e955df0020a5a843751aa1f",
+          "observedAt": "2026-10-08T15:18:20Z"
+        },
+        {
+          "runId": 37805563842,
+          "headSha": "7715f8b5e6c856b37a471d98d18688edf6bcba38",
+          "observedAt": "2026-10-08T16:01:51Z"
+        },
+        {
+          "runId": 37993952381,
+          "headSha": "05f551626b5e14049d2770f08552889ce8ddb016",
+          "observedAt": "2026-10-09T21:31:20Z"
+        },
+        {
+          "runId": 37994290099,
+          "headSha": "72fa358873fa415a704a93d87c1283e5ad261872",
+          "observedAt": "2026-10-09T21:34:45Z"
+        },
+        {
+          "runId": 37995034392,
+          "headSha": "aaf40a1c1ffbc5062fd9e52206cdb93446a66522",
+          "observedAt": "2026-10-09T21:42:16Z"
+        },
+        {
+          "runId": 38055691357,
+          "headSha": "3b03bcae0195aa056eb3797abaf0eb0343f03a4a",
+          "observedAt": "2026-10-10T13:26:01Z"
+        },
+        {
+          "runId": 38056014392,
+          "headSha": "e9c8871a41f5ba34bb3fb42e7ded9c8546924ed4",
+          "observedAt": "2026-10-10T13:31:02Z"
+        },
+        {
+          "runId": 38061920704,
+          "headSha": "e9f69e18ffabe4e3c89c7793470f4717699e5092",
+          "observedAt": "2026-10-10T15:01:12Z"
+        },
+        {
+          "runId": 38077279933,
+          "headSha": "b111c0ca39af91dee25c248b27153806e69fff6d",
+          "observedAt": "2026-10-10T18:48:40Z"
+        },
+        {
+          "runId": 38077820099,
+          "headSha": "e6c592ebb36c074115a7d368f8b39ebbfcba094d",
+          "observedAt": "2026-10-10T18:56:54Z"
+        },
+        {
+          "runId": 38090324218,
+          "headSha": "1b6677a9afb8982ecc3a9908646bc84f34ae9ee2",
+          "observedAt": "2026-10-10T22:09:02Z"
+        },
+        {
+          "runId": 38147186672,
+          "headSha": "1843d4f3d531216cec4f30898794624ea4c37690",
+          "observedAt": "2026-10-11T14:26:29Z"
+        },
+        {
+          "runId": 38165344690,
+          "headSha": "9b95bfb673eb5fa9cb5edb20513f48ebc050dc6c",
+          "observedAt": "2026-10-11T18:48:18Z"
+        },
+        {
+          "runId": 38165789261,
+          "headSha": "a4b08d54a0cd6c2fb80f1d3aab740786ee1f40bb",
+          "observedAt": "2026-10-11T18:54:39Z"
+        },
+        {
+          "runId": 38171335336,
+          "headSha": "a1a19ca57e6d67f21d61e250e8611cd44418764e",
+          "observedAt": "2026-10-11T20:14:05Z"
+        },
+        {
+          "runId": 38171373414,
+          "headSha": "6f82b290c22c97a92d5d1afe364978c20f3853e2",
+          "observedAt": "2026-10-11T20:14:37Z"
+        },
+        {
+          "runId": 38172309220,
+          "headSha": "86e7b2fe262e44e1a97e9c251d26ac80adf58c45",
+          "observedAt": "2026-10-11T20:27:49Z"
+        },
+        {
+          "runId": 38176320507,
+          "headSha": "440b403c2320a4c39616f59b4452d59f8cb110be",
+          "observedAt": "2026-10-11T21:25:43Z"
+        },
+        {
+          "runId": 38182208286,
+          "headSha": "2c62b1feb6502853b1c765081bbf8805a3d33dcb",
+          "observedAt": "2026-10-11T22:53:43Z"
+        },
+        {
+          "runId": 38184323032,
+          "headSha": "7f3b3520b2816f9a4db7af8f9cecd979bf4a58d5",
+          "observedAt": "2026-10-11T23:27:04Z"
+        },
+        {
+          "runId": 38185723975,
+          "headSha": "966f717dbd38a6004d3e945478befba0b8047688",
+          "observedAt": "2026-10-11T23:49:36Z"
+        },
+        {
+          "runId": 38185842894,
+          "headSha": "7fb4f43afc8142555224ad9fefdc210d2b5f5924",
+          "observedAt": "2026-10-11T23:51:31Z"
+        },
+        {
+          "runId": 38186974405,
+          "headSha": "30d4a1c79d4ed5580279d1df879535a46c7c3b88",
+          "observedAt": "2026-10-12T00:10:04Z"
+        },
+        {
+          "runId": 38190320505,
+          "headSha": "c34e4acfb56c46b53832e03f2f73132a6da61fbc",
+          "observedAt": "2026-10-12T01:02:14Z"
+        },
+        {
+          "runId": 38191740728,
+          "headSha": "843697790f6b5466b99e79ec512fd77129587cc8",
+          "observedAt": "2026-10-12T01:24:08Z"
+        },
+        {
+          "runId": 38193210226,
+          "headSha": "6a213f4470461026ca47ae66835b04bf6c565b93",
+          "observedAt": "2026-10-12T01:46:47Z"
+        },
+        {
+          "runId": 38195395493,
+          "headSha": "5d09211486d83a8d4b5371ff17ca1d7c7014bbe2",
+          "observedAt": "2026-10-12T02:20:26Z"
+        },
+        {
+          "runId": 38196074599,
+          "headSha": "1403118357eaec941c6045a32beb1d5921ffefd3",
+          "observedAt": "2026-10-12T02:30:45Z"
+        },
+        {
+          "runId": 38202566263,
+          "headSha": "d5d424f8ab0ff790e41e62eafed41b5d291e74bc",
+          "observedAt": "2026-10-12T04:08:23Z"
+        },
+        {
+          "runId": 38207750643,
+          "headSha": "3d1fc968e2fd09981ce51e6a92d41808fde7ba9a",
+          "observedAt": "2026-10-12T05:23:51Z"
+        },
+        {
+          "runId": 38222165193,
+          "headSha": "e30ace9cadae4697a5b0889acbee26ce3aba41d2",
+          "observedAt": "2026-10-12T08:12:27Z"
+        },
+        {
+          "runId": 38232134941,
+          "headSha": "2fa18ada079512305d54c3ef5f8436bbb3f68a77",
+          "observedAt": "2026-10-12T09:47:18Z"
+        },
+        {
+          "runId": 38245656960,
+          "headSha": "4219f6b819967eab648559758e533c31ba2dc76b",
+          "observedAt": "2026-10-12T11:54:20Z"
+        },
+        {
+          "runId": 38275640034,
+          "headSha": "278217291659cc1a8a666416d34f5c4803934171",
+          "observedAt": "2026-10-12T16:11:21Z"
+        },
+        {
+          "runId": 38276633679,
+          "headSha": "e64f02e07e069ca6019d26a91ca72fea363c7983",
+          "observedAt": "2026-10-12T16:19:52Z"
+        },
+        {
+          "runId": 38278398240,
+          "headSha": "a0552c4cfcccbdb7a026a919b1336d15cabc38da",
+          "observedAt": "2026-10-12T16:34:58Z"
+        },
+        {
+          "runId": 38287038982,
+          "headSha": "43b87c1ce332188e6c706597a3fbf7433657f6e8",
+          "observedAt": "2026-10-12T17:51:49Z"
+        },
+        {
+          "runId": 38325734541,
+          "headSha": "c7e7e9fe9481a0b72bd8fd14734d3d844b31d952",
+          "observedAt": "2026-10-13T00:08:13Z"
+        },
+        {
+          "runId": 38328218393,
+          "headSha": "315b77bdc13df9200f5b9d025920ca817c516465",
+          "observedAt": "2026-10-13T00:38:10Z"
+        },
+        {
+          "runId": 38377865977,
+          "headSha": "3aaa4daefd4317263a9af4a959e5fb4e1a790592",
+          "observedAt": "2026-10-13T09:39:20Z"
+        },
+        {
+          "runId": 38383454951,
+          "headSha": "ef1b2ddbc0c7b273f1030bb65e1716d78bf7b670",
+          "observedAt": "2026-10-13T10:27:15Z"
+        },
+        {
+          "runId": 38385056823,
+          "headSha": "b7a0ff30c4e55847a3db65f5107cff4f0b70837d",
+          "observedAt": "2026-10-13T10:41:11Z"
+        },
+        {
+          "runId": 38385250074,
+          "headSha": "0075df3fd382013cdd534f3ecfb6f75e13c5fa81",
+          "observedAt": "2026-10-13T10:42:53Z"
+        },
+        {
+          "runId": 38398242159,
+          "headSha": "1bb11ace0e498bfe9e5a9a7dd2c0f7d5e79d8cb1",
+          "observedAt": "2026-10-13T12:34:07Z"
+        },
+        {
+          "runId": 38430712127,
+          "headSha": "80f7a3f69a240edb3bb15072b95bd970e97fa630",
+          "observedAt": "2026-10-13T16:27:55Z"
+        },
+        {
+          "runId": 38466115472,
+          "headSha": "7a1cead3f323704a11ed1970cb9c6a120f006207",
+          "observedAt": "2026-10-13T20:51:22Z"
+        },
+        {
+          "runId": 38472078826,
+          "headSha": "9e633292e7fdc18cd43d568dfe3e7518aedda569",
+          "observedAt": "2026-10-13T21:38:08Z"
+        },
+        {
+          "runId": 38487537244,
+          "headSha": "a0a2f11da808dcb9d37ca1b57c6962c828c889de",
+          "observedAt": "2026-10-13T23:59:33Z"
+        },
+        {
+          "runId": 38487744339,
+          "headSha": "5cd5c99a678c06d55884159ce1a457ffd728a79e",
+          "observedAt": "2026-10-14T00:01:33Z"
+        },
+        {
+          "runId": 38492469232,
+          "headSha": "852d7a495f60638e923ce33b729d9b0830e50d72",
+          "observedAt": "2026-10-14T00:51:00Z"
+        },
+        {
+          "runId": 38503506875,
+          "headSha": "c567e78d96ff02591abf611ebc94b7b5c07f2e9e",
+          "observedAt": "2026-10-14T02:54:39Z"
+        },
+        {
+          "runId": 38509353406,
+          "headSha": "90f121edf5e40c3ff2726cde5ac6a12c13479b90",
+          "observedAt": "2026-10-14T04:02:34Z"
+        },
+        {
+          "runId": 38562123908,
+          "headSha": "02240f43f03ec8d1de1154b5a909efe9feb6f667",
+          "observedAt": "2026-10-14T12:12:46Z"
+        },
+        {
+          "runId": 38569887085,
+          "headSha": "a1dba4c4b2ea89df9abb3316134cd9dc1e6bc514",
+          "observedAt": "2026-10-14T13:12:36Z"
+        },
+        {
+          "runId": 38579385548,
+          "headSha": "29dfe1b93411dc1646dd6423657250bce05fa27f",
+          "observedAt": "2026-10-14T14:18:46Z"
+        },
+        {
+          "runId": 38584819405,
+          "headSha": "cc981da981150731f92dcd05ee655fbcf3194f39",
+          "observedAt": "2026-10-14T14:55:18Z"
+        },
+        {
+          "runId": 38610609934,
+          "headSha": "60537c82247d5e3bad7404bed2ee24d7ad8c3b36",
+          "observedAt": "2026-10-14T17:54:18Z"
+        },
+        {
+          "runId": 38610747949,
+          "headSha": "68cfbdc82ed442201fb44da8e627b5ff589dce77",
+          "observedAt": "2026-10-14T17:55:16Z"
+        },
+        {
+          "runId": 38628210244,
+          "headSha": "aabbddefde8e0a59fb3e122163bb1ebe98d6ffe8",
+          "observedAt": "2026-10-14T19:59:04Z"
+        },
+        {
+          "runId": 38635360769,
+          "headSha": "4e71750a221f8b1b3303f9fccf7bc9b9ae6a4322",
+          "observedAt": "2026-10-14T20:49:57Z"
+        },
+        {
+          "runId": 38639025459,
+          "headSha": "973572ea1235101f6094a2023b9db75bee5d3917",
+          "observedAt": "2026-10-14T21:16:57Z"
+        },
+        {
+          "runId": 38641256841,
+          "headSha": "d159a71d5c124fc2d81f605cdc088c959d44371b",
+          "observedAt": "2026-10-14T21:34:07Z"
+        },
+        {
+          "runId": 38649497781,
+          "headSha": "a228fca02525983f3c016ac520b7e62aedaac272",
+          "observedAt": "2026-10-14T22:42:46Z"
+        },
+        {
+          "runId": 38650684706,
+          "headSha": "b95d38a2bf72c8a68781f4a651060ecda0af5298",
+          "observedAt": "2026-10-14T22:53:48Z"
+        },
+        {
+          "runId": 38653407049,
+          "headSha": "a78327609526a620fa79ddd7901d49a355d53bab",
+          "observedAt": "2026-10-14T23:20:00Z"
+        }
+      ],
+      "accounting": "Replace the earlier core-only all-features job baseline; do not add its cost again."
+    },
+    "browser": {
+      "selector": "Root tool or TypeScript inputs, current-manifest reverse consumers reaching logger/fs-path, or browser config/Dockerfile/harness changes",
+      "packages": [
+        "package/module/logger",
+        "package/module/fs-path"
+      ],
+      "count": 50,
+      "events": [
+        {
+          "runId": 37993952381,
+          "headSha": "05f551626b5e14049d2770f08552889ce8ddb016",
+          "observedAt": "2026-10-09T21:31:20Z"
+        },
+        {
+          "runId": 37994290099,
+          "headSha": "72fa358873fa415a704a93d87c1283e5ad261872",
+          "observedAt": "2026-10-09T21:34:45Z"
+        },
+        {
+          "runId": 37995034392,
+          "headSha": "aaf40a1c1ffbc5062fd9e52206cdb93446a66522",
+          "observedAt": "2026-10-09T21:42:16Z"
+        },
+        {
+          "runId": 38056014392,
+          "headSha": "e9c8871a41f5ba34bb3fb42e7ded9c8546924ed4",
+          "observedAt": "2026-10-10T13:31:02Z"
+        },
+        {
+          "runId": 38077008557,
+          "headSha": "947e1c3c7ca373e5b1dbb02b8327f4ddbfd70c25",
+          "observedAt": "2026-10-10T18:44:39Z"
+        },
+        {
+          "runId": 38077279933,
+          "headSha": "b111c0ca39af91dee25c248b27153806e69fff6d",
+          "observedAt": "2026-10-10T18:48:40Z"
+        },
+        {
+          "runId": 38171373414,
+          "headSha": "6f82b290c22c97a92d5d1afe364978c20f3853e2",
+          "observedAt": "2026-10-11T20:14:37Z"
+        },
+        {
+          "runId": 38171894301,
+          "headSha": "53378bee465f8f546222436a17e6ee2b15ca6263",
+          "observedAt": "2026-10-11T20:21:53Z"
+        },
+        {
+          "runId": 38172309220,
+          "headSha": "86e7b2fe262e44e1a97e9c251d26ac80adf58c45",
+          "observedAt": "2026-10-11T20:27:49Z"
+        },
+        {
+          "runId": 38176320507,
+          "headSha": "440b403c2320a4c39616f59b4452d59f8cb110be",
+          "observedAt": "2026-10-11T21:25:43Z"
+        },
+        {
+          "runId": 38184323032,
+          "headSha": "7f3b3520b2816f9a4db7af8f9cecd979bf4a58d5",
+          "observedAt": "2026-10-11T23:27:04Z"
+        },
+        {
+          "runId": 38185723975,
+          "headSha": "966f717dbd38a6004d3e945478befba0b8047688",
+          "observedAt": "2026-10-11T23:49:36Z"
+        },
+        {
+          "runId": 38185842894,
+          "headSha": "7fb4f43afc8142555224ad9fefdc210d2b5f5924",
+          "observedAt": "2026-10-11T23:51:31Z"
+        },
+        {
+          "runId": 38187582330,
+          "headSha": "e801aa1e5f1ab8670472d11f442ed0e1d5b2d566",
+          "observedAt": "2026-10-12T00:19:48Z"
+        },
+        {
+          "runId": 38190320505,
+          "headSha": "c34e4acfb56c46b53832e03f2f73132a6da61fbc",
+          "observedAt": "2026-10-12T01:02:14Z"
+        },
+        {
+          "runId": 38195395493,
+          "headSha": "5d09211486d83a8d4b5371ff17ca1d7c7014bbe2",
+          "observedAt": "2026-10-12T02:20:26Z"
+        },
+        {
+          "runId": 38207750643,
+          "headSha": "3d1fc968e2fd09981ce51e6a92d41808fde7ba9a",
+          "observedAt": "2026-10-12T05:23:51Z"
+        },
+        {
+          "runId": 38245656960,
+          "headSha": "4219f6b819967eab648559758e533c31ba2dc76b",
+          "observedAt": "2026-10-12T11:54:20Z"
+        },
+        {
+          "runId": 38276633679,
+          "headSha": "e64f02e07e069ca6019d26a91ca72fea363c7983",
+          "observedAt": "2026-10-12T16:19:52Z"
+        },
+        {
+          "runId": 38430712127,
+          "headSha": "80f7a3f69a240edb3bb15072b95bd970e97fa630",
+          "observedAt": "2026-10-13T16:27:55Z"
+        },
+        {
+          "runId": 38466115472,
+          "headSha": "7a1cead3f323704a11ed1970cb9c6a120f006207",
+          "observedAt": "2026-10-13T20:51:22Z"
+        },
+        {
+          "runId": 38472020801,
+          "headSha": "89a4f72e363308e77134d59347f7b46b960146d3",
+          "observedAt": "2026-10-13T21:37:39Z"
+        },
+        {
+          "runId": 38472078826,
+          "headSha": "9e633292e7fdc18cd43d568dfe3e7518aedda569",
+          "observedAt": "2026-10-13T21:38:08Z"
+        },
+        {
+          "runId": 38483840111,
+          "headSha": "baf7da0b5a48af0b0b9582515adc244cfb7c3dd5",
+          "observedAt": "2026-10-13T23:22:25Z"
+        },
+        {
+          "runId": 38484866745,
+          "headSha": "08fdf8c0268a6a916195a2f307a81071a9b675d8",
+          "observedAt": "2026-10-13T23:32:26Z"
+        },
+        {
+          "runId": 38484966717,
+          "headSha": "c48c12ff1902f582fd5eb5087184069dbaac12e4",
+          "observedAt": "2026-10-13T23:33:27Z"
+        },
+        {
+          "runId": 38485161068,
+          "headSha": "43458868d9a0f232553a3aa7d33023b1cc36f438",
+          "observedAt": "2026-10-13T23:35:22Z"
+        },
+        {
+          "runId": 38485553786,
+          "headSha": "31586fe703853fdcabd5ef04b4c0b0ee6112ae30",
+          "observedAt": "2026-10-13T23:39:20Z"
+        },
+        {
+          "runId": 38487537244,
+          "headSha": "a0a2f11da808dcb9d37ca1b57c6962c828c889de",
+          "observedAt": "2026-10-13T23:59:33Z"
+        },
+        {
+          "runId": 38487744339,
+          "headSha": "5cd5c99a678c06d55884159ce1a457ffd728a79e",
+          "observedAt": "2026-10-14T00:01:33Z"
+        },
+        {
+          "runId": 38499513311,
+          "headSha": "372b6e3698ccfb494c11c0ee4c72532c014bd5e7",
+          "observedAt": "2026-10-14T02:09:01Z"
+        },
+        {
+          "runId": 38501988067,
+          "headSha": "4c59aacde9933bba98e91e49f20521a464aef2d6",
+          "observedAt": "2026-10-14T02:37:17Z"
+        },
+        {
+          "runId": 38503880940,
+          "headSha": "dfcf86784476eb323e79bc3e1b6c62a9ce01a93f",
+          "observedAt": "2026-10-14T02:59:02Z"
+        },
+        {
+          "runId": 38504178068,
+          "headSha": "1019171c30d92a630052916dcad90ff936be69bb",
+          "observedAt": "2026-10-14T03:02:25Z"
+        },
+        {
+          "runId": 38562123908,
+          "headSha": "02240f43f03ec8d1de1154b5a909efe9feb6f667",
+          "observedAt": "2026-10-14T12:12:46Z"
+        },
+        {
+          "runId": 38564958860,
+          "headSha": "755685da039567df5279d59b3007776f965c271f",
+          "observedAt": "2026-10-14T12:35:22Z"
+        },
+        {
+          "runId": 38569887085,
+          "headSha": "a1dba4c4b2ea89df9abb3316134cd9dc1e6bc514",
+          "observedAt": "2026-10-14T13:12:36Z"
+        },
+        {
+          "runId": 38584819405,
+          "headSha": "cc981da981150731f92dcd05ee655fbcf3194f39",
+          "observedAt": "2026-10-14T14:55:18Z"
+        },
+        {
+          "runId": 38610609934,
+          "headSha": "60537c82247d5e3bad7404bed2ee24d7ad8c3b36",
+          "observedAt": "2026-10-14T17:54:18Z"
+        },
+        {
+          "runId": 38610659292,
+          "headSha": "40ef59f7264ddc8b4568f67cb279e201771e4f62",
+          "observedAt": "2026-10-14T17:54:39Z"
+        },
+        {
+          "runId": 38610747949,
+          "headSha": "68cfbdc82ed442201fb44da8e627b5ff589dce77",
+          "observedAt": "2026-10-14T17:55:16Z"
+        },
+        {
+          "runId": 38611164997,
+          "headSha": "2b944ae9bdf743c3d778e40b117ad35ac2c320b8",
+          "observedAt": "2026-10-14T17:58:14Z"
+        },
+        {
+          "runId": 38635692058,
+          "headSha": "6b8fc21777f85e3299596d465af72a50c0207d03",
+          "observedAt": "2026-10-14T20:52:17Z"
+        },
+        {
+          "runId": 38635872860,
+          "headSha": "dfeaf675d20981fc09d53ec2a8cfbb0f5c5e9b53",
+          "observedAt": "2026-10-14T20:53:36Z"
+        },
+        {
+          "runId": 38636037147,
+          "headSha": "d939d9487248ec4d2132ac760450f542e422eb34",
+          "observedAt": "2026-10-14T20:54:47Z"
+        },
+        {
+          "runId": 38636243808,
+          "headSha": "44048642761b757c4905d857ee08e661ff04cfae",
+          "observedAt": "2026-10-14T20:56:14Z"
+        },
+        {
+          "runId": 38636456767,
+          "headSha": "c7e520ec89cdc12518c757e8c99204f1a6c2e2e9",
+          "observedAt": "2026-10-14T20:57:47Z"
+        },
+        {
+          "runId": 38636538265,
+          "headSha": "97a997a16b2013112d6ca958fccf888f2c878df2",
+          "observedAt": "2026-10-14T20:58:23Z"
+        },
+        {
+          "runId": 38636637354,
+          "headSha": "6cfa2b09f9f618efae684a7ecb08006efe5a6c41",
+          "observedAt": "2026-10-14T20:59:08Z"
+        },
+        {
+          "runId": 38636915734,
+          "headSha": "1ea159dab7a835890198a20febfcd4b43013639c",
+          "observedAt": "2026-10-14T21:01:08Z"
+        }
+      ],
+      "limitation": "Current-manifest closure from the historical audit; does not cover other browser packages or unpublished application flows.",
+      "accounting": "Add to previous logger build/types/unit job; this separate job repeats builds but does not run types or unit tests. Shared-job optimization has not been measured."
+    },
+    "dom": {
+      "selector": "Root tool or TypeScript inputs, current-manifest reverse consumers reaching module/dom, or e2e config/Dockerfile changes",
+      "count": 50,
+      "events": [
+        {
+          "runId": 37993952381,
+          "headSha": "05f551626b5e14049d2770f08552889ce8ddb016",
+          "observedAt": "2026-10-09T21:31:20Z"
+        },
+        {
+          "runId": 37994290099,
+          "headSha": "72fa358873fa415a704a93d87c1283e5ad261872",
+          "observedAt": "2026-10-09T21:34:45Z"
+        },
+        {
+          "runId": 37995034392,
+          "headSha": "aaf40a1c1ffbc5062fd9e52206cdb93446a66522",
+          "observedAt": "2026-10-09T21:42:16Z"
+        },
+        {
+          "runId": 38056014392,
+          "headSha": "e9c8871a41f5ba34bb3fb42e7ded9c8546924ed4",
+          "observedAt": "2026-10-10T13:31:02Z"
+        },
+        {
+          "runId": 38077008557,
+          "headSha": "947e1c3c7ca373e5b1dbb02b8327f4ddbfd70c25",
+          "observedAt": "2026-10-10T18:44:39Z"
+        },
+        {
+          "runId": 38077279933,
+          "headSha": "b111c0ca39af91dee25c248b27153806e69fff6d",
+          "observedAt": "2026-10-10T18:48:40Z"
+        },
+        {
+          "runId": 38171373414,
+          "headSha": "6f82b290c22c97a92d5d1afe364978c20f3853e2",
+          "observedAt": "2026-10-11T20:14:37Z"
+        },
+        {
+          "runId": 38171894301,
+          "headSha": "53378bee465f8f546222436a17e6ee2b15ca6263",
+          "observedAt": "2026-10-11T20:21:53Z"
+        },
+        {
+          "runId": 38172309220,
+          "headSha": "86e7b2fe262e44e1a97e9c251d26ac80adf58c45",
+          "observedAt": "2026-10-11T20:27:49Z"
+        },
+        {
+          "runId": 38176320507,
+          "headSha": "440b403c2320a4c39616f59b4452d59f8cb110be",
+          "observedAt": "2026-10-11T21:25:43Z"
+        },
+        {
+          "runId": 38184323032,
+          "headSha": "7f3b3520b2816f9a4db7af8f9cecd979bf4a58d5",
+          "observedAt": "2026-10-11T23:27:04Z"
+        },
+        {
+          "runId": 38185723975,
+          "headSha": "966f717dbd38a6004d3e945478befba0b8047688",
+          "observedAt": "2026-10-11T23:49:36Z"
+        },
+        {
+          "runId": 38185842894,
+          "headSha": "7fb4f43afc8142555224ad9fefdc210d2b5f5924",
+          "observedAt": "2026-10-11T23:51:31Z"
+        },
+        {
+          "runId": 38187582330,
+          "headSha": "e801aa1e5f1ab8670472d11f442ed0e1d5b2d566",
+          "observedAt": "2026-10-12T00:19:48Z"
+        },
+        {
+          "runId": 38190320505,
+          "headSha": "c34e4acfb56c46b53832e03f2f73132a6da61fbc",
+          "observedAt": "2026-10-12T01:02:14Z"
+        },
+        {
+          "runId": 38195395493,
+          "headSha": "5d09211486d83a8d4b5371ff17ca1d7c7014bbe2",
+          "observedAt": "2026-10-12T02:20:26Z"
+        },
+        {
+          "runId": 38207750643,
+          "headSha": "3d1fc968e2fd09981ce51e6a92d41808fde7ba9a",
+          "observedAt": "2026-10-12T05:23:51Z"
+        },
+        {
+          "runId": 38245656960,
+          "headSha": "4219f6b819967eab648559758e533c31ba2dc76b",
+          "observedAt": "2026-10-12T11:54:20Z"
+        },
+        {
+          "runId": 38276633679,
+          "headSha": "e64f02e07e069ca6019d26a91ca72fea363c7983",
+          "observedAt": "2026-10-12T16:19:52Z"
+        },
+        {
+          "runId": 38430712127,
+          "headSha": "80f7a3f69a240edb3bb15072b95bd970e97fa630",
+          "observedAt": "2026-10-13T16:27:55Z"
+        },
+        {
+          "runId": 38466115472,
+          "headSha": "7a1cead3f323704a11ed1970cb9c6a120f006207",
+          "observedAt": "2026-10-13T20:51:22Z"
+        },
+        {
+          "runId": 38472020801,
+          "headSha": "89a4f72e363308e77134d59347f7b46b960146d3",
+          "observedAt": "2026-10-13T21:37:39Z"
+        },
+        {
+          "runId": 38472078826,
+          "headSha": "9e633292e7fdc18cd43d568dfe3e7518aedda569",
+          "observedAt": "2026-10-13T21:38:08Z"
+        },
+        {
+          "runId": 38483840111,
+          "headSha": "baf7da0b5a48af0b0b9582515adc244cfb7c3dd5",
+          "observedAt": "2026-10-13T23:22:25Z"
+        },
+        {
+          "runId": 38484866745,
+          "headSha": "08fdf8c0268a6a916195a2f307a81071a9b675d8",
+          "observedAt": "2026-10-13T23:32:26Z"
+        },
+        {
+          "runId": 38484966717,
+          "headSha": "c48c12ff1902f582fd5eb5087184069dbaac12e4",
+          "observedAt": "2026-10-13T23:33:27Z"
+        },
+        {
+          "runId": 38485161068,
+          "headSha": "43458868d9a0f232553a3aa7d33023b1cc36f438",
+          "observedAt": "2026-10-13T23:35:22Z"
+        },
+        {
+          "runId": 38485553786,
+          "headSha": "31586fe703853fdcabd5ef04b4c0b0ee6112ae30",
+          "observedAt": "2026-10-13T23:39:20Z"
+        },
+        {
+          "runId": 38487537244,
+          "headSha": "a0a2f11da808dcb9d37ca1b57c6962c828c889de",
+          "observedAt": "2026-10-13T23:59:33Z"
+        },
+        {
+          "runId": 38487744339,
+          "headSha": "5cd5c99a678c06d55884159ce1a457ffd728a79e",
+          "observedAt": "2026-10-14T00:01:33Z"
+        },
+        {
+          "runId": 38499513311,
+          "headSha": "372b6e3698ccfb494c11c0ee4c72532c014bd5e7",
+          "observedAt": "2026-10-14T02:09:01Z"
+        },
+        {
+          "runId": 38501988067,
+          "headSha": "4c59aacde9933bba98e91e49f20521a464aef2d6",
+          "observedAt": "2026-10-14T02:37:17Z"
+        },
+        {
+          "runId": 38503880940,
+          "headSha": "dfcf86784476eb323e79bc3e1b6c62a9ce01a93f",
+          "observedAt": "2026-10-14T02:59:02Z"
+        },
+        {
+          "runId": 38504178068,
+          "headSha": "1019171c30d92a630052916dcad90ff936be69bb",
+          "observedAt": "2026-10-14T03:02:25Z"
+        },
+        {
+          "runId": 38562123908,
+          "headSha": "02240f43f03ec8d1de1154b5a909efe9feb6f667",
+          "observedAt": "2026-10-14T12:12:46Z"
+        },
+        {
+          "runId": 38564958860,
+          "headSha": "755685da039567df5279d59b3007776f965c271f",
+          "observedAt": "2026-10-14T12:35:22Z"
+        },
+        {
+          "runId": 38569887085,
+          "headSha": "a1dba4c4b2ea89df9abb3316134cd9dc1e6bc514",
+          "observedAt": "2026-10-14T13:12:36Z"
+        },
+        {
+          "runId": 38584819405,
+          "headSha": "cc981da981150731f92dcd05ee655fbcf3194f39",
+          "observedAt": "2026-10-14T14:55:18Z"
+        },
+        {
+          "runId": 38610609934,
+          "headSha": "60537c82247d5e3bad7404bed2ee24d7ad8c3b36",
+          "observedAt": "2026-10-14T17:54:18Z"
+        },
+        {
+          "runId": 38610659292,
+          "headSha": "40ef59f7264ddc8b4568f67cb279e201771e4f62",
+          "observedAt": "2026-10-14T17:54:39Z"
+        },
+        {
+          "runId": 38610747949,
+          "headSha": "68cfbdc82ed442201fb44da8e627b5ff589dce77",
+          "observedAt": "2026-10-14T17:55:16Z"
+        },
+        {
+          "runId": 38611164997,
+          "headSha": "2b944ae9bdf743c3d778e40b117ad35ac2c320b8",
+          "observedAt": "2026-10-14T17:58:14Z"
+        },
+        {
+          "runId": 38635692058,
+          "headSha": "6b8fc21777f85e3299596d465af72a50c0207d03",
+          "observedAt": "2026-10-14T20:52:17Z"
+        },
+        {
+          "runId": 38635872860,
+          "headSha": "dfeaf675d20981fc09d53ec2a8cfbb0f5c5e9b53",
+          "observedAt": "2026-10-14T20:53:36Z"
+        },
+        {
+          "runId": 38636037147,
+          "headSha": "d939d9487248ec4d2132ac760450f542e422eb34",
+          "observedAt": "2026-10-14T20:54:47Z"
+        },
+        {
+          "runId": 38636243808,
+          "headSha": "44048642761b757c4905d857ee08e661ff04cfae",
+          "observedAt": "2026-10-14T20:56:14Z"
+        },
+        {
+          "runId": 38636456767,
+          "headSha": "c7e520ec89cdc12518c757e8c99204f1a6c2e2e9",
+          "observedAt": "2026-10-14T20:57:47Z"
+        },
+        {
+          "runId": 38636538265,
+          "headSha": "97a997a16b2013112d6ca958fccf888f2c878df2",
+          "observedAt": "2026-10-14T20:58:23Z"
+        },
+        {
+          "runId": 38636637354,
+          "headSha": "6cfa2b09f9f618efae684a7ecb08006efe5a6c41",
+          "observedAt": "2026-10-14T20:59:08Z"
+        },
+        {
+          "runId": 38636915734,
+          "headSha": "1ea159dab7a835890198a20febfcd4b43013639c",
+          "observedAt": "2026-10-14T21:01:08Z"
+        }
+      ],
+      "accounting": "Separate additional browser job; shares image-preparation cost with logger/fs-path browser checks."
+    }
+  },
+  "browser": {
+    "runId": "5f1hbcxtws",
+    "jobId": "pp3m2jb9sj",
+    "attemptId": "08s1x6qxrt",
+    "revision": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+    "status": "failed",
+    "conclusion": "failure",
+    "runner": {
+      "cpus": 4,
+      "memoryGiB": 16,
+      "baseMinuteMultiplier": 2
+    },
+    "wholeJobSeconds": 151.586,
+    "normalizedBaseMinutes": 5.0528666666666675,
+    "rawMetrics": {
+      "type": "attempt",
+      "snapshot_at": "2026-10-16T01:47:27.798Z",
+      "run": {
+        "run_id": "5f1hbcxtws",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "sha": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "head_sha": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "trigger": "api",
+        "status": "failed",
+        "created_at": "2026-10-16T01:40:08.830Z",
+        "started_at": "2026-10-16T01:40:09.050Z",
+        "finished_at": "2026-10-16T01:45:19.336Z"
+      },
+      "workflow": {
+        "workflow_id": "8rsd9zjszf",
+        "name": "depot-expanded",
+        "status": "failed",
+        "created_at": "2026-10-16T01:40:20.737Z",
+        "started_at": "2026-10-16T01:40:20.735Z",
+        "finished_at": "2026-10-16T01:45:19.005Z"
+      },
+      "job": {
+        "job_id": "pp3m2jb9sj",
+        "job_key": "_inline_0.yaml:browser",
+        "status": "failed",
+        "conclusion": "failure",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:40:20.751Z",
+        "started_at": "2026-10-16T01:42:47.104Z",
+        "finished_at": "2026-10-16T01:45:18.690Z"
+      },
+      "attempt": {
+        "attempt": {
+          "attempt_id": "08s1x6qxrt",
+          "attempt": 1,
+          "status": "failed",
+          "conclusion": "failure",
+          "sandbox_id": "dtkr5l6f8qb0pxrnmbvt",
+          "session_id": "fe38f3ad-4981-48ce-bddd-e48eea3b3f5c",
+          "created_at": "2026-10-16T01:42:43.627Z",
+          "started_at": "2026-10-16T01:42:47.104Z",
+          "finished_at": "2026-10-16T01:45:18.690Z"
+        },
+        "availability": {
+          "code": "available",
+          "reason": "available"
+        },
+        "stats": {
+          "sample_count": 26,
+          "cpu_sample_count": 25,
+          "memory_sample_count": 26,
+          "peak_cpu_utilization": 0.5369059656218402,
+          "average_cpu_utilization": 0.06256269218854774,
+          "peak_memory_utilization": 0.1820380777460927,
+          "average_memory_utilization": 0.07352042399189204,
+          "observed_started_at": "2026-10-16T01:43:15Z",
+          "observed_finished_at": "2026-10-16T01:45:15Z"
+        },
+        "cap": {
+          "raw_sample_count": 26,
+          "returned_sample_count": 26,
+          "max_returned_sample_count": 5000,
+          "downsampled": false,
+          "downsample_strategy": ""
+        },
+        "samples": [
+          {
+            "timestamp": "2026-10-16T01:43:15Z",
+            "memory_utilization": 0.026438241200068546
+          },
+          {
+            "timestamp": "2026-10-16T01:43:16Z",
+            "cpu_utilization": 0.04040404040404041,
+            "memory_utilization": 0.03016062721801626
+          },
+          {
+            "timestamp": "2026-10-16T01:43:20Z",
+            "cpu_utilization": 0.00688360450563204,
+            "memory_utilization": 0.03241471027196925
+          },
+          {
+            "timestamp": "2026-10-16T01:43:25Z",
+            "cpu_utilization": 0.048427358961557664,
+            "memory_utilization": 0.03348170150316143
+          },
+          {
+            "timestamp": "2026-10-16T01:43:30Z",
+            "cpu_utilization": 0.058941058941058944,
+            "memory_utilization": 0.02696990601396389
+          },
+          {
+            "timestamp": "2026-10-16T01:43:35Z",
+            "cpu_utilization": 0.017991004497751123,
+            "memory_utilization": 0.02910730597285629
+          },
+          {
+            "timestamp": "2026-10-16T01:43:40Z",
+            "cpu_utilization": 0.07096124811273276,
+            "memory_utilization": 0.0653015232758364
+          },
+          {
+            "timestamp": "2026-10-16T01:43:45Z",
+            "cpu_utilization": 0.007003501750875438,
+            "memory_utilization": 0.06915450648177034
+          },
+          {
+            "timestamp": "2026-10-16T01:43:50Z",
+            "cpu_utilization": 0.12980529206190713,
+            "memory_utilization": 0.04257785667312573
+          },
+          {
+            "timestamp": "2026-10-16T01:43:55Z",
+            "cpu_utilization": 0.01746506986027944,
+            "memory_utilization": 0.052304295841932
+          },
+          {
+            "timestamp": "2026-10-16T01:44:00Z",
+            "cpu_utilization": 0.006513026052104208,
+            "memory_utilization": 0.03975109884718078
+          },
+          {
+            "timestamp": "2026-10-16T01:44:05Z",
+            "cpu_utilization": 0.0029985007496251873,
+            "memory_utilization": 0.04136806290927572
+          },
+          {
+            "timestamp": "2026-10-16T01:44:10Z",
+            "cpu_utilization": 0.1023976023976024,
+            "memory_utilization": 0.07123454132070617
+          },
+          {
+            "timestamp": "2026-10-16T01:44:15Z",
+            "cpu_utilization": 0.044455544455544456,
+            "memory_utilization": 0.08736585715938666
+          },
+          {
+            "timestamp": "2026-10-16T01:44:20Z",
+            "cpu_utilization": 0.000500751126690035,
+            "memory_utilization": 0.08782331347767862
+          },
+          {
+            "timestamp": "2026-10-16T01:44:25Z",
+            "cpu_utilization": 0.01057934508816121,
+            "memory_utilization": 0.09443958671726514
+          },
+          {
+            "timestamp": "2026-10-16T01:44:30Z",
+            "cpu_utilization": 0.1993942453306411,
+            "memory_utilization": 0.08653394086656971
+          },
+          {
+            "timestamp": "2026-10-16T01:44:35Z",
+            "cpu_utilization": 0.001999000499750125,
+            "memory_utilization": 0.0885136477723049
+          },
+          {
+            "timestamp": "2026-10-16T01:44:40Z",
+            "cpu_utilization": 0.005005005005005005,
+            "memory_utilization": 0.09061784919369052
+          },
+          {
+            "timestamp": "2026-10-16T01:44:45Z",
+            "cpu_utilization": 0.0716432865731463,
+            "memory_utilization": 0.1171337163858705
+          },
+          {
+            "timestamp": "2026-10-16T01:44:50Z",
+            "cpu_utilization": 0.5369059656218402,
+            "memory_utilization": 0.1820380777460927
+          },
+          {
+            "timestamp": "2026-10-16T01:44:55Z",
+            "cpu_utilization": 0.10370741482965933,
+            "memory_utilization": 0.08812087978077249
+          },
+          {
+            "timestamp": "2026-10-16T01:45:00Z",
+            "cpu_utilization": 0.010484273589615577,
+            "memory_utilization": 0.09254995525520643
+          },
+          {
+            "timestamp": "2026-10-16T01:45:05Z",
+            "cpu_utilization": 0.027527527527527528,
+            "memory_utilization": 0.09336380763790941
+          },
+          {
+            "timestamp": "2026-10-16T01:45:10Z",
+            "cpu_utilization": 0.010526315789473684,
+            "memory_utilization": 0.10032720087995653
+          },
+          {
+            "timestamp": "2026-10-16T01:45:15Z",
+            "cpu_utilization": 0.031547320981472206,
+            "memory_utilization": 0.14243881338662676
+          }
+        ]
+      }
+    },
+    "testRunnerStats": {
+      "startTime": "2026-10-16T01:44:08.263Z",
+      "duration": 69817.495,
+      "expected": 67,
+      "skipped": 1,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "engines": [
+      {
+        "engine": "chromium",
+        "passed": 23,
+        "skipped": 0,
+        "failed": 0
+      },
+      {
+        "engine": "firefox",
+        "passed": 23,
+        "skipped": 0,
+        "failed": 0
+      },
+      {
+        "engine": "webkit",
+        "passed": 21,
+        "skipped": 1,
+        "failed": 1
+      }
+    ],
+    "cases": [
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "createSessionStorageSink exposes a callable verify",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 132,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.596Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 116,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.616Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 127,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.626Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 89,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.742Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 87,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.742Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "written records can be retrieved from sessionStorage",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 90,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.766Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "createSessionStorageSink exposes a callable verify",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 322,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.465Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 380,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.502Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 323,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.730Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 335,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.798Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 354,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.799Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "written records can be retrieved from sessionStorage",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 330,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.899Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "createSessionStorageSink exposes a callable verify",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 256,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.292Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 12,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 230,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.644Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 266,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.442Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 282,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.559Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 257,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.727Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/session-storage.browser.test.ts",
+        "name": "written records can be retrieved from sessionStorage",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 223,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.850Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "createOpfsSink exposes a callable verify",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 83,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.410Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 99,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.407Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify detects OPFS availability",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 97,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.479Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 92,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.504Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 87,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.516Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "createOpfsSink exposes a callable verify",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 312,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.067Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 339,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.114Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify detects OPFS availability",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 337,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.141Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 327,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.358Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 387,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:49.391Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "createOpfsSink exposes a callable verify",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 291,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.843Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify resolves a boolean",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 185,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.842Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "verify detects OPFS availability",
+        "engine": "webkit",
+        "status": "unexpected",
+        "results": [
+          {
+            "workerIndex": 11,
+            "parallelIndex": 2,
+            "status": "failed",
+            "duration": 308,
+            "error": {
+              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+              "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /work/package/module/logger/src/sink/opfs.browser.test.ts:41:21",
+              "location": {
+                "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+                "column": 21,
+                "line": 41
+              },
+              "snippet": "  39 |       return createOpfsSink().verify();\n  40 |     },);\n> 41 |     expect(result,).toBe(true,);\n     |                     ^\n  42 |   });\n  43 |\n  44 |   test('sink write method exists', async ({ page, },) => {"
+            },
+            "errors": [
+              {
+                "location": {
+                  "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+                  "column": 21,
+                  "line": 41
+                },
+                "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  39 |       return createOpfsSink().verify();\n  40 |     },);\n> 41 |     expect(result,).toBe(true,);\n     |                     ^\n  42 |   });\n  43 |\n  44 |   test('sink write method exists', async ({ page, },) => {\n    at /work/package/module/logger/src/sink/opfs.browser.test.ts:41:21"
+              }
+            ],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.029Z",
+            "annotations": [],
+            "attachments": [
+              {
+                "name": "error-context",
+                "contentType": "text/markdown",
+                "path": "/work/test-results/module-logger-src-sink-opf-8e027-y-detects-OPFS-availability-webkit/error-context.md"
+              }
+            ],
+            "errorLocation": {
+              "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+              "column": 21,
+              "line": 41
+            }
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "sink write method exists",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 224,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.052Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 290,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:16.141Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "createLocalStorageSink exposes a callable verify",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 102,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.169Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 91,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.253Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a partial process shim does not prevent browser storage detection",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 106,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.264Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 101,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.282Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "written records can be retrieved from localStorage under a run-scoped key",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 110,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.357Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "createLocalStorageSink exposes a callable verify",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 486,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:48.316Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 259,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:48.555Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a partial process shim does not prevent browser storage detection",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 325,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:48.717Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 270,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:48.833Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "written records can be retrieved from localStorage under a run-scoped key",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 291,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:48.834Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "createLocalStorageSink exposes a callable verify",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 11,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 259,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.259Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 279,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.543Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a partial process shim does not prevent browser storage detection",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 11,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 210,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.527Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 278,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.550Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/local-storage.browser.test.ts",
+        "name": "written records can be retrieved from localStorage under a run-scoped key",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 11,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 268,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.744Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "createIndexedDbSink exposes a callable verify",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 889,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:10.365Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 3,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 890,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:10.347Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 136,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.074Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a flushed batch is readable back out of the database as JSONL",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 132,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.092Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "retention trims the store back to the cap, oldest first",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 3,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 786,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:26.102Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "createIndexedDbSink exposes a callable verify",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 6154,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:27.185Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 5937,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:27.546Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 617,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:47.910Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a flushed batch is readable back out of the database as JSONL",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 732,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:47.951Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "retention trims the store back to the cap, oldest first",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 1351,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:47.975Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "createIndexedDbSink exposes a callable verify",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 12071,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:50.731Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "verify detects availability",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 11,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 12118,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:50.970Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a verified sink writes records across levels and message shapes",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 10,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 287,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.212Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "a flushed batch is readable back out of the database as JSONL",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 290,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.230Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/logger/src/sink/indexed-db.browser.test.ts",
+        "name": "retention trims the store back to the cap, oldest first",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 9,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 2784,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:15.250Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "path operations run on the pure-JS backend",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 895,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:10.373Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "findRoot locates markers written into OPFS and fails cleanly without them",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 963,
+            "errors": [],
+            "stdout": [
+              {
+                "text": "chromium: fulfilled /repo-7de5c2fc-68eb-4302-9968-0894d69cfed9 | fulfilled /repo-7de5c2fc-68eb-4302-9968-0894d69cfed9 | fulfilled /repo-7de5c2fc-68eb-4302-9968-0894d69cfed9 | rejected RootNotFoundError | rejected RootNotFoundError\n"
+              }
+            ],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:10.347Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "path operations run on the pure-JS backend",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 6083,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:27.173Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "findRoot locates markers written into OPFS and fails cleanly without them",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 6300,
+            "errors": [],
+            "stdout": [
+              {
+                "text": "firefox: fulfilled /repo-0cdda609-f529-449f-9184-5265291bf066 | fulfilled /repo-0cdda609-f529-449f-9184-5265291bf066 | fulfilled /repo-0cdda609-f529-449f-9184-5265291bf066 | rejected RootNotFoundError | rejected RootNotFoundError\n"
+              }
+            ],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:27.176Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "path operations run on the pure-JS backend",
+        "engine": "webkit",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 8,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 11883,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:50.742Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "module/fs-path/src/opfs-root-discovery.browser.test.ts",
+        "name": "findRoot locates markers written into OPFS and fails cleanly without them",
+        "engine": "webkit",
+        "status": "skipped",
+        "results": [
+          {
+            "workerIndex": 9,
+            "parallelIndex": 1,
+            "status": "skipped",
+            "duration": 12121,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:44:50.735Z",
+            "annotations": [
+              {
+                "type": "skip",
+                "description": "origin private file system refused: UnknownError: The operation failed for an unknown transient reason (e.g. out of memory).",
+                "location": {
+                  "file": "/work/package/module/fs-path/src/opfs-root-discovery.browser.test.ts",
+                  "line": 193,
+                  "column": 10
+                }
+              }
+            ],
+            "attachments": []
+          }
+        ],
+        "annotations": [
+          {
+            "type": "skip",
+            "description": "origin private file system refused: UnknownError: The operation failed for an unknown transient reason (e.g. out of memory).",
+            "location": {
+              "file": "/work/package/module/fs-path/src/opfs-root-discovery.browser.test.ts",
+              "line": 193,
+              "column": 10
+            }
+          }
+        ]
+      }
+    ],
+    "logSha256": "cce28f85329219ac3bee2aeec9c88f9bef61e167c17f9672703cd31a58180d02",
+    "reportSha256": "aaf18fc7b2fb36deaeb86c853970d9da02d72d55c0d60cb99143776481366914",
+    "reporterExtraction": "Timestamp prefixes removed; independently identifiable ANSI task notices and npm notices excluded where stderr interleaved with JSON; full remaining JSON parsed and case counts reconciled.",
+    "issues": [
+      1045,
+      1047,
+      1052
+    ],
+    "interpretation": "Executed all selected engines, but not a successful three-engine baseline. Chromium and Firefox pass; WebKit availability assertion fails and filesystem fixture skips."
+  },
+  "dom": {
+    "runId": "zlhbx5k5rq",
+    "jobId": "zw591vv262",
+    "attemptId": "106fpb437j",
+    "revision": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+    "status": "finished",
+    "conclusion": "success",
+    "runner": {
+      "cpus": 4,
+      "memoryGiB": 16,
+      "baseMinuteMultiplier": 2
+    },
+    "wholeJobSeconds": 117.823,
+    "normalizedBaseMinutes": 3.927433333333333,
+    "rawMetrics": {
+      "type": "attempt",
+      "snapshot_at": "2026-10-16T01:48:36.499Z",
+      "run": {
+        "run_id": "zlhbx5k5rq",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "sha": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "head_sha": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "trigger": "api",
+        "status": "failed",
+        "created_at": "2026-10-16T01:43:54.181Z",
+        "started_at": "2026-10-16T01:43:54.402Z",
+        "finished_at": "2026-10-16T01:46:05.538Z"
+      },
+      "workflow": {
+        "workflow_id": "54pnxs8qm4",
+        "name": "depot-browser-followup",
+        "status": "failed",
+        "created_at": "2026-10-16T01:44:02.330Z",
+        "started_at": "2026-10-16T01:44:02.326Z",
+        "finished_at": "2026-10-16T01:46:05.225Z"
+      },
+      "job": {
+        "job_id": "zw591vv262",
+        "job_key": "_inline_0.yaml:e2e",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:44:02.351Z",
+        "started_at": "2026-10-16T01:44:07.082Z",
+        "finished_at": "2026-10-16T01:46:04.905Z"
+      },
+      "attempt": {
+        "attempt": {
+          "attempt_id": "106fpb437j",
+          "attempt": 1,
+          "status": "finished",
+          "conclusion": "success",
+          "sandbox_id": "fcn26sr00fz8szmjrp6t",
+          "session_id": "d7ef3e0f-d6ca-4676-a19d-a896df6046ff",
+          "created_at": "2026-10-16T01:44:03.340Z",
+          "started_at": "2026-10-16T01:44:07.082Z",
+          "finished_at": "2026-10-16T01:46:04.905Z"
+        },
+        "availability": {
+          "code": "available",
+          "reason": "available"
+        },
+        "stats": {
+          "sample_count": 20,
+          "cpu_sample_count": 19,
+          "memory_sample_count": 20,
+          "peak_cpu_utilization": 0.16549295774647887,
+          "average_cpu_utilization": 0.05010946043191985,
+          "peak_memory_utilization": 0.14038538619907504,
+          "average_memory_utilization": 0.06228930523760632,
+          "observed_started_at": "2026-10-16T01:44:31Z",
+          "observed_finished_at": "2026-10-16T01:46:01Z"
+        },
+        "cap": {
+          "raw_sample_count": 20,
+          "returned_sample_count": 20,
+          "max_returned_sample_count": 5000,
+          "downsampled": false,
+          "downsample_strategy": ""
+        },
+        "samples": [
+          {
+            "timestamp": "2026-10-16T01:44:31Z",
+            "memory_utilization": 0.02642432710714291
+          },
+          {
+            "timestamp": "2026-10-16T01:44:32Z",
+            "cpu_utilization": 0.06297229219143577,
+            "memory_utilization": 0.03194187521939107
+          },
+          {
+            "timestamp": "2026-10-16T01:44:36Z",
+            "cpu_utilization": 0.00375234521575985,
+            "memory_utilization": 0.03226434042561502
+          },
+          {
+            "timestamp": "2026-10-16T01:44:41Z",
+            "cpu_utilization": 0.053973013493253376,
+            "memory_utilization": 0.03358691157423071
+          },
+          {
+            "timestamp": "2026-10-16T01:44:46Z",
+            "cpu_utilization": 0.06312127236580517,
+            "memory_utilization": 0.03303303303303303
+          },
+          {
+            "timestamp": "2026-10-16T01:44:51Z",
+            "cpu_utilization": 0.06312625250501001,
+            "memory_utilization": 0.049492672643379844
+          },
+          {
+            "timestamp": "2026-10-16T01:44:56Z",
+            "cpu_utilization": 0.027013506753376687,
+            "memory_utilization": 0.05948274725709289
+          },
+          {
+            "timestamp": "2026-10-16T01:45:01Z",
+            "cpu_utilization": 0.02147852147852148,
+            "memory_utilization": 0.03620642264765172
+          },
+          {
+            "timestamp": "2026-10-16T01:45:06Z",
+            "cpu_utilization": 0.029970029970029972,
+            "memory_utilization": 0.05211291603748115
+          },
+          {
+            "timestamp": "2026-10-16T01:45:11Z",
+            "cpu_utilization": 0.0045045045045045045,
+            "memory_utilization": 0.03943522452707951
+          },
+          {
+            "timestamp": "2026-10-16T01:45:16Z",
+            "cpu_utilization": 0.0015,
+            "memory_utilization": 0.04011408579771448
+          },
+          {
+            "timestamp": "2026-10-16T01:45:21Z",
+            "cpu_utilization": 0.1038961038961039,
+            "memory_utilization": 0.05294068251310976
+          },
+          {
+            "timestamp": "2026-10-16T01:45:26Z",
+            "cpu_utilization": 0.16549295774647887,
+            "memory_utilization": 0.08275980418721436
+          },
+          {
+            "timestamp": "2026-10-16T01:45:31Z",
+            "cpu_utilization": 0.001999000499750125,
+            "memory_utilization": 0.08471217112088515
+          },
+          {
+            "timestamp": "2026-10-16T01:45:36Z",
+            "cpu_utilization": 0.0079960019990005,
+            "memory_utilization": 0.089796917711078
+          },
+          {
+            "timestamp": "2026-10-16T01:45:41Z",
+            "cpu_utilization": 0.15901060070671377,
+            "memory_utilization": 0.08289113369588089
+          },
+          {
+            "timestamp": "2026-10-16T01:45:46Z",
+            "cpu_utilization": 0.001999000499750125,
+            "memory_utilization": 0.08495408105227646
+          },
+          {
+            "timestamp": "2026-10-16T01:45:51Z",
+            "cpu_utilization": 0.001,
+            "memory_utilization": 0.08534123458525995
+          },
+          {
+            "timestamp": "2026-10-16T01:45:56Z",
+            "cpu_utilization": 0.0628428927680798,
+            "memory_utilization": 0.1079101374175346
+          },
+          {
+            "timestamp": "2026-10-16T01:46:01Z",
+            "cpu_utilization": 0.11643145161290322,
+            "memory_utilization": 0.14038538619907504
+          }
+        ]
+      }
+    },
+    "testRunnerStats": {
+      "startTime": "2026-10-16T01:45:20.001Z",
+      "duration": 44274.455,
+      "expected": 34,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "engines": [
+      {
+        "engine": "chromium",
+        "passed": 17,
+        "skipped": 0,
+        "failed": 0
+      },
+      {
+        "engine": "firefox",
+        "passed": 17,
+        "skipped": 0,
+        "failed": 0
+      }
+    ],
+    "cases": [
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "applies every URL param when no allowlist is supplied",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 58,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.144Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "applies every URL param when no allowlist is supplied",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 362,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:03.316Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "applies only allow-listed keys when an allowlist is supplied",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 82,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.147Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "applies only allow-listed keys when an allowlist is supplied",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 344,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:03.436Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "is a no-op when the query string has no matching keys",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 70,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.156Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "is a no-op when the query string has no matching keys",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 403,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:03.466Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "silently drops unknown standard CSS keys via setProperty",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 70,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.207Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/set/cssFromParam.e2e.test.ts",
+        "name": "silently drops unknown standard CSS keys via setProperty",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 330,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:03.621Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/redirectingTo.e2e.test.ts",
+        "name": "is a no-op when no a.redirectingTo element exists",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 3,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 194,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.010Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/redirectingTo.e2e.test.ts",
+        "name": "is a no-op when no a.redirectingTo element exists",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 483,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.941Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/redirectingTo.e2e.test.ts",
+        "name": "replaces location with the anchor href after the delay",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 119,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.018Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/redirectingTo.e2e.test.ts",
+        "name": "replaces location with the anchor href after the delay",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 396,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:03.209Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "OK with text resolves to the entered string",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 3,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 193,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.787Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "OK with text resolves to the entered string",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 843,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.055Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "OK with empty input resolves to empty string (globalThis.prompt parity)",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 170,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.775Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "OK with empty input resolves to empty string (globalThis.prompt parity)",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 694,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.054Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "Cancel button resolves to null",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 168,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.790Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "Cancel button resolves to null",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 689,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.144Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "Esc resolves to null even when input has text",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 94,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.913Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "Esc resolves to null even when input has text",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 410,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.776Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "default class names are applied when classes option is omitted",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 151,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.980Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "default class names are applied when classes option is omitted",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 509,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.789Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "classes option overrides default class names per call",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 142,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.001Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/prompt.e2e.test.ts",
+        "name": "classes option overrides default class names per call",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 523,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:02.885Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "preserves descendants and attributes",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 113,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:38.765Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "preserves descendants and attributes",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 716,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:46:01.999Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "fills the explicit parent without moving the template",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 3,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 712,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:23.887Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "fills the explicit parent without moving the template",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 7,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 6526,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.770Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "replaces the parent's children with the requested number of clones",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 716,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:23.885Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "replaces the parent's children with the requested number of clones",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 4,
+            "parallelIndex": 3,
+            "status": "passed",
+            "duration": 6408,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.552Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "throws when the template has no parent",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 1,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 706,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:23.889Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "throws when the template has no parent",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 5,
+            "parallelIndex": 0,
+            "status": "passed",
+            "duration": 6498,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.594Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "empties the parent when targetCount is 0",
+        "engine": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 2,
+            "parallelIndex": 2,
+            "status": "passed",
+            "duration": 717,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:23.914Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "file": "package/module/dom/src/duplicateElement.e2e.test.ts",
+        "name": "empties the parent when targetCount is 0",
+        "engine": "firefox",
+        "status": "expected",
+        "results": [
+          {
+            "workerIndex": 6,
+            "parallelIndex": 1,
+            "status": "passed",
+            "duration": 6535,
+            "errors": [],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:39.603Z",
+            "annotations": [],
+            "attachments": []
+          }
+        ],
+        "annotations": []
+      }
+    ],
+    "logSha256": "f323799f08179edc1c4ed5c8d7eff4a5cc0bd110b9967c1430bbf6c8835d3e22",
+    "reportSha256": "ce5194e946c16f79f40e2ac73c34111397aa3ed958151de6f78d6a4141e5cf3b",
+    "reporterExtraction": "Timestamp prefixes removed; independently identifiable ANSI task notices and npm notices excluded where stderr interleaved with JSON; full remaining JSON parsed and case counts reconciled."
+  },
+  "failureControl": {
+    "runId": "zlhbx5k5rq",
+    "jobId": "98g05l4pnm",
+    "attemptId": "kfnj5n805m",
+    "revision": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+    "status": "failed",
+    "conclusion": "failure",
+    "runner": {
+      "cpus": 4,
+      "memoryGiB": 16,
+      "baseMinuteMultiplier": 2
+    },
+    "wholeJobSeconds": 92.45,
+    "normalizedBaseMinutes": 3.0816666666666666,
+    "rawMetrics": {
+      "type": "attempt",
+      "snapshot_at": "2026-10-16T01:48:36.508Z",
+      "run": {
+        "run_id": "zlhbx5k5rq",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "sha": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "head_sha": "b385c3b7f6f1ec851b6f1ae2991f005014a1f633",
+        "trigger": "api",
+        "status": "failed",
+        "created_at": "2026-10-16T01:43:54.181Z",
+        "started_at": "2026-10-16T01:43:54.402Z",
+        "finished_at": "2026-10-16T01:46:05.538Z"
+      },
+      "workflow": {
+        "workflow_id": "54pnxs8qm4",
+        "name": "depot-browser-followup",
+        "status": "failed",
+        "created_at": "2026-10-16T01:44:02.330Z",
+        "started_at": "2026-10-16T01:44:02.326Z",
+        "finished_at": "2026-10-16T01:46:05.225Z"
+      },
+      "job": {
+        "job_id": "98g05l4pnm",
+        "job_key": "_inline_0.yaml:negative",
+        "status": "failed",
+        "conclusion": "failure",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:44:02.351Z",
+        "started_at": "2026-10-16T01:44:06.989Z",
+        "finished_at": "2026-10-16T01:45:39.439Z"
+      },
+      "attempt": {
+        "attempt": {
+          "attempt_id": "kfnj5n805m",
+          "attempt": 1,
+          "status": "failed",
+          "conclusion": "failure",
+          "sandbox_id": "n62zwp99g4j73gw5wwsx",
+          "session_id": "c107409a-6c02-427b-93ae-8284130d8cab",
+          "created_at": "2026-10-16T01:44:03.340Z",
+          "started_at": "2026-10-16T01:44:06.989Z",
+          "finished_at": "2026-10-16T01:45:39.439Z"
+        },
+        "availability": {
+          "code": "available",
+          "reason": "available"
+        },
+        "stats": {
+          "sample_count": 15,
+          "cpu_sample_count": 14,
+          "memory_sample_count": 15,
+          "peak_cpu_utilization": 0.16834170854271358,
+          "average_cpu_utilization": 0.041683229990672754,
+          "peak_memory_utilization": 0.0768299595319592,
+          "average_memory_utilization": 0.05313902750091987,
+          "observed_started_at": "2026-10-16T01:44:31Z",
+          "observed_finished_at": "2026-10-16T01:45:36Z"
+        },
+        "cap": {
+          "raw_sample_count": 15,
+          "returned_sample_count": 15,
+          "max_returned_sample_count": 5000,
+          "downsampled": false,
+          "downsample_strategy": ""
+        },
+        "samples": [
+          {
+            "timestamp": "2026-10-16T01:44:31Z",
+            "memory_utilization": 0.026288115460607737
+          },
+          {
+            "timestamp": "2026-10-16T01:44:32Z",
+            "cpu_utilization": 0.061381074168797956,
+            "memory_utilization": 0.031395563991889794
+          },
+          {
+            "timestamp": "2026-10-16T01:44:36Z",
+            "cpu_utilization": 0.004383218534752661,
+            "memory_utilization": 0.03229558610797434
+          },
+          {
+            "timestamp": "2026-10-16T01:44:41Z",
+            "cpu_utilization": 0.0475,
+            "memory_utilization": 0.03697316239992228
+          },
+          {
+            "timestamp": "2026-10-16T01:44:46Z",
+            "cpu_utilization": 0.06613226452905811,
+            "memory_utilization": 0.03390156535986482
+          },
+          {
+            "timestamp": "2026-10-16T01:44:51Z",
+            "cpu_utilization": 0.042147516307074764,
+            "memory_utilization": 0.03968396945148693
+          },
+          {
+            "timestamp": "2026-10-16T01:44:56Z",
+            "cpu_utilization": 0.09559559559559559,
+            "memory_utilization": 0.06680570995316565
+          },
+          {
+            "timestamp": "2026-10-16T01:45:01Z",
+            "cpu_utilization": 0.014507253626813406,
+            "memory_utilization": 0.0723776939026492
+          },
+          {
+            "timestamp": "2026-10-16T01:45:06Z",
+            "cpu_utilization": 0.16834170854271358,
+            "memory_utilization": 0.06105918957487808
+          },
+          {
+            "timestamp": "2026-10-16T01:45:11Z",
+            "cpu_utilization": 0.0045045045045045045,
+            "memory_utilization": 0.049228060770899335
+          },
+          {
+            "timestamp": "2026-10-16T01:45:16Z",
+            "cpu_utilization": 0.001,
+            "memory_utilization": 0.04998259517849828
+          },
+          {
+            "timestamp": "2026-10-16T01:45:21Z",
+            "cpu_utilization": 0.053553553553553554,
+            "memory_utilization": 0.06901609787319428
+          },
+          {
+            "timestamp": "2026-10-16T01:45:26Z",
+            "cpu_utilization": 0.02252252252252252,
+            "memory_utilization": 0.07541072205354436
+          },
+          {
+            "timestamp": "2026-10-16T01:45:31Z",
+            "cpu_utilization": 0,
+            "memory_utilization": 0.07583742090326386
+          },
+          {
+            "timestamp": "2026-10-16T01:45:36Z",
+            "cpu_utilization": 0.001996007984031936,
+            "memory_utilization": 0.0768299595319592
+          }
+        ]
+      }
+    },
+    "testRunnerStats": {
+      "startTime": "2026-10-16T01:45:20.000Z",
+      "duration": 18770.036,
+      "expected": 0,
+      "skipped": 0,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "engines": [
+      {
+        "engine": "chromium",
+        "passed": 0,
+        "skipped": 0,
+        "failed": 1
+      }
+    ],
+    "cases": [
+      {
+        "file": "module/logger/src/sink/opfs.browser.test.ts",
+        "name": "createOpfsSink exposes a callable verify",
+        "engine": "chromium",
+        "status": "unexpected",
+        "results": [
+          {
+            "workerIndex": 0,
+            "parallelIndex": 0,
+            "status": "failed",
+            "duration": 716,
+            "error": {
+              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"\u001b[7mdeliberately-wr\u001b[27mon\u001b[7mg\u001b[27m\"\u001b[39m\nReceived: \u001b[31m\"\u001b[7mfuncti\u001b[27mon\"\u001b[39m",
+              "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"\u001b[7mdeliberately-wr\u001b[27mon\u001b[7mg\u001b[27m\"\u001b[39m\nReceived: \u001b[31m\"\u001b[7mfuncti\u001b[27mon\"\u001b[39m\n    at /work/package/module/logger/src/sink/opfs.browser.test.ts:24:27",
+              "location": {
+                "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+                "column": 27,
+                "line": 24
+              },
+              "snippet": "  22 |       return typeof createOpfsSink().verify;\n  23 |     },);\n> 24 |     expect(typeofVerify,).toBe('deliberately-wrong',);\n     |                           ^\n  25 |   });\n  26 |\n  27 |   test('verify resolves a boolean', async ({ page, },) => {"
+            },
+            "errors": [
+              {
+                "location": {
+                  "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+                  "column": 27,
+                  "line": 24
+                },
+                "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"\u001b[7mdeliberately-wr\u001b[27mon\u001b[7mg\u001b[27m\"\u001b[39m\nReceived: \u001b[31m\"\u001b[7mfuncti\u001b[27mon\"\u001b[39m\n\n  22 |       return typeof createOpfsSink().verify;\n  23 |     },);\n> 24 |     expect(typeofVerify,).toBe('deliberately-wrong',);\n     |                           ^\n  25 |   });\n  26 |\n  27 |   test('verify resolves a boolean', async ({ page, },) => {\n    at /work/package/module/logger/src/sink/opfs.browser.test.ts:24:27"
+              }
+            ],
+            "stdout": [],
+            "stderr": [],
+            "retry": 0,
+            "startTime": "2026-10-16T01:45:21.469Z",
+            "annotations": [],
+            "attachments": [
+              {
+                "name": "error-context",
+                "contentType": "text/markdown",
+                "path": "/work/test-results/module-logger-src-sink-opf-d6e84-k-exposes-a-callable-verify-chromium/error-context.md"
+              }
+            ],
+            "errorLocation": {
+              "file": "/work/package/module/logger/src/sink/opfs.browser.test.ts",
+              "column": 27,
+              "line": 24
+            }
+          }
+        ],
+        "annotations": []
+      }
+    ],
+    "logSha256": "dc60f876a923b75fe79b229ca709986fe58464b01819d25f7785ed710397ba79",
+    "reportSha256": "7a6ac9734469762debddb431edfe6f4e1a23c6d8b264cc5300b8aaa639d995a2",
+    "reporterExtraction": "Timestamp prefixes removed; independently identifiable ANSI task notices and npm notices excluded where stderr interleaved with JSON; full remaining JSON parsed and case counts reconciled.",
+    "expectedFailure": true,
+    "assertion": "expect(typeofVerify,).toBe('deliberately-wrong',);",
+    "originalAssertion": "expect(typeofVerify,).toBe('function',);",
+    "originalCasePassedInBaseline": true,
+    "separateVerificationOnlyCost": true
+  },
+  "browserImagePreparation": {
+    "runId": "5f1hbcxtws",
+    "jobId": "l11cnnp2hl",
+    "attemptId": "0h9nf3dbv2",
+    "revision": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+    "status": "finished",
+    "conclusion": "success",
+    "runner": {
+      "cpus": 4,
+      "memoryGiB": 16,
+      "baseMinuteMultiplier": 2
+    },
+    "wholeJobSeconds": 137.525,
+    "normalizedBaseMinutes": 4.5841666666666665,
+    "rawMetrics": {
+      "type": "attempt",
+      "snapshot_at": "2026-10-16T01:45:33.315Z",
+      "run": {
+        "run_id": "5f1hbcxtws",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "sha": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "head_sha": "c7906236c3c2c744dd79f616952a84fadd24b81c",
+        "trigger": "api",
+        "status": "failed",
+        "created_at": "2026-10-16T01:40:08.830Z",
+        "started_at": "2026-10-16T01:40:09.050Z",
+        "finished_at": "2026-10-16T01:45:19.336Z"
+      },
+      "workflow": {
+        "workflow_id": "8rsd9zjszf",
+        "name": "depot-expanded",
+        "status": "failed",
+        "created_at": "2026-10-16T01:40:20.737Z",
+        "started_at": "2026-10-16T01:40:20.735Z",
+        "finished_at": "2026-10-16T01:45:19.005Z"
+      },
+      "job": {
+        "job_id": "l11cnnp2hl",
+        "job_key": "_inline_0.yaml:browser-prepare",
+        "status": "finished",
+        "conclusion": "success",
+        "current_attempt": 1,
+        "created_at": "2026-10-16T01:40:20.751Z",
+        "started_at": "2026-10-16T01:40:25.551Z",
+        "finished_at": "2026-10-16T01:42:43.076Z"
+      },
+      "attempt": {
+        "attempt": {
+          "attempt_id": "0h9nf3dbv2",
+          "attempt": 1,
+          "status": "finished",
+          "conclusion": "success",
+          "sandbox_id": "k6f8crfw3nt2vrmp9314",
+          "session_id": "475bd37d-5f5a-44de-b719-1ae5e37d091d",
+          "created_at": "2026-10-16T01:40:22.148Z",
+          "started_at": "2026-10-16T01:40:25.551Z",
+          "finished_at": "2026-10-16T01:42:43.076Z"
+        },
+        "availability": {
+          "code": "available",
+          "reason": "available"
+        },
+        "stats": {
+          "sample_count": 25,
+          "cpu_sample_count": 24,
+          "memory_sample_count": 25,
+          "peak_cpu_utilization": 0.45582329317269077,
+          "average_cpu_utilization": 0.06829024425497085,
+          "peak_memory_utilization": 0.07541243080179838,
+          "average_memory_utilization": 0.041206073574794104,
+          "observed_started_at": "2026-10-16T01:40:46Z",
+          "observed_finished_at": "2026-10-16T01:42:41Z"
+        },
+        "cap": {
+          "raw_sample_count": 25,
+          "returned_sample_count": 25,
+          "max_returned_sample_count": 5000,
+          "downsampled": false,
+          "downsample_strategy": ""
+        },
+        "samples": [
+          {
+            "timestamp": "2026-10-16T01:40:46Z",
+            "memory_utilization": 0.026379899652538247
+          },
+          {
+            "timestamp": "2026-10-16T01:40:47Z",
+            "cpu_utilization": 0.06766917293233082,
+            "memory_utilization": 0.03198801142224976
+          },
+          {
+            "timestamp": "2026-10-16T01:40:51Z",
+            "cpu_utilization": 0.0012547051442910915,
+            "memory_utilization": 0.03243082132693578
+          },
+          {
+            "timestamp": "2026-10-16T01:40:56Z",
+            "cpu_utilization": 0.04297851074462768,
+            "memory_utilization": 0.03638559710743096
+          },
+          {
+            "timestamp": "2026-10-16T01:41:01Z",
+            "cpu_utilization": 0.0619071392910634,
+            "memory_utilization": 0.030837047419716903
+          },
+          {
+            "timestamp": "2026-10-16T01:41:06Z",
+            "cpu_utilization": 0.015015015015015015,
+            "memory_utilization": 0.03260706650399383
+          },
+          {
+            "timestamp": "2026-10-16T01:41:11Z",
+            "cpu_utilization": 0.01951951951951952,
+            "memory_utilization": 0.033239791571770115
+          },
+          {
+            "timestamp": "2026-10-16T01:41:16Z",
+            "cpu_utilization": 0.02594810379241517,
+            "memory_utilization": 0.0277840025035603
+          },
+          {
+            "timestamp": "2026-10-16T01:41:21Z",
+            "cpu_utilization": 0.0560280140070035,
+            "memory_utilization": 0.03801671936934496
+          },
+          {
+            "timestamp": "2026-10-16T01:41:26Z",
+            "cpu_utilization": 0.0010005002501250625,
+            "memory_utilization": 0.03841973985040153
+          },
+          {
+            "timestamp": "2026-10-16T01:41:31Z",
+            "cpu_utilization": 0.004495504495504496,
+            "memory_utilization": 0.037254861754943046
+          },
+          {
+            "timestamp": "2026-10-16T01:41:36Z",
+            "cpu_utilization": 0.0005002501250625312,
+            "memory_utilization": 0.037294162964785625
+          },
+          {
+            "timestamp": "2026-10-16T01:41:41Z",
+            "cpu_utilization": 0.004502251125562781,
+            "memory_utilization": 0.04172738825640793
+          },
+          {
+            "timestamp": "2026-10-16T01:41:46Z",
+            "cpu_utilization": 0.0014992503748125937,
+            "memory_utilization": 0.04207572879333569
+          },
+          {
+            "timestamp": "2026-10-16T01:41:51Z",
+            "cpu_utilization": 0.0245,
+            "memory_utilization": 0.04060864636380813
+          },
+          {
+            "timestamp": "2026-10-16T01:41:56Z",
+            "cpu_utilization": 0.14449427005480817,
+            "memory_utilization": 0.04694102328633299
+          },
+          {
+            "timestamp": "2026-10-16T01:42:01Z",
+            "cpu_utilization": 0.45582329317269077,
+            "memory_utilization": 0.0475883947677152
+          },
+          {
+            "timestamp": "2026-10-16T01:42:06Z",
+            "cpu_utilization": 0.30087583719732097,
+            "memory_utilization": 0.047865211984867324
+          },
+          {
+            "timestamp": "2026-10-16T01:42:11Z",
+            "cpu_utilization": 0.13588324106693508,
+            "memory_utilization": 0.050581145281194055
+          },
+          {
+            "timestamp": "2026-10-16T01:42:16Z",
+            "cpu_utilization": 0.09521384928716904,
+            "memory_utilization": 0.035645220899651074
+          },
+          {
+            "timestamp": "2026-10-16T01:42:21Z",
+            "cpu_utilization": 0.002001000500250125,
+            "memory_utilization": 0.06461607111907876
+          },
+          {
+            "timestamp": "2026-10-16T01:42:26Z",
+            "cpu_utilization": 0.0020050125313283208,
+            "memory_utilization": 0.03897801231568099
+          },
+          {
+            "timestamp": "2026-10-16T01:42:31Z",
+            "cpu_utilization": 0.0789873417721519,
+            "memory_utilization": 0.043368518900952654
+          },
+          {
+            "timestamp": "2026-10-16T01:42:36Z",
+            "cpu_utilization": 0.07146426786606697,
+            "memory_utilization": 0.07541243080179838
+          },
+          {
+            "timestamp": "2026-10-16T01:42:41Z",
+            "cpu_utilization": 0.02539981185324553,
+            "memory_utilization": 0.052106325151358476
+          }
+        ]
+      }
+    },
+    "image": "monochromatic-trial-browser:20261016-v1",
+    "baseImage": "monochromatic-trial-typescript:20261015-v1",
+    "containerDigest": "sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f",
+    "accounting": "Separate image preparation baseline; allocate once per chosen rebuild event, not once per consumer job. Preparation reused the earlier Node/dependency image, whose initial cost is not included here."
+  },
+  "setupAttempts": [
+    {
+      "runId": "t3jdjq2nd3",
+      "jobId": "vzxqbrl3hw",
+      "attemptId": "3fltxptw1z",
+      "revision": "229182267dd5d2ff29eac6908e260b08040a617e",
+      "status": "failed",
+      "conclusion": "failure",
+      "runner": {
+        "cpus": 4,
+        "memoryGiB": 16,
+        "baseMinuteMultiplier": 2
+      },
+      "wholeJobSeconds": 83.833,
+      "normalizedBaseMinutes": 2.794433333333333,
+      "rawMetrics": {
+        "type": "attempt",
+        "snapshot_at": "2026-10-16T01:48:54.870Z",
+        "run": {
+          "run_id": "t3jdjq2nd3",
+          "repo": "Aquaticats/Monochromatic",
+          "ref": "229182267dd5d2ff29eac6908e260b08040a617e",
+          "sha": "229182267dd5d2ff29eac6908e260b08040a617e",
+          "head_sha": "229182267dd5d2ff29eac6908e260b08040a617e",
+          "trigger": "api",
+          "status": "failed",
+          "created_at": "2026-10-16T01:36:39.348Z",
+          "started_at": "2026-10-16T01:36:39.607Z",
+          "finished_at": "2026-10-16T01:38:21.352Z"
+        },
+        "workflow": {
+          "workflow_id": "wbm4xs165g",
+          "name": "depot-expanded",
+          "status": "failed",
+          "created_at": "2026-10-16T01:36:51.996Z",
+          "started_at": "2026-10-16T01:36:51.994Z",
+          "finished_at": "2026-10-16T01:38:21.040Z"
+        },
+        "job": {
+          "job_id": "vzxqbrl3hw",
+          "job_key": "_inline_0.yaml:browser-prepare",
+          "status": "failed",
+          "conclusion": "failure",
+          "current_attempt": 1,
+          "created_at": "2026-10-16T01:36:52.017Z",
+          "started_at": "2026-10-16T01:36:56.580Z",
+          "finished_at": "2026-10-16T01:38:20.413Z"
+        },
+        "attempt": {
+          "attempt": {
+            "attempt_id": "3fltxptw1z",
+            "attempt": 1,
+            "status": "failed",
+            "conclusion": "failure",
+            "sandbox_id": "13hvbkhtb2nwhpkwhbw7",
+            "session_id": "7ef762d5-38bb-4a81-b156-214cb1459cfa",
+            "created_at": "2026-10-16T01:36:53.369Z",
+            "started_at": "2026-10-16T01:36:56.580Z",
+            "finished_at": "2026-10-16T01:38:20.413Z"
+          },
+          "availability": {
+            "code": "available",
+            "reason": "available"
+          },
+          "stats": {
+            "sample_count": 15,
+            "cpu_sample_count": 14,
+            "memory_sample_count": 15,
+            "peak_cpu_utilization": 0.06043956043956044,
+            "average_cpu_utilization": 0.02184911959279876,
+            "peak_memory_utilization": 0.04427122619286495,
+            "average_memory_utilization": 0.03710930895128586,
+            "observed_started_at": "2026-10-16T01:37:14Z",
+            "observed_finished_at": "2026-10-16T01:38:19Z"
+          },
+          "cap": {
+            "raw_sample_count": 15,
+            "returned_sample_count": 15,
+            "max_returned_sample_count": 5000,
+            "downsampled": false,
+            "downsample_strategy": ""
+          },
+          "samples": [
+            {
+              "timestamp": "2026-10-16T01:37:14Z",
+              "memory_utilization": 0.026599351749733803
+            },
+            {
+              "timestamp": "2026-10-16T01:37:15Z",
+              "cpu_utilization": 0.05063291139240506,
+              "memory_utilization": 0.032342942845300184
+            },
+            {
+              "timestamp": "2026-10-16T01:37:19Z",
+              "cpu_utilization": 0.0018773466833541927,
+              "memory_utilization": 0.0324764693160076
+            },
+            {
+              "timestamp": "2026-10-16T01:37:24Z",
+              "cpu_utilization": 0.04397801099450275,
+              "memory_utilization": 0.03727609905467164
+            },
+            {
+              "timestamp": "2026-10-16T01:37:29Z",
+              "cpu_utilization": 0.06043956043956044,
+              "memory_utilization": 0.0343182558269536
+            },
+            {
+              "timestamp": "2026-10-16T01:37:34Z",
+              "cpu_utilization": 0.0175,
+              "memory_utilization": 0.03479914640701505
+            },
+            {
+              "timestamp": "2026-10-16T01:37:39Z",
+              "cpu_utilization": 0.01901901901901902,
+              "memory_utilization": 0.03719066164197037
+            },
+            {
+              "timestamp": "2026-10-16T01:37:44Z",
+              "cpu_utilization": 0.029955067398901646,
+              "memory_utilization": 0.0334655904481949
+            },
+            {
+              "timestamp": "2026-10-16T01:37:49Z",
+              "cpu_utilization": 0.0455,
+              "memory_utilization": 0.03900925799804031
+            },
+            {
+              "timestamp": "2026-10-16T01:37:54Z",
+              "cpu_utilization": 0.0015,
+              "memory_utilization": 0.03958388562517973
+            },
+            {
+              "timestamp": "2026-10-16T01:37:59Z",
+              "cpu_utilization": 0.0029985007496251873,
+              "memory_utilization": 0.03882544550728586
+            },
+            {
+              "timestamp": "2026-10-16T01:38:04Z",
+              "cpu_utilization": 0.0025012506253126563,
+              "memory_utilization": 0.04070750965564817
+            },
+            {
+              "timestamp": "2026-10-16T01:38:09Z",
+              "cpu_utilization": 0.002,
+              "memory_utilization": 0.04427122619286495
+            },
+            {
+              "timestamp": "2026-10-16T01:38:14Z",
+              "cpu_utilization": 0.0024987506246876563,
+              "memory_utilization": 0.04382768396749863
+            },
+            {
+              "timestamp": "2026-10-16T01:38:19Z",
+              "cpu_utilization": 0.025487256371814093,
+              "memory_utilization": 0.04194610803292319
+            }
+          ]
+        }
+      }
+    },
+    {
+      "runId": "p9sfmw70wq",
+      "jobId": "03c9848gzp",
+      "attemptId": "9pcq0dc2b1",
+      "revision": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+      "status": "cancelled",
+      "conclusion": "cancelled",
+      "runner": {
+        "cpus": 4,
+        "memoryGiB": 16,
+        "baseMinuteMultiplier": 2
+      },
+      "wholeJobSeconds": 21.465,
+      "normalizedBaseMinutes": 0.7155,
+      "rawMetrics": {
+        "type": "attempt",
+        "snapshot_at": "2026-10-16T01:48:55.473Z",
+        "run": {
+          "run_id": "p9sfmw70wq",
+          "repo": "Aquaticats/Monochromatic",
+          "ref": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+          "sha": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+          "head_sha": "a21e6369936689a962de528dce0a0f8b9e22f4fe",
+          "trigger": "api",
+          "status": "cancelled",
+          "created_at": "2026-10-16T01:35:32.622Z",
+          "started_at": "2026-10-16T01:35:32.934Z",
+          "finished_at": "2026-10-16T01:38:21.451Z"
+        },
+        "workflow": {
+          "workflow_id": "1t7fpd7b9s",
+          "name": "depot-expanded",
+          "status": "cancelled",
+          "created_at": "2026-10-16T01:35:40.207Z",
+          "started_at": "2026-10-16T01:35:40.205Z",
+          "finished_at": "2026-10-16T01:38:21.198Z"
+        },
+        "job": {
+          "job_id": "03c9848gzp",
+          "job_key": "_inline_0.yaml:browser-prepare",
+          "status": "cancelled",
+          "conclusion": "cancelled",
+          "current_attempt": 1,
+          "created_at": "2026-10-16T01:35:40.226Z",
+          "started_at": "2026-10-16T01:35:44.706Z",
+          "finished_at": "2026-10-16T01:36:06.171Z"
+        },
+        "attempt": {
+          "attempt": {
+            "attempt_id": "9pcq0dc2b1",
+            "attempt": 1,
+            "status": "cancelled",
+            "conclusion": "cancelled",
+            "sandbox_id": "5d600nc29qv0l6gjfvds",
+            "session_id": "9163aa2e-6f4d-44c8-b505-f0356aa58540",
+            "created_at": "2026-10-16T01:35:41.812Z",
+            "started_at": "2026-10-16T01:35:44.706Z",
+            "finished_at": "2026-10-16T01:36:06.171Z"
+          },
+          "availability": {
+            "code": "available",
+            "reason": "available"
+          },
+          "stats": {
+            "sample_count": 1,
+            "cpu_sample_count": 0,
+            "memory_sample_count": 1,
+            "peak_memory_utilization": 0.02656932660184164,
+            "average_memory_utilization": 0.02656932660184164,
+            "observed_started_at": "2026-10-16T01:36:05Z",
+            "observed_finished_at": "2026-10-16T01:36:05Z"
+          },
+          "cap": {
+            "raw_sample_count": 1,
+            "returned_sample_count": 1,
+            "max_returned_sample_count": 5000,
+            "downsampled": false,
+            "downsample_strategy": ""
+          },
+          "samples": [
+            {
+              "timestamp": "2026-10-16T01:36:05Z",
+              "memory_utilization": 0.02656932660184164
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One observed run per final job; these are observations, not run-to-run performance estimates.",
+    "No three-engine green logger/filesystem baseline because the actual WebKit assertion failed.",
+    "DOM uses configured Chromium and Firefox projects; WebKit is not configured in the existing e2e task.",
+    "Other native application packages and browser packages remain unmeasured.",
+    "No production workflow, provider-plan adoption, or automatic routing was implemented."
+  ]
+}

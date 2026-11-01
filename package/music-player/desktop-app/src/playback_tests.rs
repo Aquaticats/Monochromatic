@@ -30,12 +30,12 @@ fn unique_temp_dir() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `let dir = std::env::temp_dir().join(format!("music-player-expand-{}-{}", std::process::id(), nanos));`.
+    // What:     `let dir = crate::test_scratch::scratch_root().join(format!("music-player-expand-{}-{}", std::process::id(), nanos));`.
     //           Build the path: system temp dir + a name carrying the process
     //           id and the nanosecond stamp. `std::process::id()` is this
     //           process's pid (a `u32`).
     // Why:      Unique per process and per call.
-    let dir = std::env::temp_dir().join(format!(
+    let dir = crate::test_scratch::scratch_root().join(format!(
         "music-player-expand-{}-{}",
         std::process::id(),
         nanos

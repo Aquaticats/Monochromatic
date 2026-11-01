@@ -9,13 +9,14 @@ import {
   type Socket,
 } from 'node:net';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   acceptAuthenticatedSocket,
   type AuthenticatedSocket,
   MAX_PROTOCOL_BYTES,
 } from './answer-channel-auth.ts';
+import { HELPER_READY, } from './helper-connection.ts';
 import {
   type HelperCompletion,
   HelperProtocolError,
@@ -94,7 +95,25 @@ export async function createAnswerChannel(): Promise<AnswerChannel> {
   /**
    Mutable accepted-socket slot used by disposal path.
    */
-  const handles: { socket?: Socket; } = {};
+  const sockets = new Set<Socket>();
+  server.on(
+    'connection',
+    function retainConnection(socket: Socket,): void {
+      sockets.add(socket,);
+      socket.on(
+        'error',
+        function logSocketError(error: Error,): void {
+          l.debug(`answer connection failed: ${String(error,)}`,);
+        },
+      );
+      socket.once(
+        'close',
+        function releaseConnection(): void {
+          sockets.delete(socket,);
+        },
+      );
+    },
+  );
   server.listen({
     host: LOOPBACK_HOST,
     port: 0,
@@ -104,7 +123,8 @@ export async function createAnswerChannel(): Promise<AnswerChannel> {
     server,
     'listening',
   );
-  server.unref();
+  // Keep startup referenced until helper connects or caller cancels.
+  // Detached terminal launch must not let an otherwise idle requester exit.
   /**
    Bound endpoint assigned by operating system.
    */
@@ -131,7 +151,14 @@ export async function createAnswerChannel(): Promise<AnswerChannel> {
         token,
         ...(signal === undefined ? {} : { signal, }),
       },);
-      handles.socket = authenticated.socket;
+      if (signal !== undefined)
+        signal.throwIfAborted();
+      authenticated.socket
+        .write(HELPER_READY,);
+      for (const socket of sockets) {
+        if (socket !== authenticated.socket)
+          socket.destroy();
+      }
       server.close();
       return readCompletion({
         authenticated,
@@ -139,12 +166,8 @@ export async function createAnswerChannel(): Promise<AnswerChannel> {
       },);
     },
     async [Symbol.asyncDispose](): Promise<void> {
-      /**
-       Accepted helper socket,
-       when authentication completed.
-       */
-      const {socket} = handles;
-      if (socket !== undefined)
+      // Includes unauthenticated and queued candidates, not just the accepted helper.
+      for (const socket of sockets)
         socket.destroy();
       await closeListeningServer({ server, },);
       l.debug('closed answer channel',);

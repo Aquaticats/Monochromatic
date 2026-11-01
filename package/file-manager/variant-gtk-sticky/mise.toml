@@ -1,0 +1,48 @@
+# Cargo work runs on the host, like the sibling desktop apps: builds against the system GTK 4.22
+# located by pkg-config. The nested-Wayland boundary test additionally needs the
+# package/nested-wayland-session/cli release binary and a parent Wayland session.
+
+[tasks.build]
+description = "Release build"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Debug build"
+run = "cargo build"
+
+[tasks.lint]
+description = "cargo check (type-check)"
+run = "cargo check"
+
+[tasks."lint:clippy"]
+description = "Run clippy with warnings denied"
+run = "cargo clippy --release --all-targets -- --deny warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged --all-targets"
+
+[tasks.test]
+description = "Unit tests (pure band math); the Wayland boundary test is the separate test:wayland task"
+run = "cargo nextest run --release"
+
+[tasks."test:wayland"]
+description = "Drive the app inside this repo's nested Wayland compositor and assert sticky-layout state"
+run = [
+  "cargo build --release",
+  "mise run //package/nested-wayland-session/cli:build",
+  "cargo nextest run --release --test wayland_boundary --run-ignored ignored-only",
+]
+
+# Debug build, then run the GUI on native Wayland, matching the original's run task.
+[tasks.run]
+description = "Debug build, then run the GUI on native Wayland (GDK_BACKEND=wayland)"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+execFileSync('cargo', ['build'], { stdio: 'inherit' })
+execFileSync('./target/debug/monochromatic-file-manager-gtk-sticky', [], {
+  stdio: 'inherit',
+  env: { ...process.env, GDK_BACKEND: 'wayland' },
+})
+"""

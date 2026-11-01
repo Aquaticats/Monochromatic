@@ -1,0 +1,1 @@
+{ "policies": { "security/forbidden-strings": ["error", { "executable": "./scanner" }], "markdown/autofix": ["warn", { "command": ["node"] }] } }

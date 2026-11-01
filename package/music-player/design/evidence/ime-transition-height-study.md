@@ -594,7 +594,8 @@ every unrecorded frame,
 or any real Gboard transition.
 The 416dp reservation remains a measured synthetic envelope,
 not a maximum keyboard height.
-The comparison removes an unnecessary **100%** clearance cost in these states but retains an upper-left space cost at **200%**.
+The comparison removes an unnecessary **100%** clearance cost in these states
+but retains an upper-left space cost at **200%**.
 No inline or reserved variant is selected.
 The user requested an end to further IME experiments;
 the design tradeoff is recorded for a later decision without widening D53 or D54.

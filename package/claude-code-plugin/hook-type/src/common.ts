@@ -13,10 +13,10 @@
  */
 type PermissionMode =
   | 'default'
-  | 'plan'
-  | 'acceptEdits'
-  | 'dontAsk'
-  | 'bypassPermissions';
+    | 'plan'
+    | 'acceptEdits'
+    | 'dontAsk'
+    | 'bypassPermissions';
 
 //endregion
 
@@ -125,23 +125,23 @@ type HookOutputBase = {
  */
 type HookEventName =
   | 'SessionStart'
-  | 'InstructionsLoaded'
-  | 'UserPromptSubmit'
-  | 'PreToolUse'
-  | 'PermissionRequest'
-  | 'PostToolUse'
-  | 'PostToolUseFailure'
-  | 'Notification'
-  | 'SubagentStart'
-  | 'SubagentStop'
-  | 'Stop'
-  | 'TeammateIdle'
-  | 'TaskCompleted'
-  | 'ConfigChange'
-  | 'WorktreeCreate'
-  | 'WorktreeRemove'
-  | 'PreCompact'
-  | 'SessionEnd';
+    | 'InstructionsLoaded'
+    | 'UserPromptSubmit'
+    | 'PreToolUse'
+    | 'PermissionRequest'
+    | 'PostToolUse'
+    | 'PostToolUseFailure'
+    | 'Notification'
+    | 'SubagentStart'
+    | 'SubagentStop'
+    | 'Stop'
+    | 'TeammateIdle'
+    | 'TaskCompleted'
+    | 'ConfigChange'
+    | 'WorktreeCreate'
+    | 'WorktreeRemove'
+    | 'PreCompact'
+    | 'SessionEnd';
 
 //endregion
 

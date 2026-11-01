@@ -1,0 +1,116 @@
+name: cache-prune
+
+# Deletes superseded entries of the cargo cache families, as doc/decision/ci-caching.md describes.
+#
+# A key ends with the hash of a lock file, so every lock change stores a new entry while the older ones stay until the
+# 7-day idle eviction or the 10 GB repository cap removes them, and the cap evicts the least recently used entry of any
+# workflow, including the large music player ones. Restoring goes through the key prefix before the hash and returns the
+# newest entry, so for each family on each ref only the newest entry can ever be restored; the rest is deleted here.
+#
+# - Families are listed by prefix in FAMILIES below. A cache family of another workflow is never touched.
+# - workflow_dispatch runs as a dry run unless dry-run is switched off; the schedule deletes.
+# - Scheduled runs use the default branch copy of this file, so the schedule starts once this file is on main.
+
+on:
+  schedule:
+  - cron: '41 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'List the entries that would be deleted without deleting them'
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Delete superseded cache entries
+      # Runner-provided Node runs this inline; the launcher stays CommonJS because Actions writes an extensionless file.
+      shell: node {0}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run && 'true' || 'false' }}
+      run: |
+        // Each pattern captures the part of a key that identifies a family: the workflow, the crate, and the
+        // operating system, without the toolchain id and the lock hash, so an entry of an older toolchain is
+        // superseded by a newer one as well.
+        const FAMILIES = [
+          /^(cargo-v2-publish-(?:fs|nws|ml|gpc)-[A-Za-z0-9]+)-/u,
+          /^(cargo-v2-cli-git-release-[A-Za-z0-9]+)-/u,
+          // The music player workflows: the key is the family, then the toolchain date, then a hash.
+          /^(music-player-desktop-v1-.+?)-nightly-/u,
+          /^(music-player-android-native-v1-.+?)-nightly-/u,
+          /^(mp-win-v1-.+?)-nightly-/u,
+          // The Alpine guard: the runner architecture is the family; the toolchain (Alpine rustc) then the hashes follow.
+          /^(music-player-alpine-[A-Za-z0-9]+)-rustc_/u,
+          // The Gradle key has no toolchain date: the family is the runner, then a 64-digit hash.
+          /^(music-player-gradle-v1-[A-Za-z0-9]+-[A-Za-z0-9]+)-[0-9a-f]{64}$/u,
+          // The MSYS2 package cache of the Windows GNU jobs: operating system, architecture and MSYS2 environment are
+          // the family; the month is the superseded tail.
+          /^(msys2-pkg-v1-[A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+)-[0-9]{4}-[0-9]{2}$/u,
+        ]
+        const api = `https://api.github.com/repos/${process.env.REPO}/actions/caches`
+        const headers = {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${process.env.GH_TOKEN}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        }
+        const dryRun = process.env.DRY_RUN === 'true'
+
+        async function listAll() {
+          const all = []
+          for (let page = 1; ; page += 1) {
+            const response = await fetch(`${api}?per_page=100&page=${page}`, { headers })
+            if (!response.ok)
+              throw new Error(`List failed: ${response.status} ${await response.text()}`)
+            const body = await response.json()
+            all.push(...body.actions_caches)
+            console.log(`Listed page ${page}: ${body.actions_caches.length} entries of ${body.total_count}`)
+            if (all.length >= body.total_count || body.actions_caches.length === 0)
+              return all
+          }
+        }
+
+        async function main() {
+          const groups = new Map()
+          for (const entry of await listAll()) {
+            const family = FAMILIES.map(pattern => pattern.exec(entry.key)).find(match => match !== null)
+            if (family === undefined)
+              continue
+            const id = `${family[1]} on ${entry.ref}`
+            groups.set(id, [...(groups.get(id) ?? []), entry])
+          }
+
+          let deleted = 0
+          let freed = 0
+          for (const [id, entries] of groups) {
+            const newestFirst = [...entries].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+            console.log(`${id}: keeping ${newestFirst[0].key}`)
+            for (const stale of newestFirst.slice(1)) {
+              console.log(`${dryRun ? 'Would delete' : 'Deleting'} ${stale.key} (${stale.size_in_bytes} bytes)`)
+              if (!dryRun) {
+                const response = await fetch(`${api}/${stale.id}`, { method: 'DELETE', headers })
+                if (!response.ok)
+                  throw new Error(`Delete failed for ${stale.key}: ${response.status} ${await response.text()}`)
+              }
+              deleted += 1
+              freed += stale.size_in_bytes
+            }
+          }
+          console.log(`${dryRun ? 'Would delete' : 'Deleted'} ${deleted} entries, ${freed} bytes, across ${groups.size} families`)
+        }
+
+        main().catch(error => {
+          console.error(error)
+          process.exitCode = 1
+        })

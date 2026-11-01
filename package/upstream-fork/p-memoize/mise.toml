@@ -1,0 +1,49 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:browser"]
+extends = "build:js:browser"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:browser"]
+extends = "watch:build:js:browser"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the neutral bundle, then run every *.unit.test.ts against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."test:mutation"]
+description = "Run container-isolated oxc mutation tests over this package"
+usage = 'arg "[args]" var=#true help="Optional mutation-test flags and package-relative source files"'
+# mutation-test resolves both --package and its own runtime files against its
+# cwd, so the task runs from the monorepo root.
+dir = "../../.."
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+const args = (process.env.usage_args ?? '').trim().split(' ').filter(Boolean)
+runWorkspaceNode('package/mutation-test/cli', 'cli', ['--package', 'package/upstream-fork/p-memoize', '--report', 'package/upstream-fork/p-memoize/dist/mutation-report.json', ...args])
+"""

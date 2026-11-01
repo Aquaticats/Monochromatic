@@ -112,6 +112,19 @@ class FakeAudioEngine : AudioEngine {
     // ```
     var playWhenReadyValue: Boolean = false
 
+    /** Handler that the controller registered for a load that could not start; null until it registers one. */
+    private var onLoadFailed: ((uri: String, reason: LoadFailure) -> Unit)? = null
+
+    /** Remembers the controller's load-failure handler, so [failLoad] can call it the way the real engine does. */
+    override fun setOnLoadFailed(callback: (uri: String, reason: LoadFailure) -> Unit) {
+        onLoadFailed = callback
+    }
+
+    /** Reports that [uri] could not be opened, as the real engine does after a tapped track fails to open. */
+    fun failLoad(uri: String, reason: LoadFailure) {
+        onLoadFailed?.invoke(uri, reason)
+    }
+
     // What:     `override fun load(uri: String, play: Boolean) { ... }` provides the interface's
     //           `load`. `override` is REQUIRED in Kotlin when implementing/overriding a member.
     // Why:      Record the cued URI and the play intent for assertions.

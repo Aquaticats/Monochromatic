@@ -6,7 +6,7 @@ import type {
   Token,
 } from '@oxlint/plugins';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { baseIndentAt, } from './indent.ts';
 import {
@@ -73,7 +73,7 @@ function findOpenParen({
       .getTokenAfter(
       importKeyword,
       { filter: isOpenParenToken, },
-    ),);
+      ),);
   }
   /**
    Anchor past type arguments when present, else past the callee.
@@ -83,7 +83,7 @@ function findOpenParen({
     .getTokenAfter(
     anchor,
     { filter: isOpenParenToken, },
-  ),);
+    ),);
 }
 
 /**
@@ -179,7 +179,7 @@ function commaInsertionOffset({
     .getTokensBetween(
     operand,
     closeToken,
-  );
+    );
   return groupingEnd({
     tokens: between,
     initialEnd: operand.end,
@@ -260,8 +260,8 @@ export function buildSplitFix({
    */
   const headText = sourceText
     .slice(
-      openParen.end,
-      commaOffset,
+    openParen.end,
+    commaOffset,
     )
     .trim();
   /**
@@ -277,7 +277,7 @@ export function buildSplitFix({
    Rendered trailing comment text, or empty when none follow the operand.
    */
   const commentSuffix = (trailingComments.length
-      === 0)
+    === 0)
     ? ''
     : ` ${
       trailingComments

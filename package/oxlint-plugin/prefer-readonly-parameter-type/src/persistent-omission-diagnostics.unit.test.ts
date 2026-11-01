@@ -1,9 +1,11 @@
 import {
   mkdtempSync,
+  readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   fileURLToPath,
 } from 'node:url';
@@ -13,7 +15,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import spawn from 'nano-spawn';
 
 /** Built plugin entry exercised at Oxlint consumer seam. */
@@ -31,10 +33,10 @@ type DisposableProject = {
 /** Worker selection for one Oxlint process. */
 type WorkerSelection =
   | { readonly kind: 'default'; }
-  | {
-    readonly kind: 'fixed';
-    readonly count: number;
-  };
+    | {
+      readonly kind: 'fixed';
+      readonly count: number;
+    };
 
 /** Captured Oxlint output whether diagnostics make process exit nonzero. */
 type OxlintCapture = {
@@ -51,7 +53,7 @@ function disposableProject(): DisposableProject {
   /**
    Temporary project root outside repository lockfile ancestry.
    */
-  const path = mkdtempSync(join(tmpdir(), 'readonly-omission-diagnostics-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-omission-diagnostics-',),);
   return {
     path,
     [Symbol.dispose](): void {
@@ -129,6 +131,66 @@ function diagnosticRecords(capture: OxlintCapture,): readonly unknown[] {
   return parsed.diagnostics ?? [];
 }
 
+/**
+ Seeds every persisted envelope under one project's effect cache root with a recorded omission.
+
+ The compiler summarizes the fixture completely, so the record a failing scan persists is seeded
+ instead: the warm and worker runs must restore it and report it identically.
+
+ @param projectPath - Standalone project root whose cache the runs share.
+
+ @returns number of envelopes seeded.
+ */
+function seedOmissionRecords(projectPath: string,): number {
+  /**
+   Default persistent cache root of a project with no lockfile ancestor.
+   */
+  const cacheRoot = join(
+    projectPath,
+    'node_modules',
+    '.cache',
+    'prefer-readonly-parameter-type',
+  );
+  /**
+   Relative envelope paths discovered under the cache root.
+   */
+  const entries = readdirSync(cacheRoot, {
+    recursive: true,
+    encoding: 'utf8',
+  },)
+    .filter(function jsonEntry(entry,): boolean {
+      return entry.endsWith('.json',);
+    },);
+  /**
+   Envelope count carrying source identity the seeded record can name.
+   */
+  let seeded = 0;
+  for (const entry of entries) {
+    /**
+     Exact envelope path rewritten in place.
+     */
+    const entryPath = join(cacheRoot, entry,);
+    /**
+     Parsed envelope narrowed to the fields the seed extends.
+     */
+    const envelope = JSON.parse(readFileSync(entryPath, 'utf8',),) as {
+      readonly fileName?: unknown;
+    };
+    if ((typeof envelope.fileName) !== 'string')
+      continue;
+    writeFileSync(
+      entryPath,
+      JSON.stringify({
+        ...envelope,
+        omittedCallableKeys: [`${envelope.fileName}:seeded-omitted-callable`,],
+        omissionReasons: ['direct-summary-construction-failed',],
+      },),
+    );
+    seeded += 1;
+  }
+  return seeded;
+}
+
 await describe({
   name: 'persistent omission diagnostic parity',
   concurrency: 1,
@@ -178,6 +240,12 @@ export function inspect(state: { nested: { value: string; }; },): number {
           projectPath: project.path,
           workers: { kind: 'fixed', count: 1, },
         },);
+        /* The compiler summarizes this fixture completely, so the cold run persists no
+         * omission. The record a failing scan leaves behind is seeded into its entry, and
+         * every later run must restore it, report it, and answer with the same
+         * diagnostics. */
+        if (seedOmissionRecords(project.path,) === 0)
+          throw new Error('Expected persistent summary cache entry to seed.',);
         const warm = await runOxlint({
           projectPath: project.path,
           workers: { kind: 'fixed', count: 1, },
@@ -193,12 +261,11 @@ export function inspect(state: { nested: { value: string; }; },): number {
         expect(coldDiagnostics.length,).toBeGreaterThan(0,);
         expect(diagnosticRecords(warm,),).toEqual(coldDiagnostics,);
         expect(diagnosticRecords(defaultWorkers,),).toEqual(coldDiagnostics,);
-        expect(cold.stderr,).toContain('typescript-tuple-serialization-failed');
         expect(warm.stderr,).toContain(
-          'from effect cache: typescript-tuple-serialization-failed',
+          'from effect cache: direct-summary-construction-failed',
         );
         expect(defaultWorkers.stderr,).toContain(
-          'from effect cache: typescript-tuple-serialization-failed',
+          'from effect cache: direct-summary-construction-failed',
         );
       },
     },),

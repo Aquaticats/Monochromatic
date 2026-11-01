@@ -1,7 +1,7 @@
 /**
  Scenario actors:
  worktree writes,
- commit attempts through the packed wrapper,
+ commit attempts through the wrapper,
  and auxiliary wrapper commands.
 
  @module

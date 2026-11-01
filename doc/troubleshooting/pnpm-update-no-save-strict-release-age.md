@@ -64,7 +64,8 @@ That explains "it always succeeded before":
  earlier runs happened when no non-excluded immature pick existed.
 
 The error does not say this.
-The package was identified by rerunning in a throwaway worktree with `minimumReleaseAgeStrict: false` and without `--no-save`,
+The package was identified by rerunning in a throwaway worktree
+with `minimumReleaseAgeStrict: false` and without `--no-save`,
  which makes pnpm persist and print the immature picks
  (see "Verification").
 
@@ -185,7 +186,7 @@ pnpm update --recursive --no-save --reporter append-only
 ```
 
 The remaining `ERR_PNPM_PEER_DEP_ISSUES` failure is a separate incident:
- the update moves `package/dev-script/deps-cube` to `@deck.gl/core@9.4.0`,
+ the update moves `package/dependency-catalog/cli-cube` to `@deck.gl/core@9.4.0`,
  which pulls `@luma.gl/gpgpu@9.4.2`,
  whose peer range requires `@luma.gl/webgpu` `~9.4.0`.
 `HEAD`'s lockfile has no `@luma.gl/gpgpu`.
@@ -208,7 +209,7 @@ With both changes,
 Tradeoff:
  if a later gpgpu release starts importing `@luma.gl/webgpu`,
  pnpm no longer flags the missing peer
- and the failure moves to runtime in `package/dev-script/deps-cube`.
+ and the failure moves to runtime in `package/dependency-catalog/cli-cube`.
 
 Patterns,
  for this repository's config
@@ -274,7 +275,7 @@ On 2026-09-22 the lockfile's scope members were exactly `chord` and the five `pi
 
 ### Run `mise run deps:update` instead of the bare command
 
-`package/dev-script/deps-update` (commits `d4d52e34e`,
+`package/deps-update/cli` (commits `d4d52e34e`,
  `02f7448f1`,
  `cfd65c2fa`) runs `pnpm update --recursive --no-save`.
 On this refusal it resolves a temporary copy of the workspace manifests in loose mode,
@@ -328,7 +329,8 @@ Dropping `--no-save` in a non-interactive session:
 In a TTY it prompts,
  and approving appends a pinned `name@version` entry,
  which accumulates per release
- (see `doc/troubleshooting/pnpm-minimum-release-age-exclude-first-match.md` for why accumulated per-version entries misbehave).
+ (see `doc/troubleshooting/pnpm-minimum-release-age-exclude-first-match.md`
+for why accumulated per-version entries misbehave).
 
 `minimumReleaseAgeStrict: false`:
  loose mode with `--no-save` returns early and installs immature picks silently,
@@ -505,14 +507,17 @@ reuse the list built by `failOnImmature`.
 +++ b/pnpm/crates/package-manager/src/minimum_release_age.rs
 @@ -17,15 +17,15 @@
      #[display(
--        "minimumReleaseAgeStrict cannot be combined with --no-save: approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, which --no-save prevents."
-+        "minimumReleaseAgeStrict cannot be combined with --no-save: approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, which --no-save prevents.\n{violations}"
+-        "minimumReleaseAgeStrict cannot be combined with --no-save: approval would require writing
+  to minimumReleaseAgeExclude in pnpm-workspace.yaml, which --no-save prevents."
++        "minimumReleaseAgeStrict cannot be combined with --no-save: approval would require writing
+  to minimumReleaseAgeExclude in pnpm-workspace.yaml, which --no-save prevents.\n{violations}"
      )]
      #[diagnostic(
          code(ERR_PNPM_STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE),
          help(
 -            "Drop --no-save so the exclude list can be persisted, or set minimumReleaseAgeStrict: false."
-+            "Drop --no-save so the exclude list can be persisted, add these picks to minimumReleaseAgeExclude, or set minimumReleaseAgeStrict: false."
++            "Drop --no-save so the exclude list can be persisted, add these picks to minimumReleaseAgeExclude,
+  or set minimumReleaseAgeStrict: false."
          )
      )]
 -    StrictRequiresSave,

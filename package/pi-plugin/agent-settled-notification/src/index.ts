@@ -5,8 +5,8 @@
  */
 
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import nanoSpawn from 'nano-spawn';
 
@@ -99,10 +99,10 @@ type NotificationInvoker = (
  */
 type NotificationDeliveryResult =
   | { readonly delivered: true; }
-  | {
-    readonly delivered: false;
-    readonly error: unknown;
-  };
+    | {
+      readonly delivered: false;
+      readonly error: unknown;
+    };
 
 /**
  Runs a local desktop-notification process without shell interpretation.
@@ -302,8 +302,8 @@ function registerAgentSettledNotification(
        Result of attempting the static desktop notification.
        */
       const delivery = await notifyAgentSettled((invoke === undefined
-          ? {}
-          : { invoke, }),);
+        ? {}
+        : { invoke, }),);
       if (delivery.delivered) {
         innerLogger.debug('sent settled-agent desktop notification',);
         return;

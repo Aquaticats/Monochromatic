@@ -340,6 +340,6 @@ export function convertNode(
     .set(
     shapeUuid,
     shape,
-  );
+    );
   return shapeUuid;
 }

@@ -189,7 +189,7 @@ function collapseCwdPaths(line: string,): string {
   if (hasPathPrefix(ALT_CWD_PREFIX,)) {
     if (ALT_CWD_PREFIX.length
       >= CWD_PREFIX
-      .length) {
+        .length) {
       if (line.startsWith(ALT_CWD_PREFIX,))
         return line.slice(ALT_CWD_PREFIX.length,);
       if (line.startsWith(CWD_PREFIX,))
@@ -229,7 +229,7 @@ function collapseHomePaths(line: string,): string {
   if (hasPathPrefix(REAL_HOME_DIR,)) {
     if (REAL_HOME_DIR.length
       >= HOME_DIR
-      .length) {
+        .length) {
       if (line.startsWith(REAL_HOME_DIR,))
         return `~${line.slice(REAL_HOME_DIR.length,)}`;
       if (line.startsWith(HOME_DIR,))

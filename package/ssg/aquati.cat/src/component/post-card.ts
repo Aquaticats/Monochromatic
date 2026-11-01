@@ -13,7 +13,7 @@ import {
   cssVar,
   hCss as $,
   hHtml as h,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { Post, } from '../lib/content.ts';
 import {
@@ -122,18 +122,18 @@ export function html(post: Post,): string {
   const tagItems = post.data
     .tags
     .map(function renderTag(tag,) {
-    return h({
-      tag: 'li',
-      class: 'tag-link',
-      children: [
-        h({
-          tag: 'a',
-          attrs: { href: `/${post.lang}/tag/${tag}`, },
-          text: tag,
-        },),
-      ],
+      return h({
+        tag: 'li',
+        class: 'tag-link',
+        children: [
+          h({
+            tag: 'a',
+            attrs: { href: `/${post.lang}/tag/${tag}`, },
+            text: tag,
+          },),
+        ],
+      },);
     },);
-  },);
 
   return h({
     tag: 'post-card',

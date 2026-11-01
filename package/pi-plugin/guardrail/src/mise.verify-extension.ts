@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   createEventBus,
@@ -74,7 +74,7 @@ async function verifyBuiltExtension(): Promise<string> {
    Temporary HOME ensuring verification ignores user-global config.
    */
   const home = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-guardrail-home-',
   ),);
   /**
@@ -180,6 +180,9 @@ function fakePiApi(): {
     registerEntryRenderer(customType: string,) {
       registrations.push(`entry-renderer:${customType}`,);
     },
+    registerToolRenderer() {
+      registrations.push('tool-renderer:registered',);
+    },
     sendMessage(message: { readonly customType: string; },) {
       registrations.push(`message:${message.customType}`,);
     },
@@ -221,6 +224,9 @@ function fakePiApi(): {
     getAllTools() {
       return [];
     },
+    getSettings() {
+      return {};
+    },
     setActiveTools(toolNames: readonly string[],) {
       void toolNames;
     },
@@ -249,6 +255,24 @@ function fakePiApi(): {
     },
     unregisterProvider(name: string,) {
       registrations.push(`unprovider:${name}`,);
+    },
+    registerMcpServer(name: string,) {
+      registrations.push(`mcp-server:${name}`,);
+    },
+    unregisterMcpServer(name: string,) {
+      registrations.push(`unmcp-server:${name}`,);
+    },
+    getMcpServers() {
+      return [];
+    },
+    registerVirtualModel() {
+      registrations.push('virtual-model:registered',);
+    },
+    unregisterVirtualModel(
+      provider: string,
+      id: string,
+    ) {
+      registrations.push(`unvirtual-model:${provider}/${id}`,);
     },
     events: createEventBus(),
   };

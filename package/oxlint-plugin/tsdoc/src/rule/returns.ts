@@ -35,7 +35,7 @@ import {
   Adds numbers.
  
   @returns sum of a and b
-  *\/
+ *\/
  function add(a: number, b: number): number { return a + b; }
  ```
  */
@@ -125,7 +125,7 @@ export const requireReturnsCheck: CreateOnceRule = {
           && (result.docComment
             .returnsBlock
             !== undefined))
-        {
+          {
           context.report({
             loc: commentReportLoc(result.comment,),
             messageId: 'voidReturn',

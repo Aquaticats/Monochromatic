@@ -597,8 +597,8 @@ The six filing constraints are:
 4. **Would the repo welcome the contribution?**
    Chromium permits AI-assisted work when the human understands it and personally answers human feedback under its
    [AI coding policy][chromium-ai-policy].
-   Helium's `CONTRIBUTING.md:17-20` directs Linux issues to `helium-linux` and prohibits AI-generated issue or pull-request
-   descriptions:
+   Helium's `CONTRIBUTING.md:17-20` directs Linux issues to `helium-linux`
+   and prohibits AI-generated issue or pull-request descriptions:
 
    ```md
    - For platform-specific issues or features, open the issue or PR in the
@@ -620,8 +620,8 @@ The six filing constraints are:
    The automatic prototype requirement therefore does not apply.
    The configuration workaround solves the user-facing problem without changing upstream source.
 
-The result is **do not file upstream** unless the white surface later reproduces with **Vulkan** at **Default** in a clean
-profile.
+The result is **do not file upstream** unless the white surface later reproduces
+with **Vulkan** at **Default** in a clean profile.
 That default-path reproduction would change constraints 1 and 3 and warrant a new audit.
 There is nothing additive to post on issues 246 or 133.
 
@@ -666,7 +666,8 @@ and stderr repeatedly contains:
 
 ```text
 Could not find or create a backing for stream kSkia
-SharedImageManager::ProduceSkia: Trying to produce a Skia representation from an incompatible backing: CompoundImageBacking
+SharedImageManager::ProduceSkia: Trying to produce a Skia representation from an incompatible backing:
+CompoundImageBacking
 ```
 
 ## Source trace

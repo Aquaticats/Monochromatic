@@ -31,7 +31,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix'])
 """
 
 [tasks."lint:types"]

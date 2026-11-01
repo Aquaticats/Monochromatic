@@ -152,11 +152,11 @@ fixtures.
 
 ### Group A: stateful coordinators (production)
 
-1. `package/dev-script/watch-restart/src/watcher.ts` -- `Watcher`
-1. `package/dev-script/watch-restart/src/child.ts` -- `Child`
-1. `package/dev-script/watch-restart/src/hash-cache.ts` -- `HashCache`
+1. `package/watch-restart/cli/src/watcher.ts` -- `Watcher`
+1. `package/watch-restart/cli/src/child.ts` -- `Child`
+1. `package/watch-restart/cli/src/hash-cache.ts` -- `HashCache`
 1. `package/pi-plugin/morph-compact/src/morph-client.ts` -- `MorphCompactClient`
-1. `package/module/zip-writer/src/index.ts` -- `ZipWriter`
+1. `package/zip-writer/core/src/index.ts` -- `ZipWriter`
 1. `package/figma/kiwi/src/index.ts` -- `BinaryReader` (see "Lint blind spot" below)
 
 ### Completed in editord
@@ -169,19 +169,19 @@ Migrated on 2026-05-20:
 1. `package/desktop-daemon/editord/src/server/operations/watch-filesystem.ts` -- `DirWatcher`
 1. `package/desktop-daemon/editord/src/client/ws/client.ts` -- `EditorWsClient`
 1. `package/desktop-daemon/editord/src/client/context-menu/context-menu.ts` -- `ContextMenu`
-1. `package/webapp-productivity/done/src/client/components/task-detail-autofill.ts` -- `AutofillManager`
-1. `package/webapp-productivity/done-postcss/src/client/components/task-detail-autofill.ts` -- `AutofillController`
+1. `package/done/app/src/client/components/task-detail-autofill.ts` -- `AutofillManager`
+1. `package/done/variant-postcss/src/client/components/task-detail-autofill.ts` -- `AutofillController`
 
 ### Group B: test-fixture Disposables
 
-1. `package/dev-script/watch-restart/src/start.unit.test.ts` -- `FakeChild`
-1. `package/dev-script/watch-restart/src/child.unit.test.ts` -- `FakeChild`
+1. `package/watch-restart/cli/src/start.unit.test.ts` -- `FakeChild`
+1. `package/watch-restart/cli/src/child.unit.test.ts` -- `FakeChild`
 1. `package/webapp-forge/server/src/server/routes/git.cli.unit.test.ts` -- `DisposableServer`
 1. `package/pi-plugin/morph-compact/src/ipc-socket-tcp.unit.test.ts` -- `TcpServerDisposable`
 1. `package/pi-plugin/morph-compact/src/api-key.unit.test.ts` -- `EnvRestore`
 1. `package/pi-plugin/morph-compact/src/ipc-file.unit.test.ts` -- `FileDisposable`
 1. `package/pi-plugin/morph-compact/src/ipc-socket-unix.unit.test.ts` -- `SocketServerDisposable`
-1. `package/module/test/src/sinon.unit.test.ts` -- `Greeter`
+1. `package/test-harness/core/src/sinon.unit.test.ts` -- `Greeter`
 
 ## Lint blind spot
 
@@ -253,7 +253,7 @@ Counts produced by running `mise run //<pkg>:lint:oxlint` against each
 package below,
  sum = 15 remaining caught warnings plus 1 unlinted class (BinaryReader):
 
-- `package/dev-script/watch-restart`:
+- `package/watch-restart/cli`:
    5 (`Watcher`,
    `Child`,
    `HashCache`,
@@ -264,13 +264,13 @@ package below,
    `FileDisposable`,
    `TcpServerDisposable`,
    `SocketServerDisposable`)
-- `package/webapp-productivity/done`:
+- `package/done/app`:
    1 (`AutofillManager`)
-- `package/webapp-productivity/done-postcss`:
+- `package/done/variant-postcss`:
    1 (`AutofillController`)
-- `package/module/zip-writer`:
+- `package/zip-writer/core`:
    1 (`ZipWriter`)
-- `package/module/test`:
+- `package/test-harness/core`:
    1 (`Greeter`)
 - `package/webapp-forge/server`:
    1 (`DisposableServer`)
@@ -278,7 +278,7 @@ package below,
    1 (`BinaryReader`,
    lint-blind)
 
-Existing `*Error` classes in `package/module/toml-edit/src/errors.ts` pass
+Existing `*Error` classes in `package/toml-edit/core/src/errors.ts` pass
 via the suffix allowlist and are not in scope.
  The 32 web-component
 classes across `editord` and `webapp-productivity` pass via `Element`

@@ -1,5 +1,5 @@
 /**
- Executes planned trace operations through the packed wrapper with bounded concurrency.
+ Executes planned trace operations through the wrapper with bounded concurrency.
 
  @module
  */
@@ -123,31 +123,31 @@ async function applyChanges({
 }>,): Promise<void> {
   await operation.changes
     .reduce(
-      async function applyAfter(
-        previous,
-        change,
-      ) {
-    await previous;
+    async function applyAfter(
+      previous,
+      change,
+    ) {
+      await previous;
     /**
      New bytes, or `delete`.
      */
-    const bytes = await changeBytes({
-      context,
-      operation,
-      change,
-    },);
-    await writeWorktree({
-      ...context,
-      path: change.path,
-      ...(bytes === 'delete' ? {} : { bytes, }),
-    },);
-    if (change.from !== undefined)
+      const bytes = await changeBytes({
+        context,
+        operation,
+        change,
+      },);
       await writeWorktree({
         ...context,
-        path: change.from,
+        path: change.path,
+        ...(bytes === 'delete' ? {} : { bytes, }),
       },);
-  },
-      Promise.resolve(),
+      if (change.from !== undefined)
+        await writeWorktree({
+          ...context,
+          path: change.from,
+        },);
+    },
+    Promise.resolve(),
     );
 }
 
@@ -184,12 +184,12 @@ export type PathClaim = Readonly<{
 export function createdPaths(operation: TraceOperation,): ReadonlySet<string> {
   return new Set(operation.changes
     .flatMap(function created(change,): readonly string[] {
-    return (change.shape
-      .kind
-      === 'add') || (change.shape
+      return (change.shape
         .kind
-        === 'rename') ? [change.path,] : [];
-  },),);
+        === 'add') || (change.shape
+          .kind
+          === 'rename') ? [change.path,] : [];
+    },),);
 }
 
 /**
@@ -207,13 +207,13 @@ export function createdPaths(operation: TraceOperation,): ReadonlySet<string> {
 export function removedPaths(operation: TraceOperation,): ReadonlySet<string> {
   return new Set(operation.changes
     .flatMap(function removed(change,): readonly string[] {
-    return [
-      ...(change.shape
-        .kind
-        === 'delete' ? [change.path,] : []),
-      ...(change.from === undefined ? [] : [change.from,]),
-    ];
-  },),);
+      return [
+        ...(change.shape
+          .kind
+          === 'delete' ? [change.path,] : []),
+        ...(change.from === undefined ? [] : [change.from,]),
+      ];
+    },),);
 }
 
 /**
@@ -284,12 +284,12 @@ async function runOperation({
     /**
      Latest claim on the path.
      */
-    const claim = claims.get(path,);
-    return claim === undefined ? [] : [blockerOf({
-      claim,
-      removes: removes.has(path,),
-    },),];
-  },);
+      const claim = claims.get(path,);
+      return claim === undefined ? [] : [blockerOf({
+        claim,
+        removes: removes.has(path,),
+      },),];
+    },);
   /**
    This operation's own capture signal.
    */
@@ -300,18 +300,18 @@ async function runOperation({
   const finished = Promise.withResolvers<void>();
   operation.selected
     .forEach(function claim(path,) {
-    claims.set(
-      path,
-      {
-        captured: captured.promise,
-        finished: finished.promise,
+      claims.set(
+        path,
+        {
+          captured: captured.promise,
+          finished: finished.promise,
         // A path an earlier in-flight operation creates exists in HEAD only once this operation landed too.
-        adds: creates.has(path,) || (claims.get(path,)
-          ?.adds
-          ?? false),
-      },
-    );
-  },);
+          adds: creates.has(path,) || (claims.get(path,)
+            ?.adds
+            ?? false),
+        },
+      );
+    },);
   /**
    Settles both signals however the operation ends, so no waiting operation hangs.
    */
@@ -376,12 +376,12 @@ async function runClaimedOperation({
     },);
     operation.adds
       .forEach(function staged(path,) {
-      context.ledger
-        .recordStaged({
-          path,
-          staged: true,
-        },);
-    },);
+        context.ledger
+          .recordStaged({
+            path,
+            staged: true,
+          },);
+      },);
   }
   /**
    Started explicit-path commit.
@@ -408,12 +408,12 @@ async function runClaimedOperation({
     === 0) {
     operation.adds
       .forEach(function landed(path,) {
-      context.ledger
-        .recordStaged({
-          path,
-          staged: false,
-        },);
-    },);
+        context.ledger
+          .recordStaged({
+            path,
+            staged: false,
+          },);
+      },);
   }
   return record;
 }

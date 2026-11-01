@@ -1,0 +1,25 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "src/processors_projection.rs:1:1: replace f in src/processors_projection.rs\nsrc/processors_prepare.rs:1:1: replace f in src/processors_prepare.rs\nsrc/processors_rewrite.rs:1:1: replace f in src/processors_rewrite.rs\n",
+  "calls": [
+    [
+      "<cargo>",
+      "mutants",
+      "--list",
+      "--no-config",
+      "--exclude-re",
+      "replace \\+= with \\*=",
+      "--exclude-re",
+      "replace -= with /=",
+      "--file",
+      "src/processors_projection.rs",
+      "--file",
+      "src/processors_prepare.rs",
+      "--file",
+      "src/processors_rewrite.rs"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

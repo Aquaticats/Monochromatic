@@ -422,8 +422,8 @@ resolution also emitted warnings from dead executable modules before tree shakin
 including:
 
 ```text
-Could not resolve '@monochromatic-dev/module-caught-value/ts' in .../src/bin.ts
-Could not resolve '@monochromatic-dev/module-logger/ts' in .../src/bin.ts
+Could not resolve '@monochromatic-dev/caught-value-core/ts' in .../src/bin.ts
+Could not resolve '@monochromatic-dev/logger-core/ts' in .../src/bin.ts
 ```
 
 Those workspace packages are not installed runtime dependencies of the packed

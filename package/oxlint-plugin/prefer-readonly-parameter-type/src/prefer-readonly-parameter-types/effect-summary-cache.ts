@@ -9,12 +9,15 @@ import type {
   PersistentEffectDependencyState,
 } from './effect-cache-envelope.ts';
 import type { EffectClosureEdges, } from './effect-dependency-closure.ts';
+import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 import type { EffectProjectSurfaces, } from './effect-project-fingerprint.ts';
 import type { EffectSlot, } from './effect-slot-identity.ts';
 import type { MutableEffectSummary, } from './effect-summary-model.ts';
+import { recordSharedStore, } from './shared-analysis-telemetry.ts';
 import {
   type EffectDependencyClosure,
   PERSISTENT_EFFECT_CACHE_MISS,
+  type PersistentEffectCacheAddress,
   readPersistentEffectSummaries,
   writePersistentEffectSummaries,
 } from './effect-summary-persistent-cache.ts';
@@ -36,6 +39,7 @@ type CachedSourceSummaries = {
   readonly edges: EffectClosureEdges;
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 };
 
 /**
@@ -44,10 +48,13 @@ type CachedSourceSummaries = {
  and deliberate direct-summary omissions.
  */
 export type LayeredSummaryCacheHit = {
+  readonly shared: boolean;
+  readonly writerProject: string;
   readonly summaries: ReadonlyMap<string, MutableEffectSummary>;
   readonly edges: EffectClosureEdges;
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 };
 
 /**
@@ -59,6 +66,7 @@ type LayeredSourceIdentity = {
   readonly projectDigest: string;
   readonly fileName: string;
   readonly sourceText: string;
+  readonly sharedKeyDigest?: string;
   readonly cacheRootOverride?: string;
 };
 
@@ -74,6 +82,7 @@ const counters = {
   directSummaryBuildCount: 0,
   sourceCacheHitCount: 0,
   persistentSourceCacheHitCount: 0,
+  sharedSourceCacheHitCount: 0,
   persistentCacheWriteCount: 0,
 };
 
@@ -89,8 +98,39 @@ export type EffectSummaryCacheStats = {
   readonly directSummaryBuildCount: number;
   readonly sourceCacheHitCount: number;
   readonly persistentSourceCacheHitCount: number;
+  readonly sharedSourceCacheHitCount: number;
   readonly persistentCacheWriteCount: number;
 };
+
+/**
+ Builds the persistent address of one source.
+ 
+ @param identity - Shared source identity.
+ 
+ @param shared - Whether to address the cross-project entry,
+ which exists only when the identity carries a key.
+ 
+ @returns project-addressed or file-and-key-addressed persistent address.
+ */
+function persistentAddress({
+  identity,
+  shared,
+}: {
+  readonly identity: LayeredSourceIdentity;
+  readonly shared: boolean;
+},): PersistentEffectCacheAddress {
+  return {
+    projectKey: identity.scopeKey,
+    fileName: identity.fileName,
+    sourceText: identity.sourceText,
+    ...((!shared) || (identity.sharedKeyDigest === undefined))
+      ? {}
+      : { sharedKeyDigest: identity.sharedKeyDigest, },
+    ...(identity.cacheRootOverride === undefined)
+      ? {}
+      : { cacheRootOverride: identity.cacheRootOverride, },
+  };
+}
 
 /**
  Clones direct summary before fixed-point propagation mutates it.
@@ -185,6 +225,8 @@ function cloneSummaries(
  @param omittedCallableKeys - Deliberately omitted direct summaries for this source.
  
  @param omissionReasons - Bounded reason categories for omission state.
+ 
+ @param externalOmissions - Omissions met inside installed package implementations during the scan.
  */
 function storeMemoryLayer({
   identity,
@@ -192,12 +234,14 @@ function storeMemoryLayer({
   edges,
   omittedCallableKeys,
   omissionReasons,
+  externalOmissions,
 }: {
   readonly identity: LayeredSourceIdentity;
   readonly summaries: ReadonlyMap<string, MutableEffectSummary>;
   readonly edges: EffectClosureEdges;
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 },): void {
   /**
    Project-local cache bounded by configured source paths.
@@ -213,6 +257,7 @@ function storeMemoryLayer({
       edges,
       omittedCallableKeys: [...omittedCallableKeys,],
       omissionReasons: [...omissionReasons,],
+      externalOmissions: [...externalOmissions,],
     },
   );
   summariesByProject.set(
@@ -253,29 +298,45 @@ export function readCachedSummariesForSource({
     && (cached.sourceText === identity.sourceText)) {
     counters.sourceCacheHitCount++;
     return {
+      shared: false,
+      writerProject: identity.scopeKey,
       summaries: cloneSummaries(cached.summaries,),
       edges: cached.edges,
       omittedCallableKeys: [...cached.omittedCallableKeys,],
       omissionReasons: [...cached.omissionReasons,],
+      externalOmissions: [...cached.externalOmissions,],
     };
   }
   /**
+   Cross-project entry persisted by any project's Oxlint process,
+   consulted first when the source may share.
+   */
+  const shared = identity.sharedKeyDigest === undefined
+    ? PERSISTENT_EFFECT_CACHE_MISS
+    : readPersistentEffectSummaries({
+      address: persistentAddress({
+        identity,
+        shared: true,
+      },),
+      state,
+    },);
+  /**
    Direct summaries persisted by prior Oxlint process.
    */
-  const persistent = readPersistentEffectSummaries({
-    address: {
-      projectKey: identity.scopeKey,
-      fileName: identity.fileName,
-      sourceText: identity.sourceText,
-      ...(identity.cacheRootOverride === undefined)
-        ? {}
-        : { cacheRootOverride: identity.cacheRootOverride, },
-    },
-    state,
-  },);
+  const persistent = shared === PERSISTENT_EFFECT_CACHE_MISS
+    ? readPersistentEffectSummaries({
+      address: persistentAddress({
+        identity,
+        shared: false,
+      },),
+      state,
+    },)
+    : shared;
   if (persistent === PERSISTENT_EFFECT_CACHE_MISS)
     return LAYERED_SUMMARY_CACHE_MISS;
   counters.persistentSourceCacheHitCount++;
+  if (persistent.shared)
+    counters.sharedSourceCacheHitCount++;
   /**
    Closure edges recorded at entry creation.
    */
@@ -289,12 +350,16 @@ export function readCachedSummariesForSource({
     edges,
     omittedCallableKeys: persistent.omittedCallableKeys,
     omissionReasons: persistent.omissionReasons,
+    externalOmissions: persistent.externalOmissions,
   },);
   return {
+    shared: persistent.shared,
+    writerProject: persistent.writerProject,
     summaries: cloneSummaries(persistent.summaries,),
     edges,
     omittedCallableKeys: [...persistent.omittedCallableKeys,],
     omissionReasons: [...persistent.omissionReasons,],
+    externalOmissions: [...persistent.externalOmissions,],
   };
 }
 
@@ -313,6 +378,8 @@ export function readCachedSummariesForSource({
  
  @param omissionReasons - Bounded reasons encountered while scanning source.
  
+ @param externalOmissions - Omissions met inside installed package implementations during the scan.
+ 
  @example
  ```ts
  storeCreatedSummariesForSource({
@@ -322,6 +389,7 @@ export function readCachedSummariesForSource({
    closure,
    omittedCallableKeys,
    omissionReasons,
+   externalOmissions,
  });
  ```
  */
@@ -332,6 +400,7 @@ export function storeCreatedSummariesForSource({
   closure,
   omittedCallableKeys,
   omissionReasons,
+  externalOmissions,
 }: {
   readonly identity: LayeredSourceIdentity;
   readonly summaries: ReadonlyMap<string, MutableEffectSummary>;
@@ -339,6 +408,7 @@ export function storeCreatedSummariesForSource({
   readonly closure: EffectDependencyClosure;
   readonly omittedCallableKeys: readonly string[];
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
+  readonly externalOmissions: readonly ExternalOmissionRecord[];
 },): void {
   counters.directSummaryBuildCount += summaries.size;
   storeMemoryLayer({
@@ -350,23 +420,30 @@ export function storeCreatedSummariesForSource({
     },
     omittedCallableKeys,
     omissionReasons,
+    externalOmissions,
   },);
   writePersistentEffectSummaries({
-    address: {
-      projectKey: identity.scopeKey,
-      fileName: identity.fileName,
-      sourceText: identity.sourceText,
-      ...(identity.cacheRootOverride === undefined)
-        ? {}
-        : { cacheRootOverride: identity.cacheRootOverride, },
-    },
+    /* A shared entry is written only when the dependency closure resolved. The cross-project key
+     * lists the module references the parser lists, which leaves out an `import()` type whose
+     * argument is not a string literal; `directModuleDependencies` fails the closure on that node
+     * kind, so a source that reaches one never gets a shared entry. The key and this gate rest on
+     * each other. An unresolved closure also snapshots its whole scope, which keeps it from
+     * validating in a program with another file list, so only a program holding every file of the
+     * first could read it back; `shared-analysis.unit.test.ts` holds that case. */
+    address: persistentAddress({
+      identity,
+      shared: closure.resolved,
+    },),
     summaries,
     surfaces,
     closure,
     omittedCallableKeys,
     omissionReasons,
+    externalOmissions,
   },);
   counters.persistentCacheWriteCount++;
+  if (closure.resolved && (identity.sharedKeyDigest !== undefined))
+    recordSharedStore('write',);
 }
 
 /**
@@ -427,5 +504,6 @@ export function clearEffectSummaryCache(): void {
   counters.directSummaryBuildCount = 0;
   counters.sourceCacheHitCount = 0;
   counters.persistentSourceCacheHitCount = 0;
+  counters.sharedSourceCacheHitCount = 0;
   counters.persistentCacheWriteCount = 0;
 }

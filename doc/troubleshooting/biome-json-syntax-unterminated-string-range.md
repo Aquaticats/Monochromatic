@@ -162,7 +162,8 @@ Upstream status,
    `"bc"` yields `bc`,
    `""` yields an empty string,
    and `"\\u0041"` and `"\\\"q\\\""` keep their raw escaped spelling.
-- The prototype patch is [biome-json-syntax-unterminated-string-range.patch](biome-json-syntax-unterminated-string-range.patch).
+- The prototype patch is
+  [biome-json-syntax-unterminated-string-range.patch](biome-json-syntax-unterminated-string-range.patch).
    `git apply --check` against a pristine copy of the published 0.5.7 `src/lib.rs`
    exited 0.
 

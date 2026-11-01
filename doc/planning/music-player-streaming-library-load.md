@@ -83,10 +83,15 @@ so files added,
 For deeper background,
  see the existing notes:
 
-- [Android port decision](../decisions/music-player-android-port.md)
-- [Live-update rescan decision](../decisions/music-player-live-update-rescan.md)
-- [Session source-root decision](../decisions/music-player-session-source-root.md)
+- [Android port decision](../decision/music-player-android-port.md)
+- [Live-update rescan decision](../decision/music-player-live-update-rescan.md)
+- [Session source-root decision](../decision/music-player-session-source-root.md)
 - [Package context](../../package/music-player/android-app/CONTEXT.md)
+
+The three decision links spelled `../decisions/` when this plan was written on 2026-06-13.
+The `docs/decisions/` family became `doc/decision/` on 2026-07-15 (`bd19d57e20`),
+so the targets moved to `../decision/`
+and the `../decisions/` spelling no longer resolves.
 
 ## The two problems
 

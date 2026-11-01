@@ -540,7 +540,8 @@ The following repositories were cloned and inspected at exact commits:
 The setup and checkout repositories carry inspectable source and permissive license metadata.
 The cache-action repository and package manifest exposed no license.
 Its default path can install supporting CLI software when a system binary is absent.
-The optional cache action therefore did not pass the license and artifact-provenance gate for adoption in this repository.
+The optional cache action therefore did not pass the license
+and artifact-provenance gate for adoption in this repository.
 Basic runner use and transparent GitHub cache compatibility do not require adopting that action.
 
 ### Reliability and service history
@@ -930,7 +931,8 @@ not a managed-runner vendor selection:
 
 The first option outranks the second because it removes work,
 while the second only accelerates work and remains unvalidated.
-The second outranks the third because a bounded trial can prove or reject the benefits before expanding the trust and billing boundary.
+The second outranks the third because a bounded trial can prove or reject the benefits
+before expanding the trust and billing boundary.
 
 ## Post-evaluation implementation
 
@@ -990,7 +992,8 @@ TOML conformance,
 and the deterministic coverage gate.
 The diagnosis and fixes are recorded in `doc/troubleshooting/toml-edit-fuzz-workflow.md`.
 
-The CodeQL action emits `MissingPushHook` because the requested workflow has pull-request analysis without a push trigger.
+The CodeQL action emits `MissingPushHook` because the requested workflow
+has pull-request analysis without a push trigger.
 Pinned action source at `github/codeql-action` tag `v4.37.7`,
 `src/workflow.ts:190-199`,
 shows that this diagnostic ignores scheduled and manual default-branch analysis.

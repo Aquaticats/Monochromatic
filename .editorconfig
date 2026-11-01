@@ -5,6 +5,8 @@ indent_style = space
 indent_size = 2
 end_of_line = lf
 charset = utf-8
+# Inspirational only: no check enforces trailing-whitespace trimming,
+# and editors that trim here can alter template-literal text (doc/decision/trailing-whitespace.md).
 trim_trailing_whitespace = true
 insert_final_newline = true
 

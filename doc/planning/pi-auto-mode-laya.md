@@ -280,7 +280,8 @@ complete context,
  context limits,
  and adversarial safety cases.
 Carry this checklist into the migration acceptance ledger.
-The later explicit Jev-through-OpenRouter request brings Jev comparison and its applicable data-handling terms into scope.
+The later explicit Jev-through-OpenRouter request
+brings Jev comparison and its applicable data-handling terms into scope.
 The user did not authorize a separate direct TypeSafe account or unrelated model vendors.
 The sole comment is a Linear backlink,
  not additional requirements.

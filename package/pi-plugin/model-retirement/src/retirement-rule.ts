@@ -13,7 +13,7 @@ import {
   parseModelId,
   type ModelIdParse,
 } from './id-tokens.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   compareRecency,
   UNORDERED,

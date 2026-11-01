@@ -6,7 +6,7 @@
 
 import type { ExtensionContext, } from '@earendil-works/pi-coding-agent';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { BashPokeSettings, } from './config-types.ts';
@@ -97,15 +97,15 @@ function createSessionBinding(
     draw(lines: readonly string[], ): void {
       ctx.ui
         .setWidget(
-          PROGRESS_WIDGET_KEY,
-          [...lines, ],
+        PROGRESS_WIDGET_KEY,
+        [...lines, ],
         );
     },
     clear(): void {
       ctx.ui
         .setWidget(
-          PROGRESS_WIDGET_KEY,
-          undefined,
+        PROGRESS_WIDGET_KEY,
+        undefined,
         );
     },
   };
@@ -132,32 +132,32 @@ function createSessionBinding(
   const unsubscribe = ctx.mode === 'tui'
     ? ctx.ui
       .onTerminalInput(createEscapeListener({
-      gate: {
-        isIdle: function isIdle(): boolean {
-          return ctx.isIdle();
+        gate: {
+          isIdle: function isIdle(): boolean {
+            return ctx.isIdle();
+          },
+          editorText: function editorText(): string {
+            return ctx.ui
+              .getEditorText();
+          },
+          jobCount: function jobCount(): number {
+            return registry.size();
+          },
         },
-        editorText: function editorText(): string {
-          return ctx.ui
-            .getEditorText();
-        },
-        jobCount: function jobCount(): number {
-          return registry.size();
-        },
-      },
-      onCancel(): void {
+        onCancel(): void {
         /**
          Jobs this keystroke cancelled, reported so the effect is visible.
          */
-        const cancelled = registry.cancelAll();
-        l.debug(`escape cancelled ${String(cancelled)} background job(s)`, );
-        ctx.ui
-          .notify(
-          `Cancelled ${String(cancelled)} background command(s)`,
-          'info',
-        );
-        progress.refresh();
-      },
-    }, ), )
+          const cancelled = registry.cancelAll();
+          l.debug(`escape cancelled ${String(cancelled)} background job(s)`, );
+          ctx.ui
+            .notify(
+            `Cancelled ${String(cancelled)} background command(s)`,
+            'info',
+            );
+          progress.refresh();
+        },
+      }, ), )
     : undefined;
 
   return {

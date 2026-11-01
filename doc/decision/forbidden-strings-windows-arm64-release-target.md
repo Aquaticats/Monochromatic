@@ -47,7 +47,7 @@ Evidence checked on 2026-09-16 before the change:
   Bash,
   and 7-Zip,
   which covers every tool the existing Windows packaging step uses.
-- `package/cli/forbidden-strings/Cargo.lock` contains no C-compiling build dependency
+- `package/forbidden-strings/cli/Cargo.lock` contains no C-compiling build dependency
   (`cc`,
   `ring`,
   `openssl-sys`,
@@ -68,11 +68,11 @@ Verified 2026-09-17:
 
 - Commit `43404709a` published `forbidden-regex` 0.1.1 to crates.io
   (sparse index checksum `2df22dea`)
-  after `mise run //package/rust-module/forbidden-regex:test` passed.
+  after `mise run //package/forbidden-strings/core:test` passed.
 - Commit `207bed93f` published `forbidden-strings` 0.4.1 to crates.io
   (sparse index checksum `724eb91c`,
   `forbidden-regex` requirement `^0.1.1` for normal and build dependencies)
-  after `mise run //package/cli/forbidden-strings:test` passed.
+  after `mise run //package/forbidden-strings/cli:test` passed.
 - Workflow run 35178616343 succeeded on every job,
   including `build-binary (aarch64-pc-windows-msvc, windows-11-arm)`.
 - Release `forbidden-strings-v0.4.1` carries eight archives,

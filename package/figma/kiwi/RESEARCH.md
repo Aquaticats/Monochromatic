@@ -23,19 +23,58 @@ jam) are ZIP archives containing:
 ## canvas.fig binary layout
 
 1. **16-byte header**:
-    null-terminated magic string + reserved bytes
-   - bytes 0-9:
-      magic string (`fig-kiwie`,
-      `fig-decke`,
-      or `fig-jam.j`)
-   - bytes 10-15:
-      reserved (zeros)
+    8-byte ASCII prelude, little-endian uint32 format version, little-endian uint32 schema chunk length
+   - bytes 0-7:
+      prelude (`fig-kiwi`,
+      `fig-deck`,
+      or `fig-jam.`;
+      the trailing `.` is part of the FigJam prelude)
+   - bytes 8-11:
+      format version, a little-endian uint32 (101 in older exports,
+      106 in exports from October 2026)
+   - bytes 12-15:
+      byte length of the schema chunk that follows
 2. **Deflate-compressed schema**:
     Raw deflate stream starting at byte 16
 3. **4-byte LE uint32 size prefix**:
     Size of the zstd-compressed document section
 4. **Zstd-compressed document data**:
     Starts with zstd frame magic `28 b5 2f fd`
+
+### Format version is a number, not a letter
+
+The trailing "letter" in `fig-kiwie` and `fig-kiwij` is the low byte of the version uint32:
+ 101 is ASCII `e` and 106 is ASCII `j`,
+ and the three higher bytes are zero.
+Reading the first nine bytes as a nine-character magic therefore broke the moment Figma raised the version.
+`parseCanvasHeader` now matches only the 8-byte prelude and returns the version (also exposed as
+`canvasVersion` on `FigmaFile`),
+ accepting every uint32 value.
+Two real exports from 2026-10-18 (276 MB and 301 MB) carry version 106 in their `canvas.fig` header.
+`parseFigmaFile` decodes both through the package entry point:
+ 5624 nodes and 207 images (403 s),
+ and 5702 nodes and 335 images (407 s),
+ matching an independent scratch decoder.
+
+Sources read for this finding:
+
+- Grida `.fig` format notes (`https://canary.grida.co/docs/wg/feat-fig/`):
+   "An 8-byte ASCII prelude (magic string) identifying the container,
+   then a little-endian version `u32`";
+   known preludes `fig-kiwi`,
+   `fig-jam.`,
+   `fig-deck`.
+- `sunyui/figma-parser` README (`https://github.com/sunyui/figma-parser`):
+   "Version number (uint32 LE, e.g., 106)";
+   newer files (version at least about 100) use zstd for the message chunk,
+   the schema chunk always raw deflate.
+- `openfig-core` README (`https://cdn.jsdelivr.net/npm/openfig-core@0.4.1/README.md`):
+   layout `[prelude 8B][version uint32 LE][len+chunk0][len+chunk1]...`,
+   and a parsed example header `{ prelude: 'fig-kiwi', version: 52 }`,
+   which shows that other version values exist and are not limited to the letters seen here.
+
+No source states what changed between versions.
+ Treat the version as an opaque revision number.
 
 The zstd boundary is found by searching for the zstd frame magic bytes in the raw
 canvas.

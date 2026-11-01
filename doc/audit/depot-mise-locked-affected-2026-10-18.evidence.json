@@ -1,0 +1,295 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T18:40:42.200Z",
+  "scope": "Actual locked Mise version, acyclic positive/null/cycle controls and immutable e02 metadata-only workspace probes; no application owner execution",
+  "upstream": {
+    "repository": "https://github.com/jdx/mise",
+    "tag": "v2026.10.9",
+    "commit": "ac91d06fa6100935b7a07b08bebf03dd6dd9a0dd",
+    "readOnlySourceCheckout": true,
+    "cloneTrustedOrModified": false
+  },
+  "officialBinary": {
+    "tag": "v2026.10.9",
+    "releaseId": 411789354,
+    "immutable": true,
+    "asset": {
+      "name": "mise-v2026.10.9-linux-x64",
+      "bytes": 161538352,
+      "sha256": "6ab6646b52b83f6bbd51c9d0d3ae54264ffa90efd1ac6d7c0ec5a86bbc6a0030",
+      "url": "https://github.com/jdx/mise/releases/download/v2026.10.9/mise-v2026.10.9-linux-x64"
+    }
+  },
+  "runtime": {
+    "actualMiseVersion": "2026.10.9 linux-x64 (2026-10-13)",
+    "node": "v24.22.0",
+    "git": "git version 2.39.5",
+    "localImageId": "1d68ca4dcf33b2305bb7ee652b8fbad822cba9b45893a05404581daf704dbe12",
+    "resourceBounds": {
+      "cpuMax": "200000 100000",
+      "memoryMax": "2147483648",
+      "pidsMax": "256",
+      "network": "none",
+      "containerLifetimeSeconds": 100,
+      "eachCommandTimeoutMilliseconds": 20000
+    }
+  },
+  "fixture": {
+    "base": "ed403bb1d438b50376c3fd901da314ea6e8a716d",
+    "head": "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+    "selectedProjects": [
+      "node:@selector-fixture/consumer",
+      "node:@selector-fixture/producer"
+    ],
+    "selectedTasks": [
+      {
+        "name": "//packages/consumer:check",
+        "projects": [
+          "node:@selector-fixture/consumer"
+        ]
+      },
+      {
+        "name": "//packages/producer:check",
+        "projects": [
+          "node:@selector-fixture/producer"
+        ]
+      }
+    ],
+    "unrelatedExcluded": true,
+    "equalRevisionsReturnEmpty": true,
+    "cycleRejected": true,
+    "taskMarkerAbsent": true
+  },
+  "realWorkspace": {
+    "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "metadataFileCount": 419,
+    "metadataBytes": 1234883,
+    "originalAuthoredConfigurationRetained": true,
+    "readOnlyMetadataMount": true,
+    "gitObjectStorageReadOnly": true,
+    "baseAndHead": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "currentCycleManifestJoins": [
+      {
+        "path": "package/config/rolldown/package.json",
+        "sameBytesAsFrozen": true
+      },
+      {
+        "path": "package/module/test/package.json",
+        "sameBytesAsFrozen": true
+      }
+    ],
+    "all419MetadataHashesUnchanged": true,
+    "secretFilesOrCredentialsMounted": false,
+    "fullApplicationImplementationOmitted": true
+  },
+  "outcomes": [
+    {
+      "name": "version",
+      "args": [
+        "--version"
+      ],
+      "cwd": "/state/fixture",
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 35,
+      "stdout": "2026.10.9 linux-x64 (2026-10-13)\n",
+      "stderr": "",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/0"
+      }
+    },
+    {
+      "name": "acyclic-graph",
+      "args": [
+        "tasks",
+        "graph",
+        "--json"
+      ],
+      "cwd": "/state/fixture",
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 6,
+      "stdout": "{\n  \"projects\": [\n    {\n      \"id\": \"node:@selector-fixture/consumer\",\n      \"root\": \"packages/consumer\",\n      \"metadata\": {\n        \"workspace_source\": \"package.json\"\n      },\n      \"dependencies\": [\n        \"node:@selector-fixture/producer\"\n      ],\n      \"provenance\": {\n        \"provider\": \"node\",\n        \"source\": \"packages/consumer/package.json\"\n      },\n      \"dependency_provenance\": {\n        \"node:@selector-fixture/producer\": {\n          \"provider\": \"node\",\n          \"source\": \"packages/consumer/package.json\"\n        }\n      },\n      \"tasks\": {}\n    },\n    {\n      \"id\": \"node:@selector-fixture/producer\",\n      \"root\": \"packages/producer\",\n      \"metadata\": {\n        \"workspace_source\": \"package.json\"\n      },\n      \"dependencies\": [],\n      \"provenance\": {\n        \"provider\": \"node\",\n        \"source\": \"packages/producer/package.json\"\n      },\n      \"dependency_provenance\": {},\n      \"tasks\": {}\n    },\n    {\n      \"id\": \"node:@selector-fixture/unrelated\",\n      \"root\": \"packages/unrelated\",\n      \"metadata\": {\n        \"workspace_source\": \"package.json\"\n      },\n      \"dependencies\": [],\n      \"provenance\": {\n        \"provider\": \"node\",\n        \"source\": \"packages/unrelated/package.json\"\n      },\n      \"dependency_provenance\": {},\n      \"tasks\": {}\n    }\n  ]\n}\n",
+      "stderr": "",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/2"
+      }
+    },
+    {
+      "name": "acyclic-producer-change",
+      "args": [
+        "run",
+        "--affected",
+        "--affected-json",
+        "--affected-committed",
+        "--affected-base",
+        "ed403bb1d438b50376c3fd901da314ea6e8a716d",
+        "--affected-head",
+        "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+        "check"
+      ],
+      "cwd": "/state/fixture",
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 15,
+      "stdout": "{\n  \"base\": \"ed403bb1d438b50376c3fd901da314ea6e8a716d\",\n  \"head\": \"8e00118ab42d9f20437b0b3623bbdd393fffa521\",\n  \"projects\": [\n    {\n      \"id\": \"node:@selector-fixture/consumer\",\n      \"root\": \"packages/consumer\",\n      \"reasons\": [\n        {\n          \"type\": \"dependent\",\n          \"dependency\": \"node:@selector-fixture/producer\"\n        }\n      ]\n    },\n    {\n      \"id\": \"node:@selector-fixture/producer\",\n      \"root\": \"packages/producer\",\n      \"reasons\": [\n        {\n          \"type\": \"changed-path\",\n          \"path\": \"packages/producer/value.txt\"\n        }\n      ]\n    }\n  ],\n  \"tasks\": [\n    {\n      \"name\": \"//packages/consumer:check\",\n      \"projects\": [\n        \"node:@selector-fixture/consumer\"\n      ]\n    },\n    {\n      \"name\": \"//packages/producer:check\",\n      \"projects\": [\n        \"node:@selector-fixture/producer\"\n      ]\n    }\n  ]\n}\n",
+      "stderr": "",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/3"
+      }
+    },
+    {
+      "name": "acyclic-equal-revisions",
+      "args": [
+        "run",
+        "--affected",
+        "--affected-json",
+        "--affected-committed",
+        "--affected-base",
+        "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+        "--affected-head",
+        "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+        "check"
+      ],
+      "cwd": "/state/fixture",
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 14,
+      "stdout": "{\n  \"base\": \"8e00118ab42d9f20437b0b3623bbdd393fffa521\",\n  \"head\": \"8e00118ab42d9f20437b0b3623bbdd393fffa521\",\n  \"projects\": [],\n  \"tasks\": []\n}\n",
+      "stderr": "",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/4"
+      }
+    },
+    {
+      "name": "synthetic-cycle",
+      "args": [
+        "run",
+        "--affected",
+        "--affected-json",
+        "--affected-committed",
+        "--affected-base",
+        "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+        "--affected-head",
+        "8e00118ab42d9f20437b0b3623bbdd393fffa521",
+        "check"
+      ],
+      "cwd": "/state/fixture",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 6,
+      "stdout": "",
+      "stderr": "mise ERROR workspace project dependency cycle detected: node:@selector-fixture/consumer -> node:@selector-fixture/producer -> node:@selector-fixture/consumer; adjust [monorepo.projects.\"node:@selector-fixture/consumer\"] depends, depends_add, or depends_remove to break the cycle\nmise ERROR Version: 2026.10.9 linux-x64 (2026-10-13)\nmise ERROR Run with --verbose or MISE_VERBOSE=1 for more information\n",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/5"
+      }
+    },
+    {
+      "name": "frozen-e02-graph",
+      "args": [
+        "tasks",
+        "graph",
+        "--json"
+      ],
+      "cwd": "/snapshot",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 40,
+      "stdout": "",
+      "stderr": "mise ERROR workspace project dependency cycle detected: node:@monochromatic-dev/config-rolldown -> node:@monochromatic-dev/module-test -> node:@monochromatic-dev/config-rolldown; adjust [monorepo.projects.\"node:@monochromatic-dev/config-rolldown\"] depends, depends_add, or depends_remove to break the cycle\nmise ERROR Version: 2026.10.9 linux-x64 (2026-10-13)\nmise ERROR Run with --verbose or MISE_VERBOSE=1 for more information\n",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/6"
+      }
+    },
+    {
+      "name": "frozen-e02-affected-equal-revisions",
+      "args": [
+        "run",
+        "--affected",
+        "--affected-json",
+        "--affected-committed",
+        "--affected-base",
+        "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "--affected-head",
+        "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "//package/module/toml-edit:lint:types"
+      ],
+      "cwd": "/snapshot",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "elapsedMilliseconds": 36,
+      "stdout": "",
+      "stderr": "mise ERROR workspace project dependency cycle detected: node:@monochromatic-dev/config-rolldown -> node:@monochromatic-dev/module-test -> node:@monochromatic-dev/config-rolldown; adjust [monorepo.projects.\"node:@monochromatic-dev/config-rolldown\"] depends, depends_add, or depends_remove to break the cycle\nmise ERROR Version: 2026.10.9 linux-x64 (2026-10-13)\nmise ERROR Run with --verbose or MISE_VERBOSE=1 for more information\n",
+      "source": {
+        "record": "runtime/result",
+        "pointer": "/calls/7"
+      }
+    }
+  ],
+  "sourceDecisions": [
+    {
+      "path": "src/cli/run.rs",
+      "line": 453,
+      "finding": "workspace graph validation precedes changed_paths in get_affected_task_list"
+    },
+    {
+      "path": "src/task/workspace.rs",
+      "line": 1054,
+      "finding": "find_cycle returns WorkspaceProjectCycleError"
+    },
+    {
+      "path": "src/cli/run.rs",
+      "line": 772,
+      "finding": "affected_json returns before owning task execution"
+    }
+  ],
+  "prerequisiteObservations": [
+    {
+      "operation": "Node fetch of retained browser_download_url",
+      "outcome": "TimeoutError: The operation was aborted due to timeout",
+      "productOutcome": false,
+      "subsequentBridge": "native gh release download succeeded and checksum matched; no generic transport cause inferred"
+    },
+    {
+      "operation": "Git metadata inventory",
+      "outcome": "Initial unsupported ls-tree --recursive rejected before inventory; verified existing git-ls-tree-recursion-option.md uses -r",
+      "productOutcome": false
+    }
+  ],
+  "verification": {
+    "allConfiguredControlsPassed": true,
+    "allInputHashesUnchanged": true,
+    "taskExecutionSentinelAbsent": true,
+    "upstreamSourceUnmodified": true,
+    "publicSourceRecordsCredentialPatternCandidates": 0,
+    "cloudAllocations": 0,
+    "sharedToolInstallsOrGlobalUpgrades": 0
+  },
+  "unexercised": [
+    "Owning application tasks",
+    "Full application tree materialization",
+    "Encrypted environment or credentials",
+    "Actual provider run setup",
+    "Permanent CI selector implementation"
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-mise-locked-affected-2026-10-18.sources.json.gz",
+    "bytes": 164869,
+    "sha256": "e49d561d5d1f2c3562c3df01db4eacd79865141ea1cf88e42b867dfb91eb4e84",
+    "uncompressedBytes": 663853,
+    "records": 16
+  }
+}

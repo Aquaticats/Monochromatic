@@ -11,7 +11,7 @@ import {
   cssOklchFrom,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  Light mode token values (excluding theme-invariant primary colors).

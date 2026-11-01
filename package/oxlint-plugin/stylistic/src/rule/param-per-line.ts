@@ -103,7 +103,7 @@ export const paramPerLine: CreateOnceRule = {
       if ((params === undefined)
         || (params.length
           < 2))
-      {
+        {
         return;
       }
 

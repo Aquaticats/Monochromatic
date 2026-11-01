@@ -1,0 +1,1802 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-18T07:17:33.855Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "pullRequest": {
+    "number": 1766,
+    "url": "https://github.com/Aquaticats/Monochromatic/pull/1766",
+    "base": "research/depot-runtime-base-20261018",
+    "requiredChecks": [
+      {
+        "context": "research-github-gate",
+        "app_id": 15368
+      },
+      {
+        "context": "research native PR gate / research-native-gate",
+        "app_id": 219785
+      }
+    ],
+    "administratorEnforcement": true
+  },
+  "failedMergeControl": {
+    "observedAt": "2026-10-18T06:47:44.554Z",
+    "pr": {
+      "baseRefName": "research/depot-runtime-base-20261018",
+      "headRefOid": "0f45cf8730753a3e986d567c27314cb2632ad668",
+      "isDraft": false,
+      "mergeStateStatus": "BLOCKED",
+      "number": 1766,
+      "state": "OPEN",
+      "statusCheckRollup": [
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-10-18T06:45:56Z",
+          "conclusion": "FAILURE",
+          "detailsUrl": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105169856/job/117609321871",
+          "name": "research-github-gate",
+          "startedAt": "2026-10-18T06:45:28Z",
+          "status": "COMPLETED",
+          "workflowName": "research GitHub PR gate"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-10-18T06:46:13Z",
+          "conclusion": "FAILURE",
+          "detailsUrl": "https://depot.dev/orgs/l4zncjjbj5/workflows/5rrgj5qvst?job=42bvn31hvc&repo=Aquaticats%2FMonochromatic",
+          "name": "research native PR gate / research-native-gate",
+          "startedAt": "2026-10-18T06:45:52Z",
+          "status": "COMPLETED",
+          "workflowName": ""
+        }
+      ]
+    },
+    "protection": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/research/depot-runtime-base-20261018/protection",
+      "required_status_checks": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/research/depot-runtime-base-20261018/protection/required_status_checks",
+        "strict": true,
+        "contexts": [
+          "research-github-gate",
+          "research native PR gate / research-native-gate"
+        ],
+        "contexts_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/research/depot-runtime-base-20261018/protection/required_status_checks/contexts",
+        "checks": [
+          {
+            "context": "research-github-gate",
+            "app_id": 15368
+          },
+          {
+            "context": "research native PR gate / research-native-gate",
+            "app_id": 219785
+          }
+        ]
+      },
+      "required_signatures": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/research/depot-runtime-base-20261018/protection/required_signatures",
+        "enabled": false
+      },
+      "enforce_admins": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/research/depot-runtime-base-20261018/protection/enforce_admins",
+        "enabled": true
+      },
+      "required_linear_history": {
+        "enabled": false
+      },
+      "allow_force_pushes": {
+        "enabled": false
+      },
+      "allow_deletions": {
+        "enabled": false
+      },
+      "block_creations": {
+        "enabled": false
+      },
+      "required_conversation_resolution": {
+        "enabled": false
+      },
+      "lock_branch": {
+        "enabled": false
+      },
+      "allow_fork_syncing": {
+        "enabled": false
+      }
+    },
+    "requested": {
+      "sha": "0f45cf8730753a3e986d567c27314cb2632ad668",
+      "merge_method": "squash",
+      "commit_title": "test(depot): disposable passing gate fixture"
+    },
+    "status": 1,
+    "stdout": "{\"message\":\"2 of 2 required status checks are failing.\",\"documentation_url\":\"https://docs.github.com/articles/about-protected-branches\",\"status\":\"405\"}",
+    "stderr": "gh: 2 of 2 required status checks are failing. (HTTP 405)\n",
+    "error": null
+  },
+  "passedMergeControl": {
+    "head": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+    "mergeStateStatus": "CLEAN",
+    "checks": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-18T06:57:11Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105819735/job/117611357339",
+        "name": "research-github-gate",
+        "startedAt": "2026-10-18T06:56:47Z",
+        "status": "COMPLETED",
+        "workflowName": "research GitHub PR gate"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-18T06:57:24Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://depot.dev/orgs/l4zncjjbj5/workflows/m83946f4d9?job=4l366hnw3d&repo=Aquaticats%2FMonochromatic",
+        "name": "research native PR gate / research-native-gate",
+        "startedAt": "2026-10-18T06:57:03Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "response": {
+      "sha": "5c5fcad4acad9751c4e0cd06f51f847a75537461",
+      "merged": true,
+      "message": "Pull Request successfully merged"
+    }
+  },
+  "supersession": {
+    "superseded": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+    "replacement": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+    "observedAt": "2026-10-18T06:56:20.259Z",
+    "github": {
+      "run": 39105751918,
+      "job": 117611101527,
+      "head": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+      "gate": {
+        "name": "Run mise run //.depot/research/runtime:pr-gate",
+        "status": "in_progress",
+        "conclusion": null,
+        "number": 5,
+        "started_at": "2026-10-18T06:55:46Z",
+        "completed_at": null
+      }
+    },
+    "native": {
+      "event": {
+        "type": "line",
+        "timestamp": "2026-10-18T06:56:13.66Z",
+        "timestamp_ms": 1792306573660,
+        "stream": "stdout",
+        "step_key": "1d776cc3-28f7-44fe-8fe8-f3256056248c",
+        "step_id": "",
+        "step_name": "",
+        "line_number": 5,
+        "body": "{\"observedAt\":\"2026-10-18T06:56:13.658Z\",\"repositoryBase\":\"e02be6c8b8fe9efb41a7f8f1a0b311c17796588a\",\"checkout\":\"1485d80c301069d41ff8d7d250d22b75cf692193\",\"githubSha\":\"1485d80c301069d41ff8d7d250d22b75cf692193\",\"headSha\":\"b043aa1d88d9f49fd8391ea05db7126826edce41\",\"baseSha\":\"f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9\",\"number\":1766,\"runId\":\"215294096580211\",\"attempt\":\"1\",\"job\":\"gate\",\"event\":\"pull_request\",\"control\":{\"result\":\"pass\",\"holdMilliseconds\":180000,\"revision\":5},\"phase\":\"started\"}"
+      },
+      "observation": {
+        "observedAt": "2026-10-18T06:56:13.658Z",
+        "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "checkout": "1485d80c301069d41ff8d7d250d22b75cf692193",
+        "githubSha": "1485d80c301069d41ff8d7d250d22b75cf692193",
+        "headSha": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+        "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+        "number": 1766,
+        "runId": "215294096580211",
+        "attempt": "1",
+        "job": "gate",
+        "event": "pull_request",
+        "control": {
+          "result": "pass",
+          "holdMilliseconds": 180000,
+          "revision": 5
+        },
+        "phase": "started"
+      }
+    },
+    "push": {
+      "observedAt": "2026-10-18T06:56:24.684Z",
+      "superseded": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+      "replacement": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+      "commit": "[research/depot-runtime-orchestration-20261018 c61f59f686] test(depot): supersede the admitted longer PR holders\n 1 file changed, 2 insertions(+), 2 deletions(-)\n",
+      "pushes": [
+        {
+          "attempt": 0,
+          "stdout": "",
+          "status": 0
+        }
+      ]
+    }
+  },
+  "github": [
+    {
+      "run": 39105819735,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105819735",
+      "head": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-10-18T06:56:28Z",
+      "jobs": [
+        {
+          "id": 117611357339,
+          "name": "research-github-gate",
+          "head": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T06:56:47Z",
+          "completedAt": "2026-10-18T06:57:11Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:56:47Z",
+              "completed_at": "2026-10-18T06:56:48Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:56:48Z",
+              "completed_at": "2026-10-18T06:57:05Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:57:05Z",
+              "completed_at": "2026-10-18T06:57:06Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:57:06Z",
+              "completed_at": "2026-10-18T06:57:08Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T06:57:08Z",
+              "completed_at": "2026-10-18T06:57:09Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:57:09Z",
+              "completed_at": "2026-10-18T06:57:10Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:57:10Z",
+              "completed_at": "2026-10-18T06:57:10Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:57:10Z",
+              "completed_at": "2026-10-18T06:57:10Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12128835296,
+          "apiDigest": "sha256:31e6b11264736e6637c53d9019db7fa367a6b3d63ccf09863402bb0dcda09f2c",
+          "sha256": "72ca43d6eefc5ba12d7a9a0cfdb12c0a77d1520388feb8ef08ab0a01e3e66160",
+          "bytes": 604,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:57:09.604Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+            "githubSha": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+            "headSha": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105819735",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 6
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:57:09.610Z"
+          }
+        }
+      ],
+      "logSha256": "85a0281e5aea758550a8b6b5303839f8867e5eedc7ddc1e37104e1d052200f39",
+      "intentionalFailureDiagnostic": false
+    },
+    {
+      "run": 39105751918,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105751918",
+      "head": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "createdAt": "2026-10-18T06:55:18Z",
+      "jobs": [
+        {
+          "id": 117611101527,
+          "name": "research-github-gate",
+          "head": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "startedAt": "2026-10-18T06:55:21Z",
+          "completedAt": "2026-10-18T06:56:45Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:55:22Z",
+              "completed_at": "2026-10-18T06:55:24Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:55:24Z",
+              "completed_at": "2026-10-18T06:55:41Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:55:41Z",
+              "completed_at": "2026-10-18T06:55:43Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:55:43Z",
+              "completed_at": "2026-10-18T06:55:46Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "cancelled",
+              "number": 5,
+              "started_at": "2026-10-18T06:55:46Z",
+              "completed_at": "2026-10-18T06:56:41Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:56:41Z",
+              "completed_at": "2026-10-18T06:56:42Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:56:42Z",
+              "completed_at": "2026-10-18T06:56:42Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:56:42Z",
+              "completed_at": "2026-10-18T06:56:42Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12128391491,
+          "apiDigest": "sha256:b4891e3680cc700513e5afc59ba445b2c8104345275c31cb6a590bb87ad3015b",
+          "sha256": "be686ca13dcc3b0b779dbf03259146923d06881864880287cb6769e48df869f0",
+          "bytes": 562,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:55:47.086Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "1485d80c301069d41ff8d7d250d22b75cf692193",
+            "githubSha": "1485d80c301069d41ff8d7d250d22b75cf692193",
+            "headSha": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105751918",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 180000,
+              "revision": 5
+            },
+            "phase": "started"
+          }
+        }
+      ],
+      "logSha256": "cc38f408c8dd6b558561f383fefe2f407b204e072c8b2872faf3b782463132b0",
+      "intentionalFailureDiagnostic": false
+    },
+    {
+      "run": 39105709050,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105709050",
+      "head": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-10-18T06:54:34Z",
+      "jobs": [
+        {
+          "id": 117610970895,
+          "name": "research-github-gate",
+          "head": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T06:54:37Z",
+          "completedAt": "2026-10-18T06:55:05Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:54:38Z",
+              "completed_at": "2026-10-18T06:54:39Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:54:39Z",
+              "completed_at": "2026-10-18T06:54:57Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:54:57Z",
+              "completed_at": "2026-10-18T06:54:59Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:54:59Z",
+              "completed_at": "2026-10-18T06:55:01Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T06:55:01Z",
+              "completed_at": "2026-10-18T06:55:02Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:55:02Z",
+              "completed_at": "2026-10-18T06:55:03Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:55:03Z",
+              "completed_at": "2026-10-18T06:55:03Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:55:03Z",
+              "completed_at": "2026-10-18T06:55:03Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12128048362,
+          "apiDigest": "sha256:b59f26bc129cd606ed273d45e8595ee8d049c76d25a62ce8035ebd7cd8196c64",
+          "sha256": "99af2f8cc2671d631093a3a8cf008b01727d42f827d9df9eb43d3d08a5b0bbf2",
+          "bytes": 604,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:55:02.152Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+            "githubSha": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+            "headSha": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105709050",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 4
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:55:02.156Z"
+          }
+        }
+      ],
+      "logSha256": "001b86af29b5338e8ae7d173dbef065071fbb3808cb1b6436e15c022543fc522",
+      "intentionalFailureDiagnostic": false
+    },
+    {
+      "run": 39105530559,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105530559",
+      "head": "201cc461120c723468d6f2dd43b93895bf5f6114",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-10-18T06:51:34Z",
+      "jobs": [
+        {
+          "id": 117610430187,
+          "name": "research-github-gate",
+          "head": "201cc461120c723468d6f2dd43b93895bf5f6114",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T06:51:36Z",
+          "completedAt": "2026-10-18T06:53:30Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:51:37Z",
+              "completed_at": "2026-10-18T06:51:38Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:51:38Z",
+              "completed_at": "2026-10-18T06:51:54Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:51:54Z",
+              "completed_at": "2026-10-18T06:51:55Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:51:55Z",
+              "completed_at": "2026-10-18T06:51:58Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T06:51:58Z",
+              "completed_at": "2026-10-18T06:53:28Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:53:28Z",
+              "completed_at": "2026-10-18T06:53:29Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:53:29Z",
+              "completed_at": "2026-10-18T06:53:29Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:53:29Z",
+              "completed_at": "2026-10-18T06:53:29Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12128675992,
+          "apiDigest": "sha256:1a8b8d9553caba27b5cbfcd5234eeb93a9a8b0658f7e18ce91a237a124eb30b9",
+          "sha256": "64a97715ef4397b6b6a4ea379be05fc68fddcafb1e326388990aadad5074fa5e",
+          "bytes": 608,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:51:58.598Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "e21eb45a57cab29c178a571718f96f132337e145",
+            "githubSha": "e21eb45a57cab29c178a571718f96f132337e145",
+            "headSha": "201cc461120c723468d6f2dd43b93895bf5f6114",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105530559",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 90000,
+              "revision": 3
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:53:28.604Z"
+          }
+        }
+      ],
+      "logSha256": "43a93bcb048d9cc57a8144be8eee07cd35efde020bae620e191b0252b64c1c83",
+      "intentionalFailureDiagnostic": false
+    },
+    {
+      "run": 39105342493,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105342493",
+      "head": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-10-18T06:48:24Z",
+      "jobs": [
+        {
+          "id": 117609850141,
+          "name": "research-github-gate",
+          "head": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T06:48:27Z",
+          "completedAt": "2026-10-18T06:48:54Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:48:28Z",
+              "completed_at": "2026-10-18T06:48:29Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:48:29Z",
+              "completed_at": "2026-10-18T06:48:46Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:48:46Z",
+              "completed_at": "2026-10-18T06:48:48Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:48:48Z",
+              "completed_at": "2026-10-18T06:48:50Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T06:48:50Z",
+              "completed_at": "2026-10-18T06:48:50Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:48:50Z",
+              "completed_at": "2026-10-18T06:48:52Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:48:52Z",
+              "completed_at": "2026-10-18T06:48:52Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:48:52Z",
+              "completed_at": "2026-10-18T06:48:52Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12128247280,
+          "apiDigest": "sha256:99ea1507d551a157496c60e822a9c3d678422365f8684b4bdcf9d075953e92c9",
+          "sha256": "8eb0ff0d91f13dd4533508e0a978fa7533fec46abbd14893d0e4b119376730f9",
+          "bytes": 604,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:48:50.847Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+            "githubSha": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+            "headSha": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105342493",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 2
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:48:50.853Z"
+          }
+        }
+      ],
+      "logSha256": "1294cf57603885a5608118d612e7b40d604b265c3b397d945fa44ee700006ba3",
+      "intentionalFailureDiagnostic": false
+    },
+    {
+      "run": 39105169856,
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39105169856",
+      "head": "0f45cf8730753a3e986d567c27314cb2632ad668",
+      "status": "completed",
+      "conclusion": "failure",
+      "createdAt": "2026-10-18T06:45:25Z",
+      "jobs": [
+        {
+          "id": 117609321871,
+          "name": "research-github-gate",
+          "head": "0f45cf8730753a3e986d567c27314cb2632ad668",
+          "status": "completed",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T06:45:28Z",
+          "completedAt": "2026-10-18T06:45:56Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T06:45:29Z",
+              "completed_at": "2026-10-18T06:45:30Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T06:45:30Z",
+              "completed_at": "2026-10-18T06:45:48Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T06:45:48Z",
+              "completed_at": "2026-10-18T06:45:50Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T06:45:50Z",
+              "completed_at": "2026-10-18T06:45:52Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/runtime:pr-gate",
+              "status": "completed",
+              "conclusion": "failure",
+              "number": 5,
+              "started_at": "2026-10-18T06:45:52Z",
+              "completed_at": "2026-10-18T06:45:52Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T06:45:52Z",
+              "completed_at": "2026-10-18T06:45:53Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-18T06:45:53Z",
+              "completed_at": "2026-10-18T06:45:54Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-18T06:45:54Z",
+              "completed_at": "2026-10-18T06:45:54Z"
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12127922760,
+          "apiDigest": "sha256:e0bcc4ed8a8d01b158b1f77e6d9ab8ba1c1323ab6bef3bf4faefcd323882c148",
+          "sha256": "f603fb43503919bae357106d0c48b39c897d5c502f02d3f37a3579ee8ce317a0",
+          "bytes": 604,
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:45:52.863Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+            "githubSha": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+            "headSha": "0f45cf8730753a3e986d567c27314cb2632ad668",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "39105169856",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "fail",
+              "holdMilliseconds": 0,
+              "revision": 1
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:45:52.869Z"
+          }
+        }
+      ],
+      "logSha256": "e9bf9b8ca9d2234c91fa2bc9dbeba9dc603af1a9ee59e2927e0e5185a786a5bd",
+      "intentionalFailureDiagnostic": true
+    }
+  ],
+  "native": [
+    {
+      "run": {
+        "run_id": "zptxtpxmn0",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+        "status": "finished",
+        "created_at": "2026-10-18T06:56:25Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "zptxtpxmn0",
+        "status": "finished",
+        "workflows": [
+          {
+            "workflow_id": "m83946f4d9",
+            "status": "finished",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "4l366hnw3d",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "m48dfd60fp",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "chzdrwhwvkznf1j9nh1d",
+                    "session_id": "f479ad2d-fa0d-4b7a-8c7c-cb32555e547b",
+                    "logs_command": "depot ci logs m48dfd60fp --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs m48dfd60fp --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/m83946f4d9?job=4l366hnw3d&attempt=m48dfd60fp",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "01a14dcd-0653-7d05-a286-322fe91341f7",
+          "bytes": 608,
+          "sha256": "67787d8603a839ab372c35379ec3bca5781eaff5ee9ac35b343974a640c48de7",
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:57:23.874Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+            "githubSha": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+            "headSha": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "585152887283700",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 6
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:57:23.877Z"
+          }
+        }
+      ],
+      "logs": [
+        {
+          "workflowId": "m83946f4d9",
+          "jobId": "4l366hnw3d",
+          "sha256": "65d546bf622b2709abe042bb277507e9bb3ec75b0b44b38e3c88d01f70b12713",
+          "intentionalFailureDiagnostic": false,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:57:23.875Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:57:23.874Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+                "githubSha": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+                "headSha": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "585152887283700",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 6
+                },
+                "phase": "started"
+              }
+            },
+            {
+              "timestamp": "2026-10-18T06:57:23.877Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:57:23.874Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+                "githubSha": "69e64f40bf8699cac1f36e5251a3ed5e9a587a87",
+                "headSha": "c61f59f6869d5f6c733d4024f32d8fca1e25cdde",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "585152887283700",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 6
+                },
+                "phase": "completed",
+                "completedAt": "2026-10-18T06:57:23.877Z"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": {
+        "run_id": "bx47zbxvw1",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "1485d80c301069d41ff8d7d250d22b75cf692193",
+        "status": "cancelled",
+        "created_at": "2026-10-18T06:55:16Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "b043aa1d88d9f49fd8391ea05db7126826edce41"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "bx47zbxvw1",
+        "status": "cancelled",
+        "workflows": [
+          {
+            "workflow_id": "rnhvz1810z",
+            "status": "cancelled",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "error_message": "Cancelled due to the workflow concurrency policy",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "kghdwg3ffm",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "cancelled",
+                "attempts": [
+                  {
+                    "attempt_id": "bwfxrlgc3z",
+                    "attempt": 1,
+                    "status": "cancelled",
+                    "sandbox_id": "c0r62x8ktr7b4xl4s1pf",
+                    "session_id": "b1ce99dc-fa29-47e7-b91c-2939e65d4659",
+                    "logs_command": "depot ci logs bwfxrlgc3z --org l4zncjjbj5",
+                    "download_available": false,
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/rnhvz1810z?job=kghdwg3ffm&attempt=bwfxrlgc3z",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [],
+      "logs": [
+        {
+          "workflowId": "rnhvz1810z",
+          "jobId": "kghdwg3ffm",
+          "sha256": "70d711492bf7f9d052e177c31af42318443af142dab0eed19028a17863139b46",
+          "intentionalFailureDiagnostic": false,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:56:13.66Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:56:13.658Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "1485d80c301069d41ff8d7d250d22b75cf692193",
+                "githubSha": "1485d80c301069d41ff8d7d250d22b75cf692193",
+                "headSha": "b043aa1d88d9f49fd8391ea05db7126826edce41",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "215294096580211",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 180000,
+                  "revision": 5
+                },
+                "phase": "started"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": {
+        "run_id": "bm84mlc78m",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+        "status": "finished",
+        "created_at": "2026-10-18T06:54:32Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "7bbd8250204091ed4ab52b1897f7c372673164bf"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "bm84mlc78m",
+        "status": "finished",
+        "workflows": [
+          {
+            "workflow_id": "rrxlnvf4tq",
+            "status": "finished",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "pxp1vk3n76",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "dn1swkrsm8",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "jb76b5gb4j713vnbsxbg",
+                    "session_id": "aa5a5de4-e874-4223-b1b5-914cb7c3c12b",
+                    "logs_command": "depot ci logs dn1swkrsm8 --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs dn1swkrsm8 --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/rrxlnvf4tq?job=pxp1vk3n76&attempt=dn1swkrsm8",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "01a14dcb-4d0e-70a2-bf32-9ca946dab560",
+          "bytes": 608,
+          "sha256": "abfd844a4d73b121e6db770aead39f6b97898fb3de91c95a51429dc2688ac0ad",
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:55:30.862Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+            "githubSha": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+            "headSha": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "209474252583559",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 4
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:55:30.864Z"
+          }
+        }
+      ],
+      "logs": [
+        {
+          "workflowId": "rrxlnvf4tq",
+          "jobId": "pxp1vk3n76",
+          "sha256": "44b4e4f3bbf76ccda0d2d1678dc1e0d475ab2508b5c2faba30365f756697bf5a",
+          "intentionalFailureDiagnostic": false,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:55:30.863Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:55:30.862Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+                "githubSha": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+                "headSha": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "209474252583559",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 4
+                },
+                "phase": "started"
+              }
+            },
+            {
+              "timestamp": "2026-10-18T06:55:30.865Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:55:30.862Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+                "githubSha": "81dab95c58840fa0d8df1d0f5257fc48457426da",
+                "headSha": "7bbd8250204091ed4ab52b1897f7c372673164bf",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "209474252583559",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 4
+                },
+                "phase": "completed",
+                "completedAt": "2026-10-18T06:55:30.864Z"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": {
+        "run_id": "g5dw0jfv6c",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "e21eb45a57cab29c178a571718f96f132337e145",
+        "status": "finished",
+        "created_at": "2026-10-18T06:51:31Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "201cc461120c723468d6f2dd43b93895bf5f6114"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "g5dw0jfv6c",
+        "status": "finished",
+        "workflows": [
+          {
+            "workflow_id": "mxtjjhfnnb",
+            "status": "finished",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "zbcs2rz7sh",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "6vpv88mvrk",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "4mvqk80j1rqq9cqngw35",
+                    "session_id": "ad02d3d9-47d2-4a57-b3b1-63d874d1f508",
+                    "logs_command": "depot ci logs 6vpv88mvrk --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs 6vpv88mvrk --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/mxtjjhfnnb?job=zbcs2rz7sh&attempt=6vpv88mvrk",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "01a14dc9-de56-783b-bc35-9a9107b513ab",
+          "bytes": 612,
+          "sha256": "02e76a057aea09a766f079602d6c6b5f4e9748bb8d0e39d981add4fe704a3c8a",
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:52:26.842Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "e21eb45a57cab29c178a571718f96f132337e145",
+            "githubSha": "e21eb45a57cab29c178a571718f96f132337e145",
+            "headSha": "201cc461120c723468d6f2dd43b93895bf5f6114",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "279124636334591",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 90000,
+              "revision": 3
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:53:56.846Z"
+          }
+        }
+      ],
+      "logs": [
+        {
+          "workflowId": "mxtjjhfnnb",
+          "jobId": "zbcs2rz7sh",
+          "sha256": "80b65ddec051626935b2cae2df54abb836eb498d764e5280fb9f10d20c7ead96",
+          "intentionalFailureDiagnostic": false,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:52:26.844Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:52:26.842Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "e21eb45a57cab29c178a571718f96f132337e145",
+                "githubSha": "e21eb45a57cab29c178a571718f96f132337e145",
+                "headSha": "201cc461120c723468d6f2dd43b93895bf5f6114",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "279124636334591",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 90000,
+                  "revision": 3
+                },
+                "phase": "started"
+              }
+            },
+            {
+              "timestamp": "2026-10-18T06:53:56.847Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:52:26.842Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "e21eb45a57cab29c178a571718f96f132337e145",
+                "githubSha": "e21eb45a57cab29c178a571718f96f132337e145",
+                "headSha": "201cc461120c723468d6f2dd43b93895bf5f6114",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "279124636334591",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 90000,
+                  "revision": 3
+                },
+                "phase": "completed",
+                "completedAt": "2026-10-18T06:53:56.846Z"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": {
+        "run_id": "bvt87d90gp",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+        "status": "finished",
+        "created_at": "2026-10-18T06:48:22Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "4fca286e107bc7cbe54bc004a322e3db748f21ce"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "bvt87d90gp",
+        "status": "finished",
+        "workflows": [
+          {
+            "workflow_id": "tsg6wz4n6b",
+            "status": "finished",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "lhtfd2z434",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "finished",
+                "attempts": [
+                  {
+                    "attempt_id": "8wvv4rt36c",
+                    "attempt": 1,
+                    "status": "finished",
+                    "sandbox_id": "07r11krcw48std7c0wnt",
+                    "session_id": "7f692be4-6e52-439f-96ca-906ca6306570",
+                    "logs_command": "depot ci logs 8wvv4rt36c --org l4zncjjbj5",
+                    "download_available": true,
+                    "download_command": "depot ci logs 8wvv4rt36c --output-file logs.txt --org l4zncjjbj5",
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/tsg6wz4n6b?job=lhtfd2z434&attempt=8wvv4rt36c",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "01a14dc5-e6a5-7341-9e1a-c93d4db5fd78",
+          "bytes": 608,
+          "sha256": "5b6a558bd9e1dc6ff2807df11228e0f7a3031cb5fb82769f6d97786cfbe86535",
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:49:36.968Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+            "githubSha": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+            "headSha": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "214441362063441",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "pass",
+              "holdMilliseconds": 0,
+              "revision": 2
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:49:36.970Z"
+          }
+        }
+      ],
+      "logs": [
+        {
+          "workflowId": "tsg6wz4n6b",
+          "jobId": "lhtfd2z434",
+          "sha256": "ba33759d95a3140f3427c4b2cb73a958628ce9f2be7e31fef4b36261e750b0ec",
+          "intentionalFailureDiagnostic": false,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:49:36.97Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:49:36.968Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+                "githubSha": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+                "headSha": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "214441362063441",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 2
+                },
+                "phase": "started"
+              }
+            },
+            {
+              "timestamp": "2026-10-18T06:49:36.97Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:49:36.968Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+                "githubSha": "7a5ce9a371cc0e552c66ce2374a9ce8f97b3c1c4",
+                "headSha": "4fca286e107bc7cbe54bc004a322e3db748f21ce",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "214441362063441",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "pass",
+                  "holdMilliseconds": 0,
+                  "revision": 2
+                },
+                "phase": "completed",
+                "completedAt": "2026-10-18T06:49:36.970Z"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": {
+        "run_id": "nhwk20hk2v",
+        "repo": "Aquaticats/Monochromatic",
+        "trigger": "pull_request",
+        "sha": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+        "status": "failed",
+        "created_at": "2026-10-18T06:45:24Z",
+        "ref": "refs/pull/1766/merge",
+        "head_sha": "0f45cf8730753a3e986d567c27314cb2632ad668"
+      },
+      "status": {
+        "org_id": "l4zncjjbj5",
+        "run_id": "nhwk20hk2v",
+        "status": "failed",
+        "workflows": [
+          {
+            "workflow_id": "5rrgj5qvst",
+            "status": "failed",
+            "workflow_path": "research-runtime-pr.yml",
+            "name": "research native PR gate",
+            "jobs": [
+              {
+                "job_display_name": "research-native-gate",
+                "job_id": "42bvn31hvc",
+                "job_key": "research-runtime-pr.yml:gate",
+                "status": "failed",
+                "attempts": [
+                  {
+                    "attempt_id": "sw53q8jn74",
+                    "attempt": 1,
+                    "status": "failed",
+                    "sandbox_id": "7j5f5bzgbqknpnxwdkkd",
+                    "session_id": "f7ecf9b3-cd44-48a9-aaba-0e679d6bfd8f",
+                    "logs_command": "depot ci logs sw53q8jn74 --org l4zncjjbj5",
+                    "download_available": false,
+                    "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/5rrgj5qvst?job=42bvn31hvc&attempt=sw53q8jn74",
+                    "ssh_available": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "01a14dc2-c906-78e0-94eb-8d4127bf2bf8",
+          "bytes": 608,
+          "sha256": "275c3cea0822a8becdfc553bc3a8ccbe82c257f3763878955f34d612fe63b34c",
+          "member": "pr-gate-gate.json",
+          "observation": {
+            "observedAt": "2026-10-18T06:46:12.816Z",
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "checkout": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+            "githubSha": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+            "headSha": "0f45cf8730753a3e986d567c27314cb2632ad668",
+            "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+            "number": 1766,
+            "runId": "404104432020386",
+            "attempt": "1",
+            "job": "gate",
+            "event": "pull_request",
+            "control": {
+              "result": "fail",
+              "holdMilliseconds": 0,
+              "revision": 1
+            },
+            "phase": "completed",
+            "completedAt": "2026-10-18T06:46:12.818Z"
+          }
+        }
+      ],
+      "logs": [
+        {
+          "workflowId": "5rrgj5qvst",
+          "jobId": "42bvn31hvc",
+          "sha256": "d357889ba2f28033b4013e56fab3da5a7cfeb5073884240eadbddd8c8a32f45c",
+          "intentionalFailureDiagnostic": true,
+          "events": [
+            {
+              "timestamp": "2026-10-18T06:46:12.817Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:46:12.816Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+                "githubSha": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+                "headSha": "0f45cf8730753a3e986d567c27314cb2632ad668",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "404104432020386",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "fail",
+                  "holdMilliseconds": 0,
+                  "revision": 1
+                },
+                "phase": "started"
+              }
+            },
+            {
+              "timestamp": "2026-10-18T06:46:12.818Z",
+              "observation": {
+                "observedAt": "2026-10-18T06:46:12.816Z",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "checkout": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+                "githubSha": "4c8807b2deea319a71fd6295c7a3c329e8e84139",
+                "headSha": "0f45cf8730753a3e986d567c27314cb2632ad668",
+                "baseSha": "f7a6b290e9ac70c4ea0dbeaffb8837d8943a4bb9",
+                "number": 1766,
+                "runId": "404104432020386",
+                "attempt": "1",
+                "job": "gate",
+                "event": "pull_request",
+                "control": {
+                  "result": "fail",
+                  "holdMilliseconds": 0,
+                  "revision": 1
+                },
+                "phase": "completed",
+                "completedAt": "2026-10-18T06:46:12.818Z"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "archives": {
+    "path": "depot-runtime-pr-2026-10-18.archives.json.gz",
+    "bytes": 5262,
+    "sha256": "fa455b4dd47abbfa7dce33d590a6ee1b0edf9d9d3657d35a829c0c6a1a062c1c",
+    "count": 11,
+    "format": "gzip JSON containing the original ZIP bytes as base64; per-ZIP hashes are independently reproducible"
+  },
+  "boundaries": [
+    "Gate-fixture controls are not application test-suite acceptance.",
+    "The first 90-second supersession attempt was inconclusive after a rejected replacement push; both holder jobs completed.",
+    "Cancellation proves terminal provider job status and later-head check association, not guest/process termination or billing cessation.",
+    "GitHub ZIP digests were matched against the artifact API; native ZIPs have local SHA256 and API size checks, without a server-reported digest.",
+    "The cancelled native run uploaded no artifact; its source-bound task-start observation is retained from logs."
+  ],
+  "cleanup": {
+    "observedAt": "2026-10-18T07:24:54.158Z",
+    "temporaryProtectionRemoved": true,
+    "branchFlagAfterClassicProtectionRemoval": true,
+    "classicProtectionProbe": {
+      "status": 1,
+      "stdout": "{\"message\":\"Branch not protected\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"404\"}",
+      "stderr": "gh: Branch not protected (HTTP 404)\n"
+    },
+    "temporaryBaseDeleted": true,
+    "baseRemoval": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "researchHeadRetainedForReproduction": true,
+    "mainProtectionMatchesBaseline": true,
+    "mainBefore": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection",
+      "required_status_checks": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks",
+        "strict": true,
+        "contexts": [],
+        "contexts_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks/contexts",
+        "checks": []
+      },
+      "required_signatures": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_signatures",
+        "enabled": true
+      },
+      "enforce_admins": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/enforce_admins",
+        "enabled": false
+      },
+      "required_linear_history": {
+        "enabled": false
+      },
+      "allow_force_pushes": {
+        "enabled": false
+      },
+      "allow_deletions": {
+        "enabled": false
+      },
+      "block_creations": {
+        "enabled": false
+      },
+      "required_conversation_resolution": {
+        "enabled": true
+      },
+      "lock_branch": {
+        "enabled": false
+      },
+      "allow_fork_syncing": {
+        "enabled": false
+      }
+    },
+    "mainAfter": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection",
+      "required_status_checks": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks",
+        "strict": true,
+        "contexts": [],
+        "contexts_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks/contexts",
+        "checks": []
+      },
+      "required_signatures": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_signatures",
+        "enabled": true
+      },
+      "enforce_admins": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/enforce_admins",
+        "enabled": false
+      },
+      "required_linear_history": {
+        "enabled": false
+      },
+      "allow_force_pushes": {
+        "enabled": false
+      },
+      "allow_deletions": {
+        "enabled": false
+      },
+      "block_creations": {
+        "enabled": false
+      },
+      "required_conversation_resolution": {
+        "enabled": true
+      },
+      "lock_branch": {
+        "enabled": false
+      },
+      "allow_fork_syncing": {
+        "enabled": false
+      }
+    },
+    "reverifiedAt": "2026-10-18T11:53:46.975Z",
+    "temporaryBaseFreshGet": {
+      "exitCode": 1,
+      "stdout": "{\"message\":\"Branch not found\",\"documentation_url\":\"https://docs.github.com/rest/branches/branches#get-a-branch\",\"status\":\"404\"}",
+      "stderr": "gh: Branch not found (HTTP 404)\n"
+    },
+    "mainProtectionFreshlyMatchesBaseline": true,
+    "mainProtectionFresh": {
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection",
+      "required_status_checks": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks",
+        "strict": true,
+        "contexts": [],
+        "contexts_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_status_checks/contexts",
+        "checks": []
+      },
+      "required_signatures": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/required_signatures",
+        "enabled": true
+      },
+      "enforce_admins": {
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches/main/protection/enforce_admins",
+        "enabled": false
+      },
+      "required_linear_history": {
+        "enabled": false
+      },
+      "allow_force_pushes": {
+        "enabled": false
+      },
+      "allow_deletions": {
+        "enabled": false
+      },
+      "block_creations": {
+        "enabled": false
+      },
+      "required_conversation_resolution": {
+        "enabled": true
+      },
+      "lock_branch": {
+        "enabled": false
+      },
+      "allow_fork_syncing": {
+        "enabled": false
+      }
+    },
+    "prFresh": {
+      "number": 1766,
+      "url": "https://github.com/Aquaticats/Monochromatic/pull/1766",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "5c5fcad4acad9751c4e0cd06f51f847a75537461",
+      "base": "research/depot-runtime-base-20261018",
+      "head": "research/depot-runtime-orchestration-20261018"
+    },
+    "historicalProtectedFlagCauseEstablished": false
+  }
+}

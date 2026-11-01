@@ -20,7 +20,8 @@ run,
 
 - iOS runtime model:
    AOT-native at the rendering layer plus a jitless scripting runtime.
-   Lynx ships a C++ layout/rendering engine compiled AOT to a native iOS static lib that draws into native UIKit views (LynxView :
+   Lynx ships a C++ layout/rendering engine compiled AOT to a native iOS static lib that draws
+   into native UIKit views (LynxView :
    UIView,
    LynxTextView :
    UIView at platform/darwin/ios/lynx/public/LynxView.
@@ -33,7 +34,8 @@ run,
    (1) The Lepus/LepusNG main-thread script and,
    when FORCE_USE_LIGHT_WEIGHT_JS_ENGINE is set,
    the background runtime run on PrimJS,
-   a QuickJS-derived bytecode VM whose 'template interpreter' is precompiled AArch64 assembly checked into the repo as src/interpreter/primjs/ios/embedded.
+   a QuickJS-derived bytecode VM whose 'template interpreter' is precompiled AArch64 assembly checked
+   into the repo as src/interpreter/primjs/ios/embedded.
   S and assembled at build time (no runtime codegen).
    (2) On iOS the background (BTS) JS runtime defaults to JavaScriptCore (core/Lynx.
   gni:
@@ -55,7 +57,8 @@ run,
    Lynx is jitless on iOS by construction:
    it renders to native UIKit views (LynxView :
    UIView),
-   and its PrimJS scripting engine is a QuickJS bytecode VM whose 'template interpreter' is PRECOMPILED AArch64 assembly checked into the repo (src/interpreter/primjs/ios/embedded.
+   and its PrimJS scripting engine is a QuickJS bytecode VM whose 'template interpreter' is PRECOMPILED AArch64
+   assembly checked into the repo (src/interpreter/primjs/ios/embedded.
   S) and assembled at build time into the static lib .
   text section,
    with no runtime codegen,
@@ -118,7 +121,8 @@ Feasible:
  yes
 
 Mechanism:
- iOS native modules are Obj-C/Obj-C++ classes conforming to @protocol LynxModule with a 'name' and a 'methodLookup' dict mapping JS method names to ObjC selectors.
+ iOS native modules are Obj-C/Obj-C++ classes conforming to @protocol LynxModule with a 'name'
+ and a 'methodLookup' dict mapping JS method names to ObjC selectors.
  A .
 mm (Obj-C++) module can directly call any linked C/C++ symbol,
  hence a Rust staticlib (via cbindgen C header) or a Go gomobile c-archive,
@@ -137,7 +141,8 @@ m:
 
 Lynx provides no long-running background capability;
  networking is host-provided via LynxServiceHttpProtocol,
- and the bundled LynxHttpService builds an NSURLSession from defaultSessionConfiguration (foreground) with NSURLSessionDataTask.
+ and the bundled LynxHttpService builds an NSURLSession from defaultSessionConfiguration (foreground)
+ with NSURLSessionDataTask.
  No background session or BGProcessingTask exists in the framework.
  A multi-hour kopia snapshot must be restructured per the standard iOS wall:
  a native module owning URLSessionConfiguration.
@@ -161,7 +166,8 @@ Feasible:
 Mechanism:
  Not a Lynx feature,
  but trivially reachable through the same native-module bridge as wall 1.
- An in-app HTTP/S3 endpoint that kopia targets would be a Rust (hyper/tiny_http) or C listener compiled into the app and exposed via a LynxModule .
+ An in-app HTTP/S3 endpoint that kopia targets would be a Rust (hyper/tiny_http) or C listener compiled into the app
+ and exposed via a LynxModule .
 mm wrapper,
  or simply run as part of the linked kopia/Rust core;
  it listens on 127.0.0.1 in-process.
@@ -189,7 +195,8 @@ Mechanism:
  delivering chunks to JS via LynxHttpStreamingDelegate.
 onData(NSData),
  backed by NSURLSession over the host LynxServiceHttpProtocol/LynxHttpService.
- (2) For a true streaming upload to pCloud you would instead drive NSURLSession (or a Rust reqwest/hyper client in the linked core) from a native module,
+ (2) For a true streaming upload to pCloud you would instead drive NSURLSession
+ (or a Rust reqwest/hyper client in the linked core) from a native module,
  since Lynx fetch is request/response oriented.
  Either way HTTPS streaming is expressible;
  the production path for backup is the native-module/Rust client,
@@ -211,7 +218,8 @@ Decode:
  The framework has no audio decode pipeline,
  no <audio> element,
  no symphonia/opus equivalent.
- Decode must be done by the existing Rust core (symphonia 0.6 + libopus) compiled into the app and called via a native module;
+ Decode must be done by the existing Rust core (symphonia 0.6 + libopus) compiled into the app
+ and called via a native module;
  Lynx is UI/script only.
 
 Output:
@@ -255,13 +263,15 @@ Minimal app:
  an iOS app embedding LynxView that renders a trivial Lynx page (text + a button) and registers one custom LynxModule (.
 mm) that links a tiny Rust staticlib exporting a C function.
  On-device signals:
- (1) the UI renders as native UIView/LynxTextView (verify in Xcode Debug View Hierarchy that there is NO WKWebView) and the button tap fires JS handlers without crashing,
+ (1) the UI renders as native UIView/LynxTextView (verify in Xcode Debug View Hierarchy that there is NO WKWebView)
+ and the button tap fires JS handlers without crashing,
  proving Lynx executes app JS jitless on device (PrimJS template interpreter / interpreter-only JSC);
  (2) invoking the native module from JS returns the Rust function's value,
  proving the Rust-staticlib FFI bridge (wall 1).
  Watch device console for absence of EXC_BAD_ACCESS / dynamic-codesign faults on first JS run.
  Secondary:
- link the real symphonia+cpal core and play ~2s audio through the AudioUnit to confirm CoreAudio output behind the module.
+ link the real symphonia+cpal core and play ~2s audio through the AudioUnit to confirm CoreAudio output behind the
+ module.
 
 Toolchain:
  macOS with Xcode + command line tools;
@@ -270,7 +280,8 @@ podspec;
  pod install pulls PrimJS);
  Ruby/Bundler (Gemfile present).
  Node + pnpm for building the Lynx JS bundle (rspeedy/ReactLynx toolchain).
- Rust with the aarch64-apple-ios target (and aarch64-apple-ios-sim) plus cbindgen to produce the staticlib + C header for the native module.
+ Rust with the aarch64-apple-ios target (and aarch64-apple-ios-sim) plus cbindgen to produce the staticlib + C header
+ for the native module.
  A valid Apple developer signing identity + provisioning for on-device install.
  Optionally gn/ninja only if building Lynx engine from source rather than consuming the pod.
 
@@ -283,7 +294,8 @@ podspec;
 - In-app loopback HTTP/S3 server (Rust hyper/tiny_http) living in the linked native core,
    lifecycle-bound to the app,
    that kopia targets
-- Streaming HTTPS upload client to pCloud via NSURLSession background config or Rust reqwest/hyper in native code (chunked upload,
+- Streaming HTTPS upload client to pCloud via NSURLSession background config
+   or Rust reqwest/hyper in native code (chunked upload,
    TLS,
    resumable)
 - Background transfer restructuring:
@@ -393,7 +405,8 @@ podspec;
    unsupported,
    or contradicted.
    The decisive wall-2 evidence holds:
-   a repo-wide grep for PROT_EXEC / MAP_JIT / pthread_jit_write returns ZERO matches in the entire primjs repo (not just src/),
+   a repo-wide grep for PROT_EXEC / MAP_JIT / pthread_jit_write returns ZERO matches in the entire primjs repo
+   (not just src/),
    and all three mprotect call sites are in the GC subsystem (src/gc/{mem_map.
   cc:
   91,
@@ -487,10 +500,12 @@ h:
 h:
 13 (@interface LynxTextView :
  UIView).
- The JSC interpreter-only/LLInt-no-JIT statement is an accurate external iOS-platform fact (third-party non-WebView app process lacks dynamic-codesigning entitlement),
+ The JSC interpreter-only/LLInt-no-JIT statement is an accurate external iOS-platform fact
+ (third-party non-WebView app process lacks dynamic-codesigning entitlement),
  correctly not cited to a repo source.
 - Sources checked:
-   /tmp/agent/primjs-audit-20260612/docs/`template_interpreter.md` (lines 49,61,73,82 -- handler generator writes embedded.
+   /tmp/agent/primjs-audit-20260612/docs/`template_interpreter.md`
+   (lines 49,61,73,82 -- handler generator writes embedded.
   S;
    dispatch_table;
    confirmed);

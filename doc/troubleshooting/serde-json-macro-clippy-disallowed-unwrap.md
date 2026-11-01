@@ -9,7 +9,7 @@ INSIDE the macro expansion and attributes the error to the caller's crate,
  failing
 `cargo clippy -- --deny warnings` on code that contains no visible `unwrap`.
 
-Found while building `package/desktop-app/file-manager-gtk-sticky`'s observed-state writer.
+Found while building `package/file-manager/variant-gtk-sticky`'s observed-state writer.
 
 ## Symptom
 
@@ -85,6 +85,26 @@ method never appears in the expansion.
    suppression plus this repo's documentation requirement for suppressions;
    the
   explicit-map form is cheaper.
+
+- A crate-local wrapper macro that carries the one scoped allowance,
+  shipped in `package/ide/app/src/json_value.rs` as `json_value!`.
+  The macro expands to a `let` statement annotated with
+  `#[allow(clippy::disallowed_methods, reason = "...")]` that holds `serde_json::json!(...)`,
+  and yields the bound value.
+  The IDE has 145 `json!` fixtures and wire messages in tests and in its inspection binaries that expand an unwrap,
+  where rewriting each object as `Map::insert` calls would bury the JSON shape the test asserts.
+  Tradeoff:
+  one suppression with this reason string instead of one per call site,
+  and a hand-written `unwrap` beside a `json_value!` call is still reported.
+  Observed with the root `clippy.toml` mounted in the container lint:
+  the library tests,
+  the integration tests,
+  and both binaries pass `cargo clippy --all-targets -- --deny warnings`,
+  and a planted `Result::unwrap()` in the same files still fails it.
+  The allowance covers a statement and not an item,
+  so unlike the `zbus::interface` case no `const _: () = { ... }` wrapper is needed.
+  Production code that builds only a few values uses `Value::from` and `Map::insert` instead
+  (`package/ide/app/src/language/config/rust_analyzer.rs` and `incoming.rs`).
 
 ## What does not work
 

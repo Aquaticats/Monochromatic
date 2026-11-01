@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type {
   ExtensionAPI,
   ProviderConfig,
@@ -22,7 +22,7 @@ import type {
   Model,
   Provider,
 } from '@earendil-works/pi-ai';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   applyRetirements,
   readsFromRegistry,

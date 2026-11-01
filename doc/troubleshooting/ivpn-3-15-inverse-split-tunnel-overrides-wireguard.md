@@ -149,7 +149,7 @@ WireGuard's fwmark policy table only for literal `/0` prefixes.
  so the most specific main-table match sent the peer's outer UDP
 packets back into `mx-que-mx1`.
 
-The fixed design is recorded in `package/cli/wg-quicker/src/tunnel-route.ts:149-156`:
+The fixed design is recorded in `package/wg/cli-quicker/src/tunnel-route.ts:149-156`:
 
 ```ts
  * Automatic routing places every allowed prefix in one policy table carried by
@@ -160,7 +160,7 @@ The fixed design is recorded in `package/cli/wg-quicker/src/tunnel-route.ts:149-
 ```
 
 The implementation allocates the mark and table for every nonempty automatic route set at
-`package/cli/wg-quicker/src/tunnel-route.ts:201-230`.
+`package/wg/cli-quicker/src/tunnel-route.ts:201-230`.
  Ordinary inner packets use the policy table.
  WireGuard outer packets carry the interface fwmark,
  skip that table,
@@ -216,10 +216,10 @@ The decisive difference is the marked lookup.
 
 ### Disposable regression harness
 
-Commit `2d94b86fd` adds `package/cli/wg-quicker/src/tunnel-route.integration.test.ts` and this package task:
+Commit `2d94b86fd` adds `package/wg/cli-quicker/src/tunnel-route.integration.test.ts` and this package task:
 
 ```sh
-mise run //package/cli/wg-quicker:test:integration:route
+mise run //package/wg/cli-quicker:test:integration:route
 ```
 
 The harness creates client and server network namespaces,
@@ -311,7 +311,7 @@ Tradeoff:
 
 Commit `2d94b86fd` routes every automatic `AllowedIPs` prefix through the marked policy table.
  It also checks both family rule sets before creating the interface.
- `package/cli/wg-quicker/src/policy-routing-conflict.ts:124-129` rejects IVPN's exact rule with:
+ `package/wg/cli-quicker/src/policy-routing-conflict.ts:124-129` rejects IVPN's exact rule with:
 
 ```text
 IVPN Desktop split tunneling is active (fwmark 0xca6c, table 17) and would bypass this WireGuard tunnel.

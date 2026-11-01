@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T21:51:51.719Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "Bounded local Node harness rebuild and remaining unchanged authored source-import files; no new provider allocation or application fixes",
+  "sourceFiles": [
+    {
+      "path": "package/desktop-daemon/hall-monitor/src/analyze.unit.test.ts",
+      "bytes": 6757,
+      "sha256": "b4c93bd5018539a07d316aacf4dc571284e858449d03e726e7a51153b95a9d16",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/desktop-daemon/hall-monitor/src/infra/lock.unit.test.ts",
+      "bytes": 5063,
+      "sha256": "522c293c16192d199eccc3a18722d2ec6d0483c22ec06b77d8cd98995dfba40b",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/dev-script/page-weight/src/html.unit.test.ts",
+      "bytes": 4187,
+      "sha256": "d1afe703235abb1242d65897f4ae29479fbb3e76e28dbd74eaee1c27ed164e1a",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/dev-script/page-weight/src/url-detect.unit.test.ts",
+      "bytes": 4202,
+      "sha256": "b0e14b80d7d0055957d0f3ee206c2a3fb44476a5b74774ad3a967ed8e4b6c129",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/css/index.unit.test.ts",
+      "bytes": 16348,
+      "sha256": "aa6d4f2fa0f00a4f91581f15c6661171a3cf389964b17f175744373054d96e29",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/html/index.unit.test.ts",
+      "bytes": 2517,
+      "sha256": "b9357ab7f59a3c33b84c6b3f2e56f82a7e2fbbc9deab65d53f01139cfb3591c2",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/hyperscript/src/xml/index.unit.test.ts",
+      "bytes": 5753,
+      "sha256": "615ea548015473c58860894d25e3456c0afc3e2de9807d52255bdfcfec060a4d",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts",
+      "bytes": 2736,
+      "sha256": "1a803e8c2897b6012ae43deb08d07fc15f6511eee679bfbf581e90587fe143cc",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/transform-helpers.unit.test.ts",
+      "bytes": 4642,
+      "sha256": "362c0bb8313ff3f988ee4ee4a5d33c2f2b4a0e49194e2d88761f79d0f2f5cb0d",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/module/test/src/it.unit.test.ts",
+      "bytes": 4249,
+      "sha256": "6db6986f28ddc4fe22bf9cdaf40274ef257cf583c7e6eb6f05e31dbcdca7ab4f",
+      "role": "existing harness failure/timeout/repeat self-test against rebuilt node artifact"
+    }
+  ],
+  "runtime": {
+    "nodeExpected": "v26.12.0",
+    "pnpmExpected": "12.14.0",
+    "miseVersion": "2026.10.0 linux-x64 (2026-10-02)",
+    "miseBinarySha256": "57ced973f968b8fbab07aa8e32bd7077d4a357e200a22356d98963c723c6de0a",
+    "imageId": "7a0d2c0c30811c393f278a255613b2a78cac778438bc06464e4a8b6979c3d4a9",
+    "installedNodeAndPnpmMountedReadOnly": true,
+    "personalFixturesMounted": false
+  },
+  "resources": {
+    "concurrentContainers": 1,
+    "cpu": 2,
+    "memoryBytes": 2147483648,
+    "swapTotalBytes": 2147483648,
+    "harnessBuildMaximumSeconds": 600,
+    "consumerMaximumSeconds": 660,
+    "perFileMaximumSeconds": 60
+  },
+  "build": {
+    "argv": [
+      "run",
+      "//package/module/test:build:js:node"
+    ],
+    "env": {
+      "MISE_AUTO_INSTALL": "false",
+      "MISE_LOCKED": "1",
+      "MISE_TRUSTED_CONFIG_PATHS": "/workspace",
+      "MISE_JOBS": "2"
+    },
+    "successRequiredBeforeBuiltHarnessSelfTest": true
+  },
+  "consumer": {
+    "nodeProgramSha256": "11a9e53b0d09dfb90d450331aa51a870eb84898bc5c32712df0975308dc57f08",
+    "programAdmission": "doc/audit/depot-local-figma-authored-consumer-admission-2026-10-18.evidence.json",
+    "network": "none",
+    "env": {
+      "DEBUG": "true"
+    },
+    "retainedOriginalFixturePaths": true
+  },
+  "limits": [
+    "All nine ordinary source-owner files run unchanged; missing paths and assertions remain visible",
+    "The existing it self-test runs only after successful fresh node-artifact build; it covers rejection, expected-failure, timeout and repeat behavior",
+    "A failed harness build does not qualify a built-artifact control, but independent unchanged source-owner probes remain classified separately",
+    "Source-import tests do not establish package artifact/API coverage",
+    "No model call, GUI, emulator, webcam, daemon or host-app launch; no fixture alias correction admitted"
+  ]
+}

@@ -15,7 +15,7 @@
  ```
  */
 
-import { escapeHtml, } from '@monochromatic-dev/module-hyperscript/ts';
+import { escapeHtml, } from '@monochromatic-dev/hyperscript-core/ts';
 
 //region Types
 
@@ -205,7 +205,7 @@ async function executeSearch(query: string,): Promise<void> {
     .slice(
     0,
     MAX_RESULTS,
-  );
+    );
   /**
    Per-result metadata fetched in parallel before rendering.
    */
@@ -304,7 +304,7 @@ function renderResults(results: readonly PagefindResultData[],): void {
       const title = escapeHtml(result.meta
         .title
         ?? result
-        .url,);
+          .url,);
       /**
        Escaped href used both on the link element and on the option's `data-url`.
        */
@@ -440,7 +440,7 @@ if ((input !== null) && (resultsList !== null)) {
           >= 0)
         && (navState.activeIndex
           < count))
-      {
+        {
         event.preventDefault();
         /**
          Currently active option whose URL is navigated to on Enter.

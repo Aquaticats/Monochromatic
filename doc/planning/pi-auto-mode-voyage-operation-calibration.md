@@ -33,7 +33,8 @@ and deployment constraints do not change.
 The [completed model-free diagnosis](pi-auto-mode-voyage-concrete-fit.md#what-the-result-means-for-the-next-experiment)
 found opposite references with identical coordinates in a shared role head,
 all crossing operation kinds.
-Does conditioning calibration on the code-established operation improve the same-data losses and useful confidence coverage?
+Does conditioning calibration on the code-established operation improve the same-data losses
+and useful confidence coverage?
 This question does not ask the model to reconstruct Bash facts.
 
 Private experiment root:

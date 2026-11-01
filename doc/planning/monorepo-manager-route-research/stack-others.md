@@ -45,7 +45,8 @@ no cgroup was created.
    `probe-p2.tsv`,
    and `probe-p3.tsv` (driver `SCRATCH/others/docprobe.ts`).
   Any confusion or contradiction found while reading is recorded as a trigger with its URL.
-- Library maintenance metadata came from `gh api repos/<owner>/<repo>` (plus `releases/latest`, `tags`, `commits`) on 2026-09-16
+- Library maintenance metadata came from `gh api repos/<owner>/<repo>` (plus `releases/latest`, `tags`, `commits`) on
+   2026-09-16
    (`SCRATCH/others/ghmeta-*.tsv`, verified).
 
 ## Cross-cutting findings
@@ -82,7 +83,8 @@ and some apply to the options other agents cover.
    fd opened "using either the O_RDONLY or the O_PATH flag",
    `EBUSY` when the target cgroup has a domain controller enabled
    (<https://man7.org/linux/man-pages/man2/clone.2.html>, verified).
-  Under the vet's rule that "a feature named only in a changelog, issue, blog post, or source code counts as undocumented",
+  Under the vet's rule that "a feature named only in a changelog, issue, blog post,
+  or source code counts as undocumented",
    any design whose primary cgroup placement is this glibc call carries an R9 trigger.
 - Probe from Python `ctypes` (`SCRATCH/others/spawn_probe.py`, measured):
    `pidfd_spawn` with `POSIX_SPAWN_SETCGROUP | POSIX_SPAWN_SETPGROUP`,
@@ -120,7 +122,8 @@ and some apply to the options other agents cover.
 
 ### X3: `systemd-run --user --scope` per task
 
-- Documented placement path for any language (`SRC/systemd/systemd-run.xml:76-81`, as cited in `from-scratch-inputs.md:705-707`).
+- Documented placement path for any language
+   (`SRC/systemd/systemd-run.xml:76-81`, as cited in `from-scratch-inputs.md:705-707`).
 - The resulting scope is created by systemd,
    and `CGROUP_DELEGATION.md:386-397` forbids writing attributes of cgroups systemd created,
    so pause and end would go through systemd instead of `cgroup.freeze` and `cgroup.kill`
@@ -140,7 +143,8 @@ and some apply to the options other agents cover.
 
 - One inotify instance;
    one watch per non-excluded directory;
-   exclusions (`node_modules`, `.git`, `target`, `dist`) checked during the initial walk and on each `IN_CREATE | IN_ISDIR` or `IN_MOVED_TO | IN_ISDIR`.
+   exclusions (`node_modules`, `.git`, `target`, `dist`) checked during the initial walk
+   and on each `IN_CREATE | IN_ISDIR` or `IN_MOVED_TO | IN_ISDIR`.
 - New-directory race:
    after adding a watch for a new directory,
    scan it and treat every entry found as changed,
@@ -163,7 +167,8 @@ and some apply to the options other agents cover.
 
 - `cgroup.events` carries `populated` and `frozen`;
    "a value change in this file generates a file modified event"
-   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>, sections "cgroup.events" and "[Un]populated Notification", verified).
+   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>, sections "cgroup.events" and "[Un]populated Notification",
+verified).
   Every option can wait for freeze completion and task-tree exit through its inotify path.
 - btrfs UAPI (verified on host headers):
    `BTRFS_IOC_SUBVOL_CREATE` (`/usr/include/linux/btrfs.h:1136`),
@@ -226,7 +231,8 @@ and some apply to the options other agents cover.
 - **C++.**
   It reaches the kernel through the same libc calls as Rust,
    which additionally has `CommandExt::pre_exec` in its standard library,
-   while the repository has one C++ file (`package/desktop-app/file-manager-qt/src/qt_log.cpp`) and Rust lint infrastructure (`clippy.toml`, `package/linter/rust`);
+   while the repository has one C++ file (`package/file-manager/variant-qt/src/qt_log.cpp`)
+   and Rust lint infrastructure (`clippy.toml`, `package/linter/rust`);
    separately,
    the language's official documentation is a purchased ISO standard
    ("You can purchase the official standard at the ISO Store",
@@ -239,10 +245,12 @@ and some apply to the options other agents cover.
    and the `process` package offers process-group and session flags but no pre-exec hook
    (<https://hackage.haskell.org/package/process/docs/System-Process.html>, verified).
 - **Nim.**
-  The maintained JSON-RPC library is badged "Stability: experimental" and "is designed to automatically generate marshalling and parameter checking code"
+  The maintained JSON-RPC library is badged "Stability:
+  experimental" and "is designed to automatically generate marshalling and parameter checking code"
    (`status-im/nim-json-rpc` README, verified),
    which conflicts with the skill's default ban on macros and code generation (`SKILL.md:58-61`),
-   and `std/osproc` has no pre-exec hook among its `ProcessOption` values (<https://nim-lang.org/docs/osproc.html>, verified).
+   and `std/osproc` has no pre-exec hook among its `ProcessOption` values
+   (<https://nim-lang.org/docs/osproc.html>, verified).
 - **Crystal.**
   "A Crystal program by default executes a single fiber at a time, thus concurrent only, while parallelism is opt-in"
    (<https://crystal-lang.org/reference/1.21/guides/concurrency.html>, verified),
@@ -315,13 +323,15 @@ and some apply to the options other agents cover.
 - Reaping interaction,
    verified in source:
    .NET reaps only children started by `Process`
-   ("By default we only reap managed processes started using the 'Process' class. This allows other code to start processes without .NET reaping them",
+   ("By default we only reap managed processes started using the 'Process' class. This allows other code
+to start processes without .NET reaping them",
    `pal_signal.c:376-377`),
    except when the process is pid 1 or `SIGCHLD` was originally ignored,
    where it calls `waitpid(-1)` (`pal_signal.c:384`; `ProcessWaitState.Unix.cs:688-706`).
   In a container where the daemon is pid 1,
    the runtime would steal exit statuses from `pidfd` waits.
-  A foreign exited child also makes every `SIGCHLD` fall back to checking all `Process` instances (`ProcessWaitState.Unix.cs:622-653`).
+  A foreign exited child also makes every `SIGCHLD` fall back to checking all `Process` instances
+  (`ProcessWaitState.Unix.cs:622-653`).
 - Fallback (X2):
    `Process.Start(self, "__enter-cgroup", dir, "--", ...)`,
    trampoline writes its pid to `cgroup.procs` and P/Invokes `execve`;
@@ -343,7 +353,8 @@ and some apply to the options other agents cover.
   On overflow it stops the shared inotify instance and restarts watchers,
    rewalking the tree (`:536-548`, `:1147-1154`, verified).
   Its API page says nothing about Linux behavior
-   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=net-10.0>, no "Linux" or "inotify" text, verified).
+   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=net-10.0>, no "Linux"
+or "inotify" text, verified).
 - Design:
    P/Invoke `inotify_init1`,
    `inotify_add_watch`,
@@ -367,7 +378,8 @@ and some apply to the options other agents cover.
    parse with `JsonDocument`/`JsonNode`
    (<https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/use-dom>, loaded),
    write with `Utf8JsonWriter`.
-  `JsonSerializer` and StreamJsonRpc are avoided because the skill forbids reflection and code generation by default (`SKILL.md:58-61`),
+  `JsonSerializer` and StreamJsonRpc are avoided because the skill forbids reflection
+  and code generation by default (`SKILL.md:58-61`),
    and reflection-based serialization is limited under NativeAOT
    ("No runtime code generation", "Requires trimming",
    <https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/>, verified).
@@ -385,7 +397,8 @@ and some apply to the options other agents cover.
    (inference, unverified on other architectures).
 - `File.Copy` already tries `FICLONE` first (`pal_io.c:1453-1481`, verified),
    but the API page does not document it
-   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.file.copy?view=net-10.0>, no "reflink" or "clone", verified),
+   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.file.copy?view=net-10.0>, no "reflink" or "clone",
+verified),
    so the design must not rely on it.
 - `statfs`:
    P/Invoke with a byte buffer,
@@ -407,7 +420,8 @@ and some apply to the options other agents cover.
 
 - `PosixSignalRegistration.Create(PosixSignal.SIGINT, ...)` with `Cancel = true`
    ("SIGINT and SIGQUIT can be canceled on both Windows and on Unix platforms; SIGTERM can only be canceled on Unix",
-   <https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.posixsignalregistration.create?view=net-10.0>, verified).
+   <https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.posixsignalregistration.create?view=net-10.0>,
+verified).
 - Shutdown:
    stop accepting,
    hold the queue,
@@ -432,12 +446,14 @@ and some apply to the options other agents cover.
    outside the repository configuration.
 - Would have to be added:
   - SDK pin in `mise.toml`;
-     NativeAOT build prerequisites "clang zlib-devel zlib-ng-devel zlib-ng-compat-devel" on Fedora (NativeAOT overview page, verified);
+     NativeAOT build prerequisites "clang zlib-devel zlib-ng-devel zlib-ng-compat-devel" on Fedora
+     (NativeAOT overview page, verified);
      `clang`, `/usr/include/zlib.h`, and `/usr/lib64/libz.so` exist on this host (measured) and must also exist in CI.
   - `.csproj`,
      `Directory.Build.props` (nullable, warnings as errors, `GenerateDocumentationFile` for doc-comment enforcement),
      NuGet lock file,
-     file-enforcer management of `.csproj` metadata in the style of `manageCargoManifests` (`file-enforcer.config.ts:20`, `:115`).
+     file-enforcer management of `.csproj` metadata in the style of `manageCargoManifests`
+     (`file-enforcer.config.ts:20`, `:115`).
   - Analyzer equivalents of repository rules with no built-in Roslyn counterpart,
      such as the max-lines budget,
      built like the Kotlin rule set in `package/linter/kotlin`.
@@ -459,16 +475,19 @@ Triggers:
 
 - **Contradiction on the interop mechanism the design depends on.**
   <https://learn.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke-source-generation>:
-   "Using DllImport isn't an option for platforms that require full Native AOT scenarios and therefore using other approaches (for example, source generation) is more appropriate."
+   "Using DllImport isn't an option for platforms that require full Native AOT scenarios
+   and therefore using other approaches (for example, source generation) is more appropriate."
   <https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/interop>:
    "native code interop works similarly in Native AOT and non-AOT deployments"
    and "The P/Invoke calls in AOT-compiled binaries are bound lazily at runtime by default".
-  A reader cannot tell whether `[DllImport]` is supported under NativeAOT on Linux or whether the `[LibraryImport]` source generator is required,
+  A reader cannot tell whether `[DllImport]` is supported under NativeAOT on Linux
+  or whether the `[LibraryImport]` source generator is required,
    and the generator is code generation that the skill forbids by default.
 - **Version applicability absent without JavaScript.**
   The "Applies to" section of
    <https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.posixsignalregistration.create?view=net-10.0>
-   and of the `XxHash128` page is an empty `moniker-applies-to-table` with an empty `<thead>` in the served HTML (verified in raw HTML).
+   and of the `XxHash128` page is an empty `moniker-applies-to-table`
+   with an empty `<thead>` in the served HTML (verified in raw HTML).
 - **Unversioned URL lands on a release candidate.**
   <https://learn.microsoft.com/en-us/dotnet/api/system.io.hashing.xxhash3> redirects to `?view=net-11.0-pp`
    and shows "Package: System.IO.Hashing v11.0.0-rc.1.26425.128" (verified).
@@ -477,7 +496,8 @@ Triggers:
    the design avoids both.
 - Shared X1 trigger for the primary cgroup placement.
 - Checked and dismissed:
-   "Some information relates to prerelease product" and "Access to this page requires authorization" appear in extracted text,
+   "Some information relates to prerelease product"
+   and "Access to this page requires authorization" appear in extracted text,
    but sit in elements with class `is-hidden` (verified in raw HTML).
 
 ### R10: maturity
@@ -674,7 +694,8 @@ Triggers:
   <https://ocaml.org/p/ctypes-foreign/latest/doc/ctypes-foreign/Foreign/index.html>:
    `funptr` "raises Dl.DL_error if name is not found in ?from and ?stub is false",
    but its signature has neither `?from` nor `?stub`;
-   `foreign`'s `?check_errno` warns that "a function that succeeds is allowed to change errno. So use this option with caution",
+   `foreign`'s `?check_errno` warns that "a function that succeeds is allowed to change errno. So use this option
+   with caution",
    leaving reliable `errno` retrieval unexplained.
 - **Probable trigger for a TypeScript-only reader.**
   `Eio.Process.spawn` is typed `sw:Switch.t -> [> 'tag mgr_ty ] Std.r -> ... -> 'tag ty Std.r`,
@@ -734,7 +755,8 @@ Triggers:
      so btrfs work goes through CLI subprocesses or FFI.
     The strongest precedent,
      Dune,
-     solves the same problems with C stubs (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`; `src/rpc/csexp_rpc.ml:19-21`, `:301`),
+     solves the same problems with C stubs
+     (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`; `src/rpc/csexp_rpc.ml:19-21`, `:301`),
      so following precedent means writing C.
 3. **R9 triggers in two libraries the natural design would use**
      (`inotify-eio`, `ctypes-foreign`),
@@ -754,7 +776,8 @@ Triggers:
 ### Shape
 
 - `asyncio.Runner` main loop for scheduler and RPC.
-- inotify reader on a dedicated thread doing blocking `os.read` and handing events to the loop with `call_soon_threadsafe`,
+- inotify reader on a dedicated thread doing blocking `os.read` and handing events to the loop
+   with `call_soon_threadsafe`,
    so CPU work on the loop thread cannot delay draining the kernel queue (X5).
 - Hashing in a process pool;
    Python 3.14 changed the default start method on POSIX "from fork to forkserver"
@@ -764,7 +787,8 @@ Triggers:
 ### R1: cgroup placement, freeze, kill, limits
 
 - `subprocess.Popen(preexec_fn=...)` is rejected:
-   "The preexec_fn parameter is NOT SAFE to use in the presence of threads in your application. The child process could deadlock before exec is called."
+   "The preexec_fn parameter is NOT SAFE to use in the presence of threads in your application. The child process could
+   deadlock before exec is called."
    (<https://docs.python.org/3/library/subprocess.html>, verified;
    `Modules/_posixsubprocess.c:1001`),
    and this design has threads.
@@ -831,7 +855,8 @@ Triggers:
 - `hashlib.file_digest(f, "blake2b")`.
   "the Python GIL is released while computing a hash supplied more than 2047 bytes of data at once"
    (<https://docs.python.org/3/library/hashlib.html>, verified).
-- Measured on this host (`SCRATCH/others/hash_probe.py`, warm page cache, GIL build confirmed by `sys._is_gil_enabled()` returning `True`):
+- Measured on this host
+   (`SCRATCH/others/hash_probe.py`, warm page cache, GIL build confirmed by `sys._is_gil_enabled()` returning `True`):
    all 8,083 tracked files (151,343,931 bytes) hashed serially in 273 to 277 ms over three runs;
    with 16 threads,
    306 to 316 ms.
@@ -856,7 +881,8 @@ Triggers:
 - Present today:
    no Python files in the repository,
    no Python in CI (`rg`, measured).
-  `doc/planning/load-bearing-code-languages.md:7-12` names Python among the unapproved languages the proposed rule covers.
+  `doc/planning/load-bearing-code-languages.md:7-12` names Python among the unapproved languages the proposed rule
+  covers.
 - `mise registry` lists `core:python`,
    `aqua:astral-sh/uv`,
    and `aqua:astral-sh/ruff` (measured).
@@ -895,7 +921,8 @@ Triggers in third-party documentation:
 
 - **`asyncinotify`**
    (<https://asyncinotify.readthedocs.io/en/latest/asyncinotify.html>):
-   "class asyncinotify.RecursiveInotify: A Recursive superclass of Inotify. Adds the add_recursive_watch() method, but otherwise works the same",
+   "class asyncinotify.RecursiveInotify: A Recursive superclass of Inotify. Adds the add_recursive_watch() method,
+   but otherwise works the same",
    which describes a subclass as a superclass;
    a second class,
    `RecursiveWatcher`,

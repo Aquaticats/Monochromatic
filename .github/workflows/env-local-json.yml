@@ -1,0 +1,92 @@
+name: env-local-json
+
+# Validates the encrypted-store reader, its search-fetch integration, and the
+# Node container matrix. The host job installs real sops and age directly;
+# the container job uses the runners' podman to prove the tools work inside
+# Ubuntu as root and non-root.
+on:
+  pull_request:
+    branches: ['main']
+    paths:
+    - 'package/env-local-json/core/**'
+    - 'package/test-harness/core-matrix/**'
+    - 'package/search-fetch/core/**'
+    - 'package/search-fetch/mcp/**'
+    - 'package/search-fetch/pi-plugin/**'
+    - 'package/search-fetch/cli/**'
+    - '.github/workflows/env-local-json.yml'
+    - 'task.ts'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
+  push:
+    branches: ['main']
+    paths:
+    - 'package/env-local-json/core/**'
+    - 'package/test-harness/core-matrix/**'
+    - 'package/search-fetch/core/**'
+    - 'package/search-fetch/mcp/**'
+    - 'package/search-fetch/pi-plugin/**'
+    - 'package/search-fetch/cli/**'
+    - '.github/workflows/env-local-json.yml'
+    - 'task.ts'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    - name: Set up node, pnpm and the task CLI
+      uses: ./.github/actions/task-cli-setup
+    - name: Install sops and age
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends age
+        SOPS_VERSION=3.13.3
+        curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
+        sudo chmod +x /usr/local/bin/sops
+    - name: Matrix runner unit tests
+      run: task-run //package/test-harness/core-matrix:test
+    - name: Build the reader
+      run: task-run //package/env-local-json/core:build
+    - name: Reader unit tests with real sops and age
+      run: task-run //package/env-local-json/core:test:unit
+    - name: Build search-fetch shared
+      run: task-run //package/search-fetch/core:build
+    - name: Search-fetch shared unit tests
+      run: task-run //package/search-fetch/core:test:unit
+    - name: MCP server build and tests
+      run: task-run //package/search-fetch/mcp:buildAndTest
+    - name: Pi extension verification
+      run: task-run //package/search-fetch/pi-plugin:verify:extension
+    - name: CLI build and tests
+      run: task-run //package/search-fetch/cli:buildAndTest
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    - name: Set up node, pnpm and the task CLI
+      uses: ./.github/actions/task-cli-setup
+    - name: Build the reader
+      run: task-run //package/env-local-json/core:build
+    - name: Verify podman
+      run: podman --version
+    - name: Reader container matrix
+      run: task-run //package/env-local-json/core:test:container

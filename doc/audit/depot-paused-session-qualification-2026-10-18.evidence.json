@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-19T02:35:00Z",
+  "purpose": "Attempt a bounded paused-session qualification for native Depot CI and record the result.",
+  "repo": "Aquaticats/Monochromatic",
+  "orgId": "l4zncjjbj5",
+  "workflow": ".depot/workflows/paused-qualification.yml",
+  "workflowShape": {
+    "trigger": "workflow_dispatch",
+    "job": "probe",
+    "runsOn": "depot-ubuntu-24.04",
+    "timeoutMinutes": 3,
+    "steps": ["echo before", "echo after"]
+  },
+  "attempts": [
+    {
+      "context": "linked worktree /home/user/temp/agent/depot-grill/paused-qualification-20261019",
+      "command": "depot ci run --workflow .depot/workflows/paused-qualification.yml --job probe --ssh-after-step 1 --repo Aquaticats/Monochromatic --forge github --org l4zncjjbj5",
+      "runIds": ["hgwbgc278x", "tcsk3zl1rw"],
+      "result": "The CLI reported 'could not determine merge base, skipping patch: cannot determine default branch', created runs with no workflows, waited for a tmate session that could not start, and was cancelled."
+    },
+    {
+      "context": "depth-1 clone /home/user/temp/agent/depot-grill/paused-clone-20261019",
+      "command": "depot ci run --workflow .depot/workflows/paused-qualification.yml --job probe --ssh-after-step 1 --repo Aquaticats/Monochromatic --org l4zncjjbj5",
+      "runId": "z4tkwz7jml",
+      "result": "The same default-branch detection warning recurred; the run had no workflow and was cancelled."
+    }
+  ],
+  "result": "Paused-session qualification was not reached. The local-run path could not determine the default branch and skipped the local patch, so the workflow never entered a job and no tmate session was created.",
+  "limits": [
+    "This is a tooling/admission result, not a product qualification or failure.",
+    "No paused-step target, SSH connection, or workflow readback was observed.",
+    "Direct SSH and paused-step attachment remain unqualified.",
+    "The attempt does not justify relying on paused-session for any recurring capability."
+  ],
+  "nextStep": "Run the qualification from a checkout whose default branch detection works, or use a workflow already present on the target ref and a direct SSH attachment control."
+}

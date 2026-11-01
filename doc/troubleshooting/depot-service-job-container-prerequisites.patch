@@ -1,0 +1,44 @@
+diff --git a/.github/workflows/readonly-semantic-bridge.yml b/.github/workflows/readonly-semantic-bridge.yml
+index 8313576742..820c6656ac 100644
+--- a/.github/workflows/readonly-semantic-bridge.yml
++++ b/.github/workflows/readonly-semantic-bridge.yml
+@@ -58,7 +58,6 @@
+         }
+       },
+       "env": {
+-        "PROBE_SERVICE_URL": "http://127.0.0.1:${{ job.services.fixture.ports[8080] }}",
+         "PROBE_SERVICE_NONCE": "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.provider }}-host",
+         "PROBE_EXPECTED_ARCH": "${{ matrix.architecture }}",
+         "PROBE_PLATFORM_PROVIDER": "${{ matrix.provider }}",
+@@ -84,7 +83,10 @@
+         },
+         {
+           "run": "mise run //.depot/research/service:consume",
+-          "working-directory": ".depot/research/service"
++          "working-directory": ".depot/research/service",
++          "env": {
++            "PROBE_SERVICE_URL": "http://127.0.0.1:${{ job.services.fixture.ports[8080] }}"
++          }
+         },
+         {
+           "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+@@ -142,7 +144,6 @@
+         }
+       },
+       "env": {
+-        "PROBE_SERVICE_URL": "http://fixture:8080",
+         "PROBE_SERVICE_NONCE": "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.provider }}-container",
+         "PROBE_EXPECTED_ARCH": "${{ matrix.architecture }}",
+         "PROBE_PLATFORM_PROVIDER": "${{ matrix.provider }}",
+@@ -168,7 +169,10 @@
+         },
+         {
+           "run": "mise run //.depot/research/service:consume",
+-          "working-directory": ".depot/research/service"
++          "working-directory": ".depot/research/service",
++          "env": {
++            "PROBE_SERVICE_URL": "http://fixture:8080"
++          }
+         },
+         {
+           "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",

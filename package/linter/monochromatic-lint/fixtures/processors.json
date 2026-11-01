@@ -1,0 +1,6 @@
+{
+  "fences": "> - ````rust,ignore,no_run,should_panic,compile_fail,edition2024\r\n>   //! Unicode 😀.\r\n>   # let value: u32 = 1;\r\n>   value;\r\n>   ````\r\n\n~~~rs ignore\nfn main() {}\n~~~\n\n```ts\nconst skipped = true;\n```\n\n```\nnot Rust outside Rustdoc\n```\n",
+  "docs": "//! First.\r\n//! Second.\r\n\r\n/// Item prose.\r\n/// ```\r\n/// //! Example.\r\n/// # let value: u32 = 1;\r\n/// value;\r\n/// ```\r\nfn item() {}\r\n#[doc = \"not processed\"]\r\nfn attr() {}\r\nconst TEXT: &str = \"/// not a doc\";\r\n/** Block prose. */\r\nstruct Block;\r\n/*! Inner block. */\r\n//// not Rustdoc\r\n/*** not Rustdoc */\r\n/**/ \r\n",
+  "nested": "//! Root.\n/// ````rust\n/// //! Level one.\n/// /// ```\n/// /// //! Level two.\n/// /// let item: u32 = 1;\n/// /// ```\n/// fn example() {}\n/// ````\nfn outer() {}\n",
+  "mdx": "<section>\n\n```rust,no_run\n//! Embedded.\nlet value: u32 = 1;\n```\n\n</section>\n"
+}

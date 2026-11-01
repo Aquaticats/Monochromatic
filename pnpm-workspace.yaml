@@ -16,95 +16,123 @@ modulesCacheMaxAge: 0
 catalog:
   # Approved here despite upstream not fuzzing it because this is a package that doesn't need fuzzing.
   '@sindresorhus/is': '>=8.1.0'
-  '@anthropic-ai/sdk': '>=0.120.0'
-  '@changesets/cli': '>=3.0.2'
-  '@clack/prompts': '>=1.7.0'
-  '@csstools/css-tokenizer': '>=4.0.0'
-  '@deck.gl/core': '>=9.3.10'
-  '@deck.gl/layers': '>=9.3.10'
-  '@deck.gl/mesh-layers': '>=9.3.10'
-  '@earendil-works/pi-ai': '>=0.84.2'
-  '@earendil-works/pi-coding-agent': '>=0.84.2'
-  '@earendil-works/pi-tui': '>=0.84.2'
+  '@anthropic-ai/sdk': '>=1.3.0'
+  '@changesets/cli': '>=3.0.3'
+  '@clack/prompts': '>=1.8.1'
+  '@csstools/css-tokenizer': '>=4.0.2'
+  '@deck.gl/core': '>=9.4.1'
+  '@deck.gl/layers': '>=9.4.1'
+  '@deck.gl/mesh-layers': '>=9.4.1'
+  # DeepSeek Harness plugin APIs match the installed dsh 0.2.1-rc.5 runtime.
+  # Exact prerelease pins keep workspace declarations and host contracts aligned.
+  '@deepseek-ai/cordis': '4.0.5'
+  '@deepseek-ai/dsh-agent': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-attachment': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-brand': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-commands': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-fs': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-llm': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-ptc-runtime': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-sandbox': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-sandbox-policy': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-scope': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-session': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-session-persistence': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-session-projection': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-storage': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-storage-domain': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-system-prompt': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-timeout': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-tools': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-typert-protocol': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-user-approval': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-util-values': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-working-directory': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-workspace': '0.2.1-rc.5'
+  '@deepseek-ai/schemastery': '3.18.5'
+  '@deepseek-ai/dsh-llm-pi-ai': '0.2.1-rc.5'
+  '@deepseek-ai/dsh-settings': '0.2.1-rc.5'
+  '@earendil-works/pi-ai': '>=1.4.0'
+  '@earendil-works/pi-coding-agent': '>=1.4.0'
+  '@earendil-works/pi-tui': '>=1.4.0'
   '@electron/packager': '>=20.3.0'
   '@homebridge/dbus-native': '>=0.7.9'
-  '@inquirer/checkbox': '>=5.2.2'
-  '@inquirer/input': '>=5.1.3'
-  '@lezer/common': '>=1.5.2'
-  '@lezer/css': '>=1.3.6'
-  '@lezer/highlight': '>=1.2.3'
+  '@inquirer/checkbox': '>=5.2.8'
+  '@inquirer/input': '>=5.1.9'
+  '@lezer/common': '>=1.5.4'
+  '@lezer/css': '>=1.3.9'
+  '@lezer/highlight': '>=1.2.5'
   '@lezer/html': '>=1.3.13'
-  '@lezer/javascript': '>=1.5.4'
-  '@lezer/markdown': '>=1.7.2'
-  '@lezer/rust': '>=1.0.2'
+  '@lezer/javascript': '>=1.5.6'
+  '@lezer/markdown': '>=1.8.1'
+  '@lezer/rust': '>=1.0.3'
   '@lezer/xml': '>=1.0.6'
   '@lezer/yaml': '>=1.0.4'
   '@libsql/client': '>=0.17.3'
   '@libsql/kysely-libsql': '>=0.4.1'
   '@lobehub/icons-static-svg': '>=1.82.0'
-  '@luma.gl/engine': '>=9.3.6'
+  '@luma.gl/engine': '>=9.4.2'
   '@mdx-js/mdx': '>=3.1.1'
   '@mitata/counters': '>=0.0.8'
   '@msgpack/msgpack': '>=3.1.3'
   # TODO: deprecate Optique
-  '@optique/core': '>=1.2.1'
+  '@optique/core': '>=1.3.6'
   # TODO: deprecate Optique
-  '@optique/run': '>=1.2.1'
-  '@oxlint/plugins': '>=1.79.0'
-  '@playwright/test': '>=1.62.1'
+  '@optique/run': '>=1.3.6'
+  '@oxlint/plugins': '>=1.90.0'
+  '@playwright/test': '>=1.64.1'
   '@total-typescript/ts-reset': '>=0.6.1'
-  '@tursodatabase/database': '>=0.7.2'
+  '@tursodatabase/database': '>=0.8.3'
   '@types/chai': '>=5.2.3'
   '@types/chai-as-promised': '>=8.0.2'
   '@types/hast': '>=3.0.5'
   '@types/hyphen': '>=1.14.0'
   '@types/mdast': '>=4.0.4'
   '@types/mdx': '>=2.0.14'
-  '@types/node': '>=26.2.0'
-  '@types/semver': '>=7.7.1'
-  '@types/sinon': '>=22.0.0'
-  '@types/sinon-chai': '>=4.0.0'
+  '@types/node': '>=26.6.6'
+  '@types/semver': '>=7.8.0'
+  '@types/sinon': '>=22.0.2'
+  '@types/sinon-chai': '>=4.0.1'
   '@types/three': '>=0.182.0'
-  '@types/unist': '>=3.0.3'
-  '@valibot/to-json-schema': '>=1.7.1'
-  'ajv': '>=8.17.1'
+  '@valibot/to-json-schema': '>=1.8.0'
+  'ajv': '>=8.20.0'
   'ajv-formats': '>=3.0.1'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
-  'atomically': '>=2.0.3'
+  'atomically': '>=2.1.1'
   'aws4fetch': '>=1.0.20'
   'better-auth': '>=1.6.9'
-  'browserslist': '>=4.28.8'
-  'chai': '>=6.2.2'
+  'browserslist': '>=4.29.5'
+  'chai': '>=6.3.0'
   'chai-as-promised': '>=8.0.2'
-  'chokidar': '>=5.0.0'
-  'cidr-tools': '>=13.0.1'
+  'chokidar': '>=6.0.0'
+  'cidr-tools': '>=13.0.4'
   'crossws': '>=0.4.4'
   # css-edit.bench baseline parser; not a runtime dependency anywhere.
   'css-tree': '>=3.2.1'
   'csstype': '>=3.2.3'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
-  'debounce-fn': '>=6.0.0'
+  'debounce-fn': '>=7.0.0'
   'decircular': '>=1.0.0'
   # deepmerge-ts.fuzz subject under test; not a runtime dependency anywhere.
   'deepmerge-ts': '>=8.0.2'
   'dot-prop': '>=10.2.0'
-  'electron': '>=43.4.1'
+  'electron': '>=45.1.0'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
-  'env-paths': '>=3.0.0'
-  'execa': '>=10.0.1'
+  'env-paths': '>=4.0.0'
+  'execa': '>=10.2.1'
   'expect-type': '>=1.4.0'
-  'fast-check': '>=4.9.0'
+  'fast-check': '>=4.10.2'
   'farmhashjs': '>=1.0.1'
-  'feedsmith': '>=3.0.0-rc.3'
+  'feedsmith': '>=3.0.1'
   'file-type': '>=21.3.0'
-  'h3': '>=2.0.1-rc.29'
+  'h3': '>=2.0.8'
   'happy-dom': '>=20.5.0'
   'happy-rusty': '>=1.9.1'
   'hb-subset-wasm': '>=0.4.0'
   'hyphen': '>=1.14.1'
-  'ignore': '>=7.0.6'
+  'ignore': '>=7.0.14'
   'isomorphic-git': '>=1.27.0'
-  'json-schema-typed': '>=8.0.1'
+  'json-schema-typed': '>=9.0.0'
   'jsonc-eslint-parser': '>=3.3.0'
   'jsonc-parser': '>=3.3.1'
   'jspdf': '>=4.2.1'
@@ -118,24 +146,24 @@ catalog:
   'neovim': '>=5.4.0'
   'openai': '>=6.22.0'
   'opentype.js': '>=2.0.0'
-  'oxlint': '>=1.79.0'
-  'oxlint-tsgolint': '>=7.0.2001'
-  'p-limit': '>=7.3.1'
+  'oxlint': '>=1.90.0'
+  'oxlint-tsgolint': '>=7.0.2005'
+  'p-limit': '>=7.3.3'
   # p-memoize-fork.fuzz differential subject; not a runtime dependency anywhere.
-  'p-memoize': '>=8.0.0'
+  'p-memoize': '>=9.0.0'
   # matcher-fork.fuzz differential subject; not a runtime dependency anywhere.
-  'matcher': '>=6.1.0'
+  'matcher': '>=7.0.0'
   # p-map-fork.fuzz differential subject; not a runtime dependency anywhere.
-  'p-map': '>=7.0.8'
+  'p-map': '>=7.1.1'
   # pify-fork.fuzz differential subject; not a runtime dependency anywhere.
   'pify': '>=6.1.0'
   # make-asynchronous-fork.fuzz differential subject; not a runtime dependency anywhere.
   'make-asynchronous': '>=2.1.0'
-  # p-waterfall is omitted: package/module/pipe provides sequential async composition.
+  # p-waterfall is omitted: package/pipe/core provides sequential async composition.
   'pdfjs-dist': '>=4.0.0'
-  'picomatch': '>=4.0.5'
-  'postcss': '>=8.5.26'
-  'postcss-html': '>=2.0.0'
+  'picomatch': '>=4.0.7'
+  'pinyin-pro': '>=3.29.5'
+  'postcss': '>=8.5.32'
   'preact': '>=10.26.0'
   'preact-render-to-string': '>=6.5.0'
   # quick-lru-fork.fuzz differential subject; not a runtime dependency anywhere.
@@ -146,48 +174,54 @@ catalog:
   'rehype-stringify': '>=10.0.1'
   'remark-gfm': '>=4.0.1'
   'remark-github-blockquote-alert': '>=2.0.1'
+  # translation-repair mirrors the site it publishes to, whose scripts/mdx.ts
+  # compiles every page with remark-math ^6 (one-among-us/data package.json);
+  # a later major could read `$` differently from the site, so this stays on 6.
+  'remark-math': '^6.0.0'
   'remark-mdx': '>=3.1.1'
   'remark-parse': '>=11.0.0'
   'remark-rehype': '>=11.1.2'
   'remark-sectionize': '>=2.1.0'
-  'rolldown': '>=1.2.5'
-  'rolldown-plugin-dts': '>=0.28.2'
+  'rolldown': '>=1.2.15'
+  'rolldown-plugin-dts': '>=0.28.8'
   'safe-stringify': '>=1.3.0'
-  'satteri': '>=0.10.5'
   'semver': '>=7.8.5'
   'serialize-error': '>=13.0.1'
-  'sharp': '>=0.35.3'
+  'sharp': '>=0.35.5'
   'showify': '>=0.2.8'
   'sinon': '>=22.1.0'
   'sinon-chai': '>=4.0.1'
   'smol-toml': '>=1.6.0'
   'string-dedent': '>=3.0.2'
-  'stylelint': '>=17.14.1'
-  'stylelint-config-standard': '>=40.0.0'
   'superjson': '>=2.2.6'
   'the-new-css-reset': '>=1.11.3'
   'three': '>=0.182.0'
   'tiny-readdir-glob': '>=2.0.0'
   'to-vfile': '>=8.0.0'
   'toml-eslint-parser': '>=1.0.3'
-  'ts-pattern': '>=5.9.0'
-  'type-fest': '>=5.8.0'
-  'typebox': '>=1.3.16'
+  'ts-pattern': '>=5.9.2'
+  'type-fest': '>=5.10.0'
+  'typebox': '>=1.4.3'
   'typesafe-i18n': '>=5.27.1'
-  'typescript': '>=7.0.2'
+  # Exact prerelease pin: a `>=7.1.0-beta` lower bound resolves the
+  # `7.1.0-dev.*` nightlies (semver orders `dev` after `beta`), and
+  # catalog:tighten skips non-`>=` entries. Revisit on 7.1.0 stable.
+  'typescript': '7.1.0-beta'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
-  'uint8array-extras': '>=1.5.0'
-  'unbash': '>=4.0.10'
+  'uint8array-extras': '>=1.6.0'
+  # The shell analyzer consumes the SyntaxNode/Redirection AST introduced in unbash 5.
+  'unbash': '>=6.0.1'
   'unified': '>=11.0.5'
-  'valibot': '>=1.4.2'
+  'valibot': '>=1.5.0'
   'wawoff2': '>=2.0.1'
   'why-is-node-running': '>=3.2.2'
   'woff2-encode-wasm': '>=0.1.1'
-  'yaml': '>=3.0.0-1'
-  'yuku-analyzer': '>=0.9.0'
-  'yuku-ast': '>=0.9.0'
-  'yuku-parser': '>=0.9.0'
+  'yaml': '>=3.0.0-2'
+  'yuku-analyzer': '>=0.19.0'
+  'yuku-ast': '>=0.19.0'
+  'yuku-parser': '>=0.19.0'
   'zeptomatch': '>=2.1.0'
+  'zod': '>=4.6.7'
 catalogMode: strict
 
 dedupeDirectDeps: true
@@ -213,6 +247,13 @@ minimumReleaseAgeExclude:
   # oracle needs the exact release the fork was derived from, not an older
   # mature one.
   - 'make-asynchronous@2.1.0'
+  # TypeScript 7.1.0-beta published 2026-10-20T16:45Z, inside the 24h cutoff;
+  # this exact beta is the requested compiler (user-approved 2026-10-20).
+  - 'typescript@7.1.0-beta'
+  # @typescript/typescript-<platform> binaries publish in lockstep with the
+  # typescript release above (same 7.1.0-beta stamp), so the whole scope is
+  # trusted the same way as the Pi scope (user-approved 2026-10-20).
+  - '@typescript/*'
 minimumReleaseAgeIgnoreMissingTime: false
 minimumReleaseAgeStrict: true
 nodeLinker: isolated
@@ -227,9 +268,10 @@ overrides:
   # must stay installed or the package crashes at module load with
   # `Cannot find package ...`.
   # `package/pi-plugin/auto-mode` imports both pi-ai and pi-coding-agent at runtime;
-  # `package/pi-plugin/{morph-compact,terminal-title}` use pi-coding-agent type-only
+  # `package/pi-plugin/terminal-title` and the paused
+  # `package-paused/pi-plugin/morph-compact` use pi-coding-agent type-only
   # and re-implement the runtime helpers locally in
-  # `package/pi-plugin/morph-compact/src/pi-utils.ts`.
+  # `package-paused/pi-plugin/morph-compact/src/pi-utils.ts`.
   # See doc/troubleshooting/dependencies.md for the audit.
   '@earendil-works/pi-ai>@aws-sdk/client-bedrock-runtime': '-'
   '@earendil-works/pi-ai>@google/genai': '-'
@@ -269,9 +311,9 @@ overrides:
   # construction. Only the default export is consumed; named serialize /
   # deserialize are intentionally omitted and can be added if a future
   # transitive dep reaches in.
-  # See package/shim/ungap-structured-clone/README.md and
+  # See package/pnpm-override/shim-ungap-structured-clone/README.md and
   # doc/troubleshooting/dependencies.md for the audit trail.
-  '@ungap/structured-clone': 'link:package/shim/ungap-structured-clone'
+  '@ungap/structured-clone': 'link:package/pnpm-override/shim-ungap-structured-clone'
   # Remove abort-controller globally. It is a polyfill of the WHATWG
   # AbortController for Node < 15. Our supported runtimes (Node 22+, Bun)
   # all ship a native AbortController on globalThis. The only transitive
@@ -288,11 +330,12 @@ overrides:
   # wawoff2 (bin/woff2_{compress,decompress}.js, pulled in directly by
   # ssg/aquati.cat). That CLI is never invoked anywhere in the tree or
   # in CI; we use wawoff2.decompress as a library. The other former argparse
-  # importer, js-yaml (bin/js-yaml.js, pulled in via stylelint > cosmiconfig),
+  # importer, js-yaml (bin/js-yaml.js, pulled in via stylelint > cosmiconfig;
+  # stylelint removed 2026-10-04, see doc/decision/remove-stylelint.md),
   # has itself left the graph: it is substituted with the throwing stub via the
   # `js-yaml` policy in .pnpmfile.policies.json, so it no longer ships argparse.
   # The workspace does not consume js-yaml at all; YAML parsing uses the `yaml`
-  # package (see package/dev-script/deps-cube/src/catalog.ts and
+  # package (see package/dependency-catalog/cli-cube/src/catalog.ts and
   # package/ssg/aquati.cat/src/lib/content.ts). Removing argparse
   # leaves the library APIs intact and drops 4214 LOC of supply-chain surface
   # (last commit 2022-05).
@@ -317,10 +360,12 @@ overrides:
   # workaround. Refs #163.
   'dprint': '-'
   # Patch GHSA-7p8r-x3mc-p8w7 / CVE-2026-18446: >=4.0.0 <4.1.2 can treat a
-  # backslash as an authority introducer, causing host confusion. Only
-  # transitive consumer is ajv@8.20.0 (pulled in by stylelint > table); the
-  # workspace already overrides ajv's `^3.0.1` request to v4, and this keeps
-  # the effective dependency on a patched v4 release.
+  # backslash as an authority introducer, causing host confusion. The sole
+  # transitive consumer used to be ajv@8.20.0 (pulled in by stylelint > table;
+  # stylelint removed 2026-10-04, see doc/decision/remove-stylelint.md), so the
+  # consumer may leave the graph. The override stays as defense in depth so any
+  # future ajv resolution lands on a patched v4 release (the workspace already
+  # overrides ajv's `^3.0.1` request to v4).
   'fast-uri': '>=4.1.2'
   # Patch GHSA-5wm8-gmm8-39j9 / CVE-2026-44665: <=1.1.6 lets quote characters
   # in attribute values break out of the attribute and inject sibling
@@ -330,6 +375,19 @@ overrides:
   'fast-xml-parser': '>=5.7.0'
   'jspdf>canvg': '-'
   'jspdf>dompurify': '-'
+  # Keep katex out of the install for GHSA-238p-pmpm-9mq7 / CVE-2026-103923:
+  # >=0.11.0 <0.18.2 lets existing prototype pollution bypass its trust
+  # restrictions. Its sole consumer is micromark-extension-math@3.1.0 (via
+  # remark-math@6 in package/translation-repair/document-structure), whose
+  # latest release still asks for `katex: ^0.16.0`, so the fix cannot be reached
+  # in range. The import must still resolve: that package's root re-exports
+  # `mathHtml` from `lib/html.js`, which runs `import katex from 'katex'` when
+  # the module loads, so removing katex ('-') made every unbundled load of
+  # remark-math throw ERR_MODULE_NOT_FOUND (built bundles drop `lib/html.js`).
+  # A workspace shim stands in: every member throws and nothing renders. The
+  # workspace uses only the syntax extension, never `mathHtml`.
+  # See package/pnpm-override/shim-katex/README.md and doc/troubleshooting/dependencies.md.
+  'micromark-extension-math>katex': 'link:package/pnpm-override/shim-katex'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: nanoid@3.3.14 failed verification with possible package takeover.
   'nanoid': '>=5.1.15'
   # Substitute deprecated node-domexception@1.0.0 with a workspace shim that
@@ -339,7 +397,7 @@ overrides:
   # is API-identical-by-construction, eliminating pnpm's install-time
   # deprecation warning without altering runtime behaviour.
   # See doc/troubleshooting/dependencies.md and doc/dependency-blocklist.md.
-  'node-domexception': 'link:package/shim/node-domexception'
+  'node-domexception': 'link:package/pnpm-override/shim-node-domexception'
   'postcss': 'catalog:'
   # Substitute proper-lockfile@4.1.2 with a workspace shim that implements
   # lockSync/lock via node:fs.mkdirSync atomic-dir locking. The upstream is
@@ -355,7 +413,7 @@ overrides:
   # (including .then) as a self-return.
   # See doc/decision/proper-lockfile-removal.md and
   # doc/troubleshooting/dependencies.md.
-  'proper-lockfile': 'link:package/shim/proper-lockfile'
+  'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'
   # Substitute readable-stream@3 (winston, winston-transport) and
   # readable-stream@4 (isomorphic-git) with a single workspace shim that
   # re-exports node:stream. Both upstream versions are userland mirrors of
@@ -376,7 +434,7 @@ overrides:
   # the 'abort-controller': '-' override above.
   # See doc/decision/readable-stream-shim.md for the full audit, including
   # the enumerated consumer surface and the verification plan.
-  'readable-stream': 'link:package/shim/readable-stream'
+  'readable-stream': 'link:package/pnpm-override/shim-readable-stream'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: semver@6.3.1 failed verification with possible package takeover.
   'semver': '>=7.8.5'
   # Patch GHSA-38rv-x7px-6hhq / CVE-2026-9675,
@@ -396,6 +454,11 @@ overrides:
   # @libsql/isomorphic-ws, crossws). Patch-level bump is
   # range-compatible with every consumer's ^8.x constraint.
   'ws': '>=8.20.1'
+  # Patch GHSA-mrhx-c7xc-m3w5 / CVE-2023-54404: zod <4.6.6 can exhaust memory
+  # while validating oversized constrained collections. Transitive consumers
+  # (@anthropic-ai/sdk, openai, @earendil-works/pi-ai) resolved zod 4.4.3;
+  # every consumer accepts `^4` or `^3.25 || ^4`, so the floor stays in range.
+  'zod': '>=4.6.6'
 
 packageExtensions:
   # mitata calls `import('@mitata/counters')` at runtime to add hardware
@@ -404,7 +467,8 @@ packageExtensions:
   # this workspace's strict isolation (hoist: false, nodeLinker: isolated) that
   # dynamic import is unresolvable from mitata's own location, so counters never
   # load. Declaring the dependency here makes pnpm link it under mitata so the
-  # import resolves. Only consumer is the file-enforcer-perf benchmark package.
+  # import resolves. The only package that listed `@mitata/counters` was the file-enforcer-perf benchmark, retired at the
+  # Rust file-enforcer cutover; the entry stays for a benchmark package that lists it again.
   mitata:
     optionalDependencies:
       '@mitata/counters': 'catalog:'
@@ -416,9 +480,56 @@ packageExtensions:
     peerDependenciesMeta:
       '@luma.gl/webgpu':
         optional: true
+  # @deepseek-ai/dsh-llm-pi-ai 0.2.1-rc.2 statically imports its harness
+  # service peers at load (@deepseek-ai/dsh-launch-environment among them),
+  # but under this workspace's strict isolation (hoist: false,
+  # nodeLinker: isolated, resolvePeersFromWorkspaceRoot: false) no importer
+  # here can satisfy those peers, so the imports are unresolvable from the
+  # adapter's own location in workspace tests. Declaring the packages it
+  # imports as dependencies here makes pnpm link them under the adapter
+  # instance so the imports resolve; the dsh runtime provides the same
+  # packages itself. The shipped `lib/index.js` and `lib/types` reference
+  # neither @deepseek-ai/dsh-authorization nor @deepseek-ai/dsh-fs, so both
+  # peers are marked optional instead of provided here: pnpm peers check
+  # flags @deepseek-ai/dsh-authorization otherwise, and @deepseek-ai/dsh-fs
+  # stays quiet only while @deepseek-ai/dsh-attachment keeps it reachable.
+  # The dsh runtime provides both where the adapter runs for real.
+  '@deepseek-ai/dsh-llm-pi-ai':
+    dependencies:
+      '@deepseek-ai/dsh-attachment': '0.2.1-rc.5'
+      '@deepseek-ai/dsh-credentials': '0.2.1-rc.5'
+      '@deepseek-ai/dsh-launch-environment': '0.2.1-rc.5'
+      '@deepseek-ai/dsh-llm': '0.2.1-rc.5'
+      '@deepseek-ai/dsh-timeout': '0.2.1-rc.5'
+    peerDependenciesMeta:
+      '@deepseek-ai/dsh-authorization':
+        optional: true
+      '@deepseek-ai/dsh-fs':
+        optional: true
+  # @deepseek-ai/dsh-config-editor 0.2.1-rc.2 reaches this workspace only as
+  # the @deepseek-ai/dsh-settings dependency, whose shipped code never
+  # imports it, so nothing here loads its entry. That entry imports
+  # @deepseek-ai/cordis-plugin-include and @deepseek-ai/dsh-app-boot at load,
+  # and the dsh runtime provides both, so the peers are marked optional here
+  # instead of installing packages for an entry nobody loads. A change that
+  # starts loading the entry must provide the packages instead (installing
+  # @deepseek-ai/dsh-app-boot pulls its own harness peers in as well).
+  '@deepseek-ai/dsh-config-editor':
+    peerDependenciesMeta:
+      '@deepseek-ai/cordis-plugin-include':
+        optional: true
+      '@deepseek-ai/dsh-app-boot':
+        optional: true
 packageImportMethod: clone-or-copy
 packages:
   - 'package/*/*'
+peerDependencyRules:
+  allowedVersions:
+    # rolldown-plugin-dts 0.28.8 declares `typescript: ~7.0.0`, but it only
+    # requires the version-only package root and type-imports the root; dts
+    # generation runs on the Oxc generator (doc/philosophy/tool-choices.md)
+    # and builds verified against 7.1.0-beta. Remove when upstream widens.
+    'rolldown-plugin-dts>typescript': '7'
 pmOnFail: ignore
 preferWorkspacePackages: true
 resolutionMode: highest

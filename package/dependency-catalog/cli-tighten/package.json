@@ -1,0 +1,26 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/dependency-catalog-cli-tighten",
+  "description": "Tighten monorepo catalog >=x.y.z ranges to match installed versions from node_modules.",
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/dependency-catalog-core-pnpm": "workspace:*",
+    "@monochromatic-dev/dependency-catalog-core-rust": "workspace:*",
+    "@monochromatic-dev/toml-edit-core": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dependency-catalog/cli-tighten"
+  },
+  "private": true,
+  "sideEffects": true
+}

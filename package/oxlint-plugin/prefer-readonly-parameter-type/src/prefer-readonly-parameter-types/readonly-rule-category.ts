@@ -8,6 +8,6 @@
  */
 export type ReadonlyRuleCategory =
   | 'preference'
-  | 'mutation'
-  | 'opaque-effect'
-  | 'effect-contract';
+    | 'mutation'
+    | 'opaque-effect'
+    | 'effect-contract';

@@ -1,0 +1,11 @@
+# JSON and JSONC syntax a pattern might try to break out with.
+"\x22"
+"\x5c"
+"]}"
+"/*"
+"*/"
+"//"
+"\x0a"
+"\x00"
+"!"
+"\xff"

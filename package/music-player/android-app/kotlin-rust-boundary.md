@@ -320,9 +320,11 @@ The gain helpers (`normalizationGain`,
 
 `TrackFingerprint.kt` queries Android for size and modified time in Kotlin,
 then calls `NativeBridge.nativeFingerprint`.
-The Rust side uses `gxhash` in `rust/src/fingerprint.rs`.
-That is justified by desktop parity and by the lack of a JVM/Kotlin gxhash port,
+The Rust side calls the shared `track_fingerprint` (XXH3-64 from `twox-hash`) through `rust/src/fingerprint.rs`.
+That is justified by desktop parity, because both apps call the one function in `truepeak-core`,
 not by a huge Android performance win.
+Until 2026-10-14 the hash was `gxhash`, which has no JVM port.
+A Kotlin copy of XXH3-64 would be a second implementation to keep bit-identical with the Rust one.
 
 This call is acceptable because it is per track and not realtime.
 Do not put it inside row rendering or the AAudio callback.

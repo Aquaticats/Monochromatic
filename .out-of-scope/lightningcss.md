@@ -6,7 +6,7 @@ upstream bugs as GitHub issues.
 ## Why this is out of scope
 
 The CSS build (`packages/build-tool/css/`,
-`@monochromatic-dev/build-tool-css`) ran a LightningCSS-based pipeline for a
+`@monochromatic-dev/css-cli`) ran a LightningCSS-based pipeline for a
 while, then removed LightningCSS entirely in favour of a pure-JS PostCSS
 pipeline. LightningCSS no longer appears in any `package.json` or in the
 lockfile. Two LightningCSS limitations forced the move:
@@ -36,7 +36,7 @@ therefore issue clutter.
 
 ## What we use instead
 
-- The in-house `@monochromatic-dev/build-tool-css` package: pure-JS PostCSS
+- The in-house `@monochromatic-dev/css-cli` package: pure-JS PostCSS
   pipeline, no native binary. `docs/troubleshooting/css-tooling.md` holds the
   full history of why each candidate (LightningCSS, oxc-resolver under pnpm
   isolated mode, Vite/Astro) was tried and dropped.

@@ -9,9 +9,9 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
-import { isIdentifier, } from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+import type { Node, } from 'typescript/ast';
+import { isIdentifier, } from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { expressionOrigins, } from './effect-binding-origins.ts';
 import { targetResultSites, } from './effect-result-binding.ts';

@@ -11,7 +11,7 @@ import {
   cssRem,
   cssVar,
   type CssValue,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Shared popup border declaration object shape.

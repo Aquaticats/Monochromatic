@@ -12,7 +12,8 @@ and `24px` or `24dp` horizontal label insets.
 Those values came from reading raster pixels as logical UI dimensions.
 
 The desktop implementation uses Chromium's source dimensions as logical pixels.
-Android preserves Chromium's contour ratios but scales the visible tab face to the platform's `48dp` custom-control minimum.
+Android preserves Chromium's contour ratios but scales the visible tab face
+to the platform's `48dp` custom-control minimum.
 Both preserve this music player's content-width and whole-control wrapping requirements.
 
 ## Root cause

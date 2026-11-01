@@ -14,6 +14,19 @@ xvfb-run: unrecognized option '--auto-display'
 This blocked a disposable Android Fold emulator probe before Xvfb started.
 It is separate from the emulator's later container memory exhaustion.
 
+## First-run study recurrence
+
+The first-run design study accidentally used the same unsupported long
+spelling again.
+The owned wrapper exited 1 before an emulator or settings snapshot existed,
+with the exact `xvfb-run: unrecognized option '--auto-display'` diagnostic.
+This repeated the documented parser rejection,
+not a new AVD or renderer failure.
+The corrected launch uses the supported `-d` spelling and sends wrapper
+errors to `/dev/stderr`.
+Boot,
+frame and lifecycle outcomes require their separate checks.
+
 ## Root cause
 
 The installed shell source is `/usr/bin/xvfb-run` from the Fedora package.

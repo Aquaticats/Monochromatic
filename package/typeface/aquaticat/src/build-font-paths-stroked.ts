@@ -78,15 +78,15 @@ export function addStrokedPath({
    when present so every edge has a real direction.
    */
   const vertices = (
-      (first !== undefined)
+    (first !== undefined)
       && (last !== undefined)
-        && (points.length
-          > 1)
-        && (first[0]
-          === last[0])
-        && (first[1]
-          === last[1])
-    )
+      && (points.length
+        > 1)
+      && (first[0]
+        === last[0])
+      && (first[1]
+        === last[1])
+  )
     ? points.slice(
       0,
       -1,

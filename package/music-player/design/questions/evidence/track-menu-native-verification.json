@@ -1,0 +1,329 @@
+{
+  "schema": 1,
+  "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+  "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+  "scope": "Native debug action intents and touch dismissal, never actual playback, clipboard, analysis, file-manager, trash or restore success.",
+  "runtime": {
+    "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+    "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+    "startupOutputSha256": "29b4b2c5195e7f564b4494636bc2845ce6d20f3cc6e07922d4a285148fc349a9",
+    "containerImageId": "4b8805002ee369c81b7826b941afc52c0c9678a0d0e427a0fefd1684b78b5f94"
+  },
+  "visualInspection": {
+    "inspectedAfresh": true,
+    "priorByteEqualityTransferRejected": true,
+    "sha256": "99d41398eee12392bc2a3182bb47388ae0a23aa4bcee178056a5fce8aed919ef"
+  },
+  "geometryReplay": {
+    "scope": "Offline replay of actual native before/after records with changed-geometry negative fixtures.",
+    "records": [
+      {
+        "key": "inner-light-s100",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "inner-dark-s100",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "inner-light-s200",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "inner-dark-s200",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "cover-light-s100",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "cover-dark-s100",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "cover-light-s200",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      },
+      {
+        "key": "cover-dark-s200",
+        "exactRootAndViewportEquality": true,
+        "changedRootAndViewportRejected": true
+      }
+    ]
+  },
+  "rendererLimit": "LLVM20 software rendering despite host GPU request. Successful capture and exit do not erase GPU fallback, bad color-buffer handle and stop diagnostics in the owner log.",
+  "contexts": [
+    {
+      "key": "inner-light-s100",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 4023288,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "inner-dark-s100",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 4023288,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "inner-light-s200",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 4023288,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "inner-dark-s200",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 4023288,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "cover-light-s100",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 2390040,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "cover-dark-s100",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 2390040,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "cover-light-s200",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 2390040,
+      "changedPixelPositiveControlRejected": true
+    },
+    {
+      "key": "cover-dark-s200",
+      "apkSha256": "1e2092fe9e11e0aaf6b56b125db77ba19798f5d7c0706ceccbe6c0323551870a",
+      "prototypeCommit": "d1d19dfed8b47cbe6d589fc0b47176e022242aad",
+      "actionIds": [
+        "play",
+        "shuffle-here",
+        "details",
+        "analyse",
+        "show",
+        "copy-name",
+        "trash"
+      ],
+      "targetIndex": 1,
+      "eachIntentExactlyOnce": true,
+      "shortTapRowEventOnce": true,
+      "shortTapDidNotOpenMenu": true,
+      "noUnexpectedRowTap": true,
+      "outsideDismissal": true,
+      "unchangedPlayerGeometry": true,
+      "unchangedAppPixels": 2390040,
+      "changedPixelPositiveControlRejected": true
+    }
+  ],
+  "duplicateNameTargets": [
+    {
+      "sourceIndex": 1,
+      "authoredPeak": "−0.8 dBTP",
+      "copyIntentOnly": true
+    },
+    {
+      "sourceIndex": 2,
+      "authoredPeak": "−1.4 dBTP",
+      "copyIntentOnly": true
+    }
+  ],
+  "duplicateCoverage": "Copy-name intent on two same-label source indices; the per-index intent and authored peak are the identity evidence, not the shared title alone.",
+  "staticCohort": {
+    "images": 24,
+    "scenes": [
+      "ordinary",
+      "lower",
+      "long-name"
+    ],
+    "nativeLongPressAndBackChecked": true,
+    "allActionsInitiallyVisible": true,
+    "headingLines": 1,
+    "longHeadingsIntentionallyEllipsized": true,
+    "noGlyphOrAccessibilityAcceptanceClaim": true
+  },
+  "tests": {
+    "fixtureCases": 12,
+    "iconCases": 2,
+    "completeUnitTaskPassed": true,
+    "mutationScopes": [
+      "unknown-scene",
+      "unknown-action",
+      "target-identity",
+      "unknown-icon"
+    ],
+    "unchangedFixtureSourceCompared": true
+  },
+  "lint": {
+    "fullPackagePassed": false,
+    "inheritedErrors": 5,
+    "warnings": 65,
+    "hints": 2,
+    "newRowModifierFindingsRemoved": 3,
+    "inheritedErrorKinds": [
+      "MissingSuperCall",
+      "NewApi"
+    ],
+    "unrelatedSourceAndRulesUnchanged": true
+  },
+  "restoration": {
+    "exactRecordedFields": true,
+    "fieldNames": [
+      "fontScale",
+      "nightMode",
+      "deviceState",
+      "accessibilityEnabled",
+      "enabledAccessibilityServices",
+      "geometry",
+      "fingerprint"
+    ],
+    "separateBaseAndOverrideEqualityClaimed": false,
+    "ownerExitCode": 0,
+    "matchingRuntimeAbsent": true
+  },
+  "runtimeOwnerEvidence": {
+    "adapter": "INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))",
+    "graphicsApi": "INFO         | Graphics API Version OpenGL ES 3.0 (4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2)",
+    "ownerOutputSha256": "358ba9ab7d4cc73c004b4ae1d8ab62c28fa7c827e610d61b650f4dc9b206ede4",
+    "ownerStderrSha256": "0c037a3521a15ca9b4ee35680100c5f7c5c3235b63a8bde1deac9d36bf23621c"
+  },
+  "priorArtifactComparison": {
+    "files": 24,
+    "byteEqualityTransferRejected": true,
+    "matchingMeasuredRootsAndMenuBounds": true,
+    "maximumEightBitChannelDifference": 3,
+    "causeEstablished": false,
+    "replacementInspection": "Every current full-region pair inspected afresh and hash-bound; no cross-artifact pixel or visual equivalence claim.",
+    "privateReportSha256": "130b36a6191b70b2ea4e4ac2a292ca1b60f9dd039ad4041955a592dc2613d62e"
+  }
+}

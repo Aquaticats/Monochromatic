@@ -38,10 +38,10 @@ export type SerializedCallbackKey =
   | {
     readonly kind: typeof UNAVAILABLE_CALLBACK;
   }
-  | {
-    readonly kind: typeof OWNED_CALLBACK;
-    readonly key: string;
-  };
+    | {
+      readonly kind: typeof OWNED_CALLBACK;
+      readonly key: string;
+    };
 
 /**
  JSON-safe call edge.
@@ -50,18 +50,18 @@ export type SerializedCallEdge =
   & Omit<
     CallEdge,
     | 'callbackKeysByCalleeSlot'
-    | 'callbackFileNamesByCalleeSlot'
-    | 'originsByCalleeSlot'
-    | 'capturedOriginsByFormal'
-    | 'foreignOriginsByFormal'
-  >
-  & {
-    readonly originsByCalleeSlot: readonly (readonly number[])[];
-    readonly capturedOriginsByFormal: readonly (readonly number[])[];
-    readonly foreignOriginsByFormal: readonly (readonly number[])[];
-    readonly callbackKeysByCalleeSlot: readonly SerializedCallbackKey[];
-    readonly callbackFileNamesByCalleeSlot: readonly SerializedCallbackKey[];
-  };
+      | 'callbackFileNamesByCalleeSlot'
+      | 'originsByCalleeSlot'
+      | 'capturedOriginsByFormal'
+      | 'foreignOriginsByFormal'
+    >
+    & {
+      readonly originsByCalleeSlot: readonly (readonly number[])[];
+      readonly capturedOriginsByFormal: readonly (readonly number[])[];
+      readonly foreignOriginsByFormal: readonly (readonly number[])[];
+      readonly callbackKeysByCalleeSlot: readonly SerializedCallbackKey[];
+      readonly callbackFileNamesByCalleeSlot: readonly SerializedCallbackKey[];
+    };
 
 /**
  JSON-safe direct summary.
@@ -261,43 +261,43 @@ export function serializeEffectSummaries(
           returned: [...summary.returned,],
           relations: summary.relations
             .map(function copyRelation(relation,) {
-            return { ...relation, };
-          },),
+              return { ...relation, };
+            },),
           elementApplications: summary.elementApplications
             .map(function copyApplication(application,): ElementApplication {
-            return {
-              ...application,
-              observerParameterIndexes: [
-                ...application.observerParameterIndexes,
-              ],
-            };
-          },),
+              return {
+                ...application,
+                observerParameterIndexes: [
+                  ...application.observerParameterIndexes,
+                ],
+              };
+            },),
           resultApplications: summary.resultApplications
             .map(function copyResultApplication(application,): ResultApplication {
-            return { ...application, };
-          },),
+              return { ...application, };
+            },),
           calls: summary.calls
             .map(function serializeCall(edge,): SerializedCallEdge {
-            return {
-              ...edge,
-              originsByCalleeSlot: edge.originsByCalleeSlot
-                .map(function plainOrigins(origins,): readonly number[] {
-                  return [...origins,];
-                },),
-              capturedOriginsByFormal: edge.capturedOriginsByFormal
-                .map(function plainCaptured(origins,): readonly number[] {
-                  return [...origins,];
-                },),
-              foreignOriginsByFormal: edge.foreignOriginsByFormal
-                .map(function plainForeign(origins,): readonly number[] {
-                  return [...origins,];
-                },),
-              callbackKeysByCalleeSlot: edge.callbackKeysByCalleeSlot
-                .map(serializeCallbackKey,),
-              callbackFileNamesByCalleeSlot: edge.callbackFileNamesByCalleeSlot
-                .map(serializeCallbackKey,),
-            };
-          },),
+              return {
+                ...edge,
+                originsByCalleeSlot: edge.originsByCalleeSlot
+                  .map(function plainOrigins(origins,): readonly number[] {
+                    return [...origins,];
+                  },),
+                capturedOriginsByFormal: edge.capturedOriginsByFormal
+                  .map(function plainCaptured(origins,): readonly number[] {
+                    return [...origins,];
+                  },),
+                foreignOriginsByFormal: edge.foreignOriginsByFormal
+                  .map(function plainForeign(origins,): readonly number[] {
+                    return [...origins,];
+                  },),
+                callbackKeysByCalleeSlot: edge.callbackKeysByCalleeSlot
+                  .map(serializeCallbackKey,),
+                callbackFileNamesByCalleeSlot: edge.callbackFileNamesByCalleeSlot
+                  .map(serializeCallbackKey,),
+              };
+            },),
         },
       ];
     },);
@@ -369,41 +369,41 @@ export function deserializeEffectSummaries(
         returned: restoredSlots(summary.returned,),
         relations: summary.relations
           .map(function copyRelation(relation,) {
-          return { ...relation, };
-        },),
+            return { ...relation, };
+          },),
         resultApplications: summary.resultApplications
           .map(function restoreResultApplication(application,): ResultApplication {
-          return { ...application, };
-        },),
+            return { ...application, };
+          },),
         elementApplications: summary.elementApplications
           .map(function copyApplication(application,): ElementApplication {
-          return {
-            ...application,
-            observerParameterIndexes: [
-              ...application.observerParameterIndexes,
-            ],
-          };
-        },),
+            return {
+              ...application,
+              observerParameterIndexes: [
+                ...application.observerParameterIndexes,
+              ],
+            };
+          },),
         calls: summary.calls
           .map(function deserializeCall(edge,): CallEdge {
-          return {
-            ...edge,
-            originsByCalleeSlot: edge.originsByCalleeSlot
-              .map(restoredSlotList,),
-            capturedOriginsByFormal: edge.capturedOriginsByFormal
-              .map(restoredSlotList,),
-            foreignOriginsByFormal: edge.foreignOriginsByFormal
-              .map(function restoreForeign(origins,): readonly ParameterIndex[] {
-                return origins.map(function brandForeignOrigin(owner,): ParameterIndex {
-                  return asParameterIndex(owner,);
-                },);
-              },),
-            callbackKeysByCalleeSlot: edge.callbackKeysByCalleeSlot
-              .map(deserializeCallbackKey,),
-            callbackFileNamesByCalleeSlot: edge.callbackFileNamesByCalleeSlot
-              .map(deserializeCallbackKey,),
-          };
-        },),
+            return {
+              ...edge,
+              originsByCalleeSlot: edge.originsByCalleeSlot
+                .map(restoredSlotList,),
+              capturedOriginsByFormal: edge.capturedOriginsByFormal
+                .map(restoredSlotList,),
+              foreignOriginsByFormal: edge.foreignOriginsByFormal
+                .map(function restoreForeign(origins,): readonly ParameterIndex[] {
+                  return origins.map(function brandForeignOrigin(owner,): ParameterIndex {
+                    return asParameterIndex(owner,);
+                  },);
+                },),
+              callbackKeysByCalleeSlot: edge.callbackKeysByCalleeSlot
+                .map(deserializeCallbackKey,),
+              callbackFileNamesByCalleeSlot: edge.callbackFileNamesByCalleeSlot
+                .map(deserializeCallbackKey,),
+            };
+          },),
       },
     ];
   },),);

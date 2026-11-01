@@ -124,8 +124,8 @@ export function decodeValue(
      */
     const enumField = definition.fields
       .find(function matchesValue(field,): boolean {
-      return field.value === value;
-    },);
+        return field.value === value;
+      },);
     return enumField === undefined ? `${definition.name}(${value})` : `${definition.name}.${enumField.name}`;
   }
 
@@ -226,18 +226,18 @@ export function decodeStruct(
         string,
         unknown
       ] {
-      return [
-        field.name,
-        reader.eof
-          ? KIWI_VALUE_ABSENT
-          : decodeFieldValue({
-            reader,
-            schema,
-            field,
-            depth,
-          }),
-      ];
-    },),
+        return [
+          field.name,
+          reader.eof
+            ? KIWI_VALUE_ABSENT
+            : decodeFieldValue({
+              reader,
+              schema,
+              field,
+              depth,
+            }),
+        ];
+      },),
   ],);
 }
 
@@ -281,11 +281,11 @@ export function decodeMessage(
       number,
       KiwiStructField
     ] {
-    return [
-      field.value,
-      field,
-    ];
-  },),);
+      return [
+        field.value,
+        field,
+      ];
+    },),);
   /**
    Decoded message entries collected from present fields.
    */
@@ -372,13 +372,13 @@ function decodeFieldValue(
   return Array.from(
     { length: count, },
     function decodeRepeatedValue(): KiwiDecodedValue {
-    return decodeValue({
-      reader,
-      schema,
-      typeCode: field.type,
-      depth,
-    },);
-  },
+      return decodeValue({
+        reader,
+        schema,
+        typeCode: field.type,
+        depth,
+      },);
+    },
   );
 }
 

@@ -20,7 +20,8 @@ run,
 
 - iOS runtime model:
    Mixed AOT-native + bytecode-interpreter.
-   C++ application and library code (and Qt itself) is AOT-compiled by clang to native ARM64 and linked statically into the app bundle,
+   C++ application and library code (and Qt itself) is AOT-compiled by clang to native ARM64 and linked statically
+    into the app bundle,
    so app logic runs as ordinary native code with no executable memory.
    QML/JavaScript runs on Qt's V4 engine,
    which on iOS uses its bytecode INTERPRETER backend because JIT is disabled (App Store policy / no W^X).
@@ -47,7 +48,8 @@ run,
 - Key finding:
    Qt clears all three walls without a fatal blocker:
    C++ core is AOT-native,
-   QML/JS runs on the V4 BYTECODE INTERPRETER (JIT disabled on iOS) which needs no executable memory and is therefore allowed (a performance tax,
+   QML/JS runs on the V4 BYTECODE INTERPRETER (JIT disabled on iOS) which needs no executable memory
+    and is therefore allowed (a performance tax,
    not the DENY_EXECMEM death that killed NativeScript),
    and because Qt-for-iOS is a fully static build,
    linking a C-ABI Rust/Go staticlib for kopia and symphonia is trivial extern \"C\" linkage.
@@ -193,7 +195,8 @@ Mechanism:
  On iOS the TLS backend is Apple SecureTransport (the securetransport TLS plugin is DEFAULT_IF APPLE),
  not bundled OpenSSL,
  so HTTPS works against the system trust store without shipping OpenSSL.
- QNetworkReply streams response/request bodies (readyRead / sequential QIODevice) so large transfers can be streamed rather than buffered.
+ QNetworkReply streams response/request bodies (readyRead / sequential QIODevice)
+  so large transfers can be streamed rather than buffered.
  For background,
  the streaming must be re-expressed on native NSURLSession (see wall 3);
  in-foreground QNetworkAccessManager suffices.
@@ -251,7 +254,8 @@ Source:
 ## Gate probe and toolchain
 
 Minimal app:
- a Qt Quick (or Qt Widgets) iOS app built with qt_add_executable that (a) shows one QML screen to exercise the V4 interpreter,
+ a Qt Quick (or Qt Widgets) iOS app built with qt_add_executable that (a) shows one QML screen
+  to exercise the V4 interpreter,
  (b) links a tiny Rust C-ABI staticlib and calls one extern \"C\" function from C++ to print a string (proves wall 1),
  and (c) opens a QTcpServer on localhost and round-trips one request (proves in-app HTTP).
  On-device signal:
@@ -381,7 +385,9 @@ xcodeproj.
    Wall-1 SOURCE MIS-ATTRIBUTION (substance correct,
    URL wrong):
    The load-bearing static-only quote -- "everything is compiled statically and placed into the application bundle.
-   The applications are sandboxed inside their bundles and cannot make use of shared object files" plus the statically-linked-plugins + QTPLUGIN claim -- is cited to <https://doc.qt.io/qt-6/ios-platform-notes.html>.
+   The applications are sandboxed inside their bundles and cannot make use
+    of shared object files" plus the statically-linked-plugins + QTPLUGIN claim -- is cited
+    to <https://doc.qt.io/qt-6/ios-platform-notes.html>.
    That page does NOT contain this language (I fetched it twice;
    it has no occurrence of "static",
    "shared object",
@@ -415,7 +421,8 @@ xcodeproj.
    the C/C++/ObjC++ interop point it is offered for still holds.
    ANALYTICAL-BRIDGE NOTE (not a defect,
    no verdict impact):
-   the wall-2 "bytecode interpreter needs NO writable-executable memory / DENY_EXECMEM" framing is the audit's own correct inference;
+   the wall-2 "bytecode interpreter needs NO writable-executable memory / DENY_EXECMEM" framing is the audit's own
+    correct inference;
    the cited wiki.
   qt.
   io/V4 page contains zero mention of W^X,
@@ -461,7 +468,8 @@ xcodeproj.
    no iOS/per-platform JIT mention);
    <https://doc.qt.io/qt-6/ios-platform-notes.html> (CITED for wall-1 static-only quote -- DOES NOT CONTAIN it;
    no 'static'/'shared object'/'sandbox');
-   <https://doc.qt.io/qt-6.8/porting-to-ios.html> (ACTUAL source of wall-1 static-only + statically-linked-plugins + QTPLUGIN quotes -- VERIFIED verbatim);
+   <https://doc.qt.io/qt-6.8/porting-to-ios.html> (ACTUAL source
+    of wall-1 static-only + statically-linked-plugins + QTPLUGIN quotes -- VERIFIED verbatim);
    WebSearch:
    runtime warning 'JIT is disabled for QML.
    Property bindings and animations will be very slow.

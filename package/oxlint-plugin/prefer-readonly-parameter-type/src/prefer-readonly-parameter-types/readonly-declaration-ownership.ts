@@ -4,14 +4,21 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { Node, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import type { WritableDeclarationOwner, } from './readonly-classification-model.ts';
 import { isWorkspaceSourceFileName, } from './workspace-source-path.ts';
 
 /**
  Classifies one resolved declaration by source ownership.
+ 
+ A path outside every installed-module directory is workspace source whatever the program's
+ library flag says. A workspace package reached through a `node_modules` symbolic link has such
+ a path and is flagged as an external-library module, and the effect analysis already treats it
+ as owned source it can inspect (`isOwnedSource` in `shared-analysis-key.ts`,
+ `indexedSourceFileMap`), so the owner here agrees with it. A path inside an installed-module
+ directory stays external-library even when the program does not flag it.
  
  @param declaration - Semantic declaration resolved in current snapshot.
  
@@ -44,9 +51,7 @@ function writableDeclarationOwner({
   if (program
     .isSourceFileDefaultLibrary(sourceFile,))
     return 'default-library';
-  if ((!isWorkspaceSourceFileName(sourceFile.fileName,))
-    || program
-      .isSourceFileFromExternalLibrary(sourceFile,))
+  if (!isWorkspaceSourceFileName(sourceFile.fileName,))
     return 'external-library';
   return 'workspace';
 }

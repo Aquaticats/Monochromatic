@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-18T17:58:17.949Z",
+  "reviewer": "/root",
+  "state": "admitted for finite isolated research; production configuration unchanged",
+  "proposal": {
+    "path": "doc/audit/depot-material-owner-concrete-proposal-2026-10-18.evidence.json",
+    "bytes": 22557,
+    "sha256": "8ebd2766f5e64f13d180ea6027853a97efa969748ba4ec04e9f0d6795becb82e"
+  },
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "profiles": [
+    "ide-full",
+    "ide-reader-lifecycle",
+    "terminal-release",
+    "file-manager-gtk-release",
+    "file-manager-sticky-release",
+    "file-manager-qt-release",
+    "design-authored-node-imagemagick"
+  ],
+  "sourceChecks": {
+    "frozenBlobHashByteAndGitObjectJoins": 24,
+    "distinctInputPaths": 18
+  },
+  "maximumPrimaryJobs": 7,
+  "maximumCorrectionJobs": 2,
+  "maximumJobMinutes": 30,
+  "innerCampaignMinutes": 27,
+  "maximumConcurrentCloudJobsAcrossAllResearchOwners": 2,
+  "budget": {
+    "primaryNominalComputeReservationUsd": 1.08,
+    "conditionalCorrectionComputeReservationUsd": 2.88,
+    "unpricedContingencyUsd": 1.04,
+    "totalNominalGuardUsd": 5,
+    "invoiceOrAggregateAccountGuarantee": false
+  },
+  "dispatchConditions": [
+    "Commit each isolated executable harness and pass native argument/task/source/payload preflight before its allocation.",
+    "Coordinate the two global slots with the GNU recovery and Platform SSH campaign; a matrix maximum alone does not reserve a slot.",
+    "Keep default Cargo/Nextest concurrency; record the IDE cargo-test-to-Nextest adapter and any explicit source scheduler override removal.",
+    "Use only the seven reviewed primary profiles and at most two named prerequisite/resource/harness corrections; source assertion failures do not authorize changing tests.",
+    "Increase a correction container limit only as recorded within the reviewed16CPU/48GiB/4096PID cap and remaining reservation.",
+    "Materialize only admitted frozen payloads; verify OID/size/hash and real formats in the cloud before consumers.",
+    "Retain actual target/binary/case/status or authored Node guard outcomes and exact provider attempt intervals.",
+    "Upload only bounded metadata/log evidence with one-day retention; keep tool images and original/generated media private.",
+    "Do not relaunch Android/emulator/compositor/desktop applications, publish images/releases, change subscriptions/routes, or create broad credentials."
+  ],
+  "cleanup": [
+    "Collect terminal exact-owned job states and reap finite controllers.",
+    "Remove owned local tool containers and report logical resource cleanup with its actual evidence.",
+    "Normalize every actual allocation once in the follow-on ledger; reservations and released headroom are not spend."
+  ]
+}

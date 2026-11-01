@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T22:02:47.183Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "baseline": {
+    "path": "doc/audit/depot-remaining-local-unit-2026-10-18.evidence.json",
+    "bytes": 34500,
+    "sha256": "4ab50aa47743dad3177b51a595fcf30713c637a9694d948adf4dc7fe73e1a016"
+  },
+  "sourceFiles": [
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts",
+      "bytes": 2736,
+      "sha256": "1a803e8c2897b6012ae43deb08d07fc15f6511eee679bfbf581e90587fe143cc",
+      "role": "unchanged existing source-import owner"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/transform-helpers.unit.test.ts",
+      "bytes": 4642,
+      "sha256": "362c0bb8313ff3f988ee4ee4a5d33c2f2b4a0e49194e2d88761f79d0f2f5cb0d",
+      "role": "unchanged existing source-import owner"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/fixture/entry-dynamic.ts",
+      "bytes": 461,
+      "sha256": "3a9a54044cc0f73a60929cf964da382c7ce4c28b97f7d17a7ff09d8528b87a56"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/fixture/entry-reexport.ts",
+      "bytes": 73,
+      "sha256": "e6155c9a50902887b7798abcb82abfd12281045e83798be4a31f3c8ce5f432df"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/fixture/entry-static.ts",
+      "bytes": 457,
+      "sha256": "d47ce9b78da2cb96bacefcd878c7f5d8c3c1ddf1be0a00f4f134316a4a3894f6"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/fixture/sample.sql",
+      "bytes": 34,
+      "sha256": "3dfc19fbc2077e742e2605af17d61a58f5b4801a5c9515ed8eee1a52e51c7ab8"
+    },
+    {
+      "path": "package/rolldown-plugin/import-attributes/src/fixture/text-modules.d.ts",
+      "bytes": 275,
+      "sha256": "11bd86c4cd718d021bddec84f12ee8a313806d0da4c53d8ab5f4e940e7005267"
+    }
+  ],
+  "consumerProgramSha256": "11a9e53b0d09dfb90d450331aa51a870eb84898bc5c32712df0975308dc57f08",
+  "resources": {
+    "sequentialContainers": 3,
+    "maximumConcurrent": 1,
+    "cpu": 2,
+    "memoryBytes": 2147483648,
+    "containerMaximumSeconds": 150,
+    "perFileMaximumSeconds": 60,
+    "network": "none",
+    "personalFixturesMounted": false
+  },
+  "legs": [
+    {
+      "id": "writable-logger-only",
+      "verbose": false,
+      "fixtureAlias": false
+    },
+    {
+      "id": "verbosity-positive-control",
+      "verbose": true,
+      "fixtureAlias": false
+    },
+    {
+      "id": "fixture-alias-only",
+      "verbose": true,
+      "fixtureAlias": true
+    }
+  ],
+  "constantInputs": {
+    "nodeImageId": "7a0d2c0c30811c393f278a255613b2a78cac778438bc06464e4a8b6979c3d4a9",
+    "DEBUG": "true",
+    "sourceFilesUnchanged": true,
+    "readOnlyWorkspace": true,
+    "writableLogDirectory": "/workspace/node_modules/.monochromatic"
+  },
+  "changes": {
+    "firstLeg": "Create the owned log mountpoint and mount a private writable directory; keep the original missing fixture path",
+    "secondLeg": "Add only MONOCHROMATIC_VERBOSE=true; retain the same missing fixture path and writable log directory",
+    "thirdLeg": "Add only an untracked fixtures -> fixture symlink in the owned throwaway; keep verbosity and log directory constant"
+  },
+  "limits": [
+    "No authored assertion changes, main-tree fixes, upstream edits, provider dispatches, model calls or device launches",
+    "A successful aliased fixture leg is derived-topology qualification, not a successful unchanged original test owner",
+    "The named no-with case still lacks a plain-import input and absence-of-transformation assertion",
+    "Exact process outputs and per-leg container absence must be retained"
+  ]
+}

@@ -1,3 +1,0 @@
-# Global mise config -- seeded into the VM image.
-# No global tools are required; the monorepo declares its own tools in its mise config.
-[tools]

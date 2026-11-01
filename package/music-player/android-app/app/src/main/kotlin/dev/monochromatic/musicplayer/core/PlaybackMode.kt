@@ -28,7 +28,7 @@ enum class PlaybackMode(
     /** Replays the current track after a natural completion. */
     REPEAT("repeat"),
 
-    /** Plays the displayed page in order and wraps within that page. */
+    /** Plays the displayed page in order and stops after its last track (D2); a manual Next wraps to the start. */
     IN_ORDER("in_order"),
 
     /** Shuffles the displayed page without replacement in repeated cycles. */

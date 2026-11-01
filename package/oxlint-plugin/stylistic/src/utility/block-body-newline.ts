@@ -235,8 +235,8 @@ export function firstBraceInNode({
    */
   const openBrace = context.sourceCode
     .getFirstToken(
-      node,
-      { filter: isOpeningBrace, },
+    node,
+    { filter: isOpeningBrace, },
     );
   if (openBrace === null)
     throw new Error('Expected braced node to contain an opening brace.',);
@@ -269,8 +269,8 @@ export function firstBraceAfterNode({
    */
   const openBrace = context.sourceCode
     .getTokenAfter(
-      node,
-      { filter: isOpeningBrace, },
+    node,
+    { filter: isOpeningBrace, },
     );
   if (openBrace === null)
     throw new Error('Expected preceding node to be followed by an opening brace.',);
@@ -299,8 +299,8 @@ export function lastBraceInNode({
    */
   const closeBrace = context.sourceCode
     .getLastToken(
-      node,
-      { filter: isClosingBrace, },
+    node,
+    { filter: isClosingBrace, },
     );
   if (closeBrace === null)
     throw new Error('Expected braced node to contain a closing brace.',);

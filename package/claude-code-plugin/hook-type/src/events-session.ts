@@ -63,10 +63,10 @@ type SessionStartOutput = HookOutputBase & {
  */
 type SessionEndReason =
   | 'clear'
-  | 'logout'
-  | 'prompt_input_exit'
-  | 'bypass_permissions_disabled'
-  | 'other';
+    | 'logout'
+    | 'prompt_input_exit'
+    | 'bypass_permissions_disabled'
+    | 'other';
 
 /**
  Input for `SessionEnd` hooks.
@@ -96,9 +96,9 @@ type SessionEndOutput = HookOutputBase;
  */
 type InstructionsLoadReason =
   | 'session_start'
-  | 'nested_traversal'
-  | 'path_glob_match'
-  | 'include';
+    | 'nested_traversal'
+    | 'path_glob_match'
+    | 'include';
 
 /**
  Scope of a loaded instruction file.
@@ -159,10 +159,10 @@ type InstructionsLoadedOutput = HookOutputBase;
  */
 type ConfigChangeSource =
   | 'user_settings'
-  | 'project_settings'
-  | 'local_settings'
-  | 'policy_settings'
-  | 'skills';
+    | 'project_settings'
+    | 'local_settings'
+    | 'policy_settings'
+    | 'skills';
 
 /**
  Input for `ConfigChange` hooks.

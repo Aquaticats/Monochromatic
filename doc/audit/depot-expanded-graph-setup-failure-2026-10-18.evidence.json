@@ -1,0 +1,386 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T15:21:01.400Z",
+  "run": "39135886118",
+  "source": "815591bf307b1237d31b1c4e644463d7c13654fa",
+  "application": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "outcome": "All four assigned jobs failed the same configured Cargo installer prerequisite before any workload command",
+  "exactEmittingTool": "mise 2026.10.9 linux-x64 (2026-10-13)",
+  "exactDiagnostic": "tool 'cargo:cargo-nextest@latest' requires configured install dependency 'cargo-binstall@latest', but its selected version is not installed",
+  "plannedWorkloadCommandInvocations": 222,
+  "executedWorkloadCommandInvocations": 0,
+  "speedComparisonCredit": false,
+  "observedAssignedJobMilliseconds": 148000,
+  "observedDepotJobMilliseconds": 71000,
+  "nominalDepotComputeUsd": 0.0142,
+  "publicGitHubNominalComputeUsd": 0,
+  "uniformFourCpuDepotRateAdmissionProxyUsd": 0.0296,
+  "rateSource": "https://depot.dev/docs/github-actions/runner-types.md",
+  "rateSourceSha256": "db1cbad74236617620aaaa77dc395b86fd94e836b87e9d75ee874ff80fd98705",
+  "actualInvoiceOrBillableVmLifetimeObserved": false,
+  "originalNominalFullWindowReservationCorrection": {
+    "oldUsd": 1.2,
+    "correctUsd": 1.44,
+    "reason": "Two native4CPU and two Depot GHA4CPU samples each30min at current documented.012/min; public GitHub nominal compute0",
+    "originalAdmissionRetained": true
+  },
+  "sourceArchive": {
+    "path": "doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
+    "bytes": 2184,
+    "sha256": "caf8e72e975d2bba895c4e734f617d16ea3c2de4b6b13d06d633d987e4a06f01"
+  },
+  "rows": [
+    {
+      "jobId": 117700197567,
+      "name": "graph (github-2, github, 2, ubuntu-24.04)",
+      "key": "github-2",
+      "provider": "github",
+      "source": "815591bf307b1237d31b1c4e644463d7c13654fa",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner": "GitHub Actions 1000002623",
+      "startedAt": "2026-10-18T14:26:57Z",
+      "completedAt": "2026-10-18T14:27:36Z",
+      "observedAssignedJobMilliseconds": 39000,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:58Z",
+          "completedAt": "2026-10-18T14:26:59Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:59Z",
+          "completedAt": "2026-10-18T14:27:16Z"
+        },
+        {
+          "name": "Record source and actual resources before setup",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:27:16Z",
+          "completedAt": "2026-10-18T14:27:16Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:27:16Z",
+          "completedAt": "2026-10-18T14:27:17Z"
+        },
+        {
+          "name": "Install only locked Node pnpm Rust and Nextest",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T14:27:17Z",
+          "completedAt": "2026-10-18T14:27:34Z"
+        },
+        {
+          "name": "Install frozen dependencies without prepare umbrella",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:27:34Z",
+          "completedAt": "2026-10-18T14:27:34Z"
+        },
+        {
+          "name": "Set up qualified matching browser environment",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:27:34Z",
+          "completedAt": "2026-10-18T14:27:34Z"
+        },
+        {
+          "name": "Execute shared prerequisite graph and actual parallel owners",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:27:34Z",
+          "completedAt": "2026-10-18T14:27:34Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:27:34Z",
+          "completedAt": "2026-10-18T14:27:35Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:27:35Z",
+          "completedAt": "2026-10-18T14:27:35Z"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:27:35Z",
+          "completedAt": "2026-10-18T14:27:35Z"
+        }
+      ],
+      "artifact": {
+        "id": 12139514361,
+        "name": "expanded-graph-github-2-39135886118-1",
+        "bytes": 580,
+        "sha256": "7eb21cea999530e0673a5bbb2d519880f4d5c83bbdc8aef030dc27b5da57fa8c",
+        "jobStartSha256": "022577d18cd937139e55175aeda627d38003db8fb4d534b1f434c4758eb9f8bf"
+      }
+    },
+    {
+      "jobId": 117700197734,
+      "name": "graph (depot-2, github-depot, 2, depot-ubuntu-24.04-4)",
+      "key": "depot-2",
+      "provider": "github-depot",
+      "source": "815591bf307b1237d31b1c4e644463d7c13654fa",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner": "depot-k8nvfv5w4q",
+      "startedAt": "2026-10-18T14:26:21Z",
+      "completedAt": "2026-10-18T14:26:56Z",
+      "observedAssignedJobMilliseconds": 35000,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:25Z",
+          "completedAt": "2026-10-18T14:26:26Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:26Z",
+          "completedAt": "2026-10-18T14:26:41Z"
+        },
+        {
+          "name": "Record source and actual resources before setup",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:41Z",
+          "completedAt": "2026-10-18T14:26:41Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:41Z",
+          "completedAt": "2026-10-18T14:26:42Z"
+        },
+        {
+          "name": "Install only locked Node pnpm Rust and Nextest",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T14:26:42Z",
+          "completedAt": "2026-10-18T14:26:54Z"
+        },
+        {
+          "name": "Install frozen dependencies without prepare umbrella",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:54Z",
+          "completedAt": "2026-10-18T14:26:54Z"
+        },
+        {
+          "name": "Set up qualified matching browser environment",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:54Z",
+          "completedAt": "2026-10-18T14:26:54Z"
+        },
+        {
+          "name": "Execute shared prerequisite graph and actual parallel owners",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:54Z",
+          "completedAt": "2026-10-18T14:26:54Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:54Z",
+          "completedAt": "2026-10-18T14:26:55Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:55Z",
+          "completedAt": "2026-10-18T14:26:55Z"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:55Z",
+          "completedAt": "2026-10-18T14:26:55Z"
+        }
+      ],
+      "artifact": {
+        "id": 12139464529,
+        "name": "expanded-graph-depot-2-39135886118-1",
+        "bytes": 584,
+        "sha256": "db6674b8fe86c9e85422f80dfc653260a56bae8ad08457a6d50084ba1c3fdc67",
+        "jobStartSha256": "abb96b46fa19613f827eb223b726b70ea0410713e0b322deefde4709d6880c1d"
+      }
+    },
+    {
+      "jobId": 117700197707,
+      "name": "graph (depot-1, github-depot, 1, depot-ubuntu-24.04-4)",
+      "key": "depot-1",
+      "provider": "github-depot",
+      "source": "815591bf307b1237d31b1c4e644463d7c13654fa",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner": "depot-q115xpgvtc",
+      "startedAt": "2026-10-18T14:25:44Z",
+      "completedAt": "2026-10-18T14:26:20Z",
+      "observedAssignedJobMilliseconds": 36000,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:49Z",
+          "completedAt": "2026-10-18T14:25:49Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:49Z",
+          "completedAt": "2026-10-18T14:26:05Z"
+        },
+        {
+          "name": "Record source and actual resources before setup",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:05Z",
+          "completedAt": "2026-10-18T14:26:05Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:05Z",
+          "completedAt": "2026-10-18T14:26:06Z"
+        },
+        {
+          "name": "Install only locked Node pnpm Rust and Nextest",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T14:26:06Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Install frozen dependencies without prepare umbrella",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Set up qualified matching browser environment",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Execute shared prerequisite graph and actual parallel owners",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:26:18Z",
+          "completedAt": "2026-10-18T14:26:18Z"
+        }
+      ],
+      "artifact": {
+        "id": 12139359757,
+        "name": "expanded-graph-depot-1-39135886118-1",
+        "bytes": 584,
+        "sha256": "97261b9c26b81136b8516f26af62b9902cfdf05247c01941e6e5e80d67f4993c",
+        "jobStartSha256": "caf02bf1aec4761bbb1d36456927d82fd03742d17aa6d8da71cf30cd02a569b9"
+      }
+    },
+    {
+      "jobId": 117700197742,
+      "name": "graph (github-1, github, 1, ubuntu-24.04)",
+      "key": "github-1",
+      "provider": "github",
+      "source": "815591bf307b1237d31b1c4e644463d7c13654fa",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner": "GitHub Actions 1000002618",
+      "startedAt": "2026-10-18T14:25:05Z",
+      "completedAt": "2026-10-18T14:25:43Z",
+      "observedAssignedJobMilliseconds": 38000,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:06Z",
+          "completedAt": "2026-10-18T14:25:07Z"
+        },
+        {
+          "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:07Z",
+          "completedAt": "2026-10-18T14:25:24Z"
+        },
+        {
+          "name": "Record source and actual resources before setup",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:24Z",
+          "completedAt": "2026-10-18T14:25:24Z"
+        },
+        {
+          "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:24Z",
+          "completedAt": "2026-10-18T14:25:25Z"
+        },
+        {
+          "name": "Install only locked Node pnpm Rust and Nextest",
+          "conclusion": "failure",
+          "startedAt": "2026-10-18T14:25:25Z",
+          "completedAt": "2026-10-18T14:25:41Z"
+        },
+        {
+          "name": "Install frozen dependencies without prepare umbrella",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:25:41Z",
+          "completedAt": "2026-10-18T14:25:41Z"
+        },
+        {
+          "name": "Set up qualified matching browser environment",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:25:41Z",
+          "completedAt": "2026-10-18T14:25:41Z"
+        },
+        {
+          "name": "Execute shared prerequisite graph and actual parallel owners",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-18T14:25:41Z",
+          "completedAt": "2026-10-18T14:25:41Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:41Z",
+          "completedAt": "2026-10-18T14:25:42Z"
+        },
+        {
+          "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:42Z",
+          "completedAt": "2026-10-18T14:25:42Z"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "startedAt": "2026-10-18T14:25:42Z",
+          "completedAt": "2026-10-18T14:25:42Z"
+        }
+      ],
+      "artifact": {
+        "id": 12139208447,
+        "name": "expanded-graph-github-1-39135886118-1",
+        "bytes": 580,
+        "sha256": "e45b037de1e04932d7019d0715dd980af0ccf88d0ef04953b67828c8d9099af9",
+        "jobStartSha256": "23af49678208605c42c9f8eec1cf79cd9fa4523382462527808af6624cbc04c2"
+      }
+    }
+  ]
+}

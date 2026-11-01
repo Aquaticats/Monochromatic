@@ -32,7 +32,7 @@ import { fileURLToPath, } from 'node:url';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   init as initSubset,
   subset,
@@ -236,12 +236,12 @@ async function collectIconCodepoints(
      */
     const stripped = text
       .replaceAll(
-        BLOCK_COMMENT_REGEX,
-        '',
+      BLOCK_COMMENT_REGEX,
+      '',
       )
       .replaceAll(
-        LINE_COMMENT_REGEX,
-        '',
+      LINE_COMMENT_REGEX,
+      '',
       );
     for (const match of stripped.matchAll(ICON_CALL_REGEX,)) {
       /**
@@ -289,12 +289,12 @@ async function collectIconCodepoints(
 const FONT_CHARSET_BUILDERS: Record<
   string,
   (args: { readonly sourceFiles: readonly string[]; },) => Promise<string>
-> = {
-  'inter.woff2': collectBodyCharset,
-  'interItalic.woff2': collectBodyCharset,
-  'monaspaceNeon.woff2': collectBodyCharset,
-  'materialSymbols.woff2': collectIconCodepoints,
-};
+  > = {
+    'inter.woff2': collectBodyCharset,
+    'interItalic.woff2': collectBodyCharset,
+    'monaspaceNeon.woff2': collectBodyCharset,
+    'materialSymbols.woff2': collectIconCodepoints,
+  };
 
 //endregion
 
@@ -428,7 +428,7 @@ l.info(`scanning ${sourceFiles.length} source files`,);
 await Promise.all(
   Object.entries(FONT_CHARSET_BUILDERS,)
     .map(
-      async function subsetTarget([basename, buildCharset,],) {
+    async function subsetTarget([basename, buildCharset,],) {
       /**
        Charset computed per font once before the woff2 subset call.
        */
@@ -438,7 +438,7 @@ await Promise.all(
         text,
       },);
     },
-  ),
+    ),
 );
 
 l.info('done',);

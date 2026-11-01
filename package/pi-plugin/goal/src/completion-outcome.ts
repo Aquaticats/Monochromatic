@@ -52,12 +52,12 @@ function settlementReviewControllerStillCurrent(
   if (controller.goal
     .runId
     !== request.goal
-    .runId)
+      .runId)
     return false;
   return controller.goal
     .generationId
     === request.goal
-    .generationId;
+      .generationId;
 }
 
 /**

@@ -6,7 +6,7 @@
 
 ## Decision
 
-Use `portable-pty` for `package/desktop-app/terminal` PTY process management.
+Use `portable-pty` for `package/terminal/app` PTY process management.
 
 The package needs to spawn the user's shell inside a pseudoterminal,
  read child output on a worker thread,

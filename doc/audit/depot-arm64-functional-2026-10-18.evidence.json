@@ -1,0 +1,1024 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T13:49:09.167Z",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harnessSource": "cf2450e05fdbf904382d461c80eb02e216cc9a6e",
+  "status": "Functional selected Linux ARM64 owners passed; full platform audit remains incomplete",
+  "run": {
+    "runId": "p4xj5dsh3s",
+    "workflowId": "cq7gqklq19",
+    "jobId": "ln3bmmzsxt",
+    "attemptId": "kwctfqx8qv",
+    "sandboxId": "s23ll6b8pg6kbpgw1t0d",
+    "status": "finished",
+    "terminalWatcher": {
+      "startedAt": "2026-10-18T13:31:05.354Z",
+      "finishedAt": "2026-10-18T13:32:47.031Z",
+      "run": "p4xj5dsh3s",
+      "harness": "cf2450e05fdbf904382d461c80eb02e216cc9a6e",
+      "waitExitCode": 0,
+      "waitSignal": null,
+      "freshStatusExitCode": 0,
+      "watchdog": null,
+      "args": [
+        "ci",
+        "status",
+        "p4xj5dsh3s",
+        "--org",
+        "l4zncjjbj5",
+        "--wait",
+        "--output",
+        "json"
+      ],
+      "terminalCommandReturned": true,
+      "accountWideInspection": false
+    }
+  },
+  "admission": {
+    "runnerLabel": "depot-ubuntu-24.04-arm-8",
+    "maximumConcurrentVms": 1,
+    "maximumCpu": 8,
+    "documentedMemory": "32 GB",
+    "observed": {
+      "cpus": 8,
+      "memoryBytes": 33606119424
+    },
+    "serverJobTimeoutMinutes": 15,
+    "ownerProfileDeadlineMinutes": 10,
+    "individualCommandDeadlineSeconds": 240,
+    "nominalCampaignCeilingUsd": 1,
+    "reservedFullJobComputeUsd": 0.36,
+    "nativeRatePerSecondUsd": 0.0004,
+    "invoiceInspected": false,
+    "accountWideStateInspected": false,
+    "productionRoutingChanged": false
+  },
+  "sourceIdentity": {
+    "trackedHashCount": 199,
+    "hashesIndependentlyComparedToFrozenGitObjects": true,
+    "initialAndFinalTrackedDiffExitCode": 0,
+    "scope": "All tracked application changes checked, excluding only the research .depot fixture; selected dependency owners hash-bound separately"
+  },
+  "artifact": {
+    "artifact_id": "01a14f36-f474-743c-a8ae-9b448f73f983",
+    "run_id": "p4xj5dsh3s",
+    "workflow_id": "cq7gqklq19",
+    "workflow_path": "",
+    "job_id": "ln3bmmzsxt",
+    "job_key": "_inline_0.yaml:functional",
+    "attempt_id": "kwctfqx8qv",
+    "attempt": 1,
+    "name": "arm64-repository-functional",
+    "size_bytes": 31598,
+    "created_at": "2026-10-18T13:32:44Z",
+    "zipBytes": 31598,
+    "zipSha256": "3b973fea59b5a8a561c60d8b5214c5d9f1fbca6784059cbb32ec29927bf3ef3e",
+    "crcPassed": true,
+    "apiBytesMatched": true,
+    "apiDigestReturned": false,
+    "members": [
+      {
+        "path": "compiler-path.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "compiler-path.stdout",
+        "bytes": 30,
+        "sha256": "831b1b3994695f695aa594132af73863b0d754f3564f5329fe883d9d03500b75"
+      },
+      {
+        "path": "compiler-version.stderr",
+        "bytes": 575,
+        "sha256": "4a87db79246f056959a4c3a1bd86e2cc2a5ac5dc4f9ba59d5d764de2bc891a26"
+      },
+      {
+        "path": "compiler-version.stdout",
+        "bytes": 215,
+        "sha256": "402bd62db1068c97b3fed932aba4b753e9a8578c2562cc9da32ca694bda861b7"
+      },
+      {
+        "path": "final-source.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "final-source.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "frozen-package-install.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "frozen-package-install.stdout",
+        "bytes": 5274,
+        "sha256": "bc93a5246fa9ad0a0b6deeb1c44c6bc6de8445d44248d71270a7a1d39e7e7271"
+      },
+      {
+        "path": "initial-source.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "initial-source.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "kernel.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "kernel.stdout",
+        "bytes": 8,
+        "sha256": "5121ae59314a84da7b4d9587374398f1afa2000b243b3e54f491adefaac54f92"
+      },
+      {
+        "path": "locked-cargo-fetch.stderr",
+        "bytes": 9014,
+        "sha256": "7fb78adb8d75e8e6952e0caa15cdef8d2d309e6e5e587353ac6c44fea5c9cdc0"
+      },
+      {
+        "path": "locked-cargo-fetch.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "memory.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "memory.stdout",
+        "bytes": 1392,
+        "sha256": "41788a06535aabdcab9792bac0bdb21a2f95b9e51416958952cffc6a8b827800"
+      },
+      {
+        "path": "nextest/default/truepeak-all.xml",
+        "bytes": 38804,
+        "sha256": "b519fa6d36be751dc786b6c17bc14e0e76f12a0030ff6956f19f77ca0d4f8e81"
+      },
+      {
+        "path": "nextest-version.stderr",
+        "bytes": 575,
+        "sha256": "4a87db79246f056959a4c3a1bd86e2cc2a5ac5dc4f9ba59d5d764de2bc891a26"
+      },
+      {
+        "path": "nextest-version.stdout",
+        "bytes": 172,
+        "sha256": "dee12584a80e7fa276bdd1a0001d2141dd3677afe5a7fe6f8bb88c808934cab4"
+      },
+      {
+        "path": "pnpm-version.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "pnpm-version.stdout",
+        "bytes": 8,
+        "sha256": "40548e291b51a24f5947ddb2b8191b541bc7697eae6dd29f31a89a791188a1bc"
+      },
+      {
+        "path": "processor-count.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "processor-count.stdout",
+        "bytes": 2,
+        "sha256": "aa67a169b0bba217aa0aa88a65346920c84c42447c36ba5f7ea65f422c1fe5d8"
+      },
+      {
+        "path": "profile.json",
+        "bytes": 42636,
+        "sha256": "31c2978163dd560a8cf48d6adb65dd1ed7d9c5670c9ad308d27f16b2e5db485c"
+      },
+      {
+        "path": "truepeak-all-owner.stderr",
+        "bytes": 16417,
+        "sha256": "1493393d8ca9de4f6565eed6e01971952906ca82937d6c49d53c3f2e58253e8e"
+      },
+      {
+        "path": "truepeak-all-owner.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ts-build-0.stderr",
+        "bytes": 535,
+        "sha256": "ac41c6321f58a5fcdba79449ce16f986a4eeea5794fc3077c15fef11ee12c837"
+      },
+      {
+        "path": "ts-build-0.stdout",
+        "bytes": 2556,
+        "sha256": "f41dd0c2a8dfbde5e9587fbb65dacbdaf0a59bb6f671d14e7b45429bd1ac066c"
+      },
+      {
+        "path": "ts-build-1.stderr",
+        "bytes": 510,
+        "sha256": "e2c3fbfb6ead61fe97639c8c6737da2d4933cfdbdb015aecbe311d919e5476c5"
+      },
+      {
+        "path": "ts-build-1.stdout",
+        "bytes": 1060,
+        "sha256": "8193ab4732e417c7dcd8a82216a86ce634ed8cfc8f5700c8080789a87f1df9f3"
+      },
+      {
+        "path": "ts-build-2.stderr",
+        "bytes": 386,
+        "sha256": "eafe52ad99fb1939184c81597bf9ead0958fd819e1486c8056025cc06f38d8d0"
+      },
+      {
+        "path": "ts-build-3.stderr",
+        "bytes": 390,
+        "sha256": "4aa1b03f826c651e1044e6c89c9d1063c8edc06c0449f9764837d0dbd863c2d0"
+      },
+      {
+        "path": "ts-build-2.stdout",
+        "bytes": 152,
+        "sha256": "1c6c9a95e15a77f19f625cc05a077b62d7ecc2a145a97102571e08ae71161782"
+      },
+      {
+        "path": "ts-build-3.stdout",
+        "bytes": 152,
+        "sha256": "8295234d6d2f176cc9741a378f4e7e11829b57f78b28083cb60a2be102c218fc"
+      },
+      {
+        "path": "ts-owner-unit.stderr",
+        "bytes": 100,
+        "sha256": "788a78380ea98ffa63cc0105f2220cfeb308c82774b9c2c0dc1f52adebd36c12"
+      },
+      {
+        "path": "ts-owner-unit.stdout",
+        "bytes": 4310,
+        "sha256": "ad0fb19d262ed1fc9d74b15420e1c9d398068d07cf76a24f23669b3a3da0ac0c"
+      }
+    ]
+  },
+  "results": {
+    "node": {
+      "version": "v26.12.0",
+      "elf": {
+        "path": "/home/runner/.local/share/mise/installs/node/26.12.0/bin/node",
+        "bytes": 150293600,
+        "sha256": "eb9c23a331c876ff7eeb7fd08b5c215da294bc18dc3a066d526254357f0f6942",
+        "elfMachine": 183
+      }
+    },
+    "rust": {
+      "compilerVersion": "rustc 1.101.0-nightly (5d8fec066 2026-10-16)\nbinary: rustc\ncommit-hash: 5d8fec0669a64607db9ccbf663e7c23125bf4748\ncommit-date: 2026-10-16\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+      "rustcEntrypointElf": {
+        "path": "/home/runner/.cargo/bin/rustc",
+        "bytes": 19502880,
+        "sha256": "9732d6c5e2a098d3521fca8145d826ae0aaa067ef2385ead08e6feac88fa5792",
+        "elfMachine": 183
+      },
+      "implementationBinaryHashSeparatelyQualified": false,
+      "junit": {
+        "path": "nextest/default/truepeak-all.xml",
+        "bytes": 38804,
+        "sha256": "b519fa6d36be751dc786b6c17bc14e0e76f12a0030ff6956f19f77ca0d4f8e81",
+        "cases": [
+          {
+            "name": "bones::tests::coded_numbers_decode",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "bones::tests::crc8_table_matches_check_vector",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "bones::tests::garbage_is_rejected",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "bones::tests::hot_frame_wins_the_bones_seed",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "bones::tests::walk_confirms_frames_and_byte_spans",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::a_current_row_hits_after_reopen",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::a_refused_row_does_not_discard_its_neighbours",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::an_empty_put_batch_is_a_no_op",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::batched_writes_survive_kill_nine_with_whole_batches_only",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::bench_cold_write",
+            "className": "truepeak-core",
+            "status": "skipped"
+          },
+          {
+            "name": "cache::tests::crash_writer_child",
+            "className": "truepeak-core",
+            "status": "skipped"
+          },
+          {
+            "name": "cache::tests::exact_fingerprints_lists_only_exact_rows",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::exact_is_not_downgraded_by_a_probe",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::misses_on_absent_or_mismatched_key",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::probe_is_stored_after_an_exact_row_is_removed",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::probe_is_upgraded_by_an_exact",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::put_batch_never_downgrades_an_exact_row",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::put_batch_stores_every_row",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::remove_drops_only_the_named_key",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::remove_is_scoped_to_identity",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::remove_of_absent_key_reports_false",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::round_trips_a_decision",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::row_writes_after_kill_nine_leave_partial_batches",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "cache::tests::the_schema_version_moved_past_the_gxhash_rows",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "decision::tests::full_scans_are_exact",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "decision::tests::probe_estimate_is_sampled",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "error::tests::display_includes_cause",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "error::tests::equality_distinguishes_variants",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "error::tests::is_std_error",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::every_input_changes_the_key",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::field_boundaries_are_unambiguous",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::material_cases_reach_the_vectorized_hash_paths",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::material_fields_sit_at_their_documented_offsets",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::material_known_answers_match_the_reference",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::material_starts_with_the_domain_tag_and_has_the_documented_length",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::raw_xxh3_64_known_answers_match_the_reference",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::the_default_seed_is_zero",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "fingerprint::tests::the_key_uses_all_sixty_four_bits",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::gain_never_exceeds_unity",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::linear_gain_matches_db_form",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::loud_track_is_attenuated_to_ceiling",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::peak_dbtp_reference_points",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::probe_margin_inflates_in_db",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::quiet_track_is_not_amplified",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "gain::tests::silence_gives_unity_gain",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "inputs::tests::broken_flac_keeps_lossless_without_bones",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "inputs::tests::flac_bytes_yield_lossless_with_bones",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "inputs::tests::id3_prefixed_flac_sniffs",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "inputs::tests::missing_file_stays_uninformed",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "inputs::tests::other_bytes_stay_uninformed",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::catmull_rom_reproduces_control_points",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::channel_routing_survives_mid_frame_chunk_split",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::detects_inter_sample_peak_above_samples",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::peak_is_at_least_max_sample",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::per_sample_feeding_matches_whole_buffer",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::silence_is_zero_peak",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::take_peak_segments_match_continuous_peak",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "meter::tests::zero_channels_is_zero_peak",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "policy::tests::cache_identity_keeps_decoder_independent",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "policy::tests::default_policy_has_decided_constants",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "policy::tests::meter_id_is_stable_and_nonzero",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "policy::tests::policy_id_changes_with_every_parameter",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "policy::tests::policy_id_is_stable",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "probe::tests::bones_seeds_reach_the_needle",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "probe::tests::climb_reads_the_hilltop",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "probe::tests::measure_window_reads_one_window",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "probe::tests::silence_probes_to_zero",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::bones_seeds_guide_the_lossless_probe",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::full_scan_of_short_track_tags_short",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::full_scan_upgrades_a_long_track_exactly",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::long_track_probes_with_margin",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::probe_seek_finds_a_mid_track_loud_window",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::provenance_picks_bucket_coverage",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::short_track_full_scans_exactly",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::silence_yields_unity_gain",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::unknown_duration_full_scans",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "resolve::tests::zero_channels_is_unity",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "service::tests::resolves_on_miss_then_serves_from_cache",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "source::tests::boxed_source_drives_the_meter",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "source::tests::duration_known_rejects_degenerate_values",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "source::tests::seek_to_frame_repositions_and_guards_end",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::a_single_window_on_a_track_no_longer_than_the_window_starts_at_zero",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::a_single_window_starts_at_the_final_legal_start",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::placement_plan_bundles_length_and_starts",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::starts_are_monotonic_and_bounded",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::starts_cover_both_ends",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::the_last_window_starts_at_the_final_legal_start_for_every_count",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::track_shorter_than_window_starts_at_zero",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::window_frames_floors_and_clamps",
+            "className": "truepeak-core",
+            "status": "passed"
+          },
+          {
+            "name": "window::tests::zero_windows_produce_no_starts",
+            "className": "truepeak-core",
+            "status": "passed"
+          }
+        ],
+        "passed": 89,
+        "skipped": 2,
+        "failed": 0,
+        "errored": 0
+      },
+      "amd64": {
+        "run": "221vdm1f21",
+        "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+        "archiveSha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f",
+        "junitSha256": "e7a213dcf3f726e062f87b6df3ad18e06e89b980db37adf56d5c2c3b82f5fb79",
+        "sameClassNameNameStatusTuples": true
+      }
+    },
+    "typescript": {
+      "owner": "//package/module/p-limit-fork:test:unit",
+      "passingDescribeGroups": [
+        "InvalidConcurrencyError",
+        "InvalidRejectOnClearError",
+        "map",
+        "limitFunction",
+        "limiter option resolution",
+        "clearQueue",
+        "concurrency accessor",
+        "pLimit",
+        "task queue behavior",
+        "createGate",
+        "yieldTurn"
+      ],
+      "individualCaseCountUnmeasured": true,
+      "amd64": {
+        "run": "39105587003",
+        "logSha256": "f6fd1c48ede728350ecf0ed4c716f87a7935250ec4342f08afc1a5a5ef83b9b9",
+        "sameDescribeGroupIdentities": true
+      }
+    },
+    "allCommands": [
+      {
+        "name": "initial-source",
+        "command": [
+          "git",
+          "diff",
+          "--exit-code",
+          "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "--",
+          ".",
+          ":!.depot"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1861
+      },
+      {
+        "name": "kernel",
+        "command": [
+          "uname",
+          "--machine"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 2
+      },
+      {
+        "name": "memory",
+        "command": [
+          "cat",
+          "/proc/meminfo"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 2
+      },
+      {
+        "name": "processor-count",
+        "command": [
+          "getconf",
+          "_NPROCESSORS_ONLN"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 2
+      },
+      {
+        "name": "pnpm-version",
+        "command": [
+          "pnpm",
+          "--version"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 10
+      },
+      {
+        "name": "frozen-package-install",
+        "command": [
+          "pnpm",
+          "install",
+          "--frozen-lockfile",
+          "--ignore-scripts"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 2470
+      },
+      {
+        "name": "ts-build-0",
+        "command": [
+          "mise",
+          "run",
+          "//package/module/test:build"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1082
+      },
+      {
+        "name": "ts-build-1",
+        "command": [
+          "mise",
+          "run",
+          "//package/module/logger:build"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1401
+      },
+      {
+        "name": "ts-build-2",
+        "command": [
+          "mise",
+          "run",
+          "//package/module/async-time:build"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1219
+      },
+      {
+        "name": "ts-build-3",
+        "command": [
+          "mise",
+          "run",
+          "//package/module/p-limit-fork:build"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1256
+      },
+      {
+        "name": "ts-owner-unit",
+        "command": [
+          "mise",
+          "run",
+          "//package/module/p-limit-fork:test:unit"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 780
+      },
+      {
+        "name": "compiler-version",
+        "command": [
+          "mise",
+          "exec",
+          "rust",
+          "cargo:cargo-nextest",
+          "--",
+          "rustc",
+          "--version",
+          "--verbose"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 58
+      },
+      {
+        "name": "compiler-path",
+        "command": [
+          "mise",
+          "which",
+          "rustc"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 39
+      },
+      {
+        "name": "nextest-version",
+        "command": [
+          "mise",
+          "exec",
+          "rust",
+          "cargo:cargo-nextest",
+          "--",
+          "cargo",
+          "nextest",
+          "--version"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 61
+      },
+      {
+        "name": "locked-cargo-fetch",
+        "command": [
+          "mise",
+          "exec",
+          "rust",
+          "cargo:cargo-nextest",
+          "--",
+          "cargo",
+          "fetch",
+          "--locked"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1202
+      },
+      {
+        "name": "truepeak-all-owner",
+        "command": [
+          "mise",
+          "exec",
+          "rust",
+          "cargo:cargo-nextest",
+          "--",
+          "cargo",
+          "nextest",
+          "--config-file",
+          "/home/runner/work/Monochromatic/Monochromatic/.depot/probe/arm64-functional/output/nextest.toml",
+          "run",
+          "--locked",
+          "--offline",
+          "--release",
+          "--all-features",
+          "--no-fail-fast"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 88724
+      },
+      {
+        "name": "final-source",
+        "command": [
+          "git",
+          "diff",
+          "--exit-code",
+          "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+          "--",
+          ".",
+          ":!.depot"
+        ],
+        "status": 0,
+        "elapsedMilliseconds": 1835
+      }
+    ],
+    "defaultCargoAndNextestConcurrency": true,
+    "homeIsolation": "Cargo target and TMPDIR isolated; inherited toolchain HOME retained for Mise tool resolution"
+  },
+  "controls": {
+    "failureClassificationPositive": true,
+    "doctypeDuplicateAndEntityIdentityRejected": 3
+  },
+  "localValidationFailure": {
+    "at": "2026-10-18T13:46:27.610Z",
+    "stage": "Local artifact consumer validation only; no cloud workload failure",
+    "diagnostic": "AssertionError [ERR_ASSERTION]: actual eleven group identities versus empty baseline groups",
+    "cause": "Selected shard b 094.log belonged to or-throw lint, not p-limit-fork unit tests",
+    "actualOriginal": "module-artifacts/frozen-linux-coverage-a-39105587003/094.log",
+    "actualOriginalSha256": "f6fd1c48ede728350ecf0ed4c716f87a7935250ec4342f08afc1a5a5ef83b9b9",
+    "regexChanged": false,
+    "cloudRerun": false
+  },
+  "cleanup": {
+    "terminalStatusIndependentlyRead": true,
+    "watchdogInvoked": false,
+    "ownedSecretsCreated": false,
+    "ownedProjectsCreated": false,
+    "ownedImagesCreated": false,
+    "additionalAllocations": 0,
+    "worktreeRetainedForSourceVerification": true
+  },
+  "limitations": [
+    "One functional sample, no unchanged timing spread or performance ratio",
+    "Truepeak all-feature Rust library and built p-limit-fork runtime owner only, not the full repository",
+    "No ARM GUI, Android emulator, browser, KVM, Windows, macOS, or managed GPU consumer",
+    "Rustc entrypoint ELF is the file resolved by Mise at .cargo/bin/rustc; implementation binary hash was not separately qualified",
+    "JUnit retained as raw XML; this workflow did not upload it to Depot Test Results",
+    "Inherited toolchain HOME retained; this profile is not a fresh Cargo-home or cache benchmark",
+    "Restricted Nextest XML identity extraction, not a general XML producer-compatibility proof"
+  ],
+  "sourceArchive": {
+    "path": "doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz",
+    "bytes": 86403,
+    "sha256": "003e3155561cea4636cb927d1709e5e157fa27fa0995e49083632266558390d5",
+    "uncompressedBytes": 303712,
+    "originalArtifactZips": 1,
+    "immutableFixtureFiles": 4
+  }
+}

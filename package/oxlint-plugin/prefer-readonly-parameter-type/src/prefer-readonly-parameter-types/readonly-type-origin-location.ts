@@ -6,7 +6,7 @@ import {
   sep,
 } from 'node:path';
 
-import type { Node, } from 'typescript/unstable/ast';
+import type { Node, } from 'typescript/ast';
 import {
   isArrayLiteralExpression,
   isArrowFunction,
@@ -19,11 +19,12 @@ import {
   isReturnStatement,
   isTypeAliasDeclaration,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { ancestorDirectories, } from './ancestor-directories.ts';
 import { callableReturnsBinding, } from './readonly-returned-binding.ts';
+import { configuredProjectConfigFileName, } from './semantic-file-name.ts';
 import { isWorkspaceSourceFileName, } from './workspace-source-path.ts';
 
 /**
@@ -282,7 +283,7 @@ function originLocation({
    Path relative to nearest workspace marker.
    */
   const relativePath = relative(
-    displayRoot(project.configFileName,),
+    displayRoot(configuredProjectConfigFileName({ project, },),),
     sourceFile.fileName,
   )
     .split(sep,)
@@ -302,11 +303,18 @@ function originLocation({
 
 /**
  Tests whether declaration source is editable workspace source.
- 
+
+ A path outside every installed-module directory is workspace source whatever the program's
+ library flag says. A workspace package reached through a `node_modules` symbolic link has such
+ a path and is flagged as an external-library module, yet its declarations are the ones an edit
+ would change, so origin collection keeps them and the evidence kind agrees with the
+ in-workspace case. A path inside an installed-module directory is never workspace source, and
+ the default library is refused before the path is read.
+
  @param node - Resolved declaration or normalized owner.
- 
+
  @param project - Project classifying source ownership.
- 
+
  @returns whether source belongs to inspectable workspace implementation.
  
  @example
@@ -326,12 +334,11 @@ export function workspaceOrigin({
    */
   const sourceFile = node.getSourceFile();
   /**
-   Program metadata distinguishing workspace source from libraries.
+   Program metadata recognizing the default library, which has no installed-module path.
    */
   const { program, } = project;
   return isWorkspaceSourceFileName(sourceFile.fileName,)
-    && (!program.isSourceFileDefaultLibrary(sourceFile,))
-    && (!program.isSourceFileFromExternalLibrary(sourceFile,));
+    && (!program.isSourceFileDefaultLibrary(sourceFile,));
 }
 
 /**

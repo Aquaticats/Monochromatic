@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T17:16:44.828Z",
+  "purpose": "Installed Bash builtin invocation correction; no upstream defect/change",
+  "binary": {
+    "path": "/usr/bin/bash",
+    "sha256": "379c1bfc53d08815975c647ad7da5d19d8e8a8566ce8097c50231c8b116e5e7b",
+    "rpmQuery": {
+      "status": 0,
+      "stdout": "bash 5.3.9-3.fc44 bash-5.3.9-3.fc44.src.rpm\n",
+      "stderr": ""
+    }
+  },
+  "version": "GNU bash, version 5.3.9(1)-release (x86_64-redhat-linux-gnu)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+  "help": "kill: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]\n    Send a signal to a job.\n    \n    Send the processes identified by PID or JOBSPEC the signal named by\n    SIGSPEC or SIGNUM.  If neither SIGSPEC nor SIGNUM is present, then\n    SIGTERM is assumed.\n    \n    Options:\n      -s sig\tSIG is a signal name\n      -n sig\tSIG is a signal number\n      -l\tlist the signal names; if arguments follow `-l' they are\n    \t\tassumed to be signal numbers for which names should be listed\n      -L\tsynonym for -l\n    \n    Kill is a shell builtin for two reasons: it allows job IDs to be used\n    instead of process IDs, and allows processes to be killed if the limit\n    on processes that you can create is reached.\n    \n    Exit Status:\n    Returns success unless an invalid option is given or an error occurs.\n",
+  "upstream": {
+    "repository": "https://git.savannah.gnu.org/git/bash.git",
+    "resolvedCloneTransport": "https://https.git.savannah.gnu.org/git/bash.git",
+    "compatibleCommit": "637f5c8696a6adc9b4519f1cd74aa78492266b7f",
+    "patchlevel": 9,
+    "sourceFiles": [
+      {
+        "path": "builtins/kill.def",
+        "bytes": 6755,
+        "sha256": "668e56fa966b07694585ed186fdb3824247e3364ed97a2c581978c8ac5b25c40"
+      },
+      {
+        "path": "builtins/common.c",
+        "bytes": 26063,
+        "sha256": "979a0c3d1a77d4b33a9e27a68992f584d1b3ca6e6754c3d052ac30bec45e186d"
+      },
+      {
+        "path": "builtins/common.h",
+        "bytes": 9782,
+        "sha256": "9a269a14937e7c4de487af5d2ebf991d00fefe3e8a2c801251cfd605533a98f0"
+      },
+      {
+        "path": "sig.c",
+        "bytes": 22629,
+        "sha256": "cd30b4c59ca8aa5f909e22e029592d3defedf1cdb7fea4b997561a4e02813464"
+      },
+      {
+        "path": "README",
+        "bytes": 4848,
+        "sha256": "0dda3f5817ac4d88c4cc17ecbe42f05223db368fb353d88e01fcb7259a50fe07"
+      },
+      {
+        "path": "NOTES",
+        "bytes": 14349,
+        "sha256": "0b346a6c9a1a59ef8dfb5c3cde00598a16c3e830deb8427cf94a16f71b5e17e1"
+      },
+      {
+        "path": "patchlevel.h",
+        "bytes": 1117,
+        "sha256": "5c9368ab30a088b6098ec5b1e29d0dba61da830d578acadd4f2df076545e184a"
+      },
+      {
+        "path": "trap.c",
+        "bytes": 48160,
+        "sha256": "20bdceb8de0fe35dde24e4b77e05e54573dd3cab286309bee0ae68c46572387b"
+      }
+    ],
+    "baseReleaseTag": "bash-5.3",
+    "baseReleaseCommit": "b8c60bc9ca365f8261fa97900b6fa939f6ebc303",
+    "latestInspectedCommit": "9c465866b7d849378369ef700cbe2965aa9691e3",
+    "latestInspectedPatchlevel": 20,
+    "parserAndDiagnosticSha256MatchAcrossBaseNineTwenty": true,
+    "downstreamFedoraSourceRebuilt": false,
+    "sourceEdits": 0
+  },
+  "controls": [
+    {
+      "id": "named-zero",
+      "args": [
+        "-s",
+        "0",
+        "--"
+      ],
+      "expected": 0,
+      "status": 0,
+      "signal": null,
+      "selfPid": 595255,
+      "stdout": "self_pid=595255\n",
+      "stderr": ""
+    },
+    {
+      "id": "numeric-zero",
+      "args": [
+        "-n",
+        "0",
+        "--"
+      ],
+      "expected": 0,
+      "status": 0,
+      "signal": null,
+      "selfPid": 595257,
+      "stdout": "self_pid=595257\n",
+      "stderr": ""
+    },
+    {
+      "id": "short-zero",
+      "args": [
+        "-0",
+        "--"
+      ],
+      "expected": 0,
+      "status": 0,
+      "signal": null,
+      "selfPid": 595260,
+      "stdout": "self_pid=595260\n",
+      "stderr": ""
+    },
+    {
+      "id": "unsupported-long-separated",
+      "args": [
+        "--signal",
+        "0",
+        "--"
+      ],
+      "expected": 1,
+      "error": "-signal: invalid signal specification",
+      "status": 1,
+      "signal": null,
+      "selfPid": 595263,
+      "stdout": "self_pid=595263\n",
+      "stderr": "bash-kill-signal-zero: line 1: kill: -signal: invalid signal specification\n"
+    },
+    {
+      "id": "unsupported-long-equals",
+      "args": [
+        "--signal=0",
+        "--"
+      ],
+      "expected": 1,
+      "error": "-signal=0: invalid signal specification",
+      "status": 1,
+      "signal": null,
+      "selfPid": 595264,
+      "stdout": "self_pid=595264\n",
+      "stderr": "bash-kill-signal-zero: line 1: kill: -signal=0: invalid signal specification\n"
+    }
+  ],
+  "safety": "Every successful control requests signal0 against its own fresh Bash PID; unsupported long options fail during signal parsing before target delivery; no TERM/KILL control or unrelated PID target",
+  "harness": {
+    "binary": "/usr/bin/bash",
+    "args": [
+      "--noprofile",
+      "--norc",
+      "-c",
+      "printf \"self_pid=%s\\n\" \"$BASHPID\"; builtin kill \"$@\" \"$BASHPID\"",
+      "bash-kill-signal-zero",
+      "...control.args"
+    ],
+    "environment": {
+      "PATH": "/usr/bin:/bin",
+      "LC_ALL": "C",
+      "BASH_ENV": "/dev/null",
+      "HOME": "owned private scratch directory"
+    },
+    "timeoutMilliseconds": 5000
+  },
+  "originalIncident": {
+    "provenance": "Parent-owned exact process cleanup observation",
+    "failedOption": "--signal",
+    "signalArgument": "TERM",
+    "diagnostic": "kill: -signal: invalid signal specification",
+    "correctedOption": "-s",
+    "reapedStatus": 143,
+    "independentlyRepeatedTerminatingSignal": false
+  },
+  "upstreamDisposition": {
+    "fault": false,
+    "prototype": false,
+    "externalMessageSent": false,
+    "matchingBashSpecificExemption": false,
+    "checkedExemptionNames": [
+      "bun-install.md",
+      "cargo-workspace.md",
+      "claude-code-upstream-bugs.md",
+      "codex-harness.md",
+      "jsr.md",
+      "lightningcss.md",
+      "low-impact-typescript-formatting.md",
+      "module-es-monolith.md",
+      "pi-gpt55-long-context.md",
+      "terminal-title-fork-parity-tests.md",
+      "typescript-project-references.md"
+    ],
+    "primaryArchiveSearch": "site:lists.gnu.org/archive/html/bug-bash/ \"kill\" \"--signal\"",
+    "primaryArchiveIndexedHits": 0,
+    "completeArchiveSearchClaimed": false,
+    "comparableThread": "https://github.com/util-linux/util-linux/issues/991",
+    "comparableThreadAndCommentsRead": true,
+    "artifact": "Nothing to add; invocation correction only"
+  }
+}

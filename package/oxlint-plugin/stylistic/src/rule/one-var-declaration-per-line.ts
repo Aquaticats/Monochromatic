@@ -99,8 +99,8 @@ export const oneVarDeclarationPerLine: CreateOnceRule = {
       /* oxlint-enable typescript/no-unsafe-type-assertion */
       if (
         (parent !== undefined)
-        && FOR_PARENT_TYPES
-          .has(parent.type,)
+          && FOR_PARENT_TYPES
+            .has(parent.type,)
       ) {
         return;
       }
@@ -157,9 +157,9 @@ export const oneVarDeclarationPerLine: CreateOnceRule = {
             offset: prevRange[1],
           },)
             !== lineAt({
-            sourceText,
-            offset: currRange[0],
-          },)
+              sourceText,
+              offset: currRange[0],
+            },)
         ) {
           continue;
         }

@@ -133,7 +133,7 @@ function visitParts(
   }: {
     readonly parts: readonly ForeignBorrowed<
       UnbashWordPart | UnbashDoubleQuotedChild
-    >[];
+      >[];
     readonly context: ShellCommandContext;
   },
 ): VisitResult {

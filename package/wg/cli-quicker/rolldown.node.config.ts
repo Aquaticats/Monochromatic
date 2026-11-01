@@ -1,0 +1,57 @@
+import {
+  type NodeFlavorConfigs,
+  perEntryNodeConfig,
+} from '@monochromatic-dev/config-rolldown/.node.ts';
+
+/**
+ Self-contained production CLI and public tunnel-orchestration bundles.
+ */
+const config: NodeFlavorConfigs = perEntryNodeConfig({
+  entries: [
+    './src/index.ts',
+    './src/application-exemption.ts',
+    './src/application-exemption-command.ts',
+    './src/privilege-context-data.ts',
+    './src/policy-routing-conflict.ts',
+    './src/exempt-mark-reservation.ts',
+    './src/opensnitch.ts',
+    './src/opensnitch-config-tree.ts',
+    './src/opensnitch-live.ts',
+    './src/opensnitch-daemon-config.ts',
+    './src/tunnel-bypass-hosts.ts',
+    './src/tunnel-bypass-hosts-sync.ts',
+    './src/bypass-host-refresh.ts',
+    './src/bypass-watch-failure.ts',
+    './src/run-subcommand.ts',
+    './src/escape-text.ts',
+    './src/notification-user.ts',
+    './src/failure-repeat-limit.ts',
+    './src/runtime-failure-report.ts',
+    './src/host-answer-filter.ts',
+    './src/host-rule-limits.data.ts',
+    './src/map-in-chunks.ts',
+    './src/tunnel-dependencies.ts',
+    './src/tunnel-dns-lookup.ts',
+    './src/update-policy-notice.ts',
+    './src/update-hosts.data.ts',
+    './src/opensnitch-toolchain-rule-patterns.ts',
+    './src/opensnitch-toolchain-rules.ts',
+    './src/opensnitch-rules-command.ts',
+    './src/tunnel.ts',
+    './src/tunnel-up.ts',
+    './src/config.ts',
+    './src/tunnel-bypass.ts',
+    './src/tunnel-bypass-route.ts',
+    './src/bypass-watch.ts',
+    './src/linux-process-identity.ts',
+    './src/tunnel-bypass-watcher-sidecar.ts',
+    './src/bypass-watch-sentinel-core.ts',
+    './src/bypass-watch-sentinel.ts',
+    './src/bypass-watch-sentinel-launch.ts',
+    './src/bypass-watch-sentinel-marker.ts',
+    './src/bypass-watch-sentinel-service.ts',
+    './src/system-stop.ts',
+  ],
+},);
+
+export default config;

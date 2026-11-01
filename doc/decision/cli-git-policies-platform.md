@@ -595,7 +595,8 @@ and a patch naming one outside the candidate set adds it.
 The path must be unchanged in the real index,
 the private commit index,
 and the worktree,
-so the commit can take the fix and cli-git can write the landed bytes to the worktree afterwards without discarding local work.
+so the commit can take the fix and cli-git can write the landed bytes
+to the worktree afterwards without discarding local work.
 Otherwise the commit blocks with `patch-conflict` and names the remedies.
 The worktree write happens after the index install and is completed by startup recovery;
 a copy edited during the commit is kept with a warning.
@@ -795,11 +796,11 @@ Empty and binary-looking files remain byte-identical.
 
 Exact exclusion families are:
 
-- `package/cli/forbidden-strings.fuzz/seed/**`
+- `package/forbidden-strings/cli.fuzz/seed/**`
   (originally `corpus/**`;
    renamed when committed seeds moved to tracked `seeds/<target>/` dirs,
    see `doc/decision/gitignore-negations.md`);
-- `package/rust-module/forbidden-regex.fuzz/seed/**`;
+- `package/forbidden-strings/core.fuzz/seed/**`;
 - `package/test-fixture/toml-edit/src/**`;
 - `**/dist/final/node/**`;
 - `**/bundle/node/**`
@@ -951,7 +952,7 @@ Consumer lockfiles and self-contained builds govern plugin inputs.
   current wrapper behavior.
 - `package/git-policy/cli/src/escape-hatch.ts`:
   parser-based invocation escape hatches.
-- `package/module/fs-id/README.md`:
+- `package/fs-id/core/README.md`:
   implemented filesystem identity prerequisite and verified platform behavior.
 - `doc/planning/final-newline-normalization.md`:
   final-newline behavior and exclusions.

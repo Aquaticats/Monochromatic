@@ -60,7 +60,8 @@ Only the publish job holds `id-token: write`.
 
 `npm trust` requires the package to already exist on the registry,
 so trusted publishing cannot bootstrap.
-The first version of each package is packed with `pnpm pack` (which rewrites `workspace:` specifiers and applies `publishConfig`)
+The first version of each package is packed with `pnpm pack`
+(which rewrites `workspace:` specifiers and applies `publishConfig`)
 and published with `npm publish <tarball> --access public` with provenance disabled,
 authenticated by the owner's one-time password.
 Immediately afterwards `npm trust github` registers the release workflow.
@@ -77,6 +78,10 @@ and listed ten packages nobody had readiness-checked.
 The changesets release workflow replaces it.
 Issue #307 closes by construction;
 issue #306's build and tarball checks move to the release workflow.
+Issue #287's stale `module-numeric-const` filter
+(the package renamed to `module-const` in `9e571fc5c4` on 2026-05-28)
+disappears with the file;
+`changeset:build` fails on any publish-plan name the workspace does not carry.
 
 ### Published surface is the built artifact; `./ts` is stripped at publish
 
@@ -91,7 +96,8 @@ Workspace dependencies that the dist bundles move to `devDependencies`.
 Test files stay in tarballs (mixed ecosystem practice:
 zod and pino ship them,
 fast-check does not).
-`tsconfig.tsbuildinfo` leaves every tarball by redirecting `tsBuildInfoFile` outside `dist/final` in the shared TypeScript config.
+`tsconfig.tsbuildinfo` leaves every tarball by redirecting `tsBuildInfoFile`
+outside `dist/final` in the shared TypeScript config.
 
 ### Runtime floor: `engines.node >=24`
 
@@ -110,7 +116,9 @@ which matches the state of the contract.
 
 `npm-release.yml` used to run on every push to `main`.
 With a changeset pending,
- every run regenerated the `changeset-release/main` branch and force-pushed one fresh `chore(*): version packages` commit onto the open Version Packages pull request,
+ every run regenerated the `changeset-release/main` branch
+and force-pushed one fresh `chore(*): version packages` commit
+onto the open Version Packages pull request,
 and GitHub mailed the owner a push notification each time:
 198 commits landed on `main` on 2026-09-06 and the workflow ran at least 40 times that day.
 The owner ruled one run per commit unsustainable.
@@ -129,6 +137,24 @@ the action rebases it on its next relevant run,
 and the branch only ever touches manifests,
  changelogs,
  and changeset files.
+
+### Releases run through `npm-publish.yml` (2026-10-29)
+
+After the category moves renamed `module-logger` and `module-fs-path` to `logger-core` and `fs-path-core`,
+the owner directed:
+"just do new releases through npm-publish.yml now".
+`.github/workflows/npm-publish.yml` is a manual dispatch that builds,
+tests,
+packs,
+and publishes one package (input `package`) with provenance.
+Both renamed packages list it as their trusted publisher
+and published `logger-core` 0.4.6 and `fs-path-core` 0.2.2 through it.
+`npm-release.yml` (changesets) still runs on its path filter;
+its `select-mode` failed on every run until `33b6a407a5` ignored the `translation-repair-*` family,
+and with no changeset pending it versions and publishes nothing.
+A package may list up to 10 trusted publishers
+(<https://docs.npmjs.com/trusted-publishers>),
+so moving a package back to the changesets flow only needs `npm trust github` with `--file npm-release.yml`.
 
 ## Consequences
 

@@ -132,8 +132,8 @@ function parseFrontmatter(raw: string,): {
       if (
         (afterDelim === str
           .length)
-        || (str[afterDelim]
-          === '\n')
+          || (str[afterDelim]
+            === '\n')
           || (str[afterDelim]
             === '\r')
       ) {
@@ -230,13 +230,13 @@ export const postFrontmatterSchema: v.GenericSchema<
     published: Date;
     updated: Date;
   }
-> = v.object({
-  title: v.string(),
-  description: v.string(),
-  tags: v.array(v.string(),),
-  published: coerceDateSchema,
-  updated: coerceDateSchema,
-},);
+  > = v.object({
+    title: v.string(),
+    description: v.string(),
+    tags: v.array(v.string(),),
+    published: coerceDateSchema,
+    updated: coerceDateSchema,
+  },);
 
 //endregion Schema
 
@@ -513,9 +513,9 @@ export function attachDates(
       .updated
       .getTime()
       - a
-      .data
-      .updated
-      .getTime();
+        .data
+        .updated
+        .getTime();
     if (updatedDelta !== 0)
       return updatedDelta;
     /**
@@ -525,9 +525,9 @@ export function attachDates(
       .published
       .getTime()
       - a
-      .data
-      .published
-      .getTime();
+        .data
+        .published
+        .getTime();
     if (publishedDelta !== 0)
       return publishedDelta;
     return a.name

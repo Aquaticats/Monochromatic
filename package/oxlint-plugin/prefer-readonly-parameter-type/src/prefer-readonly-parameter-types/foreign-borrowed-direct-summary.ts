@@ -9,14 +9,14 @@ import {
   type ForOfStatement,
   SyntaxKind,
   type VariableDeclaration,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isBinaryExpression,
   isCallExpression,
   isForOfStatement,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import { activeCallableBodyNodes, } from './closure-activity.ts';
 import {
@@ -71,14 +71,14 @@ export function foreignBorrowedOwnershipSeed({
       parameter,
       parameterIndex,
     ): void {
-    seedParameterSlots({
-      project,
-      parameter,
-      parameterIndex,
-      table,
-      bindingOriginBySymbolId,
+      seedParameterSlots({
+        project,
+        parameter,
+        parameterIndex,
+        table,
+        bindingOriginBySymbolId,
+      },);
     },);
-  },);
   /**
    Explicit foreign marker indexes on current declaration.
    */
@@ -211,15 +211,15 @@ export function foreignBorrowedDirectSummary({
     bindingOriginBySymbolId: summary.bindingOriginBySymbolId,
   },)
     .forEach(function inspectOwnedCall(node,): void {
-    if (!isCallExpression(node,))
-      return;
-    addForeignBorrowedCallEdge({
-      project,
-      declaration,
-      call: node,
-      summary,
-      ...(analysisRoot === undefined) ? {} : { analysisRoot, },
+      if (!isCallExpression(node,))
+        return;
+      addForeignBorrowedCallEdge({
+        project,
+        declaration,
+        call: node,
+        summary,
+        ...(analysisRoot === undefined) ? {} : { analysisRoot, },
+      },);
     },);
-  },);
   return summary;
 }

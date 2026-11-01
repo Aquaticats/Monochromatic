@@ -1,0 +1,33 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/translation-repair-test-fixture",
+  "description": "The test-fixture part of the translation-repair pipeline; README.md says what it holds and what it leans on.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": false,
+  "exports": {
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "unified": "catalog:"
+  },
+  "files": [
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/translation-repair/test-fixture"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

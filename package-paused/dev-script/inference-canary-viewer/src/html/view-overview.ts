@@ -5,7 +5,7 @@
  * where each point is clickable to open the run detail overlay.
  * Below the chart, a summary table lists each model's latest status.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { SHAPE_LEGEND, } from '../chart/legend.ts';
 import { renderScatterChart, } from '../chart/scatter.ts';

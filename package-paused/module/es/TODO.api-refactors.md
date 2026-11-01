@@ -9,7 +9,8 @@
 
 ### Critical Breaking Changes for Library Design
 
-These refactors will affect ALL functions in the library and represent major breaking changes that must be implemented systematically across the entire codebase.
+These refactors will affect ALL functions in the library and represent major breaking changes
+that must be implemented systematically across the entire codebase.
 
 ---
 
@@ -143,7 +144,8 @@ export function clamp(
 
 **Status**: Critical Priority; affects many function signatures
 
-**Requirement**: All functions taking more than 2 parameters must use named parameter syntax (destructured object parameters).
+**Requirement**: All functions taking more than 2 parameters must use named parameter syntax
+(destructured object parameters).
 
 ### Current Functions Needing Conversion
 
@@ -250,13 +252,14 @@ export function complexFunction({
 
 ---
 
-## 3. Type Testing with `@monochromatic-dev/module-test`
+## 3. Type Testing with `@monochromatic-dev/test-harness-core`
 
 ### Overview
 
 **Status**: Critical Priority; quality assurance for ALL exports
 
-**Requirement**: All functions, constants, types, and exports should be tested using type testing capabilities with `expectTypeOf`.
+**Requirement**: All functions, constants, types, and exports should be tested
+using type testing capabilities with `expectTypeOf`.
 
 ### Comprehensive Type Testing Requirements
 
@@ -280,7 +283,8 @@ export function complexFunction({
 
 **Exported Constants**:
 
-- [ ] **Type constants** like [`Int`](src/numeric.type.int.ts:1), [`PositiveInt`](src/numeric.type.int.ts:1): Test type definitions
+- [ ] **Type constants** like [`Int`](src/numeric.type.int.ts:1),
+  [`PositiveInt`](src/numeric.type.int.ts:1): Test type definitions
 - [ ] **Value constants**: Test literal type inference and immutability
 - [ ] **Function constants** like [`alwaysTrue()`](src/function.always.ts:1): Test return type consistency
 
@@ -298,7 +302,8 @@ export function complexFunction({
 **Interface and Object Type Testing**:
 
 - [ ] **Store types** in [`any.store.shared.ts`](src/any.store.shared.ts:8): Test type definitions
-- [ ] **Error assertion types** in [`error.assert.equal.type.ts`](src/error.assert.equal.type.ts:1): Enhance existing tests
+- [ ] **Error assertion types** in [`error.assert.equal.type.ts`](src/error.assert.equal.type.ts:1):
+  Enhance existing tests
 - [ ] **Configuration object types**: Test all option object types
 
 ### Comprehensive Type Testing Patterns
@@ -316,7 +321,7 @@ import {
   describe,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 
 describe('Function Type Testing', () => {
   test('identity preserves input type exactly', () => {

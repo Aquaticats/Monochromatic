@@ -50,7 +50,7 @@ export const restrictionRules: DummyRuleMap = {
   'no-restricted-syntax/no-function-root-let': 'error',
 
   // `let` at module root is mutable across the entire module. No allowlist;
-  // use Map/WeakMap/Set, memoize() from @monochromatic-dev/module-memoize,
+  // use Map/WeakMap/Set, memoize() from @monochromatic-dev/kv-store-memoize,
   // or an IIFE-into-const initialization. Migration complete; severity is now
   // 'error' (see doc/audit/let.md status table).
   'no-restricted-syntax/no-module-root-let': 'error',
@@ -144,6 +144,7 @@ export const restrictionRules: DummyRuleMap = {
   // The project rule below enforces the narrower policy: Node sync APIs only.
   'node/no-sync': 'off',
   'no-restricted-syntax/no-sync': 'error',
+  'no-restricted-syntax/no-system-tmpdir': 'error',
 
   // Rest parameters (...args) are banned. Accept an explicit array parameter instead.
   // Spread syntax in call expressions and array literals is not affected.

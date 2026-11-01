@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
@@ -16,8 +16,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { isFunctionLikeDeclaration, } from 'typescript/unstable/ast/is';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { isFunctionLikeDeclaration, } from 'typescript/ast/is';
 
 import {
   asParameterIndex,
@@ -141,7 +141,7 @@ type DisposableCacheDirectory = {
  @returns cache directory removed after test scope.
  */
 function disposableCacheDirectory(): DisposableCacheDirectory {
-  const path = mkdtempSync(join(tmpdir(), 'readonly-effect-cache-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-effect-cache-',),);
   return {
     path,
     [Symbol.dispose](): void {
@@ -2884,13 +2884,13 @@ await describe({
             throw new Error(`Expected an effect summary for ${functionName}.`,);
           return [...summary.referentMutatedParameterIndexes,];
         }
-        /* This is the guarantee `prefer-readonly-parameter-type.unit.test.ts` gave up when
-         * the opacity reports on this fixture went silent. A tuple the receiver holds is
-         * caller-owned state whatever its positions are, because the tuple itself is
-         * writable, so `pair[0] = 'rewritten'` reached through `rows.values()` writes
-         * `rows`. While these two read `[0]` no read-only offer can be made for a
-         * parameter either of them rewrites, which is what makes the silence over there
-         * correct rather than merely quiet. */
+        /* This is the guarantee `prefer-readonly-parameter-type.unit.test.ts` holds its
+         * writer-silence assertions to. A tuple the receiver holds is caller-owned state
+         * whatever its positions are, because the tuple itself is writable, so
+         * `pair[0] = 'rewritten'` reached through `rows.values()` writes `rows`. While
+         * these two read `[0]` no read-only offer can pass the gate for a parameter
+         * either of them rewrites, so the one offer the fixture permits (the read-only
+         * control) stays the only one, rather than merely quiet. */
         expect(writtenIndexes('rewriteMutableStoredPair',),).toEqual([0,],);
         expect(writtenIndexes('rewriteStoredPair',),).toEqual([0,],);
         /* The control, and the reason a change making all three silent has answered the
@@ -3052,9 +3052,9 @@ await describe({
         using projectRoot = disposableCacheDirectory();
         /** Disposable persistent cache root separated from TypeScript input. */
         const cacheRoot = join(projectRoot.path, '.effect-cache',);
-        /** Source reproducing direct-summary tuple serialization failure. */
+        /** Source whose complete summaries let the test seed one persisted omission record. */
         const inputPath = join(projectRoot.path, 'input.ts',);
-        /** Minimal generic tuple instantiation that TypeScript 7.0.2 cannot serialize. */
+        /** Single-source input with a generic tuple parameter and one call of it. */
         const inputSource = `export function take<Fn extends (...args: never[]) => unknown,>(
   fn: Fn,
   args: Parameters<Fn>,
@@ -3089,7 +3089,7 @@ export function use(): void {
           activeSourceFile: coldSession.sourceFile,
           cacheRootOverride: cacheRoot,
         },);
-        /** Relative persistent entries written by incomplete cold scan. */
+        /** Relative persistent entries written by the cold scan. */
         const cacheEntries = readdirSync(cacheRoot, {
           recursive: true,
           encoding: 'utf8',
@@ -3102,18 +3102,28 @@ export function use(): void {
           throw new Error('Expected persistent summary cache entry.',);
         /** Exact persistent cache entry path for schema controls. */
         const cacheEntryPath = join(cacheRoot, cacheEntry,);
-        /** Persisted JSON carrying explicit omission metadata. */
+        /** Persisted JSON whose omission metadata the test seeds. */
         const cached = JSON.parse(readFileSync(
           cacheEntryPath,
           'utf8',
         ),) as {
+          readonly fileName: string;
           readonly omittedCallableKeys?: readonly string[];
           readonly omissionReasons?: readonly string[];
         };
-        expect(cached.omittedCallableKeys?.length,).toBeGreaterThan(0,);
-        expect(cached.omissionReasons,).toEqual([
-          'typescript-tuple-serialization-failed',
-        ],);
+        /* The compiler summarizes this fixture completely, so the cold entry carries no
+         * omission. The record a failing scan persists is seeded instead: restoring a
+         * persisted omission is a cache contract, and seeding is how a suite whose scan
+         * always completes still pins that contract. */
+        expect(cached.omittedCallableKeys ?? [],).toEqual([],);
+        expect(cached.omissionReasons ?? [],).toEqual([],);
+        /** Entry rewritten to carry the omission record a failing scan leaves behind. */
+        const seededText = JSON.stringify({
+          ...cached,
+          omittedCallableKeys: [`${cached.fileName}:seeded-omitted-callable`,],
+          omissionReasons: ['direct-summary-construction-failed',],
+        },);
+        writeFileSync(cacheEntryPath, seededText,);
         closeSemanticBridge();
         clearEffectSummaryCache();
         clearFinalEffectIndexCache();
@@ -3122,7 +3132,7 @@ export function use(): void {
           sourceText: inputSource,
           hasBOM: false,
         },);
-        buildEffectSummaryIndex({
+        const warmIndex = buildEffectSummaryIndex({
           project: warmSession.project,
           activeSourceFile: warmSession.sourceFile,
           cacheRootOverride: cacheRoot,
@@ -3131,6 +3141,19 @@ export function use(): void {
         const warmStats = effectSummaryCacheStats();
         expect(warmStats.directSummaryBuildCount,).toBe(0,);
         expect(warmStats.persistentSourceCacheHitCount,).toBeGreaterThan(0,);
+        /* The restored record surfaces through the same ledger a consumer reads, naming the
+         * seeded key's source with its count and reason. */
+        for (const statement of warmSession.sourceFile.statements) {
+          if (!isFunctionLikeDeclaration(statement,))
+            continue;
+          expect(warmIndex.reachedOmissions(statement,)).toEqual([
+            {
+              sourceFileName: warmSession.sourceFile.fileName,
+              omittedCount: 1,
+              reasons: ['direct-summary-construction-failed',],
+            },
+          ],);
+        }
         closeSemanticBridge();
         clearEffectSummaryCache();
         clearFinalEffectIndexCache();
@@ -3433,7 +3456,7 @@ export function use(): void {
         using project = disposableCacheDirectory();
         /** Persistent cache isolated from every other omission test. */
         const cacheRoot = join(project.path, '.effect-cache',);
-        /** Single-source tuple serialization reproduction. */
+        /** Single-source input with a generic tuple parameter and one call of it. */
         const inputPath = join(project.path, 'input.ts',);
         /** Independent process probe importing built package interface. */
         const probePath = join(project.path, 'omission-probe.mjs',);
@@ -3479,13 +3502,46 @@ const fingerprint = session.sourceFile.statements.flatMap((declaration) => {
     [...summary.returnedParameterIndexes].sort().join(','),
   ]];
 });
-console.log(JSON.stringify({ ...effectSummaryCacheStats(), fingerprint }));
+const omissions = index.reachedOmissions(session.sourceFile.statements[0]);
+console.log(JSON.stringify({ ...effectSummaryCacheStats(), fingerprint, omissions }));
 closeSemanticBridge();
 `;
         writeFileSync(probePath, probeSource,);
         const cold = await spawn(
           'node',
           [probePath, inputPath, cacheRoot,],
+        );
+        /* The compiler summarizes this fixture completely, so the cold process's entry
+         * carries no omission. The record a failing scan persists is seeded between the
+         * processes: the warm process must restore it and report exactly its fingerprint
+         * while its verdicts stay equal to the cold process's. */
+        /** Relative persistent entries the cold process wrote. */
+        const writtenEntries = readdirSync(cacheRoot, {
+          recursive: true,
+          encoding: 'utf8',
+        },)
+          .filter(function jsonEntry(entry,): boolean {
+            return entry.endsWith('.json',);
+          },);
+        const [writtenEntry,] = writtenEntries;
+        if (writtenEntry === undefined)
+          throw new Error('Expected persistent summary cache entry.',);
+        /** Exact entry path rewritten with the seeded omission record. */
+        const writtenEntryPath = join(cacheRoot, writtenEntry,);
+        /** Entry JSON whose omission fields the test seeds. */
+        const writtenEnvelope = JSON.parse(readFileSync(
+          writtenEntryPath,
+          'utf8',
+        ),) as {
+          readonly fileName: string;
+        };
+        writeFileSync(
+          writtenEntryPath,
+          JSON.stringify({
+            ...writtenEnvelope,
+            omittedCallableKeys: [`${writtenEnvelope.fileName}:seeded-omitted-callable`,],
+            omissionReasons: ['direct-summary-construction-failed',],
+          },),
         );
         const warm = await spawn(
           'node',
@@ -3496,23 +3552,33 @@ closeSemanticBridge();
           readonly directSummaryBuildCount: number;
           readonly persistentSourceCacheHitCount: number;
           readonly fingerprint: readonly (readonly string[])[];
+          readonly omissions: readonly unknown[];
         };
         /** Warm process result restored from persisted summaries and omissions. */
         const warmResult = JSON.parse(warm.stdout.trim(),) as {
           readonly directSummaryBuildCount: number;
           readonly persistentSourceCacheHitCount: number;
           readonly fingerprint: readonly (readonly string[])[];
+          readonly omissions: readonly unknown[];
         };
         expect(coldResult.directSummaryBuildCount,).toBeGreaterThan(0,);
         expect(coldResult.persistentSourceCacheHitCount,).toBe(0,);
         expect(warmResult.directSummaryBuildCount,).toBe(0,);
         expect(warmResult.persistentSourceCacheHitCount,).toBeGreaterThan(0,);
         expect(warmResult.fingerprint,).toEqual(coldResult.fingerprint,);
-        expect(cold.stderr,).toContain(
-          ': typescript-tuple-serialization-failed; debug logging contains causes',
+        /** Omission fingerprint the seeded record carries. */
+        const seededFingerprint = [{
+          sourceFileName: inputPath,
+          omittedCount: 1,
+          reasons: ['direct-summary-construction-failed',],
+        },];
+        expect(coldResult.omissions,).toEqual([],);
+        expect(warmResult.omissions,).toEqual(seededFingerprint,);
+        expect(warm.stderr,).toContain(
+          'restored 1 omitted callable summaries for',
         );
         expect(warm.stderr,).toContain(
-          'from effect cache: typescript-tuple-serialization-failed',
+          'from effect cache: direct-summary-construction-failed',
         );
       },
     },),
@@ -3547,11 +3613,11 @@ closeSemanticBridge();
         writeFileSync(
           inputPath,
           'type Item = { text: string; };\n'
-          + 'type Box = { item: Item; };\n'
-          + 'let held: Item | undefined;\n'
-          + 'export function firstItem(box: Box): Item { return box.item; }\n'
-          + 'export function storeItem(box: Box): void { held = firstItem(box); }\n'
-          + 'export function readHeld(): string { return held === undefined ? \'\' : held.text; }\n',
+            + 'type Box = { item: Item; };\n'
+            + 'let held: Item | undefined;\n'
+            + 'export function firstItem(box: Box): Item { return box.item; }\n'
+            + 'export function storeItem(box: Box): void { held = firstItem(box); }\n'
+            + 'export function readHeld(): string { return held === undefined ? \'\' : held.text; }\n',
         );
         /** Probe source printing cache counters and the retained verdict itself. */
         const probeSource = `import { readFileSync } from 'node:fs';\nimport { buildEffectSummaryIndex, closeSemanticBridge, effectSummaryCacheStats, openSemanticFile, NO_EFFECT_SUMMARY } from ${JSON.stringify(BUILT_ENTRY_URL)};\nconst [fileName, cacheRoot] = process.argv.slice(2);\nconst sourceText = readFileSync(fileName, 'utf8');\nconst session = openSemanticFile({ fileName, sourceText, hasBOM: false });\nconst index = buildEffectSummaryIndex({ project: session.project, activeSourceFile: session.sourceFile, cacheRootOverride: cacheRoot });\nconst declaration = session.nodeAtOffset(sourceText.indexOf('function storeItem') + 'function '.length).parent;\nconst summary = index.get(declaration);\nconst opaque = summary === NO_EFFECT_SUMMARY ? 'NO_SUMMARY' : [...summary.opaqueParameterIndexes].sort().join(',');\nconsole.log(JSON.stringify({ ...effectSummaryCacheStats(), opaque }));\ncloseSemanticBridge();\n`;

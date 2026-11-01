@@ -43,7 +43,7 @@ function padTwoDigits(value: number,): string {
     .padStart(
     CLOCK_FIELD_WIDTH,
     '0',
-  );
+    );
 }
 
 /**

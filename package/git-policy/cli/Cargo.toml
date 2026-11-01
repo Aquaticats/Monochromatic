@@ -1,0 +1,116 @@
+[package]
+name = "monochromatic-git-policy-cli"
+version = "0.4.6"
+edition = "2024"
+description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
+license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
+# `include` patterns are gitignore-style, so an unanchored `README.md` would also package `e2e/README.md`.
+include = [
+  "src/native/**/*.rs",
+  "src/native/dependent_version_fixtures/*.json",
+  "src/native/index_lock_restart_manager.ps1",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/README.md",
+  "LICENSES/*.txt",
+]
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/git-policy/cli"
+
+[lib]
+name = "git_policy_cli"
+path = "src/native/lib.rs"
+
+# The artifact is deliberately not named `git`: a `target/*/git` or a tool `bin/git` on PATH would shadow Git by accident.
+# The repository's mise tool entry links it as `git` in a per-worktree directory after installing it.
+[[bin]]
+name = "cli-git-native"
+path = "src/native/main.rs"
+
+# cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
+# but this repository tags each crate's release monochromatic-git-policy-cli-v<version> and names the archive
+# monochromatic-git-policy-cli-<version>-<target>, so without this table mise falls back to compiling from source.
+# Only Linux archives are released, and only for the GNU targets; any other target compiles from source.
+# doc/troubleshooting/mise-cargo-binstall-falls-back-to-compiling.md has the evidence.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+# Consumer-level controls that start the built executable against real Git.
+[[test]]
+name = "native_binary"
+path = "src/native/binary_tests.rs"
+
+# A consumer of the candidate and scanner layers that can reach only the library's public interface.
+[[test]]
+name = "native_candidates"
+path = "src/native/candidate_consumer_tests.rs"
+
+[dependencies]
+# Both native tools use the already adopted comment-preserving JSONC foundation.
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+# The repository's own scanner, linked in-process instead of spawned: `src/native/scanner_adapter.rs`
+# loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
+# Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.
+forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.0" }
+# Lock and journal records are JSON that the incumbent writes with `JSON.stringify` and reads with `JSON.parse`;
+# both wrappers read each other's records (doc/handover/cli-git-native-transactions.md, "Dependencies").
+# The scanner already links this exact version, so it adds no package to the lockfile.
+serde_json = { workspace = true }
+# Unguessable lock tokens and transaction IDs, the incumbent's `randomUUID`, from the operating system's source.
+# Already in the lockfile through the scanner's `tempfile`.
+getrandom = { workspace = true }
+
+# `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
+# Already in the lockfile through the scanner's dependencies.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+# The `markdown/autofix` policy's `exclude` patterns are gitignore syntax; the linter it runs and the
+# scanner above match them with this crate's gitignore matcher, already locked through the scanner.
+ignore = { workspace = true }
+# The policy's one-rule linter configuration, and the linter child's input and output, are files created
+# by this crate's exclusive, private temporary-file calls; it is already locked through the scanner's `gix-tempfile`.
+tempfile = { workspace = true }
+
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+# Starting an executable that is not in the page cache reads most of the file from disk in one fault, so a smaller
+# executable is a shorter first start after eviction or install. Stripping the symbol tables cut the release build's
+# first-start read from 9.45 MiB to 8.09 MiB. Fat link-time optimization with one code generation unit would read
+# 7.43 MiB but lengthens the release build, so it is not adopted. The numbers and the method are in
+# doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md.
+[profile.release]
+panic = "unwind"
+overflow-checks = true
+strip = "symbols"
+
+# The scanner's `build.rs` precompiles its embedded baseline through the forbidden-regex
+# build-dependency, which Cargo builds at `opt-level = 0` by default.
+# Profiles are read only from this workspace root, so the scanner manifest's own build-override
+# does not reach this crate; see ../../forbidden-strings/cli/Cargo.toml for the measurement
+# (390.8s unoptimized against 98.5s at `opt-level = 3`, identical output).
+[profile.release.build-override]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
+
+# The native implementation keeps the repository's standalone Cargo ownership convention.
+[workspace]
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+getrandom = ">=0.4.2"
+ignore = ">=0.4.33"
+libc = ">=0.2.191"
+serde_json = ">=1.0.154"
+tempfile = ">=3.27.0"

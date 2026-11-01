@@ -1,4 +1,5 @@
-# Oxlint 1.75 does not supply TypeScript type information to JavaScript plugins, so custom rules need an independent semantic bridge
+# Oxlint 1.75 does not supply TypeScript type information to JavaScript plugins,
+so custom rules need an independent semantic bridge
 
 ## Supersession
 

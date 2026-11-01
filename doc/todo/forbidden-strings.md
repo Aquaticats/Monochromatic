@@ -13,8 +13,8 @@ Issue `#357` removed the superseded hk/Pkl layer.
 Every hk command,
 Pkl snippet,
 and rollout step in this document is historical evidence rather than current setup guidance.
-Current commands and architecture live in `package/cli/forbidden-strings/README.md`,
-`package/cli/forbidden-strings/PERF.md`,
+Current commands and architecture live in `package/forbidden-strings/cli/README.md`,
+`package/forbidden-strings/cli/PERF.md`,
 `package/git-policy/cli/README.md`,
 and `.github/workflows/forbidden-strings.yml`.
 
@@ -93,7 +93,7 @@ or per-file constant overhead:
 1k rules and 2.7k files multiply small constants into seconds.
 
 Measured performance against the shipped binary lives in
-`package/cli/forbidden-strings/PERF.md`.
+`package/forbidden-strings/cli/PERF.md`.
 As of 2026-05-02 the implementation is ~300x under the full-repo budget,
 so the budgets above describe upper bounds the design honors with comfortable headroom,
 not targets the implementation is striving toward.
@@ -296,11 +296,11 @@ This means CI enforces whatever the secret holds,
 
 - `hk.pkl` -- hk configuration;
    one `pre-commit` step invoking the scanner
-- `package/cli/forbidden-strings/` -- Rust crate (`Cargo.toml`,
+- `package/forbidden-strings/cli/` -- Rust crate (`Cargo.toml`,
    src/`main.rs`);
   binary name `forbidden-strings`,
    depends on the `resharp` crate plus a TOML parser
-- `package/cli/forbidden-strings/mise.toml` -- per-package build task
+- `package/forbidden-strings/cli/mise.toml` -- per-package build task
   (`cargo build --release`) and install task that drops the binary on PATH
 - `forbidden-strings.local.example.txt` -- placeholder template a contributor copies
   to `forbidden-strings.local.txt` on first setup;
@@ -432,7 +432,7 @@ A single GitHub Actions job on pull_request and push to main:
 1. Checkout with full history (`fetch-depth: 0`) so `--from-ref` works
 2. Install mise,
     run `mise install` to get hk and the Rust toolchain
-3. Build the scanner with `mise run //package/cli/forbidden-strings:build`
+3. Build the scanner with `mise run //package/forbidden-strings/cli:build`
    (cache `target/` keyed on `Cargo.lock` to keep CI fast)
 4. Materialize `forbidden-strings.local.txt` from a repo secret
    (e.g. `secrets.FORBIDDEN_STRINGS_LIST`) -- the secret holds the full plain-text deny-list
@@ -519,7 +519,7 @@ Make this a required check in branch protection so `--no-verify` locally cannot 
 
 ## Historical rollout
 
-1. Land the Rust crate at `package/cli/forbidden-strings/`
+1. Land the Rust crate at `package/forbidden-strings/cli/`
    with the loader pointing at a `.local.txt` file that contains
    only an obviously-fake placeholder rule.
    Verify a `cargo build --release` and that the binary runs end-to-end

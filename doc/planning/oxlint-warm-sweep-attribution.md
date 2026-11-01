@@ -363,7 +363,7 @@ that produced it could not show.
  not reading four thousand files.**
 A configured project holds several hundred files rather than four thousand:
  573 for this plugin,
- 371 for `module/logger`,
+ 371 for `logger/core`,
  874 for `config/oxlint`.
 `indexedSourceFileMap` asked `program.getSourceFile` for every one of them so it could read
 `isDeclarationFile`,
@@ -390,13 +390,13 @@ Measured directly,
  with the control first:
 
 ```text
-0. array-or-throw.ts        -> module/or-throw  first visit
-1. async-iterable-or-throw  -> module/or-throw  SAME object     <- control
-2. create-logger.ts         -> module/logger    first visit
-3. array-or-throw.ts        -> module/or-throw  NEW object
-4. ascii.ts                 -> module/const     first visit
-5. array-or-throw.ts        -> module/or-throw  NEW object
-6. create-logger.ts         -> module/logger    NEW object
+0. array-or-throw.ts        -> or-throw/core  first visit
+1. async-iterable-or-throw  -> or-throw/core  SAME object     <- control
+2. create-logger.ts         -> logger/core    first visit
+3. array-or-throw.ts        -> or-throw/core  NEW object
+4. ascii.ts                 -> const/core     first visit
+5. array-or-throw.ts        -> or-throw/core  NEW object
+6. create-logger.ts         -> logger/core    NEW object
 ```
 
 Two files of one project in a row share the object,
@@ -530,7 +530,7 @@ Measured,
  with the control first:
 
 ```text
-package file alone:  package/module/logger/tsconfig.json (371 files)
+package file alone:  package/logger/core/tsconfig.json (371 files)
 root file first:     tsconfig.json (646 files)
 ```
 
@@ -545,9 +545,9 @@ Restricted to sources the rule would analyse,
  the package project holds 117 and the root project
 196,
  and **62 of the 117 are absent from the root**:
- `module/async-time`,
- `module/const`,
-`module/numeric-format` and others the logger imports.
+ `async-time/core`,
+ `const/core`,
+`numeric-format/core` and others the logger imports.
 Those 62 are callers,
  and a caller that is not read is a mutation that is not charged.
 

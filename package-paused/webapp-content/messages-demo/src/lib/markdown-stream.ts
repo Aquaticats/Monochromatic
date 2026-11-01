@@ -12,7 +12,7 @@
  * specific imports so it can be bundled into the browser worker.
  */
 
-import { BYTES_PER_KIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core/ts';
 import { micromark, } from 'micromark';
 
 /**

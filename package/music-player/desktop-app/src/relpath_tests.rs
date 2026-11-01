@@ -104,3 +104,116 @@ fn duplicate_paths_keep_filename() {
     // Why:      Filename survives even for duplicates.
     assert_eq!(got, vec!["x.flac", "x.flac"]);
 }
+
+// What:     `assert_scope_matches_pagination`, compares `page_scope_for_anchor` with the page that `paginate` gives each anchor.
+// Why:      Playback scope and the visible page must agree for every track, whatever the folder shape.
+fn assert_scope_matches_pagination(tracks: &[PathBuf]) {
+    let names = relative_display_paths(tracks);
+    let pages = crate::pagination::paginate(&names);
+    for anchor in 0..tracks.len() {
+        let expected: Vec<usize> = crate::pagination::page_of_index(&pages, anchor)
+            .map(|page| return pages[page].entries.iter().map(|entry| return entry.index).collect())
+            .expect("every track is on a page");
+        assert_eq!(page_scope_for_anchor(tracks, anchor), Some(expected), "anchor {anchor} of {names:?}");
+    }
+    assert_eq!(page_scope_for_anchor(tracks, tracks.len()), None);
+}
+
+// What:     A queue with folders, subfolders, letter files, digit files, symbol files and case-different folders.
+// Why:      Each shape decides a page rule: folder page, letter page, catch-all page.
+#[test]
+fn page_scope_for_anchor_matches_paginate_on_a_mixed_queue() {
+    assert_scope_matches_pagination(&paths(&[
+        "/lib/Abba/one.mp3",
+        "/lib/Abba/Sub/two.mp3",
+        "/lib/b.mp3",
+        "/lib/B2.mp3",
+        "/lib/1.mp3",
+        "/lib/#x.mp3",
+        "/lib/Zed/z.mp3",
+        "/lib/abba/lower.mp3",
+        "/lib/\u{00E9}clair.mp3",
+    ]));
+}
+
+// What:     A queue that lives in one folder, so the folder itself is part of the shared prefix.
+// Why:      The display names then have no folder part, and every track is a root-level name.
+#[test]
+fn page_scope_for_anchor_matches_paginate_in_a_single_folder() {
+    assert_scope_matches_pagination(&paths(&["/lib/Only/a.mp3", "/lib/Only/b.mp3", "/lib/Only/1.mp3", "/lib/Only/A2.mp3"]));
+}
+
+// What:     A single track.
+// Why:      The shared prefix never swallows the last component, so one track still has a name and a page.
+#[test]
+fn page_scope_for_anchor_handles_a_single_track() {
+    assert_scope_matches_pagination(&paths(&["/lib/Only/a.mp3"]));
+}
+
+// What:     With the opened folder known, a library with one top-level folder keeps that folder in its names.
+// Why:      LS1: the shared directory was stripped, so `Music/Artist/*.flac` looked like loose files and lost the folder.
+#[test]
+fn a_single_top_level_folder_keeps_its_name_relative_to_the_opened_folder() {
+    let tracks = paths(&["/lib/Music/Artist/01.flac", "/lib/Music/Artist/Disc 2/02.flac"]);
+    let got = relative_display_paths_in(&tracks, Some(Path::new("/lib/Music")));
+    assert_eq!(got, vec!["Artist/01.flac", "Artist/Disc 2/02.flac"]);
+    assert_eq!(relative_display_paths(&tracks), vec!["01.flac", "Disc 2/02.flac"], "without a root the shared directory is stripped");
+}
+
+// What:     Loose files of the opened folder have no folder part, next to folder tracks.
+// Why:      They sit in the virtual letter folders.
+#[test]
+fn loose_files_have_bare_names_relative_to_the_opened_folder() {
+    let tracks = paths(&["/lib/Music/loose.flac", "/lib/Music/A/x.flac"]);
+    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), vec!["loose.flac", "A/x.flac"]);
+}
+
+// What:     A track outside the opened folder, or an opened folder with no named component, falls back to the shared directory.
+// Why:      The names must still be unambiguous when the root does not describe every track.
+#[test]
+fn a_root_that_does_not_hold_every_track_falls_back_to_the_shared_directory() {
+    let tracks = paths(&["/lib/Music/A/x.flac", "/elsewhere/y.flac"]);
+    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), relative_display_paths(&tracks));
+    let one = paths(&["/a/b/c.flac"]);
+    assert_eq!(relative_display_paths_in(&one, Some(Path::new("/"))), relative_display_paths(&one));
+}
+
+// What:     A track equal to the root path itself is not under it, so the fallback applies.
+// Why:      A zero-length relative name would be blank.
+#[test]
+fn a_track_that_is_the_root_itself_falls_back() {
+    let tracks = paths(&["/lib/Music"]);
+    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), relative_display_paths(&tracks));
+}
+
+// What:     The playback scope of an anchor equals the page of the grouping made from root-relative names.
+// Why:      The window groups the names and the engine plays the scope; the two must agree for every anchor.
+#[test]
+fn page_scope_with_a_root_matches_paginate_of_the_root_relative_names() {
+    let tracks = paths(&[
+        "/lib/Music/Artist/one.mp3",
+        "/lib/Music/Artist/Disc 2/two.mp3",
+        "/lib/Music/b.mp3",
+        "/lib/Music/1.mp3",
+        "/lib/Music/Zed/z.mp3",
+    ]);
+    let root = Some(Path::new("/lib/Music"));
+    let names = relative_display_paths_in(&tracks, root);
+    let pages = crate::pagination::paginate(&names);
+    for anchor in 0..tracks.len() {
+        let expected: Vec<usize> = crate::pagination::page_of_index(&pages, anchor)
+            .map(|page| return pages[page].entries.iter().map(|entry| return entry.index).collect())
+            .expect("every track is on a page");
+        assert_eq!(page_scope_for_anchor_in(&tracks, anchor, root), Some(expected), "anchor {anchor} of {names:?}");
+    }
+}
+
+// What:     A single-folder library gives a folder page for its folder and a letter page for a loose file.
+// Why:      The finding's own example: one top-level folder plus loose tracks.
+#[test]
+fn a_folder_and_a_loose_file_scope_separately() {
+    let tracks = paths(&["/lib/Music/Artist/one.mp3", "/lib/Music/two.mp3", "/lib/Music/tango.mp3"]);
+    let root = Some(Path::new("/lib/Music"));
+    assert_eq!(page_scope_for_anchor_in(&tracks, 0, root), Some(vec![0]));
+    assert_eq!(page_scope_for_anchor_in(&tracks, 1, root), Some(vec![1, 2]), "both start with T: one virtual folder");
+}

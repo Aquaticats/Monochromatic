@@ -274,7 +274,8 @@ source mapping and build-input review must still be satisfied by whatever eviden
 - A matching version or file length does not establish cross-channel byte identity.
 - A release checksum or registry signature does not by itself establish all build inputs.
 - A source commit's signature does not sign a subsequently produced binary.
-- Empty CI artifact listings and route-specific 404/401 responses do not exhaust other publication or source-build routes.
+- Empty CI artifact listings and route-specific 404/401 responses
+  do not exhaust other publication or source-build routes.
 - The Node installer must not be treated as a CPU-only default:
   the [qualification plan](../planning/pi-auto-mode-laya-qualification.md#cpu-consumer-publication-routes)
   records its Linux x64 CUDA selection.

@@ -72,8 +72,8 @@ function reportStaleContract({
   const replacement = context.sourceCode
     .text
     .startsWith(
-      '*/',
-      range[1],
+    '*/',
+    range[1],
     )
     ? ' '
     : '';

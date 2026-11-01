@@ -1,4 +1,6 @@
-# zram on Linux 7.2 (Fedora 44 / Bazzite): an active zram swap device cannot be resized live, so growing swap to 64 GiB requires replacing or supplementing the device
+# zram on Linux 7.2 (Fedora 44 / Bazzite): an active zram swap device cannot be resized live
+
+Growing swap to 64 GiB requires replacing or supplementing the device.
 
 ## Symptom
 

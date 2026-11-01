@@ -24,8 +24,8 @@
  @module
  */
 
-import type { Node, } from 'typescript/unstable/ast';
-import type { Project, } from 'typescript/unstable/sync';
+import type { Node, } from 'typescript/ast';
+import type { Project, } from 'typescript/sync';
 
 import { transitiveCallableOrigins, } from './effect-callable-capture-closure.ts';
 import { packagedActualCallables, } from './effect-possible-values.ts';

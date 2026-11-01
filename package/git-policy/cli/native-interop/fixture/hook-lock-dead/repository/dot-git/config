@@ -1,0 +1,8 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[hook "interop"]
+	command = /work/scratch/fixture/hook-lock-dead/hook.sh
+	event = pre-commit

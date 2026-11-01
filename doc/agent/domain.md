@@ -1,13 +1,16 @@
-# Domain Docs
+# Domain documentation
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-## Policy: no cached context files
+## Source remains authoritative for current behavior
 
 This repo intentionally does **not** maintain `CONTEXT.md`,
  `CONTEXT-MAP.md`,
  or `doc/adr/` directories.
- Cached summaries stale quickly and create false confidence.
+ Cached code summaries stale quickly and create false confidence.
+ Working understandings, user-defined meanings, and accepted decisions are nevertheless recorded
+ beside the relevant plan or package, with dated evidence and explicit unknowns.
+ The [understanding practice](understanding.md) describes that record.
  Instead:
 
 - **Read the relevant source code directly** on every probe.
@@ -19,20 +22,19 @@ This repo intentionally does **not** maintain `CONTEXT.md`,
    or `doc/adr/` (even if a skill's default instructions suggest it).
 - **Do not flag** their absence or suggest creating them.
 
-## Vocabulary
+## Vocabulary and recorded meanings
 
 When naming a domain concept in output (issue title,
  refactor proposal,
  hypothesis,
  test name),
  infer the project's terms from the code you just read,
- not from a glossary that doesn't exist.
+ and check the task's recorded user-defined meanings and accepted decisions.
  If you're unsure which term the project prefers,
  search the codebase for both candidates and use whichever appears more often.
 
 ## Architectural decisions
 
-Past decisions are recorded only in git history and code structure.
- When you need to understand why something was done a certain way,
- trace the code;
- don't assume a summary file will tell you.
+Accepted decisions and their rationale belong in the repository's canonical documentation.
+Code and git history supply additional evidence about what actually landed.
+A proposal or historical experiment is not proof of user acceptance or current implementation.

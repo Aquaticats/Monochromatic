@@ -544,7 +544,8 @@ rather than a page cursor in this harness,
 
 #### This repository and installed system
 
-Run and record these literal local searches without result caps or negative-match filters beyond excluding dependency and
+Run and record these literal local searches without result caps
+or negative-match filters beyond excluding dependency and
 Git metadata where stated:
 
 - fixed string `@narumitw/pi-subagents` across the repository;
@@ -854,7 +855,8 @@ partition total was `681`,
  Date-range partitioning is therefore a viable uncapped enumeration path that the
 initial run did not exhaust.
 
-Partitioned enumeration across `12` half-month windows from `2025-08-01` to `2026-07-15` was started but not completed in
+Partitioned enumeration across `12` half-month windows from `2025-08-01` to `2026-07-15` was started
+but not completed in
 this session.
  Discovery is no longer terminally blocked;
  it is incomplete.
@@ -1550,7 +1552,8 @@ Cons:
 
 ### Ranking
 
-1. `@narumitw/pi-subagents` `0.13.0` (incumbent) beats `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
+1. `@narumitw/pi-subagents` `0.13.0` (incumbent) beats
+   `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
    fails six hard gates that the incumbent's subprocess model does not fail in the same way.
     The incumbent actually
    kills children on timeout and routes tool policy through the real `pi` runtime.

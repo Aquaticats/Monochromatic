@@ -19,12 +19,12 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import type { CallExpression, } from 'typescript/unstable/ast';
+} from '@monochromatic-dev/test-harness-core/ts';
+import type { CallExpression, } from 'typescript/ast';
 import {
   isCallExpression,
   isFunctionDeclaration,
-} from 'typescript/unstable/ast/is';
+} from 'typescript/ast/is';
 
 import {
   asEffectSlot,

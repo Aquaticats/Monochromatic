@@ -189,6 +189,154 @@ See [the console-token boundary](android-emulator-console-token-container-home.m
 for why the owning container's ADB avoids the previously observed host
 authentication mismatch.
 
+## Recurrence after an emulator crash in an owned Fold container (2026-10-05)
+
+Android Emulator 37.2.12.0 (build_id 16428233) ran the owned AVD copy
+`Pixel9ProFold_Fresh_5FXdOc` in the 6 GiB/2 CPU container
+`music-player-settings-pane-fold`.
+The emulator received `SIGSEGV` mid-session,
+so no shutdown ran;
+see [the separate crash record](android-emulator-37-software-renderer-sigsegv.md).
+The next writable boot of that same AVD copy returned the quoted FATAL and
+exited `1` before guest boot.
+
+The AVD directory held an empty `multiinstance.lock` and a three-byte
+`hardware-qemu.ini.lock`,
+both last modified when the crashed boot started.
+The three bytes were ASCII `31` and a NUL.
+The emulator logged itself as `pid 31` inside the container in every owner
+log of that session that reached a graceful shutdown.
+That is consistent with a process-ID liveness check passing on a reused ID
+in the new container,
+but the installed binary is not mapped to source,
+so the failed lock condition is still not established.
+
+This recovery **departed from the verified workaround** in two ways.
+The owner check used only `podman ps --all` and `pgrep`,
+which found no container of that name and no emulator process for that AVD;
+`adb devices`,
+`lsof`,
+`fuser` and `lslocks` were not run.
+Both lock files were then deleted,
+not moved to a private backup.
+Their names,
+sizes,
+times and the content quoted here are the only record of them.
+Follow the workaround section,
+not this departure.
+
+After the deletion the same bounded container command booted.
+The guest still carried the crashed visit's font scale `2.0`,
+so its user data survived.
+That visit's recorded baseline was restored and read back,
+the owning namespace's `adb emu kill` was accepted,
+the owner exited `0` and no container or emulator process remained.
+
+After that clean shutdown the AVD directory again held an empty
+`multiinstance.lock` and no `hardware-qemu.ini.lock`,
+and the next writable boot succeeded with it present.
+An empty `multiinstance.lock` alone therefore did not block a writable boot
+here.
+A boot with only `hardware-qemu.ini.lock` present was not tried,
+so that file is implicated,
+not isolated.
+
+### Second recurrence the same day, workaround followed
+
+After the emulator crash described as the second occurrence in
+[the segmentation-fault record](android-emulator-37-software-renderer-sigsegv.md),
+the owned AVD copy again held `hardware-qemu.ini.lock` (content `31`
+and a NUL byte) and an empty `multiinstance.lock`.
+`podman ps` for both owned container names,
+`pgrep` for the AVD name and for an ADB client on the study port,
+and `fuser` on both lock files and the user data image found no owner.
+Both files were then moved to a backup folder outside the AVD directory,
+and the next boot of the same bounded container started normally.
+
+### A restored setting can be lost at the console kill
+
+A related finding from the same day,
+recorded here because it concerns what a stop leaves behind.
+The restore step set `font_scale` back,
+read it back as `1.0`,
+and then stopped the guest with the console's `kill`.
+Two later boots first read `2.0`.
+After the restore step was changed to run `sync` in the guest,
+wait eight seconds and run `sync` again before the console kill,
+the next boot first read `1.0`.
+A second boot after another restore also first read `1.0`.
+That is two confirming boots,
+not a proof,
+and a read-back before shutdown says nothing about what the next boot reads:
+the next boot's first reading is the check.
+
+### A shutdown cut short by the emulator's own wait leaves a snapshot lock
+
+On 2026-10-05 a visit ended normally as far as its script could tell:
+the guest's settings were restored and read back,
+and the console answered `OK: killing emulator`.
+Android Emulator 37.2.12.0 then printed:
+
+```text
+# emulator output at the end of that visit
+INFO         | Wait for emulator (pid 31) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+USER_INFO    | Snapshots have been disabled by the user, save request is ignored.
+INFO         | Saving snapshot 'default_boot' took 2 ms
+Killed
+```
+
+The command inside the container returned `137`.
+So the emulator killed its own guest process when the shutdown outlasted its wait;
+neither the visit's script nor `podman` forced it.
+The host was busy with other work that evening;
+a load average near 27 was read fourteen minutes before this shutdown,
+and none at the shutdown itself.
+
+The AVD directory then held three lock files:
+`hardware-qemu.ini.lock` and `snapshot.lock.lock`,
+each with the content `31`,
+and an empty `multiinstance.lock`.
+The snapshot lock's modification time was the time of that shutdown.
+
+The next boot exited `1` before the guest started,
+18 seconds after its container started,
+with a diagnostic this record had not seen before:
+
+```text
+# emulator output at the next start
+FATAL        | A snapshot operation for 'Pixel9ProFold_Fresh_5FXdOc' is pending and timeout has expired. Exiting...
+```
+
+The visit's bootstrap did not notice that the emulator had gone
+and waited for the device for its whole bound of ten minutes.
+
+What was done,
+and what each step showed:
+
+- `podman ps` for both owned container names,
+  `pgrep` for the emulator on the study's ports and for an ADB client on its port,
+  and `fuser` on the lock files and the user data image found no owner.
+- Moving only `hardware-qemu.ini.lock` and `multiinstance.lock` to a backup was the first step,
+  taken by a script that did not yet know the third file.
+  No boot was tried in that state.
+- After `snapshot.lock.lock` was also moved to the backup,
+  the next boot of the same bounded container reached the guest.
+  That shows the joint relocation of the three files recovers the boot.
+  It does not isolate the snapshot lock,
+  although the FATAL names a snapshot operation and the earlier FATAL of this record does not.
+- The container's start command now sets `ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=90`,
+  the variable the emulator's own message names.
+  The next shutdown printed `Wait for emulator (pid 31) 90 seconds`,
+  no `Killed`,
+  and the owning process exited `0`.
+  That is one shutdown,
+  on a host still under the same kind of load.
+- The bootstrap now stops as soon as the emulator's owning process has exited,
+  instead of waiting out its bound.
+- The script that repeats visits now moves any of the two process-naming locks it finds before a visit,
+  after the same owner checks,
+  whether the visit before it crashed or was cut short at shutdown.
+
 ## Verified workaround and tradeoffs
 
 For this **disposable AVD only**,

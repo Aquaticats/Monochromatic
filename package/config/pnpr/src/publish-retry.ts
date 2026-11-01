@@ -38,7 +38,7 @@ export function isForbiddenPublishError(error: unknown,): boolean {
     && ('output' in error)
     && ((typeof error.output) === 'string')
     && error.output
-    .includes(NPM_FORBIDDEN_MARKER,);
+      .includes(NPM_FORBIDDEN_MARKER,);
 }
 
 /**

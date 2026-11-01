@@ -1,0 +1,41 @@
+diff --git a/research/vello_shaders/shader/fine.wgsl b/research/vello_shaders/shader/fine.wgsl
+index 55f615d..6da2e3b 100644
+--- a/research/vello_shaders/shader/fine.wgsl
++++ b/research/vello_shaders/shader/fine.wgsl
+@@ -1005,10 +1005,12 @@ const PIXELS_PER_THREAD = 4u;
+ fn fill_path(fill: CmdFill, xy: vec2<f32>, result: ptr<function, array<f32, PIXELS_PER_THREAD>>) {
+     let n_segs = fill.size_and_rule >> 1u;
+     let even_odd = (fill.size_and_rule & 1u) != 0u;
+-    var area: array<f32, PIXELS_PER_THREAD>;
+-    let backdrop_f = f32(fill.backdrop);
++    // Probe: sum the per-segment contributions as fixed-point integers, so that the order in which
++    // `segments` was filled cannot change the sum.
++    let fixed_one = 65536.0;
++    var area_fixed: array<i32, PIXELS_PER_THREAD>;
+     for (var i = 0u; i < PIXELS_PER_THREAD; i += 1u) {
+-        area[i] = backdrop_f;
++        area_fixed[i] = fill.backdrop * 65536;
+     }
+     for (var i = 0u; i < n_segs; i++) {
+         let seg_off = fill.seg_data + i;
+@@ -1035,14 +1037,18 @@ fn fill_path(fill: CmdFill, xy: vec2<f32>, result: ptr<function, array<f32, PIXE
+                 let c = max(b, 0.0);
+                 let d = max(xmin, 0.0);
+                 let a = (b + 0.5 * (d * d - c * c) - xmin) / (xmax - xmin);
+-                area[i] += a * dy;
++                area_fixed[i] += i32(round(a * dy * fixed_one));
+             }
+         }
+         let y_edge = sign(delta.x) * clamp(xy.y - segment.y_edge + 1.0, 0.0, 1.0);
+         for (var i = 0u; i < PIXELS_PER_THREAD; i += 1u) {
+-            area[i] += y_edge;
++            area_fixed[i] += i32(round(y_edge * fixed_one));
+         }
+     }
++    var area: array<f32, PIXELS_PER_THREAD>;
++    for (var i = 0u; i < PIXELS_PER_THREAD; i += 1u) {
++        area[i] = f32(area_fixed[i]) / fixed_one;
++    }
+     if even_odd {
+         // even-odd winding rule
+         for (var i = 0u; i < PIXELS_PER_THREAD; i += 1u) {

@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "state": "admitted existing finite Windows GNU continuation; no allocation created",
+  "recordedAt": "2026-10-18T17:57:48.507Z",
+  "plan": {
+    "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+    "harnessSha": "b76aab1964bfe9ac21aec3e9c5d24de443ec4992",
+    "branch": "research/depot-gnu-owner-correction-20261018",
+    "workflow": ".github/workflows/music-player-windows.yml",
+    "workflowSha256": "0cf49870e9bfb00a69d229848167d7e6beff3e58ae4783a653816d7181dffe5c",
+    "generatedTasksSha256": "263b6a55a1e6eb557d6fbd9dd9953d116aec82f226fa5bc21fe3949ec127c5da",
+    "taskSourceSha256": "3e8e10592f8499813bba70c2d91e6b969e4eed5c29aae6a63546781e3dc085b0",
+    "provider": "github-public-standard",
+    "profile": "gnu-host-controls",
+    "resources": {
+      "maximumParallelJobs": 1,
+      "jobMinutes": 30,
+      "campaignMinutes": 27,
+      "cases": [
+        {
+          "id": "windows2025-gnu-ucrt64-current",
+          "label": "windows-2025",
+          "kind": "rust",
+          "flavor": "gnu",
+          "target": "x86_64-pc-windows-gnu",
+          "tools": "node"
+        }
+      ]
+    },
+    "nominalComputeReservationUsd": 0,
+    "originalCampaignGuardUsd": 5,
+    "predecessorRun": 39144499822,
+    "predecessorArgumentRejection": "--no-fail-fast cannot be used multiple times",
+    "currentDepotMustBeTerminalBeforeDispatch": true,
+    "sourceAssertionsChanged": false,
+    "actualGnuTaskEqualsOriginalExpandedTask": true,
+    "artifactStorageCostUnmeasured": true,
+    "supersededPreparationHarnessSha": "bbaeea1f6d918634c397bfee05dea4e6b2a0b403",
+    "pathScopeCorrection": "Use the already exercised repository workflow dispatch path; no creation was attempted using the unused companion path."
+  },
+  "preflight": {
+    "harnessSha": "b76aab1964bfe9ac21aec3e9c5d24de443ec4992",
+    "actualBootstrapExecuted": true,
+    "generatedMiseTaskDecodedEqual": true,
+    "actualMiseTaskDryRunParsed": true,
+    "actualNodeModuleSyntaxChecked": true,
+    "results": [
+      {
+        "provider": "public",
+        "generatedTasksSha256": "263b6a55a1e6eb557d6fbd9dd9953d116aec82f226fa5bc21fe3949ec127c5da",
+        "configSha256": "35c01ed111f0c4cc605b1d83838082a9fcd19c66afa87dd994c2696dcfcf8dcc",
+        "cases": [
+          {
+            "id": "windows2025-gnu-ucrt64-current",
+            "label": "windows-2025",
+            "kind": "rust",
+            "flavor": "gnu",
+            "target": "x86_64-pc-windows-gnu",
+            "tools": "node"
+          }
+        ],
+        "maximumParallelJobs": 1,
+        "jobMinutes": 30
+      }
+    ],
+    "adapterControls": [
+      {
+        "key": "tasks.test.run",
+        "originalSha256": "da1ddc3ff1237ed4f59c5af3c1d0f0ed2618bf2ca455bfd32f3fc2f44555164d",
+        "adaptedSha256": "ed0ba78f804079430b624ceca04ae6d250512c08d6495a1f0e856ad207d74d69",
+        "onlyAddedArgument": "--no-fail-fast",
+        "assertionEdits": false
+      },
+      {
+        "key": "tasks.test:windows-gnu.run",
+        "originalSha256": "3e69f08295d4a8aa0f6ec9a1760d4d29b61c40652f7df857192517d41844c60c",
+        "adaptedSha256": "3e69f08295d4a8aa0f6ec9a1760d4d29b61c40652f7df857192517d41844c60c",
+        "onlyAddedArgument": null,
+        "assertionEdits": false
+      }
+    ]
+  },
+  "parserControl": {
+    "version": "cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)\nrelease: 0.9.148\ncommit-hash: cd1d6d5467322dbc0d39a80cb671d000ac302798\ncommit-date: 2026-10-07\nhost: x86_64-unknown-linux-gnu",
+    "nextestBinarySha256": "53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c",
+    "negativeStatus": 2,
+    "negativeDiagnostic": "error: the argument '--no-fail-fast' cannot be used multiple times",
+    "positiveStatus": 102,
+    "positiveBoundary": "One scheduler argument passed the actual parser and reached a Cargo metadata attempt; no build or test body ran.",
+    "compilerNotProbed": true
+  },
+  "budget": {
+    "originalCampaignGuardUsd": 5,
+    "conservativeCompletedAndReservedUsd": 4.728,
+    "nextNominalPublicComputeReservationUsd": 0,
+    "usd6FallbackUnused": true,
+    "artifactStorageUnmeasured": true,
+    "matchedDepotTerminalRun": 39148580870,
+    "matchedDepotActiveReservation": null
+  },
+  "creationGuard": "Fresh terminal status for known previous public and Depot runs, empty owned GNU creation journal, remote branch equals immutable harness, actual bootstrap/source hash equality, finite watchdog."
+}

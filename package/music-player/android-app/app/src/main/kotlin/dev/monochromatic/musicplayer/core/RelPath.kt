@@ -1,349 +1,232 @@
-// Summary (folded in from the original KDoc on this file):
-//   Pure relative-path display. We strip the longest common directory prefix from a queue's track
-//   paths so the UI shows each track relative to the loaded root (`Artist/Album/01.flac` instead of
-//   the full path, or a bare filename when the whole queue is one folder). This is a faithful port of
-//   the desktop player's `relpath.rs`; it has no platform dependency and is fully unit-tested against
-//   the same Rust test vectors. The pagination grouping consumes this output, and the fallback to the
-//   full path guards a degenerate input that would otherwise collapse a UI row to an empty label.
+// Pure relative-path display. We strip the longest common directory prefix from a queue's track paths so the UI shows
+// each track relative to the loaded root (`Artist/Album/01.flac` instead of the full path, or a bare filename when the
+// whole queue is one folder). This is a faithful port of the desktop player's `relpath.rs`; it has no platform
+// dependency and is unit-tested against the same Rust test vectors and against the first, slower implementation. The
+// pagination grouping consumes this output, and the fallback to the full path guards a degenerate input that would
+// otherwise collapse a UI row to an empty label.
+//
+// At a million tracks the first implementation (split every path into a list, compare the lists, join them again)
+// cost seconds and a million lists on every library change. This one reads each path in place, builds no list for a
+// path that is already normal, and returns the very same string when nothing needs stripping. `CommonPrefix` does the
+// same comparison one path at a time, so a scan can keep the prefix of the tracks found so far without keeping lists.
 
-// What:     `package dev.monochromatic.musicplayer.core` names the namespace this file's
-//           declarations live in. Every Kotlin file starts with a `package` line; the dotted name
-//           mirrors the directory path `dev/monochromatic/musicplayer/core/`. Anything declared here
-//           (the `SEPARATOR` constant, the three functions) is reachable from other files in the same
-//           package without an import, and from other packages by importing this name.
-// Why:      We need the namespace so the rest of the app (the queue, the pagination code) can refer to
-//           `relativeDisplayPaths` as a member of `dev.monochromatic.musicplayer.core`.
+// What:     `package dev.monochromatic.musicplayer.core` names the namespace of this file's declarations.
+// Why:      The queue, the pagination code and the library feed refer to these functions by this package.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// // No 1:1 equivalent — in TS the module identity comes from the file path, there is no
-// // `package` statement. Picture this file living at src/core/RelPath.ts and being imported as
-// // `import { relativeDisplayPaths } from "./core/RelPath";`.
+// // Module identity comes from the file path.
 // ```
 package dev.monochromatic.musicplayer.core
 
-// What:     `private const val SEPARATOR = "/"` declares a top-level constant.
-//           - `private` limits visibility to THIS file (other files cannot see `SEPARATOR`).
-//           - `const val` is a COMPILE-TIME constant: its value is baked into the bytecode wherever
-//             it is used, so it must be a primitive or `String` literal known at compile time.
-//             Siblings the reader might have expected:
-//               * plain `val` — a read-only binding computed at runtime (can hold any object, not
-//                 inlined). `const val` is the stricter, compile-time-only form.
-//               * `var` — a re-assignable (mutable) binding. We do not want that here.
-//           - The type is inferred as `String` from the `"/"` literal; we did not write `: String`.
-// Why:      The queue is path-based and the UI/pagination expect a single `/` separator; naming it
-//           once avoids a bare `"/"` literal scattered through the split and the re-join below.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// const SEPARATOR = "/";
-// ```
-/**
- * Defines separator value for this music-player component; the TypeScript-oriented notes above explain its
- * source and use.
- */
+/** The separator between the segments of a track path, which pagination and the UI also expect. */
 private const val SEPARATOR = "/"
 
-// What:     `private fun normalComponents(path: String): List<String>` declares a function.
-//           - `private` keeps it visible only inside this file (an internal helper).
-//           - `fun` is the function keyword.
-//           - `path: String` is the single parameter: an owned, immutable text string. (Kotlin
-//             `String` is a reference type but is immutable, so there is no borrowed-vs-owned
-//             question the way Rust has `&str` vs `String`.)
-//           - `: List<String>` is the return type: a READ-ONLY list of strings. Siblings the reader
-//             might have expected:
-//               * `MutableList<String>` — the same data but with `add`/`remove` methods exposed.
-//               * `Array<String>` — a fixed-size, mutable-element JVM array.
-//             We return the read-only `List` interface so callers cannot mutate what we hand back.
-// Why:      We need to split a path into just its named folder/file segments, dropping the root and
-//           any `.`/`..` markers, so the prefix comparison and re-joining below are clean.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// function normalComponents(path: string): string[] {
-//   return path.split("/").filter((seg) => seg !== "" && seg !== "." && seg !== "..");
-// }
-// ```
-/**
- * Defines normal components behavior for this music-player component; the TypeScript-oriented notes above
- * explain its call shape and effects.
- */
-private fun normalComponents(path: String): List<String> =
-    // What:     The `=` after the signature is Kotlin's EXPRESSION-BODY function form: instead of a
-    //           `{ ... }` block with a `return`, the whole function IS the single expression on the
-    //           right, and its value is returned implicitly. So this entire `path.split(...).filter(...)`
-    //           line is both the body and the return value.
-    //           Piece by piece:
-    //           - `path.split(SEPARATOR)` cuts the string at every `/` and returns a `List<String>`
-    //             of the pieces (including empty pieces for leading/trailing or doubled slashes).
-    //           - `.filter { ... }` keeps only the elements for which the lambda returns `true`,
-    //             producing a new list. The `{ ... }` is a TRAILING LAMBDA: when a lambda is the last
-    //             argument, Kotlin lets you move it outside the parentheses (here `filter`'s only
-    //             argument is the lambda, so the parentheses vanish entirely).
-    //           - Inside the lambda, `it` is the IMPLICIT single parameter name Kotlin gives a lambda
-    //             that takes exactly one argument; here `it` is each segment string. `it.isNotEmpty()`
-    //             drops empty pieces; `it != "."` and `it != ".."` drop the relative-path markers.
-    // Why:      Dropping empties and `.`/`..` leaves just the real folder and file names, so two paths
-    //           can be compared segment-by-segment and rejoined consistently.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return path.split("/").filter((seg) => seg !== "" && seg !== "." && seg !== "..");
-    // ```
-    path.split(SEPARATOR).filter { it.isNotEmpty() && it != "." && it != ".." }
+/** The separator as a character, for scans that read a path in place. */
+private const val SEPARATOR_CHAR = '/'
 
-// What:     `private fun commonPrefixLen(lists: List<List<String>>): Int` declares a function.
-//           - `private` — file-internal helper.
-//           - `lists: List<List<String>>` is the parameter: a read-only list whose elements are
-//             themselves read-only lists of strings (one segment-list per track).
-//           - `: Int` is the return type: a 32-bit signed integer. Sibling the reader might have
-//             expected: `Long` (a 64-bit signed integer). We use `Int` because collection sizes and
-//             indices in Kotlin are `Int` (`List.size` is `Int`, `list[i]` indexes with `Int`); using
-//             `Long` would force `.toInt()`/`.toLong()` conversions at every index and is pointless
-//             for in-memory list lengths.
-// Why:      We need to know how many LEADING segments every track shares (capped so the filename
-//           always survives); that shared run is the "loaded root" we strip off.
+/** Segment that names the directory itself and is ignored. */
+private const val CURRENT = "."
+
+/** Segment that names the parent directory and is ignored. */
+private const val PARENT = ".."
+
+// What:     `private fun normalComponents(path: String): List<String>` splits a path into its named segments.
+// Why:      The comparison and the re-joining of an unusual path (one with empty, `.` or `..` segments) need just the
+//           real folder and file names.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// function commonPrefixLen(lists: string[][]): number { ... }
+// const normalComponents = (path: string) => path.split("/").filter((s) => s !== "" && s !== "." && s !== "..");
 // ```
-/**
- * Defines common prefix len behavior for this music-player component; the TypeScript-oriented notes above
- * explain its call shape and effects.
- */
-private fun commonPrefixLen(lists: List<List<String>>): Int {
-    // What:     `val shortest = lists.minOfOrNull { it.size } ?: 0`.
-    //           - `val` declares a read-only local binding (cannot be reassigned). Sibling: `var`
-    //             would be reassignable; we do not need that.
-    //           - `lists.minOfOrNull { it.size }` walks every inner list, takes its `.size` (an `Int`),
-    //             and returns the SMALLEST size. The trailing lambda `{ it.size }` is the selector;
-    //             `it` is each inner list. The `OrNull` suffix means: if `lists` is EMPTY there is no
-    //             minimum, so it returns `null` instead of throwing. Its result type is therefore
-    //             `Int?` (a nullable `Int`).
-    //           - `?: 0` is the ELVIS operator: "if the left side is `null`, use `0` instead". So
-    //             `shortest` ends up a plain non-null `Int`.
-    // Why:      The common prefix can never be longer than the shortest path's segment count; and an
-    //           empty queue must fall back to `0` rather than crash on a `null`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const sizes = lists.map((l) => l.length);
-    // const shortest = sizes.length === 0 ? 0 : Math.min(...sizes);
-    // ```
-    /**
-     * Defines shortest value for this music-player component; the TypeScript-oriented notes above explain its
-     * source and use.
-     */
-    val shortest = lists.minOfOrNull { it.size } ?: 0
-    // What:     `if (shortest == 0) return 0`. An early `return` when some path has no named segments
-    //           at all (so there is nothing to strip). `==` in Kotlin is STRUCTURAL equality (it calls
-    //           `.equals()`), which for `Int` is just numeric equality.
-    // Why:      Guards the `shortest - 1` line below: if we let `shortest` be 0 the cap would be -1 and
-    //           the loop bounds would be nonsense. (In the Rust twin this also avoids unsigned
-    //           underflow; in Kotlin `Int` is signed so it would not panic, but the early return is the
-    //           same clean guard.)
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (shortest === 0) return 0;
-    // ```
-    if (shortest == 0) return 0
-    // What:     `val cap = shortest - 1`. A read-only `Int` holding the most segments we are allowed to
-    //           strip, leaving at least the final one (the filename) on every track. `- 1` is ordinary
-    //           integer subtraction, identical to TS.
-    // Why:      A UI row must never collapse to an empty label, so we always keep at least one segment.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const cap = shortest - 1;
-    // ```
-    /**
-     * Defines cap value for this music-player component; the TypeScript-oriented notes above explain its source
-     * and use.
-     */
-    val cap = shortest - 1
-    // What:     `var run = 0`. A MUTABLE local `Int`, the counter for how many leading segments match
-    //           so far. We use `var` (not `val`) precisely because the loop below reassigns it.
-    // Why:      We need a running count we can increment as we confirm each shared segment.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let run = 0;
-    // ```
-    /**
-     * Defines run value for this music-player component; the TypeScript-oriented notes above explain its source
-     * and use.
-     */
-    var run = 0
-    // What:     `while (run < cap && lists.all { it[run] == lists[0][run] }) { ... }`.
-    //           - The loop continues while BOTH conditions hold (`&&` short-circuits, so the
-    //             right side is only evaluated while `run < cap`).
-    //           - `lists.all { ... }` returns `true` only when the trailing-lambda predicate holds for
-    //             EVERY element. `it` is each inner list; `it[run]` indexes that list at position
-    //             `run` (safe here because `run < cap < shortest <= every list's size`).
-    //           - `lists[0]` is the first track's segment list, used as the reference; `lists[0][run]`
-    //             is its segment at position `run`. `==` is structural string equality.
-    // Why:      One linear scan finds the longest shared leading run without recursion: as soon as any
-    //           track disagrees at position `run`, `.all` is `false` and we stop.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // while (run < cap && lists.every((l) => l[run] === lists[0][run])) {
-    //   run++;
-    // }
-    // ```
-    while (run < cap && lists.all { it[run] == lists[0][run] }) {
-        // What:     `run++`. Post-increment: advance the counter past a segment that all tracks share.
-        //           This is the one mutation that justifies `run` being a `var`. Character-identical to
-        //           TS.
-        // Why:      Move on to compare the next position.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // run++;
-        // ```
-        run++
+/** Splits [path] at `/` and drops the empty segments and the `.` and `..` markers. */
+private fun normalComponents(path: String): List<String> =
+    path.split(SEPARATOR).filter { segment -> segment.isNotEmpty() && segment != CURRENT && segment != PARENT }
+
+// What:     `private fun isMeaningful(path: String, start: Int, end: Int): Boolean` tests one segment in place.
+// Why:      A segment counts when it is not empty and not a `.` or `..` marker; testing it by range avoids a substring.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const isMeaningful = (s: string) => s !== "" && s !== "." && s !== "..";
+// ```
+/** Reports whether `path[start, end)` is a named segment. */
+private fun isMeaningful(path: String, start: Int, end: Int): Boolean {
+    /** Number of characters in the segment. */
+    val length: Int = end - start
+    if (length == 0) {
+        return false
     }
-    // What:     `return run`. Hand back the shared-prefix length. Because this function has a `{ }`
-    //           block body (not the expression-body `=` form used above), the return is EXPLICIT.
-    // Why:      The caller needs to know how many leading segments to drop from every track.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return run;
-    // ```
-    return run
+    if (length == 1 && path[start] == '.') {
+        return false
+    }
+    return !(length == 2 && path[start] == '.' && path[start + 1] == '.')
 }
 
-// What:     `fun relativeDisplayPaths(tracks: List<String>): List<String>` declares the one PUBLIC
-//           function of this file (no `private`, so it is visible to the rest of the module — Kotlin's
-//           default visibility is `public`).
-//           - `tracks: List<String>` is the parameter: a read-only list of full track-path strings, in
-//             load order. Sibling the reader might expect: `MutableList<String>`; we take the read-only
-//             `List` because we never mutate the input.
-//           - `: List<String>` returns one relative display string per track, in the same order.
-// Why:      The UI shows folders, not just bare filenames, but the shared absolute prefix (e.g. a long
-//           music-library root) is noise; this strips it once per queue.
+// What:     `internal class CommonPrefix` keeps the longest common run of leading segments of the paths added so far.
+// Why:      The prefix of a scan's first thousand tracks can be longer than the prefix of the whole library, so the
+//           library feed must know the prefix of exactly the tracks it has shown, and it must not keep a list of
+//           segments for each of a million paths to know it. With a known library root (D86, D3) the prefix is cut
+//           at the root, so a library whose only content is one top-level folder keeps that folder's name, as the
+//           desktop player does when it is given the opened folder.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// class CommonPrefix { constructor(root?: string[]) {} add(path: string) {} get count(): number { return 0; } }
+// ```
+/**
+ * The number of leading segments that every added path shares, capped so the last segment of the shortest path
+ * always survives, exactly as `relativeDisplayPaths` strips them.
+ *
+ * When [root] is given and every added path lies strictly under it, only the root's segments are stripped, however
+ * many more the paths share; as soon as one path lies outside it, the shared directory is stripped as without a root.
+ */
+internal class CommonPrefix(
+    /** Segments of the library root that every path is relative to, or null when the root is unknown. */
+    private val root: List<String>? = null,
+) {
+    /** Whether every path added so far lies strictly under [root]; always true while [root] is null. */
+    private var underRoot: Boolean = true
+
+    /** Segments of the first path added, which every later path is compared with, or null before any path. */
+    private var first: List<String>? = null
+
+    /** Length of the run of leading segments that all added paths share with [first]. */
+    private var shared: Int = 0
+
+    /** Fewest segments any added path has. */
+    private var shortest: Int = Int.MAX_VALUE
+
+    /** Number of leading segments to strip from every added path: zero when there is none or a path has no segment. */
+    val count: Int
+        get() {
+            if (first == null || shortest == 0) {
+                return 0
+            }
+            /** Segments that the paths share, never counting the last of the shortest path. */
+            val sharedDirectory: Int = minOf(shared, shortest - 1)
+            return if (root != null && underRoot) minOf(sharedDirectory, root.size) else sharedDirectory
+        }
+
+    /** Adds one path and narrows the shared run, reading the path in place after the first. */
+    fun add(path: String) {
+        /** Segments of the first path, or null while this is the first path. */
+        val head: List<String>? = first
+        if (head == null) {
+            /** Named segments of the first path. */
+            val segments: List<String> = normalComponents(path)
+            first = segments
+            shared = segments.size
+            shortest = segments.size
+            underRoot = root == null || isStrictlyUnder(segments, root)
+            return
+        }
+        /** Number of named segments of this path found so far. */
+        var named = 0
+        /** Whether the named segments so far all equal the first path's. */
+        var matching = true
+        /** Whether the named segments so far all equal the root's, when there is a root. */
+        var rootMatching = root != null
+        /** Start of the segment being read. */
+        var start = 0
+        while (start <= path.length) {
+            /** Offset of the separator that ends this segment, or the path length for the last one. */
+            val stop: Int = path.indexOf(SEPARATOR_CHAR, start).let { found -> if (found < 0) path.length else found }
+            if (isMeaningful(path, start, stop)) {
+                if (rootMatching && root != null && named < root.size &&
+                    (root[named].length != stop - start || !path.regionMatches(start, root[named], 0, stop - start))
+                ) {
+                    rootMatching = false
+                }
+                if (matching && (named >= shared || !path.regionMatches(start, head[named], 0, stop - start) ||
+                        head[named].length != stop - start)
+                ) {
+                    shared = minOf(shared, named)
+                    matching = false
+                }
+                named += 1
+            }
+            start = stop + 1
+        }
+        shortest = minOf(shortest, named)
+        shared = minOf(shared, named)
+        if (root != null && (!rootMatching || named <= root.size)) {
+            underRoot = false
+        }
+    }
+}
+
+/** Reports whether [segments] start with every segment of [root] and have at least one more, the file name. */
+private fun isStrictlyUnder(segments: List<String>, root: List<String>): Boolean =
+    segments.size > root.size && root.indices.all { index -> segments[index] == root[index] }
+
+// What:     `internal fun relativeOf(path: String, strip: Int): String` shows one path without its first segments.
+// Why:      It is the per-path part of `relativeDisplayPaths`, so a feed that appends tracks can compute the display
+//           path of one new track from the prefix of all the tracks so far. A normal path (no empty, `.` or `..`
+//           segment) is cut with one substring, or returned as it is when nothing is stripped.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const relativeOf = (path: string, strip: number) => normalComponents(path).slice(strip).join("/") || path;
+// ```
+/**
+ * Returns the segments of [path] after the first [strip] named ones, joined with `/`, or [path] itself when no
+ * segment remains.
+ */
+internal fun relativeOf(path: String, strip: Int): String {
+    /** Number of named segments found so far. */
+    var named = 0
+    /** Offset of the first named segment that is kept, once the stripped ones are passed. */
+    var keptFrom = -1
+    /** Whether every segment is named, so the path can be cut instead of rebuilt. */
+    var normal = true
+    /** Start of the segment being read. */
+    var start = 0
+    while (start <= path.length) {
+        /** Offset of the separator that ends this segment, or the path length for the last one. */
+        val stop: Int = path.indexOf(SEPARATOR_CHAR, start).let { found -> if (found < 0) path.length else found }
+        if (isMeaningful(path, start, stop)) {
+            if (named == strip) {
+                keptFrom = start
+            }
+            named += 1
+        } else {
+            normal = false
+        }
+        start = stop + 1
+    }
+    if (named <= strip) {
+        return path
+    }
+    if (normal) {
+        return if (strip == 0) path else path.substring(keptFrom)
+    }
+    return normalComponents(path).drop(strip).joinToString(SEPARATOR)
+}
+
+// What:     `fun relativeDisplayPaths(tracks: List<String>): List<String>` is the one public function of this file.
+// Why:      The UI shows folders, not just bare filenames, but the shared absolute prefix (e.g. a long music-library
+//           root) is noise; this strips it once per queue.
 //
 // In TS you'd write (pseudocode):
 // ```ts
 // function relativeDisplayPaths(tracks: string[]): string[] {
-//   if (tracks.length === 0) return [];
-//   const componentLists = tracks.map(normalComponents);
-//   const prefixLen = commonPrefixLen(componentLists);
-//   return componentLists.map((list, i) => {
-//     const relative = list.slice(prefixLen).join("/");
-//     return relative === "" ? tracks[i] : relative;
-//   });
+//   const prefix = commonPrefix(tracks);
+//   return tracks.map((path) => relativeOf(path, prefix));
 // }
 // ```
 /**
- * Defines relative display paths behavior for this music-player component; the TypeScript-oriented notes above
- * explain its call shape and effects.
+ * Returns each path without the leading segments that all the paths share, in the same order.
+ *
+ * A path with no named segment keeps its full text, and an empty list gives an empty list. With a [root] that every
+ * path lies strictly under, only the root is stripped, so one top-level folder keeps its name (D86).
  */
-fun relativeDisplayPaths(tracks: List<String>): List<String> {
-    // What:     `if (tracks.isEmpty()) return emptyList()`. An early `return` for an empty queue.
-    //           - `tracks.isEmpty()` is `true` when the list has no elements.
-    //           - `emptyList()` is a factory function that returns a shared, immutable empty
-    //             `List<String>`. Siblings the reader might have expected:
-    //               * `listOf()` — also makes an immutable list, but `emptyList()` is the canonical
-    //                 zero-element form.
-    //               * `mutableListOf()` — would make a NEW empty MUTABLE list each call.
-    //             We use `emptyList()` because we are returning, not building up, and it avoids an
-    //             allocation (the empty list is a singleton).
-    // Why:      Nothing to relativize, and `commonPrefixLen` of nothing has no meaningful prefix.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (tracks.length === 0) return [];
-    // ```
+fun relativeDisplayPaths(tracks: List<String>, root: List<String>? = null): List<String> {
     if (tracks.isEmpty()) return emptyList()
-    // What:     `val componentLists = tracks.map { normalComponents(it) }`.
-    //           - `val` — read-only local; its inferred type is `List<List<String>>`.
-    //           - `tracks.map { ... }` transforms each element into a new value, producing a new list
-    //             of the same length. The `{ ... }` is a trailing lambda; `it` is each track path
-    //             string, and we pass it to `normalComponents` to get that track's segment list.
-    // Why:      Compute each path's named segments ONCE here, then reuse them both for the shared
-    //           prefix and for each track's remainder below.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const componentLists = tracks.map((it) => normalComponents(it));
-    // ```
-    /**
-     * Defines component lists value for this music-player component; the TypeScript-oriented notes above explain
-     * its source and use.
-     */
-    val componentLists = tracks.map { normalComponents(it) }
-    // What:     `val prefixLen = commonPrefixLen(componentLists)`. A read-only `Int`: how many leading
-    //           segments are the shared root. Plain function call, no special syntax; Kotlin passes the
-    //           list by reference (there is no borrow annotation as in Rust).
-    // Why:      Decide how many leading segments to strip from every track.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const prefixLen = commonPrefixLen(componentLists);
-    // ```
-    /**
-     * Defines prefix len value for this music-player component; the TypeScript-oriented notes above explain its
-     * source and use.
-     */
-    val prefixLen = commonPrefixLen(componentLists)
-    // What:     `return componentLists.zip(tracks).map { (list, path) -> ... }`. The final, returned
-    //           expression, built from two chained calls:
-    //           - `componentLists.zip(tracks)` pairs up the two equal-length lists element-by-element,
-    //             producing a `List<Pair<List<String>, String>>`: each entry is (this track's segment
-    //             list, this track's original full path). We keep the original path around so the
-    //             empty-result fallback can reach it.
-    //           - `.map { (list, path) -> ... }` transforms each pair into one display string. The
-    //             `(list, path)` inside the lambda is a DESTRUCTURING declaration: it unpacks the
-    //             `Pair` into two named locals (`list` = the segment list, `path` = the original full
-    //             path) instead of using the implicit single `it`.
-    // Why:      Produce one relative display string per track while preserving load order.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return componentLists.map((list, i) => {
-    //   const path = tracks[i];
-    //   const relative = list.slice(prefixLen).join("/");
-    //   return relative === "" ? path : relative;
-    // });
-    // ```
-    return componentLists.zip(tracks).map { (list, path) ->
-        // What:     `val relative = list.drop(prefixLen).joinToString(SEPARATOR)`.
-        //           - `list.drop(prefixLen)` returns a NEW list with the first `prefixLen` elements
-        //             removed — i.e. the segments that come AFTER the shared root. (It drops a COUNT
-        //             from the front; it is not a start..end range slice.)
-        //           - `.joinToString(SEPARATOR)` glues the remaining segments back together with `/`
-        //             between them, yielding a single `String`.
-        // Why:      The segments past the common root ARE the relative path we want to show.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const relative = list.slice(prefixLen).join("/");
-        // ```
-        /**
-         * Defines relative value for this music-player component; the TypeScript-oriented notes above explain
-         * its source and use.
-         */
-        val relative = list.drop(prefixLen).joinToString(SEPARATOR)
-        // What:     `if (relative.isEmpty()) path else relative`. This is an IF-EXPRESSION: in Kotlin
-        //           `if/else` produces a value (like a ternary), so this whole line evaluates to one of
-        //           the two branches and, being the last expression in the lambda, becomes the lambda's
-        //           result for this element. `relative.isEmpty()` is `true` for the empty string.
-        //           NOTE: both branches are already plain `String`s — `path` is the untouched original
-        //           input string — so there is no conversion or copying step here (unlike the Rust
-        //           twin, whose paths needed a lossy-UTF-8 `to_string_lossy()`; that concern does not
-        //           exist in this Kotlin file).
-        // Why:      Defensive fallback: a pathological path with no named segments would relativize to
-        //           the empty string, which would render as a blank UI row; show its full original text
-        //           instead.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return relative === "" ? path : relative;
-        // ```
-        if (relative.isEmpty()) path else relative
-    }
+    /** Shared prefix of all the paths, cut at the library root when there is one. */
+    val prefix = CommonPrefix(root)
+    tracks.forEach { path -> prefix.add(path) }
+    /** Number of segments to strip from each path. */
+    val strip: Int = prefix.count
+    return tracks.map { path -> relativeOf(path, strip) }
 }

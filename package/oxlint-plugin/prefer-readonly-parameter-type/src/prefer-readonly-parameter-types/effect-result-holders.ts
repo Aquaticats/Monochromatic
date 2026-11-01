@@ -24,7 +24,7 @@
 import {
   type Node,
   SyntaxKind,
-} from 'typescript/unstable/ast';
+} from 'typescript/ast';
 import {
   isArrayBindingPattern,
   isAssertionExpression,
@@ -40,8 +40,8 @@ import {
   isPropertyAccessExpression,
   isSatisfiesExpression,
   isVariableDeclaration,
-} from 'typescript/unstable/ast/is';
-import type { Project, } from 'typescript/unstable/sync';
+} from 'typescript/ast/is';
+import type { Project, } from 'typescript/sync';
 
 import {
   EITHER_OPERAND_PASSES,

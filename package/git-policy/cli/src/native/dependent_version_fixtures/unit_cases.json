@@ -1,0 +1,1511 @@
+[
+  {
+    "name": "patchBumpVersion increments 1.2.3",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "a",
+      "version": "1.2.3"
+    },
+    "expected": {
+      "kind": "ok",
+      "value": "1.2.4"
+    }
+  },
+  {
+    "name": "patchBumpVersion increments 0.0.9",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "a",
+      "version": "0.0.9"
+    },
+    "expected": {
+      "kind": "ok",
+      "value": "0.0.10"
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"1.0.0-alpha.1\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": "1.0.0-alpha.1"
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"1.0.0-alpha.1\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"1.0.0+build\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": "1.0.0+build"
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"1.0.0+build\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"01.0.0\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": "01.0.0"
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"01.0.0\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"1.0\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": "1.0"
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"1.0\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"1.0.x\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": "1.0.x"
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"1.0.x\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "patchBumpVersion rejects \"\"",
+    "kind": "patchBumpVersion",
+    "input": {
+      "name": "@scope/a",
+      "version": ""
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "@scope/a has version \"\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "planDependentBumps bumps direct and transitive publishable dependents in name order",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "z-app",
+          "directory": "package/module/z-app",
+          "version": "2.0.0",
+          "edgeNames": [
+            "mid"
+          ]
+        },
+        {
+          "name": "mid",
+          "directory": "package/module/mid",
+          "version": "1.0.0",
+          "edgeNames": [
+            "base"
+          ]
+        },
+        {
+          "name": "base",
+          "directory": "package/module/base",
+          "version": "1.1.0",
+          "edgeNames": []
+        },
+        {
+          "name": "a-tool",
+          "directory": "package/module/a-tool",
+          "version": "0.1.0",
+          "edgeNames": [
+            "base"
+          ]
+        }
+      ],
+      "bumpedNames": [
+        "base"
+      ],
+      "publishableNames": [
+        "z-app",
+        "mid",
+        "base",
+        "a-tool"
+      ]
+    },
+    "expected": {
+      "kind": "bumps",
+      "value": [
+        {
+          "name": "a-tool",
+          "directory": "package/module/a-tool",
+          "from": "0.1.0",
+          "to": "0.1.1"
+        },
+        {
+          "name": "mid",
+          "directory": "package/module/mid",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "name": "z-app",
+          "directory": "package/module/z-app",
+          "from": "2.0.0",
+          "to": "2.0.1"
+        }
+      ]
+    }
+  },
+  {
+    "name": "planDependentBumps walks through unpublishable packages but bumps only publishable ones",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "app",
+          "directory": "package/module/app",
+          "version": "1.0.0",
+          "edgeNames": [
+            "internal"
+          ]
+        },
+        {
+          "name": "internal",
+          "directory": "package/module/internal",
+          "version": "1.0.0",
+          "edgeNames": [
+            "base"
+          ]
+        },
+        {
+          "name": "base",
+          "directory": "package/module/base",
+          "version": "1.0.0",
+          "edgeNames": []
+        }
+      ],
+      "bumpedNames": [
+        "base"
+      ],
+      "publishableNames": [
+        "app",
+        "base"
+      ]
+    },
+    "expected": {
+      "kind": "bumps",
+      "value": [
+        {
+          "name": "app",
+          "directory": "package/module/app",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    }
+  },
+  {
+    "name": "planDependentBumps skips already bumped and versionless dependents",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "bumped-dependent",
+          "directory": "package/module/bumped-dependent",
+          "version": "3.0.0",
+          "edgeNames": [
+            "base"
+          ]
+        },
+        {
+          "name": "versionless",
+          "directory": "package/module/versionless",
+          "version": null,
+          "edgeNames": [
+            "base"
+          ]
+        },
+        {
+          "name": "base",
+          "directory": "package/module/base",
+          "version": "1.0.0",
+          "edgeNames": []
+        }
+      ],
+      "bumpedNames": [
+        "base",
+        "bumped-dependent"
+      ],
+      "publishableNames": [
+        "bumped-dependent",
+        "versionless",
+        "base"
+      ]
+    },
+    "expected": {
+      "kind": "bumps",
+      "value": []
+    }
+  },
+  {
+    "name": "planDependentBumps ignores external and self edges and terminates on cycles",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "left",
+          "directory": "package/module/left",
+          "version": "1.0.0",
+          "edgeNames": [
+            "right",
+            "left",
+            "external"
+          ]
+        },
+        {
+          "name": "right",
+          "directory": "package/module/right",
+          "version": "1.0.0",
+          "edgeNames": [
+            "left"
+          ]
+        }
+      ],
+      "bumpedNames": [
+        "left"
+      ],
+      "publishableNames": [
+        "left",
+        "right"
+      ]
+    },
+    "expected": {
+      "kind": "bumps",
+      "value": [
+        {
+          "name": "right",
+          "directory": "package/module/right",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    }
+  },
+  {
+    "name": "planDependentBumps returns nothing when no package was bumped",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "a",
+          "directory": "package/module/a",
+          "version": "1.0.0",
+          "edgeNames": [
+            "b"
+          ]
+        }
+      ],
+      "bumpedNames": [],
+      "publishableNames": [
+        "a"
+      ]
+    },
+    "expected": {
+      "kind": "bumps",
+      "value": []
+    }
+  },
+  {
+    "name": "planDependentBumps throws when a dependent needing a bump has a prerelease version",
+    "kind": "planDependentBumps",
+    "input": {
+      "manifests": [
+        {
+          "name": "a",
+          "directory": "package/module/a",
+          "version": "1.0.0-rc.1",
+          "edgeNames": [
+            "b"
+          ]
+        },
+        {
+          "name": "b",
+          "directory": "package/module/b",
+          "version": "1.0.0",
+          "edgeNames": []
+        }
+      ],
+      "bumpedNames": [
+        "b"
+      ],
+      "publishableNames": [
+        "a",
+        "b"
+      ]
+    },
+    "expected": {
+      "kind": "unsupported",
+      "message": "a has version \"1.0.0-rc.1\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+    }
+  },
+  {
+    "name": "readManifestDependencyFacts reads name, version, runtime fields in order, and development names",
+    "kind": "readManifestDependencyFacts",
+    "input": {
+      "path": "package.json",
+      "text": "{\"name\":\"@scope/a\",\"version\":\"1.0.0\",\"dependencies\":{\"@scope/b\":\"workspace:*\"},\"peerDependencies\":{\"@scope/c\":\"*\"},\"optionalDependencies\":{\"@scope/d\":\"*\"},\"devDependencies\":{\"@scope/e\":\"workspace:*\"}}"
+    },
+    "expected": {
+      "kind": "facts",
+      "name": "@scope/a",
+      "version": "1.0.0",
+      "runtime": [
+        "@scope/b",
+        "@scope/c",
+        "@scope/d"
+      ],
+      "dev": [
+        "@scope/e"
+      ]
+    }
+  },
+  {
+    "name": "readManifestDependencyFacts omits an absent version and treats non-object dependency fields as empty",
+    "kind": "readManifestDependencyFacts",
+    "input": {
+      "path": "package.json",
+      "text": "{\"name\":\"a\",\"dependencies\":[\"b\"]}"
+    },
+    "expected": {
+      "kind": "facts",
+      "name": "a",
+      "version": null,
+      "runtime": [],
+      "dev": []
+    }
+  },
+  {
+    "name": "readManifestDependencyFacts rejects manifest that is not a JSON object",
+    "kind": "readManifestDependencyFacts",
+    "input": {
+      "path": "package/module/a/package.json",
+      "text": "[]"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package/module/a/package.json is not a JSON object"
+    }
+  },
+  {
+    "name": "readManifestDependencyFacts rejects manifest that has no string \"name\"",
+    "kind": "readManifestDependencyFacts",
+    "input": {
+      "path": "package/module/a/package.json",
+      "text": "{\"version\":\"1.0.0\"}"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package/module/a/package.json has no string \"name\""
+    }
+  },
+  {
+    "name": "readManifestDependencyFacts rejects manifest that has a non-string \"version\"",
+    "kind": "readManifestDependencyFacts",
+    "input": {
+      "path": "package/module/a/package.json",
+      "text": "{\"name\":\"a\",\"version\":1}"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package/module/a/package.json has a non-string \"version\""
+    }
+  },
+  {
+    "name": "replaceManifestVersion changes only the top-level version value and keeps formatting",
+    "kind": "replaceManifestVersion",
+    "input": {
+      "path": "package.json",
+      "text": "{\n  \"name\": \"a\",\n  \"description\": \"version \\\"x\\\"\",\n  \"publishConfig\": { \"version\": \"9.9.9\" },\n  \"version\" :  \"1.0.0\",\n  \"tail\": [\"version\"]\n}\n",
+      "from": "1.0.0",
+      "to": "1.0.1"
+    },
+    "expected": {
+      "kind": "ok",
+      "value": "{\n  \"name\": \"a\",\n  \"description\": \"version \\\"x\\\"\",\n  \"publishConfig\": { \"version\": \"9.9.9\" },\n  \"version\" :  \"1.0.1\",\n  \"tail\": [\"version\"]\n}\n"
+    }
+  },
+  {
+    "name": "replaceManifestVersion rejects manifest that declares a different version",
+    "kind": "replaceManifestVersion",
+    "input": {
+      "path": "package.json",
+      "text": "{\"version\":\"2.0.0\"}",
+      "from": "1.0.0",
+      "to": "1.0.1"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package.json declares version \"2.0.0\", expected \"1.0.0\""
+    }
+  },
+  {
+    "name": "replaceManifestVersion rejects manifest that has no top-level version",
+    "kind": "replaceManifestVersion",
+    "input": {
+      "path": "package.json",
+      "text": "{\"name\":\"a\",\"nested\":{\"version\":\"1.0.0\"}}",
+      "from": "1.0.0",
+      "to": "1.0.1"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package.json has no top-level \"version\""
+    }
+  },
+  {
+    "name": "replaceManifestVersion rejects manifest that has a non-string version",
+    "kind": "replaceManifestVersion",
+    "input": {
+      "path": "package.json",
+      "text": "{\"version\":1}",
+      "from": "1.0.0",
+      "to": "1.0.1"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "package.json has a non-string top-level \"version\""
+    }
+  },
+  {
+    "name": "replaceManifestVersion rejects manifest that ends inside a string literal",
+    "kind": "replaceManifestVersion",
+    "input": {
+      "path": "package.json",
+      "text": "{\"name\":\"a",
+      "from": "1.0.0",
+      "to": "1.0.1"
+    },
+    "expected": {
+      "kind": "failed",
+      "error": "shape",
+      "detail": "manifest ends inside a string literal"
+    }
+  },
+  {
+    "name": "importsPackage detects \"import { a } from '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import { a } from '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"import type { A } from \\\"@scope/b/ts\\\";\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import type { A } from \"@scope/b/ts\";",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"import '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"export * from '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "export * from '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"const m = await import('@scope/b');\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "const m = await import('@scope/b');",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"const m = await import ( `@scope/b/sub` );\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "const m = await import ( `@scope/b/sub` );",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"const m = require('@scope/b');\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "const m = require('@scope/b');",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"import { a }\\nfrom\\n'@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import { a }\nfrom\n'@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage detects \"const note = '@scope/b';\\nimport { a } from '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "const note = '@scope/b';\nimport { a } from '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "importsPackage ignores \"import { a } from '@scope/bc';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import { a } from '@scope/bc';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"const name = '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "const name = '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"reimport '@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "reimport '@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"myrequire('@scope/b');\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "myrequire('@scope/b');",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"import { a } from 'x@scope/b';\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "import { a } from 'x@scope/b';",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"@scope/b\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "@scope/b",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "importsPackage ignores \"\"",
+    "kind": "importsPackage",
+    "input": {
+      "sourceText": "",
+      "packageName": "@scope/b"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "isNonTestSourcePath accepts package/module/a/src/index.ts",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/a/src/index.ts"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "isNonTestSourcePath accepts package/module/a/src/deep/view.tsx",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/a/src/deep/view.tsx"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": true
+    }
+  },
+  {
+    "name": "isNonTestSourcePath rejects package/module/a/src/index.unit.test.ts",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/a/src/index.unit.test.ts"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "isNonTestSourcePath rejects package/module/a/src/README.md",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/a/src/README.md"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "isNonTestSourcePath rejects package/module/a/test/index.ts",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/a/test/index.ts"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "isNonTestSourcePath rejects package/module/ab/src/index.ts",
+    "kind": "isNonTestSourcePath",
+    "input": {
+      "directory": "package/module/a",
+      "path": "package/module/ab/src/index.ts"
+    },
+    "expected": {
+      "kind": "bool",
+      "value": false
+    }
+  },
+  {
+    "name": "findDependentBumps patches runtime and bundled dependents of a hand bump and leaves others alone",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a2020202020202020202020202d202740732f62756e646c6564270a2020202020202020202020202d202740732f756e62756e646c6564270a2020202020202020202020202d202740732f746573742d6f6e6c79270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f62756e646c65642f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62756e646c6564222c0a20202276657273696f6e223a2022302e332e39222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f62756e646c65642f7372632f696e6465782e7473",
+          "mode": "regular",
+          "current": "696d706f7274207b2062617365207d2066726f6d202740732f626173652f7473273b0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f756e62756e646c65642f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f756e62756e646c6564222c0a20202276657273696f6e223a2022312e302e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746573742d6f6e6c792f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f746573742d6f6e6c79222c0a20202276657273696f6e223a2022312e302e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746573742d6f6e6c792f7372632f696e6465782e756e69742e746573742e7473",
+          "mode": "regular",
+          "current": "696d706f7274202740732f62617365273b0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": [
+          {
+            "name": "@s/bundled",
+            "directory": "7061636b6167652f6d6f64756c652f62756e646c6564",
+            "from": "0.3.9",
+            "to": "0.3.10",
+            "path": "7061636b6167652f6d6f64756c652f62756e646c65642f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f62756e646c6564222c0a20202276657273696f6e223a2022302e332e39222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f62756e646c6564222c0a20202276657273696f6e223a2022302e332e3130222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          },
+          {
+            "name": "@s/runtime",
+            "directory": "7061636b6167652f6d6f64756c652f72756e74696d65",
+            "from": "2.0.0",
+            "to": "2.0.1",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          }
+        ]
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": [
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/bundled reaches a package bumped in this commit (@s/base); bump it from 0.3.9 to 0.3.10 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f62756e646c65642f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f62756e646c65642f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f62756e646c6564222c0a20202276657273696f6e223a2022302e332e39222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f62756e646c6564222c0a20202276657273696f6e223a2022302e332e3130222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          },
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/runtime reaches a package bumped in this commit (@s/base); bump it from 2.0.0 to 2.0.1 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps stays silent for git add of a hand bump",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": false,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": [
+          {
+            "name": "@s/runtime",
+            "directory": "7061636b6167652f6d6f64756c652f72756e74696d65",
+            "from": "2.0.0",
+            "to": "2.0.1",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          }
+        ]
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps reports the same hand bump on commit",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": [
+          {
+            "name": "@s/runtime",
+            "directory": "7061636b6167652f6d6f64756c652f72756e74696d65",
+            "from": "2.0.0",
+            "to": "2.0.1",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          }
+        ]
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": [
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/runtime reaches a package bumped in this commit (@s/base); bump it from 2.0.0 to 2.0.1 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps proposes dependent bumps during direct fix",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "direct-fix",
+      "forwardsCommit": false,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": [
+          {
+            "name": "@s/runtime",
+            "directory": "7061636b6167652f6d6f64756c652f72756e74696d65",
+            "from": "2.0.0",
+            "to": "2.0.1",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          }
+        ]
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": [
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/runtime reaches a package bumped in this commit (@s/base); bump it from 2.0.0 to 2.0.1 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps returns nothing when no manifest version changed",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30222c0a2020226465736372697074696f6e223a202278220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [],
+        "bumps": []
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps returns nothing for a configuration alone",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a0a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": []
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [],
+        "bumps": []
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps settles once dependents are bumped",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base",
+          "@s/runtime"
+        ],
+        "bumps": []
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps reports a dependent whose prerelease version cannot be bumped automatically",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f72756e74696d65270a0a7765623a0a2020656e61626c653a2066616c73650a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e302d72632e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "unsupported",
+        "message": "@s/runtime has version \"2.0.0-rc.1\", which is not a plain major.minor.patch release; bump it by hand in the same commit."
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": [
+          {
+            "code": "dependent-version-unsupported",
+            "message": "@s/runtime has version \"2.0.0-rc.1\", which is not a plain major.minor.patch release; bump it by hand in the same commit.",
+            "path": null,
+            "patch": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "findDependentBumps ignores a bump when the pnpr config is absent",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f72756e74696d652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f72756e74696d65222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "pre-forward",
+      "forwardsCommit": true,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": []
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "bumpWorktreeDependents writes bumps for runtime and bundled dependents of a worktree bump",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "7061636b616765733a0a20202d202740732f617070270a20202d202740732f62617365270a20202d202740732f746f6f6c270a6e6578743a20310a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f6170702f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7372632f696e6465782e7473",
+          "mode": "regular",
+          "current": "6578706f7274207b2062617365207d2066726f6d202740732f626173652f7473273b0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e312e30220a7d0a",
+          "base": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a"
+        }
+      ],
+      "trigger": "direct-fix",
+      "forwardsCommit": false,
+      "candidates": [
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "change": "modified"
+        }
+      ]
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [
+          "@s/base"
+        ],
+        "bumps": [
+          {
+            "name": "@s/app",
+            "directory": "7061636b6167652f6d6f64756c652f617070",
+            "from": "2.0.0",
+            "to": "2.0.1",
+            "path": "7061636b6167652f6d6f64756c652f6170702f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          },
+          {
+            "name": "@s/tool",
+            "directory": "7061636b6167652f6d6f64756c652f746f6f6c",
+            "from": "0.1.0",
+            "to": "0.1.1",
+            "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7061636b6167652e6a736f6e",
+            "original": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+            "replacement": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e31222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+          }
+        ]
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": [
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/app reaches a package bumped in this commit (@s/base); bump it from 2.0.0 to 2.0.1 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f6170702f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f6170702f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e31222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          },
+          {
+            "code": "dependent-version-stale",
+            "message": "@s/tool reaches a package bumped in this commit (@s/base); bump it from 0.1.0 to 0.1.1 in the same commit.",
+            "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7061636b6167652e6a736f6e",
+            "patch": {
+              "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7061636b6167652e6a736f6e",
+              "original": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+              "replacement": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e31222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "bumpWorktreeDependents changes nothing when no manifest differs from the base",
+    "kind": "workspace",
+    "input": {
+      "workspace": null,
+      "files": [
+        {
+          "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
+          "mode": "regular",
+          "current": "7061636b616765733a0a20202d202740732f617070270a20202d202740732f62617365270a20202d202740732f746f6f6c270a6e6578743a20310a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f6170702f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f617070222c0a20202276657273696f6e223a2022322e302e30222c0a202022646570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f746f6f6c222c0a20202276657273696f6e223a2022302e312e30222c0a202022646576446570656e64656e63696573223a207b0a202020202240732f62617365223a2022776f726b73706163653a2a220a20207d0a7d0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f746f6f6c2f7372632f696e6465782e7473",
+          "mode": "regular",
+          "current": "6578706f7274207b2062617365207d2066726f6d202740732f626173652f7473273b0a",
+          "base": true
+        },
+        {
+          "path": "7061636b6167652f6d6f64756c652f626173652f7061636b6167652e6a736f6e",
+          "mode": "regular",
+          "current": "7b0a2020226e616d65223a202240732f62617365222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+          "base": true
+        }
+      ],
+      "trigger": "direct-fix",
+      "forwardsCommit": false,
+      "candidates": []
+    },
+    "expected": {
+      "plan": {
+        "kind": "planned",
+        "bumpedNames": [],
+        "bumps": []
+      },
+      "policy": {
+        "kind": "findings",
+        "findings": []
+      }
+    }
+  },
+  {
+    "name": "readPublishableNames reads \"a: 1\\n  packages:\\n    - '@s/a'\\n    - '@s/b'\\n  other: x\\n    - '@s/c'\\n\"",
+    "kind": "readPublishableNames",
+    "input": {
+      "configText": "a: 1\n  packages:\n    - '@s/a'\n    - '@s/b'\n  other: x\n    - '@s/c'\n"
+    },
+    "expected": {
+      "kind": "names",
+      "value": [
+        "@s/a",
+        "@s/b"
+      ]
+    }
+  },
+  {
+    "name": "readPublishableNames reads \"packages:\\n  - '@s/a'\"",
+    "kind": "readPublishableNames",
+    "input": {
+      "configText": "packages:\n  - '@s/a'"
+    },
+    "expected": {
+      "kind": "names",
+      "value": [
+        "@s/a"
+      ]
+    }
+  },
+  {
+    "name": "readPublishableNames reads \"no list here\\n\"",
+    "kind": "readPublishableNames",
+    "input": {
+      "configText": "no list here\n"
+    },
+    "expected": {
+      "kind": "names",
+      "value": []
+    }
+  },
+  {
+    "name": "readPublishableNames reads \"packages:\\n  - ''\\n\"",
+    "kind": "readPublishableNames",
+    "input": {
+      "configText": "packages:\n  - ''\n"
+    },
+    "expected": {
+      "kind": "names",
+      "value": []
+    }
+  }
+]

@@ -1,0 +1,126 @@
+//region Run setup exports
+// Process identity, the repeat census, the report log reader, the required providers, the run configuration and the seats.
+// Re-exported by `index.ts`, which is the package's one public entry.
+
+export {
+  type HostIdentity,
+  hostIdentity,
+  type HostRead,
+  startTicksOf,
+  startTicksOfStat,
+  type StartTicksRead,
+} from './corpus-run/process-identity.ts';
+export {
+  type ControlReading,
+  controlReadingOf,
+  coversAllLines,
+  failedControlsOf,
+  occupiedLinesOf,
+} from './corpus-run/repeat-census-control.ts';
+export {
+  censusEntryOf,
+  reportRepeatCensus,
+} from './corpus-run/repeat-census-report.ts';
+export {
+  linesOfLog,
+  readLogTexts,
+  refuseRepeatedLogs,
+} from './corpus-run/report-log-read.ts';
+export { CLAUDE_KEY_VARIABLE, } from './corpus-run/direct-key-variables.ts';
+export { configureProviders, } from './corpus-run/run-providers.ts';
+export {
+  isProviderOff,
+  type ProviderOff,
+  PROVIDERS_LEFT_OFF,
+} from './corpus-run/providers-off.ts';
+export {
+  isRequirable,
+  REQUIRABLE_PROVIDERS,
+  type RequiredProvider,
+} from './corpus-run/requirable-providers.ts';
+export {
+  assertRequiredProvidersReady,
+  readRequiredProviders,
+  RequiredProviderError,
+} from './corpus-run/required-providers.ts';
+export { type RunClient, } from './corpus-run/run-client-contract.ts';
+export {
+  createProbeRunClient,
+  PROBE_MAX_HOLD_MS,
+  probeRunClientFrom,
+} from './corpus-run/run-probe-client.ts';
+export { RunConfigError, } from './corpus-run/run-config-error.ts';
+export {
+  createRunClient,
+  runClientFrom,
+} from './corpus-run/run-client-create.ts';
+export {
+  OWNER_CULLED,
+  readHeadSha,
+  RECALL_JUDGE_MODEL_IDS,
+  resolveRunsDir,
+  RUN_BENCHES,
+  RUN_CHECKER_ORDER,
+  RUN_DECISION_JUDGES,
+  RUN_LATE_JUDGES,
+  RUN_MODELS,
+  RUN_READER_MODELS,
+  RUN_ROSTER,
+  RUN_SELECT_JUDGES,
+  RUN_TRANSLATORS,
+  RUN_WRITING_PROVIDERS,
+  RUN_WIDE_SEATS,
+  RUN_WRITERS,
+  type RunRepairModels,
+  TRANSLATOR_DROPPED,
+  WRITER_UNMEASURED,
+} from './corpus-run/run-config.ts';
+export {
+  RUN_CALL_CONFIG,
+  RUN_PER_CALL_TIMEOUT_MS,
+  runCallConfigOf,
+} from './corpus-run/run-call-config.ts';
+export { readRunCorpusPinSetting, } from './corpus-run/run-corpus-pin.ts';
+export { unconfiguredSyntheticQuota, } from './corpus-run/run-unconfigured-quota.ts';
+export {
+  belowFloorWritingBenches,
+  benchesOf,
+  PHASES_WITHOUT_WRITER_STOP,
+  unreachableWritingBenches,
+  WRITING_BENCH_FLOOR,
+  WRITING_BENCHES,
+  WritingBenchUnreachableError,
+} from './corpus-run/run-seats-floor.ts';
+export {
+  readJudgeSeats,
+  readPhaseSeats,
+  type SeatReadingClient,
+  type WarnedState,
+} from './corpus-run/run-seats-read.ts';
+export {
+  benchFloorOf,
+  liftOf,
+} from './corpus-run/run-seats-bench-floor.ts';
+export { ceilingWordsOf, } from './corpus-run/run-seats-ceiling.ts';
+export { meterDryOf, } from './corpus-run/run-seats-hold-need.ts';
+export { seatWithoutWaiting, } from './corpus-run/run-seats-no-wait.ts';
+export { writtenRefusal, } from './corpus-run/run-seats-refusal.ts';
+export { holdsWithinPass, } from './corpus-run/run-seats-pass-bound.ts';
+export { writingProvidersOf, } from './corpus-run/run-writing-providers.ts';
+export { unmetBenchFloors, } from './corpus-run/run-seats-give-up-floors.ts';
+export {
+  type BenchName,
+  BENCHES_ANY_PHASE_LEANS_ON,
+  type JudgeSeatPhase,
+  phaseBenches,
+  reachableSeats,
+  shortBenches,
+} from './corpus-run/run-seats-wait.ts';
+export {
+  HYPER_SLOW_JUDGES,
+  HYPER_SLOW_SELECT_JUDGES,
+  type JudgeSeats,
+  judgeSeatsFor,
+} from './corpus-run/run-seats.ts';
+
+//endregion Run setup exports

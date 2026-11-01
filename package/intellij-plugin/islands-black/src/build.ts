@@ -10,7 +10,7 @@ import {
   sep,
 } from 'node:path';
 
-import { ZipWriter, } from '@monochromatic-dev/module-zip-writer/ts';
+import { ZipWriter, } from '@monochromatic-dev/zip-writer-core/ts';
 
 /**
  Output plugin archive path relative to package root.

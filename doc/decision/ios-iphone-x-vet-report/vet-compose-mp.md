@@ -20,10 +20,12 @@ run,
 
 - iOS runtime model:
    AOT-native.
-   App code (Kotlin) is compiled ahead-of-time by the Kotlin/Native LLVM backend to a self-contained native ARM64 binary that runs with no virtual machine,
+   App code (Kotlin) is compiled ahead-of-time by the Kotlin/Native LLVM backend to a self-contained native ARM64
+   binary that runs with no virtual machine,
    no JIT,
    and no interpreter.
-   The in-repo iOS sample modules build a Kotlin/Native framework binary with framework { isStatic = true } for the iosArm64() and iosSimulatorArm64() targets;
+   The in-repo iOS sample modules build a Kotlin/Native framework binary with framework { isStatic = true } for the
+   iosArm64() and iosSimulatorArm64() targets;
    the Swift app loads that compiled framework (Main_iosKt.
   ComposeEntryPoint() returns a UIViewController).
    UI is drawn by Skiko/Skia into a CAMetalLayer;
@@ -36,21 +38,27 @@ run,
   kts (iosArm64() + framework isStatic=true);
    kotlinlang.
   org/docs/native-overview.
-  html ("compiling Kotlin code to native binaries that can run without a virtual machine ... such as embedded devices or iOS").
+  html ("compiling Kotlin code to native binaries that can run without a virtual machine ...
+  such as embedded devices or iOS").
 - Minimum iOS deployment:
-   Not pinned by the repo iOS samples (no explicit IPHONEOS_DEPLOYMENT_TARGET found in the audited example xcodeproj scan);
-   Compose Multiplatform's stable iOS support and Kotlin/Native iosArm64 in practice target modern iOS (roughly iOS 14+),
-   but treat the exact floor as unverified-from-source and confirm against the Compose MP release notes for the chosen version before the gate.
+   Not pinned by the repo iOS samples (no explicit IPHONEOS_DEPLOYMENT_TARGET found in the audited example xcodeproj
+   scan);
+   Compose Multiplatform's stable iOS support and Kotlin/Native iosArm64 in practice target modern iOS (roughly iOS
+   14+),
+   but treat the exact floor as unverified-from-source and confirm against the Compose MP release notes for the chosen
+   version before the gate.
 - Gate expectation:
    expected-pass
 - Confidence:
    high
 - Key finding:
-   Compose MP on iOS executes app code as Kotlin/Native LLVM AOT-compiled native ARM64 with no VM/JIT/interpreter (clearing wall 2 by construction,
+   Compose MP on iOS executes app code as Kotlin/Native LLVM AOT-compiled native ARM64 with no VM/JIT/interpreter
+   (clearing wall 2 by construction,
    the opposite of NativeScript's execmem failure),
    and its cinterop staticLibraries/linkerOpts mechanism links a C/Go/Rust .
   a archive into the app binary,
-   so both kopia (Go c-archive) and the existing symphonia+cpal Rust audio core link and are callable via FFI with no rewrite (cpal's CoreAudio iOS backend means AVAudioEngine is optional,
+   so both kopia (Go c-archive) and the existing symphonia+cpal Rust audio core link
+   and are callable via FFI with no rewrite (cpal's CoreAudio iOS backend means AVAudioEngine is optional,
    not required).
    The only soft spot is whether Ktor's CIO in-app HTTP server runs on iosArm64;
    if not,
@@ -180,10 +188,13 @@ Mechanism:
  Not provided by Compose MP.
  The candidate is Ktor's CIO server (embeddedServer(CIO)),
  a pure-Kotlin coroutine HTTP server bound to localhost that kopia would target as its S3/HTTP endpoint.
- Ktor's native-server docs list CIO as the only native engine and enumerate macOS/Linux/Windows native targets explicitly,
+ Ktor's native-server docs list CIO as the only native engine
+ and enumerate macOS/Linux/Windows native targets explicitly,
  NOT iosArm64;
  HTTPS without a reverse proxy is unsupported on native.
- A plain-HTTP localhost listener for kopia's S3 target is plausible but iOS-device support of the CIO server engine is unproven from the docs and is the single thing most needing on-device confirmation.
+ A plain-HTTP localhost listener for kopia's S3 target is plausible
+ but iOS-device support of the CIO server engine is unproven from the docs
+ and is the single thing most needing on-device confirmation.
  Alternative:
  implement the localhost endpoint as part of the linked kopia/Rust static lib (a C/Go/Rust HTTP listener),
  sidestepping Ktor server entirely.
@@ -284,7 +295,8 @@ def using staticLibraries/libraryPaths,
  not simulator):
  the app launches,
  the Compose UI renders and is interactive (Skiko/Metal),
- tapping the button calls the Rust function and shows its result (proves wall 1 static-lib FFI + AOT execution with no JIT entitlement),
+ tapping the button calls the Rust function and shows its result (proves wall 1 static-lib FFI + AOT execution with no
+ JIT entitlement),
  and the HTTPS GET returns 200 (proves the Darwin/NSURLSession client).
  Decisive refutation would be:
  link failure of the Rust .
@@ -300,15 +312,18 @@ Toolchain:
  codesigning,
  and on-device deploy;
  JDK 17+;
- Kotlin + Gradle with the Kotlin Multiplatform and Compose Multiplatform plugins (Kotlin/Native downloads its own LLVM + iOS toolchain on first build);
- a Rust toolchain with the aarch64-apple-ios target (rustup target add aarch64-apple-ios) and cbindgen for the music-player core;
+ Kotlin + Gradle with the Kotlin Multiplatform and Compose Multiplatform plugins (Kotlin/Native downloads its own LLVM
+ + iOS toolchain on first build);
+ a Rust toolchain with the aarch64-apple-ios target (rustup target add aarch64-apple-ios)
+ and cbindgen for the music-player core;
  a Go toolchain with gomobile / go build -buildmode=c-archive (aarch64-apple-ios) for kopia;
  an Apple developer signing identity + provisioning profile for the iPhone X device gate.
 
 ## Supporting-stack vets this framework drags in
 
 - Ktor CIO server on iosArm64:
-   does embeddedServer(CIO) actually bind/serve on a real iOS device (the one unproven piece for app A's in-app S3/HTTP endpoint) or must the listener live inside the linked Go/Rust static lib
+   does embeddedServer(CIO) actually bind/serve on a real iOS device (the one unproven piece for app A's in-app S3/HTTP
+   endpoint) or must the listener live inside the linked Go/Rust static lib
 - kopia as a Go c-archive:
    gomobile/buildmode=c-archive .
   a for aarch64-apple-ios,
@@ -414,7 +429,8 @@ Toolchain:
    The audit correctly used the plural form,
    so the audit is accurate;
    the typo is upstream in JetBrains' docs.
-   (2) The iosRuntimeModel's "Skiko/Skia into a CAMetalLayer" detail is not evidenced in the two cited in-repo/doc sources,
+   (2) The iosRuntimeModel's "Skiko/Skia into a CAMetalLayer" detail is not evidenced in the two cited in-repo/doc
+   sources,
    but it is descriptive,
    peripheral,
    and accurate for Compose Multiplatform iOS;

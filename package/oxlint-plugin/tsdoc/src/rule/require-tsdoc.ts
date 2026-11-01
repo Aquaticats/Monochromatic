@@ -153,9 +153,9 @@ export const requireTsdoc: CreateOnceRule = {
       },
       Property(node: ForeignBorrowed<
         | ESTree.AssignmentTargetProperty
-        | ESTree.BindingProperty
-        | ESTree.ObjectProperty
-      >,): void {
+          | ESTree.BindingProperty
+          | ESTree.ObjectProperty
+        >,): void {
         if ((node.kind
           === 'get') || (node.kind
             === 'set')) {

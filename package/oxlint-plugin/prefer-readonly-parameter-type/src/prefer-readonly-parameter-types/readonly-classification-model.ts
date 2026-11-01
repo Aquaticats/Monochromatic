@@ -4,16 +4,16 @@
  @module
  */
 
-import { isIdentifierText, } from 'typescript/unstable/ast/scanner';
+import { isIdentifierText, } from 'typescript/ast/scanner';
 
 /**
  Source ownership of one writable declaration.
  */
 export type WritableDeclarationOwner =
   | 'default-library'
-  | 'external-library'
-  | 'unresolved'
-  | 'workspace';
+    | 'external-library'
+    | 'unresolved'
+    | 'workspace';
 
 /**
  One access step from parameter type to writable state.
@@ -23,10 +23,10 @@ export type WritablePathSegment =
     readonly kind: 'index';
     readonly keyType: string;
   }
-  | {
-    readonly kind: 'property';
-    readonly name: string;
-  };
+    | {
+      readonly kind: 'property';
+      readonly name: string;
+    };
 
 /**
  Kind of writable state reached at one complete path.
@@ -59,18 +59,18 @@ export type WritablePath = {
  */
 export type ReadonlyClassification =
   | { readonly kind: 'deep-readonly'; }
-  | {
-    readonly kind: 'mutable';
-    readonly writablePaths: readonly WritablePath[];
-  }
-  | {
-    readonly kind: 'opaque-capability';
-    readonly reason: string;
-  }
-  | {
-    readonly kind: 'projected-readonly-capability';
-    readonly reason: string;
-  };
+    | {
+      readonly kind: 'mutable';
+      readonly writablePaths: readonly WritablePath[];
+    }
+    | {
+      readonly kind: 'opaque-capability';
+      readonly reason: string;
+    }
+    | {
+      readonly kind: 'projected-readonly-capability';
+      readonly reason: string;
+    };
 
 /**
  Deep-readonly singleton result.

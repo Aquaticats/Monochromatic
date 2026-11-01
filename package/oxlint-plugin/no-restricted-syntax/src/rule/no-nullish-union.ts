@@ -37,7 +37,7 @@ const NO_NULLISH_UNION_MESSAGE: string = [
   '(2) value may be absent but presence is establishable here -> `if`-guard / early return so the',
   'typed slot receives only `T`.',
   '(3) absence should fail loud at this boundary -> throw via `nonNullishOrThrow` from',
-  '`@monochromatic-dev/module-or-throw`.',
+  '`@monochromatic-dev/or-throw-core`.',
   '(4) absence must travel onward as a real value -> mint a domain-specific `unique symbol` sentinel',
   'for this exact absence condition, e.g.',
   "`const KEY_NOT_FOUND: unique symbol = Symbol('requested key not found in store')`,",
@@ -91,7 +91,7 @@ function isNullishMember(member: ForeignBorrowed<ESTree.TSType>,): boolean {
  - Value whose presence is establishable here: guard with `if` and return
    early so the typed slot receives only `T`.
  - Absence that should fail loud at this boundary: throw via
-   {@link nonNullishOrThrow} from `@monochromatic-dev/module-or-throw`.
+   {@link nonNullishOrThrow} from `@monochromatic-dev/or-throw-core`.
  - Absence that must travel onward as a real value: mint a domain-specific
    `unique symbol` sentinel for this exact absence condition, or carry a
    distinct non-empty domain value when the domain has one. Consumers narrow

@@ -78,7 +78,7 @@ export const NO_TSDOC: unique symbol = Symbol('node has no TSDoc comment',);
 export function isTsdocBlock(comment: ReadonlyDeep<Comment>,): boolean {
   return (comment.type === 'Block')
     && comment.value
-    .startsWith('*',);
+      .startsWith('*',);
 }
 
 /**
@@ -205,9 +205,9 @@ export function findTsdocComment({
       .end
       .line
       > best
-      .loc
-      .end
-      .line))
+        .loc
+        .end
+        .line))
       best = candidate;
   }
 

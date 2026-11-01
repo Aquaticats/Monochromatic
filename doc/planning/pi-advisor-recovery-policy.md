@@ -214,7 +214,8 @@ A ranks over B because same-model recovery helps explicit and default calls,
 B ranks over C because observed provider variability caused manual switching even when requests fit documented windows.
 C ranks over D because correct context negotiation can prevent failures,
  while D primarily exposes them.
-D ranks over F because attempt evidence and progress improve every review without the duplicate provider spend of hedging.
+D ranks over F because attempt evidence
+and progress improve every review without the duplicate provider spend of hedging.
 
 ## Recommended implementation order
 

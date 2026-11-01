@@ -378,7 +378,8 @@ Record and compare these exact values:
 - LibreChat health configuration and both endpoint probes from steps 23 through 25.
   These test the installed artifact rather than inferring from current upstream source.
 
-A false-exit attribution requires a live or logged Coolify `Exited` transition while destination Docker still reports the same container as running.
+A false-exit attribution requires a live or logged Coolify `Exited` transition
+while destination Docker still reports the same container as running.
 Static version inspection proves susceptibility only.
 
 Report only that the positive controls in steps 10 and 11 were nonempty.

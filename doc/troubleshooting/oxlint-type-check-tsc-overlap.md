@@ -56,7 +56,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', [])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', [])
 """
 ```
 
@@ -191,7 +191,7 @@ description = "TypeScript"
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
-runWorkspaceNode('package/dev-script/task-util', 'tsc-filter', ['--build'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'tsc-filter', ['--build'])
 """
 ```
 
@@ -377,10 +377,10 @@ printf '%s\n' 'export const ignored: string = 1;' > src/schema.generated.ts
 The real package boundary was also exercised with both commands:
 
 ```bash
-mise run //package/module/caught-value:lint:oxlint
+mise run //package/caught-value/core:lint:oxlint
 # Found 0 warnings and 0 errors.
 
-mise run //package/module/caught-value:lint:types
+mise run //package/caught-value/core:lint:types
 # exit 0
 ```
 

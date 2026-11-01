@@ -88,9 +88,9 @@ export function staticDescription(
     return firstArgument.value;
   if (
     (firstArgument.type === 'TemplateLiteral')
-    && (firstArgument.expressions
-      .length
-      === 0)
+      && (firstArgument.expressions
+        .length
+        === 0)
       && (firstArgument.quasis
         .length
         === 1)

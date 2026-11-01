@@ -3,7 +3,7 @@
   "name": "@monochromatic-dev/agent-harness-shared-shell-command-analyzer",
   "description": "Shared unbash-backed shell command analyzer for agent harness guardrails.",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "module": "dist/final/node/index.mjs",
   "exports": {
@@ -16,13 +16,13 @@
   },
   "dependencies": {
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "unbash": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },

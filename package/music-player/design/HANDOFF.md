@@ -12,7 +12,610 @@ This correction supersedes the generic opening and activation instructions in th
 and the former window-opening clause in `review-notes.md` standing standard 9.
 Historical window IDs and observations remain for traceability, not as instructions to reopen or activate them.
 
-## Current frontier (2026-09-29)
+## Handoff: the design is in production (2026-10-10)
+
+Purpose:
+tell the next session that design rounds are closed and the accepted design is being implemented,
+and where the live state is kept.
+This section is newer than every section below it.
+
+The human closed the design rounds (D102 keyboard map accepted, D103 Search closed, D104 cover picker, D105 trash)
+and then said to go to production on Android first and desktop second,
+with finished products on both by the end of the session.
+The live record is `doc/planning/music-player-production-implementation.md`:
+its Log lists what landed, what was verified how, and the known gaps.
+Work happens in the worktree branch `feat/music-player-production`
+and each verified package is fast-forwarded into `main`.
+
+What is verified and what is not, as of 2026-10-11 (everything is on `main`):
+
+Android, on the owned Fold emulator with the real `MainActivity`, the native library and a generated 13-track library
+(a scripted run, 31 of 32 steps passing, the one remaining step explained below):
+the library loads, rows show real length and true peak (`0:20 −21.1 dBTP`), tapping a row plays it and the deck follows,
+Ctrl+F opens Search and typing finds results, the long-press menu opens under its row,
+Move to trash through Android's own
+system dialog removes the row and Undo restores it (both panels), Settings opens,
+and the declined first-run state shows on the
+inner screen.
+On the folded cover the declined launch shows Android's own permission prompt first, which is the designed auto-request.
+Unit tests (about 600) and detekt pass.
+Not exercised: the trash flow for a folder opened through the picker (the copy-back route), Show in file manager,
+the clipboard,
+TalkBack, a physical device, and the release build.
+The debug APK built by Gradle alone has no native library: run the package's `build:native` task first.
+
+Desktop, running the real binary (577 tests, clippy clean on the host):
+the real window was driven through the Slint MCP server headless and nested in the `cage` compositor,
+with the same test library,
+in the cover and two-pane layouts, light and dark:
+rows with length and peak, the deck, the folder picker, Search with emphasis, Settings, the template editor,
+the track menu,
+the scan indicator with real sweep progress, and the empty-folder state.
+Not exercised: Re-analyse end to end in the window, the new first-run copy states in the window,
+key repeat (Slint 1.17 has no
+repeat flag), a session on the user's live desktop, and the macOS and Windows branches, which were never compiled.
+The container clippy and test tasks fail on the existing `truepeak-core` path dependency,
+which the container does not mount.
+
+## Handoff: Settings withdrawn, template editor round open (2026-10-05)
+
+Purpose:
+tell the next session what changed after the two-row Settings publication,
+what the human decided,
+and what is unfinished.
+This section is newer than `Handoff: two-row Settings publication complete (2026-10-05)`.
+
+### What the human decided
+
+- D86:
+  prefix stripping and resume are always on and are not settings.
+  The published two-row Settings study is withdrawn and kept as a record.
+- D87:
+  the Settings page stays and is empty.
+  No study of the empty page is built.
+- D88:
+  nothing is locked by hash.
+  Page,
+  template,
+  builder,
+  test,
+  manifest and report digests are gone from the published review records.
+- D89:
+  the template language and editor follow KWGT with stated omissions.
+  `doc/planning/music-player-template-editor.md` holds the observations,
+  the kept and omitted features,
+  and the entries still open.
+
+### Asked of the human and answered
+
+- D88 also removes the builders' two remaining digest checks:
+  each embedded screenshot against its manifest digest,
+  and the manifest's APK digest against a value written in the builder.
+  The human answered:
+  remove both.
+- The entries D89 left open are the agent's to pick,
+  leaning to no for features obscure in a music player.
+  D90 records the picks.
+
+### Done after those answers
+
+The first-run study is rebuilt and republished.
+`questions/first-run-access.html` shows 32 first views of prototype
+`61e2cf7764f627d40a77bdf6039143e229ad36ea`,
+says that analysis is automatic and not optional,
+and no longer offers a choice to analyse.
+With the shorter text nothing scrolls,
+so the first publication's two scrolled images are gone.
+The captures span two emulator boots.
+Build,
+validation,
+the consumer test,
+three guard-removal proofs and a four-context offline browser check passed.
+`evidence/first-run-access-boundaries.md` holds the scope and limits.
+
+No builder compares a digest any more.
+The scan-indicator builder now has 82 rules and 102 rejected inputs,
+the Settings builder 94 and 130;
+both tests pass and no built page changed.
+Counts given in older sections of this file are those of the publications.
+Pages still print a digest computed from each embedded image and the
+commit and APK digest that produced the captures.
+Those are statements,
+and nothing is checked against them.
+
+The withdrawn Settings viewer was rechecked after its withdrawal notice:
+build,
+validation,
+consumer test,
+one guard-removal proof and a four-context browser check passed,
+and its review record carries the recheck.
+`README.md`,
+`evidence/settings-pane-boundaries.md` and the Settings plan mark the
+study withdrawn.
+The Settings item is closed.
+
+`template-reference.mjs` states what a template yields under D89 and D90,
+with 96 passing cases (`test:template-reference`).
+It is design evidence for the editor study,
+not the player's parser.
+
+### Rebuilt for the decisions of 2026-10-06
+
+The human answered through the question tool:
+the preview scrolls with the page (D91),
+the language has no conditional (D92),
+an empty field is plain substitution with the unit inside the peak field (D93),
+and the page rests where Android puts a focused field (D94).
+`decisions.md` records each with the human's words.
+
+The study is rebuilt and republished:
+
+- Prototype branch at `4df8e785cc7f5dff97c4d463c8c9358f5787bbff`,
+  22 passing fixture unit tests,
+  APK kept in `settings-pane-native-private/build-4df8e785cc7f5dff97c4d463c8c9358f5787bbff`.
+- 64 views in `settings-pane-native-private/template-editor-cohort-4df8e785c`,
+  published under `questions/evidence/`;
+  the 64 views of the rejected pinned layouts were removed.
+- `questions/template-editor.html` shows the decided editor and asks nothing.
+  `verify:template-editor`,
+  `test:template-editor` (with all four guard-removal proofs) and `test:template-reference` pass,
+  and the offline browser check passed in four contexts.
+  `questions/evidence/template-editor-review-verification.json` records it,
+  with no digest.
+- `evidence/template-editor-boundaries.md` describes the study and what it keeps in view.
+
+Shown that page on 2026-10-06,
+the human answered that a library is always open (D95),
+that scrolling suffices to reach the field list (D96),
+and that the agent builds one version of which other rows get templates
+and asks for approval (D97).
+
+Built and published:
+the D97 version,
+proposed in `doc/planning/music-player-template-editor.md` under
+`Which rows get templates: the agent's version`.
+The prototype is at `66566ee3aa0bbd08b2fb087342f43b546cc88210`
+(250 unit tests pass,
+24 of them the fixture's;
+APK kept in `settings-pane-native-private/build-66566ee3aa0bbd08b2fb087342f43b546cc88210`).
+`questions/template-editor.html` shows 72 inspected views;
+`verify:template-editor`,
+`test:template-editor` (with all four guard-removal proofs) and `test:template-reference` pass,
+and the offline browser check passed in four contexts.
+`questions/evidence/template-editor-review-verification.json` records it,
+quoting the tasks' own result lines.
+The capture needed many visits while other work loaded the host;
+`run-template-editor-when-quiet.ts` waits,
+within a bound,
+for the five-minute load average to fall under 48 before each round of visits.
+
+Answered through the question tool on 2026-10-06:
+the editor is accepted as shown (D98),
+the two templates are approved as built (D99),
+the first-run study keeps access declined and drops no source opened (D100),
+and `AGENTS.md`'s APQ now says never to block pushes in this repository's linked worktrees,
+which share its `.git/config`.
+The review page shows the two templates as decided.
+
+Built and published:
+the first-run study rebuilt for D100,
+proposed in `doc/planning/music-player-first-run-access.md` under `Rebuild for D100`.
+The prototype is at `7a2ea6888cce59c9db23d556a520f4c60f8824c6`
+(250 unit tests pass,
+12 of them the first-run fixture's).
+`questions/first-run-access.html` shows 28 inspected views from 4 visits;
+`verify:first-run:access` and `test:first-run:access` pass,
+all five guard removals fail the test,
+and the offline browser check passed in four contexts.
+`evidence/first-run-access-boundaries.md` describes it.
+While it was captured,
+`systemd-oomd` repeatedly killed the shared command cgroup that other sessions' builds had filled,
+so long runs now go in their own user unit:
+`systemd-run --user --unit=<name> --collect --wait --property=MemoryMax=2G <command>`,
+with `wait-for-unit.ts <unit> <pattern>` to wait for it.
+
+The human approved the declined state as built (D101) and added the rule on long runs to the `CLAUDE.md` preamble in
+`.config/file-enforcer/claude-preamble.md`.
+The first-run page shows the declined state as approved.
+The human then accepted the whole keyboard map as built (D102) and closed the Search catch-all as a design item (D103).
+The D46 cover-picker revisit is built: `questions/cover-picker-revisit.html` shows P4 beside the agent's P5
+(`doc/planning/music-player-cover-picker-revisit.md`).
+The human approved P5 without its container (D104), declined another round,
+and deferred further improvement to another major version.
+Nothing in the design queue waits on the human now.
+
+Next:
+the remaining open questions in `open-questions.md`,
+namely the folded-cover picker revisit before 1.x (D46) and Search behavior left after D51 and D52;
+nothing from this round waits on the human.
+
+To capture again,
+from `~/temp/agent`:
+`run-template-editor-until-complete.ts <prefix> <letter>` repeats bounded visits until the current build's cohort is
+complete,
+then `prepare-template-editor-crops.ts`,
+`make-template-editor-inspection.ts`,
+a look at every sheet,
+`template-editor-inspection/inspected.json` in the active study folder,
+and `publish-template-editor.ts apply`.
+Writing `~/temp/agent/stop-repeat-visits` ends the loop at its next visit boundary;
+remove the file before starting another.
+Do not run the browser check while the emulator captures.
+
+Production has a duration only for the current track
+(`PlaybackSnapshot.durationMs`) and draws no supporting line,
+so the study previews a line the app cannot fill for every row yet.
+
+Also answered on 2026-10-06 through the question tool:
+
+- D88 covers the private capture scripts too,
+  so they no longer compare the APK's digest:
+  builds are told apart by commit name,
+  and the study's package is replaced by its application id.
+  The cohort of `4df8e785c` was the first captured that way.
+- The rule to search `doc/troubleshooting/` before working around a tool failure is in `AGENTS.md`,
+  and so is the rule to put what the human must see or answer in the question tool.
+  A repository-wide rule against locking by hash was declined,
+  because locking by hash is rarely but legitimately wanted.
+- The human said the transcript does not reliably show them things;
+  `review-notes.md`,
+  standing standard 17,
+  records it for this package.
+
+### For the next emulator visit
+
+- The emulator crashed twice on 2026-10-05 with a segmentation fault,
+  both times under heavy host load.
+  First-run captures now collect in one cohort folder,
+  `settings-pane-native-private/first-run-cohort`,
+  and a later boot continues from the first missing state.
+  Give the editor capture the same shape.
+- After a crash,
+  follow
+  `doc/troubleshooting/android-emulator-37-disposable-avd-lock-after-hard-stop.md`:
+  check for owners,
+  then move the lock files to a backup.
+  Write `crashed-before-restoration.json` in that visit's runtime folder
+  so the next preparation accepts the missing restoration.
+- Run each visit with `FOLD_RESTORE_BASELINE` naming
+  `runtime-first/initial-settings.json`,
+  so a boot that starts from a crash's leftover text size still ends at 100%.
+  The restore step asks the guest to write pending data before the console kill;
+  one later boot confirmed the restored value.
+- `podman` answered `database is locked` while other work held its database.
+  `restore-stop-fresh-fold.ts` falls back to the process list,
+  and `fold-direct.ts` reaches a running guest the same way.
+  See `doc/troubleshooting/podman-database-locked-under-concurrent-use.md`.
+- A system `isn't responding` dialog can cover a study under load;
+  the first-run capture detects it,
+  answers `Wait` and repeats the state within a bound.
+  See `doc/troubleshooting/android-emulator-not-responding-dialog-under-host-load.md`.
+- `run-settings-pane-visit.ts resume <stage>` runs a stage on a guest
+  already bootstrapped in the same boot.
+- Publish review records the way `publish-first-run-rebuild-review.ts` does,
+  with no digest.
+  The older scratch publishers and verifiers that wrote or compared digests
+  now stop at once and say so.
+
+## Handoff: two-row Settings publication complete (2026-10-05)
+
+Purpose:
+tell the next session what the Settings study left behind after the human
+withdrew part of D11,
+and what remains of the light-surface queue.
+The plan is `doc/planning/music-player-light-settings.md`;
+the scope and limits are in `evidence/settings-pane-boundaries.md`.
+
+### What the human decided
+
+D84:
+true-peak analysis is automatic and not optional,
+so Settings provides no analysis switch.
+This removes D11's third row and supersedes D27's ask-before-analysing
+prompt and its four answers.
+D27's automatic opening of an available system music library stands,
+D12's Re-analyse on the track menu stands,
+and D26's scan bar stands.
+Reading the scan bar's Pause/Resume as a temporary pause that does not make
+analysis optional is the recording session's interpretation,
+not the human's statement.
+When analysis runs is not decided.
+
+D85:
+the Settings pane has no closing sentence.
+
+Settings keeps `Strip common prefixes from filenames` and
+`Resume where I left off`;
+the human confirmed that only the analysis switch goes.
+Later the same day D86 withdrew both rows as settings and D87 left the
+Settings page empty,
+so this paragraph and the study described under `What is done` are history.
+
+### What is done
+
+`questions/settings-pane.html` presents 24 freshly inspected native views of
+those two rows:
+both Fold panels,
+light and dark,
+100% and 200% text,
+the closed player and both switch scenes.
+The artifact is prototype `67eae28d1f31689bcc9f132e4db97ec87426e572`,
+APK SHA-256
+`5f3a23911f2a5c32859a78e533704298bfb5afa042cf968f4fc82691ef35e9ab`.
+The earlier three-row publication was withdrawn and its evidence files
+replaced in one commit;
+they remain in git history.
+
+Nothing scrolls on either panel at either text size.
+Row toggles,
+the Back target,
+one authored reopen and system Back passed in all eight environments,
+each returning to an unchanged player,
+and were replayed offline from 72 retained captures.
+The guest's recorded fields were restored,
+the owner exited `0` and no matching runtime remains.
+The viewer's 99 rules,
+135 rejected consumer inputs,
+per-rule deletion proofs,
+publication preflights and four-context offline Chromium checks passed;
+`questions/evidence/settings-pane-review-verification.json` records them.
+A pixel rule confirms that nothing is drawn between the last row and the
+navigation area.
+
+### What went wrong on the way
+
+The emulator was unreliable under host load.
+The fourth,
+fifth and sixth visits each failed:
+a killed hierarchy dump during a startup dialog,
+a late configuration change that recreated the host,
+and an emulator segmentation fault in the GL translator.
+The sixth crashed before restoration and left lock files in the owned AVD
+copy,
+and the next boot was refused as a second instance.
+With no emulator or container running,
+those locks were deleted and a recovery boot restored that visit's own
+baseline.
+That deletion skipped the backup and the wider owner checks that
+`doc/troubleshooting/android-emulator-37-disposable-avd-lock-after-hard-stop.md`
+prescribes;
+follow that document next time.
+The crash itself is in
+`doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`.
+`restore-stop-fresh-fold.ts` now allows 120 s for `podman inspect`,
+and every Settings launch is watched and relaunched within a bound if the
+host is created again.
+The seventh visit supplied every published capture and input check.
+
+### What the human may want to look at
+
+The Fold placement was adopted from D50,
+D51 and existing Settings behaviour,
+not separately chosen;
+the viewer's optional observations box is the way to object.
+With two rows most of the page below them is empty,
+most visibly on the cover at 100% text.
+At 200% text on the inner panel `Resume where I left off` leaves `off` alone
+on its second line,
+and the 24dp Back arrow reads small beside the title.
+None of these was turned into a ballot.
+
+One published image,
+the inner closed player in light at 100% text,
+shows no gesture handle in the system's navigation strip.
+It was the first capture of the visit and the cause was not established;
+the viewer and the boundary document say so.
+
+### What remains
+
+The published first-run study still says
+`After opening a library, choose whether to analyse it.`,
+which D84 contradicts.
+`questions/first-run-access.html` was not edited at the time,
+on the ground that its review verification bound it by hash;
+D88 has since ruled that out.
+`evidence/first-run-access-boundaries.md`,
+`open-questions.md` and `candidates.md` carry dated notes.
+Correcting that study needs fresh captures and a rebuild.
+
+The next design item is D81's template editor (`open-questions.md` 11e):
+its fields,
+grammar,
+editor controls,
+preview and validation are undesigned and need the human's direction before
+anything is built.
+No production implementation is authorized.
+
+## Handoff: scan-F publication complete, Settings pane next
+
+This record is the continuation state for the next agent session.
+Claude Opus picked up the queue on 2026-10-05 and completed the scan-F
+publication.
+Continue substantive authorized work;
+do not stop at a status-only report or invent another preference ballot.
+
+The filename evidence and its configurable-support correction are complete.
+The human directed continued work rather than another status-only stop.
+The D10 no-system-library/declined-source study preserved D27 and
+all accepted Search/template decisions.
+`doc/planning/music-player-first-run-access.md` records its completed
+executable-source audit,
+debug-only native state/fit evidence and verified publication.
+The first-run source audit and authored native study are complete.
+`evidence/first-run-access-boundaries.md` and
+`questions/first-run-access.html` retain 32 initial and two proven movement
+witnesses with optional observations,
+not a policy ballot.
+The other six post-swipe attempts remain private no-movement controls.
+Fresh fixture tests,
+guard-removal proofs,
+exact artifact validation and four-context offline consumer checks passed.
+Only the recorded native snapshot fields were restored;
+separate device base/override equality is not claimed.
+The owned emulator is stopped and absent.
+No production,
+real-library,
+original-AVD or new IME work is authorized.
+The consequence gate removes needless ballots,
+not the substantive design queue.
+The human then settled Android media notifications in D82:
+accept Android's standard presentation with no special design or variants.
+That item is removed from the design queue;
+functional media-session wiring is separate.
+The single whole-map keyboard proposal is now built and browser-verified.
+`questions/keyboard-map.prototype.html` demonstrates editing,
+control and popup ownership without files or audio;
+`evidence/keyboard-map-boundaries.md` preserves the new-binding proposal
+and OS-delivery limits.
+The human accepted the map as built (D102); it is not a production implementation.
+No per-key questionnaire is queued.
+`doc/planning/music-player-light-error-undo.md` records the completed
+source/fit/publication queue under D83's current overlay treatment.
+D83 replaces the layout-reserving error bar with auto/manual-dismiss
+feedback that never resizes player regions.
+Messages target two lines and direct longer detail to Android logs.
+Earlier bar captures and resize/drop witnesses are superseded,
+not the current verification target.
+No real file is trashed or restored by that design work.
+`questions/feedback-overlay.html` now presents 48 inspected held native
+poses with exact APK/source/image/renderer provenance.
+`questions/evidence/feedback-overlay-native-verification.json` separates
+actual native expiry,
+manual error dismissal,
+Undo intent and Undo Close from the held images.
+The viewer's scoped guards and four-context offline Chromium checks pass;
+this is not Firefox ESR140 or native accessibility acceptance.
+The final guest's recorded fields were restored and the owner exited `0`;
+matching native/browser containers and QEMU are absent.
+No new preference ballot is waiting.
+`doc/planning/music-player-light-context-menu.md` records the completed D7
+menu study with its accepted action list and single-line ellipsized heading.
+`questions/track-menu.html` presents 24 freshly inspected current-artifact
+poses across both panels,
+themes and text scales.
+All seven debug intents passed in every environment,
+along with tap/long-press separation,
+Back/outside dismissal,
+unchanged player geometry/app pixels and distinct duplicate-name targets.
+The guest's recorded fields were restored,
+its owner exited `0` and the matching native runtime is absent.
+Viewer guard proofs and four-context offline Chromium checks passed;
+Firefox and native accessibility remain outside that evidence.
+Full Android lint retains five inherited errors,
+65 warnings and two hints;
+the new row's modifier warnings are gone.
+`evidence/track-menu-boundaries.md` keeps these scopes explicit.
+
+`doc/planning/music-player-light-scan-indicator.md` records the completed
+D26 scan-F study.
+`questions/scan-indicator.html` presents 32 freshly inspected native views
+across both panels,
+themes and text scales.
+Native Pause/Resume,
+authored progress and completion passed in all eight environments and were
+recomputed offline from the retained captures.
+Viewer guard proofs and four-context offline Chromium checks passed;
+Firefox and native accessibility remain outside that evidence.
+`evidence/scan-indicator-boundaries.md` keeps these scopes explicit.
+
+The remaining light surface is the Settings pane.
+D81's Settings-template requirement remains settled while its editor details
+are a separate design problem.
+
+## Scan-F completion record and next action
+
+Artifact:
+prototype `25a95411750c5c5356631fc508513c42a81ad1c4`,
+APK SHA-256
+`c06ec80240e41641fee1fdec79313a8294b9595544740145f4fa6f2b1f77ddf1`
+in the owned private study directory.
+
+Completed by the capturing session:
+21 pure fixture tests with four fresh guard-removal mutants;
+same-APK proof that the rejected 12dp button padding clips Resume at
+inner/light/200% while scan-F's source padding fits the same intrinsic text
+in the unchanged 100dp slot;
+the full 32-pose cohort across both panels,
+themes and text scales;
+and the native action matrix in all eight environments.
+Native Pause/Resume fired exactly once each,
+authored progress stayed stable while paused,
+the active bar reserved 137px of player height,
+completion removed the whole bar and returned the player to the idle
+baseline in geometry and app pixels.
+Changed-pixel and changed-geometry controls were rejected.
+The guest's recorded fields were restored,
+the owner exited `0` and matching native runtimes are absent.
+
+Completed by the continuation session:
+fresh inspection of all 16 full-region pairs and four native bar strips,
+bound to crop hashes re-derived from the raw captures;
+offline replay of the action matrix from its 64 retained captures;
+publication of the witnesses,
+native verification and viewer with rejection controls;
+an independent read-only review of the viewer's builder and test,
+whose findings are closed;
+consumer tests with one or more rejected inputs for each of 86 rules and a
+deletion proof for every rule;
+four-context offline browser verification with sixteen inspected
+screenshots;
+and the review-verification digest.
+`verify-first-run-final-documents.ts` now checks the scan artifact.
+
+What inspection found,
+for the human to look at in `questions/scan-indicator.html`:
+on cover at 200% the status label shows only `412…`,
+or `9,9…` for the wide count,
+so the hidden counts are not visible;
+at 200% the Resume label stays just 1 to 2 physical pixels clear of the
+control outline on its leading side and reads as touching it.
+Both are observations of D26's fixed 100dp control and single-line status.
+The human has not been asked to decide anything about them.
+
+What to inspect first for the next item:
+`doc/planning/music-player-light-settings.md`,
+which holds the completed source audit,
+the constraints from D49 to D51 and E2,
+the interactions the audit cannot settle and the remaining queue;
+D11 in `decisions.md`,
+which selects candidate settings-a;
+and `doc/planning/music-player-light-scan-indicator.md` as the pattern for
+an isolated native host,
+fit study and publication.
+
+What remains:
+carry D11's accepted Settings pane into the current Fold player and its
+light/dark schemes.
+The source audit is done.
+Production Settings is a page-control chooser,
+not D11's three rows
+(note 2026-10-13: the chooser and every page-control style are deleted, D120, and Settings follows D109).
+The proposed placement to build follows D51:
+Settings on the right of the inner panel with the browser and deck kept,
+and one full-width destination on the cover.
+Keep D81's template editor out of that fit study;
+its fields,
+grammar and controls are undesigned and need the human.
+
+The MD3 switch and list-row re-check is also done and recorded in
+`md3-tokens.md`:
+draw the platform's Material 3 switch,
+because the mock's unselected switch does not match the token file.
+
+How to respond:
+continue the queue directly with the authored Settings fixture and isolated
+native host.
+Do not reopen the scan padding question,
+re-run scan capture,
+or offer Settings-template or scan-policy ballots.
+Full Android lint retains five inherited errors,
+65 warnings and two hints;
+preserve that stated limitation.
+Real analysis,
+production implementation,
+native accessibility and Firefox acceptance remain outside this evidence.
+
+## Filename investigation record (started 2026-09-29)
 
 The user accepted the reviewed accessibility goals as “good enough” and
 asked what comes next while directing continued work.
@@ -134,6 +737,11 @@ records the exact audit and manual-review boundary.
 Task 140's technical publication checks passed,
 but its policy-question framing is superseded by task 141.
 The user owes no placement/visibility answer.
+The human also rejected further rounds on inconsequential filename details.
+Use the comparison plan's consequence gate before new questions:
+only a concrete user-facing distinction needing human judgment justifies
+another design round.
+Open template entries alone trigger neither questions nor more captures.
 Task 141's artifact,
 guard-removal proofs,
 consumer and document checks passed.
@@ -217,7 +825,7 @@ D17's rejected prefix buckets and row/fast-scroll candidates are history.
 D34/D35 and D45 settle their named light treatments,
 not every undrawn light diagnostic surface.
 D46's cover picker P4 stays provisional with a before-1.x revisit.
-The whole revised keyboard map is still a design question;
+The whole revised keyboard map is settled by D102;
 implementing it and MD3-on-Slint feasibility are developer-owned work.
 The old cover-active and build-next paragraphs in this chronological
 handoff are historical,
@@ -2330,6 +2938,8 @@ Settled in session 3 (decisions.md D19–D31,
    four answers:
    Scan once / Always scan / Dismiss once / Dismiss
   forever (D27).
+  D84 (2026-10-05) supersedes the asking and its four answers:
+  true-peak analysis is automatic and not optional.
 - Picker rail adapts to the library's writing systems (D28);
    names are plain text,
   several per line,
@@ -2372,7 +2982,7 @@ by swapping tokens.
 (focus order,
  screen-reader labels,
  reduced motion);
- Android media notification;
+ Android media notification (now settled as standard platform presentation by D82);
 MD3-on-Slint feasibility;
  cover screen still needs D1/D18/D20/D31 applied;
  the
@@ -2549,7 +3159,9 @@ the user as decisions;
     context menu (ctx-b),
    error bar (err-b),
     then a desktop window (ask the size first).
-7. **Android media notification** — never designed.
+7. **Android media notification presentation** is now settled by D82:
+   accept Android's standard presentation;
+   no special design round remains.
 
 ### Suggested skills for the next session
 - **Save as standalone HTML** — for the reviewer bundles.
@@ -4213,8 +4825,9 @@ explicit request.
   surface never designed.
 - Keyboard map (D25):
   one revised IntelliJ-aligned map is the design deliverable.
-- Android media notification:
-  never designed.
+- Android media notification presentation:
+  settled by D82,
+  with no custom design round.
 - Light theme:
   unfolded separation settled (D34);
   the undrawn light surfaces are listed in
@@ -4465,9 +5078,14 @@ Do not quietly promote the temporary baseline to final.
 is comparison evidence, not an unanswered question; subsequent visual reviews show only
 active P4 unless the user explicitly requests the rejected comparison (RVC).
  The
-keyboard map, cover-specific accessibility, Android media notification, remaining
-light surfaces, desktop size, empty state and display templating stay in the live backlog
-at `open-questions.md` 0b.
+keyboard map,
+cover-specific accessibility,
+remaining light surfaces,
+desktop size,
+empty state and display templating were in the live backlog
+at this historical checkpoint.
+Android notification presentation is now settled by D82;
+the current queue is recorded in `open-questions.md` section 0b.
  The user's "What next?"
 asked for a recommendation, not authorization for production changes.
 
@@ -5074,7 +5692,8 @@ regenerated file,
  and reopened a 200% inner Search result at the top
 after scrolling an earlier preview.
  The corrected `questions/current.html` was
-launched with `gtk-launch helium file:///var/home/user/Monochromatic/package/music-player/design/questions/current.html`.
+launched with
+`gtk-launch helium file:///var/home/user/Monochromatic/package/music-player/design/questions/current.html`.
  No KWin automation was used;
  the launcher exit alone does not prove the
 user has inspected the tab.
@@ -6564,7 +7183,8 @@ adjusted in OKLCH.
 D59 records the directive.
 The corrected debug-only prototype commit `b471ec537` derives span fill
 from `MaterialTheme.colorScheme.primary` (the A3 OS accent) through the
-existing `mixOklchWithNeutral` utility;
+existing `mixOklchWithNeutral` utility
+(note 2026-10-13: that utility is deleted, and the match fill is now a `core/ThemeRoles.kt` role, D108);
 it changes neither result membership nor item activation.
 The installed disposable APK and local build share SHA-256
 `7195af99031158bfb8efce2abab3c98ebaf17928739c290010bc6dea1317244f`.

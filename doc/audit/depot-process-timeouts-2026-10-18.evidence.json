@@ -1,0 +1,848 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T12:09:51.389Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "harness": "44b3303eca52a58806e28a6e8b681be07d43c278",
+  "configuredStepTimeoutSeconds": 60,
+  "heldWriterMilliseconds": 70000,
+  "observerDelayMilliseconds": 12000,
+  "sourceTaskPath": ".depot/research/native-semantics/mise.toml",
+  "github": {
+    "run": {
+      "id": 39107000367,
+      "name": "research process timeout controls",
+      "node_id": "WFR_kwLOKlVnec8AAAAJGvV4Lw",
+      "head_branch": "research/depot-native-orchestration-20261018",
+      "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278",
+      "path": ".github/workflows/music-player-windows.yml",
+      "display_title": "music-player-windows",
+      "run_number": 85,
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 385004443,
+      "check_suite_id": 105977455991,
+      "check_suite_node_id": "CS_kwDOKlVnec8AAAAYrL-ldw",
+      "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367",
+      "html_url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39107000367",
+      "pull_requests": [],
+      "created_at": "2026-10-18T07:15:40Z",
+      "updated_at": "2026-10-18T07:17:43Z",
+      "actor": {
+        "login": "Aquaticat",
+        "id": 66041952,
+        "node_id": "MDQ6VXNlcjY2MDQxOTUy",
+        "avatar_url": "https://avatars.githubusercontent.com/u/66041952?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Aquaticat",
+        "html_url": "https://github.com/Aquaticat",
+        "followers_url": "https://api.github.com/users/Aquaticat/followers",
+        "following_url": "https://api.github.com/users/Aquaticat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Aquaticat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Aquaticat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Aquaticat/subscriptions",
+        "organizations_url": "https://api.github.com/users/Aquaticat/orgs",
+        "repos_url": "https://api.github.com/users/Aquaticat/repos",
+        "events_url": "https://api.github.com/users/Aquaticat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Aquaticat/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "run_attempt": 1,
+      "referenced_workflows": [],
+      "run_started_at": "2026-10-18T07:15:40Z",
+      "triggering_actor": {
+        "login": "Aquaticat",
+        "id": 66041952,
+        "node_id": "MDQ6VXNlcjY2MDQxOTUy",
+        "avatar_url": "https://avatars.githubusercontent.com/u/66041952?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Aquaticat",
+        "html_url": "https://github.com/Aquaticat",
+        "followers_url": "https://api.github.com/users/Aquaticat/followers",
+        "following_url": "https://api.github.com/users/Aquaticat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Aquaticat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Aquaticat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Aquaticat/subscriptions",
+        "organizations_url": "https://api.github.com/users/Aquaticat/orgs",
+        "repos_url": "https://api.github.com/users/Aquaticat/repos",
+        "events_url": "https://api.github.com/users/Aquaticat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Aquaticat/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "jobs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367/jobs",
+      "logs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367/logs",
+      "check_suite_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-suites/105977455991",
+      "artifacts_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367/artifacts",
+      "cancel_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367/cancel",
+      "rerun_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367/rerun",
+      "previous_attempt_url": null,
+      "workflow_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/workflows/385004443",
+      "head_commit": {
+        "id": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "tree_id": "ff289e4d144f6d77fead247fec2d754638d69585",
+        "message": "test(depot): compare timed-out descendants across execution engines",
+        "timestamp": "2026-10-18T07:14:57Z",
+        "author": {
+          "name": "Aquaticat",
+          "email": "an@aquati.cat"
+        },
+        "committer": {
+          "name": "Aquaticat",
+          "email": "an@aquati.cat"
+        }
+      },
+      "repository": {
+        "id": 710240121,
+        "node_id": "R_kgDOKlVneQ",
+        "name": "Monochromatic",
+        "full_name": "Aquaticats/Monochromatic",
+        "private": false,
+        "owner": {
+          "login": "Aquaticats",
+          "id": 343218767,
+          "node_id": "O_kgDOFHUaTw",
+          "avatar_url": "https://avatars.githubusercontent.com/u/343218767?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/Aquaticats",
+          "html_url": "https://github.com/Aquaticats",
+          "followers_url": "https://api.github.com/users/Aquaticats/followers",
+          "following_url": "https://api.github.com/users/Aquaticats/following{/other_user}",
+          "gists_url": "https://api.github.com/users/Aquaticats/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/Aquaticats/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/Aquaticats/subscriptions",
+          "organizations_url": "https://api.github.com/users/Aquaticats/orgs",
+          "repos_url": "https://api.github.com/users/Aquaticats/repos",
+          "events_url": "https://api.github.com/users/Aquaticats/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/Aquaticats/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/Aquaticats/Monochromatic",
+        "description": "TypeScript and Rust monorepo: Claude Code and Pi coding-agent plugins, a minimal MCP stdio server framework, custom oxlint plugins and a pluggable Rust linter, policy-aware git tooling, core TS libraries, Wayland desktop apps (GTK4 file manager, Slint terminal, true-peak music player), OpenTofu infra automation, and a personal site.",
+        "fork": false,
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic",
+        "forks_url": "https://api.github.com/repos/Aquaticats/Monochromatic/forks",
+        "keys_url": "https://api.github.com/repos/Aquaticats/Monochromatic/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/Aquaticats/Monochromatic/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/Aquaticats/Monochromatic/teams",
+        "hooks_url": "https://api.github.com/repos/Aquaticats/Monochromatic/hooks",
+        "issue_events_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/Aquaticats/Monochromatic/events",
+        "assignees_url": "https://api.github.com/repos/Aquaticats/Monochromatic/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/Aquaticats/Monochromatic/tags",
+        "blobs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/Aquaticats/Monochromatic/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/Aquaticats/Monochromatic/languages",
+        "stargazers_url": "https://api.github.com/repos/Aquaticats/Monochromatic/stargazers",
+        "contributors_url": "https://api.github.com/repos/Aquaticats/Monochromatic/contributors",
+        "subscribers_url": "https://api.github.com/repos/Aquaticats/Monochromatic/subscribers",
+        "subscription_url": "https://api.github.com/repos/Aquaticats/Monochromatic/subscription",
+        "commits_url": "https://api.github.com/repos/Aquaticats/Monochromatic/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/Aquaticats/Monochromatic/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/Aquaticats/Monochromatic/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/Aquaticats/Monochromatic/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/Aquaticats/Monochromatic/merges",
+        "archive_url": "https://api.github.com/repos/Aquaticats/Monochromatic/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/Aquaticats/Monochromatic/downloads",
+        "issues_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/Aquaticats/Monochromatic/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/Aquaticats/Monochromatic/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/Aquaticats/Monochromatic/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/Aquaticats/Monochromatic/labels{/name}",
+        "releases_url": "https://api.github.com/repos/Aquaticats/Monochromatic/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/Aquaticats/Monochromatic/deployments"
+      },
+      "head_repository": {
+        "id": 710240121,
+        "node_id": "R_kgDOKlVneQ",
+        "name": "Monochromatic",
+        "full_name": "Aquaticats/Monochromatic",
+        "private": false,
+        "owner": {
+          "login": "Aquaticats",
+          "id": 343218767,
+          "node_id": "O_kgDOFHUaTw",
+          "avatar_url": "https://avatars.githubusercontent.com/u/343218767?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/Aquaticats",
+          "html_url": "https://github.com/Aquaticats",
+          "followers_url": "https://api.github.com/users/Aquaticats/followers",
+          "following_url": "https://api.github.com/users/Aquaticats/following{/other_user}",
+          "gists_url": "https://api.github.com/users/Aquaticats/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/Aquaticats/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/Aquaticats/subscriptions",
+          "organizations_url": "https://api.github.com/users/Aquaticats/orgs",
+          "repos_url": "https://api.github.com/users/Aquaticats/repos",
+          "events_url": "https://api.github.com/users/Aquaticats/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/Aquaticats/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/Aquaticats/Monochromatic",
+        "description": "TypeScript and Rust monorepo: Claude Code and Pi coding-agent plugins, a minimal MCP stdio server framework, custom oxlint plugins and a pluggable Rust linter, policy-aware git tooling, core TS libraries, Wayland desktop apps (GTK4 file manager, Slint terminal, true-peak music player), OpenTofu infra automation, and a personal site.",
+        "fork": false,
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic",
+        "forks_url": "https://api.github.com/repos/Aquaticats/Monochromatic/forks",
+        "keys_url": "https://api.github.com/repos/Aquaticats/Monochromatic/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/Aquaticats/Monochromatic/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/Aquaticats/Monochromatic/teams",
+        "hooks_url": "https://api.github.com/repos/Aquaticats/Monochromatic/hooks",
+        "issue_events_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/Aquaticats/Monochromatic/events",
+        "assignees_url": "https://api.github.com/repos/Aquaticats/Monochromatic/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/Aquaticats/Monochromatic/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/Aquaticats/Monochromatic/tags",
+        "blobs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/Aquaticats/Monochromatic/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/Aquaticats/Monochromatic/languages",
+        "stargazers_url": "https://api.github.com/repos/Aquaticats/Monochromatic/stargazers",
+        "contributors_url": "https://api.github.com/repos/Aquaticats/Monochromatic/contributors",
+        "subscribers_url": "https://api.github.com/repos/Aquaticats/Monochromatic/subscribers",
+        "subscription_url": "https://api.github.com/repos/Aquaticats/Monochromatic/subscription",
+        "commits_url": "https://api.github.com/repos/Aquaticats/Monochromatic/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/Aquaticats/Monochromatic/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/Aquaticats/Monochromatic/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/Aquaticats/Monochromatic/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/Aquaticats/Monochromatic/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/Aquaticats/Monochromatic/merges",
+        "archive_url": "https://api.github.com/repos/Aquaticats/Monochromatic/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/Aquaticats/Monochromatic/downloads",
+        "issues_url": "https://api.github.com/repos/Aquaticats/Monochromatic/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/Aquaticats/Monochromatic/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/Aquaticats/Monochromatic/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/Aquaticats/Monochromatic/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/Aquaticats/Monochromatic/labels{/name}",
+        "releases_url": "https://api.github.com/repos/Aquaticats/Monochromatic/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/Aquaticats/Monochromatic/deployments"
+      }
+    },
+    "jobs": {
+      "total_count": 2,
+      "jobs": [
+        {
+          "id": 117614923722,
+          "run_id": 39107000367,
+          "workflow_name": "research process timeout controls",
+          "head_branch": "research/depot-native-orchestration-20261018",
+          "run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367",
+          "run_attempt": 1,
+          "node_id": "CR_kwDOKlVnec8AAAAbYmVPyg",
+          "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278",
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/jobs/117614923722",
+          "html_url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39107000367/job/117614923722",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-18T07:15:41Z",
+          "started_at": "2026-10-18T07:15:42Z",
+          "completed_at": "2026-10-18T07:17:38Z",
+          "name": "process (depot-ubuntu-24.04)",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T07:15:47Z",
+              "completed_at": "2026-10-18T07:15:48Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T07:15:48Z",
+              "completed_at": "2026-10-18T07:16:03Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T07:16:03Z",
+              "completed_at": "2026-10-18T07:16:04Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T07:16:04Z",
+              "completed_at": "2026-10-18T07:16:05Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:parallel-sibling",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T07:16:05Z",
+              "completed_at": "2026-10-18T07:16:13Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:timeout-renew",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T07:16:13Z",
+              "completed_at": "2026-10-18T07:17:24Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:observe-process-timeout",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-18T07:17:24Z",
+              "completed_at": "2026-10-18T07:17:36Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-18T07:17:36Z",
+              "completed_at": "2026-10-18T07:17:36Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 16,
+              "started_at": "2026-10-18T07:17:36Z",
+              "completed_at": "2026-10-18T07:17:37Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 17,
+              "started_at": "2026-10-18T07:17:37Z",
+              "completed_at": "2026-10-18T07:17:37Z"
+            }
+          ],
+          "check_run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117614923722",
+          "labels": [
+            "depot-ubuntu-24.04"
+          ],
+          "runner_id": 186,
+          "runner_name": "depot-n15cwszcx2",
+          "runner_group_id": 1,
+          "runner_group_name": "default"
+        },
+        {
+          "id": 117614923793,
+          "run_id": 39107000367,
+          "workflow_name": "research process timeout controls",
+          "head_branch": "research/depot-native-orchestration-20261018",
+          "run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/runs/39107000367",
+          "run_attempt": 1,
+          "node_id": "CR_kwDOKlVnec8AAAAbYmVQEQ",
+          "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278",
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/jobs/117614923793",
+          "html_url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39107000367/job/117614923793",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-18T07:15:41Z",
+          "started_at": "2026-10-18T07:15:43Z",
+          "completed_at": "2026-10-18T07:17:42Z",
+          "name": "process (ubuntu-24.04)",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-18T07:15:44Z",
+              "completed_at": "2026-10-18T07:15:46Z"
+            },
+            {
+              "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-18T07:15:46Z",
+              "completed_at": "2026-10-18T07:16:03Z"
+            },
+            {
+              "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-18T07:16:03Z",
+              "completed_at": "2026-10-18T07:16:05Z"
+            },
+            {
+              "name": "Run mise install node",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-18T07:16:05Z",
+              "completed_at": "2026-10-18T07:16:07Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:parallel-sibling",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-18T07:16:07Z",
+              "completed_at": "2026-10-18T07:16:16Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:timeout-renew",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-18T07:16:16Z",
+              "completed_at": "2026-10-18T07:17:26Z"
+            },
+            {
+              "name": "Run mise run //.depot/research/native-semantics:observe-process-timeout",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-18T07:17:26Z",
+              "completed_at": "2026-10-18T07:17:39Z"
+            },
+            {
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-18T07:17:39Z",
+              "completed_at": "2026-10-18T07:17:40Z"
+            },
+            {
+              "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 16,
+              "started_at": "2026-10-18T07:17:40Z",
+              "completed_at": "2026-10-18T07:17:40Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 17,
+              "started_at": "2026-10-18T07:17:40Z",
+              "completed_at": "2026-10-18T07:17:40Z"
+            }
+          ],
+          "check_run_url": "https://api.github.com/repos/Aquaticats/Monochromatic/check-runs/117614923793",
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000001967,
+          "runner_name": "GitHub Actions 1000001967",
+          "runner_group_id": 0,
+          "runner_group_name": "GitHub Actions"
+        }
+      ]
+    },
+    "logSha256": "ed7c4222e61002ea9ad99fd9b18dedb13a2cd669e5438f1b00a9367e88376ea5",
+    "selectedStepBoundaryLines": [
+      "process (depot-ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:timeout-renew\t﻿2026-10-18T07:16:13.7357086Z ##[group]Run mise run //.depot/research/native-semantics:timeout-renew",
+      "process (depot-ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:timeout-renew\t2026-10-18T07:17:24.0548955Z ##[error]The action 'Run mise run //.depot/research/native-semantics:timeout-renew' has timed out after 1 minutes.",
+      "process (depot-ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:observe-process-timeout\t﻿2026-10-18T07:17:24.0592659Z ##[group]Run mise run //.depot/research/native-semantics:observe-process-timeout",
+      "process (ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:timeout-renew\t﻿2026-10-18T07:16:16.2098332Z ##[group]Run mise run //.depot/research/native-semantics:timeout-renew",
+      "process (ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:timeout-renew\t2026-10-18T07:17:26.6786499Z ##[error]The action 'Run mise run //.depot/research/native-semantics:timeout-renew' has timed out after 1 minutes.",
+      "process (ubuntu-24.04)\tRun mise run //.depot/research/native-semantics:observe-process-timeout\t﻿2026-10-18T07:17:26.6831188Z ##[group]Run mise run //.depot/research/native-semantics:observe-process-timeout"
+    ]
+  },
+  "native": {
+    "status": {
+      "org_id": "l4zncjjbj5",
+      "run_id": "cpjv1rfqzw",
+      "status": "finished",
+      "workflows": [
+        {
+          "workflow_id": "m6kgzb0jj2",
+          "status": "finished",
+          "name": "research native process timeout control",
+          "jobs": [
+            {
+              "job_display_name": "process",
+              "job_id": "x27x1w5hlt",
+              "job_key": "_inline_0.yaml:process",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "d6jzhrp5cn",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "phn5xk4mmkl3kddrx034",
+                  "session_id": "e6352c3a-ad63-43a2-a689-4619c488b8b9",
+                  "logs_command": "depot ci logs d6jzhrp5cn --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs d6jzhrp5cn --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/m6kgzb0jj2?job=x27x1w5hlt&attempt=d6jzhrp5cn",
+                  "ssh_available": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "workflow": {
+      "org_id": "l4zncjjbj5",
+      "run": {
+        "run_id": "cpjv1rfqzw",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "sha": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "trigger": "api",
+        "status": "finished",
+        "created_at": "2026-10-18T07:23:05Z",
+        "started_at": "2026-10-18T07:23:06Z",
+        "finished_at": "2026-10-18T07:25:07Z"
+      },
+      "workflow": {
+        "workflow_id": "m6kgzb0jj2",
+        "name": "research native process timeout control",
+        "workflow_path": "",
+        "status": "finished",
+        "error_message": "",
+        "created_at": "2026-10-18T07:23:16Z",
+        "started_at": "2026-10-18T07:23:16Z",
+        "finished_at": "2026-10-18T07:25:00Z"
+      },
+      "executions": [
+        {
+          "execution_id": "sjcj31v9qw",
+          "execution": 1,
+          "status": "finished",
+          "created_at": "2026-10-18T07:23:16Z",
+          "started_at": "2026-10-18T07:23:16Z",
+          "finished_at": "2026-10-18T07:25:00Z"
+        }
+      ],
+      "jobs": [
+        {
+          "job_display_name": "process",
+          "job_id": "x27x1w5hlt",
+          "job_key": "_inline_0.yaml:process",
+          "status": "finished",
+          "started_at": "2026-10-18T07:23:19Z",
+          "finished_at": "2026-10-18T07:25:00Z",
+          "attempts": [
+            {
+              "attempt_id": "d6jzhrp5cn",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "phn5xk4mmkl3kddrx034",
+              "session_id": "e6352c3a-ad63-43a2-a689-4619c488b8b9",
+              "started_at": "2026-10-18T07:23:19Z",
+              "finished_at": "2026-10-18T07:25:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    "logSha256": "bf214d0b928f8322f1048d3d3b3450eacbd37e709e68f75e97b47daaa35fb06b",
+    "selectedStepBoundaryEvents": [
+      {
+        "type": "line",
+        "timestamp": "2026-10-18T07:23:46.967Z",
+        "timestamp_ms": 1792308226967,
+        "stream": "stdout",
+        "step_key": "4ce85cb3-ed80-466e-acdf-4b08d70cd5fd",
+        "step_id": "timed",
+        "step_name": "",
+        "line_number": 1,
+        "body": "##[group]Run mise run //.depot/research/native-semantics:timeout-renew"
+      },
+      {
+        "type": "line",
+        "timestamp": "2026-10-18T07:24:46.967Z",
+        "timestamp_ms": 1792308286967,
+        "stream": "stderr",
+        "step_key": "4ce85cb3-ed80-466e-acdf-4b08d70cd5fd",
+        "step_id": "timed",
+        "step_name": "",
+        "line_number": 2,
+        "body": "##[error]exec-step child exited with signal SIGTERM and produced no result"
+      },
+      {
+        "type": "line",
+        "timestamp": "2026-10-18T07:24:46.969Z",
+        "timestamp_ms": 1792308286969,
+        "stream": "stdout",
+        "step_key": "c8be0e82-00e4-46e3-80d1-33b1ef6c5294",
+        "step_id": "",
+        "step_name": "",
+        "line_number": 1,
+        "body": "##[group]Run mise run //.depot/research/native-semantics:observe-process-timeout"
+      }
+    ]
+  },
+  "observations": [
+    {
+      "provider": "github-ubuntu-24.04",
+      "artifact": {
+        "id": 12128916626,
+        "node_id": "MDg6QXJ0aWZhY3QxMjEyODkxNjYyNg==",
+        "name": "research-process-timeout-ubuntu-24.04",
+        "size_in_bytes": 1303,
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12128916626",
+        "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12128916626/zip",
+        "expired": false,
+        "digest": "sha256:b57c5ebf545d5f6d947e72369a8e742d0bb11a441f26f06787a2b1f20ceb76c9",
+        "created_at": "2026-10-18T07:17:40Z",
+        "updated_at": "2026-10-18T07:17:40Z",
+        "expires_at": "2026-10-25T07:17:39Z",
+        "workflow_run": {
+          "id": 39107000367,
+          "repository_id": 710240121,
+          "head_repository_id": 710240121,
+          "head_branch": "research/depot-native-orchestration-20261018",
+          "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278"
+        }
+      },
+      "archive": {
+        "bytes": 1303,
+        "sha256": "b57c5ebf545d5f6d947e72369a8e742d0bb11a441f26f06787a2b1f20ceb76c9",
+        "crcPassed": true,
+        "members": [
+          {
+            "name": "sibling-finished",
+            "bytes": 24,
+            "sha256": "10fa4f8ad4dc795566f21402fff7049906e8f274784ac9b2fe4f908b10672382"
+          },
+          {
+            "name": "timeout-observation.json",
+            "bytes": 740,
+            "sha256": "9cfcde866ddf0ee5d4fe1580c6ce6edb7b4d280fde3ed52c3283cd68b8994ea3"
+          },
+          {
+            "name": "sibling-started",
+            "bytes": 24,
+            "sha256": "7c121b812ac5c50c37b12ba18f056aac43405899bddd22b7666eeca0f08a06db"
+          },
+          {
+            "name": "timeout-renew-completed-1.json",
+            "bytes": 55,
+            "sha256": "5635b392f2c29a01b8626e5d43216f2eccf8df8409be8a253044d5ef7af699d0"
+          },
+          {
+            "name": "timeout-renew.json",
+            "bytes": 153,
+            "sha256": "2c4f99272a612ad4cdf6e258c31f1d181cced6884e25c64f1261b38dd56cbe34"
+          }
+        ]
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "harness": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "provider": "github-ubuntu-24.04",
+        "control": {
+          "completedWriterPresent": true,
+          "intendedHoldMilliseconds": 70000,
+          "stepTimeoutMilliseconds": 60000,
+          "elapsedMilliseconds": 82543
+        },
+        "attempts": [
+          {
+            "attempt": 1,
+            "pid": 2388,
+            "parentPid": 2379,
+            "startedAt": "2026-10-18T07:16:16.653Z",
+            "intendedHoldMilliseconds": 70000
+          }
+        ],
+        "lateCompletion": {
+          "attempt": 1,
+          "completedAt": "2026-10-18T07:17:26.662Z"
+        },
+        "step": {
+          "outcome": "failure",
+          "conclusion": "success"
+        },
+        "observedAt": "2026-10-18T07:17:39.200Z"
+      },
+      "writerElapsedMilliseconds": 70009
+    },
+    {
+      "provider": "github-depot-ubuntu-24.04",
+      "artifact": {
+        "id": 12128821990,
+        "node_id": "MDg6QXJ0aWZhY3QxMjEyODgyMTk5MA==",
+        "name": "research-process-timeout-depot-ubuntu-24.04",
+        "size_in_bytes": 1303,
+        "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12128821990",
+        "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12128821990/zip",
+        "expired": false,
+        "digest": "sha256:c28857e639ce0d26049479255a0b1c69d05d2dc015f657c291c061b03dcd40ca",
+        "created_at": "2026-10-18T07:17:36Z",
+        "updated_at": "2026-10-18T07:17:36Z",
+        "expires_at": "2026-10-25T07:17:36Z",
+        "workflow_run": {
+          "id": 39107000367,
+          "repository_id": 710240121,
+          "head_repository_id": 710240121,
+          "head_branch": "research/depot-native-orchestration-20261018",
+          "head_sha": "44b3303eca52a58806e28a6e8b681be07d43c278"
+        }
+      },
+      "archive": {
+        "bytes": 1303,
+        "sha256": "c28857e639ce0d26049479255a0b1c69d05d2dc015f657c291c061b03dcd40ca",
+        "crcPassed": true,
+        "members": [
+          {
+            "name": "sibling-started",
+            "bytes": 24,
+            "sha256": "3e18ee8551f93fd80b2b91e2788b98db49129103ad821bbbc930becb1032523e"
+          },
+          {
+            "name": "sibling-finished",
+            "bytes": 24,
+            "sha256": "ff48316c006b55850f4f32840d5249b2a4730555cfadfd2916889a19f6dedea2"
+          },
+          {
+            "name": "timeout-observation.json",
+            "bytes": 746,
+            "sha256": "89b6767fce5542abbe7fef8fca3ef1aebf816188db753f4426509b3adee4695b"
+          },
+          {
+            "name": "timeout-renew-completed-1.json",
+            "bytes": 55,
+            "sha256": "e3e3e54f47cfd731525b4040c79ce5cea73ff2d0ed42e8455941db79dc561f34"
+          },
+          {
+            "name": "timeout-renew.json",
+            "bytes": 153,
+            "sha256": "dfaef9d3ca15d5252d1b2a3e19f831a06a5b404e1307792c70c8b298e22635a8"
+          }
+        ]
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "harness": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "provider": "github-depot-ubuntu-24.04",
+        "control": {
+          "completedWriterPresent": true,
+          "intendedHoldMilliseconds": 70000,
+          "stepTimeoutMilliseconds": 60000,
+          "elapsedMilliseconds": 82363
+        },
+        "attempts": [
+          {
+            "attempt": 1,
+            "pid": 3024,
+            "parentPid": 3014,
+            "startedAt": "2026-10-18T07:16:14.033Z",
+            "intendedHoldMilliseconds": 70000
+          }
+        ],
+        "lateCompletion": {
+          "attempt": 1,
+          "completedAt": "2026-10-18T07:17:24.042Z"
+        },
+        "step": {
+          "outcome": "failure",
+          "conclusion": "success"
+        },
+        "observedAt": "2026-10-18T07:17:36.399Z"
+      },
+      "writerElapsedMilliseconds": 70009
+    },
+    {
+      "provider": "native-depot-ubuntu-24.04",
+      "artifact": null,
+      "archive": {
+        "bytes": 1303,
+        "sha256": "d2aa7b639b7792980d7cd597df9ce3990d345482b6bdb62f048a279b3ec262f7",
+        "crcPassed": true,
+        "members": [
+          {
+            "name": "sibling-finished",
+            "bytes": 24,
+            "sha256": "0628e89fb8fb4fb812d5a778b16f590daa2e8ab762958a7fe9838bd2fa4d82de"
+          },
+          {
+            "name": "timeout-observation.json",
+            "bytes": 746,
+            "sha256": "b1a2e210e78744b574cffa933f7288542d9b4c322057b33882a3e6a656a94b51"
+          },
+          {
+            "name": "sibling-started",
+            "bytes": 24,
+            "sha256": "61a86a14b49d1bc49f72dcbe928ef72a1a8a5f3042ae1f3bea9784248557d7ea"
+          },
+          {
+            "name": "timeout-renew-completed-1.json",
+            "bytes": 55,
+            "sha256": "3b110cb179a1b9111349418a21c251346587e611f2075d0c5d88a94cabd767af"
+          },
+          {
+            "name": "timeout-renew.json",
+            "bytes": 153,
+            "sha256": "a06f985500d14009477847b076fc5ee59c2b3de994382fb3881bf7f9df5b3f3c"
+          }
+        ]
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+        "harness": "44b3303eca52a58806e28a6e8b681be07d43c278",
+        "provider": "native-depot-ubuntu-24.04",
+        "control": {
+          "completedWriterPresent": true,
+          "intendedHoldMilliseconds": 70000,
+          "stepTimeoutMilliseconds": 60000,
+          "elapsedMilliseconds": 72027
+        },
+        "attempts": [
+          {
+            "attempt": 1,
+            "pid": 1448,
+            "parentPid": 1439,
+            "startedAt": "2026-10-18T07:23:47.290Z",
+            "intendedHoldMilliseconds": 70000
+          }
+        ],
+        "lateCompletion": {
+          "attempt": 1,
+          "completedAt": "2026-10-18T07:24:57.299Z"
+        },
+        "step": {
+          "outcome": "failure",
+          "conclusion": "success"
+        },
+        "observedAt": "2026-10-18T07:24:59.320Z"
+      },
+      "writerElapsedMilliseconds": 70009
+    }
+  ],
+  "interpretations": [
+    "All three writers completed later than the configured60-second step timeout, with the valid earlier completed-writer control and one task execution.",
+    "Both GitHub-orchestrated observer groups start after their writer completion records. The native observer starts before its writer completion record.",
+    "The native result demonstrates child completion after the executor advanced to the next step; the matched GitHub observations establish a deadline overrun but do not demonstrate that same post-step lifetime.",
+    "No handler deliberately ignores termination signals in this fixture.",
+    "One observation per provider does not establish a population rate, indefinite orphan process, cleanup guarantee, deallocation time, billable lifetime or service invoice."
+  ],
+  "archives": {
+    "path": "depot-process-timeouts-2026-10-18.archives.json.gz",
+    "bytes": 4979,
+    "sha256": "ae7580dcf37185b3422befd024f4f1fd7fa342e79f3c4d92c3dffafceb899d4e",
+    "originalZipCount": 3
+  }
+}

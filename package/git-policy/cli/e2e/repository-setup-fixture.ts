@@ -17,10 +17,7 @@ import {
   join,
 } from 'node:path';
 
-import {
-  configHookArguments,
-  installHookdirHooks,
-} from './hook-program-fixture.ts';
+import { configHookArguments, } from './hook-program-fixture.ts';
 import { runChecked, } from './process-fixture.ts';
 import {
   configure,
@@ -212,8 +209,8 @@ export async function createSeededRepository({
       'add',
       '--',
       ...seedFiles.map(function seedPath(file,) {
-      return file.path;
-    },),
+        return file.path;
+      },),
     ],
   },);
   await realGit({
@@ -238,7 +235,8 @@ export async function createSeededRepository({
 }
 
 /**
- Installs hooks and signing requested by the options.
+ Registers config hooks and signing requested by the options.
+ Traditional hooks (files in the hooks directory) are unsupported by the wrapper and never installed.
 
  @param repository - repository whose setup finishes
 
@@ -261,19 +259,6 @@ export async function installExtras({
     await configureSigning(repository,);
   if (repository.options
     .hooks
-    === 'hookdir') {
-    await installHookdirHooks({
-      hooksDir: join(
-        repository.commonDir,
-        'hooks',
-      ),
-      hookProgram,
-      events: repository.options
-        .hookEvents,
-    },);
-  }
-  if (repository.options
-    .hooks
     === 'config') {
     // Sequential: each `git config` write takes config.lock.
     await configHookArguments({
@@ -282,17 +267,17 @@ export async function installExtras({
         .hookEvents,
     },)
       .reduce(
-        async function configAfter(
-          previous,
-          args,
-        ) {
+      async function configAfter(
+        previous,
+        args,
+      ) {
         await previous;
         await realGit({
           repository,
           args,
         },);
       },
-        Promise.resolve(),
+      Promise.resolve(),
       );
   }
 }

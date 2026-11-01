@@ -2,9 +2,6 @@
   "schema": 2,
   "scope": "Evidence-only offline HTML review after withdrawal of the incompatible fixed-policy question. Supporting text remains templated and user-configurable in Settings. No defaults, template engine or renderer fallback selected.",
   "supersedes": "search-filename-policy-withdrawn-verification.json",
-  "htmlSha256": "b7fa3d5c605f4256eb5a6addfd441d6cca10a507f669774ae18c64bc0a7782a8",
-  "builderSha256": "340280f8f4b2c5ba510729cad432b4d992eac43e534e91bd3eba0b5b26b7aca4",
-  "comparisonManifestSha256": "1e4b5d6b74d1de9812ae38a2fff7df82f014640f17138634de1c7c2d68506cad",
   "browserEngine": "Chromium from bounded verification image; Firefox ESR 140 not exercised",
   "browserCliVersion": "0.38.1",
   "axeVersion": "4.12.1",
@@ -172,12 +169,6 @@
   ],
   "consoleErrors": 0,
   "browsersClosed": true,
-  "guardProofReportSha256": {
-    "positive": "db38648b7cff13870ea66309d0eb7fabaf2301979215c8f61b5b087dece37c4e",
-    "without-exact-cohort": "97b5621bb22e0a6d2380609973c1dbcdafbfb7adb1317e30f3b53b97c6720b6a",
-    "without-evidence-only": "d5b6486c996fec75cceb567da70e47f8ac5a7587f6e3b8f76466dcbc0f2eabf6",
-    "restored": "db38648b7cff13870ea66309d0eb7fabaf2301979215c8f61b5b087dece37c4e"
-  },
   "documents": {
     "scopedLintPassed": true,
     "changedBlockFindings": 0,
@@ -219,5 +210,6 @@
     "Native captures are not template-engine output, implemented presets or Settings functionality.",
     "Default template, supported fields, grammar, other row-type scope, title customization and customization/disambiguation interactions remain undesigned.",
     "No native matching, activation, speech, action bounds, focus transitions, new IME study or production implementation authorized."
-  ]
+  ],
+  "pageDigestsRemoved": "Digests of the page, template, builder, test, manifest, native result, preflight and guard reports were removed from this record on 2026-10-05: nothing is locked by hash, and a recorded digest is never a reason to leave a page uncorrected. This record describes the check made when it was written; later edits to those files are allowed and are not covered by it."
 }

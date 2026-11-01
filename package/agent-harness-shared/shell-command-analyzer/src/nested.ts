@@ -4,15 +4,14 @@
  @module
  */
 
-import {
-  parse,
-  type ArithmeticCommandExpansion as UnbashArithmeticCommandExpansion,
-  type CommandExpansionPart as UnbashCommandExpansionPart,
-  type ProcessSubstitutionPart as UnbashProcessSubstitutionPart,
-  type Script as UnbashScript,
+import type {
+  ArithmeticCommandExpansion as UnbashArithmeticCommandExpansion,
+  CommandExpansionPart as UnbashCommandExpansionPart,
+  ProcessSubstitutionPart as UnbashProcessSubstitutionPart,
+  ParsedScript as UnbashScript,
 } from 'unbash';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ShellCommandContext,
   ShellParseError,
@@ -56,7 +55,7 @@ const moduleLogger = tagged({
  */
 function parseErrorsFromScript(script: ForeignBorrowed<UnbashScript>,): ShellParseError[] {
   return [
-    ...(((script as ParsedUnbashScript).errors) ?? []),
+    ...(script.errors ?? []),
   ]
     .map(function parseError(error,): ShellParseError {
       return {
@@ -64,23 +63,6 @@ function parseErrorsFromScript(script: ForeignBorrowed<UnbashScript>,): ShellPar
         pos: error.pos,
       };
     },);
-}
-
-/**
- Build synthetic failed parse diagnostics for unexpected parser throws.
- 
- @returns parse diagnostics containing one generic error
- 
- @example
- ```ts
- failedParseErrors();
- ```
- */
-function failedParseErrors(): ShellParseError[] {
-  return [{
-    message: 'nested parse failed',
-    pos: 0,
-  },];
 }
 
 /**
@@ -98,51 +80,28 @@ function failedParseErrors(): ShellParseError[] {
 function scriptFromExpansion(
   expansion:
     | ForeignBorrowed<UnbashArithmeticCommandExpansion>
-    | ForeignBorrowed<UnbashCommandExpansionPart>
-    | ForeignBorrowed<UnbashProcessSubstitutionPart>,
+      | ForeignBorrowed<UnbashCommandExpansionPart>
+      | ForeignBorrowed<UnbashProcessSubstitutionPart>,
 ): {
   readonly script: ParsedUnbashScript;
   readonly parseErrors: readonly ShellParseError[]
 } | typeof NO_SCRIPT {
-  if (expansion.script !== undefined) {
-    return {
-      script: expansion.script as ParsedUnbashScript,
-      parseErrors: parseErrorsFromScript(expansion.script,),
-    };
-  }
-  if (expansion.inner === undefined)
+  /**
+   The parser owns nested-script parsing and its source positions in unbash 5.
+   */
+  const innerLogger = tagged({
+    tag: scriptFromExpansion.name,
+    l: moduleLogger,
+  },);
+  if (expansion.script === undefined) {
+    innerLogger.debug('unbash supplied no parsed nested script; retaining the substitution flag',);
     return NO_SCRIPT;
-  try {
-    /**
-     Parsed nested source from expansion.
-     */
-    const script = parse(expansion.inner,) as ParsedUnbashScript;
-    return {
-      script,
-      parseErrors: parseErrorsFromScript(script,),
-    };
   }
-  catch (error) {
-    /**
-     Sub-logger tagged with helper name so handled parser throws stay traceable.
-     */
-    const innerLogger = tagged({
-      tag: scriptFromExpansion.name,
-      l: moduleLogger,
-    },);
-    innerLogger.debug(`unbash parse threw for nested expansion: ${String(error,)}`,);
-    return {
-      script: {
-        type: 'Script',
-        pos: 0,
-        end: 0,
-        shebang: undefined,
-        commands: [],
-        errors: failedParseErrors(),
-      },
-      parseErrors: failedParseErrors(),
-    };
-  }
+  innerLogger.debug('Using the original unbash nested script and diagnostics',);
+  return {
+    script: expansion.script,
+    parseErrors: parseErrorsFromScript(expansion.script,),
+  };
 }
 
 /**
@@ -166,8 +125,8 @@ function visitExpansion(
   }: {
     readonly expansion:
       | ForeignBorrowed<UnbashArithmeticCommandExpansion>
-      | ForeignBorrowed<UnbashCommandExpansionPart>
-      | ForeignBorrowed<UnbashProcessSubstitutionPart>;
+        | ForeignBorrowed<UnbashCommandExpansionPart>
+        | ForeignBorrowed<UnbashProcessSubstitutionPart>;
     readonly context: ShellCommandContext;
   },
 ): VisitResult {

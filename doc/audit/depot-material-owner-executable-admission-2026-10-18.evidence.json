@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "state": "Parent admitted; exact executable source/bootstrap/owner-argv/payload/publication controls passed; no material allocation yet",
+  "recordedAt": "2026-10-18T18:52:00.977Z",
+  "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "parentAdmission": {
+    "path": "doc/audit/depot-material-owner-parent-admission-2026-10-18.evidence.json",
+    "sha256": "13fa8b4b7e5ded652f1e00a5be22dd555fe7a755216d088d01e00670a31e04aa"
+  },
+  "immutableProposal": {
+    "path": "doc/audit/depot-material-owner-concrete-proposal-2026-10-18.evidence.json",
+    "sha256": "8ebd2766f5e64f13d180ea6027853a97efa969748ba4ec04e9f0d6795becb82e"
+  },
+  "implementation": {
+    "harnessSha": "e270285361b526793ff1db3af9f8224630c28e70",
+    "workflowPath": ".github/workflows/music-player-windows.yml",
+    "workflowSha256": "eeed467b474ab6af79667fc2bd6a80e01642cf802690571ed9e6083511451fea",
+    "generatedTasksSha256": "87e0f6a28098820016bfc6954900cd14da122d4b7cf36ec8876e85625f7b08f8",
+    "generatedConfigSha256": "b0e63c3318a0a48c0e41d82b6c93231baf5473f955f067a219943ae1944f1fc5",
+    "stageFunctionSha256": "8a24755ca3d90721889becfdbebab4d3fe777fa1c70f1d71b54c67c12004eaf5",
+    "stepCount": 21,
+    "sourceFunctionBytes": 21911,
+    "profiles": [
+      "ide-full",
+      "ide-reader-lifecycle",
+      "terminal-release",
+      "file-manager-gtk-release",
+      "file-manager-sticky-release",
+      "file-manager-qt-release",
+      "design-authored-node-imagemagick"
+    ],
+    "state": "committed before executable preflight; no material allocation created"
+  },
+  "bootstrap": {
+    "actualCjsBootstrapChunksExecuted": 10,
+    "generatedTomlByteEqual": true,
+    "generatedConfigByteEqual": true,
+    "actualNodeModuleSyntaxChecks": [
+      {
+        "stage": "source",
+        "sha256": "aaff20172a603ee14d4cfab569987ae5cb2bfbcb761f58cd0b21c1594adc5990"
+      },
+      {
+        "stage": "prerequisites",
+        "sha256": "8494592126afaf06fac6ecaf87a8c7c5366284bf2a33d0d8831dcf6d76ee7bc0"
+      },
+      {
+        "stage": "producer",
+        "sha256": "77b31bc483e78ba16745c52eeb02f763b6371c644ae17fa393a7d33e8efda075"
+      },
+      {
+        "stage": "consumer",
+        "sha256": "02f570b18864b768a2865b1c164daa12dce4b0b87e2fb18d42fb14d9c918f554"
+      },
+      {
+        "stage": "finalize",
+        "sha256": "56f75ac09d6ec30c0e90933f841b1767152ae51bfb942da127af97017b714aa4"
+      },
+      {
+        "stage": "cleanup",
+        "sha256": "9c34634edadd1b59da779b0b4f2727dbee63d238973d4e6d97f13461db1946a6"
+      }
+    ],
+    "harnessSha": "e270285361b526793ff1db3af9f8224630c28e70",
+    "sourceFunctionSha256": "8a24755ca3d90721889becfdbebab4d3fe777fa1c70f1d71b54c67c12004eaf5",
+    "generatedTasksSha256": "87e0f6a28098820016bfc6954900cd14da122d4b7cf36ec8876e85625f7b08f8",
+    "generatedConfigSha256": "b0e63c3318a0a48c0e41d82b6c93231baf5473f955f067a219943ae1944f1fc5",
+    "frozenSourceInputJoins": [
+      {
+        "profile": "ide-full",
+        "path": "package/desktop-app/ide/mise.toml",
+        "sha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32",
+        "bytes": 54802
+      },
+      {
+        "profile": "ide-full",
+        "path": "package/desktop-app/ide/Cargo.toml",
+        "sha256": "da8aec631b82ce8775c995e6814e3187e59d16c77992f1306dd33b59c7aeda2f",
+        "bytes": 4954
+      },
+      {
+        "profile": "ide-full",
+        "path": "package/desktop-app/ide/Cargo.lock",
+        "sha256": "63643ead5cbdcc74ef608cea372971b8450b3283a45778a14dd5ec9eec6ed4c2",
+        "bytes": 168872
+      },
+      {
+        "profile": "ide-full",
+        "path": "package/desktop-app/ide/Containerfile",
+        "sha256": "54e2afbe0910c7db5f3745352aa88dbfb2c6cf3b41509cf9272b5b2c71420283",
+        "bytes": 1189
+      },
+      {
+        "profile": "ide-full",
+        "path": "package/desktop-app/terminal/Containerfile",
+        "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff",
+        "bytes": 3235
+      },
+      {
+        "profile": "ide-reader-lifecycle",
+        "path": "package/desktop-app/ide/mise.toml",
+        "sha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32",
+        "bytes": 54802
+      },
+      {
+        "profile": "ide-reader-lifecycle",
+        "path": "package/desktop-app/ide/Cargo.toml",
+        "sha256": "da8aec631b82ce8775c995e6814e3187e59d16c77992f1306dd33b59c7aeda2f",
+        "bytes": 4954
+      },
+      {
+        "profile": "ide-reader-lifecycle",
+        "path": "package/desktop-app/ide/Cargo.lock",
+        "sha256": "63643ead5cbdcc74ef608cea372971b8450b3283a45778a14dd5ec9eec6ed4c2",
+        "bytes": 168872
+      },
+      {
+        "profile": "ide-reader-lifecycle",
+        "path": "package/desktop-app/ide/Containerfile",
+        "sha256": "54e2afbe0910c7db5f3745352aa88dbfb2c6cf3b41509cf9272b5b2c71420283",
+        "bytes": 1189
+      },
+      {
+        "profile": "ide-reader-lifecycle",
+        "path": "package/desktop-app/terminal/Containerfile",
+        "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff",
+        "bytes": 3235
+      },
+      {
+        "profile": "terminal-release",
+        "path": "package/desktop-app/terminal/mise.toml",
+        "sha256": "1f50ab3c41ee0cbbc574ebe19fee73cda2d416661688d4732c69791b3f5fb8fc",
+        "bytes": 14283
+      },
+      {
+        "profile": "terminal-release",
+        "path": "package/desktop-app/terminal/Cargo.toml",
+        "sha256": "46016a819d8ecfc9dbbd5c56d09407845d5f9e907c27a2ed01b93d4d7e1cf99e",
+        "bytes": 3327
+      },
+      {
+        "profile": "terminal-release",
+        "path": "package/desktop-app/terminal/Cargo.lock",
+        "sha256": "cd1b6b2dd1ac2a51f2812c7c96bc259e9c68682045c5a4847d1b97b741e7dd43",
+        "bytes": 153923
+      },
+      {
+        "profile": "terminal-release",
+        "path": "package/desktop-app/terminal/Containerfile",
+        "sha256": "67c51a3db3cc5d58af9fc1fad6d273fb0dc0604e3020fb0b8b44aee216dc56ff",
+        "bytes": 3235
+      },
+      {
+        "profile": "file-manager-gtk-release",
+        "path": "package/desktop-app/file-manager/mise.toml",
+        "sha256": "81166da55bba68ded0b73b54d18b4f1ec18b6b6161ccbc57d7bfccf0d197fd5e",
+        "bytes": 1575
+      },
+      {
+        "profile": "file-manager-gtk-release",
+        "path": "package/desktop-app/file-manager/Cargo.toml",
+        "sha256": "f844483562199d0100020686d773df0e692b403ff7441a273955ff3bd7932771",
+        "bytes": 3275
+      },
+      {
+        "profile": "file-manager-gtk-release",
+        "path": "package/desktop-app/file-manager/Cargo.lock",
+        "sha256": "9be2ec600240a43680fe70f5330e0c2b465bc4256617329fd7c45c7442d2ad00",
+        "bytes": 55465
+      },
+      {
+        "profile": "file-manager-sticky-release",
+        "path": "package/desktop-app/file-manager-gtk-sticky/mise.toml",
+        "sha256": "49940aae01463b9fc65dbcb801a12bfadf6ba56c041666e9b73d402041912d77",
+        "bytes": 1756
+      },
+      {
+        "profile": "file-manager-sticky-release",
+        "path": "package/desktop-app/file-manager-gtk-sticky/Cargo.toml",
+        "sha256": "4c3964ff6070348021ff61adb966dd840ebb3c3c7f87b992a1e45ce8962760a4",
+        "bytes": 2150
+      },
+      {
+        "profile": "file-manager-sticky-release",
+        "path": "package/desktop-app/file-manager-gtk-sticky/Cargo.lock",
+        "sha256": "79de51d3deda1821dece0b15b8517eb16b2d3d6be39fa572cce3c19e528f5011",
+        "bytes": 56517
+      },
+      {
+        "profile": "file-manager-qt-release",
+        "path": "package/desktop-app/file-manager-qt/mise.toml",
+        "sha256": "0f37e932caf3c82c6a8569b0a0ee8bb7ad789e2aa5948c67f83e8ffc0eeba2dc",
+        "bytes": 1924
+      },
+      {
+        "profile": "file-manager-qt-release",
+        "path": "package/desktop-app/file-manager-qt/Cargo.toml",
+        "sha256": "3c1341c61103f3e580ad26ae605e3d7da2f4967e83131a1b56ff3c1bc623e10d",
+        "bytes": 2082
+      },
+      {
+        "profile": "file-manager-qt-release",
+        "path": "package/desktop-app/file-manager-qt/Cargo.lock",
+        "sha256": "07de4e174d187f75c65d91ccdc81e2b5e47870e1190fb1e57bc5c77f1a433817",
+        "bytes": 36149
+      },
+      {
+        "profile": "design-authored-node-imagemagick",
+        "path": "package/music-player/design/mise.toml",
+        "sha256": "ee883c9c0add0dfd09714f32aa93114df0a038c9e09f5a99222fba6841f0233b",
+        "bytes": 29911
+      }
+    ],
+    "localBounds": {
+      "cpu": 2,
+      "memoryGiB": 2,
+      "pids": 128,
+      "secondsCap": 120,
+      "network": "none",
+      "containerAbsent": true
+    },
+    "actualMiseTaskInfoParsed": true,
+    "actualMiseTaskDryRunPassed": true,
+    "maximumCloudJobsPerDispatch": 1,
+    "globalSecondSlotReservedForPlatformSsh": true
+  },
+  "sourceAndPublicationGuards": {
+    "sameRecordedProductionLogSanitizerUsed": true,
+    "logSanitizerControls": [
+      {
+        "name": "data-image-prefix",
+        "expectedWithheld": true,
+        "actualWithheld": true
+      },
+      {
+        "name": "png-base64-prefix",
+        "expectedWithheld": true,
+        "actualWithheld": true
+      },
+      {
+        "name": "svg-markup",
+        "expectedWithheld": true,
+        "actualWithheld": true
+      },
+      {
+        "name": "wrapped-base64",
+        "expectedWithheld": true,
+        "actualWithheld": true
+      },
+      {
+        "name": "binary-control",
+        "expectedWithheld": true,
+        "actualWithheld": true
+      },
+      {
+        "name": "ordinary-case-status",
+        "expectedWithheld": false,
+        "actualWithheld": false
+      }
+    ],
+    "syntheticControlPayloadsNotPublished": true,
+    "sameRecordedProductionOwnerVarsFunctionUsed": true,
+    "ownerVarsFunctionSha256": "0d9921966b060f742912640f47defc313f93d751729d60c9c5f50d5f467bf7a4",
+    "originalProducerBoundsRetained": true,
+    "consumerResourceAdapter": {
+      "originalVarsSha256": "1045966d50cf1db1ca058716de17e126c76142cf705fe2c667d164bbd2d02570",
+      "adaptedVarsSha256": "9c4d50ce4bbcbbd4c5c7b090a2b83e480b76ec00a27deba005c943ad5b446b1f",
+      "removedCargoBuildJobs2": true,
+      "defaultCargoAndNextestConcurrency": true,
+      "cpu": 4,
+      "memoryGiB": 12,
+      "pids": 2048
+    },
+    "actualFrozenOwningArgvJoins": [
+      {
+        "id": "ide-full",
+        "authoredCargoArgv": [
+          "test",
+          "--no-default-features",
+          "--lib",
+          "--tests"
+        ],
+        "adaptedConsumerArgv": [
+          "cargo",
+          "nextest",
+          "run",
+          "--no-fail-fast",
+          "--locked",
+          "--no-default-features",
+          "--lib",
+          "--tests"
+        ]
+      },
+      {
+        "id": "ide-reader-lifecycle",
+        "authoredCargoArgv": [
+          "test",
+          "--no-default-features",
+          "--lib"
+        ],
+        "adaptedConsumerArgv": [
+          "cargo",
+          "nextest",
+          "run",
+          "--no-fail-fast",
+          "--locked",
+          "--no-default-features",
+          "--lib"
+        ]
+      }
+    ],
+    "realPinnedRuntimeProducerSourceSha256": "34279d369497eda12abff237f62f6a565055501d4a9b690f4eb19b5e22f0caa4",
+    "consumerSourceActualNodeSyntaxPassed": true,
+    "payloadGuard": {
+      "sameRecordedProductionValidatorUsed": true,
+      "validatorSha256": "90efd3ba748fee06788d77bd56edf4bc71a5d2090ee9959ba60815bc67549d43",
+      "positiveActualPayloads": [
+        {
+          "path": "package/desktop-app/ide/asset/font/InterVariable-Italic.ttf",
+          "bytes": 910252,
+          "sha256": "d6f1f6a172d9e588438db9f986fd5cfad7b30f644374080a8a9d4d91e344586f",
+          "format": "sfnt-or-webfont"
+        },
+        {
+          "path": "package/desktop-app/ide/design/screenshots/2026-10-05-annotations-as-built/caret-card-dark.png",
+          "bytes": 3380183,
+          "sha256": "409fd922447366e75b77c25d4278020d8e2036998b75b887186e6a767421c994",
+          "format": "png"
+        }
+      ],
+      "changedPayloadBytesRejected": true,
+      "lfsPointerTextRejected": true,
+      "restoredActualPayloadsPass": true
+    },
+    "harnessSha": "e270285361b526793ff1db3af9f8224630c28e70",
+    "localBounds": {
+      "cpu": 2,
+      "memoryGiB": 2,
+      "pids": 128,
+      "secondsCap": 120,
+      "network": "none",
+      "containerAbsent": true
+    }
+  },
+  "sourceInputIdentityCatalog": {
+    "path": "doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz",
+    "sha256": "6435ee9f846e5f964ef1ad408cc540adb053d8a37d95bde7264766aa7a87459e",
+    "bytes": 211223,
+    "commit": "8ccda67a087a67dd64922899f6ed559bc08718be",
+    "url": "https://raw.githubusercontent.com/Aquaticats/Monochromatic/8ccda67a087a67dd64922899f6ed559bc08718be/doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz"
+  },
+  "finiteBounds": {
+    "primaryJobs": 7,
+    "conditionalCorrectionJobs": 2,
+    "maximumJobMinutes": 30,
+    "innerCampaignMinutes": 27,
+    "maximumGlobalConcurrentCloudJobs": 2,
+    "maximumJobsPerDispatch": 1,
+    "primaryNominalReservationUsd": 1.08,
+    "conditionalCorrectionsNominalReservationUsd": 2.88,
+    "unpricedStorageLfsOtherContingencyUsd": 1.04,
+    "totalNominalGuardUsd": 5,
+    "notAnInvoiceOrUsageQuery": true
+  },
+  "profiles": [
+    {
+      "id": "ide-full",
+      "owner": "package/desktop-app/ide",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "state": "queued"
+    },
+    {
+      "id": "ide-reader-lifecycle",
+      "owner": "package/desktop-app/ide",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "state": "queued"
+    },
+    {
+      "id": "terminal-release",
+      "owner": "package/desktop-app/terminal",
+      "shape": {
+        "provider": "depot-managed-github-actions",
+        "label": "depot-ubuntu-24.04-4",
+        "cpu": 4,
+        "documentedMemoryGB": 16,
+        "documentedDiskGB": 130,
+        "listRateUsdPerMinute": 0.012,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalReservationUsd": 0.36
+      },
+      "state": "queued"
+    },
+    {
+      "id": "file-manager-gtk-release",
+      "owner": "package/desktop-app/file-manager",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "state": "queued"
+    },
+    {
+      "id": "file-manager-sticky-release",
+      "owner": "package/desktop-app/file-manager-gtk-sticky",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "state": "queued"
+    },
+    {
+      "id": "file-manager-qt-release",
+      "owner": "package/desktop-app/file-manager-qt",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "state": "queued"
+    },
+    {
+      "id": "design-authored-node-imagemagick",
+      "owner": "package/music-player/design",
+      "shape": {
+        "provider": "github-public-standard",
+        "label": "ubuntu-24.04",
+        "expectedCpu": 4,
+        "expectedMemoryGB": 16,
+        "expectedDiskGB": 14,
+        "actualMachineProbeRequired": true,
+        "jobMinutes": 30,
+        "campaignMinutes": 27,
+        "nominalComputeReservationUsd": 0
+      },
+      "state": "queued"
+    }
+  ],
+  "independentContinuation": {
+    "id": "matched-depot-windows-gnu",
+    "state": "exact-source proposal pending Parent review; no allocation",
+    "maximumPrimaryJobs": 1,
+    "maximumConditionalHarnessCorrections": 1,
+    "label": "depot-windows-2025-4",
+    "cpu": 4,
+    "memoryGB": 16,
+    "minutesPerJob": 20,
+    "rateUsdPerMinute": 0.016,
+    "primaryReservationUsd": 0.32,
+    "conditionalReservationUsd": 0.32,
+    "sourceAssertionsMayChange": false
+  }
+}

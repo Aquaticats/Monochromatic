@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "NeuralWatt provider",
+    "description": "Owns the neuralwatt provider route over the shipped pi-ai adapter: the model list is fetched live from the NeuralWatt API at activation with accurate context windows and thinking levels, and a checked-in snapshot serves while the API is unreachable."
+  }
+}

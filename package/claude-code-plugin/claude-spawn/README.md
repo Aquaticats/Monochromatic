@@ -5,7 +5,7 @@ with automatic result forwarding via hooks.
 
 ## Prerequisites
 
-- [terminal-exec](../../cli/terminal-exec/) must be installed and on `PATH`
+- [terminal-exec](../../terminal-exec/cli/) must be installed and on `PATH`
   (resolves the preferred terminal emulator on Linux/Windows)
 - [Node.js](https://nodejs.org/) runtime (hooks and CLI use Node APIs)
 

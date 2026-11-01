@@ -27,6 +27,10 @@ import {
   createSeededRepository,
   installExtras,
 } from './repository-setup-fixture.ts';
+import {
+  WRAPPER_BINS,
+  WRAPPER_KIND,
+} from './wrapper-selection-fixture.ts';
 
 export { realGit, } from './real-git-fixture.ts';
 export type {
@@ -37,9 +41,10 @@ export type {
 //region Constants
 
 /**
- Packed wrapper bin directory baked into the image.
+ Directory whose `git` shadows the real Git for wrapper runs:
+ the native executable's link (see `wrapper-selection-fixture.ts`).
  */
-export const WRAPPER_BIN = '/opt/cli-git/node_modules/.bin';
+export const WRAPPER_BIN: string = WRAPPER_BINS[WRAPPER_KIND];
 
 /**
  System directories after the selected Git.
@@ -108,11 +113,11 @@ export async function createScenarioRepository({
   };
   await Promise.all(Object.values(directories,)
     .map(async function create(directory,) {
-    await mkdir(
-      directory,
-      { recursive: true, },
-    );
-  },),);
+      await mkdir(
+        directory,
+        { recursive: true, },
+      );
+    },),);
   /**
    Environment shared by wrapper and real-Git runs.
    */

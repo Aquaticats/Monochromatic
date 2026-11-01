@@ -8,7 +8,7 @@ import {
   logger,
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 /**
  * Root tagged logger for all editord client subsystems.

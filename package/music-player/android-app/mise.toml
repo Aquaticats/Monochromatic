@@ -5,7 +5,7 @@
 #
 # The toolchain (JDK, Android SDK command-line tools, cargo-ndk) is provisioned
 # from the root mise manifest, not here, so the repo is self-contained from one
-# place (see the "Android toolchain" block in mise.no-env.toml). mise exports
+# place (see the "Android toolchain" block in mise.toml). mise exports
 # ANDROID_HOME / ANDROID_SDK_ROOT from the android-sdk tool, which Gradle and
 # cargo-ndk both read, so no machine-local local.properties is required. The SDK
 # *components* (platforms, build-tools, ndk, platform-tools) and the Android Rust
@@ -48,7 +48,7 @@ const runAndroidClippy = (cargoArgs) => {
 # Tools (java, android-sdk, cargo-ndk) are inherited from the root mise manifest;
 # this package declares no [tools] of its own. The one-time SDK-component install
 # is the root `prepare:android` task (the `prepare` umbrella auto-runs it). See
-# mise.no-env.toml.
+# mise.toml.
 
 [tasks."build:native"]
 description = "Cross-compile the native engine .so for both 64-bit ABIs (arm64-v8a for real devices, x86_64 for emulators; 16KB-aligned via the NDK 29 linker default, API 26 floor) into app/src/main/jniLibs. Derives and exports ANDROID_NDK_HOME from the mise-provisioned $ANDROID_HOME/ndk (run prepare:android once)."
@@ -137,10 +137,25 @@ depends = ["build:native"]
 run = "./gradlew :app:assembleDebug --no-daemon --console=plain"
 
 [tasks."build:release"]
-description = "Assemble the optimized (non-debuggable) release APK, debug-signed so it installs (rebuilds the native .so first)"
+description = "Assemble the optimized (non-debuggable) release APK, debug-signed so it installs unless the MUSIC_PLAYER_KEYSTORE_FILE, _KEYSTORE_PASSWORD, _KEY_ALIAS and _KEY_PASSWORD values are set (rebuilds the native .so first)"
 dir = "{{config_root}}"
 depends = ["build:native"]
 run = "./gradlew :app:assembleRelease --no-daemon --console=plain"
+
+# The release APK's license notices. licenseeAndroidRelease fails when a library's license is not allowed (the
+# licensee block in app/build.gradle.kts) and lists the libraries; collectAndroidLibraryNotices copies their NOTICE
+# files; the script then checks the native crates with cargo-about (rust/about.toml, network for `cargo fetch`) and
+# writes app/build/third-party-licenses/THIRD-PARTY-LICENSES.txt, which the release build packages as
+# assets/THIRD-PARTY-LICENSES.txt. Run it before build:release; the release workflow does, and sets
+# MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES=true so a release without the notices fails.
+# Decision: ../../../doc/decision/music-player-third-party-licenses.md.
+[tasks.notices]
+description = "Write app/build/third-party-licenses/THIRD-PARTY-LICENSES.txt: the license notices of the release APK (Android libraries checked by licensee, native crates by cargo-about)"
+dir = "{{config_root}}"
+run = [
+  "./gradlew :app:licenseeAndroidRelease :app:collectAndroidLibraryNotices --no-daemon --console=plain",
+  "node ../desktop-app/bin/third-party-notices.mjs --product android --crate rust --output app/build/third-party-licenses/THIRD-PARTY-LICENSES.txt --android-libraries app/build/reports/licensee/androidRelease/artifacts.json --android-library-notices app/build/third-party-licenses/android-library-notices.txt",
+]
 
 [tasks.install]
 description = "Install the debug APK on the connected device (rebuilds the native .so first)"
@@ -237,20 +252,14 @@ description = "Run Android Lint on the debug variant"
 dir = "{{config_root}}"
 run = "./gradlew :app:lintDebug --no-daemon --console=plain"
 
-# Enforce KDoc on this app's Kotlin via the shared kotlin-linter (package/linter/kotlin),
-# mirroring how Rust packages call the shared rust-linter for lint:rust. Scans only
-# this app's main source root so detekt never walks node_modules/build. Picked up by the
-# root `lint:detekt` fanout.
+# Enforce KDoc on this app's Kotlin via the shared kotlin-linter (package/linter/kotlin).
+# Scans only this app's main source root so detekt never walks node_modules/build.
+# Picked up by the root `lint:detekt` fanout.
 [tasks."lint:detekt"]
 description = "Enforce KDoc on this app's Kotlin via the shared kotlin-linter"
 dir = "{{config_root}}"
 run = "../../linter/kotlin/gradlew --project-dir ../../linter/kotlin detektCheck -PdetektInput={{config_root}}/app/src/main/kotlin --no-daemon --console=plain"
 
-# Run the shared monochromatic-rust-linter (max-lines + require-rustdoc) over this
-# app's native engine crate, mirroring how the sibling desktop-app wires lint:rust.
-# Runs on the HOST (the linter crate has no NDK/opus/clang deps) and walks
-# .gitignore-aware from the crate root, so rust/target is skipped. Picked up by the
-# root `lint:rust` fanout (`mise '//package/...:lint:rust'`).
 [tasks."format:clippy"]
 description = "Apply Clippy's machine-applicable suggestions to every Android-native Rust target"
 dir = "{{config_root}}/rust"
@@ -268,11 +277,6 @@ run = '''
 {{vars.android_clippy_dispatch}}
 runAndroidClippy(["clippy", "--release", "--all-targets", "--", "--deny", "warnings"])
 '''
-
-[tasks."lint:rust"]
-description = "Run monochromatic-rust-linter (max-lines + require-rustdoc) over this app's native .rs"
-dir = "{{config_root}}/rust"
-run = "cargo run --quiet --manifest-path ../../../linter/rust/Cargo.toml -- ."
 
 [tasks.clean]
 description = "Delete Gradle build outputs"

@@ -603,13 +603,15 @@ No user symptom marker accompanied this cycle,
 so these measurements establish responsive sampled services rather than absence of a subjective symptom.
 
 At 15:00:00,
-another timeline snapshot emitted the same qgroup warning and triggered a measured root-filesystem I/O-pressure interval.
+another timeline snapshot emitted the same qgroup warning and triggered a measured root-filesystem I/O-pressure
+interval.
 The observer sampled 559.1 to 595.0 ms/s of I/O pressure,
 with dm-0 reading up to 20.08 MiB and writing up to 11.65 MiB in one-second intervals.
 KWin scheduler wait remained at zero.
 Plasma answered in 6.0 ms and KWin in 5.4 ms at 15:00:06,
 and neither observer classified a desktop incident.
-This positive-I/O control shows that the qgroup timeline path and measurable dm-0 pressure did not require a desktop stall.
+This positive-I/O control shows that the qgroup timeline path
+and measurable dm-0 pressure did not require a desktop stall.
 
 The installed `snapper-cleanup.timer` runs hourly with `OnUnitActiveSec=1h`.
 The 04:25 and 05:25 natural Plasma-centered events both occurred while that cleanup service was active:
@@ -636,7 +638,8 @@ not a demonstrated call path.
 
 Snapper prints the deletion message immediately before a blocking DBus `DeleteSnapshots` request
 (`client/proxy/commands.cc:277-296`).
-Service stdout alone does not prove that the whole interval until the next cleanup-phase message belongs to that request,
+Service stdout alone does not prove that the whole interval until the next cleanup-phase message belongs to that
+request,
 because quota and free-space DBus calls inside the cleanup loop do not emit helper-phase messages.
 
 The 00:40 recurrence has a tighter boundary.
@@ -1141,7 +1144,8 @@ an average decline of 4.978 GiB per day over that interval.
 Daily changes varied,
 so this mean is evidence of sustained pressure rather than a precise exhaustion forecast.
 Lowering `FREE_LIMIT` postpones rather than removes that capacity pressure.
-Reclaiming or moving live data while identifying its growth source remains the safest response if free space approaches 100 GiB.
+Reclaiming or moving live data while identifying its growth source remains the safest response if free space approaches
+100 GiB.
 
 After capacity is addressed,
 the leading reversible stutter mitigation is to keep hourly creation while moving cleanup to a chosen inactive time.
@@ -1185,9 +1189,11 @@ then measured structural exclusion,
 then full-qgroup removal,
 then simple quotas,
 then threshold 2 or daemon scheduling.
-Hourly creation with daily cleanup ranks above daily creation because it preserves more restore points with the same deletion window.
+Hourly creation with daily cleanup ranks above daily creation because it preserves more restore points with the same
+deletion window.
 Daily creation ranks above structural work because it is reversible and requires no migration.
-Measured structural exclusion ranks above quota changes because it targets snapshotted data while preserving restore points.
+Measured structural exclusion ranks above quota changes because it targets snapshotted data
+while preserving restore points.
 Full-qgroup removal ranks above simple quotas because both lack a fixture latency benefit,
 but simple quotas also invalidate parent usage accounting.
 Threshold and daemon scheduling rank last because neither has evidence of reducing deletion impact.
@@ -1387,12 +1393,15 @@ Sources:
 - [`proc_pid_stack(5)`](https://man7.org/linux/man-pages/man5/proc_pid_stack.5.html)
 - [`proc_pid_syscall(5)`](https://man7.org/linux/man-pages/man5/proc_pid_syscall.5.html)
 - [`perf-sched(1)`](https://www.man7.org/linux/man-pages/man1/perf-sched.1.html)
-- [Upstream `perf-record(1)` source documentation](https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-record.txt)
+-
+[Upstream `perf-record(1)` source documentation](https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-record.txt)
 - [bpftrace one-line tutorial](https://bpftrace.org/tutorial-one-liners)
 - [Btrfs qgroup performance and simple-quota documentation](https://btrfs.readthedocs.io/en/stable/btrfs-quota.html)
 - [Btrfs `drop_subtree_threshold` documentation](https://btrfs.readthedocs.io/en/stable/ch-sysfs.html#uuid-qgroups)
-- [2026 `linux-btrfs` report about qgroup-induced system hangs](https://www.spinics.net/lists/linux-btrfs/msg165086.html)
-- [`systemd.timer` persistent calendar semantics](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
+-
+[2026 `linux-btrfs` report about qgroup-induced system hangs](https://www.spinics.net/lists/linux-btrfs/msg165086.html)
+-
+[`systemd.timer` persistent calendar semantics](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
 - [Linux Kyber scheduler documentation](https://docs.kernel.org/5.17/block/kyber-iosched.html)
 - [Linux cgroup v2 I/O controller documentation](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#io)
 - [Linux buffered-writeback throttling source](https://github.com/torvalds/linux/blob/master/block/blk-wbt.c)
@@ -1618,7 +1627,8 @@ KDE bug
 [449163](https://bugs.kde.org/show_bug.cgi?id=449163)
 describes superficially similar Wayland panel freezes,
 but it was closed for an older Qt Wayland root cause.
-KDE maintainers explicitly asked reporters to file focused new reports because similar freezes can have different causes.
+KDE maintainers explicitly asked reporters to file focused new reports because similar freezes can have different
+causes.
 Qt bug
 [QTBUG-37677](https://bugreports.qt.io/browse/QTBUG-37677)
 documents input queuing when rendering is blocked,
@@ -1640,7 +1650,8 @@ Neither is a demonstrated duplicate.
     Unknown without a repeatable trigger or responsible project boundary.
 6.  **Has a minimal compatible fix been prototyped?**
     No.
-    Switching render loops was not treated as a fix because Plasma previously reverted a forced-basic workaround after it caused other Wayland rendering failures.
+    Switching render loops was not treated as a fix because Plasma previously reverted a forced-basic workaround after
+    it caused other Wayland rendering failures.
 
 Decision:
 do not file yet.

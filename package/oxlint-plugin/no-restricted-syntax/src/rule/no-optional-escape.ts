@@ -40,7 +40,7 @@ const EMPTY_OBJECT_UTILITIES: ReadonlySet<string> = new Set([
  Allowed-alternative guidance appended to every diagnostic message. Names the
  four sanctioned ways to express "may be absent" without a type-level escape.
  */
-const ALLOWED = 'exactOptionalPropertyTypes is on; faking optionality at the type level is banned. Use `foo?: T` for an optional property; an `if`-guard so the value is always present where typed; throw via `nonNullishOrThrow` (@monochromatic-dev/module-or-throw); or a real sentinel: a unique `Symbol`, or a distinct non-empty domain value. Never null, undefined, the empty string, zero, negative one, `false`, `void`, an empty tuple, an empty object, or `Partial`. Genuine external-boundary mirrors use a scoped `oxlint-disable-next-line no-restricted-syntax/no-optional-escape` with a justification.';
+const ALLOWED = 'exactOptionalPropertyTypes is on; faking optionality at the type level is banned. Use `foo?: T` for an optional property; an `if`-guard so the value is always present where typed; throw via `nonNullishOrThrow` (@monochromatic-dev/or-throw-core); or a real sentinel: a unique `Symbol`, or a distinct non-empty domain value. Never null, undefined, the empty string, zero, negative one, `false`, `void`, an empty tuple, an empty object, or `Partial`. Genuine external-boundary mirrors use a scoped `oxlint-disable-next-line no-restricted-syntax/no-optional-escape` with a justification.';
 
 //endregion Constants
 

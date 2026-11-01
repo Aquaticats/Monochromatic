@@ -29,7 +29,8 @@ run,
    registers App.
   framework's executablePath as the application library;
    no kernel/JIT snapshot is loaded.
-   Only the DEBUG build links libdart_jit and loads a kernel snapshot (the JIT path that needs the dynamic-codesigning entitlement and is never used for App Store / release on device).
+   Only the DEBUG build links libdart_jit and loads a kernel snapshot (the JIT path
+    that needs the dynamic-codesigning entitlement and is never used for App Store / release on device).
    Engine named:
    Flutter Engine + Dart VM in AOT (precompiled-runtime) mode,
    rendering via Impeller/Metal.
@@ -53,7 +54,8 @@ run,
    and dart:
   ffi statically links and calls a Go/Rust c-archive via DynamicLibrary.
   executable,
-   meaning both kopia and the existing symphonia+cpal music-player Rust core are reusable behind it with no AVAudioEngine rewrite (cpal already has a RemoteIO iOS backend).
+   meaning both kopia and the existing symphonia+cpal music-player Rust core are reusable behind it
+    with no AVAudioEngine rewrite (cpal already has a RemoteIO iOS backend).
    Only the GUI (Slint) is rewritten,
    not the native cores.
 
@@ -140,8 +142,10 @@ executable/process)
 
 No long-running background service exists on iOS,
  same constraint as every candidate.
- Flutter expresses background transfer through native URLSession via mature plugins (background_downloader uses iOS URLSessions;
- background_transfer uses NSURLSession + registers a BGTaskScheduler/BGProcessingTask identifier in AppDelegate for iOS 15+).
+ Flutter expresses background transfer
+  through native URLSession via mature plugins (background_downloader uses iOS URLSessions;
+ background_transfer uses NSURLSession + registers a BGTaskScheduler/BGProcessingTask identifier in AppDelegate
+  for iOS 15+).
  A multi-hour kopia snapshot cannot run as a foreground service;
  it must be restructured around background URLSession chunked uploads,
  or driven while the app is foreground/charging via BGProcessingTask windows.
@@ -168,7 +172,8 @@ Mechanism:
 io HttpServer.
 bind() runs an in-process HTTP/1.1 server entirely in Dart over the Dart VM socket layer on the loopback interface,
  no bundled-binary exec required.
- This gives kopia an in-app HTTP/S3-style endpoint to target (kopia repository server or an S3-compatible shim implemented over HttpServer,
+ This gives kopia an in-app HTTP/S3-style endpoint to target (kopia repository server
+  or an S3-compatible shim implemented over HttpServer,
  or fronting the linked kopia static lib).
  dart:
 io is a mapped core library in the Flutter iOS embedder,
@@ -191,7 +196,8 @@ Mechanism:
  dart:
 io HttpClient (and package:
 http / package:
-dio on top of it) provides a streaming HTTPS client with chunked request/response bodies suitable for streaming uploads to pCloud;
+dio on top of it) provides a streaming HTTPS client with chunked request/response bodies suitable for streaming uploads
+ to pCloud;
  for truly background/resumable transfers that survive app suspension,
  route through URLSession via background_downloader.
  TLS is handled by the Dart VM's BoringSSL-backed SecureSocket,
@@ -254,7 +260,8 @@ Source:
 ## Gate probe and toolchain
 
 Minimal app:
- flutter create --template=plugin_ffi a tiny FFI plugin wrapping a Rust staticlib (crate-type=[\"staticlib\"]) that exports one extern \"C\" fn (e.g. add(a,
+ flutter create --template=plugin_ffi a tiny FFI plugin wrapping a Rust staticlib (crate-type=[\"staticlib\"])
+  that exports one extern \"C\" fn (e.g. add(a,
 b) and a 1-second sine-into-cpal play call),
  build a release (AOT) .
 app for a real device,
@@ -268,7 +275,8 @@ framework executes with libdart_aotruntime,
  wall 2);
  (2) the FFI call returns the correct value (proves Rust staticlib statically linked and callable,
  wall 1);
- (3) the cpal RemoteIO stream produces audible output (proves symphonia+cpal core reusable for the music-player without AVAudioEngine).
+ (3) the cpal RemoteIO stream produces audible output (proves symphonia+cpal core reusable
+  for the music-player without AVAudioEngine).
  Refutation signals:
  release build crashes on launch with a codesign/execmem fault (would mean JIT leaked into release,
  contradicting the BUILD.

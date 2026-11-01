@@ -12,7 +12,7 @@ import {
   type Project,
   type Symbol as TypeScriptSymbol,
   type Type,
-} from 'typescript/unstable/sync';
+} from 'typescript/sync';
 
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';
 import { isForeignBorrowedType, } from './foreign-borrowed-identity.ts';
@@ -134,7 +134,7 @@ export function propertyIsReadonly({
 const settledClassificationsByProject = new WeakMap<
   Project,
   Map<number, ReadonlyClassification>
->();
+  >();
 
 /**
  One finished classification and whether an unresolved type above it decided the answer.

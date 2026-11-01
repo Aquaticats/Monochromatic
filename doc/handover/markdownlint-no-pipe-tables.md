@@ -1,5 +1,12 @@
 # Handover: no-pipe-tables markdownlint rule
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-or-throw` is now `@monochromatic-dev/or-throw-core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
 Implementing a markdownlint rule that bans Markdown pipe tables and autofixes them to HTML.
  Approved
 plan:

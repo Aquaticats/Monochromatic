@@ -17,10 +17,10 @@
  */
 export type ContentState =
   | Readonly<{ state: 'absent'; }>
-  | Readonly<{
-    state: 'present';
-    digest: string
-  }>;
+    | Readonly<{
+      state: 'present';
+      digest: string
+    }>;
 
 /**
  Landed content of one selected path and every content the invariant accepts for it.

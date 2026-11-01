@@ -1,14 +1,23 @@
 //! Resolve a track to a gain decision by driving a decoded source through the policy.
 //!
-//! This is the shared measurement the platforms call. A short track (or one of unknown
-//! length) is scanned in full for an exact peak. A long track is probed by the frontier
-//! zoom under its provenance bucket's coverage: an even pass of tenth-second bins, then
+//! This is the shared measurement the platforms call.
+//!  A short track (or one of unknown
+//! length) is scanned in full for an exact peak.
+//!  A long track is probed by the frontier
+//! zoom under its provenance bucket's coverage:
+//!  an even pass of tenth-second bins,
+//!  then
 //! repeated measurement beside the loudest bin heard so far (each bin has its own meter
-//! so a seek seam cannot fabricate a spike), optionally seeded by lossless frame-size
-//! bones; the loudest sampled bin is inflated by the bucket's margin.
+//! so a seek seam cannot fabricate a spike),
+//!  optionally seeded by lossless frame-size
+//! bones;
+//!  the loudest sampled bin is inflated by the bucket's margin.
 
-/// What:     `use crate::decision::{Decision, DecisionKind};`. The answer type and its tag.
-/// Why:      This module builds and returns a `Decision`.
+/// What:
+///      `use crate::decision::{Decision, DecisionKind};`.
+///  The answer type and its tag.
+/// Why:
+///       This module builds and returns a `Decision`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -16,8 +25,11 @@
 /// ```
 use crate::decision::{Decision, DecisionKind};
 
-/// What:     `use crate::error::TruePeakError;`. The fallible-source error.
-/// Why:      Driving the source propagates decode and seek errors with `?`.
+/// What:
+///      `use crate::error::TruePeakError;`.
+///  The fallible-source error.
+/// Why:
+///       Driving the source propagates decode and seek errors with `?`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,9 +37,14 @@ use crate::decision::{Decision, DecisionKind};
 /// ```
 use crate::error::TruePeakError;
 
-/// What:     `use crate::gain::{normalization_gain, probe_estimated_peak};`. The gain from
-///           a peak, and the margin inflation.
-/// Why:      Both branches turn a peak into a gain; the probe branch inflates first.
+/// What:
+///      `use crate::gain::{normalization_gain, probe_estimated_peak};`.
+///  The gain from
+///           a peak,
+///  and the margin inflation.
+/// Why:
+///       Both branches turn a peak into a gain;
+///  the probe branch inflates first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,8 +52,11 @@ use crate::error::TruePeakError;
 /// ```
 use crate::gain::{normalization_gain, probe_estimated_peak};
 
-/// What:     `use crate::meter::TruePeakMeter;`. The shared streaming meter.
-/// Why:      Every scan and every window is measured by it.
+/// What:
+///      `use crate::meter::TruePeakMeter;`.
+///  The shared streaming meter.
+/// Why:
+///       Every scan and every window is measured by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,8 +64,14 @@ use crate::gain::{normalization_gain, probe_estimated_peak};
 /// ```
 use crate::meter::TruePeakMeter;
 
-/// What:     `use crate::policy::Policy;`. The shipped policy parameters.
-/// Why:      The short-scan cutoff, coverage, window length, and margin come from it.
+/// What:
+///      `use crate::policy::Policy;`.
+///  The shipped policy parameters.
+/// Why:
+///       The short-scan cutoff,
+///  coverage,
+///  window length,
+///  and margin come from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +79,15 @@ use crate::meter::TruePeakMeter;
 /// ```
 use crate::policy::Policy;
 
-/// What:     `use crate::source::{AudioSpec, TruePeakSource};`. The stream descriptor and
+/// What:
+///      `use crate::source::{AudioSpec, TruePeakSource};`.
+///  The stream descriptor and
 ///           the decoded-audio contract.
-/// Why:      The resolver reads spec, chunks, and seeks through it; the exact-decision
+/// Why:
+///       The resolver reads spec,
+///  chunks,
+///  and seeks through it;
+///  the exact-decision
 ///           helper takes an `AudioSpec` by value (it is `Copy`).
 ///
 /// In TS you'd write (pseudocode):
@@ -64,9 +96,12 @@ use crate::policy::Policy;
 /// ```
 use crate::source::{AudioSpec, TruePeakSource};
 
-/// What:     `use crate::bucketpolicy::TrackProvenance;`. The zero-cost provenance
+/// What:
+///      `use crate::bucketpolicy::TrackProvenance;`.
+///  The zero-cost provenance
 ///           signals that pick a long track's bucket.
-/// Why:      `resolve_decision_for` selects coverage and margin from them.
+/// Why:
+///       `resolve_decision_for` selects coverage and margin from them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,9 +109,13 @@ use crate::source::{AudioSpec, TruePeakSource};
 /// ```
 use crate::bucketpolicy::TrackProvenance;
 
-/// What:     `use crate::probe::{ZoomPlan, zoom_probe};`. The frontier-zoom probe and
+/// What:
+///      `use crate::probe::{ZoomPlan, zoom_probe};`.
+///  The frontier-zoom probe and
 ///           its per-track plan.
-/// Why:      Long tracks are probed by the zoom, not by static even placement.
+/// Why:
+///       Long tracks are probed by the zoom,
+///  not by static even placement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,11 +123,17 @@ use crate::bucketpolicy::TrackProvenance;
 /// ```
 use crate::probe::{ZoomPlan, zoom_probe};
 
-/// What:     `fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32,
-///           u64), TruePeakError>`. Scan the whole source, returning the true peak and the
-///           decoded frame count. `&mut dyn TruePeakSource` is a mutable borrow of the trait
+/// What:
+///      `fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32,
+///           u64), TruePeakError>`.
+///  Scan the whole source,
+///  returning the true peak and the
+///           decoded frame count.
+///  `&mut dyn TruePeakSource` is a mutable borrow of the trait
 ///           object.
-/// Why:      Short and unknown-length tracks are measured exactly, and the frame count gives
+/// Why:
+///       Short and unknown-length tracks are measured exactly,
+///  and the frame count gives
 ///           the decoded duration.
 ///
 /// In TS you'd write (pseudocode):
@@ -161,11 +206,19 @@ fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32, u
     return Ok((meter.peak(), samples / channels as u64))
 }
 
-/// What:     `fn silence_decision(spec: AudioSpec) -> Decision`. The decision for a
-///           malformed zero-channel stream: unity gain, exact, zero peak. `AudioSpec` is
+/// What:
+///      `fn silence_decision(spec: AudioSpec) -> Decision`.
+///  The decision for a
+///           malformed zero-channel stream:
+///  unity gain,
+///  exact,
+///  zero peak.
+///  `AudioSpec` is
 ///           taken by value because it is `Copy`.
-/// Why:      Both entry points (`resolve_decision` and `resolve_full_scan`) treat a
-///           zero-channel stream as silence identically; one helper keeps them in step.
+/// Why:
+///       Both entry points (`resolve_decision` and `resolve_full_scan`) treat a
+///           zero-channel stream as silence identically;
+///  one helper keeps them in step.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,13 +243,19 @@ fn silence_decision(spec: AudioSpec) -> Decision {
     }
 }
 
-/// What:     `fn exact_decision(policy: &Policy, source: &mut dyn TruePeakSource, spec:
-///           AudioSpec, channels: usize) -> Result<Decision, TruePeakError>`. Scan the whole
-///           track and build the exact decision, tagging `ShortFullScan` for a known-short
-///           track and `FullScanExact` otherwise. `channels` is passed in so the caller's
+/// What:
+///      `fn exact_decision(policy: &Policy, source: &mut dyn TruePeakSource, spec:
+///           AudioSpec, channels: usize) -> Result<Decision, TruePeakError>`.
+///  Scan the whole
+///           track and build the exact decision,
+///  tagging `ShortFullScan` for a known-short
+///           track and `FullScanExact` otherwise.
+///  `channels` is passed in so the caller's
 ///           zero-channel guard is not repeated here.
-/// Why:      The short branch of `resolve_decision` and the always-exact `resolve_full_scan`
-///           build the identical exact decision; sharing it keeps the gain and the kind rule
+/// Why:
+///       The short branch of `resolve_decision` and the always-exact `resolve_full_scan`
+///           build the identical exact decision;
+///  sharing it keeps the gain and the kind rule
 ///           in one place.
 ///
 /// In TS you'd write (pseudocode):
@@ -243,14 +302,23 @@ fn exact_decision(
     })
 }
 
-/// What:     `pub fn resolve_full_scan(policy: &Policy, source: &mut dyn TruePeakSource) ->
-///           Result<Decision, TruePeakError>`. Always scan the whole track for an exact gain,
-///           regardless of length, tagging `ShortFullScan` or `FullScanExact` by duration.
-/// Why:      The warming upgrade path: a long track that `resolve_decision` would probe is
-///           heard in full here, so the cache's exact-over-probe precedence can replace a
-///           probe estimate with the exact gain over idle time. Desktop warming uses this;
+/// What:
+///      `pub fn resolve_full_scan(policy: &Policy, source: &mut dyn TruePeakSource) ->
+///           Result<Decision, TruePeakError>`.
+///  Always scan the whole track for an exact gain,
+///           regardless of length,
+///  tagging `ShortFullScan` or `FullScanExact` by duration.
+/// Why:
+///       The warming upgrade path:
+///  a long track that `resolve_decision` would probe is
+///           heard in full here,
+///  so the cache's exact-over-probe precedence can replace a
+///           probe estimate with the exact gain over idle time.
+///  Desktop warming uses this;
 ///           the probe estimate never returns once an exact row lands.
-/// Gotcha:   This performs a BLOCKING full decode of the whole track; call it on a worker,
+/// Gotcha:
+///    This performs a BLOCKING full decode of the whole track;
+///  call it on a worker,
 ///           never on a latency-sensitive path.
 ///
 /// In TS you'd write (pseudocode):
@@ -298,11 +366,16 @@ pub fn resolve_full_scan(
     return exact_decision(policy, source, spec, channels)
 }
 
-/// What:     `pub fn resolve_decision(policy: &Policy, source: &mut dyn TruePeakSource) ->
-///           Result<Decision, TruePeakError>`. Turn a track into a gain decision under the
-///           policy. `&Policy` borrows the parameters; `&mut dyn TruePeakSource` drives the
+/// What:
+///      `pub fn resolve_decision(policy: &Policy, source: &mut dyn TruePeakSource) ->
+///           Result<Decision, TruePeakError>`.
+///  Turn a track into a gain decision under the
+///           policy.
+///  `&Policy` borrows the parameters;
+///  `&mut dyn TruePeakSource` drives the
 ///           decoder.
-/// Why:      This is the one shared measurement both platforms call to get a track's gain.
+/// Why:
+///       This is the one shared measurement both platforms call to get a track's gain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -325,12 +398,17 @@ pub fn resolve_decision(
     return resolve_decision_for(policy, source, TrackProvenance::unknown(), None)
 }
 
-/// What:     `pub fn resolve_decision_for(policy: &Policy, source: &mut dyn
+/// What:
+///      `pub fn resolve_decision_for(policy: &Policy, source: &mut dyn
 ///           TruePeakSource, provenance: TrackProvenance, bones_hot_bins:
-///           Option<&[usize]>) -> Result<Decision, TruePeakError>`. Turn a track into a
-///           gain decision under the policy, with the track's provenance picking its
+///           Option<&[usize]>) -> Result<Decision, TruePeakError>`.
+///  Turn a track into a
+///           gain decision under the policy,
+///  with the track's provenance picking its
 ///           bucket and optional bones seeds guiding the probe.
-/// Why:      The bucket table is the allocation layer of the shipped policy; provenance
+/// Why:
+///       The bucket table is the allocation layer of the shipped policy;
+///  provenance
 ///           and bones are zero-cost inputs the platform reads from tags and framing.
 ///
 /// In TS you'd write (pseudocode):
@@ -474,9 +552,14 @@ pub fn resolve_decision_for(
     })
 }
 
-/// What:     `#[cfg(test)] #[path = "resolve_tests.rs"] mod tests;`. Test-only submodule in
-///           the sibling file, gated to test builds.
-/// Why:      Keep this file to production code; sibling `*_tests.rs` is max-lines exempt.
+/// What:
+///      `#[cfg(test)] #[path = "resolve_tests.rs"] mod tests;`.
+///  Test-only submodule in
+///           the sibling file,
+///  gated to test builds.
+/// Why:
+///       Keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -83,7 +83,7 @@ function isAsciiDigit(value: string,): boolean {
 function isTimeContextContent(value: string,): boolean {
   if (value.length
     !== TIME_CONTEXT_TEMPLATE
-    .length)
+      .length)
     return false;
   if (!value.startsWith(TIME_CONTEXT_OPEN_TAG,))
     return false;
@@ -97,7 +97,7 @@ function isTimeContextContent(value: string,): boolean {
     TIME_CONTEXT_OPEN_TAG.length,
     value.length
       - TIME_CONTEXT_CLOSE_TAG
-      .length,
+        .length,
   );
 
   return isAsciiDigit(middle.charAt(FIRST_HOUR_DIGIT_INDEX,),)

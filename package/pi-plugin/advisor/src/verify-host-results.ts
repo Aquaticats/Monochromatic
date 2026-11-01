@@ -35,14 +35,14 @@ const MAX_PROGRESS_EVENTS_PER_ATTEMPT = 3;
 export function parseAdvisorHostJsonl(text: string,): readonly Record<string, unknown>[] {
   return text.split('\n',)
     .filter(function nonempty(line: string,): boolean {
-    return line.trim() !== '';
-  },)
+      return line.trim() !== '';
+    },)
     .map(function parse(line: string,): Record<string, unknown> {
-    return v.parse(
-      RecordSchema,
-      JSON.parse(line,),
-    );
-  },);
+      return v.parse(
+        RecordSchema,
+        JSON.parse(line,),
+      );
+    },);
 }
 
 /**
@@ -82,17 +82,17 @@ function verifyUsage(value: unknown,): Record<string, unknown> {
       acc: number,
       attempt: Readonly<Record<string, unknown>>,
     ): number {
-    if (attempt.usage === undefined)
-      return acc;
-    return acc + v.parse(
-      v.number(),
-      v.parse(
-        RecordSchema,
-        attempt.usage,
-      )
-        .totalTokens,
-    );
-  },
+      if (attempt.usage === undefined)
+        return acc;
+      return acc + v.parse(
+        v.number(),
+        v.parse(
+          RecordSchema,
+          attempt.usage,
+        )
+          .totalTokens,
+      );
+    },
     0,
   );
   assert.equal(

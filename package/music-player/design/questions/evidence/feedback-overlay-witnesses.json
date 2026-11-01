@@ -1,0 +1,1737 @@
+{
+  "schema": 2,
+  "scope": "Inspected D83 authored held native overlay poses, not actual storage/log-export operations or expiry proof.",
+  "apkSha256": "2b556131d86e39acb8ebcf194f39da9ed8e36e2f146a86ab4fb971f4c8f06480",
+  "prototypeCommit": "743c5b378c6333f75857a3d5b7c87e4c284b53c5",
+  "emulatorVersion": "37.2.12",
+  "witnesses": [
+    {
+      "file": "feedback-overlay-inner-missing-light-s100.png",
+      "panel": "inner",
+      "scene": "missing",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "2ff52c0a263e64ce49daa13b1aaaab27664ea54c9b573b3aa31f94a26c2b439c",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-undo-light-s100.png",
+      "panel": "inner",
+      "scene": "undo",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "b8b369bd3296df3ffd18899677ac4ec1c777b345bc790e19eda89ad435a664c7",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-combined-light-s100.png",
+      "panel": "inner",
+      "scene": "combined",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "3e486030be8613e81a6b11efa0ed7d8fc54054cec05063a132291f8932899545",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-failed-light-s100.png",
+      "panel": "inner",
+      "scene": "trash-failed",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "3d60b1ed1c26f3e4c3c2f0018a86a04b0bab3234876709f58f143852f9ffb9c0",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-pending-light-s100.png",
+      "panel": "inner",
+      "scene": "trash-pending",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "428468153d263ec10df34089adfbce739fc729affbb890be8b1e030ae17d750d",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-detail-heavy-light-s100.png",
+      "panel": "inner",
+      "scene": "detail-heavy",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "890cd900cbe3aa586818b01007dba800621fb58afd9f461498e0f3be52e44680",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-missing-dark-s100.png",
+      "panel": "inner",
+      "scene": "missing",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "fe416bfc6ad9f3d2aa636534333e4a6846c8dab6813db4276e306999182df12c",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-undo-dark-s100.png",
+      "panel": "inner",
+      "scene": "undo",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "f779fc1213fe01bc6ed0828cf1d76a3f0b0e6101a849e774d4be0a420f60dde2",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-combined-dark-s100.png",
+      "panel": "inner",
+      "scene": "combined",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "a00adaa9c4527fe063652ce7e70bd1d06063ffecd72eb09462baeb507245b3ee",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-failed-dark-s100.png",
+      "panel": "inner",
+      "scene": "trash-failed",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "1a3f395e90b1b422a0e62e6745bdba5cfb85153b6aebcbbe27db0382bfb1a7bc",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-pending-dark-s100.png",
+      "panel": "inner",
+      "scene": "trash-pending",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "8f62905de82cfe724ae13b74ad1c34764178cd65976e9e3a37e6cd55cdeaec05",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-detail-heavy-dark-s100.png",
+      "panel": "inner",
+      "scene": "detail-heavy",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "4187a3773882945495d0773f855a03102066beb6e270ccf082aab6c4072e53f2",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-missing-light-s200.png",
+      "panel": "inner",
+      "scene": "missing",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "3cae63a0fbb9d2955f5301266aa9d45823ef083afe30543ee60179455d235a24",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-undo-light-s200.png",
+      "panel": "inner",
+      "scene": "undo",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "e7bb25cbee6143463199c8097b8295a9ad5265ecbc7b5f3b7392bda05c675406",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-combined-light-s200.png",
+      "panel": "inner",
+      "scene": "combined",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "c248ca957b04c1d4537c8ed6ebf1c3ddc7e7cd9b8295e58bc1f2487f61905edc",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-failed-light-s200.png",
+      "panel": "inner",
+      "scene": "trash-failed",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "7e1738e1fcdf8bf1617147d9c6748b22bedba4af0304e04508ebc79abe5183bf",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-pending-light-s200.png",
+      "panel": "inner",
+      "scene": "trash-pending",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "f1e0b72dbd0116986fbb13ba195efd0f443c5eb6a06ac8d1d9fa3a17ae7edd6b",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-detail-heavy-light-s200.png",
+      "panel": "inner",
+      "scene": "detail-heavy",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "8454694133e02060168d04ac41d25cc9b229b7c1a3b180f585e3fbf0391bb3bd",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-missing-dark-s200.png",
+      "panel": "inner",
+      "scene": "missing",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "3ec48c7e0f0658d92916b5eeb892fb47dd5ca33f67bcb714f4a805acb8e3d004",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-undo-dark-s200.png",
+      "panel": "inner",
+      "scene": "undo",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "9b2e98e79d711dea0d00ca04dcaeb4cd6ba1f8f210c31526e4e234a4d55a4aa4",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-combined-dark-s200.png",
+      "panel": "inner",
+      "scene": "combined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "dde6d3ddba9b4fce58ce2ee35e20c2aeeefdad286664d9a311a300946a9356e0",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-failed-dark-s200.png",
+      "panel": "inner",
+      "scene": "trash-failed",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "600cec16b560c48b6bf218b17e2a57081fb50b43c6e6aaeb1d6875f984fe1aa0",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-trash-pending-dark-s200.png",
+      "panel": "inner",
+      "scene": "trash-pending",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "0cf2ad10b541e1f8634b01f40e6138ca3162ba6acda7ce9ec963c037d5ce1d75",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-inner-detail-heavy-dark-s200.png",
+      "panel": "inner",
+      "scene": "detail-heavy",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "e66d8ab720575b5cf189233ac9c276fbac9aeb1ff52fed6f3484f9142860cf7c",
+      "cropPixels": {
+        "x": 0,
+        "y": 136,
+        "width": 2076,
+        "height": 2016
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        2076,
+        2152
+      ],
+      "applicationRoot": [
+        0,
+        136,
+        2076,
+        2074
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-missing-light-s100.png",
+      "panel": "cover",
+      "scene": "missing",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "fe502a91540372c5334c180f454b8b9030b3db434a90ce47b2865a6477fb1583",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-undo-light-s100.png",
+      "panel": "cover",
+      "scene": "undo",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "03fde2688bd441f524889b32cd54e1f256309815d4d369cd469ac81c9f9ec5ff",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-combined-light-s100.png",
+      "panel": "cover",
+      "scene": "combined",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "d074ff90ed0718e92b42c1d845710228f3e208a31b8afb4fc4204b6e2cf52459",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-failed-light-s100.png",
+      "panel": "cover",
+      "scene": "trash-failed",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "8d88aba2fb5d5fa452eea45e652b423b235a8ecb53371a1da7aadc3de4b58a5b",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-pending-light-s100.png",
+      "panel": "cover",
+      "scene": "trash-pending",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "bc6c9539362d13c52a26626ad2fd0120965f26c1a7d86c09ff9fa14f2c80ef5d",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-detail-heavy-light-s100.png",
+      "panel": "cover",
+      "scene": "detail-heavy",
+      "scheme": "light",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "380193168ec405a4bccae04dbb68c528baf609b7a5f316c495ae4ffffdcd2de6",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-missing-dark-s100.png",
+      "panel": "cover",
+      "scene": "missing",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "29428efa49298283d215c04679cb50a32b4a67f300d55dbc7c0887346a9ff6d4",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-undo-dark-s100.png",
+      "panel": "cover",
+      "scene": "undo",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "96ce76c7de4738efcb57157ffd1f97eb1265b7dae8a58b060e9c0b4ac63c086a",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-combined-dark-s100.png",
+      "panel": "cover",
+      "scene": "combined",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "81d7f27730b72c19c199f29d44ce951fc3f7a833cc4ec2b6aacc8a6f57a2ce90",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-failed-dark-s100.png",
+      "panel": "cover",
+      "scene": "trash-failed",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "9ad1d9f4c76e836fe1857a9f2b17d945ff0e46e133743f1b05f17bfb7ee65106",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-pending-dark-s100.png",
+      "panel": "cover",
+      "scene": "trash-pending",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "b55d631d1ad6f24dae7f4c7849ab9b8a55ce7d7aafc170204e0e4fcd2033efc9",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-detail-heavy-dark-s100.png",
+      "panel": "cover",
+      "scene": "detail-heavy",
+      "scheme": "dark",
+      "fontScale": 1,
+      "held": true,
+      "sha256": "3ff1b6a5e07ff5d60739cfe324f808676580a0a085d62d6e3d50f50be978c6b0",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-missing-light-s200.png",
+      "panel": "cover",
+      "scene": "missing",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "b62c64ca9ed3b1e7e962ae336e87c9a88fab065c5ff04b066a72b172b4c15d52",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-undo-light-s200.png",
+      "panel": "cover",
+      "scene": "undo",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "ff2fbe26d7853295c1af4df10c83387446f2d414e362a476165809218a6f661b",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-combined-light-s200.png",
+      "panel": "cover",
+      "scene": "combined",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "bf55fe983a2d4a0e19817e239399b74d6bfca696346face249f271e5b5cac6cb",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-failed-light-s200.png",
+      "panel": "cover",
+      "scene": "trash-failed",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "3d2100eb02515716269642779b7617893f72a4314d98d72f1c1ca74154c48ef8",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-pending-light-s200.png",
+      "panel": "cover",
+      "scene": "trash-pending",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "98d39a4ab850e7641ddfd76ec11f154fc282ac808d14d640179de85411eb8353",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-detail-heavy-light-s200.png",
+      "panel": "cover",
+      "scene": "detail-heavy",
+      "scheme": "light",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "2b58cf58463e8e94a0acffdb968c51161311bcc8e3fbe7f4a459130bf78af99e",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-missing-dark-s200.png",
+      "panel": "cover",
+      "scene": "missing",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "2e36aa4819755755bd77c3a518789ed4ff30064aa4cd43cd78179d95ac3d88b5",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-undo-dark-s200.png",
+      "panel": "cover",
+      "scene": "undo",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "099d1d763bb6c9a03a316ddf4a9a9f58c310f5607a664f4ab4c8dee1a8dc03a0",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-combined-dark-s200.png",
+      "panel": "cover",
+      "scene": "combined",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "c250cd9bd0fdbb4c90882f3992a669b206bff0360423898f95c04f05d75e737b",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-failed-dark-s200.png",
+      "panel": "cover",
+      "scene": "trash-failed",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "79700ea815d6c68ec9ea39f86110e8441c88bceadf80a338c5fd1bcef2b2074a",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-trash-pending-dark-s200.png",
+      "panel": "cover",
+      "scene": "trash-pending",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "743ce3a4f3cb6632020da9caaaccb14aa8a0e3f4e9f66a03262e310c08405bde",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    },
+    {
+      "file": "feedback-overlay-cover-detail-heavy-dark-s200.png",
+      "panel": "cover",
+      "scene": "detail-heavy",
+      "scheme": "dark",
+      "fontScale": 2,
+      "held": true,
+      "sha256": "18a3cd55fbf18840638b1c42a5310150c6b2d64fb6daf509940f87e8a79e8b22",
+      "cropPixels": {
+        "x": 0,
+        "y": 152,
+        "width": 1080,
+        "height": 2272
+      },
+      "densityDpi": 390,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "rendererRequested": "host with renderD128 exposed",
+      "runtimeLibraryEnvironment": "Container-native Ubuntu runtime; no host /usr mount",
+      "systemImageFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys",
+      "physicalPixels": [
+        1080,
+        2424
+      ],
+      "applicationRoot": [
+        0,
+        152,
+        1080,
+        2365
+      ],
+      "freshHierarchyValidated": true,
+      "keyboardClosed": true,
+      "inspected": true,
+      "exactRetainedRgb": true,
+      "essentialPngChunksOnly": true,
+      "opaque": true
+    }
+  ]
+}

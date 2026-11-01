@@ -1,0 +1,278 @@
+{
+  "sourceRevision": "cb95cf6d785c3073c192b95f0632cdae7b910894",
+  "providerRun": "j80v9dqfb4",
+  "providerJob": "sk8lkf9xfp",
+  "providerAttempt": "s57prgfpx8",
+  "artifacts": [
+    {
+      "name": "app-debug.apk",
+      "sha256": "38a3bc3014f2e235893f6ecd2da1804ce445d461de39d9e360277f69d63347df"
+    },
+    {
+      "name": "app-debug-androidTest.apk",
+      "sha256": "e9eba76e2cab64cef4164695f88d6c0f46350b9a81676f458c78cb2acd325232"
+    }
+  ],
+  "installedAt": "2026-10-16T03:18:39.018Z",
+  "device": {
+    "sdk": "37",
+    "abi": "x86_64",
+    "pageSize": "16384",
+    "fontScale": "1.0"
+  },
+  "startedAt": "2026-10-16T03:19:19.884Z",
+  "finishedAt": "2026-10-16T03:19:25.925Z",
+  "expected": [
+    "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+    "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+    "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+    "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+    "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+    "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys",
+    "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination"
+  ],
+  "cases": [
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#truePeakServiceOpensAndResolvesOnDevice",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "1",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "truePeakServiceOpensAndResolvesOnDevice"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#symphoniaRegistryInitializesOnDevice",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "2",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "symphoniaRegistryInitializesOnDevice"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#opusDecoderConstructsOnDevice",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "3",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "opusDecoderConstructsOnDevice"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#decodeFromContentFd",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "4",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "decodeFromContentFd"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "5",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#nativePingCrossesJniBoundary",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "6",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "nativePingCrossesJniBoundary"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#aaudioOutputLatencyOnDevice",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "7",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "aaudioOutputLatencyOnDevice"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#benchmarkNativeDecode",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "8",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "benchmarkNativeDecode"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.NativeBridgeTest#nativeTruePeakInterpolatesInterSamplePeaks",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.NativeBridgeTest",
+        "current": "9",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "nativeTruePeakInterpolatesInterSamplePeaks"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.PeakSweepWorkerTest#measureAndCacheMeasuresThenCachesOneTrack",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+        "current": "10",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "measureAndCacheMeasuresThenCachesOneTrack"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.PeakSweepWorkerTest#workerSweepsBoundedShareAndSucceeds",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.PeakSweepWorkerTest",
+        "current": "11",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "workerSweepsBoundedShareAndSucceeds"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.RustEngineTest#autoAdvancesOnceOnNaturalEnd",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.RustEngineTest",
+        "current": "12",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "autoAdvancesOnceOnNaturalEnd"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.RustEngineTest#playsPausesSeeksThroughRustEngine",
+      "status": 0,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.RustEngineTest",
+        "current": "13",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stream": ".",
+        "test": "playsPausesSeeksThroughRustEngine"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.SessionStoreTest#migratesEveryLegacyCombination",
+      "status": -2,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+        "current": "14",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference",
+        "stream": "",
+        "test": "migratesEveryLegacyCombination"
+      }
+    },
+    {
+      "id": "dev.monochromatic.musicplayer.SessionStoreTest#currentPlaybackModeWinsOverLegacyKeys",
+      "status": -2,
+      "fields": {
+        "class": "dev.monochromatic.musicplayer.SessionStoreTest",
+        "current": "15",
+        "id": "AndroidJUnitRunner",
+        "numtests": "15",
+        "stack": "java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference",
+        "stream": "",
+        "test": "currentPlaybackModeWinsOverLegacyKeys"
+      }
+    }
+  ],
+  "testSources": [
+    {
+      "name": "NativeBridgeTest.kt",
+      "sha256": "1aff28a51f63fd45c83c9812a948d265bfd8e187a9057278d45ccdb28b8628d1"
+    },
+    {
+      "name": "PeakSweepWorkerTest.kt",
+      "sha256": "b879a7915627276d84de6eee3b9470682d92537686434703b20ad89c7711858a"
+    },
+    {
+      "name": "RustEngineTest.kt",
+      "sha256": "8d6f656a06aa72a5f31481353019efe692753b041f66de766406fb95fdd99a8a"
+    },
+    {
+      "name": "SessionStoreTest.kt",
+      "sha256": "24b4950034a13c141cace7d9be92c8a22b91943f1f5f268ca75903d3b98965f3"
+    }
+  ],
+  "commandExit": 0,
+  "signal": null,
+  "passed": 13,
+  "skipped": 0,
+  "scope": "Full historical suite on private headful host-GPU AVD with synthetic audio fixtures; no test filters or source edits",
+  "failed": 2,
+  "elapsedSeconds": 6.041,
+  "rawInstrumentationOutput": "INSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=1\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\ndev.monochromatic.musicplayer.NativeBridgeTest:\nINSTRUMENTATION_STATUS: test=truePeakServiceOpensAndResolvesOnDevice\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=1\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=truePeakServiceOpensAndResolvesOnDevice\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=2\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=symphoniaRegistryInitializesOnDevice\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=2\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=symphoniaRegistryInitializesOnDevice\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=3\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=opusDecoderConstructsOnDevice\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=3\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=opusDecoderConstructsOnDevice\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=4\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=decodeFromContentFd\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=4\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=decodeFromContentFd\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=5\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=5\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=fingerprintIsDeterministicOpaqueAndChangeSensitiveOnDevice\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=6\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=nativePingCrossesJniBoundary\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=6\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=nativePingCrossesJniBoundary\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=7\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=aaudioOutputLatencyOnDevice\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=7\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=aaudioOutputLatencyOnDevice\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=8\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=benchmarkNativeDecode\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=8\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=benchmarkNativeDecode\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=9\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=nativeTruePeakInterpolatesInterSamplePeaks\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.NativeBridgeTest\nINSTRUMENTATION_STATUS: current=9\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=nativeTruePeakInterpolatesInterSamplePeaks\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.PeakSweepWorkerTest\nINSTRUMENTATION_STATUS: current=10\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\ndev.monochromatic.musicplayer.PeakSweepWorkerTest:\nINSTRUMENTATION_STATUS: test=measureAndCacheMeasuresThenCachesOneTrack\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.PeakSweepWorkerTest\nINSTRUMENTATION_STATUS: current=10\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=measureAndCacheMeasuresThenCachesOneTrack\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.PeakSweepWorkerTest\nINSTRUMENTATION_STATUS: current=11\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=workerSweepsBoundedShareAndSucceeds\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.PeakSweepWorkerTest\nINSTRUMENTATION_STATUS: current=11\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=workerSweepsBoundedShareAndSucceeds\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.RustEngineTest\nINSTRUMENTATION_STATUS: current=12\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\ndev.monochromatic.musicplayer.RustEngineTest:\nINSTRUMENTATION_STATUS: test=autoAdvancesOnceOnNaturalEnd\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.RustEngineTest\nINSTRUMENTATION_STATUS: current=12\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=autoAdvancesOnceOnNaturalEnd\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.RustEngineTest\nINSTRUMENTATION_STATUS: current=13\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=playsPausesSeeksThroughRustEngine\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.RustEngineTest\nINSTRUMENTATION_STATUS: current=13\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=.\nINSTRUMENTATION_STATUS: test=playsPausesSeeksThroughRustEngine\nINSTRUMENTATION_STATUS_CODE: 0\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.SessionStoreTest\nINSTRUMENTATION_STATUS: current=14\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\ndev.monochromatic.musicplayer.SessionStoreTest:\nINSTRUMENTATION_STATUS: test=migratesEveryLegacyCombination\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.SessionStoreTest\nINSTRUMENTATION_STATUS: current=14\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stack=java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.migratesEveryLegacyCombination(SessionStoreTest.kt:34)\n\nINSTRUMENTATION_STATUS: stream=\nError in migratesEveryLegacyCombination(dev.monochromatic.musicplayer.SessionStoreTest):\njava.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.migratesEveryLegacyCombination(SessionStoreTest.kt:34)\n\nINSTRUMENTATION_STATUS: test=migratesEveryLegacyCombination\nINSTRUMENTATION_STATUS_CODE: -2\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.SessionStoreTest\nINSTRUMENTATION_STATUS: current=15\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stream=\nINSTRUMENTATION_STATUS: test=currentPlaybackModeWinsOverLegacyKeys\nINSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS: class=dev.monochromatic.musicplayer.SessionStoreTest\nINSTRUMENTATION_STATUS: current=15\nINSTRUMENTATION_STATUS: id=AndroidJUnitRunner\nINSTRUMENTATION_STATUS: numtests=15\nINSTRUMENTATION_STATUS: stack=java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.currentPlaybackModeWinsOverLegacyKeys(SessionStoreTest.kt:52)\n\nINSTRUMENTATION_STATUS: stream=\nError in currentPlaybackModeWinsOverLegacyKeys(dev.monochromatic.musicplayer.SessionStoreTest):\njava.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.currentPlaybackModeWinsOverLegacyKeys(SessionStoreTest.kt:52)\n\nINSTRUMENTATION_STATUS: test=currentPlaybackModeWinsOverLegacyKeys\nINSTRUMENTATION_STATUS_CODE: -2\nINSTRUMENTATION_RESULT: stream=\n\nTime: 5.209\nThere were 2 failures:\n1) migratesEveryLegacyCombination(dev.monochromatic.musicplayer.SessionStoreTest)\njava.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.migratesEveryLegacyCombination(SessionStoreTest.kt:34)\n2) currentPlaybackModeWinsOverLegacyKeys(dev.monochromatic.musicplayer.SessionStoreTest)\njava.lang.NullPointerException: Attempt to invoke virtual method 'android.content.SharedPreferences android.content.Context.getSharedPreferences(java.lang.String, int)' on a null object reference\n\tat dev.monochromatic.musicplayer.SessionStore.prefs(SessionStore.kt:436)\n\tat dev.monochromatic.musicplayer.SessionStore.load(SessionStore.kt:185)\n\tat dev.monochromatic.musicplayer.SessionStoreTest.currentPlaybackModeWinsOverLegacyKeys(SessionStoreTest.kt:52)\n\nFAILURES!!!\nTests run: 15,  Failures: 2\n\n\nINSTRUMENTATION_CODE: -1\n",
+  "rawInstrumentationStderr": "",
+  "fixturePreparation": {
+    "indexedAudio": 3,
+    "formats": [
+      "flac",
+      "opus",
+      "mp3"
+    ],
+    "toneHertz": 440,
+    "nominalDurationSeconds": 10,
+    "privateExternalFiles": [
+      "bench.opus",
+      "bench.flac"
+    ],
+    "readMediaAudioGranted": true
+  },
+  "cleanup": {
+    "emulatorUnit": "depot-trial-fold",
+    "state": "inactive",
+    "gracefulShutdown": "sync, wait 8 seconds, sync, adb emu kill"
+  },
+  "limitations": [
+    "One x86_64 API 37 emulator with 16 KiB pages; no physical arm64 execution.",
+    "No source or test edits; both historical SessionStoreTest failures remain failures.",
+    "Functional execution timings do not establish a performance comparison."
+  ]
+}

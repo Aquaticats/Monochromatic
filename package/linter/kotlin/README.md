@@ -2,7 +2,7 @@
 
 Monorepo-wide [detekt][] rule set enforcing KDoc on every Kotlin declaration,
 the Kotlin counterpart of the repo's `require-tsdoc` oxlint rule for TypeScript.
-It is the Kotlin sibling of `package/linter/rust`:
+It is the Kotlin sibling of `package/linter/monochromatic-lint`:
 a standalone linter run over all of `package/` by the root `lint:detekt` task.
 
 ## Why this exists
@@ -51,7 +51,7 @@ which is what reaches local and nested declarations.
 
 ## How it runs monorepo-wide
 
-The root `lint:detekt` task (in `mise.no-env.toml`,
+The root `lint:detekt` task (in `mise.toml`,
 part of the `lint` aggregate) invokes the detekt CLI over `package/`
 with this module's jar on `--plugins`.
 Detekt's default config stays active,

@@ -1,0 +1,2073 @@
+{
+  "schemaVersion": 1,
+  "completed": true,
+  "sourceRevision": "d6deca5fa570d6ba71afdab837e508a9f7ff6b0e",
+  "workload": "forbidden-strings 0.5.0 debug executable, identical compiled inputs, two linker threads",
+  "toolVersions": {
+    "rust": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "18.1.3",
+    "lld": "18.1.3",
+    "mold": "2.30.0",
+    "remoteNode": "22.23.2",
+    "localNode": "26.12.0",
+    "sandboxSdk": "0.1.0-beta.5"
+  },
+  "sandbox": {
+    "id": "pt4gd92356psxm9",
+    "status": "finished",
+    "resources": {
+      "vcpus": 2,
+      "memoryMb": 2048,
+      "diskGb": 150
+    },
+    "architecture": "amd64",
+    "createdAt": "2026-10-16T01:36:13.753Z",
+    "startedAt": "2026-10-16T01:36:15.038Z",
+    "stoppedAt": "2026-10-16T01:56:19.441Z",
+    "expiresAt": "2026-10-16T02:21:13.750Z"
+  },
+  "commands": [
+    {
+      "label": "mise-version",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:37.070Z",
+      "finishedAt": "2026-10-16T01:39:37.274Z"
+    },
+    {
+      "label": "apt-update",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:37.477Z",
+      "finishedAt": "2026-10-16T01:39:38.479Z"
+    },
+    {
+      "label": "apt-install",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:38.682Z",
+      "finishedAt": "2026-10-16T01:39:39.484Z"
+    },
+    {
+      "label": "extract",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:39.686Z",
+      "finishedAt": "2026-10-16T01:39:39.786Z"
+    },
+    {
+      "label": "trust",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:39.987Z",
+      "finishedAt": "2026-10-16T01:39:40.089Z"
+    },
+    {
+      "label": "install-rust",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:40.297Z",
+      "finishedAt": "2026-10-16T01:39:47.408Z"
+    },
+    {
+      "label": "tool-help",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:39:47.610Z",
+      "finishedAt": "2026-10-16T01:39:50.176Z"
+    },
+    {
+      "label": "trust-build",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:40:15.873Z",
+      "finishedAt": "2026-10-16T01:40:15.979Z"
+    },
+    {
+      "label": "build",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:40:16.178Z",
+      "finishedAt": "2026-10-16T01:42:02.300Z"
+    },
+    {
+      "label": "benchmark",
+      "exitCode": 1,
+      "startedAt": "2026-10-16T01:42:27.450Z",
+      "finishedAt": "2026-10-16T01:42:28.162Z"
+    },
+    {
+      "label": "benchmark",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:43:15.460Z",
+      "finishedAt": "2026-10-16T01:43:28.561Z"
+    },
+    {
+      "label": "lifecycle-one",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:43:49.515Z",
+      "finishedAt": "2026-10-16T01:43:49.536Z"
+    },
+    {
+      "label": "lifecycle-two",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:43:49.728Z",
+      "finishedAt": "2026-10-16T01:43:49.837Z"
+    },
+    {
+      "label": "lifecycle-one",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:01.769Z",
+      "finishedAt": "2026-10-16T01:46:01.876Z"
+    },
+    {
+      "label": "lifecycle-two",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:02.076Z",
+      "finishedAt": "2026-10-16T01:46:02.176Z"
+    },
+    {
+      "label": "lifecycle-one",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:03.209Z",
+      "finishedAt": "2026-10-16T01:46:03.281Z"
+    },
+    {
+      "label": "lifecycle-two",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:03.483Z",
+      "finishedAt": "2026-10-16T01:46:03.583Z"
+    },
+    {
+      "label": "trust-archive",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:50.214Z",
+      "finishedAt": "2026-10-16T01:46:50.318Z"
+    },
+    {
+      "label": "archive",
+      "exitCode": 0,
+      "startedAt": "2026-10-16T01:46:50.517Z",
+      "finishedAt": "2026-10-16T01:46:54.327Z"
+    }
+  ],
+  "summary": [
+    {
+      "phase": "baseline",
+      "linker": "lld",
+      "count": 7,
+      "minimumMs": 197.09212399999979,
+      "maximumMs": 220.06473600000004,
+      "spreadMs": 22.972612000000254,
+      "medianMs": 205.7214210000002
+    },
+    {
+      "phase": "baseline",
+      "linker": "mold",
+      "count": 7,
+      "minimumMs": 191.91488599999957,
+      "maximumMs": 236.44347900000002,
+      "spreadMs": 44.528593000000456,
+      "medianMs": 198.49606399999993
+    },
+    {
+      "phase": "alternating",
+      "linker": "lld",
+      "count": 12,
+      "minimumMs": 195.7285750000001,
+      "maximumMs": 207.37898999999925,
+      "spreadMs": 11.650414999999157,
+      "medianMs": 202.15556199999946
+    },
+    {
+      "phase": "alternating",
+      "linker": "mold",
+      "count": 12,
+      "minimumMs": 203.67898100000002,
+      "maximumMs": 403.4066550000007,
+      "spreadMs": 199.72767400000066,
+      "medianMs": 217.00231600000052
+    }
+  ],
+  "results": {
+    "positiveTimingControl": {
+      "elapsedMs": 251.667503,
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "captured": {
+      "cwd": "/home/runner/linker/package/cli/forbidden-strings",
+      "args": [
+        "-m64",
+        "/home/runner/linker/captured/1-symbols.o",
+        "/home/runner/linker/captured/2-forbidden_strings-cc1d4a79899a7c79.02gb9eu6g4l9n9krxmudtmqix.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/3-forbidden_strings-cc1d4a79899a7c79.03muqqx3nwcnd7887d6swotbt.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/4-forbidden_strings-cc1d4a79899a7c79.05x203my4ila5fjotxj83r71k.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/5-forbidden_strings-cc1d4a79899a7c79.0ayoq8soqnxvlg50ft9ng95pw.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/6-forbidden_strings-cc1d4a79899a7c79.0g53fxkt8f4isurw00hosr140.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/7-forbidden_strings-cc1d4a79899a7c79.10rtp2ce5immph5tykkpdo8f5.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/8-forbidden_strings-cc1d4a79899a7c79.11ul7gte3v9797pl8gpiih73u.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/9-forbidden_strings-cc1d4a79899a7c79.1ppaoahud26t62gdpfxljqrqs.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/10-forbidden_strings-cc1d4a79899a7c79.1qhgost419hern1rn5xrlohh9.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/11-forbidden_strings-cc1d4a79899a7c79.2dq19pcvsiqjy8xek3m4kqetx.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/12-forbidden_strings-cc1d4a79899a7c79.2vli36s1yc4kt0uhpvso32c8n.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/13-forbidden_strings-cc1d4a79899a7c79.35tot5fycpn2g6ux1wwr24xpg.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/14-forbidden_strings-cc1d4a79899a7c79.3faiwp9sa9boihspqj0tcj7xo.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/15-forbidden_strings-cc1d4a79899a7c79.3gg008rzbzyws4tier8otjcz0.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/16-forbidden_strings-cc1d4a79899a7c79.3q729ybxg4smsza2nrk4yu0gv.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/17-forbidden_strings-cc1d4a79899a7c79.3r25gga3kvzgcy25umqb9kf0r.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/18-forbidden_strings-cc1d4a79899a7c79.4ku3my6smosv3e4f0jr59ev7q.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/19-forbidden_strings-cc1d4a79899a7c79.50uzl1oh8otmfyh2tuovzer3q.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/20-forbidden_strings-cc1d4a79899a7c79.5jy1zf7ba003yq0zveu77446o.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/21-forbidden_strings-cc1d4a79899a7c79.5opggms7wy0vgxgyuvo0mddro.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/22-forbidden_strings-cc1d4a79899a7c79.68n0nk5flwfadu3uywewsw490.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/23-forbidden_strings-cc1d4a79899a7c79.6febkb7oxdtv5s2ero0894vsi.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/24-forbidden_strings-cc1d4a79899a7c79.6kaazk52qgx407i1lb9ppfebo.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/25-forbidden_strings-cc1d4a79899a7c79.71lr1afuqmpvryii7mx8fy3k5.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/26-forbidden_strings-cc1d4a79899a7c79.7iikayzckktv9dbxdtqn7rj4j.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/27-forbidden_strings-cc1d4a79899a7c79.889xxlujinnt0yqstb0npegdt.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/28-forbidden_strings-cc1d4a79899a7c79.8dyxclsktojo67y7c2pfp5fit.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/29-forbidden_strings-cc1d4a79899a7c79.8rcdw5pybrd1asmnv683f1y6a.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/30-forbidden_strings-cc1d4a79899a7c79.975lm84d7rnark2joc4t7m23g.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/31-forbidden_strings-cc1d4a79899a7c79.98qmz54f2ojlryizphitibu9i.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/32-forbidden_strings-cc1d4a79899a7c79.99tkcm4z96iiyho24g7wk7e5e.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/33-forbidden_strings-cc1d4a79899a7c79.9vngnytoe4z8b98a5ccmvqqi3.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/34-forbidden_strings-cc1d4a79899a7c79.a45ylc7leg9clpnvmhxiif4nv.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/35-forbidden_strings-cc1d4a79899a7c79.a9ctlzig14x4nw2wrlz6q2eih.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/36-forbidden_strings-cc1d4a79899a7c79.azen53637na2xzi5rp3r2kwkj.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/37-forbidden_strings-cc1d4a79899a7c79.b022t2xyupkxpdf9rnww4keci.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/38-forbidden_strings-cc1d4a79899a7c79.bmbanhtbrcsp60xinwmhuaaaq.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/39-forbidden_strings-cc1d4a79899a7c79.bvpt7ognq8az20t5u30ocer7p.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/40-forbidden_strings-cc1d4a79899a7c79.c0zfqiln1vwkp686obo30nw4n.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/41-forbidden_strings-cc1d4a79899a7c79.c8feolyyw6gwew1d7l4o1igi7.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/42-forbidden_strings-cc1d4a79899a7c79.coibr94i9ox81ff4r26lovajp.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/43-forbidden_strings-cc1d4a79899a7c79.cwclczohq9jeklo0eg9fxhlni.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/44-forbidden_strings-cc1d4a79899a7c79.cz1pbwcgluiyskkaon0njxn2r.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/45-forbidden_strings-cc1d4a79899a7c79.d3qeqb9y63v4ftobrlcsj8fzv.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/46-forbidden_strings-cc1d4a79899a7c79.egxs7a2np9zl9i28m4yj03shf.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/47-forbidden_strings-cc1d4a79899a7c79.eohex4eggt3yj8gerkctd1br8.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/48-forbidden_strings-cc1d4a79899a7c79.erp5ci7fcbdm31ep525lwts24.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/49-forbidden_strings-cc1d4a79899a7c79.errmwcr7eofurmut286fxnryq.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/50-forbidden_strings-cc1d4a79899a7c79.f3quzadx4865l60o47xlgh83z.1x947jy.rcgu.o",
+        "/home/runner/linker/captured/51-forbidden_strings-cc1d4a79899a7c79.1kcthyjrsngznzj4c5fnkchf5.1x947jy.rcgu.o",
+        "-Wl,--as-needed",
+        "-Wl,-Bstatic",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtracing_subscriber-64468625bf9a0b75.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsharded_slab-51f407b1f8b48766.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liblazy_static-88555bc1b2914d1d.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libmatchers-bdfe3f06ab66050a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libnu_ansi_term-67b0a71bd97004f0.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libthread_local-d2138b63bb88c1e4.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtracing_log-3f835d4ad9ebb659.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libforbidden_strings-c3e9bfba32d9315e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_index-4269ef24b76dd62e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libfnv-95115466e4c231ec.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_bitmap-8fabf6c6d64a7b0b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_lock-cd91a15d67243df1.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_tempfile-89a7e6490af704f4.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtempfile-24fa2fc54f6ac9dc.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgetrandom-46df31b4812de973.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/librustix-0bbd07584888a30b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liblinux_raw_sys-6d0a3f15496062b8.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_fs-016818e92bf4c909.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_path-755110eecefad119.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_traverse-703f6a14379fac5a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_revwalk-dfad464a79374fce.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_hashtable-35d789ed60c655d5.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libhashbrown-364282455a4940b1.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libequivalent-25399173825e99b6.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liballocator_api2-6e25163fdb1dd883.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libfoldhash-3333ee0b30478997.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_commitgraph-fc0ed7525ab959d1.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_chunk-68fbc80ff388d748.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libnonempty-a7eaac94892ca6c9.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libmemmap2-2f05e234a216319c.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libbitflags-34ffab15ef8c418d.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_object-1b72ea8b5cc98132.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_actor-9abb5a88f74b112b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_date-bfef27d24c4a752e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libitoa-ff69257625bca679.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_error-c5247071e9629b23.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libjiff-bcc8ba8e18d8a82e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_validate-9652c5e5d8376497.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libfiletime-91079610b6b2f402.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_hash-200365cbc30c38fe.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_features-e3404f4e5c501065.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_utils-17a2e17f2a096b9a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libfastrand-24c0f31d71561a4a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libunicode_normalization-0740cfb22d40e415.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtinyvec-1745e34a39112acf.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtinyvec_macros-4fe9bd22c77458c7.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgix_trace-65be3cff336ee12f.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libprodash-20bd71fd5e3dbdcc.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libparking_lot-58d5026e49ccbb61.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libparking_lot_core-24e0142718240f8a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liblibc-8b196f7502cbc52e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsmallvec-4089a1bfab04e640.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liblock_api-ce1e33db51c2bd80.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libscopeguard-e543de243d36abc8.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsha2-c8647970494ddb7f.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libfaster_hex-12334c3fb6c5bb6b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libthiserror-dd9de64efc75fc2a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsha1_checked-7145616ee32f0841.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsha1-cbda71f97751a8e6.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcpufeatures-ea877f994fc11ea8.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcfg_if-64ca5c2fe1696850.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libdigest-13aecc7e83a4a0db.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libblock_buffer-0ced544df8837df8.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcrypto_common-a62630554c452b5f.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libgeneric_array-616f8c6a93aab323.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtypenum-162300667113ba85.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/librayon-d409b04ec6ebfc57.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/librayon_core-16198bbd056e200b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libeither-b6f09237bd5c306b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libignore-fd076a7be0306f69.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libwalkdir-7831a18c15315d66.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libsame_file-0f9f2198881c500d.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcrossbeam_deque-dc608a2ce64f2087.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcrossbeam_epoch-125cfdc38a7bd4a1.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcrossbeam_utils-b5c298dc408ca6a2.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libglobset-dd17e39e676013bf.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/liblog-cbeaf8a056a0628c.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libbstr-fff1ed3d53c95741.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libforbidden_regex-fe80069fcc13fd88.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libbincode-cbfddf06258b6f35.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtracing-622036d08eabe85e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libpin_project_lite-479fbad2e14883e3.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libtracing_core-dd7b53d176162bf3.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libonce_cell-46e127293b98af71.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libregex_automata-0c69e61479bf9f09.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libregex_syntax-aaac8cf84799e049.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libaho_corasick-0b69576f8094c913.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libmemchr-bd0e357c88d77aeb.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libserde-34ff24d82e494c52.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libserde_core-f05742c7c75efb9b.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libclap-406acb7c77da6c3d.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libclap_builder-169a3238a244e632.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libstrsim-7f576e2721d67c3a.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libanstream-fc63be38ea4379e1.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libanstyle_query-16bbcee7f244ee9d.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libis_terminal_polyfill-e6f86f7a6d0385a6.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libcolorchoice-48bf524e6265ef4e.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libanstyle_parse-2ea3a1cb65ba59cf.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libutf8parse-a9ef95d6354caad4.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libclap_lex-9e7648546743d63c.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libanstyle-388f1bdbf8983e39.rlib",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/libanyhow-b2680067fd55f306.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-7e719de9c4abc98f.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_unwind-4c962e8757b7fd52.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libobject-9ab214bf508f4fb2.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libmemchr-e57d23b4cf2c7093.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libaddr2line-b2546485fb156a81.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libgimli-a024a39c5ca178d0.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcfg_if-77a19c181a6f6522.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_demangle-23edf219dcb73297.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd_detect-ce90372c8b94015d.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libhashbrown-bd00bf133bcf4229.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_alloc-e4d7e1d94de777fa.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libminiz_oxide-4ee1421476c1c513.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libadler2-e749a99f48dba5bc.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libunwind-87f8da15080ba246.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liblibc-6cf0fcd942b0e793.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_core-fb3f24e4abf4be88.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liballoc-3988244237fec6ee.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-1d288395a3394ed3.rlib",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcompiler_builtins-2d9557d6e902a200.rlib",
+        "-Wl,-Bdynamic",
+        "-lgcc_s",
+        "-lutil",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-ldl",
+        "-lc",
+        "-L",
+        "/home/runner/linker/package/cli/forbidden-strings/target/debug/deps/rustc7aKJCP/raw-dylibs",
+        "-B/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld",
+        "-fuse-ld=lld",
+        "-Wl,--eh-frame-hdr",
+        "-Wl,-z,noexecstack",
+        "-L",
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib",
+        "-o",
+        "/home/runner/linker/scanner",
+        "-Wl,--gc-sections",
+        "-pie",
+        "-Wl,-z,relro,-z,now",
+        "-nodefaultlibs"
+      ]
+    },
+    "records": [
+      {
+        "linker": "lld",
+        "phase": "reproducer",
+        "round": 0,
+        "elapsedMs": 307.89999099999994,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 2.8788990000000467,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 7.355657000000065,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.5132189999999355,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.42545999999993,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "warmup",
+        "round": 0,
+        "elapsedMs": 253.112122,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7696000000000822,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.257969000000003,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.1706190000002152,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.624168999999938,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 1,
+        "elapsedMs": 208.34696999999983,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6913789999998698,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.9458489999999529,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.7568100000000868,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3549889999999323,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 2,
+        "elapsedMs": 220.06473600000004,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7384490000001733,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.0318790000001172,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8826199999998607,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3392590000000837,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 3,
+        "elapsedMs": 205.7214210000002,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6053589999999076,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.8339100000000599,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.6441690000001472,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.2592689999999038,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 4,
+        "elapsedMs": 200.52988199999982,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.67421000000013,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.0991290000001754,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.9502689999999347,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.305779000000257,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 5,
+        "elapsedMs": 205.910981,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6929690000001756,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.9803300000003219,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8614689999999428,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 3.3393989999999576,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 6,
+        "elapsedMs": 200.26102300000002,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.674109000000044,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.9078090000002703,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.650050000000192,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.2393090000000484,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "baseline",
+        "round": 7,
+        "elapsedMs": 197.09212399999979,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.5866390000001047,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.7870089999996708,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.595589999999902,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.1719790000001922,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 1,
+        "elapsedMs": 220.62006500000007,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7114599999999882,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.20913900000005,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.003479000000425,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.4669990000002144,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 2,
+        "elapsedMs": 236.44347900000002,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6896889999998166,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2420890000003055,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.070369000000028,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.7275600000002669,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 3,
+        "elapsedMs": 199.19693300000017,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7120390000000043,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1519789999997556,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.0846200000000863,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.594698999999764,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 4,
+        "elapsedMs": 198.49606399999993,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7138789999999062,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.3145690000001196,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.163188999999875,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.6366999999991094,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 5,
+        "elapsedMs": 197.2314040000001,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7129189999996015,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.260620000000017,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.084708999999748,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.5139790000002904,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 6,
+        "elapsedMs": 191.91488599999957,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.9125900000008187,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.3290589999996882,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.1188090000005104,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.547019000000546,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "baseline",
+        "round": 7,
+        "elapsedMs": 195.9321549999995,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7013090000000375,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2462189999996554,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.1054000000003725,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.553729000000203,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 1,
+        "elapsedMs": 207.16802000000007,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.727139999999963,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1340790000003835,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8965290000005552,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.4560599999995247,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 1,
+        "elapsedMs": 217.7370860000001,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7431699999997363,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2899790000001303,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.064658999999665,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.547668999999587,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 2,
+        "elapsedMs": 215.90105700000004,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.72729900000013,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2249190000002272,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.1112899999998263,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.526198999999906,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 2,
+        "elapsedMs": 200.17195300000003,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.636819000000287,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.8683900000005451,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8267390000000887,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.2641499999999724,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 3,
+        "elapsedMs": 206.68143999999938,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6353590000007898,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.0657400000000052,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8500889999995707,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3600290000003952,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 3,
+        "elapsedMs": 211.56595900000048,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6519989999997051,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1970000000001164,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.019029000000046,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.5299190000005183,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 4,
+        "elapsedMs": 226.37397299999975,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6702600000007806,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1182490000001053,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.0195089999997435,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.454660000000331,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 4,
+        "elapsedMs": 196.43900500000018,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.591949000000568,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.7660100000002785,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.5816190000005008,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.1629599999996572,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 5,
+        "elapsedMs": 195.7285750000001,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.661840000000666,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.994579000000158,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8532590000004348,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3451500000001033,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 5,
+        "elapsedMs": 203.67898100000002,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7371600000005856,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.290248999999676,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.2446790000003602,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.4756189999998242,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 6,
+        "elapsedMs": 316.5133880000012,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6732100000008359,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.194879000000583,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.115839000000051,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.572349000000031,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 6,
+        "elapsedMs": 197.58130399999936,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6260590000001685,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.9902190000011615,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.7322199999998702,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3176690000000235,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 7,
+        "elapsedMs": 207.37898999999925,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6206500000007509,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.032379000000219,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.763928999998825,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3392100000000937,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 7,
+        "elapsedMs": 211.37056900000061,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7584590000005846,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 3.390419000001202,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.282239000000118,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.6501900000002934,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 8,
+        "elapsedMs": 403.4066550000007,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6511799999989307,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1418790000006993,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.9986389999994572,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.4605289999999513,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 8,
+        "elapsedMs": 199.50547299999926,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6314490000004298,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 1.8866999999991094,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.7098800000003394,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.304958999999144,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 9,
+        "elapsedMs": 204.1391709999989,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7116900000000896,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.132009000000835,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.9495889999998326,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3395990000008169,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 9,
+        "elapsedMs": 210.88516799999888,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.9677200000005541,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.407348999999158,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.2019490000002406,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.5720090000013442,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 10,
+        "elapsedMs": 317.54976799999895,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6511000000009517,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.1730790000001434,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.0844989999986865,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.5498790000001463,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 10,
+        "elapsedMs": 205.8433210000003,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.8621299999995244,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.149349000001166,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.9623289999999542,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.4504890000007435,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 11,
+        "elapsedMs": 199.62920300000042,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6859400000012101,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.0480290000014065,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.8676589999995485,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.3656689999988885,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 11,
+        "elapsedMs": 216.26754600000095,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.6904500000000553,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2313090000006923,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.1330589999997756,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.7569690000000264,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "mold",
+        "phase": "alternating",
+        "round": 12,
+        "elapsedMs": 344.3333469999998,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "check": {
+          "version": {
+            "elapsedMs": 1.7232700000004115,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.2979290000002948,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 2.285268999999971,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.731829000000289,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  mold 2.30.0 (compatible with GNU ld)\n  [    25]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    52]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n\n"
+      },
+      {
+        "linker": "lld",
+        "phase": "alternating",
+        "round": 12,
+        "elapsedMs": 204.64225100000112,
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "sha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "check": {
+          "version": {
+            "elapsedMs": 1.705420000000231,
+            "status": 0,
+            "stdout": "forbidden-strings 0.5.0\n",
+            "stderr": ""
+          },
+          "passing": {
+            "elapsedMs": 2.0053590000006807,
+            "status": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "failing": {
+            "elapsedMs": 1.7854189999998198,
+            "status": 1,
+            "stdout": "",
+            "stderr": "/home/runner/linker/fail.txt:1 rule=0\n"
+          },
+          "missing": {
+            "elapsedMs": 1.332010000000082,
+            "status": 2,
+            "stdout": "",
+            "stderr": "forbidden-strings: read rules /home/runner/linker/absent-rules.txt: No such file or directory (os error 2)\n"
+          }
+        },
+        "comment": "\nString dump of section '.comment':\n  [     0]  GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0\n  [    2e]  rustc version 1.99.1 (58cf8f9c3 2026-10-13)\n  [    5a]  Linker: Ubuntu LLD 18.1.3\n\n"
+      }
+    ]
+  },
+  "sourceFiles": [
+    {
+      "file": "source.tar",
+      "size": 2027520,
+      "sha256": "1aa9f7c2a25da0dbf4156646f720516922553d404975bef9d6ae8d90d78273fa"
+    },
+    {
+      "file": "capture.ts",
+      "size": 1170,
+      "sha256": "327735bbd2c51c8a613af171fa7c9b7efc53fc96c76f4510ea3dfcb8745b8678"
+    },
+    {
+      "file": "benchmark.ts",
+      "size": 3890,
+      "sha256": "73a921e2b81a400fa4b40fe3a5d36ec95d473fbea19935c0a6c9390d7c56b0bb"
+    },
+    {
+      "file": "remote.mise.toml",
+      "size": 573,
+      "sha256": "f9ba391942055f4acaead2c188a9dea76d16e857ea1e826f4139798e5407d3f1"
+    },
+    {
+      "file": "results.json",
+      "size": 71639,
+      "sha256": "5c2d0024035af5ca9c917b90f6b373cad7a2723a31816faf6e055a683291f37a"
+    },
+    {
+      "file": "probe.log",
+      "size": 1639,
+      "sha256": "3747bae26fc40f5531451b1ad5e62540c616eff3256be907f634cc00d6404564"
+    },
+    {
+      "file": "tool-help.log",
+      "size": 147418,
+      "sha256": "c6762622a886e24f8353d44aadc34cca028104b508eb39b13f766a7119a1485d"
+    },
+    {
+      "file": "build.log",
+      "size": 7597,
+      "sha256": "fe7713bb6895b16fc64227b95f026753e761235872d19d5c74e27ba8c65dce41"
+    },
+    {
+      "file": "commands.jsonl",
+      "size": 2193,
+      "sha256": "a5afc2b6c0cd92166b45dd20fc8d4613d694980792d6f032c4c170e15e011f83"
+    }
+  ],
+  "retainedArtifacts": [
+    {
+      "file": "inputs.tar.gz",
+      "compressedSha256": "61fb4414e8bc9143e76dfeb2c4bb83736f368b07a4b7790e674aae80e8841d0b",
+      "decompressedSha256": "48af12c2f470d6718d9864eb4cf9803d94d1b7f04cd90055b26c06c2e271408a",
+      "decompressedBytes": 300454912
+    },
+    {
+      "file": "scanner-lld.gz",
+      "compressedSha256": "a02aca62ffd482c0661cc21f150a826b9fd583aa96f081e186da963fc5d17464",
+      "decompressedSha256": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+      "decompressedBytes": 78689928
+    },
+    {
+      "file": "scanner-mold.gz",
+      "compressedSha256": "e0cc544a9583efec6bb8ebea2673bec4f480d9c3141db8151ee434556bf1b918",
+      "decompressedSha256": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+      "decompressedBytes": 83538928
+    }
+  ],
+  "artifactDirectory": "~/temp/agent/depot-linker-20261016",
+  "lifecycleControls": [
+    {
+      "mode": "lifecycle-read",
+      "elapsedMs": 1072.919916,
+      "status": 0,
+      "signal": null,
+      "stdout": "{\"event\":\"sandbox\",\"id\":\"pt4gd92356psxm9\",\"resources\":{\"vcpus\":2,\"memoryMb\":2048,\"diskGb\":150},\"status\":\"running\"}\n{\"event\":\"read-complete\",\"bytes\":400}\n{\"event\":\"completed\",\"mode\":\"lifecycle-read\",\"activeResourceTypes\":[\"PipeWrap\",\"TCPSocketWrap\",\"PipeWrap\"]}\n",
+      "stderr": ""
+    },
+    {
+      "mode": "lifecycle-write",
+      "elapsedMs": 903.022737,
+      "status": 0,
+      "signal": null,
+      "stdout": "{\"event\":\"sandbox\",\"id\":\"pt4gd92356psxm9\",\"resources\":{\"vcpus\":2,\"memoryMb\":2048,\"diskGb\":150},\"status\":\"running\"}\n{\"event\":\"write-complete\"}\n{\"event\":\"completed\",\"mode\":\"lifecycle-write\",\"activeResourceTypes\":[\"PipeWrap\",\"TCPSocketWrap\",\"PipeWrap\"]}\n",
+      "stderr": ""
+    },
+    {
+      "mode": "probe",
+      "elapsedMs": 1405.691251,
+      "status": 0,
+      "signal": null,
+      "stdout": "{\"event\":\"sandbox\",\"id\":\"pt4gd92356psxm9\",\"resources\":{\"vcpus\":2,\"memoryMb\":2048,\"diskGb\":150},\"status\":\"running\"}\nuid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),117(docker),999(systemd-journal)\n/home/runner\ndrwxr-xr-x  3 root   root   4096 Aug 13 23:36 /home/linuxbrew\ndrwxr-x--- 14 runner docker 4096 Oct 16 01:38 /home/runner\ndrwxr-x---  5 ubuntu ubuntu 4096 Aug 13 23:31 /home/ubuntu\n{\"event\":\"command\",\"exitCode\":0,\"startedAt\":\"2026-10-16T01:46:00.845Z\",\"finishedAt\":\"2026-10-16T01:46:00.873Z\"}\n{\"event\":\"completed\",\"mode\":\"probe\",\"activeResourceTypes\":[\"PipeWrap\",\"TCPSocketWrap\",\"PipeWrap\"]}\n",
+      "stderr": ""
+    },
+    {
+      "mode": "lifecycle-two",
+      "elapsedMs": 1305.6555150000004,
+      "status": 0,
+      "signal": null,
+      "stdout": "{\"event\":\"sandbox\",\"id\":\"pt4gd92356psxm9\",\"resources\":{\"vcpus\":2,\"memoryMb\":2048,\"diskGb\":150},\"status\":\"running\"}\n{\"label\":\"lifecycle-one\",\"exitCode\":0,\"startedAt\":\"2026-10-16T01:46:01.769Z\",\"finishedAt\":\"2026-10-16T01:46:01.876Z\"}\n{\"label\":\"lifecycle-two\",\"exitCode\":0,\"startedAt\":\"2026-10-16T01:46:02.076Z\",\"finishedAt\":\"2026-10-16T01:46:02.176Z\"}\n{\"event\":\"completed\",\"mode\":\"lifecycle-two\",\"activeResourceTypes\":[\"PipeWrap\",\"PipeWrap\"]}\n",
+      "stderr": ""
+    },
+    {
+      "mode": "lifecycle-two-exit",
+      "elapsedMs": 1402.66251,
+      "status": 0,
+      "signal": null,
+      "stdout": "{\"event\":\"sandbox\",\"id\":\"pt4gd92356psxm9\",\"resources\":{\"vcpus\":2,\"memoryMb\":2048,\"diskGb\":150},\"status\":\"running\"}\n{\"label\":\"lifecycle-one\",\"exitCode\":0,\"startedAt\":\"2026-10-16T01:46:03.209Z\",\"finishedAt\":\"2026-10-16T01:46:03.281Z\"}\n{\"label\":\"lifecycle-two\",\"exitCode\":0,\"startedAt\":\"2026-10-16T01:46:03.483Z\",\"finishedAt\":\"2026-10-16T01:46:03.583Z\"}\n{\"event\":\"completed\",\"mode\":\"lifecycle-two-exit\",\"activeResourceTypes\":[\"PipeWrap\",\"PipeWrap\"]}\n",
+      "stderr": ""
+    }
+  ],
+  "firstLifecycleTimeout": {
+    "mode": "lifecycle-two",
+    "elapsedMs": 10013.919911,
+    "status": null,
+    "signal": "SIGTERM",
+    "localError": "ETIMEDOUT",
+    "remoteExitCodes": [
+      0,
+      0
+    ],
+    "applicationCompletedMarker": true,
+    "source": "retained command output from the first bounded two-command probe"
+  },
+  "independentVerification": {
+    "sourceSha256": "5c2d0024035af5ca9c917b90f6b373cad7a2723a31816faf6e055a683291f37a",
+    "capturedArgumentCount": 197,
+    "links": 40,
+    "consumerInvocations": 160,
+    "positiveTimingControlMs": 251.667503,
+    "summaries": {
+      "lld": {
+        "hash": "ff8932330d25cb21ea21a8a7d7e703c36e120874da23c2e5f0f4b3d79a4ab248",
+        "baseline": {
+          "count": 7,
+          "medianMs": 205.7214210000002,
+          "minMs": 197.09212399999979,
+          "maxMs": 220.06473600000004,
+          "rangeMs": 22.972612000000254,
+          "madMs": 5.191539000000375
+        },
+        "alternating": {
+          "count": 12,
+          "medianMs": 202.15556199999946,
+          "minMs": 195.7285750000001,
+          "maxMs": 207.37898999999925,
+          "rangeMs": 11.650414999999157,
+          "madMs": 4.106818500000372
+        }
+      },
+      "mold": {
+        "hash": "d65d72dfe08c88f41ebc00f8dc12b8bb761160eae29a83ca5eeaaf3447144004",
+        "baseline": {
+          "count": 7,
+          "medianMs": 198.49606399999993,
+          "minMs": 191.91488599999957,
+          "maxMs": 236.44347900000002,
+          "rangeMs": 44.528593000000456,
+          "madMs": 2.5639090000004217
+        },
+        "alternating": {
+          "count": 12,
+          "medianMs": 217.00231600000052,
+          "minMs": 203.67898100000002,
+          "maxMs": 403.4066550000007,
+          "rangeMs": 199.72767400000066,
+          "madMs": 7.744402500000433
+        }
+      }
+    },
+    "alternatingMedianDifferenceMoldMinusLldMs": 14.846754000001056,
+    "alternatingRelativeReductionWithLld": 0.06841749099120684,
+    "pairedDifferencesMoldMinusLld": {
+      "count": 12,
+      "medianMs": 16.18372350000027,
+      "minMs": 3.991579000001366,
+      "maxMs": 203.90118200000143,
+      "rangeMs": 199.90960300000006,
+      "madMs": 11.74567449999904
+    },
+    "pairedRoundsLldFaster": 12,
+    "medianDifferenceExceedsEachBaselineRange": false,
+    "scope": "Read-only numeric validation. Shared measured arguments confirmed from benchmark.ts; the reproducer alone adds --reproduce. No benchmark rerun and no independent downloaded-binary verification."
+  },
+  "illustrativePricing": {
+    "lifetimeSeconds": 1204.403,
+    "vcpus": 2,
+    "perVcpuSecondUsd": 0.00005,
+    "publicOverageEquivalentUsd": 0.12044030000000001,
+    "source": "https://depot.dev/docs/api/overview#sandbox-api",
+    "includes": "entire observed sandbox lifetime including setup, interactive pauses, failed harness attempt, transfer retries and cleanup",
+    "exclusions": "allowance attribution, storage and account invoice cannot be verified with the available user token"
+  },
+  "limitations": [
+    "Only this debug scanner workload on this two-vCPU sandbox and these distro linker versions was compared.",
+    "The alternating median difference is smaller than each unchanged-input baseline range; no general linker speed ranking is established.",
+    "This experiment exercises the standalone route; it does not adopt a linker or migrate CI.",
+    "Local clients sometimes outlived completed commands; issue 1051 tracks the unresolved lifecycle cause."
+  ]
+}

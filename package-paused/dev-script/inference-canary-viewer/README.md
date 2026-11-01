@@ -20,14 +20,20 @@ or the Highlight API is unavailable.
 
 The dashboard provides three switchable views:
 
-- **Overview**: combined all-models scatter plot of overall scores over time, plus a summary table with latest score, last run date, run count, degradation threshold, and status flags per model
-- **By model**: collapsible `<details>` per model, each containing an overall score scatter plot with threshold line and nested per-probe breakdowns
-- **By probe**: collapsible `<details>` per probe with a cross-model scatter plot showing all models overlaid, plus nested per-model breakdowns
+- **Overview**: combined all-models scatter plot of overall scores over time,
+  plus a summary table with latest score, last run date, run count,
+  degradation threshold, and status flags per model
+- **By model**: collapsible `<details>` per model,
+  each containing an overall score scatter plot with threshold line
+  and nested per-probe breakdowns
+- **By probe**: collapsible `<details>` per probe with a cross-model scatter plot
+  showing all models overlaid, plus nested per-model breakdowns
 
 Scatter plots are CSS-positioned `<button>` elements inside a relative container.
 Each point opens a Popover API overlay via `popovertarget`.
 Pass-1 scores render as filled circles; pass-2 (fix) scores render as hollow circles at the same X position.
-Every chart has a backing `<table>` (visually hidden, accessible to screen readers) or a compact card grid when only two columns remain.
+Every chart has a backing `<table>` (visually hidden, accessible to screen readers)
+or a compact card grid when only two columns remain.
 
 ### Overlays
 
@@ -36,7 +42,8 @@ Probe overlays include:
 
 - Status badges (partial, error, non-stop finish reason)
 - Collapsible timing and token usage metadata for initial and fix passes
-- Source code with CSS Custom Highlight API syntax highlighting, or a side-by-side diff (via `git diff --no-index`) when a fix pass exists
+- Source code with CSS Custom Highlight API syntax highlighting,
+  or a side-by-side diff (via `git diff --no-index`) when a fix pass exists
 - Collapsible reasoning traces, raw responses, fix prompts, and config snapshots rendered as markdown via micromark
 
 ### Data pipeline

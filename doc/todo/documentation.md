@@ -69,7 +69,7 @@ Reduce redundant attributes in PlantUML-generated SVGs:
 - [ ] Implement SVG best practices enforcement
 
 **Cross-Reference**:
- See [Performance Todo](performance.md#asset-optimization) for comprehensive asset optimization.
+ See [Performance Todo](performance.bundle.md#asset-optimization) for comprehensive asset optimization.
 
 ### Medium Priority
 
@@ -346,7 +346,7 @@ When writing technical documentation (README,
 - [ ] Add asset usage analytics and optimization
 
 **Cross-Reference**:
- See [Performance Todo](performance.md#asset-optimization) for comprehensive asset optimization.
+ See [Performance Todo](performance.bundle.md#asset-optimization) for comprehensive asset optimization.
 
 ## User Experience Research
 

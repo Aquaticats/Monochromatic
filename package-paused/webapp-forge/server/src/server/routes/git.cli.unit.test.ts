@@ -28,19 +28,19 @@
  *   v2 first and rely on graceful fallback.
  */
 
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 import { randomBytes, } from 'node:crypto';
 import {
   mkdtemp,
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -60,7 +60,7 @@ Reflect.set(
 
 /** Bare-gitdir root shared by every test in this file. */
 const gitdirRoot = await mkdtemp(join(
-  tmpdir(),
+  scratchRoot(),
   'forge-git-cli-root-',
 ),);
 
@@ -230,7 +230,7 @@ async function runGit(row: {
  */
 async function initClientRepo(): Promise<string> {
   const repo = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-git-cli-client-',
   ),);
   await runGit({
@@ -274,7 +274,7 @@ async function commitAll(row: {
  */
 async function freshCloneTarget(): Promise<string> {
   return await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-git-cli-clone-',
   ),);
 }

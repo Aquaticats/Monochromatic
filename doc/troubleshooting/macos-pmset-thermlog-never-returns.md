@@ -1,4 +1,6 @@
-# macOS `pmset -g thermlog` never returns and prints nothing, so a thermal probe in an agent command wedges the call; `pmset -g therm` is the one-shot form
+# macOS `pmset -g thermlog` never returns and prints nothing,
+so a thermal probe in an agent command wedges the call;
+`pmset -g therm` is the one-shot form
 
 ## Symptom
 

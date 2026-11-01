@@ -13,7 +13,7 @@ The file was **not** modified.
 
 ## Reproduction timeline
 
-1. `Read` on `package/dev-script/file-enforcer/src/package/manager-defs.ts` (harness records staleness marker)
+1. `Read` on `package/file-enforcer/core/src/package/manager-defs.ts` (harness records staleness marker)
 2. `Write` creates a **sibling** file `manager-defs.unit.test.ts` in the same directory
 3. `dprint fmt` runs:
     scans workspace,
@@ -28,7 +28,8 @@ The file was **not** modified.
 7. `Read` on `manager-defs.ts`:
     content is byte-identical to step 1
 
-No PostToolUse hooks are configured that modify `.ts` files (confirmed by checking `.claude/settings.json` and user-level settings).
+No PostToolUse hooks are configured that modify `.ts` files
+(confirmed by checking `.claude/settings.json` and user-level settings).
 
 ## Hypothesis
 
@@ -46,7 +47,8 @@ metadata updates can be more aggressive than on ext4.
 
 ## Desired outcome
 
-Replace the built-in `Edit` tool with an MCP-based edit server that uses **content hashing** (e.g. SHA-256 of the file at read time vs. at edit time)
+Replace the built-in `Edit` tool with an MCP-based edit server
+that uses **content hashing** (e.g. SHA-256 of the file at read time vs. at edit time)
 instead of mtime/inode for staleness detection.
  This eliminates false positives from:
 
@@ -79,6 +81,6 @@ instead of mtime/inode for staleness detection.
    Fedora Atomic (ostree-based,
    `/home` is a symlink to `/var/home`)
 - File affected:
-   `package/dev-script/file-enforcer/src/package/manager-defs.ts`
+   `package/file-enforcer/core/src/package/manager-defs.ts`
 - Claude Code version:
    check `claude --version` at investigation time

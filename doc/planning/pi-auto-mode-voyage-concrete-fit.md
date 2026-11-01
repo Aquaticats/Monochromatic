@@ -44,7 +44,8 @@ no family-disjoint or OOD claim follows.
 The same agent authored this corpus after studying earlier failure modes.
 Fresh source text does not imply independent distribution sampling or eliminate that design bias.
 
-`proc_3a17` constructed 108 sources and found no exact text overlap against 166 unique texts in named prior exposed banks,
+`proc_3a17` constructed 108 sources
+and found no exact text overlap against 166 unique texts in named prior exposed banks,
 with a known-overlap positive control.
 It did not inspect the original reserved bank or claim decontamination against that unopened bank.
 `proc_fff3` passed actual source projection,

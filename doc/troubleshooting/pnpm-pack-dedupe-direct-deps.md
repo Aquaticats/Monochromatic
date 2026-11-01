@@ -206,7 +206,7 @@ pnpm/pnpm `main` at `8f20a3fd69748b1f6eb5c6a7c54d5917456a2013` (after 12.4.1)
 
 A disposable worktree at `00bd2867b` deleted every `node_modules` directory before each case,
  ran `pnpm install --frozen-lockfile` with the listed change,
- and checked for `package/module/or-throw/node_modules/@monochromatic-dev/config-typescript`
+ and checked for `package/or-throw/core/node_modules/@monochromatic-dev/config-typescript`
  (script `dedupe-env-probe.ts` in that session's scratchpad):
 
 ```text

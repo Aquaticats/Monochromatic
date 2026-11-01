@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { verifyDefaultCompletionExhaustion, } from './pi-runtime-verifier-completion.ts';
@@ -41,7 +41,7 @@ async function createTemporaryDirectory(): Promise<AsyncTemporaryDirectory> {
    Unique root containing every verifier-controlled resource.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-goal-runtime-',
   ),);
   return {

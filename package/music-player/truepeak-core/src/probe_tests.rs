@@ -1,4 +1,5 @@
-//! Unit tests for the frontier-zoom probe, driven by a fake seekable source.
+//! Unit tests for the frontier-zoom probe,
+//!  driven by a fake seekable source.
 
 use super::*;
 use crate::source::AudioSpec;

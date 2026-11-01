@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T21:34:12.544Z",
+  "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "scope": "Local actual authored Figma parser/converter unit consumers using existing personal fixtures; no cloud allocation or payload publication",
+  "sourceFiles": [
+    {
+      "path": "package/figma/to-penpot/src/index.unit.test.ts",
+      "bytes": 14676,
+      "sha256": "3406b280f85a02e71cd669eec2fb30a7dc45963da4c37418d1c1f8432de1feed"
+    },
+    {
+      "path": "package/figma/kiwi/src/index.unit.test.ts",
+      "bytes": 3646,
+      "sha256": "cb693b2a0abf72d772545712c5222c5469e589b1e01d7d5a7a5a6fc43b364f23"
+    }
+  ],
+  "resources": {
+    "concurrentContainers": 1,
+    "cpu": 2,
+    "memoryBytes": 2147483648,
+    "swapTotalBytes": 2147483648,
+    "installerMaximumSeconds": 600,
+    "consumerMaximumSeconds": 180,
+    "perFileMaximumSeconds": 60
+  },
+  "runtime": {
+    "image": "docker.io/library/node:26.12.0-trixie-slim",
+    "imageId": "7a0d2c0c30811c393f278a255613b2a78cac778438bc06464e4a8b6979c3d4a9",
+    "imageDigests": [
+      "docker.io/library/node@sha256:0d1e33586362bb9e608c4e751e7a9e7edb55c9ac11461ed5666af696cc461dd4",
+      "docker.io/library/node@sha256:d62f13676d530f7edf97782729df69713c8ccfe6631e7f62f9ccab65968719a8"
+    ],
+    "nodeExpected": "v26.12.0",
+    "pnpmExpected": "12.14.0",
+    "pnpmBinarySha256": "5e9119e6f4f18dace3795169e9b3672231ab3662505862dc3026571303a8ef32"
+  },
+  "privateFixtures": {
+    "count": 3,
+    "totalBytes": 5450481,
+    "allOriginalAndCopiedIdentitiesChecked": true,
+    "personalPayloadsAndHashesPublished": false,
+    "consumerNetwork": "none",
+    "home": "Disposable container fixture home; real user home is not mounted"
+  },
+  "dependencyInstall": {
+    "argv": [
+      "install",
+      "--frozen-lockfile",
+      "--ignore-scripts",
+      "--reporter",
+      "append-only"
+    ],
+    "personalFixturesMounted": false
+  },
+  "consumerProgram": "const fs=await import('node:fs');const {createHash}=await import('node:crypto');const {execFileSync}=await import('node:child_process');const {homedir}=await import('node:os');const config=JSON.parse(process.argv[1]);const sha=value=>createHash('sha256').update(value).digest('hex');const memoryMax=fs.readFileSync('/sys/fs/cgroup/memory.max','utf8').trim(),cpuMax=fs.readFileSync('/sys/fs/cgroup/cpu.max','utf8').trim();if(memoryMax!=='2147483648'||cpuMax.split(' ').map(Number)[0]/cpuMax.split(' ').map(Number)[1]!==2)throw new Error('Observed cgroup bounds differ');const fixtureChecks=[];for(const [index,row]of config.fixtures.entries()){const body=fs.readFileSync(homedir()+'/Seafile/Plain/Text/Reference/Figma export/'+row.name);if(body.length!==row.bytes||sha(body)!==row.sha256)throw new Error('Injected private fixture identity differs');fixtureChecks.push({index,bytes:body.length,identityMatched:true});}const calls=[];for(const row of config.files){if(sha(fs.readFileSync('/workspace/'+row.path))!==row.sha256)throw new Error('Frozen authored test differs');const startedAt=new Date().toISOString();try{const stdout=execFileSync(process.execPath,[row.path],{cwd:'/workspace',encoding:'utf8',maxBuffer:16*1024*1024,timeout:60000});calls.push({file:row.path,startedAt,finishedAt:new Date().toISOString(),exitCode:0,stdout,stderr:''});}catch(error){calls.push({file:row.path,startedAt,finishedAt:new Date().toISOString(),exitCode:error.status,signal:error.signal,stdout:String(error.stdout??''),stderr:String(error.stderr??''),error:String(error.message)});}}console.log(JSON.stringify({source:config.source,node:process.version,memoryMax,cpuMax,fixtureChecks,calls}));if(calls.some(row=>row.exitCode!==0))process.exitCode=1;",
+  "consumerProgramSha256": "11a9e53b0d09dfb90d450331aa51a870eb84898bc5c32712df0975308dc57f08",
+  "limits": [
+    "Authored assertions unchanged; synthetic and actual-export cases remain separately identifiable",
+    "No claim that passing these files validates Penpot browser import or every supported export feature",
+    "No host model call, GUI, emulator or daemon start",
+    "Raw consumer output remains private until content inspection and selected source-label projection"
+  ]
+}

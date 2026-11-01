@@ -1,0 +1,2280 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-18T09:36:55.911Z",
+  "applicationBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+  "service": {
+    "image": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+    "builderHarness": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+  },
+  "jobImage": {
+    "image": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+    "builderHarness": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+    "addedRuntimeLibrary": "libatomic1 12.2.0-14+deb12u1",
+    "baseNodeVersion": "v24.22.0",
+    "actualConsumerNodeVersion": "v26.12.0"
+  },
+  "native": {
+    "run": "g02lgcbfgq",
+    "status": {
+      "org_id": "l4zncjjbj5",
+      "run_id": "g02lgcbfgq",
+      "status": "finished",
+      "workflows": [
+        {
+          "workflow_id": "trvs8zvv3l",
+          "status": "finished",
+          "name": "research native service and job containers",
+          "jobs": [
+            {
+              "job_display_name": "research-service-container-native-depot-x64",
+              "job_id": "mn6mb21rrn",
+              "job_key": "_inline_0.yaml:container:matrix-0",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "r5hrslwksm",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "8gkw8jlt39z2kn38pkx8",
+                  "session_id": "12a674f0-6998-4767-92cf-e9815e2a3e62",
+                  "logs_command": "depot ci logs r5hrslwksm --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs r5hrslwksm --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/trvs8zvv3l?job=mn6mb21rrn&attempt=r5hrslwksm",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "research-service-container-native-depot-arm64",
+              "job_id": "w94vh83j53",
+              "job_key": "_inline_0.yaml:container:matrix-1",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "l7nrqs0bsb",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "rlfn1mf91zdsxjb1b5jc",
+                  "session_id": "209c5c92-134a-49d3-9683-c5a1ad70cbdb",
+                  "logs_command": "depot ci logs l7nrqs0bsb --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs l7nrqs0bsb --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/trvs8zvv3l?job=w94vh83j53&attempt=l7nrqs0bsb",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "research-service-host-native-depot-x64",
+              "job_id": "037l81vq71",
+              "job_key": "_inline_0.yaml:host:matrix-0",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "6z6xh8rkp6",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "crw0gjjgkgcxf5lc9hmn",
+                  "session_id": "b89cec37-5051-4c55-8527-624deb33ad66",
+                  "logs_command": "depot ci logs 6z6xh8rkp6 --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs 6z6xh8rkp6 --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/trvs8zvv3l?job=037l81vq71&attempt=6z6xh8rkp6",
+                  "ssh_available": false
+                }
+              ]
+            },
+            {
+              "job_display_name": "research-service-host-native-depot-arm64",
+              "job_id": "jk640p5kln",
+              "job_key": "_inline_0.yaml:host:matrix-1",
+              "status": "finished",
+              "attempts": [
+                {
+                  "attempt_id": "6g5fdwltl8",
+                  "attempt": 1,
+                  "status": "finished",
+                  "sandbox_id": "w87vrntn9pxvbm1n18sb",
+                  "session_id": "0c9c7ce2-fe9e-4474-b235-cc99f5453f27",
+                  "logs_command": "depot ci logs 6g5fdwltl8 --org l4zncjjbj5",
+                  "download_available": true,
+                  "download_command": "depot ci logs 6g5fdwltl8 --output-file logs.txt --org l4zncjjbj5",
+                  "view_url": "https://depot.dev/orgs/l4zncjjbj5/workflows/trvs8zvv3l?job=jk640p5kln&attempt=6g5fdwltl8",
+                  "ssh_available": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "workflow": {
+      "org_id": "l4zncjjbj5",
+      "run": {
+        "run_id": "g02lgcbfgq",
+        "repo": "Aquaticats/Monochromatic",
+        "ref": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+        "sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+        "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+        "trigger": "api",
+        "status": "finished",
+        "created_at": "2026-10-18T08:59:10Z",
+        "started_at": "2026-10-18T08:59:10Z",
+        "finished_at": "2026-10-18T09:01:42Z"
+      },
+      "workflow": {
+        "workflow_id": "trvs8zvv3l",
+        "name": "research native service and job containers",
+        "workflow_path": "",
+        "status": "finished",
+        "error_message": "",
+        "created_at": "2026-10-18T08:59:19Z",
+        "started_at": "2026-10-18T08:59:19Z",
+        "finished_at": "2026-10-18T09:01:41Z"
+      },
+      "executions": [
+        {
+          "execution_id": "2wm0z293xx",
+          "execution": 1,
+          "status": "finished",
+          "created_at": "2026-10-18T08:59:19Z",
+          "started_at": "2026-10-18T08:59:19Z",
+          "finished_at": "2026-10-18T09:01:41Z"
+        }
+      ],
+      "jobs": [
+        {
+          "job_display_name": "research-service-host-native-depot-x64",
+          "job_id": "037l81vq71",
+          "job_key": "_inline_0.yaml:host:matrix-0",
+          "status": "finished",
+          "started_at": "2026-10-18T08:59:22Z",
+          "finished_at": "2026-10-18T08:59:51Z",
+          "attempts": [
+            {
+              "attempt_id": "6z6xh8rkp6",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "crw0gjjgkgcxf5lc9hmn",
+              "session_id": "b89cec37-5051-4c55-8527-624deb33ad66",
+              "started_at": "2026-10-18T08:59:22Z",
+              "finished_at": "2026-10-18T08:59:51Z"
+            }
+          ]
+        },
+        {
+          "job_display_name": "research-service-host-native-depot-arm64",
+          "job_id": "jk640p5kln",
+          "job_key": "_inline_0.yaml:host:matrix-1",
+          "status": "finished",
+          "started_at": "2026-10-18T08:59:53Z",
+          "finished_at": "2026-10-18T09:00:28Z",
+          "attempts": [
+            {
+              "attempt_id": "6g5fdwltl8",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "w87vrntn9pxvbm1n18sb",
+              "session_id": "0c9c7ce2-fe9e-4474-b235-cc99f5453f27",
+              "started_at": "2026-10-18T08:59:53Z",
+              "finished_at": "2026-10-18T09:00:28Z"
+            }
+          ]
+        },
+        {
+          "job_display_name": "research-service-container-native-depot-x64",
+          "job_id": "mn6mb21rrn",
+          "job_key": "_inline_0.yaml:container:matrix-0",
+          "status": "finished",
+          "started_at": "2026-10-18T09:00:31Z",
+          "finished_at": "2026-10-18T09:01:04Z",
+          "attempts": [
+            {
+              "attempt_id": "r5hrslwksm",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "8gkw8jlt39z2kn38pkx8",
+              "session_id": "12a674f0-6998-4767-92cf-e9815e2a3e62",
+              "started_at": "2026-10-18T09:00:31Z",
+              "finished_at": "2026-10-18T09:01:04Z"
+            }
+          ]
+        },
+        {
+          "job_display_name": "research-service-container-native-depot-arm64",
+          "job_id": "w94vh83j53",
+          "job_key": "_inline_0.yaml:container:matrix-1",
+          "status": "finished",
+          "started_at": "2026-10-18T09:01:06Z",
+          "finished_at": "2026-10-18T09:01:41Z",
+          "attempts": [
+            {
+              "attempt_id": "l7nrqs0bsb",
+              "attempt": 1,
+              "status": "finished",
+              "sandbox_id": "rlfn1mf91zdsxjb1b5jc",
+              "session_id": "209c5c92-134a-49d3-9683-c5a1ad70cbdb",
+              "started_at": "2026-10-18T09:01:06Z",
+              "finished_at": "2026-10-18T09:01:41Z"
+            }
+          ]
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "artifact": {
+          "artifact_id": "01a14e3d-abe8-766d-97c8-cf26272cbdd5",
+          "run_id": "g02lgcbfgq",
+          "workflow_id": "trvs8zvv3l",
+          "workflow_path": "",
+          "job_id": "jk640p5kln",
+          "job_key": "_inline_0.yaml:host:matrix-1",
+          "attempt_id": "6g5fdwltl8",
+          "attempt": 1,
+          "name": "research-service-host-native-depot-arm64",
+          "size_bytes": 889,
+          "created_at": "2026-10-18T09:00:26Z"
+        },
+        "bytes": 889,
+        "sha256": "36c5eca7226051ba843b9c16aed4dd6074af2dff5843c82b458011eb71997dbf",
+        "members": [
+          "service-consumer.json"
+        ],
+        "observations": [
+          {
+            "member": "service-consumer.json",
+            "value": {
+              "schemaVersion": 1,
+              "passed": true,
+              "provider": "native-depot-arm64",
+              "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+              "expected": {
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nonce": "275619211392142-1-native-depot-arm64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1"
+              },
+              "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "endpoint": "http://127.0.0.1:32768",
+              "jobContainer": null,
+              "responses": [
+                {
+                  "path": "/health",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-arm64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/health"
+                  },
+                  "bodySha256": "17207a4e28bdbb8f9765478dce11915d5dd284f530711a5913bf8f5bcc49681a"
+                },
+                {
+                  "path": "/nonce",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-arm64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/nonce"
+                  },
+                  "bodySha256": "7637cf22b7f95e2b0c66c318688e99055677ed1b09598c07dc9b84a6265f13e9"
+                },
+                {
+                  "path": "/owned-missing-275619211392142-1-native-depot-arm64-host",
+                  "httpStatus": 404,
+                  "body": {
+                    "status": "not-found",
+                    "nonce": "275619211392142-1-native-depot-arm64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/owned-missing-275619211392142-1-native-depot-arm64-host"
+                  },
+                  "bodySha256": "1cfe0eac57e9872fad9b7e3c4ffab9c92813e1bcbd6a9d84432b416e1f77d9bd"
+                }
+              ],
+              "observedAt": "2026-10-18T09:00:25.295Z"
+            }
+          }
+        ]
+      },
+      {
+        "artifact": {
+          "artifact_id": "01a14e3d-1f68-7c73-8b4e-a0710271d7d2",
+          "run_id": "g02lgcbfgq",
+          "workflow_id": "trvs8zvv3l",
+          "workflow_path": "",
+          "job_id": "037l81vq71",
+          "job_key": "_inline_0.yaml:host:matrix-0",
+          "attempt_id": "6z6xh8rkp6",
+          "attempt": 1,
+          "name": "research-service-host-native-depot-x64",
+          "size_bytes": 890,
+          "created_at": "2026-10-18T08:59:51Z"
+        },
+        "bytes": 890,
+        "sha256": "ecffb763df9f1f4e6a66327565da5189a878eed9a5d1bd13be4de45a5e4945dc",
+        "members": [
+          "service-consumer.json"
+        ],
+        "observations": [
+          {
+            "member": "service-consumer.json",
+            "value": {
+              "schemaVersion": 1,
+              "passed": true,
+              "provider": "native-depot-x64",
+              "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+              "expected": {
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nonce": "275619211392142-1-native-depot-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1"
+              },
+              "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "endpoint": "http://127.0.0.1:32768",
+              "jobContainer": null,
+              "responses": [
+                {
+                  "path": "/health",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-x64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/health"
+                  },
+                  "bodySha256": "17da5c869c7a3981f36b43680e6ee9205c6f078c20d5584bff07ae28997a6fab"
+                },
+                {
+                  "path": "/nonce",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-x64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/nonce"
+                  },
+                  "bodySha256": "900dcc43fc284c87989bd8ba7e70ae6dc4b388f353b032bb431f09f4376e15e2"
+                },
+                {
+                  "path": "/owned-missing-275619211392142-1-native-depot-x64-host",
+                  "httpStatus": 404,
+                  "body": {
+                    "status": "not-found",
+                    "nonce": "275619211392142-1-native-depot-x64-host",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/owned-missing-275619211392142-1-native-depot-x64-host"
+                  },
+                  "bodySha256": "5f4272df82b0a16c4dbb46de2156534ef90aebed3ac04743d4a5dd6b3378147c"
+                }
+              ],
+              "observedAt": "2026-10-18T08:59:50.314Z"
+            }
+          }
+        ]
+      },
+      {
+        "artifact": {
+          "artifact_id": "01a14e3e-cbd8-76d3-bdcb-167ab68a586d",
+          "run_id": "g02lgcbfgq",
+          "workflow_id": "trvs8zvv3l",
+          "workflow_path": "",
+          "job_id": "w94vh83j53",
+          "job_key": "_inline_0.yaml:container:matrix-1",
+          "attempt_id": "l7nrqs0bsb",
+          "attempt": 1,
+          "name": "research-service-container-native-depot-arm64",
+          "size_bytes": 3169,
+          "created_at": "2026-10-18T09:01:40Z"
+        },
+        "bytes": 3169,
+        "sha256": "c62f50c0f21e33b004792794f9c2f5679a8d086b7e388b3b396efc4465943502",
+        "members": [
+          "service-consumer.json"
+        ],
+        "observations": [
+          {
+            "member": "service-consumer.json",
+            "value": {
+              "schemaVersion": 1,
+              "passed": true,
+              "provider": "native-depot-arm64",
+              "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+              "expected": {
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nonce": "275619211392142-1-native-depot-arm64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1"
+              },
+              "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "endpoint": "http://fixture:8080",
+              "jobContainer": {
+                "input": {
+                  "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                  "sourceMarker": "committed-source"
+                },
+                "builder": {
+                  "architecture": "arm64",
+                  "targetArchitecture": "arm64",
+                  "targetOs": "linux",
+                  "cpuCount": 16,
+                  "memoryBytes": 33020604416,
+                  "cpuModels": [
+                    "Neoverse-V2"
+                  ],
+                  "nodeVersion": "v24.22.0",
+                  "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+                },
+                "tools": {
+                  "architecture": "arm64",
+                  "nodeVersion": "v24.22.0",
+                  "harnessCommit": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+                  "serviceBase": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+                  "miseAction": "c2a87611a18de5b3828c5652fe268e992400cb5c",
+                  "tools": {
+                    "git": "git version 2.39.5\n",
+                    "curl": "curl 7.88.1 (aarch64-unknown-linux-gnu) libcurl/7.88.1 OpenSSL/3.0.22 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 libidn2/2.3.3 libpsl/0.21.2 (+libidn2/2.3.3) libssh2/1.10.0 nghttp2/1.52.0 librtmp/2.3 OpenLDAP/2.5.13\nRelease-Date: 2023-02-20, security patched: 7.88.1-10+deb12u15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM NTLM_WB PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n",
+                    "tar": "tar (GNU tar) 1.34\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason.\n",
+                    "gzip": "gzip 1.12\nCopyright (C) 2018 Free Software Foundation, Inc.\nCopyright (C) 1993 Jean-loup Gailly.\nThis is free software.  You may redistribute copies of it under the terms of\nthe GNU General Public License <https://www.gnu.org/licenses/gpl.html>.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by Jean-loup Gailly.\n",
+                    "xz": "xz (XZ Utils) 5.4.1\nliblzma 5.4.1\n",
+                    "zstd": "*** Zstandard CLI (64-bit) v1.5.4, by Yann Collet ***\n",
+                    "bash": "GNU bash, version 5.2.15(1)-release (aarch64-unknown-linux-gnu)\nCopyright (C) 2022 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"
+                  },
+                  "installedPackages": "ca-certificates\t20250419~deb12u1\ncurl\t7.88.1-10+deb12u15\ngit\t1:2.39.5-0+deb12u3\ngzip\t1.12-1\ntar\t1.34+dfsg-1.2+deb12u1\nxz-utils\t5.4.1-1+deb12u2\nzstd\t1.5.4+dfsg2-5\n",
+                  "priorHarnessCommit": "0b471538cd549cb2181088803c1e0a6d542d791e",
+                  "originalCiBase": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346",
+                  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                  "libatomicPackage": "libatomic1\t12.2.0-14+deb12u1\tarm64\n",
+                  "repositoryNode": {
+                    "url": "https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-arm64.tar.gz",
+                    "sha256": "ec53c915c3fdd8786c5685abd25ae3fe9fba0692307f9811d7caaadea1bcaf03",
+                    "archiveBytes": 62583030,
+                    "binarySha256": "eb9c23a331c876ff7eeb7fd08b5c215da294bc18dc3a066d526254357f0f6942",
+                    "binaryBytes": 150293600,
+                    "elfMachine": 183,
+                    "ldd": "\tlinux-vdso.so.1 (0x0000ffffa12dc000)\n\tlibatomic.so.1 => /lib/aarch64-linux-gnu/libatomic.so.1 (0x0000ffffa1270000)\n\tlibdl.so.2 => /lib/aarch64-linux-gnu/libdl.so.2 (0x0000ffffa1240000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffffa1190000)\n\tlibstdc++.so.6 => /lib/aarch64-linux-gnu/libstdc++.so.6 (0x0000ffffa0f70000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffffa0f30000)\n\tlibpthread.so.0 => /lib/aarch64-linux-gnu/libpthread.so.0 (0x0000ffffa0f00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffffa0d50000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffffa12a0000)\n",
+                    "probe": {
+                      "version": "v26.12.0",
+                      "architecture": "arm64",
+                      "sha256": "ff71dfbecf8e47e72bb0dd2856a38baa51abd950d2f9432dc30b201824a8dc2b",
+                      "versions": {
+                        "node": "26.12.0",
+                        "acorn": "8.19.0",
+                        "ada": "4.0.0",
+                        "amaro": "1.1.11",
+                        "ares": "1.34.8",
+                        "brotli": "1.2.0",
+                        "cldr": "48.0",
+                        "icu": "78.3",
+                        "libffi": "3.8.0",
+                        "lief": "1.0.0",
+                        "llhttp": "9.4.3",
+                        "merve": "1.2.2",
+                        "modules": "147",
+                        "napi": "10",
+                        "nbytes": "0.1.4",
+                        "ncrypto": "0.0.1",
+                        "nghttp2": "1.70.0",
+                        "nghttp3": "",
+                        "ngtcp2": "",
+                        "openssl": "3.5.9",
+                        "simdjson": "5.0.3",
+                        "simdutf": "7.7.0",
+                        "sqlite": "3.54.0",
+                        "tz": "2026e",
+                        "undici": "8.11.2",
+                        "unicode": "17.0",
+                        "uv": "1.52.1",
+                        "uvwasi": "0.0.23",
+                        "v8": "14.6.202.34-node.39",
+                        "zlib": "1.3.2.1-motley-456ae73",
+                        "zstd": "1.5.7"
+                      }
+                    },
+                    "retainedInstallation": false
+                  }
+                },
+                "toolsSha256": "1229b983f4c529867d6a0fb1d0b1f1c1ba00f8b941c04d599ecd3d6845f3afa2",
+                "actualGitVersion": "git version 2.39.5",
+                "actualNodeSha256": "eb9c23a331c876ff7eeb7fd08b5c215da294bc18dc3a066d526254357f0f6942",
+                "libatomicMappings": [
+                  "/usr/lib/aarch64-linux-gnu/libatomic.so.1.2.0"
+                ],
+                "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+                "inputSha256": "6ef88dee065b2da260a5674b0ff38aba3efb99640455b41764dc1b979c9caf48",
+                "builderSha256": "b5c6647c2d733003f37937cd5659ada1246314dd7e075bff56cd0ec43496d8a9",
+                "processArchitecture": "arm64",
+                "consumerNodeVersion": "v26.12.0"
+              },
+              "responses": [
+                {
+                  "path": "/health",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-arm64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/health"
+                  },
+                  "bodySha256": "b827e99de42d0b7b9a15f158d40e5538a6a1885718991c72b7e00939566592e0"
+                },
+                {
+                  "path": "/nonce",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-arm64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/nonce"
+                  },
+                  "bodySha256": "a9b250d83e1dd561e69f4681913cf4326dabbbf732b56b3eb3f822d8a59cffad"
+                },
+                {
+                  "path": "/owned-missing-275619211392142-1-native-depot-arm64-container",
+                  "httpStatus": 404,
+                  "body": {
+                    "status": "not-found",
+                    "nonce": "275619211392142-1-native-depot-arm64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "arm64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/owned-missing-275619211392142-1-native-depot-arm64-container"
+                  },
+                  "bodySha256": "50b3bd8bae71924b1fc0788a245ef3983ec4751b785e8e1765097183286da34d"
+                }
+              ],
+              "observedAt": "2026-10-18T09:01:39.359Z"
+            }
+          }
+        ]
+      },
+      {
+        "artifact": {
+          "artifact_id": "01a14e3e-393c-7251-a7b9-c499a9cfb694",
+          "run_id": "g02lgcbfgq",
+          "workflow_id": "trvs8zvv3l",
+          "workflow_path": "",
+          "job_id": "mn6mb21rrn",
+          "job_key": "_inline_0.yaml:container:matrix-0",
+          "attempt_id": "r5hrslwksm",
+          "attempt": 1,
+          "name": "research-service-container-native-depot-x64",
+          "size_bytes": 3179,
+          "created_at": "2026-10-18T09:01:03Z"
+        },
+        "bytes": 3179,
+        "sha256": "74dfcaca7826f821645aa37aec3b50a9e3f50b365791e58f9138cacb921f7ad3",
+        "members": [
+          "service-consumer.json"
+        ],
+        "observations": [
+          {
+            "member": "service-consumer.json",
+            "value": {
+              "schemaVersion": 1,
+              "passed": true,
+              "provider": "native-depot-x64",
+              "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+              "expected": {
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nonce": "275619211392142-1-native-depot-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1"
+              },
+              "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "endpoint": "http://fixture:8080",
+              "jobContainer": {
+                "input": {
+                  "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                  "sourceMarker": "committed-source"
+                },
+                "builder": {
+                  "architecture": "x64",
+                  "targetArchitecture": "amd64",
+                  "targetOs": "linux",
+                  "cpuCount": 16,
+                  "memoryBytes": 32997224448,
+                  "cpuModels": [
+                    "AMD EPYC 9R45"
+                  ],
+                  "nodeVersion": "v24.22.0",
+                  "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+                },
+                "tools": {
+                  "architecture": "x64",
+                  "nodeVersion": "v24.22.0",
+                  "harnessCommit": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+                  "serviceBase": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+                  "miseAction": "c2a87611a18de5b3828c5652fe268e992400cb5c",
+                  "tools": {
+                    "git": "git version 2.39.5\n",
+                    "curl": "curl 7.88.1 (x86_64-pc-linux-gnu) libcurl/7.88.1 OpenSSL/3.0.22 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 libidn2/2.3.3 libpsl/0.21.2 (+libidn2/2.3.3) libssh2/1.10.0 nghttp2/1.52.0 librtmp/2.3 OpenLDAP/2.5.13\nRelease-Date: 2023-02-20, security patched: 7.88.1-10+deb12u15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM NTLM_WB PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n",
+                    "tar": "tar (GNU tar) 1.34\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason.\n",
+                    "gzip": "gzip 1.12\nCopyright (C) 2018 Free Software Foundation, Inc.\nCopyright (C) 1993 Jean-loup Gailly.\nThis is free software.  You may redistribute copies of it under the terms of\nthe GNU General Public License <https://www.gnu.org/licenses/gpl.html>.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by Jean-loup Gailly.\n",
+                    "xz": "xz (XZ Utils) 5.4.1\nliblzma 5.4.1\n",
+                    "zstd": "*** Zstandard CLI (64-bit) v1.5.4, by Yann Collet ***\n",
+                    "bash": "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)\nCopyright (C) 2022 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"
+                  },
+                  "installedPackages": "ca-certificates\t20250419~deb12u1\ncurl\t7.88.1-10+deb12u15\ngit\t1:2.39.5-0+deb12u3\ngzip\t1.12-1\ntar\t1.34+dfsg-1.2+deb12u1\nxz-utils\t5.4.1-1+deb12u2\nzstd\t1.5.4+dfsg2-5\n",
+                  "priorHarnessCommit": "0b471538cd549cb2181088803c1e0a6d542d791e",
+                  "originalCiBase": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346",
+                  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                  "libatomicPackage": "libatomic1\t12.2.0-14+deb12u1\tamd64\n",
+                  "repositoryNode": {
+                    "url": "https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-x64.tar.gz",
+                    "sha256": "d9f88af72ad34f7ddf8e67289829f1698f54b6254f7d4f54b7453117ff1a3d2c",
+                    "archiveBytes": 62862851,
+                    "binarySha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+                    "binaryBytes": 150275912,
+                    "elfMachine": 62,
+                    "ldd": "\tlinux-vdso.so.1 (0x00007f9037d37000)\n\tlibatomic.so.1 => /lib/x86_64-linux-gnu/libatomic.so.1 (0x00007f9037d23000)\n\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f9037d1e000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f9037c3e000)\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f9037a24000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f9037a04000)\n\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f90379fd000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f903781b000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f9037d39000)\n",
+                    "probe": {
+                      "version": "v26.12.0",
+                      "architecture": "x64",
+                      "sha256": "ff71dfbecf8e47e72bb0dd2856a38baa51abd950d2f9432dc30b201824a8dc2b",
+                      "versions": {
+                        "node": "26.12.0",
+                        "acorn": "8.19.0",
+                        "ada": "4.0.0",
+                        "amaro": "1.1.11",
+                        "ares": "1.34.8",
+                        "brotli": "1.2.0",
+                        "cldr": "48.0",
+                        "icu": "78.3",
+                        "libffi": "3.8.0",
+                        "lief": "1.0.0",
+                        "llhttp": "9.4.3",
+                        "merve": "1.2.2",
+                        "modules": "147",
+                        "napi": "10",
+                        "nbytes": "0.1.4",
+                        "ncrypto": "0.0.1",
+                        "nghttp2": "1.70.0",
+                        "nghttp3": "",
+                        "ngtcp2": "",
+                        "openssl": "3.5.9",
+                        "simdjson": "5.0.3",
+                        "simdutf": "7.7.0",
+                        "sqlite": "3.54.0",
+                        "tz": "2026e",
+                        "undici": "8.11.2",
+                        "unicode": "17.0",
+                        "uv": "1.52.1",
+                        "uvwasi": "0.0.23",
+                        "v8": "14.6.202.34-node.39",
+                        "zlib": "1.3.2.1-motley-456ae73",
+                        "zstd": "1.5.7"
+                      }
+                    },
+                    "retainedInstallation": false
+                  }
+                },
+                "toolsSha256": "53d2d2c340ef8214c8b9caf2da0b94c38327c63655d4656729a3b54c5d1e7f96",
+                "actualGitVersion": "git version 2.39.5",
+                "actualNodeSha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+                "libatomicMappings": [
+                  "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0"
+                ],
+                "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+                "inputSha256": "6ef88dee065b2da260a5674b0ff38aba3efb99640455b41764dc1b979c9caf48",
+                "builderSha256": "7979656784ff5199cc29c789c1ec80c0b6fb8608b7e8d079b297d578de01b065",
+                "processArchitecture": "x64",
+                "consumerNodeVersion": "v26.12.0"
+              },
+              "responses": [
+                {
+                  "path": "/health",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-x64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/health"
+                  },
+                  "bodySha256": "42ddc08fad9bf3ce12411332f98b7fcec43fa0c7f287a05f0c6f96d30c00f221"
+                },
+                {
+                  "path": "/nonce",
+                  "httpStatus": 200,
+                  "body": {
+                    "status": "ok",
+                    "nonce": "275619211392142-1-native-depot-x64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/nonce"
+                  },
+                  "bodySha256": "cbf01e34d2813a7c3dea741547ff528f511a6a3e26c30e8e10676d83e6cdb1cd"
+                },
+                {
+                  "path": "/owned-missing-275619211392142-1-native-depot-x64-container",
+                  "httpStatus": 404,
+                  "body": {
+                    "status": "not-found",
+                    "nonce": "275619211392142-1-native-depot-x64-container",
+                    "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                    "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                    "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                    "architecture": "x64",
+                    "nodeVersion": "v24.22.0",
+                    "path": "/owned-missing-275619211392142-1-native-depot-x64-container"
+                  },
+                  "bodySha256": "81a43ce7ca66d9fa1b15e72223a80a83451d613725a54df6a9faedeff2ae788d"
+                }
+              ],
+              "observedAt": "2026-10-18T09:01:02.336Z"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "github": {
+    "run": 39113547458,
+    "source": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+    "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "completedAt": "2026-10-18T08:59:54Z",
+        "conclusion": "success",
+        "databaseId": 117634565797,
+        "name": "research-service-host-github-hosted-x64",
+        "startedAt": "2026-10-18T08:59:15Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T08:59:16Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T08:59:15Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:29Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T08:59:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:45Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T08:59:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:47Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T08:59:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:49Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T08:59:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:50Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T08:59:49Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:51Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T08:59:50Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:51Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T08:59:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:53Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T08:59:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T08:59:53Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T08:59:53Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634565797"
+      },
+      {
+        "completedAt": "2026-10-18T09:00:34Z",
+        "conclusion": "success",
+        "databaseId": 117634565946,
+        "name": "research-service-host-github-depot-x64",
+        "startedAt": "2026-10-18T08:59:55Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T09:00:00Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T08:59:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:13Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T09:00:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:29Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T09:00:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:30Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T09:00:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:31Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T09:00:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:31Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T09:00:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:32Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T09:00:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:32Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T09:00:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:33Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T09:00:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:33Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T09:00:33Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634565946"
+      },
+      {
+        "completedAt": "2026-10-18T09:01:14Z",
+        "conclusion": "success",
+        "databaseId": 117634566029,
+        "name": "research-service-host-github-depot-arm64",
+        "startedAt": "2026-10-18T09:00:35Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T09:00:43Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T09:00:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:00:52Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T09:00:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:08Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T09:00:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:09Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T09:01:08Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:10Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T09:01:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:11Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T09:01:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:11Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T09:01:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:12Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T09:01:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:12Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T09:01:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:12Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T09:01:12Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634566029"
+      },
+      {
+        "completedAt": "2026-10-18T09:03:27Z",
+        "conclusion": "success",
+        "databaseId": 117634974435,
+        "name": "research-service-container-github-depot-arm64",
+        "startedAt": "2026-10-18T09:02:45Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T09:02:53Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T09:02:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:04Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T09:02:53Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:20Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T09:03:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:21Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T09:03:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:24Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T09:03:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:25Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T09:03:24Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:25Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T09:03:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:25Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T09:03:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:26Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T09:03:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:03:26Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T09:03:26Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634974435"
+      },
+      {
+        "completedAt": "2026-10-18T09:02:07Z",
+        "conclusion": "success",
+        "databaseId": 117634974461,
+        "name": "research-service-container-github-hosted-x64",
+        "startedAt": "2026-10-18T09:01:16Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T09:01:18Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T09:01:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:37Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T09:01:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:54Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T09:01:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:01:58Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T09:01:54Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:01Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T09:01:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:03Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T09:02:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:04Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T09:02:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:04Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T09:02:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:05Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T09:02:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:05Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T09:02:05Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634974461"
+      },
+      {
+        "completedAt": "2026-10-18T09:02:44Z",
+        "conclusion": "success",
+        "databaseId": 117634974593,
+        "name": "research-service-container-github-depot-x64",
+        "startedAt": "2026-10-18T09:02:07Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T09:02:12Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T09:02:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:22Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-18T09:02:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:37Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 3,
+            "startedAt": "2026-10-18T09:02:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:38Z",
+            "conclusion": "success",
+            "name": "Run jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+            "number": 4,
+            "startedAt": "2026-10-18T09:02:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:40Z",
+            "conclusion": "success",
+            "name": "Run mise install node",
+            "number": 5,
+            "startedAt": "2026-10-18T09:02:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:41Z",
+            "conclusion": "success",
+            "name": "Run mise run //.depot/research/service:consume",
+            "number": 6,
+            "startedAt": "2026-10-18T09:02:40Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:42Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 7,
+            "startedAt": "2026-10-18T09:02:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:42Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "number": 13,
+            "startedAt": "2026-10-18T09:02:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:42Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 14,
+            "startedAt": "2026-10-18T09:02:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T09:02:42Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-18T09:02:42Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/39113547458/job/117634974593"
+      }
+    ],
+    "artifacts": [
+      {
+        "metadata": {
+          "id": 12132015535,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMjAxNTUzNQ==",
+          "name": "research-service-host-github-depot-arm64",
+          "size_in_bytes": 888,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12132015535",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12132015535/zip",
+          "expired": false,
+          "digest": "sha256:c6b84f8e054b9d6797879b018186d49655ff2b0a9823ca854fb2e19562bba53a",
+          "created_at": "2026-10-18T09:01:11Z",
+          "updated_at": "2026-10-18T09:01:11Z",
+          "expires_at": "2026-10-25T09:01:11Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12132015535.zip",
+          "bytes": 888,
+          "sha256": "c6b84f8e054b9d6797879b018186d49655ff2b0a9823ca854fb2e19562bba53a"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 2453,
+            "sha256": "51cc34d92fdd225b17d8abbe1cc8aa0aadaa84950d26975ead141ba57d301a2c"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-depot-arm64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "arm64",
+            "nonce": "39113547458-1-github-depot-arm64-host",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://127.0.0.1:32768",
+          "jobContainer": null,
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-arm64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "e160b63a9db2fc8ead5ed262d349742f878c58b2e7d415e6d4544631d11cf383"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-arm64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "ae6f14ad2c28f0013096e6f3785ab3bb762ea2f2c139bb947901adfc56619263"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-depot-arm64-host",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-depot-arm64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-depot-arm64-host"
+              },
+              "bodySha256": "62ebf21e376b12372c07898e580ecb614500b0f75b16ac628d0699ece258b50c"
+            }
+          ],
+          "observedAt": "2026-10-18T09:01:11.293Z"
+        }
+      },
+      {
+        "metadata": {
+          "id": 12131846144,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMTg0NjE0NA==",
+          "name": "research-service-host-github-depot-x64",
+          "size_in_bytes": 887,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131846144",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131846144/zip",
+          "expired": false,
+          "digest": "sha256:a1846fbf65a23aa724a35e3d662e324193f47e483b2739e577fb78acfcbf45dc",
+          "created_at": "2026-10-18T09:00:32Z",
+          "updated_at": "2026-10-18T09:00:32Z",
+          "expires_at": "2026-10-25T09:00:31Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12131846144.zip",
+          "bytes": 887,
+          "sha256": "a1846fbf65a23aa724a35e3d662e324193f47e483b2739e577fb78acfcbf45dc"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 2431,
+            "sha256": "2c9412b0a8bf1275943102ba8a736bb32dad90dd05d3c0357112dea12b855c46"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-depot-x64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "x64",
+            "nonce": "39113547458-1-github-depot-x64-host",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://127.0.0.1:32768",
+          "jobContainer": null,
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "c96a7816cc2ef4e4519100c8c17bae53e8e7302fd75cd50abc5c976140400bb7"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "f3ac32f6837ec295494d0b14a369b40d20e50e01350742f6d983059345d0404e"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-depot-x64-host",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-depot-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-depot-x64-host"
+              },
+              "bodySha256": "37f2e912ef8bf628c2860de077da91c87281851dbed40f04e0a370afd77f5d13"
+            }
+          ],
+          "observedAt": "2026-10-18T09:00:31.667Z"
+        }
+      },
+      {
+        "metadata": {
+          "id": 12131796193,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMTc5NjE5Mw==",
+          "name": "research-service-host-github-hosted-x64",
+          "size_in_bytes": 889,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131796193",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131796193/zip",
+          "expired": false,
+          "digest": "sha256:725735efb41c9342428d51758b7ba1f0ddac395cff645a8f5e4eb1c413bdf92c",
+          "created_at": "2026-10-18T08:59:50Z",
+          "updated_at": "2026-10-18T08:59:50Z",
+          "expires_at": "2026-10-25T08:59:50Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12131796193.zip",
+          "bytes": 889,
+          "sha256": "725735efb41c9342428d51758b7ba1f0ddac395cff645a8f5e4eb1c413bdf92c"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 2438,
+            "sha256": "6e4e5f8b7bd3df1fe0329849e56cf3d92e25982a1d6163dda6b51008281efcf0"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-hosted-x64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "x64",
+            "nonce": "39113547458-1-github-hosted-x64-host",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://127.0.0.1:32768",
+          "jobContainer": null,
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-hosted-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "820b1e8bc8943d5015df567e4223f7858806d18a61ee05804363abfb61cb0e1b"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-hosted-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "1bd1690f284cb32e29545d320239688191d3b8c69478155b483b84d3454df967"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-hosted-x64-host",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-hosted-x64-host",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-hosted-x64-host"
+              },
+              "bodySha256": "b6faae655a76abd5364ceacc8de33a639faeb701e406aaf3724ec8e8ce0a1560"
+            }
+          ],
+          "observedAt": "2026-10-18T08:59:50.325Z"
+        }
+      },
+      {
+        "metadata": {
+          "id": 12131751528,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMTc1MTUyOA==",
+          "name": "research-service-container-github-depot-arm64",
+          "size_in_bytes": 3167,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131751528",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12131751528/zip",
+          "expired": false,
+          "digest": "sha256:903a0fe6992409af42ab0ba546be49ca5d319dc2b44e0e94d19d313bc36844f2",
+          "created_at": "2026-10-18T09:03:25Z",
+          "updated_at": "2026-10-18T09:03:25Z",
+          "expires_at": "2026-10-25T09:03:25Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12131751528.zip",
+          "bytes": 3167,
+          "sha256": "903a0fe6992409af42ab0ba546be49ca5d319dc2b44e0e94d19d313bc36844f2"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 8662,
+            "sha256": "68ce6ecced6a75b2c9ebed5f67933040f4dfe9446554423f2b7d2e7dbc479889"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-depot-arm64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "arm64",
+            "nonce": "39113547458-1-github-depot-arm64-container",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://fixture:8080",
+          "jobContainer": {
+            "input": {
+              "cohort": "monochromatic-platform-buildkit-20261018-v1",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "sourceMarker": "committed-source"
+            },
+            "builder": {
+              "architecture": "arm64",
+              "targetArchitecture": "arm64",
+              "targetOs": "linux",
+              "cpuCount": 16,
+              "memoryBytes": 33020604416,
+              "cpuModels": [
+                "Neoverse-V2"
+              ],
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+            },
+            "tools": {
+              "architecture": "arm64",
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+              "serviceBase": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "miseAction": "c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "tools": {
+                "git": "git version 2.39.5\n",
+                "curl": "curl 7.88.1 (aarch64-unknown-linux-gnu) libcurl/7.88.1 OpenSSL/3.0.22 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 libidn2/2.3.3 libpsl/0.21.2 (+libidn2/2.3.3) libssh2/1.10.0 nghttp2/1.52.0 librtmp/2.3 OpenLDAP/2.5.13\nRelease-Date: 2023-02-20, security patched: 7.88.1-10+deb12u15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM NTLM_WB PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n",
+                "tar": "tar (GNU tar) 1.34\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason.\n",
+                "gzip": "gzip 1.12\nCopyright (C) 2018 Free Software Foundation, Inc.\nCopyright (C) 1993 Jean-loup Gailly.\nThis is free software.  You may redistribute copies of it under the terms of\nthe GNU General Public License <https://www.gnu.org/licenses/gpl.html>.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by Jean-loup Gailly.\n",
+                "xz": "xz (XZ Utils) 5.4.1\nliblzma 5.4.1\n",
+                "zstd": "*** Zstandard CLI (64-bit) v1.5.4, by Yann Collet ***\n",
+                "bash": "GNU bash, version 5.2.15(1)-release (aarch64-unknown-linux-gnu)\nCopyright (C) 2022 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"
+              },
+              "installedPackages": "ca-certificates\t20250419~deb12u1\ncurl\t7.88.1-10+deb12u15\ngit\t1:2.39.5-0+deb12u3\ngzip\t1.12-1\ntar\t1.34+dfsg-1.2+deb12u1\nxz-utils\t5.4.1-1+deb12u2\nzstd\t1.5.4+dfsg2-5\n",
+              "priorHarnessCommit": "0b471538cd549cb2181088803c1e0a6d542d791e",
+              "originalCiBase": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "libatomicPackage": "libatomic1\t12.2.0-14+deb12u1\tarm64\n",
+              "repositoryNode": {
+                "url": "https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-arm64.tar.gz",
+                "sha256": "ec53c915c3fdd8786c5685abd25ae3fe9fba0692307f9811d7caaadea1bcaf03",
+                "archiveBytes": 62583030,
+                "binarySha256": "eb9c23a331c876ff7eeb7fd08b5c215da294bc18dc3a066d526254357f0f6942",
+                "binaryBytes": 150293600,
+                "elfMachine": 183,
+                "ldd": "\tlinux-vdso.so.1 (0x0000ffffa12dc000)\n\tlibatomic.so.1 => /lib/aarch64-linux-gnu/libatomic.so.1 (0x0000ffffa1270000)\n\tlibdl.so.2 => /lib/aarch64-linux-gnu/libdl.so.2 (0x0000ffffa1240000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffffa1190000)\n\tlibstdc++.so.6 => /lib/aarch64-linux-gnu/libstdc++.so.6 (0x0000ffffa0f70000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffffa0f30000)\n\tlibpthread.so.0 => /lib/aarch64-linux-gnu/libpthread.so.0 (0x0000ffffa0f00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffffa0d50000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffffa12a0000)\n",
+                "probe": {
+                  "version": "v26.12.0",
+                  "architecture": "arm64",
+                  "sha256": "ff71dfbecf8e47e72bb0dd2856a38baa51abd950d2f9432dc30b201824a8dc2b",
+                  "versions": {
+                    "node": "26.12.0",
+                    "acorn": "8.19.0",
+                    "ada": "4.0.0",
+                    "amaro": "1.1.11",
+                    "ares": "1.34.8",
+                    "brotli": "1.2.0",
+                    "cldr": "48.0",
+                    "icu": "78.3",
+                    "libffi": "3.8.0",
+                    "lief": "1.0.0",
+                    "llhttp": "9.4.3",
+                    "merve": "1.2.2",
+                    "modules": "147",
+                    "napi": "10",
+                    "nbytes": "0.1.4",
+                    "ncrypto": "0.0.1",
+                    "nghttp2": "1.70.0",
+                    "nghttp3": "",
+                    "ngtcp2": "",
+                    "openssl": "3.5.9",
+                    "simdjson": "5.0.3",
+                    "simdutf": "7.7.0",
+                    "sqlite": "3.54.0",
+                    "tz": "2026e",
+                    "undici": "8.11.2",
+                    "unicode": "17.0",
+                    "uv": "1.52.1",
+                    "uvwasi": "0.0.23",
+                    "v8": "14.6.202.34-node.39",
+                    "zlib": "1.3.2.1-motley-456ae73",
+                    "zstd": "1.5.7"
+                  }
+                },
+                "retainedInstallation": false
+              }
+            },
+            "toolsSha256": "1229b983f4c529867d6a0fb1d0b1f1c1ba00f8b941c04d599ecd3d6845f3afa2",
+            "actualGitVersion": "git version 2.39.5",
+            "actualNodeSha256": "eb9c23a331c876ff7eeb7fd08b5c215da294bc18dc3a066d526254357f0f6942",
+            "libatomicMappings": [
+              "/usr/lib/aarch64-linux-gnu/libatomic.so.1.2.0"
+            ],
+            "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+            "inputSha256": "6ef88dee065b2da260a5674b0ff38aba3efb99640455b41764dc1b979c9caf48",
+            "builderSha256": "b5c6647c2d733003f37937cd5659ada1246314dd7e075bff56cd0ec43496d8a9",
+            "processArchitecture": "arm64",
+            "consumerNodeVersion": "v26.12.0"
+          },
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-arm64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "fe3f7a40a2bdda4662e663523b535a870162350ec9133265705ace38ab33c5b0"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-arm64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "2bc57f37901fa89363ff397b27475cbd4e4ecf33f120f6787bb03023f141755e"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-depot-arm64-container",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-depot-arm64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "arm64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-depot-arm64-container"
+              },
+              "bodySha256": "6a6a48cfe4031785b08123e00311f7bf86dda34a3e17e10f320863a4e5e39248"
+            }
+          ],
+          "observedAt": "2026-10-18T09:03:25.028Z"
+        }
+      },
+      {
+        "metadata": {
+          "id": 12130999617,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMDk5OTYxNw==",
+          "name": "research-service-container-github-hosted-x64",
+          "size_in_bytes": 3178,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12130999617",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12130999617/zip",
+          "expired": false,
+          "digest": "sha256:d50ee3f5a46409715f239e7424b04439e9fccb86f365db63826e4f955f239364",
+          "created_at": "2026-10-18T09:02:04Z",
+          "updated_at": "2026-10-18T09:02:04Z",
+          "expires_at": "2026-10-25T09:02:03Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12130999617.zip",
+          "bytes": 3178,
+          "sha256": "d50ee3f5a46409715f239e7424b04439e9fccb86f365db63826e4f955f239364"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 8619,
+            "sha256": "8f3033c9f13dc62b8147053d9fc59c623dfd0e25c0f603b10e23587e7fd13c2e"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-hosted-x64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "x64",
+            "nonce": "39113547458-1-github-hosted-x64-container",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://fixture:8080",
+          "jobContainer": {
+            "input": {
+              "cohort": "monochromatic-platform-buildkit-20261018-v1",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "sourceMarker": "committed-source"
+            },
+            "builder": {
+              "architecture": "x64",
+              "targetArchitecture": "amd64",
+              "targetOs": "linux",
+              "cpuCount": 16,
+              "memoryBytes": 32997224448,
+              "cpuModels": [
+                "AMD EPYC 9R45"
+              ],
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+            },
+            "tools": {
+              "architecture": "x64",
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+              "serviceBase": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "miseAction": "c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "tools": {
+                "git": "git version 2.39.5\n",
+                "curl": "curl 7.88.1 (x86_64-pc-linux-gnu) libcurl/7.88.1 OpenSSL/3.0.22 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 libidn2/2.3.3 libpsl/0.21.2 (+libidn2/2.3.3) libssh2/1.10.0 nghttp2/1.52.0 librtmp/2.3 OpenLDAP/2.5.13\nRelease-Date: 2023-02-20, security patched: 7.88.1-10+deb12u15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM NTLM_WB PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n",
+                "tar": "tar (GNU tar) 1.34\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason.\n",
+                "gzip": "gzip 1.12\nCopyright (C) 2018 Free Software Foundation, Inc.\nCopyright (C) 1993 Jean-loup Gailly.\nThis is free software.  You may redistribute copies of it under the terms of\nthe GNU General Public License <https://www.gnu.org/licenses/gpl.html>.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by Jean-loup Gailly.\n",
+                "xz": "xz (XZ Utils) 5.4.1\nliblzma 5.4.1\n",
+                "zstd": "*** Zstandard CLI (64-bit) v1.5.4, by Yann Collet ***\n",
+                "bash": "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)\nCopyright (C) 2022 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"
+              },
+              "installedPackages": "ca-certificates\t20250419~deb12u1\ncurl\t7.88.1-10+deb12u15\ngit\t1:2.39.5-0+deb12u3\ngzip\t1.12-1\ntar\t1.34+dfsg-1.2+deb12u1\nxz-utils\t5.4.1-1+deb12u2\nzstd\t1.5.4+dfsg2-5\n",
+              "priorHarnessCommit": "0b471538cd549cb2181088803c1e0a6d542d791e",
+              "originalCiBase": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "libatomicPackage": "libatomic1\t12.2.0-14+deb12u1\tamd64\n",
+              "repositoryNode": {
+                "url": "https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-x64.tar.gz",
+                "sha256": "d9f88af72ad34f7ddf8e67289829f1698f54b6254f7d4f54b7453117ff1a3d2c",
+                "archiveBytes": 62862851,
+                "binarySha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+                "binaryBytes": 150275912,
+                "elfMachine": 62,
+                "ldd": "\tlinux-vdso.so.1 (0x00007f9037d37000)\n\tlibatomic.so.1 => /lib/x86_64-linux-gnu/libatomic.so.1 (0x00007f9037d23000)\n\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f9037d1e000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f9037c3e000)\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f9037a24000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f9037a04000)\n\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f90379fd000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f903781b000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f9037d39000)\n",
+                "probe": {
+                  "version": "v26.12.0",
+                  "architecture": "x64",
+                  "sha256": "ff71dfbecf8e47e72bb0dd2856a38baa51abd950d2f9432dc30b201824a8dc2b",
+                  "versions": {
+                    "node": "26.12.0",
+                    "acorn": "8.19.0",
+                    "ada": "4.0.0",
+                    "amaro": "1.1.11",
+                    "ares": "1.34.8",
+                    "brotli": "1.2.0",
+                    "cldr": "48.0",
+                    "icu": "78.3",
+                    "libffi": "3.8.0",
+                    "lief": "1.0.0",
+                    "llhttp": "9.4.3",
+                    "merve": "1.2.2",
+                    "modules": "147",
+                    "napi": "10",
+                    "nbytes": "0.1.4",
+                    "ncrypto": "0.0.1",
+                    "nghttp2": "1.70.0",
+                    "nghttp3": "",
+                    "ngtcp2": "",
+                    "openssl": "3.5.9",
+                    "simdjson": "5.0.3",
+                    "simdutf": "7.7.0",
+                    "sqlite": "3.54.0",
+                    "tz": "2026e",
+                    "undici": "8.11.2",
+                    "unicode": "17.0",
+                    "uv": "1.52.1",
+                    "uvwasi": "0.0.23",
+                    "v8": "14.6.202.34-node.39",
+                    "zlib": "1.3.2.1-motley-456ae73",
+                    "zstd": "1.5.7"
+                  }
+                },
+                "retainedInstallation": false
+              }
+            },
+            "toolsSha256": "53d2d2c340ef8214c8b9caf2da0b94c38327c63655d4656729a3b54c5d1e7f96",
+            "actualGitVersion": "git version 2.39.5",
+            "actualNodeSha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+            "libatomicMappings": [
+              "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0"
+            ],
+            "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+            "inputSha256": "6ef88dee065b2da260a5674b0ff38aba3efb99640455b41764dc1b979c9caf48",
+            "builderSha256": "7979656784ff5199cc29c789c1ec80c0b6fb8608b7e8d079b297d578de01b065",
+            "processArchitecture": "x64",
+            "consumerNodeVersion": "v26.12.0"
+          },
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-hosted-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "a760d1160567ec3fd6d1e149f5a6e77cfc754bacd1a56fc7254e9b421bd6f942"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-hosted-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "c1cbc54d2ac20f93bcdb93c3c1a8a8f35a7b94ef6890e0e41873039882141641"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-hosted-x64-container",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-hosted-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-hosted-x64-container"
+              },
+              "bodySha256": "241cf679db7fd88d13c58e18c84bae300b9bb5d7ed353996931be58167a5519c"
+            }
+          ],
+          "observedAt": "2026-10-18T09:02:03.285Z"
+        }
+      },
+      {
+        "metadata": {
+          "id": 12130938354,
+          "node_id": "MDg6QXJ0aWZhY3QxMjEzMDkzODM1NA==",
+          "name": "research-service-container-github-depot-x64",
+          "size_in_bytes": 3176,
+          "url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12130938354",
+          "archive_download_url": "https://api.github.com/repos/Aquaticats/Monochromatic/actions/artifacts/12130938354/zip",
+          "expired": false,
+          "digest": "sha256:2cb64f0a1bd9607fdfdf36c531bc2a9bc4ae3adb4f265e9a1d4a586e9ce9575d",
+          "created_at": "2026-10-18T09:02:42Z",
+          "updated_at": "2026-10-18T09:02:42Z",
+          "expires_at": "2026-10-25T09:02:41Z",
+          "workflow_run": {
+            "id": 39113547458,
+            "repository_id": 710240121,
+            "head_repository_id": 710240121,
+            "head_branch": "research/depot-native-orchestration-20261018",
+            "head_sha": "5485cc0d12805f330d568b358e5ff0bb988d4d37"
+          }
+        },
+        "archive": {
+          "path": "github-12130938354.zip",
+          "bytes": 3176,
+          "sha256": "2cb64f0a1bd9607fdfdf36c531bc2a9bc4ae3adb4f265e9a1d4a586e9ce9575d"
+        },
+        "members": [
+          {
+            "name": "service-consumer.json",
+            "bytes": 8612,
+            "sha256": "e940628b910b0eebc95306c45bb79e0e19050fc2d2cc7c9f9a32954f84a8d439"
+          }
+        ],
+        "observation": {
+          "schemaVersion": 1,
+          "passed": true,
+          "provider": "github-depot-x64",
+          "consumerHarness": "5485cc0d12805f330d568b358e5ff0bb988d4d37",
+          "expected": {
+            "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+            "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+            "architecture": "x64",
+            "nonce": "39113547458-1-github-depot-x64-container",
+            "cohort": "monochromatic-platform-buildkit-20261018-v1"
+          },
+          "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+          "endpoint": "http://fixture:8080",
+          "jobContainer": {
+            "input": {
+              "cohort": "monochromatic-platform-buildkit-20261018-v1",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "sourceMarker": "committed-source"
+            },
+            "builder": {
+              "architecture": "x64",
+              "targetArchitecture": "amd64",
+              "targetOs": "linux",
+              "cpuCount": 16,
+              "memoryBytes": 32997224448,
+              "cpuModels": [
+                "AMD EPYC 9R45"
+              ],
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208"
+            },
+            "tools": {
+              "architecture": "x64",
+              "nodeVersion": "v24.22.0",
+              "harnessCommit": "7590bcde15e5ceef4dc36f4e2c3d975e1c1b833f",
+              "serviceBase": "registry.depot.dev/27m5m3vjlv@sha256:4f2c182b14f816dfe9ab08f531a8d49378b5f76767b8f56f7c9154f05d0ff3e7",
+              "miseAction": "c2a87611a18de5b3828c5652fe268e992400cb5c",
+              "tools": {
+                "git": "git version 2.39.5\n",
+                "curl": "curl 7.88.1 (x86_64-pc-linux-gnu) libcurl/7.88.1 OpenSSL/3.0.22 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 libidn2/2.3.3 libpsl/0.21.2 (+libidn2/2.3.3) libssh2/1.10.0 nghttp2/1.52.0 librtmp/2.3 OpenLDAP/2.5.13\nRelease-Date: 2023-02-20, security patched: 7.88.1-10+deb12u15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM NTLM_WB PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n",
+                "tar": "tar (GNU tar) 1.34\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason.\n",
+                "gzip": "gzip 1.12\nCopyright (C) 2018 Free Software Foundation, Inc.\nCopyright (C) 1993 Jean-loup Gailly.\nThis is free software.  You may redistribute copies of it under the terms of\nthe GNU General Public License <https://www.gnu.org/licenses/gpl.html>.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by Jean-loup Gailly.\n",
+                "xz": "xz (XZ Utils) 5.4.1\nliblzma 5.4.1\n",
+                "zstd": "*** Zstandard CLI (64-bit) v1.5.4, by Yann Collet ***\n",
+                "bash": "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)\nCopyright (C) 2022 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"
+              },
+              "installedPackages": "ca-certificates\t20250419~deb12u1\ncurl\t7.88.1-10+deb12u15\ngit\t1:2.39.5-0+deb12u3\ngzip\t1.12-1\ntar\t1.34+dfsg-1.2+deb12u1\nxz-utils\t5.4.1-1+deb12u2\nzstd\t1.5.4+dfsg2-5\n",
+              "priorHarnessCommit": "0b471538cd549cb2181088803c1e0a6d542d791e",
+              "originalCiBase": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346",
+              "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+              "libatomicPackage": "libatomic1\t12.2.0-14+deb12u1\tamd64\n",
+              "repositoryNode": {
+                "url": "https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-x64.tar.gz",
+                "sha256": "d9f88af72ad34f7ddf8e67289829f1698f54b6254f7d4f54b7453117ff1a3d2c",
+                "archiveBytes": 62862851,
+                "binarySha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+                "binaryBytes": 150275912,
+                "elfMachine": 62,
+                "ldd": "\tlinux-vdso.so.1 (0x00007f9037d37000)\n\tlibatomic.so.1 => /lib/x86_64-linux-gnu/libatomic.so.1 (0x00007f9037d23000)\n\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f9037d1e000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f9037c3e000)\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f9037a24000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f9037a04000)\n\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f90379fd000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f903781b000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f9037d39000)\n",
+                "probe": {
+                  "version": "v26.12.0",
+                  "architecture": "x64",
+                  "sha256": "ff71dfbecf8e47e72bb0dd2856a38baa51abd950d2f9432dc30b201824a8dc2b",
+                  "versions": {
+                    "node": "26.12.0",
+                    "acorn": "8.19.0",
+                    "ada": "4.0.0",
+                    "amaro": "1.1.11",
+                    "ares": "1.34.8",
+                    "brotli": "1.2.0",
+                    "cldr": "48.0",
+                    "icu": "78.3",
+                    "libffi": "3.8.0",
+                    "lief": "1.0.0",
+                    "llhttp": "9.4.3",
+                    "merve": "1.2.2",
+                    "modules": "147",
+                    "napi": "10",
+                    "nbytes": "0.1.4",
+                    "ncrypto": "0.0.1",
+                    "nghttp2": "1.70.0",
+                    "nghttp3": "",
+                    "ngtcp2": "",
+                    "openssl": "3.5.9",
+                    "simdjson": "5.0.3",
+                    "simdutf": "7.7.0",
+                    "sqlite": "3.54.0",
+                    "tz": "2026e",
+                    "undici": "8.11.2",
+                    "unicode": "17.0",
+                    "uv": "1.52.1",
+                    "uvwasi": "0.0.23",
+                    "v8": "14.6.202.34-node.39",
+                    "zlib": "1.3.2.1-motley-456ae73",
+                    "zstd": "1.5.7"
+                  }
+                },
+                "retainedInstallation": false
+              }
+            },
+            "toolsSha256": "53d2d2c340ef8214c8b9caf2da0b94c38327c63655d4656729a3b54c5d1e7f96",
+            "actualGitVersion": "git version 2.39.5",
+            "actualNodeSha256": "caa24debe02770c92a70677e2a62ca98890150e7ac1c17bcfe31bcc98cc89943",
+            "libatomicMappings": [
+              "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0"
+            ],
+            "imageReference": "registry.depot.dev/27m5m3vjlv@sha256:853b99050d5420698a02d7cb10978be8824dc0999c9ace08ec453706da54ec31",
+            "inputSha256": "6ef88dee065b2da260a5674b0ff38aba3efb99640455b41764dc1b979c9caf48",
+            "builderSha256": "7979656784ff5199cc29c789c1ec80c0b6fb8608b7e8d079b297d578de01b065",
+            "processArchitecture": "x64",
+            "consumerNodeVersion": "v26.12.0"
+          },
+          "responses": [
+            {
+              "path": "/health",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/health"
+              },
+              "bodySha256": "86538ab19fe20a8710e70d2a75fe19935cf5fcd370e1fc10ea6d69024d252b02"
+            },
+            {
+              "path": "/nonce",
+              "httpStatus": 200,
+              "body": {
+                "status": "ok",
+                "nonce": "39113547458-1-github-depot-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/nonce"
+              },
+              "bodySha256": "36119c48dbcc24959e971a9afe9d03553fbb740249c8e448dc03545c1198ff20"
+            },
+            {
+              "path": "/owned-missing-39113547458-1-github-depot-x64-container",
+              "httpStatus": 404,
+              "body": {
+                "status": "not-found",
+                "nonce": "39113547458-1-github-depot-x64-container",
+                "cohort": "monochromatic-platform-buildkit-20261018-v1",
+                "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+                "harnessCommit": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",
+                "architecture": "x64",
+                "nodeVersion": "v24.22.0",
+                "path": "/owned-missing-39113547458-1-github-depot-x64-container"
+              },
+              "bodySha256": "513bcd2b55efc253a8dbfb66860364f5e8c24ded785389457e4e65cb846115bb"
+            }
+          ],
+          "observedAt": "2026-10-18T09:02:41.460Z"
+        }
+      }
+    ]
+  },
+  "credentials": {
+    "name": "MONO_RESEARCH_SERVICE_PULL_20261018",
+    "repository": "Aquaticats/Monochromatic",
+    "observedAt": "2026-10-18T09:24:13.506Z",
+    "githubAbsentAfter": true,
+    "nativeVariants": [
+      {
+        "name": "research-20261018-service",
+        "absentAfter": true
+      },
+      {
+        "name": "research-20261018-service-repository",
+        "absentAfter": true
+      }
+    ],
+    "allOwnedSecretVariantsRemoved": true,
+    "tokenRevocationAsserted": false
+  },
+  "failedPrerequisiteControls": [
+    {
+      "nativeRun": "kjrlc4pm9l",
+      "symptom": "Docker login reported Cannot perform an interactive login from a non TTY device before consumer execution",
+      "presenceControl": "c8lwr60rdm",
+      "measuredSecretPresent": false,
+      "repositoryOnlyPositiveControl": "3s4ctdsn8f",
+      "repositoryOnlyHostConsumers": "kl548vchg7",
+      "backendSelectorCauseEstablished": false
+    },
+    {
+      "githubRun": 39108872769,
+      "symptom": "Job-level env could not reference job.services; the consuming step env was accepted"
+    },
+    {
+      "githubRun": 39109462308,
+      "symptom": "Original Gitless job image entered checkout REST fallback and job containers timed out; host HTTP consumers passed",
+      "timeoutRootCauseEstablished": false
+    },
+    {
+      "nativeRun": "rvvg2kv0jk",
+      "githubRun": 39112162357,
+      "harness": "9779cb896b92969b84f45e2737117231638aa700",
+      "symptom": "All job-container checkouts passed; locked Node26.12.0 then failed to load libatomic.so.1",
+      "failedJobImage": "registry.depot.dev/27m5m3vjlv@sha256:aab45816f04afec0aed6ccd0daea92e6288a4a35c65368438678bad30b57f346"
+    }
+  ],
+  "archives": {
+    "path": "depot-service-containers-2026-10-18.archives.json.gz",
+    "bytes": 20148,
+    "sha256": "1d548493228ec9950b9de34d9b70b1107734a72a600e7ee9a7ad3218fc1a6b20",
+    "count": 10,
+    "format": "gzip JSON containing each original ZIP as base64 with independent byte count and SHA256"
+  },
+  "boundaries": [
+    "Functional controls, not provider timing benchmarks or an application-wide CI acceptance.",
+    "The service runs Node24; the separate consumer executes and hashes locked Node26 and verifies a loaded libatomic mapping.",
+    "Native ZIPs have API size plus local hash and CRC checks; GitHub ZIP hashes also match server-reported API digests.",
+    "Secret absence is verified for only the exact owned variants; this is not a claim that the opaque pull token was revoked.",
+    "The original Gitless REST fallback timeout and missing library are separate fixture incidents.",
+    "Registry write-denial and OCI graph/source proofs are retained by the separate BuildKit campaign."
+  ]
+}

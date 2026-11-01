@@ -1,0 +1,105 @@
+/// Independent observations isolate each host hook and startup/worker boundary without short-circuiting the other case.
+mod boundary_observer {
+    /// Import public scanner records, child processes and an atomic counter owned only by this disposable consumer.
+    use forbidden_strings::{Scanner, ScanFinding};
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// AtomicUsize stores a cross-callback count; unlike Mutex or thread-local Cell it needs no held lock or borrow.
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    /// Record invocation without printing payloads, thread names or source locations.
+    fn counted_hook(_information: &std::panic::PanicHookInfo<'_>) {
+        CALLS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Named synthetic fault exists only in this disposable test consumer.
+    fn hook_probe() {
+        panic!("SYNTHETIC_PRIVATE_HOST_PROBE");
+    }
+
+    /// Verify the hook remains owned by this consumer after the preceding public operation.
+    fn confirm_hook(expected: usize) {
+        assert!(std::panic::catch_unwind(hook_probe).is_err());
+        assert_eq!(CALLS.load(Ordering::SeqCst), expected);
+    }
+
+    /// Observe precise consequences while requiring all unrelated healthy operations to remain correct.
+    #[test]
+    fn observations() {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(counted_hook));
+        confirm_hook(1);
+        let root: PathBuf = PathBuf::from(std::env::var_os("SCANNER_GUARD_HOME").expect("fixture root"));
+        let rules = root.join("observer-rules");
+        std::fs::write(&rules, "FIXTURE_PRIVATE_FAULT\nHEALTHY_FIXTURE_LONG\n/RX[0-9]{2}/\n").expect("observer rules");
+        let scanner = Scanner::load(rules.as_path(), false, true).expect("healthy public load");
+        let before = scanner.scan(19, Path::new("safe"), b"HEALTHY_FIXTURE_LONG\nRX42\n");
+        assert_eq!(before.findings.len(), 2);
+        confirm_hook(2);
+        // AssertUnwindSafe permits observing the borrowed scanner's outer unwind separately from its own catch boundaries.
+        let content = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return scanner.scan(20, Path::new("safe"), b"FIXTURE_PRIVATE_FAULT RX42")));
+        if let Ok(report) = content {
+            assert_eq!(report.findings, vec![ScanFinding::EngineError]);
+            println!("observation-content=engine-error");
+        } else { println!("observation-content=unwound"); }
+        assert_eq!(CALLS.load(Ordering::SeqCst), 3);
+        let name = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return scanner.scan(21, Path::new("FIXTURE_PRIVATE_FAULT"), b"HEALTHY_FIXTURE_LONG")));
+        if let Ok(report) = name {
+            assert_eq!(report.display_path, "[REDACTED]");
+            assert_eq!(report.findings, vec![ScanFinding::EngineError,
+                ScanFinding::Content { line: 1, rule: String::from("1") }]);
+            println!("observation-name=engine-error");
+        } else { println!("observation-name=unwound"); }
+        assert_eq!(CALLS.load(Ordering::SeqCst), 4);
+        assert_eq!(before, scanner.scan(19, Path::new("safe"), b"HEALTHY_FIXTURE_LONG\nRX42\n"));
+        assert!(scanner.scan(22, Path::new("safe"), b"ordinary").findings.is_empty());
+        confirm_hook(5);
+        let fault = root.join("fixture-load-panic");
+        std::fs::write(&fault, "PARTIAL_FIXTURE_LONG\n").expect("load fault rules");
+        let load = std::panic::catch_unwind(|| return Scanner::load(fault.as_path(), true, true));
+        match load {
+            Ok(Err(error)) => {
+                assert_eq!(error.to_string(), "Forbidden-strings rule loading panicked; no rule set was accepted.");
+                println!("observation-load=error");
+            }
+            Err(_) => println!("observation-load=unwound"),
+            Ok(Ok(_)) => panic!("partial rules were accepted"),
+        }
+        assert_eq!(CALLS.load(Ordering::SeqCst), 6);
+        let recovered = Scanner::load(rules.as_path(), false, true).expect("recovered public load");
+        assert_eq!(before, recovered.scan(19, Path::new("safe"), b"HEALTHY_FIXTURE_LONG\nRX42\n"));
+        confirm_hook(7);
+        println!("observation-hook-calls=7");
+        // Both executable cases run before either result is validated, so one case cannot hide the other.
+        for (label, mode) in [("startup", "fixture-startup-panic"), ("worker", "fixture-worker-panic")] {
+            let output = Command::new(env!("CARGO_BIN_EXE_forbidden-strings")).arg(mode).output().expect("fixture executable");
+            assert!(output.stdout.is_empty());
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let payload = stderr.contains("SYNTHETIC_PRIVATE");
+            let exit = output.status.code().unwrap_or(-1);
+            println!("observation-{label}-exit={exit}");
+            println!("observation-{label}-payload={payload}");
+            assert!(stderr.contains("scanner operation panicked; no complete scan result is available.") || exit == 101);
+        }
+        // These files exercise the real CLI's parallel per-file scan, not an added worker join.
+        for (label, filename, bytes) in [
+            ("runtime-content", "safe-input", b"FIXTURE_PRIVATE_FAULT RX42".as_slice()),
+            ("runtime-name", "FIXTURE_PRIVATE_FAULT-name", b"HEALTHY_FIXTURE_LONG".as_slice()),
+        ] {
+            let file = root.join(filename);
+            std::fs::write(&file, bytes).expect("runtime fault input");
+            let output = Command::new(env!("CARGO_BIN_EXE_forbidden-strings"))
+                .arg("--rules").arg(&rules).arg(&file).output().expect("real parallel CLI scan");
+            assert!(output.stdout.is_empty());
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let payload = stderr.contains("SYNTHETIC_PRIVATE");
+            let exit = output.status.code().unwrap_or(-1);
+            println!("observation-{label}-exit={exit}");
+            println!("observation-{label}-payload={payload}");
+            assert!(stderr.contains("engine error") || stderr.contains("scanner operation panicked; no complete scan result is available."));
+        }
+        std::panic::set_hook(previous);
+    }
+}

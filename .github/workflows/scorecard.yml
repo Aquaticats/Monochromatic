@@ -18,11 +18,153 @@ on:
 permissions: read-all
 
 jobs:
+  # Count recent analysis checks in GraphQL batches instead of spending one REST request per run.
+  # This preserves the existing workflow-creation-time and latest-job accounting policy.
+  # Budgets: 2 per minute, 4 per hour, 8 per day. Runs skipped here are not retried; the weekly
+  # schedule and the next accepted push pick up the latest state.
+  rate-limit:
+    name: Scorecard rate limit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+    # Serialize gate jobs only; this does not reserve capacity before the later analysis job becomes visible.
+    # A run waiting behind the gate is replaced by a newer one, which is the debounce.
+    concurrency:
+      group: scorecard-rate-limit
+      cancel-in-progress: false
+    outputs:
+      allowed: ${{ steps.count.outputs.allowed }}
+    steps:
+    - name: 'Count recent analysis runs'
+      id: count
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        script: |
+          const budgets = [
+            { label: 'minute', seconds: 60, max: 2 },
+            { label: 'hour', seconds: 3600, max: 4 },
+            { label: 'day', seconds: 86400, max: 8 },
+          ];
+          const analysisJobName = 'Scorecard analysis';
+          const now = Date.now();
+          const oldestWanted = now - 86400 * 1000;
+          const workflowUrl = new URL(
+            `/${encodeURIComponent(context.repo.owner)}/${encodeURIComponent(context.repo.repo)}/actions/workflows/scorecard.yml`,
+            process.env.GITHUB_SERVER_URL || 'https://github.com',
+          ).href;
+          const query = `query ScorecardHistory($workflowUrl: URI!, $cursor: String, $checkName: String!) {
+            resource(url: $workflowUrl) {
+              ... on Workflow {
+                runs(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
+                  pageInfo { hasNextPage endCursor }
+                  nodes {
+                    databaseId
+                    createdAt
+                    checkSuite {
+                      checkRuns(first: 1, filterBy: {checkName: $checkName, checkType: LATEST}) {
+                        totalCount
+                        pageInfo { hasNextPage }
+                        nodes { name conclusion }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit { cost remaining resetAt }
+          }`;
+          class ScorecardHistoryError extends Error {}
+          const used = Object.fromEntries(budgets.map(({ label }) => [label, 0]));
+          const seenRuns = new Set();
+          const seenCursors = new Set();
+          let cursor = null;
+          let previousCreatedAt = Infinity;
+          let requests = 0;
+          let points = 0;
+          let complete = false;
+          let spent;
+          // A failed or incomplete read never produces an allow output. Bound work before another quota is exhausted.
+          while (!complete && spent === undefined && requests < 32) {
+            const response = await github.graphql(query, {
+              workflowUrl,
+              cursor,
+              checkName: analysisJobName,
+            });
+            requests++;
+            const runs = response.resource?.runs;
+            const rate = response.rateLimit;
+            if (response.errors?.length || !runs || !Array.isArray(runs.nodes) || !runs.pageInfo ||
+                !rate || !Number.isInteger(rate.cost) || !Number.isInteger(rate.remaining)) {
+              throw new ScorecardHistoryError(`GitHub returned incomplete Scorecard history for ${workflowUrl}; analysis was not admitted. Retry after GitHub API access recovers.`);
+            }
+            points += rate.cost;
+            core.info(`Scorecard history page ${requests}: ${runs.nodes.length} runs, ${rate.cost} GraphQL points, ${rate.remaining} remaining until ${rate.resetAt}.`);
+            if (rate.remaining < 100) {
+              throw new ScorecardHistoryError(`Scorecard stopped before using the last ${rate.remaining} GraphQL points; analysis was not admitted. Retry after ${rate.resetAt}.`);
+            }
+            for (const run of runs.nodes) {
+              if (!run || !Number.isInteger(run.databaseId)) {
+                throw new ScorecardHistoryError('GitHub omitted a Scorecard run record; analysis was not admitted. Retry after GitHub API access recovers.');
+              }
+              const createdAt = Date.parse(run.createdAt);
+              if (!Number.isFinite(createdAt) || createdAt > previousCreatedAt) {
+                throw new ScorecardHistoryError('GitHub Scorecard history was not ordered by workflow creation time; analysis was not admitted. Inspect the returned history before retrying.');
+              }
+              previousCreatedAt = createdAt;
+              if (createdAt <= oldestWanted) {
+                complete = true;
+                break;
+              }
+              if (run.databaseId === context.runId || seenRuns.has(run.databaseId)) continue;
+              seenRuns.add(run.databaseId);
+              const checks = run.checkSuite?.checkRuns;
+              if (!checks || !Array.isArray(checks.nodes) || !checks.pageInfo || checks.pageInfo.hasNextPage ||
+                  checks.totalCount !== checks.nodes.length ||
+                  checks.nodes.some((check) => !check || check.name !== analysisJobName)) {
+                throw new ScorecardHistoryError(`GitHub returned incomplete analysis checks for Scorecard run ${run.databaseId}; analysis was not admitted. Inspect that run before retrying.`);
+              }
+              // Keep the previous gate's treatment of queued, failed, skipped, cancelled, and missing jobs.
+              const executed = checks.nodes.some(({ conclusion }) => conclusion !== 'SKIPPED' && conclusion !== 'CANCELLED');
+              core.info(`Run ${run.databaseId} (${run.createdAt}): analysis executed = ${executed}.`);
+              if (!executed) continue;
+              const ageSeconds = (now - createdAt) / 1000;
+              for (const { label, seconds, max } of budgets) {
+                if (ageSeconds < seconds) used[label]++;
+                if (used[label] >= max) spent = { label, max };
+              }
+              if (spent !== undefined) break;
+            }
+            if (complete || spent !== undefined) break;
+            complete = runs.pageInfo.hasNextPage === false;
+            if (complete) break;
+            const nextCursor = runs.pageInfo.endCursor;
+            if (typeof nextCursor !== 'string' || nextCursor.length === 0 || seenCursors.has(nextCursor)) {
+              throw new ScorecardHistoryError('GitHub did not advance the Scorecard history cursor; analysis was not admitted. Retry after GitHub API access recovers.');
+            }
+            seenCursors.add(nextCursor);
+            cursor = nextCursor;
+          }
+          if (!complete && spent === undefined) {
+            throw new ScorecardHistoryError('Scorecard history exceeded 32 GraphQL pages; analysis was not admitted. Review the recent run volume before increasing the read bound.');
+          }
+          core.info(`Checked ${seenRuns.size} historical runs using ${requests} GraphQL requests and ${points} points; no REST history requests.`);
+          if (spent === undefined) {
+            core.info(`Allowed. Used so far: ${JSON.stringify(used)}.`);
+          } else {
+            core.notice(`Skipping Scorecard analysis: ${spent.max} runs already executed in the last ${spent.label}.`);
+          }
+          core.setOutput('allowed', String(spent === undefined));
+
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    needs: rate-limit
     # `publish_results: true` only works when run from the default branch. conditional can be removed if disabled.
-    if: github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request'
+    if: >-
+      needs.rate-limit.outputs.allowed == 'true' &&
+      (github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request')
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write

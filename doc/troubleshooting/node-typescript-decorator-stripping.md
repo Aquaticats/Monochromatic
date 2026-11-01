@@ -1,4 +1,6 @@
-# Node 26.10.0 type stripping rejects TypeScript decorator syntax with `SyntaxError: Invalid or unexpected token` at the `@` token, so test files cannot apply decorators syntactically
+# Node 26.10.0 type stripping rejects TypeScript decorator syntax
+with `SyntaxError: Invalid or unexpected token` at the `@` token,
+so test files cannot apply decorators syntactically
 
 ## Symptom
 
@@ -78,7 +80,7 @@ Drive the decorator through its function interface with a synthetic
 context object instead of decorator syntax:
 
 ```ts
-// package/module/p-memoize-fork/src/p-memoize-decorator.unit.test.ts
+// package/upstream-fork/p-memoize/src/p-memoize-decorator.unit.test.ts
 const decoration = createFakeDecoration({ kind: 'method', isPrivate: false, });
 pMemoizeDecorator()(counterMethod, decoration.context,);
 decoration.initialize(alpha,);

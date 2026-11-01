@@ -1,0 +1,172 @@
+diff --git a/lib/chai/utils/inspect.js b/lib/chai/utils/inspect.js
+index feaaae6..3e9f5ca 100644
+--- a/lib/chai/utils/inspect.js
++++ b/lib/chai/utils/inspect.js
+@@ -16,16 +16,23 @@ import {config} from '../config.js';
+  * @param {number=} depth Depth in which to descend in object. Default is 2.
+  * @param {boolean=} colors Flag to turn on ANSI escape codes to color the
+  *    output. Default is false (no coloring).
++ * @param {number=} truncate Render budget in characters. Defaults to
++ *    `config.truncateThreshold` (unbounded when that config is falsy).
+  * @returns {string}
+  * @namespace Utils
+  * @name inspect
+  */
+-export function inspect(obj, showHidden, depth, colors) {
++export function inspect(obj, showHidden, depth, colors, truncate) {
+   let options = {
+     colors: colors,
+     depth: typeof depth === 'undefined' ? 2 : depth,
+     showHidden: showHidden,
+-    truncate: config.truncateThreshold ? config.truncateThreshold : Infinity
++    truncate:
++      typeof truncate === 'number'
++        ? truncate
++        : config.truncateThreshold
++          ? config.truncateThreshold
++          : Infinity
+   };
+   return _inspect(obj, options);
+ }
+diff --git a/lib/chai/utils/objDisplay.js b/lib/chai/utils/objDisplay.js
+index 9a2a596..fb33cd9 100644
+--- a/lib/chai/utils/objDisplay.js
++++ b/lib/chai/utils/objDisplay.js
+@@ -21,30 +21,41 @@ import {config} from '../config.js';
+  * @public
+  */
+ export function objDisplay(obj) {
+-  let str = inspect(obj),
+-    type = Object.prototype.toString.call(obj);
++  let type = Object.prototype.toString.call(obj);
+ 
+-  if (config.truncateThreshold && str.length >= config.truncateThreshold) {
+-    if (type === '[object Function]') {
+-      const objAsFunction = /** @type {Function} */ (obj);
+-      return !objAsFunction.name || objAsFunction.name === ''
+-        ? '[Function]'
+-        : '[Function: ' + objAsFunction.name + ']';
+-    } else if (type === '[object Array]') {
+-      const objAsArray = /** @type {unknown[]} */ (obj);
+-      return '[ Array(' + objAsArray.length + ') ]';
+-    } else if (type === '[object Object]') {
+-      const objAsObject = /** @type {Record<PropertyKey, unknown>} */ (obj);
+-      let keys = Object.keys(objAsObject),
+-        kstr =
+-          keys.length > 2
+-            ? keys.splice(0, 2).join(', ') + ', ...'
+-            : keys.join(', ');
+-      return '{ Object (' + kstr + ') }';
+-    } else {
+-      return str;
+-    }
++  if (!config.truncateThreshold) {
++    return inspect(obj);
++  }
++
++  // The replacement decision must read the UNTRUNCATED length. `inspect`
++  // renders with `config.truncateThreshold` as its character budget, so
++  // comparing the truncated string's own length against that budget made the
++  // outcome depend on loupe's elision arithmetic: the same value rendered as
++  // `[ Array(31) ]` at threshold 34 and 40 but as a partial `…(n)` listing at
++  // 35..39 and 41+ (non-monotonic in the threshold).
++  let full = inspect(obj, undefined, undefined, undefined, Infinity);
++
++  if (full.length < config.truncateThreshold) {
++    return full;
++  }
++
++  if (type === '[object Function]') {
++    const objAsFunction = /** @type {Function} */ (obj);
++    return !objAsFunction.name || objAsFunction.name === ''
++      ? '[Function]'
++      : '[Function: ' + objAsFunction.name + ']';
++  } else if (type === '[object Array]') {
++    const objAsArray = /** @type {unknown[]} */ (obj);
++    return '[ Array(' + objAsArray.length + ') ]';
++  } else if (type === '[object Object]') {
++    const objAsObject = /** @type {Record<PropertyKey, unknown>} */ (obj);
++    let keys = Object.keys(objAsObject),
++      kstr =
++        keys.length > 2
++          ? keys.splice(0, 2).join(', ') + ', ...'
++          : keys.join(', ');
++    return '{ Object (' + kstr + ') }';
+   } else {
+-    return str;
++    return inspect(obj);
+   }
+ }
+diff --git a/test/assert.js b/test/assert.js
+index eb91911..a55f5f3 100644
+--- a/test/assert.js
++++ b/test/assert.js
+@@ -434,7 +434,7 @@ describe('assert', function () {
+     err(function() {
+       secondCircularObject.field2 = secondCircularObject;
+       assert.deepEqual(circularObject, secondCircularObject);
+-    }, "expected { field: [Circular] } to deeply equal { field: [Circular], …(1) }");
++    }, "expected { field: [Circular] } to deeply equal { Object (field, field2) }");
+   });
+ 
+   it('notDeepEqual', function() {
+diff --git a/test/expect.js b/test/expect.js
+index 3d02cdf..7bda4bb 100644
+--- a/test/expect.js
++++ b/test/expect.js
+@@ -1847,13 +1847,13 @@ describe('expect', function () {
+ 
+     err(function(){
+       expect(deepObj).to.have.nested.property('teas[3]');
+-    }, "expected { green: { tea: 'matcha' }, …(1) } to have nested property 'teas[3]'");
++    }, "expected { Object (green, teas) } to have nested property 'teas[3]'");
+     err(function(){
+       expect(deepObj).to.have.nested.property('teas[3]', 'bar');
+-    }, "expected { green: { tea: 'matcha' }, …(1) } to have nested property 'teas[3]'");
++    }, "expected { Object (green, teas) } to have nested property 'teas[3]'");
+     err(function(){
+       expect(deepObj).to.have.nested.property('teas[3].tea', 'bar');
+-    }, "expected { green: { tea: 'matcha' }, …(1) } to have nested property 'teas[3].tea'");
++    }, "expected { Object (green, teas) } to have nested property 'teas[3].tea'");
+ 
+     var arr = [
+         [ 'chai', 'matcha', 'konacha' ]
+@@ -1865,13 +1865,13 @@ describe('expect', function () {
+     expect(arr).to.have.nested.property('[1][2].tea', 'konacha');
+     err(function(){
+       expect(arr).to.have.nested.property('[2][1]');
+-    }, "expected [ …(2) ] to have nested property '[2][1]'");
++    }, "expected [ Array(2) ] to have nested property '[2][1]'");
+     err(function(){
+       expect(arr).to.have.nested.property('[2][1]', 'none');
+-    }, "expected [ …(2) ] to have nested property '[2][1]'");
++    }, "expected [ Array(2) ] to have nested property '[2][1]'");
+     err(function(){
+       expect(arr).to.have.nested.property('[0][3]', 'none');
+-    }, "expected [ …(2) ] to have nested property '[0][3]'");
++    }, "expected [ Array(2) ] to have nested property '[0][3]'");
+ 
+     err(function(){
+       expect('asd').to.have.property('length', 4, 'blah');
+diff --git a/test/globalErr.js b/test/globalErr.js
+index d51b3fe..d34abbe 100644
+--- a/test/globalErr.js
++++ b/test/globalErr.js
+@@ -139,7 +139,7 @@ describe('globalErr', function () {
+     err(function () {
+       expect(val1).to.equal(val2);
+     }, {
+-        message: "expected [ 'string1', 'string2', …(2) ] to equal [ 'string5', 'string6', …(2) ]"
++        message: "expected [ Array(4) ] to equal [ Array(4) ]"
+       , expected: val2
+       , actual: val1
+       , operator: 'deepStrictEqual'
+@@ -148,7 +148,7 @@ describe('globalErr', function () {
+     err(function () {
+       expect(val1).to.not.equal(val1);
+     }, {
+-      message: "expected [ 'string1', 'string2', …(2) ] to not equal [ 'string1', 'string2', …(2) ]"
++      message: "expected [ Array(4) ] to not equal [ Array(4) ]"
+       , expected: val1
+       , actual: val1
+       , operator: 'notDeepStrictEqual'

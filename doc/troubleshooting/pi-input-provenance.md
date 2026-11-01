@@ -265,6 +265,13 @@ const outcome = await requestAnswer({
 },);
 ```
 
+Startup update on 2026-10-04:
+the helper now runs from a request-private snapshot instead of the installed `dist/final/node/answer-helper.mjs` path.
+On Linux,
+the requester uses its live procfs executable when accessible.
+These lifetime protections do not change the answer-authentication or approval-scope conclusions.
+See [the startup investigation](pi-ask-user-question-startup.md).
+
 The helper authenticates its channel before running the editor.
 `package/pi-plugin/ask-user-question/src/helper-core.ts:61` writes the request token;
 line 76 then invokes the editor:
@@ -570,7 +577,7 @@ server.unref();
 ```
 
 ```typescript
-// package/cli/terminal-exec/src/launch.ts:122
+// package/terminal-exec/cli/src/launch.ts:122
 child.unref();
 ```
 
@@ -615,7 +622,14 @@ proving the reference would otherwise remain.
 These are inert bootstrap checks,
 not a genuine workflow repair claim.
 
-The private bootstrap remedy owns one event-loop reference through the callback:
+Production update on 2026-10-04:
+commit `c443026a6` keeps the ask-user channel listener referenced during detached startup.
+A separate disposable regression now reproduces the unreferenced requester exit,
+and the real-terminal verifier checks submission and cancellation after the production change.
+See [the startup investigation](pi-ask-user-question-startup.md).
+This does not replay or qualify any private genuine-confirmation epoch described here.
+
+The historical private bootstrap remedy owns one event-loop reference through the callback:
 
 ```javascript
 // Private contract/human-origin/liveness-controls/lease.mjs:4
