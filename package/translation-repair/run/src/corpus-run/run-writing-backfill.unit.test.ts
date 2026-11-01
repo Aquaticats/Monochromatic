@@ -254,9 +254,10 @@ await describe({
           },
         },),
         it({
-          name: 'SEATS A CANDIDATE OF THE MEASURED CHECKER ORDER ONLY WHEN THE READING\'S CHECKER BENCH HOLDS IT AND THE '
-            + 'CONTRACT LETS A CHECKER CONFIRM TEXT IT WROTE: skipped when it is off the bench, skipped when the contract '
-            + 'does not permit it, seated otherwise',
+          name: 'SEATS A CANDIDATE OF THE MEASURED CHECKER ORDER WHEREVER THE CHECKER BENCH IS, and skips it only where it sits '
+            + 'on that bench and the contract does not let a checker confirm text it wrote (ledger B1333): the answerer '
+            + 'names the voice, so a candidate off the bench never casts a ballot on text it wrote at a weight the '
+            + 'discount does not halve',
           fn: async () => {
             const checkerCandidate = REFINER_BACKFILL_ORDER.find(function isChecker(modelId,): boolean {
               return MEASURED_CHECKER_ORDER.includes(modelId,);
@@ -287,17 +288,14 @@ await describe({
             expect(backfilledUnder({ checkers: [checkerCandidate,], selfCertificationPermitted: true, },),)
               .toContain(checkerCandidate,);
             expect(backfilledUnder({ checkers: [], selfCertificationPermitted: true, },),)
-              .not.toContain(checkerCandidate,);
+              .toContain(checkerCandidate,);
+            expect(backfilledUnder({ checkers: [], selfCertificationPermitted: false, },),)
+              .toContain(checkerCandidate,);
             expect(backfilledUnder({ checkers: [checkerCandidate,], selfCertificationPermitted: false, },),)
               .not.toContain(checkerCandidate,);
             // THE SKIP IS NOT A LOST PLACE: the next candidate of the order takes it.
-            expect(backfilledUnder({ checkers: [], selfCertificationPermitted: false, },).length,)
-              .toBe(Math.min(
-                STATIC_REFINERS.length,
-                REFINER_BACKFILL_ORDER.filter(function mayWrite(modelId,): boolean {
-                  return !MEASURED_CHECKER_ORDER.includes(modelId,);
-                },).length,
-              ),);
+            expect(backfilledUnder({ checkers: [checkerCandidate,], selfCertificationPermitted: false, },).length,)
+              .toBe(Math.min(STATIC_REFINERS.length, REFINER_BACKFILL_ORDER.length - 1,),);
           },
         },),
       ],

@@ -1,8 +1,5 @@
 import { alternateModelsFor, } from '@monochromatic-dev/translation-repair-provider/ts';
-import {
-  MEASURED_CHECKER_ORDER,
-  type RosterModelId,
-} from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { RUN_MODELS, } from './run-config.ts';
 
@@ -25,14 +22,15 @@ import { RUN_MODELS, } from './run-config.ts';
 // the reading's own answer to what a wet provider serves and which seats the run withholds there, so a model Hyper
 // would serve too slowly is skipped for the next of the order and not seated.
 //
-// A CANDIDATE THAT ALSO CHECKS follows the contract in `assertCheckerIndependence` (`assembly`). A checker's ballot is
-// weighed by the seat that cast it, and a re-ask of a checker that ran away is recorded under the seat that ran away,
-// so a model of the measured checker order that wrote the text and is NOT on this reading's checker bench could answer
-// a re-ask for a seat it is not, at full weight for text it wrote. Such a candidate is therefore skipped. One that is
-// on the checker bench of the same reading is seated while the run permits a checker to confirm text it wrote
-// (`checkerSelfCertificationPermitted`, the owner's decision of 2026-08-24), since its own ballot is the one the
-// per-issue discount halves; where the run does not permit it, the contract would refuse the overlap, so it is
-// skipped too.
+// A CANDIDATE THAT ALSO CHECKS follows the contract in `assertCheckerIndependence` (`assembly`), which refuses a
+// checker that also edits or refines unless the run permits it (`checkerSelfCertificationPermitted`, the owner's
+// decision of 2026-08-24). A candidate on this reading's checker bench is therefore seated while the run permits the
+// overlap, and skipped where it does not. A candidate off the checker bench is seated whatever the flag: the contract
+// has nothing to refuse, and the ballot of a model that wrote the text is weighed by the model that answered, which the
+// heard voice names even where it answered in place of a seat that ran away (`heardVoiceOf`, ledger B1142), so the
+// per-issue discount follows the answerer. The earlier reason for skipping an off-bench candidate (that a re-ask of a
+// checker is recorded under the seat that ran away, so the discount would miss the answerer) was false since B1142;
+// ledger B1333 records the test that shows it.
 
 /**
  A writing role the bench of which is derived from the reading.
@@ -210,8 +208,8 @@ export function writingBenchFor(
   const mayFill = backfillOrder.filter(function isSeatable(modelId,): boolean {
     if (!(served(modelId,) && seatable(modelId,)))
       return false;
-    return (!MEASURED_CHECKER_ORDER.includes(modelId,))
-      || (selfCertificationPermitted && checkers.includes(modelId,));
+    // A CANDIDATE THAT IS ALSO A CHECKER IS SKIPPED ONLY WHERE THE CONTRACT WOULD REFUSE THE OVERLAP (ledger B1333).
+    return selfCertificationPermitted || (!checkers.includes(modelId,));
   },);
   /**
    The candidates the open places take, in the order of the role.
