@@ -1111,6 +1111,17 @@ each finished branch is reviewed and merged into `main`):
   lint exit 0).
   Merged into `main` as `caada873eb` and pushed;
   release run `41269279750` started.
+  Released 2026-11-01:
+  run `41269279750` succeeded;
+  crates.io `max_version` 0.2.2;
+  release `monochromatic-mpm-shadow-v0.2.2` with both linux-gnu archives and the sha256sums file;
+  the x86_64 archive passed `sha256sum --check` and printed `mpm-shadow 0.2.2` in a throwaway home.
+  The switch agent was told to merge `main`,
+  regenerate the lock (mpm-shadow 0.2.2,
+  wrapper 0.4.6,
+  `nightly-2026-11-01`;
+  nothing older than `main`'s),
+  run the committed-output check and one final Dockerfile build.
 - Switch fixes reported 2026-11-01,
   tip `3adda252e7` (`5adc06997f` code and tests,
   `3adda252e7` docs):
