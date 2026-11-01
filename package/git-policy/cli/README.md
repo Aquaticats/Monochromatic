@@ -859,6 +859,12 @@ mise run //package/git-policy/cli:native:test:container
   - Build cache mounts (`RUN --mount=type=cache`) are not used: they keep `target/` outside the image, but the test
     run, the planted controls and the mutation campaigns reuse the image's own `target/`, so the compiled output has to
     stay in the image.
+  - The image build keeps the same CPU limit as the run.
+    In paired builds at the same time, a cold dependency layer compiled about 1.7 to 1.9 times faster with
+    `--cpus 4` than with the default (47 s and 58 s against 23 s and 31 s) and the path-crate layer about 1.6 times
+    faster, while the wrapper-only layer that a test or source edit rebuilds did not change (about 12 s either way).
+    A cold build happens only after a manifest or lock file change, so the default is unchanged;
+    pass `--cpus 4` after the `--` for that case (the test concurrency follows it too).
   - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
     does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
