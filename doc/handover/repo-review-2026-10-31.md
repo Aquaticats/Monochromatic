@@ -2407,6 +2407,24 @@ Wave-4 seventy-third checkpoint (2026-11-01, stub-silent closed):
   stub-throwing 001 rr-pst-001, truepeak bench 001 rr-tpb-001,
   music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
 
+Wave-4 seventy-fourth checkpoint (2026-11-01, pnpm family complete):
+
+- `w5-pnpm-stub-throwing` is COMPLETE: 6 rows, 6 of 6 clean; all 8 files. The
+  `lint:types` gate cannot fail because `index.d.cts` is the only include and the
+  inherited config sets `skipLibCheck`; the copy with `skipLibCheck` off fails
+  with TS2322 and TS1039. Next id 007.
+- LANE MILESTONE: the pnpm-override family is COMPLETE, all seven packages
+  (shims readable-stream, proper-lockfile, katex, node-domexception,
+  ungap-structured-clone, stub-silent, stub-throwing).
+- Planning is 65 of 65 clean after rows 061 to 065; next id 066, positions 339
+  to 358, base rr-dp-008.
+- The freed stub-throwing slot opens `package/music-player/desktop-app`, slice 1
+  (first 100 of 362 paths, `w5-music-player-desktop-app`, id 001, base
+  rr-mda-001).
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 142 rr-ts-388, truepeak bench 001 rr-tpb-001,
+  music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
