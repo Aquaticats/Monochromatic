@@ -668,9 +668,20 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
 
 /// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native
 ///  `git commit` until a signal arrives. Hooks are unsupported, so controls that need the commit to stand still use this.
+///
+/// The shell never waits for a child from its first line to the end, and that is what keeps an interrupt or a quit
+///  from being lost. A shell that waits for a foreground child ignores `SIGINT` and `SIGQUIT` unless that child dies
+///  of the same signal. So `touch` followed by `sleep` loses a signal that lands while the shell reaps `touch`, which
+///  has exited normally, and the editor then sleeps its full minute and ends the commit with status 1 and
+///  "Aborting commit due to empty commit message." instead of the signal's status. The announcement is a built-in
+///  redirection, and `exec` makes the sleep the editor itself, so a signal at any moment either finds the shell with
+///  no child to wait for (default action ends it) or finds the sleep (default action ends it).
 pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
     let path: PathBuf = fixture.root.join("stalling-editor");
-    executable(path.as_path(), format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes());
+    executable(
+        path.as_path(),
+        format!("#!/bin/sh\nprintf started > '{}'\nexec sleep 60\n", started.display()).as_bytes(),
+    );
     return path;
 }
 
