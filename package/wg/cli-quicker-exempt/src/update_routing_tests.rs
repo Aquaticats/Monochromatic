@@ -21,7 +21,7 @@ use crate::update_report::Outcome;
 /// Policy under test.
 use crate::routing_support::{adoptable_cgroup, retry_backoff, NeverStop, StopCheck, SystemClock, RETRY_BACKOFF_BASE, RETRY_BACKOFF_MAX};
 /// Policy under test.
-use crate::update_routing::{RoutingSetup, UpdateRouting};
+use crate::update_routing::{RoutingSetup, UpdateRouting, MEMBER_VANISH_LIMIT};
 /// Shared recording between the test and the engine.
 use std::cell::RefCell;
 /// Scripted results in order.
@@ -191,7 +191,7 @@ fn mise(pid: i32) -> Fake<'static> {
     return Fake {
         pid,
         exe: "/usr/bin/mise",
-        args: &["mise", "run", "toolchain:sync"],
+        args: &["mise", "run", "toolchain:install"],
         uid: UID,
         cgroup: SCOPE,
         parent: 1,
@@ -261,7 +261,7 @@ fn an_executable_under_the_install_roots_is_adopted() {
 fn a_process_that_only_claims_the_name_is_not_moved() {
     let mut fixture = fixture("forged", vec![]);
     make_process(&fixture.proc_root, &Fake { pid: 25, exe: "/usr/bin/curl", args: &["mpm", "https://example.org"], ..mise(25) });
-    make_process(&fixture.proc_root, &Fake { pid: 26, exe: "/usr/bin/curl", args: &["mise", "run", "toolchain:sync"], ..mise(26) });
+    make_process(&fixture.proc_root, &Fake { pid: 26, exe: "/usr/bin/curl", args: &["mise", "run", "toolchain:install"], ..mise(26) });
     assert_eq!(fixture.routing.consider(25), Outcome::Ignored);
     assert_eq!(fixture.routing.consider(26), Outcome::Ignored);
     assert!(fixture.requests.borrow().is_empty());
@@ -364,6 +364,41 @@ fn a_vanished_process_is_not_reported() {
     let mut fixture = fixture("vanish", vec![Err(AdoptError::Vanished)]);
     make_process(&fixture.proc_root, &mise(40));
     assert_eq!(fixture.routing.consider(40), Outcome::Ignored);
+}
+
+/// A living process whose group lost a member is retried quietly a few times,
+/// and a run of them is reported,
+/// so a process that never gets moved is not hidden.
+#[test]
+fn a_run_of_member_vanishes_is_reported_after_the_limit() {
+    let script = (0..=MEMBER_VANISH_LIMIT).map(|_attempt| return Err(AdoptError::MemberVanished)).collect();
+    let mut fixture = fixture("member-vanish", script);
+    make_process(&fixture.proc_root, &mise(40));
+    let start = Instant::now();
+    for attempt in 1..MEMBER_VANISH_LIMIT {
+        assert_eq!(fixture.routing.consider_at(40, start), Outcome::Ignored, "attempt {attempt} is quiet");
+    }
+    let Outcome::Failed { pid, error, .. } = fixture.routing.consider_at(40, start) else {
+        panic!("the run of member vanishes is reported");
+    };
+    assert_eq!(pid, 40);
+    assert!(error.contains("No such process") && error.contains(&MEMBER_VANISH_LIMIT.to_string()), "{error}");
+}
+
+/// A vanish of the process itself starts the count again,
+/// so only an unbroken run is reported.
+#[test]
+fn a_vanish_of_the_process_resets_the_member_vanish_count() {
+    let mut script: Vec<Result<Joined, AdoptError>> = (1..MEMBER_VANISH_LIMIT).map(|_attempt| return Err(AdoptError::MemberVanished)).collect();
+    script.push(Err(AdoptError::Vanished));
+    script.extend((1..MEMBER_VANISH_LIMIT).map(|_attempt| return Err(AdoptError::MemberVanished)));
+    let total = script.len();
+    let mut fixture = fixture("member-reset", script);
+    make_process(&fixture.proc_root, &mise(40));
+    let start = Instant::now();
+    for attempt in 0..total {
+        assert_eq!(fixture.routing.consider_at(40, start), Outcome::Ignored, "attempt {attempt} is quiet");
+    }
 }
 
 /// After a failed move the pass spends at most a few failures and postpones the rest,

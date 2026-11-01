@@ -516,6 +516,8 @@ fn the_auto_push_retries_a_brief_server_error() {
 #[test]
 fn the_auto_push_reports_a_lasting_server_error_without_credentials() {
     let fixture: Fixture = fixture("lfs-real-auto-retry-spent");
+    // The upload runs in the service's environment, so its retry timing is given there.
+    super::support::give_service_environment(&fixture, FAST_RETRIES.0, FAST_RETRIES.1);
     let Some((repo, _origin, server, content)) = lfs_world(&fixture) else {
         return;
     };
@@ -532,10 +534,11 @@ fn the_auto_push_reports_a_lasting_server_error_without_credentials() {
     let landed: Observed = observe(&mut commit, b"");
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the commit stays saved: {stderr}");
-    assert_eq!(batches(&server), 3, "{stderr}");
-    assert!(stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert!(stderr.contains("http://<credentials>@127.0.0.1"), "{stderr}");
-    assert!(!stderr.contains("secret"), "{stderr}");
+    let report: String = super::support::push_report(repo.as_path(), &stderr);
+    assert_eq!(batches(&server), 3, "{report}");
+    assert!(report.contains(super::support::push_failed_words()), "{report}");
+    assert!(report.contains("http://<credentials>@127.0.0.1"), "{report}");
+    assert!(!report.contains("secret"), "{report}");
     drop(server);
     remove_settled(&fixture);
 }

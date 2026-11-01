@@ -1,40 +1,28 @@
 /**
- The commit service of the end-to-end suite.
+ The commit service of one scenario.
 
- Every commit the scenarios make through the wrapper lands through the resident service, so the suite starts one before the
- first scenario, as the operating system's socket activation would start it for a person, and every scenario's wrapper
- environment names its runtime directory. One service serves all scenarios, as one service serves all of a person's
- repositories; a scenario that kills a wrapper never kills it.
+ Every commit the scenarios make through the wrapper lands through the resident service, so each scenario starts its own,
+ as the operating system's socket activation would start one for a person, and names its runtime directory in every
+ wrapper environment. A scenario owns its service: it can stall it (`SIGSTOP`) to hold prepared commits in the queue,
+ kill it, and restart it the way the service manager restarts a crashed unit, without touching any other scenario.
 
  @module
  */
 
-import { spawn, } from 'node:child_process';
-import { mkdir, } from 'node:fs/promises';
+import type { ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
-import { connect, } from 'node:net';
+import {
+  mkdir,
+  rm,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
-import { setTimeout as pause, } from 'node:timers/promises';
+import { setInterval as ticks, } from 'node:timers/promises';
 
-/**
- Runtime directory the wrappers of the suite find the service in (`XDG_RUNTIME_DIR`).
- */
-export const SERVICE_RUNTIME = '/work/runtime';
+import { listening, } from './service-connection-fixture.ts';
+import { spawnService, } from './service-launch-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
 
-/**
- The service program, installed beside the wrapper by the image build.
- */
-const SERVICE_PROGRAM = '/opt/native/cli-git-service';
-
-/**
- The Git the service runs, which the image keeps off the default path.
- */
-const SERVICE_GIT = '/opt/git/2.55.0/bin/git';
-
-/**
- Where the service keeps its journal.
- */
-const SERVICE_JOURNAL = '/work/service-journal';
+//region Constants
 
 /**
  How long the suite waits for the service to listen, in milliseconds.
@@ -42,95 +30,259 @@ const SERVICE_JOURNAL = '/work/service-journal';
 const START_DEADLINE_MILLISECONDS = 30_000;
 
 /**
- Pause between two tries to connect, in milliseconds.
+ How long a stopping service gets to end after `SIGTERM`, in milliseconds.
  */
-const START_POLL_MILLISECONDS = 10;
+const STOP_DEADLINE_MILLISECONDS = 5_000;
 
 /**
- Whether something accepts connections on a socket path.
-
- @param socket - path of the unix socket
-
- @returns true when a connection was made
+ Pause between two polls, in milliseconds.
  */
-async function listening(socket: string,): Promise<boolean> {
-  return new Promise(function bridge(resolve,) {
-    const attempt = connect(socket,);
-    attempt.once('connect', function connected() {
-      attempt.destroy();
-      resolve(true,);
-    },);
-    attempt.once('error', function refused() {
-      resolve(false,);
-    },);
-  },);
-}
+const POLL_MILLISECONDS = 10;
+
+//endregion Constants
+
+//region Service
 
 /**
- Starts the suite's commit service and waits until it listens.
+ Starts the commit service of one scenario and waits until it listens.
 
- @returns a function that stops the service
+ @param root - scenario root; the service keeps its runtime directory and journal under `service/`
+
+ @param fault - fault point the first service process is armed with,
+ `after-objects`,
+ `after-intent`,
+ `after-ref`,
+ `after-index`,
+ or `before-ack`
+
+ @returns the service, stopped when disposed
 
  @throws Error when the service does not listen within the deadline
 
  @example
  ```ts
- const stop = await startSuiteService();
+ await using service = await startScenarioService({ root: '/work/2.55.0/baseline' });
  ```
  */
-export async function startSuiteService(): Promise<() => Promise<void>> {
-  const socket = join(SERVICE_RUNTIME, 'cli-git', 'service.sock',);
-  await mkdir(join(SERVICE_RUNTIME, 'cli-git',), { recursive: true, },);
-  const child = spawn(
-    SERVICE_PROGRAM,
-    [
-      '--journal',
-      SERVICE_JOURNAL,
-      '--git',
-      SERVICE_GIT,
-      '--path',
-      socket,
-    ],
-    { stdio: 'inherit', },
+export async function startScenarioService({
+  root,
+  fault,
+}: Readonly<{
+  root: string;
+  fault?: string;
+}>,): Promise<ScenarioService & AsyncDisposable> {
+  /**
+   Runtime directory of the scenario.
+   */
+  const runtime = join(
+    root,
+    'service',
+    'runtime',
   );
   /**
-   Stops the service; safe to call when it already ended.
+   Directory the socket sits in.
+   */
+  const socketDirectory = join(
+    runtime,
+    'cli-git',
+  );
+  /**
+   Socket the service listens on.
+   */
+  const socket = join(
+    socketDirectory,
+    'service.sock',
+  );
+  /**
+   Journal directory, kept across restarts so a restart recovers what a killed service left open.
+   */
+  const journal = join(
+    root,
+    'service',
+    'journal',
+  );
+  /**
+   Mutable state of the scenario's service processes: the current process, the standard error of every process so far,
+   when the current process ends, and whether the scenario ended, after which nothing may start a service.
+   */
+  const current: {
+    child?: ChildProcess;
+    log: string;
+    ended: Promise<void>;
+    disposed: boolean;
+  } = {
+    log: '',
+    ended: Promise.resolve(),
+    disposed: false,
+  };
+  /**
+   Whether the current process has ended.
+
+   @returns true when it exited or was killed by a signal, or none was started
+   */
+  function hasExited(): boolean {
+    /**
+     The current process.
+     */
+    const running = current.child;
+    if (running === undefined)
+      return true;
+    /**
+     How the process ended, if it did.
+     */
+    const {
+      exitCode,
+      signalCode,
+    } = running;
+    return (exitCode !== null) || (signalCode !== null);
+  }
+  /**
+   Process ID of the current process.
+
+   @returns the process ID
+
+   @throws Error when no service was started
+   */
+  function pid(): number {
+    /**
+     The current process.
+     */
+    const running = current.child;
+    if (running === undefined)
+      throw new Error('the scenario has no running commit service',);
+    /**
+     The process's ID, absent when it did not start.
+     */
+    const { pid: processId, } = running;
+    if (processId === undefined)
+      throw new Error('the commit service process has no process ID',);
+    return processId;
+  }
+  /**
+   Starts one service process and waits until it listens.
+
+   @param armed - fault point to arm, none for a clean service
+
+   @throws Error when the service does not listen within the deadline
+   */
+  async function launch(armed?: string,): Promise<void> {
+    await mkdir(
+      socketDirectory,
+      { recursive: true, },
+    );
+    await rm(
+      socket,
+      { force: true, },
+    );
+    /**
+     The new service process.
+     */
+    const started = spawnService({
+      socket,
+      journal,
+      ...armed === undefined ? {} : { fault: armed, },
+    },);
+    current.child = started;
+    current.log += `--- service process ${String(started.pid,)} ---\n`;
+    started.stderr
+      ?.setEncoding('utf8',);
+    started.stderr
+      ?.on(
+      'data',
+      function remember(text: string,) {
+        current.log += text;
+      },
+      );
+    current.ended = (async function waitForExit(): Promise<void> {
+      await once(
+        started,
+        'exit',
+      );
+    })();
+    /**
+     When the wait for the service ends.
+     */
+    const deadline = Date.now() + START_DEADLINE_MILLISECONDS;
+    for await (const _tick of ticks(POLL_MILLISECONDS,)) {
+      if (await listening(socket,))
+        return;
+      if ((Date.now() >= deadline) || hasExited())
+        throw new Error(`the commit service did not listen at ${socket}: ${current.log}`,);
+    }
+  }
+  /**
+   Ends the current process: `SIGCONT` so a frozen one can hear `SIGTERM`, then `SIGKILL` after the deadline.
    */
   async function stop(): Promise<void> {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGTERM',);
-      await once(child, 'exit',);
-    }
+    if (hasExited())
+      return;
+    /**
+     The process being stopped.
+     */
+    const stopping = current.child;
+    stopping?.kill('SIGCONT',);
+    stopping?.kill('SIGTERM',);
+    /**
+     Forced end after the deadline.
+     */
+    const forced = setTimeout(
+      function force() {
+        stopping?.kill('SIGKILL',);
+      },
+      STOP_DEADLINE_MILLISECONDS,
+    );
+    await current.ended;
+    clearTimeout(forced,);
   }
-  const deadline = Date.now() + START_DEADLINE_MILLISECONDS;
-  while (!await listening(socket,)) {
-    if (Date.now() >= deadline || child.exitCode !== null) {
+  await launch(fault,);
+  return {
+    runtime,
+    pid,
+    hasExited,
+    log() {
+      return current.log;
+    },
+    stall() {
+      process.kill(
+        pid(),
+        'SIGSTOP',
+      );
+    },
+    resume() {
+      process.kill(
+        pid(),
+        'SIGCONT',
+      );
+    },
+    async kill() {
+      if (hasExited())
+        return;
+      /**
+       The process being killed.
+       */
+      const killed = current.child;
+      killed?.kill('SIGKILL',);
+      await current.ended;
+    },
+    async restart(armed,) {
       await stop();
-      throw new Error(`the commit service did not listen at ${socket}`,);
-    }
-    await pause(START_POLL_MILLISECONDS,);
-  }
-  return stop;
+      await launch(armed,);
+    },
+    async restartAfterExit() {
+      await current.ended;
+      // A scenario that ends while it waits must not leave a service running behind it.
+      if (!current.disposed)
+        await launch();
+    },
+    async ensureRunning() {
+      if (hasExited())
+        await launch();
+    },
+    async [Symbol.asyncDispose]() {
+      current.disposed = true;
+      await stop();
+    },
+  };
 }
 
-/**
- Runs work while the suite's commit service runs, and stops the service afterwards however the work ends.
-
- @param work - the scenarios
-
- @returns what the work returned
-
- @example
- ```ts
- const results = await whileServing(async () => runAll());
- ```
- */
-export async function whileServing<Result,>(work: () => Promise<Result>,): Promise<Result> {
-  const stop = await startSuiteService();
-  try {
-    return await work();
-  }
-  finally {
-    await stop();
-  }
-}
+//endregion Service

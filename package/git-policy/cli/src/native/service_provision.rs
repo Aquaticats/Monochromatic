@@ -7,7 +7,10 @@
 //!  client, the wrapper sets up what it needs and tells nobody. The units live under `$XDG_RUNTIME_DIR/systemd/user`, which
 //!  disappears at logout, so nothing is left behind in the home directory and the next first use provisions again. Every
 //!  step is idempotent (a file is written, by temporary file and rename, only when its content differs), so several commits
-//!  racing to provision agree without any lock. Units this wrapper's earlier releases wrote into `~/.config/systemd/user`
+//!  racing to provision agree without any lock. Every commit that goes to the service compares the two installed units with
+//!  what this wrapper would write (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the
+//!  service program the service unit names, is repaired by the first commit that follows it: units rewritten, manager
+//!  reloaded, failed state cleared, socket started. Units this wrapper's earlier releases wrote into `~/.config/systemd/user`
 //!  outrank the runtime ones in the unit search path, so they are recognized by their content and removed; a unit of the
 //!  same name that something else wrote is never touched, and the commit stops with a message naming the file.
 //!
@@ -17,6 +20,7 @@
 //! ```
 
 use super::service_messages::{ClientFailure, Platform};
+use super::service_route::SOCKET_RELATIVE;
 use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT};
 use std::path::{Path, PathBuf};
 
@@ -62,6 +66,8 @@ pub struct ProvisionHost {
 pub trait Manager {
     /// Reloads the unit files.
     fn reload(&mut self) -> Result<(), CallError>;
+    /// Clears a unit's failed state and start-rate counter.
+    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError>;
     /// Starts a unit.
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
 }
@@ -69,6 +75,10 @@ pub trait Manager {
 impl Manager for Bus {
     fn reload(&mut self) -> Result<(), CallError> {
         return Bus::reload(self);
+    }
+
+    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
+        return Bus::reset_failed(self, unit);
     }
 
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
@@ -101,6 +111,24 @@ pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
 /// The directory the runtime units are written to.
 pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
     return runtime_dir.join("systemd").join("user");
+}
+
+/// What:
+///  Whether the installed units are the ones this wrapper would write and the socket is there.
+/// Why:
+///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
+///  service unit names; the text does. Two small reads and one `stat` decide, and the bus is not touched when they agree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inPlace(host) // false: write, reload, start
+/// ```
+pub fn in_place(host: &ProvisionHost) -> bool {
+    let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
+    let current = |(name, text): (&str, String)| -> bool {
+        return std::fs::read_to_string(directory.join(name)).is_ok_and(|installed| { return installed == text; });
+    };
+    return unit_texts(host).into_iter().all(current) && host.runtime_dir.join(SOCKET_RELATIVE).exists();
 }
 
 static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -162,14 +190,19 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     let mut reload: bool = clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())); })?;
+    // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
+    let mut known: bool = false;
+    let mut written: Vec<PathBuf> = Vec::new();
     for (name, text) in unit_texts(host) {
         let path: PathBuf = directory.join(name);
         let existed: bool = path.exists();
+        known |= existed;
         if std::fs::read_to_string(&path).is_ok_and(|current| { return current == text; }) {
             continue;
         }
         write_atomically(&path, text.as_str())
             .map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())); })?;
+        written.push(path);
         reload |= existed;
     }
     let refused = |error: CallError| -> ClientFailure {
@@ -180,14 +213,39 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
         };
     };
-    if reload {
-        manager.reload().map_err(refused)?;
+    let asked: Result<(), CallError> = ask_manager(manager, reload, known);
+    if let Err(error) = asked {
+        // A file the manager never heard about must not look installed to the next commit, which would then skip the
+        //  reload that this one did not complete.
+        for path in &written {
+            let _removed = std::fs::remove_file(path);
+        }
+        return Err(refused(error));
     }
-    return manager.start(SOCKET_UNIT_NAME).map_err(refused);
+    return Ok(());
 }
 
-/// Provisions through the session bus.
+/// The calls provisioning makes: a reload when a held unit changed, a reset of failed state when a unit may have failed
+///  under the manager (the reset is best effort: a unit the manager does not hold has nothing to reset), and the start.
+fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool) -> Result<(), CallError> {
+    if reload {
+        manager.reload()?;
+    }
+    if known {
+        // A start that failed under an old unit leaves the service failed and its start counter full, and the socket
+        //  failed with it; the new unit would be refused as "repeated too quickly" until the interval passed.
+        for unit in [SERVICE_UNIT_NAME, SOCKET_UNIT_NAME] {
+            let _reset = manager.reset_failed(unit);
+        }
+    }
+    return manager.start(SOCKET_UNIT_NAME);
+}
+
+/// Provisions through the session bus, unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
+    if in_place(host) {
+        return Ok(());
+    }
     let mut bus: Bus = Bus::connect(host.bus.as_path(), EXCHANGE_WAIT).map_err(|_| { return ClientFailure::NoActivation(platform_without_manager()); })?;
     return provision_with(host, &mut bus);
 }

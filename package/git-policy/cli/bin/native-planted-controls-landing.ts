@@ -69,16 +69,16 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   },
   {
     name: 'worktree copy waits for a replacement of an older service by time and not by count',
-    file: 'src/native/service_copy_client.rs',
-    from: 'if version > PROTOCOL_VERSION || Instant::now() >= deadline {',
-    to: 'if version > PROTOCOL_VERSION || true {',
+    file: 'src/native/service_client.rs',
+    from: '        if Instant::now() >= deadline {\n            return Err(ClientFailure::OtherRelease);',
+    to: '        if true {\n            return Err(ClientFailure::OtherRelease);',
     failing: 'service_copy_client::tests::a_client_waits_through_an_older_service_that_is_slow_to_exit',
   },
   {
     name: 'worktree copy wake reaches the service the way a request does',
     file: 'src/native/service_copy_client.rs',
     from: 'let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced) else { return };',
-    to: 'let Ok(mut reader) = reach(config, &mut std::io::sink(), &mut announced).map(|(reader, _version)| reader) else { return };',
+    to: 'let Ok(mut reader) = crate::service_client::reach(config, &mut std::io::sink(), &mut announced).map(|(reader, _version, _release)| reader) else { return };',
     failing: 'service_copy_client::tests::a_wake_retires_an_older_service_and_wakes_the_current_one',
   },
   {
@@ -203,7 +203,7 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   {
     name: 'worktree copy leaves a notice before it tells the client of a failure',
     file: 'src/native/service_copy.rs',
-    from: '                if let CopyOutcome::Failed(text) = &outcome {\n                    let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());\n                }\n                conversation.done(id.as_str(), &outcome);',
+    from: '                if let CopyOutcome::Failed(text) = &outcome {\n                    let _noticed = write_copy_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());\n                }\n                conversation.done(id.as_str(), &outcome);',
     to: '                conversation.done(id.as_str(), &outcome);',
     failing: 'service_copy::tests::a_failure_is_left_as_a_notice_until_the_client_has_shown_it',
   },

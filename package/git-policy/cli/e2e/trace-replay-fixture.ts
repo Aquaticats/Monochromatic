@@ -1,7 +1,7 @@
 /**
  Replays a window of the committed commit-shape trace as explicit-path commits with synthesized content.
 
- Workers touching a path another in-flight worker selected wait until that worker's `pre-commit` hook ran
+ Workers touching a path another in-flight worker selected wait until that worker connected to the commit service
  (its bytes are captured by then),
  so every attempt's captured bytes are exactly what the harness wrote for it.
 

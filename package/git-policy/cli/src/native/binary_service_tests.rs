@@ -19,7 +19,7 @@ use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
-    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_service,
+    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
@@ -105,6 +105,8 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
+        index: repo.join(".git/index"),
     };
 }
 
@@ -345,12 +347,13 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
         }
     });
     let (stream, _) = old.accept().expect("the client connects to the old service");
-    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1 });
+    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1, release: None });
     greeting.push('\n');
     (&stream).write_all(greeting.as_bytes()).expect("greet");
     let mut asked = String::new();
     BufReader::new(&stream).read_line(&mut asked).expect("the client asks it to retire");
-    assert_eq!(asked.trim_end(), encode_client(&ClientMessage::Retire));
+    // Written in the version the old service announced, the only one it reads.
+    assert_eq!(asked.trim_end(), encode_retire(PROTOCOL_VERSION - 1));
     drop(stream);
     drop(old);
     let service: Service = start_service(&fixture, name.as_str(), None);
@@ -358,6 +361,54 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
     assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?}");
     assert!(notices.contains(UPDATING_NOTICE), "{notices:?}");
     stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service of another release that goes on answering after it was asked to retire ends the command in plain words,
+///  within the start wait and not after it, with the command that restarts the service; nothing is sent to it but the request
+///  to retire.
+#[test]
+fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
+    let fixture: Fixture = fixture("service-stubborn");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "stubborn");
+    let sent: CommitRequest = request(&fixture, &repo, "stubborn-1", "t.txt", "t\n");
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let stubborn: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
+    stubborn.set_nonblocking(true).expect("non-blocking");
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let acceptor = std::thread::spawn({
+        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+        move || {
+            let mut asked: Vec<String> = Vec::new();
+            let mut held: Vec<UnixStream> = Vec::new();
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                let Ok((stream, _)) = stubborn.accept() else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                stream.set_nonblocking(false).expect("blocking");
+                let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("0.0.1-earlier")) });
+                greeting.push('\n');
+                let _sent = (&stream).write_all(greeting.as_bytes());
+                let mut line: String = String::new();
+                let _read = BufReader::new(&stream).read_line(&mut line);
+                asked.push(line.trim_end().to_string());
+                held.push(stream);
+            }
+            return asked;
+        }
+    });
+    let impatient: ClientConfig = ClientConfig { start_wait: Duration::from_millis(400), ..config(name.as_str()) };
+    let began: Instant = Instant::now();
+    assert_eq!(submit_quietly(&impatient, &sent), Err(ClientFailure::OtherRelease));
+    assert!(began.elapsed() < Duration::from_secs(5), "bounded by the start wait: {:?}", began.elapsed());
+    finished.store(true, std::sync::atomic::Ordering::SeqCst);
+    let asked: Vec<String> = acceptor.join().expect("acceptor");
+    // The connection the client gave up on says nothing; every other line is the request to retire.
+    let spoken: Vec<&String> = asked.iter().filter(|line| { return !line.is_empty(); }).collect();
+    assert!(!spoken.is_empty() && spoken.iter().all(|line| { return **line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
+    git(&fixture, &repo, &["status", "--short"]);
     remove_settled(&fixture);
 }
 
@@ -372,7 +423,7 @@ fn a_newer_service_leaves_the_user_a_plain_instruction() {
     let future: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
     let acceptor = std::thread::spawn(move || {
         if let Ok((stream, _)) = future.accept() {
-            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1 });
+            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1, release: Some(String::from(git_policy_cli::service_protocol::RELEASE)) });
             greeting.push('\n');
             let _sent = (&stream).write_all(greeting.as_bytes());
             std::thread::sleep(Duration::from_millis(200));
@@ -430,33 +481,35 @@ fn amend_request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: 
     return amend;
 }
 
-/// An index update that gives up after the branch moved (another program held Git's index lock the whole time) leaves the
-///  commit landed and its intent open; the next batch settles it first, so the index agrees with the branch again without a restart.
+/// Another program holds Git's index lock: the landing waits for it before the branch moves, so the index never shows a file as
+///  reversed. Once the other program lets go, the commit lands, the index agrees with the branch, and no intent is left open.
 #[test]
-fn an_index_update_that_failed_after_the_branch_moved_is_settled_by_the_next_batch() {
-    let fixture: Fixture = fixture("service-index-settle");
+fn a_landing_waits_for_the_index_lock_before_the_branch_moves() {
+    let fixture: Fixture = fixture("service-index-wait");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    let name: String = address(&fixture, "settle");
+    let name: String = address(&fixture, "wait");
     let service: Service = start_service(&fixture, name.as_str(), None);
     wait_until_reachable(name.as_str());
-    let first: CommitRequest = request(&fixture, &repo, "settle-1", "a.txt", "a\n");
+    let first: CommitRequest = request(&fixture, &repo, "wait-1", "a.txt", "a\n");
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(&lock, b"").expect("another program holds the index");
+    let before: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let holder_lock: PathBuf = lock.clone();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(800));
+        std::fs::remove_file(holder_lock).expect("the other program lets go");
+    });
+    let began: Instant = Instant::now();
     let landed = submit_quietly(&config(name.as_str()), &first).expect("answered");
+    assert!(began.elapsed() >= Duration::from_millis(700), "the commit waited for the holder: {:?}", began.elapsed());
     assert!(matches!(landed, Submitted::Landed { already: false, .. }), "{landed:?}");
-    assert_eq!(count_of(&fixture, &repo, "message of settle-1"), 1, "the branch moved");
-    let open = |held: &Fixture| -> usize {
-        return std::fs::read_dir(held.root.join("journal")).map_or(0, |entries| {
-            return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
-        });
-    };
-    assert_eq!(open(&fixture), 1, "the intent waits for the index");
-    assert_eq!(query(&fixture, &repo, &["status", "--short", "--untracked-files=no"]), "D  a.txt", "the index shows the file as reversed");
-    std::fs::remove_file(&lock).expect("the other program lets go");
-    let second: CommitRequest = request(&fixture, &repo, "settle-2", "b.txt", "b\n");
-    assert!(matches!(submit_quietly(&config(name.as_str()), &second), Ok(Submitted::Landed { .. })));
-    assert_eq!(open(&fixture), 0, "no intent is left open");
-    assert_healthy(&fixture, &repo, "settled by the next batch");
+    release.join().expect("thread");
+    assert_ne!(query(&fixture, &repo, &["rev-parse", "HEAD"]), before);
+    let open: usize = std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
+        return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
+    });
+    assert_eq!(open, 0, "no intent is left open");
+    assert_healthy(&fixture, &repo, "landed after the wait");
     stop(service);
     remove_settled(&fixture);
 }

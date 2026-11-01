@@ -13,16 +13,15 @@
 //! const outcomes = await requestCopies(config, commonDir, ids, stderr);
 //! ```
 
-use super::service_client::{ClientConfig, Activation, RECONNECTS, START_WAIT, reach};
+use super::service_client::{ClientConfig, Activation, RECONNECTS, START_WAIT, reach_current};
 use super::service_copy::{CopyOutcome, CopyReply, decode_copy_reply, withdraw_notice};
 use super::service_messages::{ClientFailure, LOG_COMMAND, Platform};
-use super::service_protocol::{ClientMessage, PROTOCOL_VERSION, encode_client};
+use super::service_protocol::{ClientMessage, encode_client};
 use super::service_provision::{ProvisionHost, provision};
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::worktree_copy::CopyRequester;
 use super::worktree_copy_error::WorktreeCopyError;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -82,42 +81,6 @@ pub fn copy_unavailable_text(failure: &ClientFailure) -> String {
         "cli-git: {result} {reason} The copy is saved: it is \
          made the next time the commit service is available and any git command runs in this repository, unless it finished."
     );
-}
-
-/// How long the client keeps asking an older service to retire before it says it cannot work with it.
-pub const RETIRE_WAIT: Duration = START_WAIT;
-
-/// What:
-///  Reaches a service that speaks this wrapper's protocol, asking an older one to retire and waiting for its replacement.
-/// Why:
-///   The operating system starts the replacement only after the old service has exited, so a connection that still meets
-///  the old version means the old writer is still there: nothing is sent to it but the request to retire, and the wait is
-///  bounded by time, not by a count of tries. Only a service of this version is ever sent a copy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reader = await reachCurrent(config, notices, announced)
-/// ```
-pub fn reach_current(
-    config: &ClientConfig,
-    notices: &mut dyn Write,
-    announced: &mut bool,
-) -> Result<BufReader<UnixStream>, ClientFailure> {
-    let deadline: Instant = Instant::now() + RETIRE_WAIT;
-    loop {
-        let (mut reader, version) = reach(config, notices, announced)?;
-        if version == PROTOCOL_VERSION {
-            return Ok(reader);
-        }
-        if version > PROTOCOL_VERSION || Instant::now() >= deadline {
-            return Err(ClientFailure::NoCommonVersion);
-        }
-        // An older service is asked to finish and exit; the manager starts the current one for the next connection.
-        let mut retire: String = encode_client(&ClientMessage::Retire);
-        retire.push('\n');
-        let _sent = reader.get_mut().write_all(retire.as_bytes());
-        std::thread::sleep(RECONNECT_PAUSE);
-    }
 }
 
 /// What:

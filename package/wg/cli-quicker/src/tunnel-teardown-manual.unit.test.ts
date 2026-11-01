@@ -61,6 +61,7 @@ const HOSTILE_COMPANION_PATH = '/opt/my tools/wg-quicker-exempt; touch injected 
 const CLEARNET = {
   mark: 100,
   hosts: [{ family: '-4', address: '203.0.113.7', },],
+  interfaces: [{ family: '-4', name: 'eth0', },],
 } as const;
 
 /**

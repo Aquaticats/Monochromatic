@@ -41,7 +41,7 @@ const GOOD_LANDING: LandingObservation = {
   paths: [{ path: 'a.txt', landed: present('captured',), acceptable: [present('captured',), present('merged',),], },],
   remoteContains: true,
   onAmendedPublishedHistory: false,
-  hooks: { commitMsgTrailer: true, postCommitRuns: 1, signatureValid: true, },
+  hooks: { editorTrailer: true, afterCommitRecords: 1, signatureValid: true, },
 };
 
 /**
@@ -67,6 +67,7 @@ const CLEAN: RunObservation = {
   worktree: [{ path: 'a.txt', expected: present('captured',), actual: present('captured',), },],
   staged: [{ path: 'b.txt', expectedByHarness: true, revertsLandedContent: false, },],
   leftovers: [],
+  unsettledWork: [],
   fsck: { exitCode: 0, output: '', },
   expectations: [{ name: 'all-commits-succeed', holds: true, detail: '', },],
 };
@@ -148,9 +149,9 @@ await describe({
         it({
           name: 'requires remote containment and hook facts only where they apply',
           fn: async () => {
-            const missing = { ...GOOD_LANDING, remoteContains: false, hooks: { commitMsgTrailer: false, postCommitRuns: 2, signatureValid: false, }, };
+            const missing = { ...GOOD_LANDING, remoteContains: false, hooks: { editorTrailer: false, afterCommitRecords: 2, signatureValid: false, }, };
             expect(invariantsFor({ ...GOOD_ATTEMPT, landings: [missing,], },),)
-              .toEqual(['remote-contains', 'commit-msg-hook', 'post-commit-once', 'signature-valid',],);
+              .toEqual(['remote-contains', 'editor-trailer', 'after-commit-work-once', 'signature-valid',],);
             expect(invariantsFor({ ...GOOD_ATTEMPT, requiresRemote: false, landings: [{ ...GOOD_LANDING, remoteContains: false, hooks: {}, },], },),)
               .toEqual([],);
           },
@@ -178,7 +179,7 @@ await describe({
           },
         },),
         it({
-          name: 'reports lost worktree edits, index reverts, drift, leftovers, fsck, and expectations',
+          name: 'reports lost worktree edits, index reverts, drift, leftovers, unsettled work, fsck, and expectations',
           fn: async () => {
             expect(checkInvariants({
               ...CLEAN,
@@ -188,11 +189,12 @@ await describe({
                 { path: 'c.txt', expectedByHarness: false, revertsLandedContent: false, },
               ],
               leftovers: ['.git/index.lock',],
+              unsettledWork: ['claimed/push-a',],
               fsck: { exitCode: 0, output: 'broken link', },
               expectations: [{ name: 'all-commits-succeed', holds: false, detail: 'w1 exited 2', },],
             },).map(function name(violation,) {
               return violation.invariant;
-            },),).toEqual(['worktree-preserved', 'index-no-revert', 'index-matches-head', 'no-leftovers', 'fsck-clean', 'all-commits-succeed',],);
+            },),).toEqual(['worktree-preserved', 'index-no-revert', 'index-matches-head', 'no-leftovers', 'after-commit-work-settles', 'fsck-clean', 'all-commits-succeed',],);
           },
         },),
       ],

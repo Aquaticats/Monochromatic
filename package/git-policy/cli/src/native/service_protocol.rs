@@ -18,6 +18,11 @@ use std::path::PathBuf;
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
 pub const PROTOCOL_VERSION: u32 = 5;
 
+/// The release of this build: the crate version, which the wrapper and the service program share because they are built
+///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
+///  program its unit names, and the behavior behind the same messages, may differ.
+pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
+
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
 
@@ -45,6 +50,28 @@ pub struct Change {
     pub mode: u32,
     /// Object name of the content, or nothing for a deletion.
     pub blob: Option<String>,
+}
+
+/// What:
+///  What the landing of a merge, cherry-pick or revert conclusion removes from the worktree's Git directory once the
+///  commit is on the branch.
+/// Why:
+///   Native `git commit` removes `MERGE_HEAD` and its siblings when it concludes; the client built the commit with real
+///  Git in a scratch repository that holds the state it was given, so the entries real Git removed there are the ones the
+///  landing removes here, each only while it still holds the bytes copied at preparation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Cleanup = { gitDir: string; scratch: string; reftable: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cleanup {
+    /// The Git directory of the worktree the commit is made in.
+    pub git_dir: PathBuf,
+    /// The commit's scratch directory, which holds the conclusion copies and the scratch repository Git committed in.
+    pub scratch: PathBuf,
+    /// Whether the repository stores references in reftable tables, which hold three of the entries in the ref store.
+    pub reftable: bool,
 }
 
 /// What:
@@ -86,6 +113,15 @@ pub struct CommitRequest {
     ///  service lands it as it is, only while the branch tip is still the base, and ignores the message, the identities
     ///  and the tree of the request.
     pub commit: Option<String>,
+    /// The state files a conclusion removes once the commit has landed; only with a commit built elsewhere.
+    pub cleanup: Option<Cleanup>,
+    /// The real index of the worktree, whose lock the landing holds from before the branch moves until the new index is in place.
+    pub index: PathBuf,
+}
+
+/// Whether `name` is the all-zero object name, which stands for a branch that does not exist yet.
+pub fn is_zero_object(name: &str) -> bool {
+    return is_object_name(name) && name.bytes().all(|byte| { return byte == b'0'; });
 }
 
 impl CommitRequest {
@@ -173,8 +209,9 @@ pub enum ClientMessage {
 /// What the service sends.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServiceMessage {
-    /// First line of every connection: the service's protocol version.
-    Welcome { version: u32 },
+    /// First line of every connection: the service's protocol version and the release it was built from. Services of
+    ///  releases before the field existed send none, which reads as a release that is not this one.
+    Welcome { version: u32, release: Option<String> },
     /// The request is queued behind others.
     Position { number: usize, of: usize },
     /// The commit is on the branch; `already` when an earlier request with the same identity landed it.
@@ -183,6 +220,10 @@ pub enum ServiceMessage {
     RetryPrepare { id: String, base: String },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
+    /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
+    Waiting { text: String },
+    /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
+    Holder { who: String },
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
@@ -212,6 +253,21 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 }
 
 /// What:
+///  The line that asks a service to retire, written in the protocol version that service speaks.
+/// Why:
+///   A service reads a line only in its own version, except that services built with this check read a retire at any
+///  version. A service of an earlier release (the ones that sent no release in their greeting) refuses a retire written in
+///  a newer version as unsupported and stays, so the line must carry the version the service announced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// JSON.stringify({ type: 'retire', version: announcedVersion })
+/// ```
+pub fn encode_retire(version: u32) -> String {
+    return object(vec![("type", Value::from("retire")), ("version", Value::from(version))]);
+}
+
+/// What:
 ///  The line for a client message.
 /// Why:
 ///   One object per line, no newline inside any field.
@@ -222,7 +278,7 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 /// ```
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
-        ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
+        ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
         ClientMessage::Work { common_dir, review_key } => {
             let mut entries: Vec<(&str, Value)> = vec![
                 ("type", Value::from("work")),
@@ -270,6 +326,17 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("amend", Value::from(request.amend)),
             ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
             ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
+            ("index", Value::from(request.index.to_string_lossy().as_ref())),
+            (
+                "cleanup",
+                request.cleanup.as_ref().map_or(Value::Null, |cleanup| {
+                    return Value::Object(Map::from_iter([
+                        (String::from("gitDir"), Value::from(cleanup.git_dir.to_string_lossy().as_ref())),
+                        (String::from("scratch"), Value::from(cleanup.scratch.to_string_lossy().as_ref())),
+                        (String::from("reftable"), Value::from(cleanup.reftable)),
+                    ]));
+                }),
+            ),
         ]),
     };
 }
@@ -288,6 +355,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         return Err(String::from("line is too long"));
     }
     let value: Value = serde_json::from_str(line).map_err(|error| { return error.to_string(); })?;
+    // A request to retire carries no data a version could change the meaning of, and it is the one message a client of
+    //  another protocol version must still be able to send, so that service can be replaced.
+    if field(&value, "type")? == "retire" {
+        return Ok(ClientMessage::Retire);
+    }
     if value.get("version").and_then(Value::as_u64) != Some(u64::from(PROTOCOL_VERSION)) {
         return Err(String::from("unsupported version"));
     }
@@ -350,21 +422,43 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
+        index: PathBuf::from(field(&value, "index")?),
+        cleanup: match value.get("cleanup").filter(|entry| { return !entry.is_null(); }) {
+            None => None,
+            Some(entry) => Some(Cleanup {
+                git_dir: PathBuf::from(field(entry, "gitDir")?),
+                scratch: PathBuf::from(field(entry, "scratch")?),
+                reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
+            }),
+        },
     };
     let well_formed: bool = !request.id.is_empty()
         && request.id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
-        && request.reference.starts_with("refs/")
+        // A detached head is moved as `HEAD` itself.
+        && (request.reference.starts_with("refs/") || request.reference == "HEAD")
         && !request.reference.contains(['\0', '\n', ' '])
         && is_object_name(&request.base)
+        // A branch that does not exist yet has no commit to build the tree from, so only a commit built elsewhere names it.
+        && (!is_zero_object(&request.base) || request.commit.is_some())
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
+        && request.index.is_absolute()
+        && !request.index.to_string_lossy().contains('\0')
         && !request.committer.contains(['\0', '\n'])
         && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
         //  names neither, so the three cannot be mixed up.
         && (request.amend && request.commit.is_none()) == request.tree.is_some()
         && request.tree.as_deref().is_none_or(is_object_name)
-        && request.commit.as_deref().is_none_or(is_object_name);
+        && request.commit.as_deref().is_none_or(is_object_name)
+        && request.cleanup.as_ref().is_none_or(|cleanup| {
+            return request.commit.is_some()
+                && cleanup.git_dir.is_absolute()
+                && cleanup.scratch.is_absolute()
+                && cleanup.scratch.starts_with(&cleanup.git_dir)
+                && !cleanup.git_dir.to_string_lossy().contains('\0')
+                && !cleanup.scratch.to_string_lossy().contains('\0');
+        });
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }
@@ -382,7 +476,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
 /// ```
 pub fn encode_service(message: &ServiceMessage) -> String {
     return match message {
-        ServiceMessage::Welcome { version } => object(vec![("type", Value::from("welcome")), ("version", Value::from(*version))]),
+        ServiceMessage::Welcome { version, release } => {
+            let mut entries: Vec<(&str, Value)> = vec![("type", Value::from("welcome")), ("version", Value::from(*version))];
+            if let Some(text) = release {
+                entries.push(("release", Value::from(text.as_str())));
+            }
+            object(entries)
+        }
         ServiceMessage::Position { number, of } => {
             object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }
@@ -395,6 +495,8 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ServiceMessage::RetryPrepare { id, base } => {
             object(vec![("type", Value::from("retry-prepare")), ("id", Value::from(id.as_str())), ("base", Value::from(base.as_str()))])
         }
+        ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
+        ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -422,6 +524,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
     return match field(&value, "type")? {
         "welcome" => Ok(ServiceMessage::Welcome {
             version: u32::try_from(number("version")?).map_err(|_| { return String::from("version is out of range"); })?,
+            release: value.get("release").and_then(Value::as_str).map(String::from),
         }),
         "position" => Ok(ServiceMessage::Position { number: number("number")?, of: number("of")? }),
         "landed" => Ok(ServiceMessage::Landed {
@@ -430,6 +533,8 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
         }),
         "retry-prepare" => Ok(ServiceMessage::RetryPrepare { id: field(&value, "id")?.to_string(), base: field(&value, "base")?.to_string() }),
+        "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
+        "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

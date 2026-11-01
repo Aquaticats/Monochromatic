@@ -45,6 +45,14 @@ export type RepositoryOverrides = Readonly<{
    SSH signing, default off.
    */
   signing?: boolean;
+  /**
+   Check the message editor's trailer in every landed message, default off.
+   */
+  editorTrailer?: boolean;
+  /**
+   Check one settled push record per landed commit, default off.
+   */
+  afterCommitRecords?: boolean;
 }>;
 
 /**

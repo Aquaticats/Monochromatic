@@ -190,6 +190,16 @@ await installTrafficBlock({
         address: HOST_ADDRESS_V6,
       },
     ],
+    interfaces: [
+      {
+        family: '-4',
+        name: 'dummy0',
+      },
+      {
+        family: '-6',
+        name: 'dummy0',
+      },
+    ],
   },
   makeDirectory: scratchDirectory,
 },);

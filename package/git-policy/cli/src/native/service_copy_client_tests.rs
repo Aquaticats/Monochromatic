@@ -7,7 +7,8 @@ use crate::service_copy::tests::{COPIED_ENTRIES, Scene};
 use crate::service_copy::encode_copy_reply;
 use crate::service_land::LandContext;
 use crate::service_messages::DENYLIST;
-use crate::service_server::{Bind, serve};
+use crate::service_protocol::PROTOCOL_VERSION;
+use crate::service_server::{Bind, ServeSettings, serve};
 use crate::test_support::{git_context, remove};
 use crate::worktree_copy_request::CopyRequest;
 use std::io::BufRead;
@@ -65,8 +66,8 @@ impl RunningService {
         let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
         let journal: PathBuf = scene.root.join("service-journal");
         std::fs::create_dir_all(journal.as_path()).expect("journal");
-        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None };
-        let thread = std::thread::spawn(move || serve(listener, &context, Duration::from_secs(120)));
+        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, index_wait: Duration::from_secs(1) };
+        let thread = std::thread::spawn(move || serve(listener, &context, &ServeSettings::new(Duration::from_secs(120))));
         return RunningService { socket, directory, thread: Some(thread) };
     }
 }
@@ -166,7 +167,7 @@ fn cache_names(destination: &Path) -> Vec<String> {
 fn a_service_that_dies_mid_conversation_is_asked_again() {
     let (socket, directory) = socket_in_home("breaks");
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
-    let welcome: String = format!("{}\n", crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: PROTOCOL_VERSION }));
+    let welcome: String = format!("{}\n", crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(crate::service_protocol::RELEASE.to_string()) }));
     let served = std::thread::spawn(move || {
         let mut sent_lines: Vec<String> = Vec::new();
         for attempt in 0..2 {
@@ -289,7 +290,7 @@ fn without_a_route_the_requester_fails_loudly_and_the_wake_is_silent() {
 
 /// A server's greeting for a given protocol version.
 fn greeting(version: u32) -> String {
-    return format!("{}\n", crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version }));
+    return format!("{}\n", crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version, release: Some(crate::service_protocol::RELEASE.to_string()) }));
 }
 
 /// One reply line.
@@ -424,7 +425,7 @@ fn a_client_waits_through_an_older_service_that_is_slow_to_exit() {
 }
 
 /// The number of retire attempts an older client made before it gave up; the wait here must outlast it.
-const REPLACEMENTS_SEEN_BY_OLD_CLIENT: usize = crate::service_client::REPLACEMENTS;
+const REPLACEMENTS_SEEN_BY_OLD_CLIENT: usize = 2;
 
 /// A wake reaches the service the way a request does: an older service is asked to retire, and the current one is sent the
 /// wake.
@@ -493,8 +494,8 @@ fn a_wake_sets_the_service_up_once() {
 fn a_shown_failure_withdraws_its_notice() {
     use crate::worktree_copy::CopyRequester;
     let scene: Scene = Scene::new("client-notice");
-    crate::service_work::write_notice(scene.common.as_path(), "copy-one", "cli-git: it failed.").expect("notice");
-    crate::service_work::write_notice(scene.common.as_path(), "copy-other", "cli-git: another.").expect("notice");
+    crate::service_copy::write_copy_notice(scene.common.as_path(), "copy-one", "cli-git: it failed.").expect("notice");
+    crate::service_copy::write_copy_notice(scene.common.as_path(), "copy-other", "cli-git: another.").expect("notice");
     let mut requester: ServiceCopyRequester = ServiceCopyRequester {
         reach: Err(ClientFailure::DidNotStart),
         provisioned: false,
@@ -502,7 +503,7 @@ fn a_shown_failure_withdraws_its_notice() {
         provisioner: count_provisioning,
     };
     requester.failures_shown(scene.common.as_path());
-    let directory: PathBuf = crate::service_work::notice_directory(scene.common.as_path());
+    let directory: PathBuf = crate::push_failure_notice::notice_directory(scene.common.as_path());
     assert!(!directory.join("copy-one.txt").exists(), "a shown failure left its notice");
     assert!(directory.join("copy-other.txt").exists(), "a failure that was not shown lost its notice");
     assert!(requester.failed.is_empty());

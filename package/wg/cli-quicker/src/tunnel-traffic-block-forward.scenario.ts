@@ -68,6 +68,17 @@ const CLEARNET = {
       address: HOST_V6,
     },
   ],
+  // The router's side towards the outside, where the replies of the update hosts arrive.
+  interfaces: [
+    {
+      family: '-4',
+      name: 'vetho0',
+    },
+    {
+      family: '-6',
+      name: 'vetho0',
+    },
+  ],
 } as const;
 
 /**

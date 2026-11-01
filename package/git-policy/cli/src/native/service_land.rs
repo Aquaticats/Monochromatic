@@ -14,19 +14,15 @@
 
 use super::service_fault::reach;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_protocol::{CommitRequest, FailureCode};
+use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
+use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
+use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 /// How many times a batch is built again when the branch moved under it before the failure is reported.
 pub const LANDING_ATTEMPTS: usize = 3;
-
-/// How many times the index update is tried while another program holds the index.
-const INDEX_ATTEMPTS: usize = 5;
-
-/// The pause between index tries.
-const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// What the service needs to land: how to run Git and where the journal lives.
 pub struct LandContext {
@@ -36,6 +32,8 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
+    /// How long a landing waits for another program that holds the index lock before it gives up with nothing changed.
+    pub index_wait: std::time::Duration,
 }
 
 /// What became of one request of a batch.
@@ -54,20 +52,6 @@ fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Ve
     request.input = input;
     let output: GitOutput = run_git(git, &request).map_err(|_| { return FailureCode::Unavailable; })?;
     return Ok(output);
-}
-
-fn classify(output: &GitOutput) -> FailureCode {
-    let text: String = output.error_text().to_lowercase();
-    if text.contains("no space left") || text.contains("quota exceeded") {
-        return FailureCode::RepositoryFull;
-    }
-    if text.contains("read-only file system") || text.contains("permission denied") {
-        return FailureCode::RepositoryReadOnly;
-    }
-    if text.contains("index.lock") {
-        return FailureCode::IndexInUse;
-    }
-    return FailureCode::Unavailable;
 }
 
 fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
@@ -147,31 +131,20 @@ fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
     return commits.into_iter().collect();
 }
 
-/// The paths of the repository's index entries a request names, in the form `reset` reads literally.
-fn literal(path: &str) -> String {
-    return format!(":(top,literal){path}");
+/// The index entries a batch's intent names.
+fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
+    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
 }
 
-/// Updates the index entries of `paths` to the commit `new`, trying again while another program holds the index.
-fn update_index(git: &GitContext, repository: &Path, new: &str, paths: &[String]) -> Result<(), FailureCode> {
-    if paths.is_empty() {
-        // `reset` with no path would reset the whole index; an empty commit changes no entry.
-        return Ok(());
-    }
-    let specs: Vec<String> = paths.iter().map(|path| { return literal(path.as_str()); }).collect();
-    let mut arguments: Vec<&str> = vec!["reset", "-q", new, "--"];
-    arguments.extend(specs.iter().map(String::as_str));
-    let mut last: FailureCode = FailureCode::Unavailable;
-    for attempt in 0..INDEX_ATTEMPTS {
-        match checked(git, repository, &arguments, None) {
-            Ok(_) => return Ok(()),
-            Err(code) => last = code,
-        }
-        if attempt + 1 < INDEX_ATTEMPTS {
-            std::thread::sleep(INDEX_PAUSE);
-        }
-    }
-    return Err(last);
+/// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
+///  idempotent. Whether both are done.
+fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
+    let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
+    // The new index is built beside the real one and installed by the release of the lock the landing holds.
+    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), intent.index.as_path(), intent.seq) else {
+        return false;
+    };
+    return lock.release_with(built.as_path()).is_ok() && cleaned;
 }
 
 /// What:
@@ -185,6 +158,11 @@ fn update_index(git: &GitContext, repository: &Path, new: &str, paths: &[String]
 /// await landBatch(context, seq, requests) // one outcome per request, in order
 /// ```
 pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -> Result<Vec<Outcome>, FailureCode> {
+    return land_batch_announcing(context, seq, requests, &|_| {});
+}
+
+/// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
+pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Fn(Announce)) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
         return request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference;
@@ -202,12 +180,27 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
     let scratch: String = format!("refs/cli-git-service/{seq}");
     let mut outcomes: Vec<Outcome>;
     let mut attempts_left: usize = LANDING_ATTEMPTS;
+    // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
+    let unborn: bool = is_zero_object(first.base.as_str());
+    // Git's own order: the index lock is taken before the branch is read or moved and given up when the new index is in place,
+    //  so a foreign `git` that holds it finishes first and this landing builds on what it left. A lock that is not given up
+    //  here (a refusal, a failure) is removed when it goes out of scope, and the index stays as it was.
+    let mut lock: Option<IndexLock> = Some(acquire(first.index.as_path(), seq, context.index_wait, announce).map_err(|failure| { return failure.code; })?);
     loop {
-        let old: String = checked(&git, repository, &["rev-parse", "--verify", first.reference.as_str()], None)?;
+        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
+            Ok(found) => found,
+            Err(_) if unborn => first.base.clone(),
+            Err(code) => return Err(code),
+        };
         if alone && first.base != old {
             return Ok(vec![Outcome::BranchMoved]);
         }
-        let amended_parents: Vec<String> = if alone {
+        // Git's own compare does not refuse a symbolic `HEAD` when it is told not to follow it (measured: it replaces the
+        //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
+        if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
+            return Ok(vec![Outcome::BranchMoved]);
+        }
+        let amended_parents: Vec<String> = if alone && !unborn {
             let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
             listing.split_whitespace().skip(1).map(str::to_string).collect()
         } else {
@@ -235,13 +228,22 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         }
         let batch: Vec<&CommitRequest> = landing.iter().map(|(_, request)| { return *request; }).collect();
         let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
-            // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives.
-            let expected: Vec<String> = if first.amend { amended_parents.clone() } else { vec![first.base.clone()] };
+            // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
+            //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
+            //  commit has the branch tip first (a merge conclusion has the merged commits after it).
             let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
             let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
             let mut words = text.split_whitespace();
             let named_itself: bool = listing.succeeded() && words.next() == Some(built);
-            if !named_itself || words.map(str::to_string).collect::<Vec<String>>() != expected {
+            let parents: Vec<String> = words.map(str::to_string).collect();
+            let acceptable: bool = if first.amend {
+                parents == amended_parents
+            } else if unborn {
+                parents.is_empty()
+            } else {
+                parents.first() == Some(&first.base)
+            };
+            if !named_itself || !acceptable {
                 return Err(FailureCode::Rejected);
             }
             (vec![built.to_string()], built.to_string())
@@ -259,7 +261,13 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         if let Some(seam) = &context.on_objects_written {
             seam();
         }
-        let paths: Vec<String> = batch.iter().flat_map(|request| { return request.changes.iter().map(|change| { return change.path.clone(); }); }).collect();
+        // A commit Git built carries no list of changes: its index entries are the paths that differ from the old branch.
+        let derived: bool = first.commit.is_some();
+        let paths: Vec<String> = if derived {
+            Vec::new()
+        } else {
+            batch.iter().flat_map(|request| { return request.changes.iter().map(|change| { return change.path.clone(); }); }).collect()
+        };
         let intent: Intent = Intent {
             seq,
             repository: first.repository.clone(),
@@ -269,13 +277,19 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
             new: new.clone(),
             ids: batch.iter().map(|request| { return request.id.clone(); }).collect(),
             commits: commits.clone(),
-            paths: paths.clone(),
+            paths,
+            derived,
+            cleanup: first.cleanup.clone(),
+            index: first.index.clone(),
         };
         write_intent(context.journal.as_path(), &intent).map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
-        let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
+        // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
+        //  became a branch since the commit was prepared fails the compare instead of moving that branch.
+        let direct: &str = if first.reference == "HEAD" { "option no-deref\n" } else { "" };
+        let transaction: String = format!("start\n{direct}update {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let moved: GitOutput = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?;
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
@@ -290,7 +304,8 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         }
         reach("after-ref");
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
-        if update_index(&git, repository, new.as_str(), &paths).is_ok() {
+        let Some(held) = lock.take() else { return Err(FailureCode::Unavailable) };
+        if follow_up(&git, repository, &intent, held) {
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
@@ -299,14 +314,6 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         }
         return Ok(outcomes);
     }
-}
-
-fn storage_failure(error: &std::io::Error) -> FailureCode {
-    return match error.raw_os_error() {
-        Some(code) if code == 28 || code == 122 => FailureCode::RepositoryFull,
-        Some(code) if code == 30 || code == 13 => FailureCode::RepositoryReadOnly,
-        _ => FailureCode::Unavailable,
-    };
 }
 
 /// One thing a restart did, for the service's log.
@@ -342,10 +349,14 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
         let decision: Recovery = recovery_for(&intent, current.as_str(), ancestor);
         match decision {
             Recovery::Drop => {
+                remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
             }
             Recovery::Finish => {
-                if update_index(&git, intent.repository.as_path(), intent.new.as_str(), &intent.paths).is_ok() {
+                remove_stale(intent.index.as_path(), intent.seq);
+                if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
+                    && follow_up(&git, intent.repository.as_path(), &intent, held)
+                {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
                 }
             }

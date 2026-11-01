@@ -66,6 +66,8 @@ pub struct Fixture {
     pub wrapper: PathBuf,
     /// The commit service of this fixture, started by the first wrapped command when `CLI_GIT_TEST_SERVICE` is set.
     pub service: std::sync::Mutex<Option<FixtureService>>,
+    /// Variables the fixture's service starts with besides its fixed ones: what the user manager's environment would hold.
+    pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
 }
 
 /// Environment variable that gives every fixture its own commit service and the runtime directory the wrapper looks for it
@@ -122,13 +124,21 @@ fn spawn_service(fixture: &Fixture, socket: &Path, fault: Option<&str>) -> Child
         .arg("--path")
         .arg(socket)
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
         .env("HOME", fixture.root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        // The identity the person's own configuration gives their Git, which a push that merges (a lost race) needs.
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
+    for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
+        command.env(name, value);
+    }
     if let Some(point) = fault {
         command.env("CLI_GIT_TEST_ONLY_SERVICE_FAULT", point);
     }
@@ -387,7 +397,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
-    return Fixture { root, wrapper, service: std::sync::Mutex::new(None) };
+    return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()) };
 }
 
 /// Remove only the fixture directory a control created.
@@ -629,6 +639,9 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     // A child that exits without reading its input closes the pipe; that is not a test failure.
     let _ = child.stdin.take().expect("piped stdin").write_all(input);
     let output: Output = child.wait_with_output().expect("process finishes");
+    if let Some(directory) = command.get_current_dir() {
+        settle_service_work(directory);
+    }
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
@@ -642,6 +655,86 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         stdout: output.stdout,
         stderr: output.stderr,
     };
+}
+
+/// How long a control waits for the after-commit work (the push, the upkeep) the commit service runs once the commit returned.
+const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What:
+///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
+/// Why:
+///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
+///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
+///  `claimed`. Only a run that gives every fixture a service waits, and only where a work directory exists.
+pub fn settle_service_work(directory: &Path) {
+    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
+        return;
+    }
+    let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
+        return;
+    };
+    let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
+    let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
+    let began: std::time::Instant = std::time::Instant::now();
+    while open("pending") + open("claimed") > 0 {
+        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}", work.display());
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// What:
+///  Gives the fixture's commit service a variable, as the user manager's environment would, when the run gives every fixture a
+///  service; nothing otherwise.
+/// Why:
+///   The push runs in the service's environment, not in the terminal's, so a control that sets a variable for the push (a
+///  deadline, a marker, a temporary directory) must set it where the push runs. The service reads it at its start, so it is
+///  given before the fixture's first wrapped command.
+///
+/// # Panics
+///
+/// When the service already started with another value of the variable.
+pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
+    if !service_route() {
+        return;
+    }
+    let mut given = fixture.service_environment.lock().expect("the service environment");
+    let present = fixture.service.lock().expect("the fixture's service lock").is_some();
+    let already: bool = given.iter().any(|(held, text)| { return held == name && text == value; });
+    assert!(already || !present, "the fixture's service already started without {name}={value}");
+    if !already {
+        given.push((OsString::from(name), OsString::from(value)));
+    }
+}
+
+/// Whether this run gives every fixture a commit service, so that a commit's push happens after the command returned.
+pub fn service_route() -> bool {
+    return std::env::var_os(SERVICE_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+}
+
+/// The words that say a backup push failed: the command's own line when the wrapper pushes, the notice the service leaves
+///  for the next commit when the service does.
+pub fn push_failed_words() -> &'static str {
+    // The notice the service leaves ends with the line the wrapper prints itself after a push it ran.
+    return git_policy_cli::auto_push::PUSH_FAILED_NOTE;
+}
+
+/// What a person is told about the push of the commit that `stderr` belongs to: the command's own report, and the notices the
+///  service left in the repository at `directory` (read without taking them).
+pub fn push_report(directory: &Path, stderr: &str) -> String {
+    let mut report: String = stderr.to_string();
+    if !service_route() {
+        return report;
+    }
+    settle_service_work(directory);
+    let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::push_failure_notice::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
+    if let Some(found) = notices
+        && let Ok(entries) = std::fs::read_dir(found)
+    {
+        for entry in entries.flatten() {
+            report.push_str(std::fs::read_to_string(entry.path()).unwrap_or_default().as_str());
+        }
+    }
+    return report;
 }
 
 /// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native

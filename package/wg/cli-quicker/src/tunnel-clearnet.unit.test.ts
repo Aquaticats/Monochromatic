@@ -206,6 +206,39 @@ await describe({
       },
     },),
     it({
+      name: 'returns the physical default interfaces of the routes the state owns, once per family, and none from a route without a valid dev',
+      fn: async () => {
+        /**
+         Owned routes of the state, listed the way the kernel renders them.
+         */
+        const state: BypassState = {
+          ...STATE,
+          routes: [
+            { proto: '-4', tokens: ['default', 'via', '192.0.2.1', 'dev', 'eth0', 'table', '52000', 'proto', '201',], },
+            { proto: '-4', tokens: ['default', 'via', '192.0.2.1', 'dev', 'eth0', 'metric', '700', 'table', '52000', 'proto', '201',], },
+            { proto: '-4', tokens: ['default', 'via', '198.51.100.1', 'dev', 'wlp9s0', 'table', '52000', 'proto', '201',], },
+            { proto: '-6', tokens: ['default', 'via', 'fe80::1', 'dev', 'eth0', 'table', '52000', 'proto', '201',], },
+            { proto: '-6', tokens: ['unreachable', 'default', 'metric', '42760', 'table', '52000', 'proto', '201',], },
+            { proto: '-6', tokens: ['default', 'dev', 'bad;name', 'table', '52000', 'proto', '201',], },
+            { proto: '-6', tokens: ['default', 'table', '52000', 'proto', '201', 'dev',], },
+          ],
+        };
+        /**
+         What was read.
+         */
+        const read = await readClearnet({
+          interfaceName: STATE.interfaceName,
+          readState: () => Promise.resolve(state,),
+          tools: listingTools({ asked: [], },),
+        },);
+        expect(read.bypass ? read.clearnet.interfaces : [],).toEqual([
+          { family: '-4', name: 'eth0', },
+          { family: '-4', name: 'wlp9s0', },
+          { family: '-6', name: 'eth0', },
+        ],);
+      },
+    },),
+    it({
       name: 'rejects, and does not answer with nothing, when the state or the rules cannot be read',
       fn: async () => {
         /**

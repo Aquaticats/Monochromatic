@@ -14,10 +14,11 @@
 
 use super::service_copy::{CopyJob, CopyReply, GitCopyRunner, copy_loop, encode_copy_reply};
 use super::service_journal::landed_commits;
-use super::service_land::{LandContext, Outcome, land_batch, recover};
+use super::service_index_lock::Announce;
+use super::service_land::{LandContext, Outcome, land_batch_announcing, recover};
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
+    ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -39,6 +40,23 @@ pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
 pub const INHERITED_DESCRIPTOR: i32 = 3;
+
+/// How a service run behaves apart from where it listens and what it lands.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ServeSettings {
+    /// How long the service waits with nothing to do before it exits.
+    pub idle: Duration,
+    /// The release the service announces to every client. It is this build's release (`RELEASE`) except in a test that
+    ///  needs a service of another release.
+    pub release: String,
+}
+
+impl ServeSettings {
+    /// The settings of an ordinary run: the given idle exit and this build's release.
+    pub fn new(idle: Duration) -> Self {
+        return Self { idle, release: String::from(RELEASE) };
+    }
+}
 
 /// Where the listening socket comes from.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -117,8 +135,9 @@ fn handle_connection(
     work: &Sender<Wake>,
     copies: &Sender<CopyJob>,
     copying: &AtomicUsize,
+    release: &str,
 ) {
-    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
+    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
         return;
@@ -187,7 +206,15 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
     let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _)| { return (**request).clone(); }).collect();
-    match land_batch(context, *seq, &requests) {
+    let announce = |note: Announce| {
+        for (_, stream) in &fresh {
+            match &note {
+                Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
+            }
+        }
+    };
+    match land_batch_announcing(context, *seq, &requests, &announce) {
         Ok(outcomes) => {
             super::service_fault::reach("before-ack");
             for ((request, _), outcome) in fresh.iter().zip(&outcomes) {
@@ -245,7 +272,8 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 /// ```ts
 /// await serve(listener, context)
 /// ```
-pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
+pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
+    let idle: Duration = settings.idle;
     let _reports = recover(context);
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
@@ -263,13 +291,15 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     let loop_copying: Arc<AtomicUsize> = Arc::clone(&copying);
     std::thread::spawn(move || { copy_loop(&copy_receiver, &copy_runner, &loop_copying); });
     let accept_copying: Arc<AtomicUsize> = Arc::clone(&copying);
+    let announced_release: String = settings.release.clone();
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let copies: Sender<CopyJob> = copy_sender.clone();
             let copy_count: Arc<AtomicUsize> = Arc::clone(&accept_copying);
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &copies, &copy_count); });
+            let release: String = announced_release.clone();
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &copies, &copy_count, release.as_str()); });
         }
     });
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });
@@ -297,7 +327,13 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
                 Job::Commit(request, stream) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
-                    let key = (request.common_dir.clone(), request.reference.clone(), request.lands_alone());
+                    // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
+                    let queue_reference: String = if request.reference == "HEAD" {
+                        format!("HEAD@{}", request.repository.display())
+                    } else {
+                        request.reference.clone()
+                    };
+                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
                     let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
                     match joins {
                         Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),

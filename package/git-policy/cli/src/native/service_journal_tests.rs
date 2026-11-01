@@ -15,6 +15,9 @@ fn intent(seq: u64) -> Intent {
         ids: vec![String::from("id-1"), String::from("id-2")],
         commits: vec![String::from("c".repeat(40)), String::from("d".repeat(40))],
         paths: vec![String::from("src/a b.txt"), String::from("c.txt")],
+        derived: false,
+        index: PathBuf::from("/work/repo/.git/index"),
+        cleanup: None,
     };
 }
 
@@ -23,6 +26,19 @@ fn intent(seq: u64) -> Intent {
 fn an_intent_round_trips_through_its_text() {
     let sent: Intent = intent(7);
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
+}
+
+/// The index rule and the conclusion state of a commit Git built survive a restart, and an intent written before they
+///  existed reads as one that names neither.
+#[test]
+fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither() {
+    let mut sent: Intent = intent(8);
+    sent.derived = true;
+    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/cli-git-service-x"), reftable: true });
+    assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent.clone()));
+    let older: String = intent_text(&intent(9)).lines().filter(|line| { return !line.starts_with("derived=") && !line.starts_with("cleanup="); }).collect::<Vec<&str>>().join("\n");
+    let read: Intent = parse_intent(older.as_str()).expect("an older intent still reads");
+    assert!(!read.derived && read.cleanup.is_none());
 }
 
 /// A text with a field missing, or a sequence that is not a number, is no intent.

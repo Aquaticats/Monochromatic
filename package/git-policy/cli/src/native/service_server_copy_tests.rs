@@ -54,7 +54,7 @@ fn copy_message(copying: usize, ids: Vec<String>) -> (Vec<String>, bool) {
     let (work, _wakes) = channel::<Wake>();
     let (copies, copy_jobs) = channel::<CopyJob>();
     let counter: AtomicUsize = AtomicUsize::new(copying);
-    handle_connection(service, &queue, &work, &copies, &counter);
+    handle_connection(service, &queue, &work, &copies, &counter, crate::service_protocol::RELEASE);
     let queued: bool = copy_jobs.try_recv().is_ok();
     // The job's stream, and with it the service's end of the pair, is dropped with the job, so the client reads to the end.
     let lines: Vec<String> = BufReader::new(client).lines().map_while(Result::ok).collect();

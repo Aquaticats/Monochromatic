@@ -21,6 +21,8 @@ fn request() -> CommitRequest {
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
+        index: PathBuf::from("/work/repo/.git/index"),
     };
 }
 
@@ -37,7 +39,8 @@ fn a_commit_request_round_trips() {
 #[test]
 fn service_messages_round_trip() {
     let mut messages: Vec<ServiceMessage> = vec![
-        ServiceMessage::Welcome { version: PROTOCOL_VERSION },
+        ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) },
+        ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
         ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB) },
@@ -89,10 +92,32 @@ fn unacceptable_requests_are_refused() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
-/// The retire message needs the same version as a commit.
+/// The retire message round trips, and is accepted from a client of another protocol version, which is how a service of
+///  another protocol is replaced; a commit from that client is still refused.
 #[test]
-fn retire_round_trips() {
-    assert_eq!(decode_client(encode_client(&ClientMessage::Retire).as_str()), Ok(ClientMessage::Retire));
+fn retire_round_trips_and_crosses_protocol_versions() {
+    let line: String = encode_client(&ClientMessage::Retire);
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
+    let other: String = line.replace(&format!("\"version\":{PROTOCOL_VERSION}"), "\"version\":999");
+    assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire));
+}
+
+/// A retire written for a service of another protocol version carries that version, which is what a service of an earlier
+///  release requires of it, and this build's reader accepts it too.
+#[test]
+fn retire_is_written_in_the_version_the_service_announced() {
+    let earlier: u32 = PROTOCOL_VERSION - 1;
+    let line: String = encode_retire(earlier);
+    assert!(line.contains(&format!("\"version\":{earlier}")), "{line}");
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
+    assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire));
+}
+
+/// A welcome without a release, as the services before the field send it, reads as no release.
+#[test]
+fn a_welcome_without_a_release_reads_as_none() {
+    let line: String = format!("{{\"type\":\"welcome\",\"version\":{PROTOCOL_VERSION}}}");
+    assert_eq!(decode_service(line.as_str()), Ok(ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None }));
 }
 
 /// A work message survives encoding; a relative or empty directory, and a missing one, are refused.

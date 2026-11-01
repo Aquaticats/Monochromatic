@@ -916,7 +916,7 @@ Before the compare-and-swap, a commit's new objects reach the real object store 
 `git index-pack --stdin --keep=...` (see "Object migration" in `SPEC.md`).
 That one child runs with `-c core.fsync=-pack,-pack-metadata`, which takes the pack and its index and reverse index out
 of the files Git flushes: the child makes no `fsync` call, where it made three by default
-(`src/native/binary_budget_tests.rs`, `src/native/binary_index_pack_fsync_tests.rs`).
+(`src/native/binary_budget_tests.rs`; the service route does not override your `core.fsync`).
 The setting comes after the invocation's own `-c` options on that child's command line, so it replaces a `core.fsync`
 you configured, for the migration `index-pack` only; every other Git child of the wrapper keeps your configuration.
 
@@ -1078,13 +1078,17 @@ service instead of by the wrapper itself. The service is a separate program, `cl
 starts on demand; the wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one
 durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
 
-- The first commit that needs the service sets up its socket activation itself: it writes two unit files into
+- The first commit that needs the service sets up its socket activation itself, and every later one checks it is still
+  right: it compares the two installed units with what this release would write and, only when they differ (an upgrade or
+  a downgrade moved the service program), rewrites them, reloads the manager, clears failed state and starts the socket.
+  When they match it opens no connection to the bus. Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory; the next first use after a login does it again)
   and asks the user's service manager, through the session bus, to start the socket. The manager starts the service when
   the first connection arrives. Units that an earlier release wrote into `~/.config/systemd/user` are recognized by their
   content and removed; a file of the same name that something else wrote is never touched, and the commit stops and names it.
 - The service exits after three hours with nothing to do (Bazel's server has the same default); the next commit starts it
-  again. A wrapper and a service of different versions replace each other the same way.
+  again. A service started from another release of the wrapper is asked to finish its batch and exit, and the next commit
+  reaches the current one; if it does not exit, the commit says so and names `systemctl --user restart cli-git.service`.
 - `git cli-git service status` says whether the service answers; it is a diagnostic only.
 - When the service cannot be set up (no session bus, no user service manager), the commit stops with a plain message that
   says what to do. Until the earlier landing path is removed, a machine with neither a socket nor a session bus keeps that

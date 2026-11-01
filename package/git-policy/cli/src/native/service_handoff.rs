@@ -1,9 +1,9 @@
 //! What:
-//!  The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed, wake
-//!  the service, and show the notices that earlier work left.
+//!  The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed and wake
+//!  the service.
 //! Why:
 //!  The commit returns as soon as it is saved. The push (which can take as long as the network does) and the upkeep run
-//!  in the service afterwards; a push that fails is reported at the person's next commit through the service
+//!  in the service afterwards; a push that fails is reported by the person's next wrapper command (`push_failure_notice.rs`)
 //!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The wrapper starts no program and waits for no
 //!  one: it writes whole files and sends one message.
 //!
@@ -15,7 +15,7 @@
 use super::iso_time::now_iso;
 use super::service_client::{ClientConfig, wake};
 use super::service_messages::ClientFailure;
-use super::service_work::{take_notices, work_directory};
+use super::service_work::work_directory;
 use super::service_review_key::{ReviewKey, key_from_environment};
 use super::standards_review_input::has_shadow_log;
 use super::work_item::{WorkItem, WorkKind, enqueue};
@@ -84,14 +84,6 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
         enqueue(work_dir.as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
     }
     return wake(&handoff.config, handoff.common_dir.as_path(), review_key, notices);
-}
-
-/// Shows and removes the notices that earlier work left for this repository.
-pub fn show_notices(handoff: &ServiceHandoff, out: &mut dyn Write) {
-    for text in take_notices(handoff.common_dir.as_path()) {
-        // A closed terminal is not a reason to fail a commit that already landed.
-        let _written = writeln!(out, "{text}");
-    }
 }
 
 /// Handoff controls stay out of the release executable.

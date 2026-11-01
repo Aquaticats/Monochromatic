@@ -1,4 +1,5 @@
 import { CommandError, } from './errors.ts';
+import { BASE_BYPASS_TABLE, } from './tunnel-bypass-types.ts';
 import {
   run,
   runAllowingFailure,
@@ -13,11 +14,6 @@ import {
  matching wg-quick.
  */
 const BASE_TUNNEL_TABLE = 51_820;
-
-/**
- First table tried for application bypass routes.
- */
-const BASE_BYPASS_TABLE = 52_000;
 
 /**
  First preference tried for application bypass rules.

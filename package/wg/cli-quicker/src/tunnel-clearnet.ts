@@ -1,3 +1,4 @@
+import { isValidInterfaceName, } from './interface-name.ts';
 import {
   IP_HOST_RULE_TOOLS,
   parseOwnedHostRules,
@@ -40,7 +41,67 @@ export type Clearnet = {
    The update-host destinations that take the bypass table.
    */
   readonly hosts: readonly OwnedHostRule[];
+
+  /**
+   The physical default interfaces, one entry per family and interface,
+   read from the `dev` of the routes the bypass table copies from the main table.
+   A reply from an update host reaches a forwarding machine through one of them,
+   so the traffic block lets a forwarded reply through only when it arrives on one.
+   */
+  readonly interfaces: readonly PhysicalInterface[];
 };
+
+/**
+ A physical interface that carries the default route of one address family.
+ */
+export type PhysicalInterface = {
+  /**
+   Address family of the default route.
+   */
+  readonly family: BypassProto;
+
+  /**
+   Interface name,
+   valid as an interface name.
+   */
+  readonly name: string;
+};
+
+/**
+ Reads the physical default interfaces from the routes the state owns.
+ A route without a `dev`,
+ such as the unreachable fallback,
+ and a `dev` that is not a valid interface name name no interface.
+
+ @param state - Ownership state whose routes copy the physical defaults.
+
+ @returns Each family and interface once,
+ in the order of the routes.
+
+ @example
+ ```ts
+ physicalInterfaces({ state });
+ ```
+ */
+export function physicalInterfaces({ state, }: { readonly state: BypassState; },): readonly PhysicalInterface[] {
+  /**
+   Interfaces found so far, keyed by family and name.
+   */
+  const found = new Map<string, PhysicalInterface>();
+  for (const route of state.routes) {
+    /**
+     Value of the `dev` key.
+     */
+    const name = route.tokens[route.tokens.indexOf('dev',) + 1];
+    if ((!route.tokens.includes('dev',)) || (name === undefined) || (!isValidInterfaceName({ interfaceName: name, },)))
+      continue;
+    found.set(`${route.proto} ${name}`, {
+      family: route.proto,
+      name,
+    },);
+  }
+  return [...found.values(),];
+}
 
 /**
  Lists the owned host rules of one family.
@@ -159,6 +220,7 @@ export async function readClearnet(
     clearnet: {
       mark: state.mark,
       hosts: perFamily.flat(),
+      interfaces: physicalInterfaces({ state, },),
     },
   };
 }

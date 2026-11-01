@@ -10,6 +10,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
         ClientFailure::NoCommonVersion,
+        ClientFailure::OtherRelease,
         ClientFailure::RepositoryFull(String::from("/work/repo")),
         ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
         ClientFailure::BranchKeepsChanging { branch: String::from("main"), times: 5 },
@@ -24,6 +25,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
+        ClientFailure::ContentPruned,
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));
@@ -52,6 +54,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::WorkNotHandedOver(_) => 14,
         ClientFailure::BranchMoved { .. } => 16,
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
+        ClientFailure::OtherRelease => 18,
+        ClientFailure::ContentPruned => 19,
     };
 }
 
@@ -91,7 +95,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::BranchMovedMessageSaved { branch: String::new(), file: String::new(), amend: false }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ContentPruned) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -146,6 +150,7 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
+    assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
     for command in CHECK_COMMANDS {
         assert!(unsure.contains(command), "{unsure}");

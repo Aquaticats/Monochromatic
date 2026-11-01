@@ -14,6 +14,11 @@ export const MAX_PRIVILEGE_CONTEXT_BYTES = 65_536;
 
 /**
  Environment crossing sudo through private caller-context file.
+ The runtime directory of the bypass state (`WG_QUICKER_RUNTIME_DIRECTORY`) is not among it:
+ the root run reads and acts on the state files there,
+ so the caller must not choose where they are.
+ A root run uses `/run/wg-quicker`,
+ and a disposable fixture sets the variable itself, inside the root command.
  */
 export type PrivilegeEnvironment = {
   readonly HOME: string;
@@ -21,7 +26,6 @@ export type PrivilegeEnvironment = {
   readonly WG_ALLOWEDIPS_CACHE_DIRECTORY?: string;
   readonly WG_QUICKER_OPENSNITCH_DAEMON_CONFIG?: string;
   readonly WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG?: string;
-  readonly WG_QUICKER_RUNTIME_DIRECTORY?: string;
   readonly XDG_CACHE_HOME?: string;
 };
 
@@ -43,7 +47,6 @@ const ALLOWED_ENVIRONMENT_KEYS = new Set([
   'WG_ALLOWEDIPS_CACHE_DIRECTORY',
   'WG_QUICKER_OPENSNITCH_DAEMON_CONFIG',
   'WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG',
-  'WG_QUICKER_RUNTIME_DIRECTORY',
   'XDG_CACHE_HOME',
 ],);
 
@@ -157,7 +160,6 @@ function capturePrivilegeEnvironment(): PrivilegeEnvironment {
     WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache,
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig,
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
-    WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory,
     XDG_CACHE_HOME: xdgCacheHome,
   } = process.env;
   return {
@@ -174,9 +176,6 @@ function capturePrivilegeEnvironment(): PrivilegeEnvironment {
       : {
         WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
       }),
-    ...(runtimeDirectory === undefined
-      ? {}
-      : { WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory, }),
     ...(xdgCacheHome === undefined
       ? {}
       : { XDG_CACHE_HOME: xdgCacheHome, }),
@@ -257,7 +256,6 @@ export function parsePrivilegeContext(
     WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache,
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig,
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
-    WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory,
     XDG_CACHE_HOME: xdgCacheHome,
   } = environment;
   if (((typeof home) !== 'string') || (home === ''))
@@ -276,9 +274,6 @@ export function parsePrivilegeContext(
         ? {
           WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
         }
-        : {}),
-      ...((typeof runtimeDirectory) === 'string'
-        ? { WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory, }
         : {}),
       ...((typeof xdgCacheHome) === 'string' ? { XDG_CACHE_HOME: xdgCacheHome, } : {}),
     },

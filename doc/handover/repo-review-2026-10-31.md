@@ -2198,6 +2198,386 @@ Wave-4 sixtieth checkpoint (2026-11-01, split-ledger recovery and six new slices
   planning 022 rr-dp-003, cc-plugin 021 rr-ccp-003, and the two remaining
   file-manager variants: electron 001 rr-fme-001 and qt 001 rr-fmq-001.
 
+Wave-4 sixty-first checkpoint (2026-11-01, file-manager family and cc-plugin closed):
+
+- Six lanes returned and every ledger verifies clean: `w4-docs-decision` 99 of
+  99 (rows 085 to 102), `w2-logger-src` 123 of 123 (rows 114 to 124),
+  `w5-docs-planning` 33 of 33 (rows 022 to 033), `w5-cc-plugin` 28 of 28 (rows
+  021 to 028), `w5-fm-electron` 10 of 10, and `w5-fm-qt` 5 of 5. No repo-local
+  findings directory reappeared.
+- Lane milestones: the `file-manager` family is COMPLETE (app 16, sticky 10,
+  electron 10, qt 5). `claude-code-plugin` is COMPLETE: positions 1 to 237 are
+  traversed, 28 rows, with the license texts and two minified bundles sampled
+  structurally rather than deep-read.
+- Focus semantics: the Electron lane verified a window-level `preventDefault`
+  with no target check, so Enter on a focused close button is stolen; it filed
+  the DOM-specific row without reusing the GTK `grab_focus` premise. The Qt lane
+  probed Quick focus and filed no focus row because Qt has no GTK-style
+  delegation. `w5-fm-sticky-001` remains the precise GTK row; the app row stays
+  parked.
+- Spot checks: the split bold labels in `kwin-window-tabs.md`, the `/bin/sh`
+  attribution in `cli-bin.md`, the absolute session-scratchpad paths in
+  `gxhash-owned.md`, the prototype-key effort table, the window key handler, and
+  the hardcoded `QMAKE` all match their rows.
+- Relaunched or opened: fm 103 rr-fmv-68, troubleshooting 125 rr-ts-385,
+  planning 034 rr-dp-004, plus the next three package lanes:
+  `search-fetch/mcp` 12 files, id 001, base rr-sfm-001; `hall-monitor` 20 files,
+  id 001, base rr-hm-001; `electron-infra` 42 files, id 001, base rr-ei-001.
+- All lanes use the absolute scratch findings path, the 100-file cap, and the
+  translation-repair exclusion.
+
+Wave-4 sixty-second checkpoint (2026-11-01, doc/decision complete):
+
+- State: `w4-docs-decision.jsonl` finishes the lane at 106 active rows, max id
+  109, and 106 of 106 clean. The lane read all 211 `doc/decision` files; the last
+  turn covered positions 184 to 211, 23 in full and five at section level, and
+  filed rows 103 to 109: the deleted yuku catalogue commit, the teardown record's
+  old `package/module/translation-repair` path, two retired AGENTS.md codes, three
+  split spans, the 508-versus-502 call census, the three-model correction that
+  closes on two, and the 193-versus-192 deletion tally.
+- Spots: the yuku catalogue really pins the shipped bundle by sha256; XNS, XN2
+  and FIT no longer exist in AGENTS.md; the verifier is 106 of 106.
+- The freed slot opens `package/intellij-plugin/islands-black` (13 files,
+  `w5-intellij-islands-black`, id 001, base rr-iib-001).
+- Live lanes: troubleshooting 125 rr-ts-385, planning 034 rr-dp-004,
+  search-fetch/mcp 001 rr-sfm-001, hall-monitor 001 rr-hm-001,
+  electron-infra 001 rr-ei-001, and islands-black 001 rr-iib-001.
+
+Wave-4 sixty-third checkpoint (2026-11-01, hall-monitor closed):
+
+- Returns: `w5-docs-planning` 44 of 44 (rows 034 to 044; next 045,
+  position 299, base rr-dp-005); `w2-logger-src` 127 of 127 (rows 125 to 128;
+  next 129, worklist line 110, base rr-ts-386); `w5-hall-monitor` 18 of 18.
+- The hall-monitor package is COMPLETE: 20 tracked files, 18 reviewable, two
+  FSF license texts checked, one warning-level capture duplication, eight
+  warnings and nine nits. The row-001 "blocker" was downgraded to warning because
+  its category is enhancement; a thirty-line duplicated ffmpeg pipeline is a
+  maintainability finding, not a blocker. Its capture.ts evidence was spot-read.
+- The freed hall-monitor slot opens `package/rolldown-plugin/import-attributes`
+  (21 files, w5-rolldown-import-attributes, id 001, base rr-ria-001).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-fetch/mcp 001 rr-sfm-001,
+  hall-monitor closed, electron-infra 001 rr-ei-001, and islands-black 001
+  rr-iib-001.
+
+Wave-4 sixty-fourth checkpoint (2026-11-01, electron-infra closed, search-mcp retry):
+
+- `w5-electron-infra` is COMPLETE: 11 rows, 11 of 11 clean; 38 reviewable
+  files read end to end and four license texts compared to the sibling copies.
+  The headline lint-gate row re-ran here: `//package/electron-infra/core:lint:oxlint`
+  fails with the two `prefer-readonly-parameter-type` errors. Next id 012 if a
+  new row appears; the lane is released.
+- `search-fetch/mcp` hit the 100-turn limit with no findings file after 13.9M
+  tokens and 188 tool uses; it was reading and exploring without appending. The
+  retry is strict: only the 12 tracked files, no network, no MCP server, at most
+  30 turns, findings appended as it goes, id 001, base rr-sfm-002.
+- The freed electron-infra slot opens `package/runtime-error/bun` (14 files,
+  `w5-runtime-error-bun`, id 001, base rr-reb-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
+  islands-black 001 rr-iib-001, and runtime-error/bun 001 rr-reb-001.
+
+Wave-4 sixty-fifth checkpoint (2026-11-01, islands-black closed):
+
+- `w5-intellij-islands-black` is COMPLETE: 5 rows, 5 of 5 clean; 13 tracked
+  files accounted for, including the 427/674/165-line licenses, the jar entries
+  and the screenshot. The blocker is the `since-build='233'` floor against the
+  Islands Dark parent that ships from 2025.3; the repository already tracks that
+  exact pair as issue 1360, so its `dedupe_keywords` now carry `1360` and
+  `issue 1360` for the filing pass. Next id 006 if a new row appears.
+- The freed slot opens `package/pnpm-override/shim-readable-stream` (13 files,
+  `w5-pnpm-shim-readable-stream`, id 001, base rr-psr-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
+  runtime-error/bun 001 rr-reb-001, and the readable-stream shim 001 rr-psr-001.
+
+Wave-4 sixty-sixth checkpoint (2026-11-01, search-mcp closed):
+
+- `w5-search-mcp` is COMPLETE after the strict retry: 9 rows, 9 of 9 clean;
+  ten of the twelve files read end to end and the two license texts listed.
+  The use-before-declaration in `src/index.ts` (line 157 before 202) and the
+  duplicated twelve-task graph in `task.ts` and `mise.toml` were spot-read.
+  Next id 010 if a new row appears; the lane is released.
+- The freed slot opens `package/pnpm-override/shim-proper-lockfile` (8 files,
+  `w5-pnpm-shim-proper-lockfile`, id 001, base rr-ppl-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, runtime-error/bun 001 rr-reb-001,
+  readable-stream shim 001 rr-psr-001, and proper-lockfile shim 001 rr-ppl-001.
+
+Wave-4 sixty-seventh checkpoint (2026-11-01, rolldown and runtime-error closed):
+
+- The planning slice hit the 100-turn limit with no rows after 10.3M tokens;
+  the retry is strict: positions 299 to 318 only (20 files), no project-wide
+  sweeps, append as it goes, at most 30 turns, id 045, base rr-dp-006.
+- `w5-rolldown-import-attributes` is COMPLETE: 14 rows, 14 of 14 clean; all 21
+  tracked files read, including license identity checks. The lint gate re-ran
+  here and fails with seven `require-eventual-artifact` and
+  `prefer-readonly-parameter-type` errors; the prototype-chain handler lookup is
+  the other headline warning. Next id 015; the lane is released.
+- `w5-runtime-error-bun` is COMPLETE: 14 of 14 files, 1 row, 1 of 1 clean. The
+  lint, type and dprint gates pass and seven fixtures ran; the only row is the
+  three-place hand-maintained fixture roster. Next id 002.
+- The two freed slots open `shim-node-domexception` (8 files, base rr-pnd-001)
+  and `shim-katex` (9 files, base rr-pkx-001); the pnpm family still has
+  `shim-ungap-structured-clone`, `stub-silent` and `stub-throwing` unassigned.
+- Live lanes: troubleshooting 129 rr-ts-386, planning retry 045 rr-dp-006,
+  readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
+  node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
+
+Wave-4 sixty-eighth checkpoint (2026-11-01, troubleshooting continues):
+
+- `w2-logger-src` is 135 of 135 clean after eight rows (129 to 136) covering
+  worklist lines 110 to 120. The segmented-button row was spot-read: the doc
+  points at build line 82 for alpha27, but line 82 is `versionCode` and the only
+  pin is beta01 at line 235. Next id 137, worklist line 121, base rr-ts-387.
+- Live lanes: planning retry 045 rr-dp-006, troubleshooting 137 rr-ts-387,
+  readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
+  node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
+
+Wave-4 sixty-ninth checkpoint (2026-11-01, three pnpm shims closed):
+
+- `w5-docs-planning` is 60 of 60 clean after repairing two concurrent line
+  shifts: stop-hook-design line 40 to 39 and slint-ide-implementation line 104
+  to 105. Next id 061, positions 319 to 338, base rr-dp-007.
+- `shim-readable-stream` is COMPLETE: 3 rows, 3 of 3; 13 of 13 files. The
+  no-test/load-time-copy row and the exports-map documentation rows are filed.
+- `shim-proper-lockfile` is COMPLETE: 5 rows, 5 of 5; 8 of 8 files. The
+  `.<basename>.lock` versus upstream `<file>.lock` mismatch was spot-read, as
+  were the premature-release and missing exit-handler rows.
+- `shim-katex` is COMPLETE: 5 rows, 5 of 5; 9 of 9 files. The runtime
+  `class ParseError` without `extends Error` against the declaration was
+  spot-read.
+- The last three pnpm packages are open: `shim-ungap-structured-clone` (8,
+  rr-pus-001), `stub-silent` (8, rr-pss-001), `stub-throwing` (8, rr-pst-001).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 137 rr-ts-387,
+  node-domexception shim 001 rr-pnd-001, ungap shim 001 rr-pus-001,
+  stub-silent 001 rr-pss-001, and stub-throwing 001 rr-pst-001.
+
+Wave-4 seventieth checkpoint (2026-11-01, node-domexception shim closed):
+
+- `w5-pnpm-shim-node-domexception` is COMPLETE: 5 rows, 5 of 5 clean; all 8
+  files reviewed, the two licenses shared verbatim. The inert-consumer claim and
+  the constructor typing mismatch are filed. Next id 006; the lane is released.
+- The pnpm family now has readable-stream, proper-lockfile, katex and
+  node-domexception complete; ungap-structured-clone, stub-silent and
+  stub-throwing are running.
+- The freed slot opens `package/music-player/truepeak-core.bench` (35 files,
+  `w5-truepeak-core-bench`, id 001, base rr-tpb-001, 50-turn cap).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 137 rr-ts-387,
+  ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
+  rr-pst-001, and truepeak bench 001 rr-tpb-001.
+
+Wave-4 seventy-first checkpoint (2026-11-01, troubleshooting continues):
+
+- `w2-logger-src` is 140 of 140 clean after rows 137 to 141 over worklist
+  lines 121 to 139. Row 140 was spot-read: the CSS-tooling record says the
+  lockfile has no `oxc-resolver` and cites a missing `package/build/css`, while
+  the lock carries three `oxc-resolver` entries and the path does not exist.
+  Next id 142, worklist line 131 then 140, base rr-ts-388.
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
+  rr-pst-001, and truepeak bench 001 rr-tpb-001.
+
+Wave-4 seventy-second checkpoint (2026-11-01, ungap shim closed):
+
+- `w5-pnpm-shim-ungap-structured-clone` is COMPLETE: 7 rows, 7 of 7 clean;
+  all 8 files reviewed, licenses hash-compared. The upstream-default-export
+  mismatch and the 1.3.1-lockfile alternative are filed. Next id 008.
+- The pnpm family now has readable-stream, proper-lockfile, katex,
+  node-domexception and ungap complete; stub-silent and stub-throwing are
+  running.
+- The freed slot opens `package/music-player/asset` (20 files,
+  `w5-music-player-asset`, id 001, base rr-mpa-001, 40-turn cap).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  stub-silent 001 rr-pss-001, stub-throwing 001 rr-pst-001,
+  truepeak bench 001 rr-tpb-001, and music-player asset 001 rr-mpa-001.
+
+Wave-4 seventy-third checkpoint (2026-11-01, stub-silent closed):
+
+- `w5-pnpm-stub-silent` is COMPLETE: 8 rows, 8 of 8 clean; all 8 files. Two
+  blockers: the `has` trap answers false for the non-configurable `prototype`
+  and throws an invariant TypeError despite the README and blocklist promise,
+  and the catch-all `get` returns the stub for `then`, so `await stub` hangs.
+  Next id 009; the lane is released.
+- The pnpm family now has six of seven complete; stub-throwing is the last one
+  running.
+- The freed slot opens `package/music-player/android-app`, slice 1 (first 100
+  of 354 paths, `w5-music-player-android-app`, id 001, base rr-maa-001).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  stub-throwing 001 rr-pst-001, truepeak bench 001 rr-tpb-001,
+  music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
+
+Wave-4 seventy-fourth checkpoint (2026-11-01, pnpm family complete):
+
+- `w5-pnpm-stub-throwing` is COMPLETE: 6 rows, 6 of 6 clean; all 8 files. The
+  `lint:types` gate cannot fail because `index.d.cts` is the only include and the
+  inherited config sets `skipLibCheck`; the copy with `skipLibCheck` off fails
+  with TS2322 and TS1039. Next id 007.
+- LANE MILESTONE: the pnpm-override family is COMPLETE, all seven packages
+  (shims readable-stream, proper-lockfile, katex, node-domexception,
+  ungap-structured-clone, stub-silent, stub-throwing).
+- Planning is 65 of 65 clean after rows 061 to 065; next id 066, positions 339
+  to 358, base rr-dp-008.
+- The freed stub-throwing slot opens `package/music-player/desktop-app`, slice 1
+  (first 100 of 362 paths, `w5-music-player-desktop-app`, id 001, base
+  rr-mda-001).
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 142 rr-ts-388, truepeak bench 001 rr-tpb-001,
+  music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
+
+Wave-4 seventy-fifth checkpoint (2026-11-01, truepeak bench closed):
+
+- `w5-truepeak-core-bench` is COMPLETE: 11 rows, 11 of 11 clean; 32 reviewable
+  files read end to end, with Cargo.lock and the two license texts treated as
+  artifacts. The default sweep's missing `out/` directory was spot-read: the
+  README promises `out/long_features.jsonl`, mise creates nothing, and
+  `write_long_features` calls `File::create` without a parent mkdir. Next id 012.
+- The freed slot opens `package/music-player/android-app`, slice 2 (paths 101 to
+  200, separate ledger `w5-music-player-android-app-2`, id 001, base rr-maa-002).
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 142 rr-ts-388, music-player asset 001 rr-mpa-001,
+  android-app slice 1 001 rr-maa-001, and android-app slice 2 001 rr-maa-002.
+
+Wave-4 seventy-sixth checkpoint (2026-11-01, asset closed):
+
+- `w5-music-player-asset` is COMPLETE: 4 rows, 4 of 4 clean; all 20 PNGs
+  decoded, five viewed, all 20 R2 URLs fetched and byte-compared. The stale
+  Settings gallery row was spot-read: the screenshots last changed 2026-10-14,
+  while the Licenses row and Text size group landed later. Next id 005.
+- `w2-logger-src` is 150 of 150 clean after rows 142 to 151. Row 142 was
+  spot-read: the dependencies audit says 24 throwing entries while the live
+  policy table carries 26 and never names exa-js. Next id 152, worklist line
+  144, base rr-ts-389.
+- The freed slot opens `package/music-player/android-app`, slice 3 (paths 201 to
+  300, ledger `w5-music-player-android-app-3`, id 001, base rr-maa-003).
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 152 rr-ts-389, android-app slices 1/2/3 (rr-maa-001/002/003).
+
+Wave-4 seventy-seventh checkpoint (2026-11-01, android slice 1 normalized):
+
+- Android-app slice 1 returned 10 rows, 10 of 10 clean after mapping four
+  domain categories (`build-config`, `error-handling`, `lifecycle`) to `bug`.
+  The prior agent read about 65 of the 100 paths; PeakSweepCoordinator,
+  PlayerHost, PlayerController, MainActivity and three androidTest files were
+  named unread.
+- The freed slot opens a slice-1 remainder lane against the same ledger, id 011,
+  base rr-maa-004, with the exact enum categories and an unread-path report.
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 152 rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003),
+  and the android-app slice-1 remainder rr-maa-004.
+
+Wave-4 seventy-eighth checkpoint (2026-11-01, planning slice 7):
+
+- Planning slice 7 read all 20 files at positions 339 to 358 and added rows 066
+  to 069; the ledger is 69 of 69 clean after normalizing two `high` confidence
+  values to `certain`. Row 068 was spot-read: the 32,000-token Hyper cap against
+  live replies of 59,438 and 47,553 output tokens in the same record. Next id
+  070, positions 359 to 378, base rr-dp-009.
+- Live lanes: desktop-app slice 1 001 rr-mda-001, troubleshooting 152
+  rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003), the android-app
+  slice-1 remainder rr-maa-004, and planning 070 rr-dp-009.
+
+Wave-4 seventy-ninth checkpoint (2026-11-01, desktop slice 1):
+
+- Desktop-app slice 1 returned 6 rows, 6 of 6 clean; 41 files read in full and 4
+  partially. The uncovered set is explicit: 28 `*_tests.rs`, five HANDOVERs,
+  DECISION, four LICENSES, three notices, `icon.svg`, `mise.toml`, the full
+  README, and deep reads of controller, controller_audio, controller_refresh and
+  command. The freed slot opens that remainder against the same ledger, id 007,
+  base rr-mda-002.
+- Live lanes: planning 070 rr-dp-009, troubleshooting 152 rr-ts-389,
+  android-app slices 2 and 3 (rr-maa-002/003), the android-app slice-1 remainder
+  rr-maa-004, and the desktop-app slice-1 remainder rr-mda-002.
+
+Wave-4 eightieth checkpoint (2026-11-01, android slice 2):
+
+- Android-app slice 2 returned 15 rows, 15 of 15 clean; 83 files read, covering
+  all 76 core Kotlin files, five tests and two docs. Unread: 14 tests (including
+  six PlayerController cases and PeakSweepCoordinator) and five vector drawables.
+  The freed slot opens that remainder against the same ledger, id 016, base
+  rr-maa-005.
+- Live lanes: planning 070 rr-dp-009, troubleshooting 152 rr-ts-389,
+  android-app slice 3 rr-maa-003, the slice-1 remainder rr-maa-004, the slice-2
+  remainder rr-maa-005, and the desktop-app slice-1 remainder rr-mda-002.
+
+Wave-4 eighty-first checkpoint (2026-11-01, android slice 3):
+
+- Android-app slice 3 returned 8 rows, 8 of 8 clean after normalizing eight
+  domain categories and seven `high` confidence values to the canonical enum.
+  The agent read 19 test files in full, sampled several more and grepped all 100;
+  the freed slot opens the unread test remainder against the same ledger, id 009,
+  base rr-maa-006.
+- Live lanes: planning 070 rr-dp-009, troubleshooting 152 rr-ts-389, the
+  android-app slice-1 remainder rr-maa-004, the slice-2 remainder rr-maa-005,
+  the slice-3 remainder rr-maa-006, and the desktop-app slice-1 remainder
+  rr-mda-002.
+
+Wave-4 eighty-second checkpoint (2026-11-01, troubleshooting at 159):
+
+- `w2-logger-src` is 159 of 159 clean after rows 152 to 160. Row 160 was
+  spot-read: 34 issue and pull links across 29 records use the pre-rename
+  `Aquaticat` owner and return 404, while correct-owner and run/root controls
+  return 200. Next id 161, resume after
+  `git-plumbing-commit-auto-maintenance.md`, base rr-ts-390.
+- Process note: a concurrent lane overwrote the shared scratchpad `append.mjs`
+  mid-run. The troubleshooting lane switched to lane-prefixed private scripts
+  and re-ran one failed append; no repository file changed and no row was lost.
+  Future briefs must use lane-prefixed private scripts, never the shared helper.
+- Live lanes: planning 070 rr-dp-009, the android-app slice-1/2/3 remainders
+  (rr-maa-004/005/006), the desktop-app slice-1 remainder rr-mda-002, and
+  troubleshooting 161 rr-ts-390.
+
+Wave-4 eighty-third checkpoint (2026-11-01, android slice-1 remainder 2):
+
+- Android slice 1 is 17 of 17 clean after the remainder added rows 011 to 017.
+  Coverage is 47 of 100 paths; the remainder left 53 named paths unread and its
+  full-path file sat in the agent session scratch, so the next brief reconstructs
+  them from the reported names against `git ls-files`. The new remainder runs
+  against the same ledger, id 018, base rr-maa-007.
+- Live lanes: planning 070 rr-dp-009, the desktop-app slice-1 remainder
+  rr-mda-002, the android-app slice-2 and slice-3 remainders (rr-maa-005/006),
+  troubleshooting 161 rr-ts-390, and the android-app slice-1 remainder 2
+  rr-maa-007.
+
+Wave-4 eighty-fourth checkpoint (2026-11-01, three remainders reopened):
+
+- Planning is 75 of 75 clean after slice 8 added rows 070 to 075; all 20 files
+  at positions 359 to 378 were read. Row 071 was spot-read: the numbered
+  decisions run 17, 20, 19, 18 and 21. Next id 076, positions 379 to 398, base
+  rr-dp-010.
+- Desktop slice-1 remainder added rows 007 to 014; the ledger is 14 of 14 clean.
+  Unread: 21 test files, `icon.svg` and four license texts; the new remainder
+  runs id 015, base rr-mda-003.
+- Android slice-2 remainder added rows 016 to 023; the ledger is 23 of 23 clean.
+  Unread: MediaStoreSourceTest, PeakSweepCoordinatorTest, PlayerControllerTest,
+  PlayerControllerRowTest, PlayerControllerUnplayableWalkTest and the
+  PlayerContent layout region; the new remainder runs id 024, base rr-maa-008.
+- Live lanes: planning 076 rr-dp-010, the desktop test remainder rr-mda-003, the
+  android slice-2 test remainder rr-maa-008, the android slice-3 remainder
+  rr-maa-006, the android slice-1 remainder 2 rr-maa-007, and troubleshooting
+  161 rr-ts-390.
+
+Wave-4 eighty-fifth checkpoint (2026-11-01, six returns, six fresh slices):
+
+- Android slice 1 is COMPLETE: rows 018 to 026 close the 53 unread paths; the
+  ledger is 26 of 26 clean, no unread paths remain. Slice 2 is COMPLETE: rows
+  024 to 028 close the five tests and the PlayerContent layout region; ledger
+  28 of 28 clean, no unread paths. Slice 3 added rows 009 to 013 and is 13 of
+  13 clean, with 72 test paths unread.
+- Desktop slice 1 is COMPLETE: rows 015 to 020 close the 21 tests, icon and four
+  licenses; the ledger is 20 of 20 clean. Two line shifts were repaired in place
+  (`None => break` 157 to 156; nextest `slow-timeout` 5 to 6).
+- Planning slice 9 added rows 076 to 084 over positions 379 to 398; ledger 84 of
+  84 clean, next id 085, positions 399 to 418, base rr-dp-011.
+- Troubleshooting added rows 161 to 181 over worklist lines 244 to 343; ledger
+  180 of 180 clean, next id 182 at `module-test-unhandled-rejection.md`, base
+  rr-ts-391.
+- Live lanes: planning 085 rr-dp-011; troubleshooting 182 rr-ts-391; android
+  slice-3 remainders 014 rr-maa-010 (72 tests); android slice 4 001 rr-maa-009
+  (paths 301 to 354); desktop slice 2 001 rr-mda-004 (101 to 200); desktop slice
+  3 001 rr-mda-005 (201 to 300). All six use absolute ledger paths, private
+  append scripts and the 100-file cap.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

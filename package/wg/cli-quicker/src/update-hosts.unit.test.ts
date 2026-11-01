@@ -33,11 +33,23 @@ const REPOSITORY_ROOT = resolve(
 );
 
 /**
- Toolchain directories whose non-test sources name the hosts the toolchain fetches from.
+ Directories of Rust sources whose non-test files name the hosts the toolchain fetches from:
+ the resolvers and installers of `mpm-shadow`,
+ and the file-enforcer core,
+ which names no host today and is read so that a fetch added there is noticed.
  */
 const TOOLCHAIN_SOURCE_DIRECTORIES: readonly string[] = [
-  'package/file-enforcer/core/src/toolchain',
   'package/mpm-shadow/cli/src/toolchain',
+  'package/file-enforcer/core-rust/src',
+];
+
+/**
+ Repository files, besides the Rust sources, that name hosts:
+ the plan and the lock that `mpm-shadow` resolves and installs from.
+ */
+const TOOLCHAIN_DATA_FILES: readonly string[] = [
+  'toolchain.plan.jsonc',
+  'toolchain.lock.json',
 ];
 
 /**
@@ -113,7 +125,9 @@ async function toolchainHosts(): Promise<readonly string[]> {
    Texts of the lock file and each production source file.
    */
   const texts = await Promise.all([
-    readFile(join(REPOSITORY_ROOT, 'toolchain.lock.json',), 'utf8',),
+    ...TOOLCHAIN_DATA_FILES.map(function readData(file,): Promise<string> {
+      return readFile(join(REPOSITORY_ROOT, file,), 'utf8',);
+    },),
     ...TOOLCHAIN_SOURCE_DIRECTORIES.map(async function directoryTexts(directory,): Promise<string> {
       /**
        Names in the directory.
@@ -124,7 +138,7 @@ async function toolchainHosts(): Promise<readonly string[]> {
        */
       const contents = await Promise.all(names
         .filter(function isSource(name,): boolean {
-          return (name.endsWith('.ts',) || name.endsWith('.rs',)) && (!isTestMaterial({ name, },));
+          return name.endsWith('.rs',) && (!isTestMaterial({ name, },));
         },)
         .map(function readSource(name,): Promise<string> {
           return readFile(join(REPOSITORY_ROOT, directory, name,), 'utf8',);
@@ -160,6 +174,7 @@ await describe({
          */
         const named = await toolchainHosts();
         expect(PLAN_UPDATE_HOSTS.filter((host,) => !named.includes(host,)),).toEqual([],);
+        expect(NON_FETCH_HOSTS.filter((host,) => !named.includes(host,)),).toEqual([],);
         expect(new Set(UPDATE_HOSTS,).size,).toBe(UPDATE_HOSTS.length,);
       },
     },),

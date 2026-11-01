@@ -204,8 +204,8 @@ await describe({
          The same install with exceptions.
          */
         seen.length = 0;
-        await installTrafficBlock({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, runCommand: runner, makeDirectory: scratchDirectory, },);
-        expect(seen[0]?.script,).toBe(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, },),);
+        await installTrafficBlock({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], interfaces: [], }, runCommand: runner, makeDirectory: scratchDirectory, },);
+        expect(seen[0]?.script,).toBe(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], interfaces: [], }, },),);
         expect(seen[0]?.script,).toContain('counter accept',);
       },
     },),
@@ -333,6 +333,11 @@ const CLEARNET: Clearnet = {
     { family: '-4', address: '203.0.113.8', },
     { family: '-6', address: '2001:db8::7', },
   ],
+  interfaces: [
+    { family: '-4', name: 'eth0', },
+    { family: '-4', name: 'wlp9s0', },
+    { family: '-6', name: 'eth0', },
+  ],
 };
 
 /**
@@ -391,8 +396,8 @@ await describe({
         const forwardChain = lines.indexOf(`add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,);
         const forwardV4 = lines.indexOf(`add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
         const forwardV6 = lines.indexOf(`add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,);
-        const replyV4 = lines.indexOf(`add rule inet ${table} forward ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
-        const replyV6 = lines.indexOf(`add rule inet ${table} forward ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,);
+        const replyV4 = lines.indexOf(`add rule inet ${table} forward iifname { "eth0", "wlp9s0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
+        const replyV6 = lines.indexOf(`add rule inet ${table} forward iifname { "eth0" } ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,);
         const forwardDrop = lines.indexOf(`add rule inet ${table} forward counter drop`,);
         expect(forwardChain,).toBeGreaterThan(outputDrop,);
         expect(forwardV4,).toBeGreaterThan(forwardChain,);
@@ -406,9 +411,11 @@ await describe({
         expect(lines.filter((line,) => line.startsWith(`add rule inet ${table} forward `,) && line.endsWith('counter accept',),),).toEqual([
           `add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,
           `add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,
-          `add rule inet ${table} forward ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,
-          `add rule inet ${table} forward ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,
+          `add rule inet ${table} forward iifname { "eth0", "wlp9s0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,
+          `add rule inet ${table} forward iifname { "eth0" } ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,
         ],);
+        // Two forged packets can make a "reply" in the tracker, so every source rule also names the interfaces a real reply arrives on.
+        expect(lines.filter((line,) => line.includes(' saddr ',) && (!line.includes(' iifname { "',)),),).toEqual([],);
         // A source address alone would pass a forged source: every source rule is restricted to the reply direction of a tracked flow,
         // and no rule matches the state of a connection.
         expect(lines.filter((line,) => line.includes(' saddr ',) && (!line.includes(' ct direction reply ',)),),).toEqual([],);
@@ -426,7 +433,7 @@ await describe({
         /**
          Lines of the script.
          */
-        const lines = trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, },).split('\n',);
+        const lines = trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], interfaces: [], }, },).split('\n',);
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('meta mark',),),).toEqual([],);
         expect(lines.filter((line,) => line.includes(' saddr ',),),).toEqual([],);
@@ -453,10 +460,47 @@ await describe({
          */
         const script = trafficBlockScript({
           interfaceName: 'wgtest',
-          clearnet: { hosts: [{ family: '-4', address: '203.0.113.7', }, { family: '-4', address: '203.0.113.7', },], },
+          clearnet: { hosts: [{ family: '-4', address: '203.0.113.7', }, { family: '-4', address: '203.0.113.7', },], interfaces: [], },
         },);
         expect(script,).toContain('ip daddr { 203.0.113.7 } counter accept',);
         expect(script,).not.toContain('ip6 daddr',);
+      },
+    },),
+    it({
+      name: 'gives each family the reply rule of its own physical default interfaces, and none to a family without one',
+      fn: async () => {
+        /**
+         Source rules of a script for the given interfaces.
+         */
+        const sourceRules = (interfaces: Clearnet['interfaces'],): readonly string[] => trafficBlockScript({
+          interfaceName: 'wgtest',
+          clearnet: { ...CLEARNET, interfaces, },
+        },).split('\n',).filter((line,) => line.includes(' saddr ',),);
+        expect(sourceRules([{ family: '-4', name: 'eth0', },],),).toEqual([
+          'add rule inet wg-quicker-wgtest-blocked forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
+        ],);
+        expect(sourceRules([{ family: '-6', name: 'wlan0', },],),).toEqual([
+          'add rule inet wg-quicker-wgtest-blocked forward iifname { "wlan0" } ct direction reply ip6 saddr { 2001:db8::7 } counter accept',
+        ],);
+        // Without any physical default interface no forwarded packet counts as a reply, and the destination rules stay.
+        expect(sourceRules([],),).toEqual([],);
+        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { ...CLEARNET, interfaces: [], }, },),).toContain(' forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept',);
+        // The same interface twice is written once.
+        expect(sourceRules([{ family: '-4', name: 'eth0', }, { family: '-4', name: 'eth0', },],),).toEqual([
+          'add rule inet wg-quicker-wgtest-blocked forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
+        ],);
+      },
+    },),
+    it({
+      name: 'refuses an interface name that is not an interface name, so nothing but a name reaches the script',
+      fn: async () => {
+        for (const name of ['eth0" } ; flush ruleset ; { "', 'eth0\nflush ruleset', 'eth 0', 'eth0;id', '-x', '', 'a'.repeat(16,), '$(id)', 'eth0"', 'eth*',]) {
+          for (const family of ['-4', '-6',] as const) {
+            // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own error.
+            const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { ...CLEARNET, interfaces: [{ family, name, },], }, },), },);
+            expect((thrown as Error).name,).toBe('TrafficBlockError',);
+          }
+        }
       },
     },),
     it({
@@ -466,11 +510,11 @@ await describe({
          Largest 32-bit value.
          */
         const largest = (2 ** 32) - 1;
-        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: 0, hosts: [], }, },),).toContain(`meta mark ${formatMark({ mark: 0, },)} counter accept`,);
-        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: largest, hosts: [], }, },),).toContain(`meta mark ${formatMark({ mark: largest, },)} counter accept`,);
+        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: 0, hosts: [], interfaces: [], }, },),).toContain(`meta mark ${formatMark({ mark: 0, },)} counter accept`,);
+        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: largest, hosts: [], interfaces: [], }, },),).toContain(`meta mark ${formatMark({ mark: largest, },)} counter accept`,);
         for (const mark of [-1, largest + 1, 1.5, Number.NaN,]) {
           // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own error.
-          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark, hosts: [], }, },), },);
+          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark, hosts: [], interfaces: [], }, },), },);
           expect((thrown as Error).name,).toBe('TrafficBlockError',);
         }
       },
@@ -480,13 +524,13 @@ await describe({
       fn: async () => {
         for (const address of ['203.0.113.7 } ; flush ruleset ; { ', '203.0.113.7\nflush ruleset', 'example.test', '2001:db8::7', '203.0.113.7/24', '',]) {
           // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own error.
-          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-4', address, },], }, },), },);
+          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-4', address, },], interfaces: [], }, },), },);
           expect((thrown as Error).name,).toBe('TrafficBlockError',);
         }
         /**
          A v4 address under the v6 family.
          */
-        const crossed = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-6', address: '203.0.113.7', },], }, },), },);
+        const crossed = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-6', address: '203.0.113.7', },], interfaces: [], }, },), },);
         expect((crossed as Error).name,).toBe('TrafficBlockError',);
       },
     },),

@@ -98,7 +98,7 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
         let mut native_arguments: Vec<&str> = vec!["commit", "--quiet"];
         native_arguments.extend(entry.arguments.iter().map(String::as_str));
         native_arguments.extend(["--", "a.txt"]);
-        let native: Output = wrapped_commit(&fixture, &repo, native_arguments.as_slice()).output().expect("native");
+        let native: Output = wrapped_commit(&fixture, &repo, native_arguments.as_slice()).env_remove("XDG_RUNTIME_DIR").output().expect("native");
         assert!(native.status.success(), "{}: {}", entry.name, String::from_utf8_lossy(&native.stderr));
         let natively: Vec<String> = stored(&fixture, &repo);
         for (index, (left, right)) in through.iter().zip(&natively).enumerate() {

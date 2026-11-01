@@ -188,6 +188,60 @@ fn the_editor_is_predicted_from_the_message_source_and_errs_towards_opening() {
     }
 }
 
+/// The options that choose what to commit (a selection, a pathspec file) do not change the message, so a line that also has
+///  a message is covered, and none of them makes the editor open.
+#[test]
+fn selection_options_are_covered_and_open_no_editor() {
+    let message = ServiceCommitArgs { messages: vec![String::from("s")], ..ServiceCommitArgs::default() };
+    for words in [
+        vec!["-i", "-m", "s", "--", "a.txt"],
+        vec!["--include", "-m", "s", "--", "a.txt"],
+        vec!["-p", "-m", "s"],
+        vec!["--patch", "-m", "s"],
+        vec!["--interactive", "-m", "s"],
+        vec!["-m", "s", "--pathspec-from-file=list.txt"],
+        vec!["-m", "s", "--pathspec-from-file", "list.txt", "--pathspec-file-nul"],
+    ] {
+        assert_eq!(parse_service_commit(&args(&words)), Some(message.clone()), "{words:?}");
+    }
+    for words in [vec!["-i", "-m", "s", "--", "a.txt"], vec!["-m", "s", "--pathspec-from-file", "list.txt", "--pathspec-file-nul"], vec!["-m", "s", "--include"]] {
+        assert!(!opens_editor(&args(&words)), "{words:?}");
+    }
+}
+
+/// A commit whose message is fixed is rebuilt from the saved message: every message source and the editor options go, the
+///  rest of the line stays, and the pathspecs after the separator are untouched.
+#[test]
+fn a_fixed_message_replaces_every_message_option_and_keeps_the_rest() {
+    let file = std::path::Path::new("/saved/message");
+    let rebuilt = |words: &[&str], at: usize| -> Option<Vec<String>> {
+        return with_fixed_message(&args(words), at, file).map(|found| { return found.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect(); });
+    };
+    let tail: [&str; 4] = ["-F", "/saved/message", "--cleanup=verbatim", "--no-edit"];
+    let expected = |before: &[&str], after: &[&str]| -> Vec<String> {
+        return before.iter().chain(tail.iter()).chain(after.iter()).map(|word| { return (*word).to_string(); }).collect();
+    };
+    assert_eq!(rebuilt(&["commit", "-m", "s", "--", "a.txt"], 0), Some(expected(&["commit"], &["--", "a.txt"])));
+    assert_eq!(
+        rebuilt(&["commit", "-e", "-m", "seed", "-S", "--author=A <a@b>", "--trailer", "T: v", "--cleanup=strip", "--", "a.txt"], 0),
+        Some(expected(&["commit", "-S", "--author=A <a@b>"], &["--", "a.txt"]))
+    );
+    assert_eq!(rebuilt(&["-c", "core.x=1", "commit", "-qsm", "x"], 2), Some(expected(&["-c", "core.x=1", "commit", "-q"], &[])));
+    assert_eq!(rebuilt(&["commit", "--message=a", "--file", "f", "--template=t", "--signoff", "--edit"], 0), Some(expected(&["commit"], &[])));
+    for words in [
+        vec!["commit", "-c", "HEAD"],
+        vec!["commit", "-C", "HEAD"],
+        vec!["commit", "--amend", "--no-edit"],
+        vec!["commit", "--fixup=HEAD"],
+        vec!["commit", "--squash=HEAD"],
+        vec!["commit", "--reedit-message=HEAD"],
+        vec!["commit", "--ame"],
+        vec!["commit", "--mess=x"],
+    ] {
+        assert_eq!(rebuilt(&words, 0), None, "{words:?}");
+    }
+}
+
 /// `--reset-author` is covered only for an amend that names no author, no date and no reused commit.
 #[test]
 fn reset_author_is_covered_only_for_a_plain_amend() {

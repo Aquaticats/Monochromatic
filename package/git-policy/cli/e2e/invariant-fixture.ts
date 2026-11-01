@@ -216,20 +216,20 @@ function checkLanding({
       },),
     ],
     [
-      hooks.commitMsgTrailer === false,
+      hooks.editorTrailer === false,
       violation({
-        invariant: 'commit-msg-hook',
+        invariant: 'editor-trailer',
         subject,
-        detail: 'the landed message lacks the commit-msg hook trailer',
+        detail: 'the landed message lacks the trailer the message editor appended',
       },),
     ],
     [
-      succeeded && (hooks.postCommitRuns !== undefined)
-        && (hooks.postCommitRuns !== 1),
+      succeeded && (hooks.afterCommitRecords !== undefined)
+        && (hooks.afterCommitRecords !== 1),
       violation({
-        invariant: 'post-commit-once',
+        invariant: 'after-commit-work-once',
         subject,
-        detail: `post-commit ran ${String(hooks.postCommitRuns,)} times`,
+        detail: `the service settled ${String(hooks.afterCommitRecords,)} push records for the landed commit`,
       },),
     ],
     [
@@ -380,6 +380,14 @@ export function checkInvariants(observation: RunObservation,): readonly Violatio
           invariant: 'no-leftovers',
           subject: leftover,
           detail: 'remains after the run',
+        },);
+      },),
+    ...observation.unsettledWork
+      .map(function unsettledViolation(record,) {
+        return violation({
+          invariant: 'after-commit-work-settles',
+          subject: record,
+          detail: 'the service did not finish this after-commit record',
         },);
       },),
     ...((observation.fsck

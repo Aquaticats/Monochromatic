@@ -15,7 +15,8 @@
 
 use super::json_record::quote;
 use super::service_fault::reach;
-use super::service_work::{notice_directory, write_notice};
+use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use super::push_failure_notice::notice_directory;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_journal::{
@@ -545,6 +546,16 @@ fn send(stream: &UnixStream, reply: &CopyReply) -> bool {
     return (&*stream).write_all(line.as_bytes()).is_ok();
 }
 
+/// Leaves a notice for the person, named after its key so that a repeat replaces it. The next command that goes through
+///  the wrapper shows every record in the repository's notice directory once.
+pub fn write_copy_notice(common_dir: &Path, key: &str, text: &str) -> Result<(), String> {
+    let directory: PathBuf = notice_directory(common_dir);
+    create_private_directory_all(directory.as_path()).map_err(|error| return format!("creating the notice directory failed: {error}"))?;
+    let path: PathBuf = directory.join(format!("{key}.txt"));
+    let _removed = std::fs::remove_file(path.as_path());
+    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| return format!("writing the notice failed: {error}"));
+}
+
 /// The key of the notice that carries the failure of one request until its client has shown it.
 pub fn copy_notice_key(id: &str) -> String {
     return format!("copy-{id}");
@@ -648,7 +659,7 @@ fn serve_job(runner: &dyn CopyRunner, job: &CopyJob, outcomes: &mut HashMap<Stri
             CopyEvent::Done { id, outcome } => {
                 outcomes.insert(id.clone(), outcome.clone());
                 if let CopyOutcome::Failed(text) = &outcome {
-                    let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
+                    let _noticed = write_copy_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
                 }
                 conversation.done(id.as_str(), &outcome);
             }
@@ -657,11 +668,11 @@ fn serve_job(runner: &dyn CopyRunner, job: &CopyJob, outcomes: &mut HashMap<Stri
             let unanswered: Vec<String> = job.ids.iter().filter(|id| return !conversation.answered.contains(*id)).cloned().collect();
             for id in unanswered {
                 let outcome: CopyOutcome = CopyOutcome::Failed(text.clone());
-                let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
+                let _noticed = write_copy_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
                 conversation.done(id.as_str(), &outcome);
             }
             if job.ids.is_empty() {
-                let _noticed = write_notice(common_dir, "copy-recovery", text.as_str());
+                let _noticed = write_copy_notice(common_dir, "copy-recovery", text.as_str());
             }
         }
     }
@@ -671,7 +682,7 @@ fn serve_job(runner: &dyn CopyRunner, job: &CopyJob, outcomes: &mut HashMap<Stri
         }
         let outcome: CopyOutcome = outcomes.get(id).cloned().unwrap_or_else(|| return outcome_on_disk(common_dir, id.as_str()));
         if let CopyOutcome::Failed(text) = &outcome {
-            let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
+            let _noticed = write_copy_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
         }
         conversation.done(id.as_str(), &outcome);
     }

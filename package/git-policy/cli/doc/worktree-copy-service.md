@@ -18,7 +18,10 @@ no lock files,
 no owner records,
 no polling) are quoted in
 `doc/planning/cli-git-resident-service.md`,
-which also decided a single-writer service per account.
+which also decided a single-writer service (one per account in the first form,
+and one per repository after the owner's
+later change,
+which this document follows where it matters).
 This document records what the lock protected,
 why the first replacement was rejected,
 the design that stands,
@@ -287,9 +290,12 @@ and each is answered below with the test that fails when its guard is removed
 - **Nothing enforces one copy writer.**
   The enforcement is the operating system's,
   and the tests prove its parts.
-  The service is socket activated by one socket unit that does not accept connections into instances,
+  The service is socket activated by a socket unit that does not accept connections into instances,
   so the manager runs
-  at most one service process,
+  at most one service process for a socket (one per repository once the service is keyed by the repository's common
+  directory:
+  the copy thread then serves one repository,
+  and a copy never waits behind another repository's),
   and a process that retires is gone before the manager starts the next.
   A second service on the same address cannot bind it.
   A client that meets an older service asks it to retire and waits for its replacement for as long as a start takes,
@@ -436,7 +442,8 @@ and each is answered below with the test that fails when its guard is removed
 
 ## Known limits
 
-- One service serves one account on one host.
+- One service process serves a repository on one host (an account's,
+  until the service is keyed by the repository).
   Two accounts,
   or two hosts sharing a repository over a network file system,
   each have their own service,

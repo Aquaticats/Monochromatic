@@ -959,6 +959,9 @@ each finished branch is reviewed and merged into `main`):
   not AGENTS.md (the owner's earlier preference for lessons of this session).
   Still to check after merge:
   whether the Coolify app for `docker-compose.yml` auto-deploys on push.
+  Closed 2026-11-01:
+  the owner answered "No app points at it",
+  and `764030330e` removed that compose file.
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
@@ -1739,7 +1742,89 @@ each finished branch is reviewed and merged into `main`):
   `tos`,
   `nhid`
   or `nexthop` now refuses the bypass (fails closed);
-  the TSDoc and README wording sent back for that.
+  the TSDoc and README wording sent back for that,
+  done in `a255741468`.
+  The cross-vendor retry on the narrower diff also timed out empty (`sol-review3.txt`).
+  Owner 2026-11-01:
+  "Deploy, keep reviewing (Recommended)".
+  Merged as `63eed6d1c3`;
+  build and tests of both packages on it running,
+  then `down` and `up` through `~/temp/agent/wg-restart/restart.ts`,
+  while a further cross-vendor retry runs (`sol-review4.txt`,
+  default thinking level).
+  That cross-vendor retry returned clean:
+  "No qualifying defects found in the supplied diff."
+  Both packages' `buildAndTest` passed on `63eed6d1c3`
+  (the formerly failing `update_entry_points_tests::source_tests` and `UPDATE_HOSTS` show passed;
+  the Rust run shows no failures).
+  Restart (`down` then `up`, 2026-11-01 19:30 UTC):
+  both exited 0,
+  new watchers in `/user.slice/user-0.slice/session-c204.scope`,
+  ordinary traffic `dev fr-par-fr1 table 51820`,
+  bypass rules present,
+  update scopes steady and all of the new kind.
+  The journal's remaining reports since the restart came from the old watcher before `down`
+  (a "No such process" failed move,
+  and the main process of `cli-git.service`,
+  the git wrapper's commit service,
+  which cannot be moved without emptying it).
+  Mark positive control on the new build:
+  every sampled socket of the processes moved into update scopes carried `fwmark 0x64`,
+  none unmarked.
+  The wg work is live and verified.
+- Kopia backups (`~/.config/systemd/user/kopia-snapshot-all.service`, hourly timer)
+  have failed every run since at least 2026-10-25
+  (earliest failure in a week of journal; no success in that week):
+  its ExecStart names `~/.local/share/mise/installs/kopia/latest/kopia-0.23.0-linux-x64/kopia`,
+  but `latest` points to 0.23.1.
+  Not caused by the toolchain cutover (it predates it).
+  Fix:
+  ExecStart to `~/.local/share/monochromatic-dev/toolchain-global/exposure/kopia snapshot create --all`
+  (Kopia 0.23.1,
+  build `72ec08fd`).
+  The owner chose "Allow me to edit it",
+  but the auto-mode classifier refused the edit twice as "Unauthorized Persistence";
+  the owner was given a `!` command to apply it.
+  Backup of the unit:
+  `~/temp/agent/kopia-fix/kopia-snapshot-all.service.before`.
+  The owner applied it with `sed --in-place` and `daemon-reload`.
+  Then `systemctl --user start kopia-snapshot-all.service`:
+  `Result=success`,
+  `ExecMainStatus=0`,
+  ten "Created snapshot" lines,
+  no error lines,
+  then "Finished full maintenance"
+  (wall clock just under an hour,
+  memory peak 20.8G);
+  the hourly timer is armed for its next run.
+  Done.
+- The queued git-wrapper 0.5.2 lock bump is superseded:
+  other sessions moved the lock to 0.5.2 (`ea3d5c3599`),
+  0.5.3 (`abed43149b`)
+  and 0.5.4 (`bcf37dda6c`),
+  `git --version` reports wrapper 0.5.4,
+  and 0.5.5 is another session's work in progress.
+  Dropped from this session's queue.
+- Pushes caught up:
+  after `git fetch`,
+  `git rev-list --count origin/main..main` is 0
+  and `d79a0af4e1` is on `origin/main`.
+- Owner 2026-11-01:
+  "\"xinyanchen\" - disable anything related."
+  Done:
+  `systemctl --user disable --now` on `xinyanchen-polypane-branch`,
+  `-preview`,
+  `-tunnel-m1-site`,
+  `-tunnel-vm-webdriver`
+  and `-mux` (the template `xinyanchen-polypane-branch@` has no enabled instance);
+  every unit file now `disabled`,
+  the preview's failed state reset,
+  no process mentioning `xinyan` and no listener on 4173,
+  4174,
+  4210
+  or 4454 left.
+  The unit files are kept,
+  so `systemctl --user enable --now <unit>` restores any of them.
   Then merge,
   build,
   and one restart (`down` then `up`).
@@ -2066,6 +2151,9 @@ each finished branch is reviewed and merged into `main`):
   which does not exist.
   Whether a Coolify app still deploys it is unknown:
   it cannot be seen from this machine.
+  Closed 2026-11-01:
+  the root `Dockerfile` and `docker-compose.yml` were removed in `764030330e`,
+  and the owner answered "No app points at it" when asked whether a Coolify application uses the root compose.
   The final build was this session's own check, not the owner's requirement.
   The same check already passed once at 0.2.1
   (exit 0 after 2120 s).

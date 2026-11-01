@@ -115,6 +115,13 @@ pub trait RepositoryFacts {
     /// The location when it was already asked for,
     ///  without asking.
     fn asked_location(&self) -> Option<Result<RepositoryLocation, String>>;
+    /// The repository's common Git directory when it is known without starting Git: from the location already asked,
+    ///  or from the file system.
+    /// A provider that has neither answers nothing.
+    fn known_common_dir(&mut self) -> Option<PathBuf> {
+        let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
+        return asked.and_then(Result::ok).and_then(|found| { return common_directory(&found.identity).map(Path::to_path_buf); });
+    }
     /// Real Git,
     ///  the child environment and the invocation's global options,
     ///  for transaction
@@ -354,6 +361,14 @@ impl RepositoryFacts for GitFacts {
 
     fn asked_location(&self) -> Option<Result<RepositoryLocation, String>> {
         return self.location.clone();
+    }
+
+    fn known_common_dir(&mut self) -> Option<PathBuf> {
+        if let Some(Ok(found)) = &self.location {
+            return common_directory(&found.identity).map(Path::to_path_buf);
+        }
+        // A plain layout is read from the file system; a layout the reader declines is not worth a Git process here.
+        return self.layout().map(|found| { return found.common_dir.clone(); });
     }
 
     fn transaction_context(&self) -> GitContext {

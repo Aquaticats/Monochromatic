@@ -1065,14 +1065,15 @@ fn a_failure_for_a_client_that_is_gone_stays_a_notice() {
 
 /// A runner that answers one request and then goes on with another until the test lets it end.
 struct SlowRunner {
+    id: String,
     release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
 }
 
 impl CopyRunner for SlowRunner {
     fn drain(&self, _common_dir: &Path, events: &mut dyn FnMut(CopyEvent)) -> Result<(), String> {
-        events(CopyEvent::Done { id: String::from("mine"), outcome: CopyOutcome::Copied(1) });
+        events(CopyEvent::Done { id: self.id.clone(), outcome: CopyOutcome::Copied(1) });
         // The rest of the drain: another worktree's large copy.
-        let _released = self.release.lock().expect("lock").recv();
+        let _released = self.release.lock().expect("lock").recv_timeout(std::time::Duration::from_secs(15));
         return Ok(());
     }
 }
@@ -1080,13 +1081,14 @@ impl CopyRunner for SlowRunner {
 /// A client whose requests are all answered is told so at once, while the drain goes on with other worktrees.
 #[test]
 fn a_client_is_finished_when_its_own_requests_end_not_when_the_drain_does() {
-    let scene: Scene = Scene::new("copy-early-finish");
+    // A pending request on disk, so that the job makes the service run a drain.
+    let (scene, id): (Scene, String) = scene_with_a_pending_request("copy-early-finish");
     let busy: AtomicUsize = AtomicUsize::new(0);
     let (release, released) = std::sync::mpsc::channel::<()>();
-    let runner: SlowRunner = SlowRunner { release: std::sync::Mutex::new(released) };
+    let runner: SlowRunner = SlowRunner { id: id.clone(), release: std::sync::Mutex::new(released) };
     let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
     let (client, service) = UnixStream::pair().expect("pair");
-    sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![String::from("mine")], stream: service }).expect("queued");
+    sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![id.clone()], stream: service }).expect("queued");
     drop(sender);
     // A client that is not told in time fails here instead of waiting for ever.
     client.set_read_timeout(Some(std::time::Duration::from_secs(10))).expect("timeout");

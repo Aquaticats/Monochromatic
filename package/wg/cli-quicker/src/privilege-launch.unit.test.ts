@@ -94,6 +94,7 @@ await describe({
               WG_QUICKER_EXEMPT_UID: '2000',
               WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/caller/opensnitch/default-config.json',
               WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/caller/opensnitch/system-fw.json',
+              // Set by the caller on purpose: it must not appear in the context that crosses sudo.
               WG_QUICKER_RUNTIME_DIRECTORY: '/caller/run/wg-quicker',
               WG_QUICKER_TEST_SUDO_RECORD: recordPath,
               XDG_CACHE_HOME: '/caller/cache',
@@ -136,7 +137,6 @@ await describe({
             WG_ALLOWEDIPS_CACHE_DIRECTORY: '/caller/cache/allowedips',
             WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/caller/opensnitch/default-config.json',
             WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/caller/opensnitch/system-fw.json',
-            WG_QUICKER_RUNTIME_DIRECTORY: '/caller/run/wg-quicker',
             XDG_CACHE_HOME: '/caller/cache',
           },
           uid: process.getuid?.(),

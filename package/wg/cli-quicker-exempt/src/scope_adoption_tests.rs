@@ -291,7 +291,7 @@ fn own_ids() -> (u32, u32) {
 /// Builds a request for the given pids and limits.
 fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE, first_start_time: None };
 }
 
 /// The manager that creates and populates the scope and moves pid 77 into it.
@@ -431,6 +431,126 @@ fn a_process_that_exits_during_a_failed_call_is_vanished() {
     assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
 }
 
+/// The shell of a fake manager call that fails the way the real one does for a pid that no longer exists.
+const NO_SUCH_PROCESS_CALL: &str = "echo 'Call failed: No such process' >&2; exit 1";
+
+/// Adds a fake process with the given pid to the fake procfs.
+/// `state` and `flags` become its stat file.
+fn add_process(place: &Place, pid: i32, state: &str, flags: u64) {
+    let directory = place.adopter.proc_root.join(pid.to_string());
+    std::fs::create_dir_all(&directory).expect("make the fake process");
+    std::fs::write(directory.join("cgroup"), "0::/user.slice/user-1000.slice/user@1000.service/app.slice/old.scope\n").expect("write cgroup");
+    std::fs::write(directory.join("stat"), stat_text(state, flags)).expect("write stat");
+}
+
+/// A failed call for a process that is a zombie or flagged as exiting is a vanish,
+/// as the real manager answers "No such process" for it while its `/proc` entry still exists.
+#[test]
+fn a_zombie_or_exiting_process_during_a_failed_call_is_vanished() {
+    for (state, flags, call) in [
+        ("Z", 0, NO_SUCH_PROCESS_CALL),
+        ("R", 4, "echo 'Failed to set unit properties: No such process' >&2; exit 1"),
+        ("Z", 0, "echo 'boom' >&2; exit 1"),
+    ] {
+        let place = place("zombie-failed", &|_paths| return Manager { create: call.to_string(), ..accepting() });
+        std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text(state, flags)).expect("make it exit");
+        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished), "{state} {flags} {call}");
+    }
+}
+
+/// The same answer for an attach to a living scope is a vanish too,
+/// and no scope is created beside it.
+#[test]
+fn a_zombie_during_a_failed_attach_is_vanished_and_creates_nothing() {
+    let place = place("zombie-attach", &|_paths| return Manager { attach: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+    let_scope_exist(&place, true);
+    std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text("Z", 0)).expect("make it a zombie");
+    assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(!calls(&place).contains("StartTransientUnit"));
+}
+
+/// The manager's answer names no pid,
+/// so a group member that is gone,
+/// a zombie or exiting explains it,
+/// while the matched process is still alive.
+#[test]
+fn a_gone_group_member_explains_the_no_such_process_answer() {
+    for member in [None, Some(("Z", 0)), Some(("R", 4))] {
+        let place = place("member-gone", &|_paths| return Manager { create: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+        if let Some((state, flags)) = member {
+            add_process(&place, 78, state, flags);
+        }
+        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::MemberVanished), "{member:?}");
+    }
+}
+
+/// A process whose state cannot be established is never counted as gone:
+/// a stat file that cannot be read or parsed leaves a failed move loud,
+/// whatever the manager said,
+/// and the wait for the move ends in a failure and not in a vanish.
+#[test]
+fn an_unreadable_or_unparseable_state_keeps_the_failure_loud() {
+    for damage in ["unparseable", "unreadable"] {
+        for call in ["echo 'Access denied' >&2; exit 1", NO_SUCH_PROCESS_CALL] {
+            let place = place("unknown-state", &|_paths| return Manager { create: call.to_string(), ..accepting() });
+            let stat = place.adopter.proc_root.join("77/stat");
+            std::fs::remove_file(&stat).expect("remove the stat file");
+            if damage == "unparseable" {
+                std::fs::write(&stat, "not a stat line\n").expect("write garbage");
+            } else {
+                // Reading a directory fails with an error that is neither "absent" nor "no such process".
+                std::fs::create_dir(&stat).expect("make the stat file unreadable");
+            }
+            let refused = place.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the state is unknown");
+            assert!(matches!(&refused, AdoptError::Failed(_)), "{damage} {call}: {refused}");
+        }
+        let waiting = place(
+            "unknown-state-wait",
+            &|paths| return Manager { create: makes_scope(paths, true), ..accepting() },
+        );
+        let stat = waiting.adopter.proc_root.join("77/stat");
+        std::fs::remove_file(&stat).expect("remove the stat file");
+        if damage == "unparseable" {
+            std::fs::write(&stat, "not a stat line\n").expect("write garbage");
+        } else {
+            std::fs::create_dir(&stat).expect("make the stat file unreadable");
+        }
+        let unmoved = waiting.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the move is not confirmed");
+        assert!(matches!(&unmoved, AdoptError::Failed(text) if text.contains("is not in")), "{damage}: {unmoved}");
+    }
+}
+
+/// A pid that another process has taken over since the match is gone:
+/// the start time read at the match no longer fits.
+/// The same pid with the matching start time stays a failure.
+#[test]
+fn a_pid_taken_over_by_another_process_is_vanished() {
+    let place = place("reused", &|_paths| return Manager { create: "echo 'Access denied' >&2; exit 1".to_string(), ..accepting() });
+    let (uid, gid) = own_ids();
+    let limits = all_limits();
+    let same = AdoptRequest { pids: &[77], uid, gid, slice: SLICE, limits: &limits, scope_name: SCOPE, first_start_time: Some(99) };
+    assert!(matches!(place.adopter.adopt(&same), Err(AdoptError::Failed(_))));
+    let other = AdoptRequest { first_start_time: Some(100), ..same };
+    assert_eq!(place.adopter.adopt(&other), Err(AdoptError::Vanished));
+}
+
+/// A living matched process whose move fails stays a failure,
+/// whatever the answer says,
+/// unless a member of the group is gone and the answer is "No such process".
+#[test]
+fn a_living_process_whose_move_fails_stays_a_failure() {
+    let answer = place("live-answer", &|_paths| return Manager { create: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+    let error = answer.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the process lives");
+    assert!(matches!(&error, AdoptError::Failed(text) if text.contains("No such process")), "{error}");
+    add_process(&answer, 78, "S", 0);
+    assert!(matches!(answer.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::Failed(_))), "every member lives");
+    for other in ["echo 'boom' >&2; exit 1", "echo 'Call failed: No such file or directory' >&2; exit 1", "echo 'Access denied' >&2; exit 1"] {
+        let place = place("live-other", &|_paths| return Manager { create: other.to_string(), ..accepting() });
+        let refused = place.adopter.adopt(&request(&all_limits(), &[77, 78])).expect_err("another reason");
+        assert!(matches!(&refused, AdoptError::Failed(_)), "{other}: {refused}");
+    }
+}
+
 /// A process that exits after the manager accepted the job is noticed at once,
 /// without waiting out the confirmation timeout.
 #[test]
@@ -555,8 +675,8 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     if let Some(name) = &device {
         limits.io_devices.insert(name.clone(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
     }
-    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
-    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
+    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
+    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
     let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), uid, slice, &scope);
     let read = |name: &str| return std::fs::read_to_string(directory.join(name)).unwrap_or_default().trim().replace('\n', " | ");
     let (created_cpu, created_memory, created_tasks, created_weight, created_bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
