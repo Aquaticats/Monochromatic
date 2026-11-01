@@ -473,6 +473,42 @@ Wave-4 eighth checkpoint (2026-11-01, all rows verified against the tree before 
   agent-settled-notification (row 017 next), `w4-fe-core-tests` on cli-tighten.matrix (the
   last dependency-catalog slice; row 019 next), `w4-fm-variant-qt` manual slice 5.
 
+Wave-4 ninth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- dependency-catalog family complete: cli-tighten.matrix 12 of 12 (rows `w4-depcat-019`
+  to `-023` verified, my own run over `w4-depcat.jsonl` is 23 of 23 clean; headline row
+  019, blocker: `IN_CONTAINER_ENTRY` still names the pre-rename
+  `/repo/packages/dev-script/...` path, so all 20 scenarios fail with cannot-find-module
+  and `test:matrix` is red at HEAD; row 020: runTool's catch returns an empty output and
+  discards the child transcript). Family total: 148 files, 23 rows across the five
+  packages. `w4-fe-core-tests` reassigned to `learning/rust` (10 files, prose-heavy; new
+  findings file `w4-learning-rust.jsonl`); `linter/rust` is skipped as void (the 5bc05682ec
+  deletion recorded at the fourth checkpoint).
+- Manual queue slice 5 verified and accepted: 30 repaired, 2 external-by-design
+  (`w2-async-b2-011`, `-081`, node_modules quotes prose-cited from disk-verified copies),
+  28 needs-refutation (`root-configs-089` to `-140`, every cited file under the deleted
+  `package/file-enforcer/core/`; rows kept as historical records with confidence lowered
+  to uncertain). My own run confirms 32 of 60 slice ids clean with the 28 flagged rows
+  exactly the deleted-subject set; the parenthetical-confidence normalization also
+  cleared the last schema_bad rows in root-configs. Slice 6 assigned: problems-subset
+  index 300, first id `w2-dom-a-74`, 60 entries (56 problems entries remain after it,
+  then the 409 ambiguous), plus 12 orphan rows folded into the same brief
+  (`sysd-source-trace-16`, `w2-async-b1-002`/`-027`/`-070`/`-083`,
+  `w2-async-b2-004`/`-014`/`-017`/`-043`/`-046`/`-052`/`-054`; BAD but absent from every
+  queue; `-027` and `-083` cite not-tracked files so the deleted-subject path is
+  expected). `w2-dom-a-74`/`-81`/`-85`/`-95` are slice 6's first queue entries and stay
+  bridged.
+- `w4-mp-design` src/native progress: the first nine files plus annotation_tests.rs
+  lines 1 to 120 verified clean with zero rows; every cross-file claim resolved live
+  (the i-slint-backend-testing 1.18.1 pin, the ui/search.slint:93 placeholder,
+  HIGHLIGHT_PATIENCE against tests/language/support.rs:41, the FIXTURE position claims).
+  Resume at annotation_tests.rs line 121; 143 files remain.
+- Queue text corrections: the item-5 phrases "file-enforcer/core-rust slices 3+ (in
+  flight)" and the dependency-catalog in-flight parenthetical are retired (core-rust
+  completed at the fourth checkpoint, all 63 files; file-enforcer/cli at the third, all
+  30). git-policy/cli slices 9+ have no wave-4 child holding them; re-assign from this
+  queue when a child frees.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -911,12 +947,12 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
    now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
    monochromatic-lint, monorepo-task, mutation-test.
-5. Rust: `git-policy/cli` slices 9+ (in flight), `file-enforcer/core-rust` slices 3+ (in
-   flight), `dependency-catalog/*` done except the final slice cli-tighten.matrix (12,
-   in flight; core-pnpm, core-rust 22, core-native 54, cli-rust-update 36, cli-tighten 24
-   complete; cli-cube in flight), `wg/*` done through cli-quicker 138 of 138, `mvm/cli`
-   slice 2 (in flight), `linter/rust`, `learning/rust`, `ownership-marker/foreign-borrowed`, `search-shadow/cli`,
-   `vm-builder/cli`, `vmsync/cli`.
+5. Rust: `dependency-catalog/*` complete (core-pnpm, core-rust 22, core-native 54,
+   cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12; cli-cube in flight), `wg/*`
+   done through cli-quicker 138 of 138, `git-policy/cli` slices 9+ (no wave-4 child holds
+   them; re-assign when a child frees), `mvm/cli` slice 2 (in flight), `learning/rust` in
+   flight by `w4-fe-core-tests` (10 files), then `ownership-marker/foreign-borrowed`,
+   `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli`.
 6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
