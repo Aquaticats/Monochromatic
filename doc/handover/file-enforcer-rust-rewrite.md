@@ -1021,6 +1021,16 @@ each finished branch is reviewed and merged into `main`):
   an emptied root's `current` forwards to the winner root's `current`.
   Separate review of `5e301c751d..313a81668e` running;
   the decision record gets a `docs(decision)` commit on the branch.
+- From monochromatic-7a 2026-11-01:
+  git wrapper 0.4.6 is published (release commit `1604b0d012`);
+  `main`'s lock commit `b896deca0d` pins it,
+  `monochromatic-mpm-shadow` 0.2.1 and Rust `nightly-2026-11-01`,
+  installed into the shared `~/.cargo/bin` by `main`'s TypeScript sync.
+  The switch agent was told its final lock must not name anything older than `main`'s
+  (wrapper 0.4.6,
+  `nightly-2026-11-01`,
+  mpm-shadow 0.2.2).
+  7a was told what changes for the wrapper at the cutover and that this session messages it when the merge lands.
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."
