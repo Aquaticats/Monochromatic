@@ -79,6 +79,9 @@ pub mod install_rust_android;
 /// extraction and links shared by the installers.
 pub mod install_support;
 
+/// The staging directory and completion marker of an archive install.
+pub mod archive_staging;
+
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
@@ -306,3 +309,9 @@ mod prune_cargo_tests;
 /// The unit tests of the names that become directory names.
 #[cfg(test)]
 mod segment_tests;
+
+/// The unit tests of how an archive install becomes visible (staging,
+/// the completion marker,
+/// and what a failed install leaves).
+#[cfg(test)]
+mod archive_install_tests;

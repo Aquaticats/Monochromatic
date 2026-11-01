@@ -44,6 +44,8 @@ use crate::constants::OWN_CRATE_PREFIX;
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
+/// Imports `has_complete_marker` from `super::archive_staging`.
+use super::archive_staging::has_complete_marker;
 /// Imports `CURRENT_LINK_NAME` from `super::cargo_installs`.
 use super::cargo_installs::CURRENT_LINK_NAME;
 /// Imports `ToolchainError` from `super::error`.
@@ -100,14 +102,31 @@ pub fn first_bin_of_tool(tool: &LockedTool) -> &str {
     };
 }
 
+/// What:
 /// Whether the install in `version_dir` finished:
-/// the tool's first declared bin is found in it.
-/// An interrupted unpacking leaves a directory without the program.
-fn is_finished(version_dir: &Path, first_bin: &str) -> bool {
-    if first_bin.is_empty() {
+/// it carries the completion marker (written last,
+/// after the unpacking succeeded and the program was found),
+/// and the tool's first declared bin is still found in it.
+/// A tool that declares no bin finishes on the marker alone.
+/// Why:
+/// The program alone proves nothing:
+/// `tar` creates a file with its final mode before it writes the content,
+/// so an interrupted unpacking leaves an executable file of the right name and the wrong bytes.
+/// A directory without the marker (one an earlier release unpacked in place,
+/// or one cut short) is therefore never finished:
+/// it is never the newest,
+/// so it is never the reason an older working version is deleted or `current` moves,
+/// and the next install of that version replaces it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function isFinished(versionDir: string, firstBin: string): boolean
+/// ```
+pub fn is_finished(version_dir: &Path, first_bin: &str) -> bool {
+    if !has_complete_marker(version_dir) {
         return false;
     }
-    return find_bin_under(version_dir, first_bin).is_some();
+    return first_bin.is_empty() || find_bin_under(version_dir, first_bin).is_some();
 }
 
 /// Orders two version names newest first.
@@ -292,13 +311,16 @@ pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
             Some(prefix) => prefix.starts_with(OWN_CRATE_PREFIX),
             None => false,
         };
-        let (Some(first_bin), Some(version)) = (first_bin_of(entry), entry.get("version").and_then(Value::as_str)) else {
+        let Some(version) = entry.get("version").and_then(Value::as_str) else {
             continue;
         };
         if !own {
             continue;
         }
-        for checked in [check_tool_id(id), check_version(version), check_bin_name(first_bin)] {
+        // A tool that declares no bin finishes on its marker alone; its first bin is the empty name.
+        let first_bin: &str = first_bin_of(entry).unwrap_or("");
+        let bin_check: Result<(), String> = if first_bin.is_empty() { Ok(()) } else { check_bin_name(first_bin) };
+        for checked in [check_tool_id(id), check_version(version), bin_check] {
             if let Err(message) = checked {
                 return Err(ToolchainError::failure(format!(
                     "{origin} names a release archive that cannot be judged safely, so nothing was deleted; tools.{id}: {message}"
@@ -332,7 +354,7 @@ pub fn present_archive_versions(toolchain_root: &Path, named: &BTreeMap<String, 
             let Ok(directory) = tool_install_dir(toolchain_root, id, &version) else {
                 continue;
             };
-            let finished: bool = find_bin_under(&directory, &archive.first_bin).is_some();
+            let finished: bool = is_finished(&directory, &archive.first_bin);
             found.push(PresentVersion { version, finished });
         }
         if !found.is_empty() {

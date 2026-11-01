@@ -14,7 +14,6 @@ use super::fakes::{FakeHttp, FakeRunner, Rig, write_executable};
 use super::fakes_cargo::finish_install;
 use super::fixtures::{SAMPLE_PLAN, sample_lock, sample_scope_on_disk};
 use super::launcher::{parse_record, record_path};
-use super::layout::tool_install_dir;
 use super::model::{Postinstall, PostinstallRun};
 use super::sync::{format_sync_report, replacement_warning, run_sync, sync_order, sync_tools};
 
@@ -260,8 +259,14 @@ fn a_full_sync_report_lists_unresolved_bins() {
     rig.http.serve(node_url, b"x");
     rig.lock.tools[0].artifacts =
         vec![("linux-x64".to_string(), super::model::Artifact { url: node_url.to_string(), sha256: super::hash::sha256_hex(b"x") })];
-    let dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name");
-    rig.runner.on("tar", Box::new(move |_request| write_executable(&dir.join("bin").join("node"))));
+    // The archive is unpacked into the staging directory `--directory` names.
+    rig.runner.on(
+        "tar",
+        Box::new(|request| {
+            let position = request.args.iter().position(|argument| return argument == "--directory").expect("a directory");
+            write_executable(&std::path::PathBuf::from(&request.args[position + 1]).join("bin").join("node"));
+        }),
+    );
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.installed, vec!["node".to_string()]);
     assert_eq!(report.missing_bins, vec!["npm".to_string(), "npx".to_string()]);

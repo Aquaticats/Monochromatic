@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::archive_staging::write_complete_marker;
 use super::cargo_installs::{is_repository_published, older_lock_message, older_lock_warnings};
 use super::commands::older_lock_warning_lines;
 use super::context::Context;
@@ -31,29 +32,29 @@ use super::status_cmd::run_status;
 use super::sync::sync_tools;
 
 /// The tool id.
-const ID: &str = "mpm-shadow";
+pub(super) const ID: &str = "mpm-shadow";
 
 /// The program the release archive holds
 /// (not `mpm-shadow`,
 /// which the sample plan's crate tool already exposes under that name).
-const BIN: &str = "mpm-shadow-release";
+pub(super) const BIN: &str = "mpm-shadow-release";
 
 /// The tag prefix that names this program's releases.
-const PREFIX: &str = "monochromatic-mpm-shadow-v";
+pub(super) const PREFIX: &str = "monochromatic-mpm-shadow-v";
 
 /// Where a release of the tool is downloaded from.
-fn release_url(version: &str) -> String {
+pub(super) fn release_url(version: &str) -> String {
     return format!("https://example.invalid/releases/{PREFIX}{version}/mpm-shadow-{version}.tar.gz");
 }
 
 /// The bytes of a release archive (the fake `tar` does not read them).
-fn release_body(version: &str) -> Vec<u8> {
+pub(super) fn release_body(version: &str) -> Vec<u8> {
     return format!("release archive {version}").into_bytes();
 }
 
 /// The release-archive tool at `version`,
 /// with the archive row of the host.
-fn release_tool(rig: &Rig, version: &str) -> LockedTool {
+pub(super) fn release_tool(rig: &Rig, version: &str) -> LockedTool {
     let mut tool = rig.tool("node");
     tool.declaration.id = ID.to_string();
     tool.declaration.request = Request::parse("github:Aquaticats/Monochromatic@latest").expect("parses");
@@ -65,12 +66,12 @@ fn release_tool(rig: &Rig, version: &str) -> LockedTool {
 }
 
 /// A lock holding only the release-archive tool at `version`.
-fn lock_at(rig: &Rig, version: &str) -> Lock {
+pub(super) fn lock_at(rig: &Rig, version: &str) -> Lock {
     return Lock { tools: vec![release_tool(rig, version)] };
 }
 
 /// Makes the fake network serve a release and the fake `tar` unpack it as `<folder>/mpm-shadow`.
-fn serve_releases(rig: &Rig, versions: &[&str]) {
+pub(super) fn serve_releases(rig: &Rig, versions: &[&str]) {
     for version in versions {
         rig.http.serve(&release_url(version), &release_body(version));
     }
@@ -85,29 +86,40 @@ fn serve_releases(rig: &Rig, versions: &[&str]) {
 }
 
 /// The `tar` lines the fake runner saw.
-fn tar_lines(rig: &Rig) -> Vec<String> {
+pub(super) fn tar_lines(rig: &Rig) -> Vec<String> {
     return rig.runner.lines().into_iter().filter(|line| return line.starts_with("tar --extract")).collect();
 }
 
 /// A second tree that shares the rig's home,
 /// and so its toolchain root.
-fn second_tree(rig: &Rig) -> Scope {
+pub(super) fn second_tree(rig: &Rig) -> Scope {
     let root = rig._directory.path().join("work-two");
     fs::create_dir_all(&root).expect("make the second tree");
     return repo_scope(&root, &rig.env).expect("a scope");
 }
 
 /// A context for one tree of the rig.
-fn context_of<'a>(rig: &'a Rig, scope: &'a Scope, lock: &'a Lock) -> Context<'a> {
+pub(super) fn context_of<'a>(rig: &'a Rig, scope: &'a Scope, lock: &'a Lock) -> Context<'a> {
     return Context { scope, env: &rig.env, runner: &rig.runner, http: &rig.http, host: &rig.host, tools: &lock.tools };
 }
 
-/// Finishes an install of `version` by hand:
-/// the program,
-/// inside the folder an archive would hold.
-fn finish_archive(root: &Path, version: &str) -> PathBuf {
+/// Leaves what an unpacking that was cut short,
+/// or an earlier release that unpacked in place,
+/// leaves:
+/// the program inside the folder an archive would hold,
+/// and no completion marker.
+pub(super) fn unmarked_archive(root: &Path, version: &str) -> PathBuf {
     let program = tool_directory(root, ID).expect("a plain name").join(version).join("release-folder").join(BIN);
     write_executable(&program);
+    return program;
+}
+
+/// Finishes an install of `version` by hand:
+/// the program inside the folder an archive would hold,
+/// and the completion marker the installer writes last.
+pub(super) fn finish_archive(root: &Path, version: &str) -> PathBuf {
+    let program = unmarked_archive(root, version);
+    write_complete_marker(&tool_directory(root, ID).expect("a plain name").join(version), ID, version).expect("write the marker");
     return program;
 }
 
@@ -207,7 +219,9 @@ fn a_release_is_observed_as_the_newest_finished_install_and_an_unfinished_one_is
 
     finish_archive(&root, "0.2.1");
     assert_eq!(newest_installed_archive(&root, ID, BIN).as_deref(), Some("0.2.1"), "the unfinished 0.2.2 is skipped");
-    assert_eq!(newest_installed_archive(&root, ID, ""), None, "a tool that declares no program never finishes");
+    assert_eq!(newest_installed_archive(&root, ID, "").as_deref(), Some("0.2.1"), "a tool that declares no program finishes on its marker alone");
+    unmarked_archive(&root, "0.2.3");
+    assert_eq!(newest_installed_archive(&root, ID, BIN).as_deref(), Some("0.2.1"), "a program without the marker is not finished");
     let after = observe_all(&context_of(&rig, &rig.scope, &lock), &lock.tools);
     assert!(after[0].in_sync, "the newer install satisfies an older lock");
     assert_eq!(after[0].observed.as_deref(), Some("0.2.1"));
@@ -302,7 +316,7 @@ fn a_launcher_is_made_from_proc_when_the_running_file_was_deleted() {
 
 /// A lock text naming the release tool at `version`,
 /// with its prefix and first bin.
-fn named_lock(version: &str) -> String {
+pub(super) fn named_lock(version: &str) -> String {
     return format!(
         "{{\"tools\":{{\"{ID}\":{{\"request\":\"github:o/r@latest\",\"version\":\"{version}\",\"route\":\"archive\",\"bins\":[\"{BIN}\"],\"options\":{{\"tagPrefix\":\"{PREFIX}\"}}}}}}}}"
     );

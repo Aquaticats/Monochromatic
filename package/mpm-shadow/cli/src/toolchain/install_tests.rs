@@ -17,6 +17,7 @@ use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
 use super::install_support::{atomic_symlink, restore_exec_bits};
 use super::cargo_installs::version_directory;
+use super::archive_staging::{has_complete_marker, staging_dir_of};
 use super::layout::tool_install_dir;
 use super::model::{Artifact, Request};
 
@@ -187,11 +188,16 @@ fn an_archive_is_verified_then_unpacked_with_tar() {
     install_tool(&rig.context(), &rig.tool("node")).expect("installed");
     let download = rig.scope.toolchain_root.join("downloads").join("node-1.2.3-node-v1.2.3-linux-x64.tar.gz");
     let install_dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name");
+    // The archive is unpacked into the hidden staging directory, which is renamed to the version's name afterwards.
+    let staging = staging_dir_of(&install_dir);
     assert_eq!(
         rig.runner.lines(),
-        vec![format!("tar --extract --file {} --directory {}", download.display(), install_dir.display())]
+        vec![format!("tar --extract --file {} --directory {}", download.display(), staging.display())]
     );
     assert!(download.is_file());
+    assert!(install_dir.is_dir(), "the unpacked tree sits at the version's name");
+    assert!(has_complete_marker(&install_dir), "and carries the completion marker");
+    assert!(!staging.exists(), "the staging directory is gone");
 }
 
 #[test]
@@ -447,11 +453,12 @@ fn a_conda_package_is_opened_with_unzip_and_its_payload_unpacked_with_tar_zstd()
     );
     install_tool(&rig.context(), &rig.tool("uv")).expect("installed");
     let install_dir = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3").expect("a plain name");
+    let staging = staging_dir_of(&install_dir);
     let lines = rig.runner.lines();
     assert!(lines[0].starts_with("unzip -q -o "), "{lines:?}");
     assert_eq!(
         lines[1],
-        format!("tar --extract --zstd --file {}/.conda-staging/pkg-bubblewrap.tar.zst --directory {}", install_dir.display(), install_dir.display())
+        format!("tar --extract --zstd --file {}/.conda-staging/pkg-bubblewrap.tar.zst --directory {}", staging.display(), staging.display())
     );
     assert!(!install_dir.join(".conda-staging").exists(), "the staging directory is removed");
     assert!(!install_dir.join("bubblewrap-0.13.1-h0_0.conda").exists(), "the .conda file is not copied in as the program");
