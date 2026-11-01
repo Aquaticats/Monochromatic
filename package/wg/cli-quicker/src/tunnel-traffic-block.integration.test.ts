@@ -299,6 +299,16 @@ type ObservedForward = {
    A packet of the router itself to an IPv6 update host.
    */
   readonly outputHostV6: Probed;
+
+  /**
+   A packet the guest sent with the IPv4 update host as its source to an address that is not an update host.
+   */
+  readonly forgedV4: Probed;
+
+  /**
+   The same with the IPv6 update host as the source.
+   */
+  readonly forgedV6: Probed;
 };
 
 /**
@@ -329,6 +339,9 @@ assert.deepEqual(forwarded.otherV4.counted, ['drop',], 'any other forwarded pack
 assert.deepEqual(forwarded.hostV6.counted, ['hosts6', 'replies6',], 'a forwarded IPv6 request to an update host and its reply must pass the block',);
 assert.equal(forwarded.hostV6.status, 0, 'the guest must get its IPv6 echo reply from the update host',);
 assert.deepEqual(forwarded.otherV6.counted, ['drop',], 'any other forwarded IPv6 packet must be dropped',);
+// A guest that owns an update host's address cannot use it as a source to reach anything else: only a reply of a tracked flow passes.
+assert.deepEqual(forwarded.forgedV4.counted, ['drop',], 'a forged source address must not pass the block',);
+assert.deepEqual(forwarded.forgedV6.counted, ['drop',], 'a forged IPv6 source address must not pass the block',);
 // The positive control: without the rules for the replies the request goes through, the answer is dropped, and the connect fails.
 assert.equal(forwarded.removedReplyRules, 2,);
 assert.equal(forwarded.connectWithoutReplyRules.output.split(' ',)[0]?.trim(), 'failed', 'a connect needs the replies: without their rules it must fail',);

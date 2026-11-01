@@ -577,18 +577,34 @@ and adds no rule of its own:
   "Add the same update-host destination rules to the forward chain",
   so that "guests can reach those hosts directly during the block".
   A guest's connection needs both directions through the forward chain,
-  so the forward chain also passes a packet from an update host (the replies),
-  matched on the source address:
-  `ip saddr` and `ip6 saddr` rules with the same addresses.
+  so the forward chain also passes a packet from an update host that is a reply,
+  matched on the source address and on the direction of the connection:
+  `ct direction reply ip saddr` and `ct direction reply ip6 saddr` rules with the same addresses.
   A rule on the destination alone passes the request and drops every reply,
   which was found by a review that connected a guest to a host through a router:
   with the rules for the destination only,
   the request was accepted and the answer dropped,
   and the connect failed.
+  A rule on the source address alone passed any forwarded packet that carried an update host's address as its source,
+  whoever sent it,
+  which a second review showed in the same trio:
+  a guest that owns such an address could send a packet from it to an address that is not an update host,
+  and the block accepted it.
+  `ct direction reply` closes that.
+  Only a packet that the connection tracker sees as the reply direction of a flow passes,
+  and only from an update host:
+  a packet a guest sends is the original direction of its flow,
+  and so is a packet from an update host that starts a flow,
+  so neither passes any more.
   The rules do not match the state of the connection (`ct state established,related`),
   because that would also pass the guests' flows that were bound for the tunnel once the routing is gone.
-  The width of the rule is that a packet from an update host passes whether or not it answers a request,
-  so a host at one of those addresses can also start a connection to a guest.
+  The rule needs the connection tracker,
+  and nft turns it on for the namespace when the rule is loaded.
+  A flow that was already running when the block was installed is oriented by the first packet the tracker sees of it,
+  so if that is a reply,
+  the flow's direction is taken the other way and the update host's later packets of that flow are dropped;
+  this is not verified on the real host,
+  where the tracker is already running when other firewall rules use it.
   This machine's own output chain needs no such rule:
   the replies to its own packets arrive through the input hook,
   which the block does not filter.
@@ -752,6 +768,14 @@ a guest and an outside from three network namespaces and forwards the guest's pa
 an echo request to an update host and its reply are counted by the forward chain's accept rules,
 and any other forwarded packet by its drop,
 for IPv4 and for IPv6.
+A packet that the guest sends with an update host's address as its source,
+after giving itself that address,
+is dropped,
+as well for IPv6;
+with the rule on the source address alone,
+as an earlier build had it,
+that packet is accepted,
+and the test fails.
 A TCP connect from the guest to an update host is made with the block as it is installed.
 With the rules for the replies taken out of the table by handle,
 which is the block as it was before they existed,

@@ -391,8 +391,8 @@ await describe({
         const forwardChain = lines.indexOf(`add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,);
         const forwardV4 = lines.indexOf(`add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
         const forwardV6 = lines.indexOf(`add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,);
-        const replyV4 = lines.indexOf(`add rule inet ${table} forward ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
-        const replyV6 = lines.indexOf(`add rule inet ${table} forward ip6 saddr { 2001:db8::7 } counter accept`,);
+        const replyV4 = lines.indexOf(`add rule inet ${table} forward ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
+        const replyV6 = lines.indexOf(`add rule inet ${table} forward ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,);
         const forwardDrop = lines.indexOf(`add rule inet ${table} forward counter drop`,);
         expect(forwardChain,).toBeGreaterThan(outputDrop,);
         expect(forwardV4,).toBeGreaterThan(forwardChain,);
@@ -406,10 +406,14 @@ await describe({
         expect(lines.filter((line,) => line.startsWith(`add rule inet ${table} forward `,) && line.endsWith('counter accept',),),).toEqual([
           `add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,
           `add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,
-          `add rule inet ${table} forward ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,
-          `add rule inet ${table} forward ip6 saddr { 2001:db8::7 } counter accept`,
+          `add rule inet ${table} forward ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,
+          `add rule inet ${table} forward ct direction reply ip6 saddr { 2001:db8::7 } counter accept`,
         ],);
-        expect(lines.some((line,) => line.includes(' ct ',) || line.includes('established',),),).toBe(false,);
+        // A source address alone would pass a forged source: every source rule is restricted to the reply direction of a tracked flow,
+        // and no rule matches the state of a connection.
+        expect(lines.filter((line,) => line.includes(' saddr ',) && (!line.includes(' ct direction reply ',)),),).toEqual([],);
+        expect(lines.filter((line,) => line.includes(' ct ',),).length,).toBe(2,);
+        expect(lines.some((line,) => line.includes('ct state',) || line.includes('established',) || line.includes('related',),),).toBe(false,);
         // The output chain gets no source rule: the replies to this machine's own packets arrive through the input hook.
         expect(lines.filter((line,) => line.includes(' output ',) && line.includes(' saddr ',),),).toEqual([],);
         // Loopback is the one interface the drop leaves alone.

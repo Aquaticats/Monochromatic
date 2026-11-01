@@ -291,3 +291,48 @@ export async function addIpv6({ trio, }: { readonly trio: Trio; },): Promise<voi
   await here(`-6 neigh replace ${HOST_V6} lladdr ${outsideEnd} dev vetho0 nud permanent`,);
   await here(`-6 neigh replace ${OTHER_V6} lladdr ${outsideEnd} dev vetho0 nud permanent`,);
 }
+
+/**
+ Gives the guest the update-host addresses, on its loopback,
+ so that it can send packets with those addresses as their source.
+ This is what a guest that forges a source does.
+ While it holds them, the guest reaches the real update hosts no more, because it routes those addresses to itself.
+
+ @param trio - The namespaces.
+
+ @example
+ ```ts
+ await giveGuestHostAddresses({ trio });
+ ```
+ */
+export async function giveGuestHostAddresses({ trio, }: { readonly trio: Trio; },): Promise<void> {
+  await within({
+    guest: trio.guest,
+    line: `addr add ${HOST_V4}/32 dev lo`,
+  },);
+  await within({
+    guest: trio.guest,
+    line: `-6 addr add ${HOST_V6}/128 dev lo nodad`,
+  },);
+}
+
+/**
+ Takes the update-host addresses away from the guest again.
+
+ @param trio - The namespaces.
+
+ @example
+ ```ts
+ await takeGuestHostAddresses({ trio });
+ ```
+ */
+export async function takeGuestHostAddresses({ trio, }: { readonly trio: Trio; },): Promise<void> {
+  await within({
+    guest: trio.guest,
+    line: `addr del ${HOST_V4}/32 dev lo`,
+  },);
+  await within({
+    guest: trio.guest,
+    line: `-6 addr del ${HOST_V6}/128 dev lo`,
+  },);
+}

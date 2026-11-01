@@ -29,6 +29,8 @@ import {
 import {
   addIpv6,
   buildTrio,
+  giveGuestHostAddresses,
+  takeGuestHostAddresses,
   HOST_V4,
   HOST_V6,
   OTHER_V4,
@@ -133,6 +135,10 @@ function fromGuest(
 
  @param family - `-4` or `-6`.
 
+ @param source - Source address to send from,
+ which the guest owns,
+ or nothing for the guest's own address.
+
  @returns What `probe` reports.
 
  @example
@@ -145,10 +151,12 @@ function guestPing(
     guest,
     address,
     family,
+    source,
   }: {
     readonly guest: Guest;
     readonly address: string;
-    readonly family: '-4' | '-6'
+    readonly family: '-4' | '-6';
+    readonly source?: string
   },
 ): Promise<Probed> {
   return fromGuest({
@@ -158,6 +166,10 @@ function guestPing(
       family,
       '-c1',
       `-W${PING_WAIT_SECONDS}`,
+      ...(source === undefined ? [] : [
+        '-I',
+        source,
+      ]),
       address,
     ],
   },);
@@ -326,6 +338,27 @@ const outputHostV6 = await routerPing({
   chain: 'output',
   address: HOST_V6,
 },);
+await giveGuestHostAddresses({ trio, },);
+/**
+ A forwarded packet whose source is the IPv4 update host, sent by the guest to an address that is not an update host.
+ The guest owns the address, so the source is forged.
+ */
+const forgedV4 = await guestPing({
+  guest,
+  address: OTHER_V4,
+  family: '-4',
+  source: HOST_V4,
+},);
+/**
+ The same for the IPv6 update host.
+ */
+const forgedV6 = await guestPing({
+  guest,
+  address: OTHER_V6,
+  family: '-6',
+  source: HOST_V6,
+},);
+await takeGuestHostAddresses({ trio, },);
 /**
  How many rules for the replies were taken out to put the block back as it was before they existed.
  This comes last because the connect below leaves a half-open connection on the outside,
@@ -375,6 +408,8 @@ process.stdout
     hostV6,
     otherV6,
     outputHostV6,
+    forgedV4,
+    forgedV6,
     removedReplyRules,
     connectWithoutReplyRules,
     connectWithReplyRules,

@@ -27,6 +27,12 @@ const DESTINATION_FAMILIES = [
 ] as const;
 
 /**
+ The match that restricts a rule to the reply direction of a tracked flow.
+ It comes before the address match of the rules for the packets from the update hosts.
+ */
+const REPLY_ONLY = 'ct direction reply ';
+
+/**
  The chains of the block that let the update hosts through.
  */
 export type BlockChain = 'output' | 'forward';
@@ -143,7 +149,7 @@ function hostRules(
         throw new TrafficBlockError(`${JSON.stringify(address,)} is not an IPv${String(version,)} address, so it cannot be let through the traffic block`,);
     }
     if (addresses.length > 0)
-      rules.push(`add rule inet ${table} ${chain} ${keyword} ${direction} { ${addresses.join(', ',)} } counter accept`,);
+      rules.push(`add rule inet ${table} ${chain} ${direction === 'saddr' ? REPLY_ONLY : ''}${keyword} ${direction} { ${addresses.join(', ',)} } counter accept`,);
   }
   return rules;
 }
@@ -194,16 +200,19 @@ export function hostAcceptRules(
 
 /**
  The rules that let the update hosts answer the guests behind this machine:
- a forwarded packet from one of the update-host addresses.
+ a forwarded packet from one of the update-host addresses that is a reply of a tracked flow.
  A guest's connection to an update host needs both directions through the forward chain,
  and a rule on the destination alone passes the request and drops every reply.
- The rule matches the source address,
- and not the state of the connection,
- because a rule on `established` would also pass the guests' flows that were bound for the tunnel once the routing is gone.
- A packet from an update host passes whether or not it answers a request,
- so a host at one of those addresses can also start a connection to a guest;
- that is the width of the rule,
- and the update hosts are the addresses the routing already sends around the tunnel.
+ A rule on the source address alone would pass any forwarded packet that carries an update host's address as its source,
+ whoever sent it: a guest that owns such an address could send anything anywhere through it.
+ The rule therefore matches `ct direction reply` as well:
+ only a packet that the connection tracker sees as the reply direction of a flow, which a guest's own packet is not,
+ and only from an update host.
+ It does not match the state of the connection (`established`),
+ which would also pass the guests' flows that were bound for the tunnel once the routing is gone.
+ A packet from an update host that starts a flow is the original direction of a new flow and is dropped.
+ A flow that was already running when the block was installed is known to the tracker only if the tracker was already running;
+ the rule needs the tracker, and nft turns it on for this namespace when the rule is loaded.
  They go into the forward chain only:
  the replies to this machine's own packets arrive through the input hook,
  which the block does not filter.
