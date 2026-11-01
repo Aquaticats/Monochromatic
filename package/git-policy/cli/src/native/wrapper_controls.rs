@@ -179,6 +179,10 @@ pub const CONTROL_SPELLINGS: &[ControlSpelling] = &[
         meaning: ControlMeaning::Escape(PolicyId::DependentVersionBump),
     },
     ControlSpelling {
+        flag: "--no-enforce-mono/catalog-specifiers",
+        meaning: ControlMeaning::Escape(PolicyId::CatalogSpecifiers),
+    },
+    ControlSpelling {
         flag: "--no-enforce-security/forbidden-strings",
         meaning: ControlMeaning::Escape(PolicyId::ForbiddenStrings),
     },

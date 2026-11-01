@@ -62,6 +62,8 @@ use super::policy_markdown::{MarkdownState, check_markdown, markdown_state};
 use super::policy_registry::PolicyId;
 /// The optional root-context check over candidates.
 use super::policy_root_context::check_root_context;
+/// The optional catalog-specifier check over candidates.
+use super::policy_catalog_specifiers::check_catalog_specifiers;
 /// The lifecycle points.
 use super::policy_trigger::Trigger;
 /// The facts interface every check asks.
@@ -468,6 +470,13 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     &self.candidates,
                     &mut self.facts,
                     trigger,
+                );
+            }
+            PolicyId::CatalogSpecifiers => {
+                return check_catalog_specifiers(
+                    &mut self.content,
+                    &self.candidates,
+                    &mut self.facts,
                 );
             }
             PolicyId::ForbiddenStrings => {

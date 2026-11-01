@@ -80,7 +80,8 @@ Read-only commands,
   `final-newline`,
    `markdown/autofix`,
    `mono/forbidden-root-context`,
-   `mono/dependent-version-bump` and
+   `mono/dependent-version-bump`,
+   `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
@@ -214,6 +215,20 @@ Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
 `--policy <id>` limits the run to one policy and may be repeated.
+A selected policy that is off stops the run with exit `2`,
+ because it would check nothing and read as clean:
+ a `config-invalid` event on standard output names the policy
+ and the `cli-git.config.jsonc` key that turns it on
+ (`"policies": { "<id>": "error" }`,
+ or the value the file now sets to `"off"`).
+This holds for the four older optional policies as well,
+ which used to exit `0` with no output in that case.
+A selected policy that is on but does not run for the command is refused the same way,
+ with the command that does run it:
+ `fix --policy mono/catalog-specifiers` stops with exit `2` and points to `check`.
+Without `--policy` an off policy is skipped without a word,
+ and so it is when a commit,
+ an add or a push runs.
 Events are JSON lines on standard output.
 
 `git cli-git doctor` takes no options.
@@ -481,6 +496,7 @@ The keys `plugins` and `trust` are refused.
     "markdown/autofix": ["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }],
     "mono/forbidden-root-context": "error",
     "mono/dependent-version-bump": "error",
+    "mono/catalog-specifiers": "error",
     "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }] }]
   },
   "hooks": { "concurrentCommits": false },
@@ -496,7 +512,9 @@ An unknown key,
 
 The wrapper ships these policies and no others.
 The first five run at their default severity without being listed.
-The last four run only where the file lists them.
+The last five run only where the file lists them.
+Listing one with a severity is the only way to turn it on,
+ and a configuration that does not name a policy behaves exactly as it did before the policy shipped.
 
 - `require-root`:
    default `error`.
@@ -524,6 +542,39 @@ The last four run only where the file lists them.
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+- `mono/catalog-specifiers`:
+   default `error`,
+   no options.
+  Every dependency in a tracked `package.json` is `catalog:`,
+   `catalog:<name>` or exactly `workspace:*`
+   (`peerDependencies` take `*`,
+   `catalog:` or `catalog:<name>`).
+  The rule belongs to the `monochromatic-catalog-specifier` crate,
+   whose README is its contract;
+   the policy hands it each candidate `package.json`'s bytes,
+   never the worktree's,
+   and reports its findings.
+  A tracked `package.json5`,
+   `package.yaml` or `package.yml` is a finding too,
+   reported by name without reading it.
+  The policy checks syntax only:
+   it looks up no catalog entry and does not read `pnpm-workspace.yaml`.
+  It runs when a commit is made,
+   when `git add` stages,
+   after a landed commit,
+   before a push,
+   and for `check`;
+   it proposes no correction,
+   so `fix` skips it.
+  The finding codes are `unsupported-manifest-format`,
+   `invalid-manifest`,
+   `malformed-section`,
+   `duplicate-key`,
+   `non-string-specifier` and `disallowed-specifier`.
+  A `warn` lets a literal version into the commit,
+   so it earns the unsafe-`warn` notice.
+  This repository's `cli-git.config.jsonc` does not list it yet,
+   so the policy is off here.
 - `security/forbidden-strings`:
    default `error`.
   Scans candidate bytes and path names with the linked scanner.

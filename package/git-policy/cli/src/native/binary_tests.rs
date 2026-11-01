@@ -135,6 +135,10 @@ mod known_content;
 #[path = "binary_event_path_commit_tests.rs"]
 mod event_path_commit;
 
+/// `mono/catalog-specifiers` through real commits and direct checks, and the repository's own configuration.
+#[path = "binary_catalog_specifiers_tests.rs"]
+mod catalog_specifiers;
+
 /// The linked-worktree ignored-state copy: the rules file reaches new worktrees, and an interrupted copy recovers.
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;

@@ -126,6 +126,7 @@ fn the_registry_splits_into_two_stages() {
             PolicyId::MarkdownAutofix,
             PolicyId::ForbiddenRootContext,
             PolicyId::DependentVersionBump,
+            PolicyId::CatalogSpecifiers,
             PolicyId::ForbiddenStrings,
         ]
     );

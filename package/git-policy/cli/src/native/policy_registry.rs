@@ -67,6 +67,9 @@ pub enum PolicyId {
     /// `mono/dependent-version-bump`:
     ///  dependent package versions follow a bumped package.
     DependentVersionBump,
+    /// `mono/catalog-specifiers`:
+    ///  every dependency in a package manifest is a catalog or workspace reference.
+    CatalogSpecifiers,
     /// `security/forbidden-strings`:
     ///  candidate bytes are scanned by the bundled scanner.
     ForbiddenStrings,
@@ -110,6 +113,8 @@ pub struct PolicyDescriptor {
     /// policies that plugins used to provide are off everywhere else,
     ///  with or without
     /// a configuration file (decided 2026-10-05).
+    ///  `mono/catalog-specifiers`, added afterwards, is optional the same way, so a configuration that does not
+    /// name it behaves as it did before the policy shipped.
     pub off_unless_listed: bool,
 }
 
@@ -125,7 +130,7 @@ pub struct PolicyDescriptor {
 ///  a borrowed
 ///       constant needs no allocation and cannot be reordered at runtime.
 ///       Every default is the incumbent policy definition's own `defaultSeverity`.
-///       The four formerly plugin-provided policies are additionally off unless the
+///       The four formerly plugin-provided policies, and `mono/catalog-specifiers`, are additionally off unless the
 ///       repository configuration names them,
 ///  because the incumbent only ran them in
 ///       repositories whose configuration registered their plugin.
@@ -199,6 +204,16 @@ pub const POLICY_REGISTRY: &[PolicyDescriptor] = &[
         accepts_options: false,
         off_unless_listed: true,
     },
+    // `warn_safe` is `false`: a `warn` lets a literal version into the commit, so it earns the unsafe-`warn` notice
+    // (as `mono/dependent-version-bump` and `security/forbidden-strings` do), unlike a policy whose `warn` still fixes.
+    PolicyDescriptor {
+        id: PolicyId::CatalogSpecifiers,
+        name: "mono/catalog-specifiers",
+        default_severity: Severity::Error,
+        warn_safe: false,
+        accepts_options: false,
+        off_unless_listed: true,
+    },
     PolicyDescriptor {
         id: PolicyId::ForbiddenStrings,
         name: "security/forbidden-strings",
@@ -225,7 +240,7 @@ pub const POLICY_REGISTRY: &[PolicyDescriptor] = &[
 pub fn policy_by_name(name: &str) -> Option<&'static PolicyDescriptor> {
     // What: `usize` is the index type of every Rust list (siblings `u32`, `i64`);
     //       `&POLICY_REGISTRY[index]` borrows one row without copying it.
-    // Why:  Nine rows make a linear scan cheaper than building a map, and an indexed
+    // Why:  Ten rows make a linear scan cheaper than building a map, and an indexed
     //       `while` loop needs no callback to stop at the first match.
     //
     // In TS you'd write (pseudocode):

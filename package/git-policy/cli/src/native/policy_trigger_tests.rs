@@ -47,7 +47,7 @@ fn triggers_print_their_wire_spelling() {
 /// Every shipped policy declares exactly the incumbent definition's triggers.
 #[test]
 fn every_policy_declares_the_incumbent_triggers() {
-    let expected: [(PolicyId, &[Trigger]); 9] = [
+    let expected: [(PolicyId, &[Trigger]); 10] = [
         (
             PolicyId::RequireRoot,
             &[Trigger::PreForward, Trigger::DirectCheck],
@@ -67,6 +67,15 @@ fn every_policy_declares_the_incumbent_triggers() {
                 Trigger::PreForward,
                 Trigger::DirectCheck,
                 Trigger::DirectFix,
+            ],
+        ),
+        (
+            PolicyId::CatalogSpecifiers,
+            &[
+                Trigger::PreForward,
+                Trigger::PostCommit,
+                Trigger::ManualPush,
+                Trigger::DirectCheck,
             ],
         ),
         (

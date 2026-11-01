@@ -51,11 +51,32 @@ Every policy is compiled into it;
 The built-in policies run at their default severity without being listed.
 The optional policies (`markdown/autofix`,
  `mono/forbidden-root-context`,
- `mono/dependent-version-bump` and
+ `mono/dependent-version-bump`,
+ `mono/catalog-specifiers` and
 `security/forbidden-strings`) run only where `cli-git.config.jsonc` lists them.
 A no-config invocation therefore runs the built-ins only.
 
 The forbidden-strings scanner is linked into the executable and needs no separate installation.
+`mono/catalog-specifiers` links the `monochromatic-catalog-specifier` crate the same way
+ (`package/catalog-specifier/core-rust`,
+ pinned to an exact version in `Cargo.toml`).
+The crate owns the grammar and the finding wording,
+ and the policy re-implements none of it:
+ it gives the crate each candidate `package.json`'s bytes from the candidate store
+ (never the worktree's),
+ and gives it only the path of any other candidate,
+ so the crate refuses `package.json5`,
+ `package.yaml` and `package.yml` by file name without a read.
+Candidates are matched on the last segment of the raw path bytes,
+ so a manifest below a directory whose name is not UTF-8 is still checked
+ and its finding carries the exact bytes.
+The policy runs on `pre-forward`,
+ `post-commit`,
+ `manual-push` and `direct-check`,
+ and proposes no correction.
+An executable that predates the policy refuses a configuration that lists it,
+ as for any unknown policy ID,
+ so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` executable,
  which must be on an absolute `PATH` entry.
 
@@ -271,6 +292,30 @@ Rules:
 Direct `check` and `fix` emit policy events on stdout.
 A configuration failure of `check` or `fix` emits one schema-version-one `engine-failure` event with code
 `config-invalid` on stdout and exits `2`.
+So does a `--policy` selection that names a policy whose effective severity is `off`,
+ because that run would check nothing and exit `0` with no output.
+The message names every such policy once,
+ in selection order,
+ with the `cli-git.config.jsonc` key and the severity that turns it on
+ (the policy's own default severity),
+ and the check happens after the configuration loads and before any candidate is prepared.
+Lifecycle runs
+ (a commit,
+ an add,
+ a push,
+ the post-commit check)
+ never refuse:
+ they skip policies that are off.
+A selected policy that is on but does not run for the command
+ (a policy with no `direct-fix` trigger selected by `fix`,
+ or a command policy such as `require-root` selected by `fix`)
+ is refused the same way,
+ because the run would check nothing and exit `0` with no output.
+The message names the command that does run it,
+ or, for a policy that runs for neither direct command,
+ says that it runs only when the Git command it guards is forwarded.
+A selection that mixes policies that run with ones that do not is refused for the ones that do not.
+The escape `--no-enforce-<policy>` written for a selected policy is not refused.
 
 ### Doctor
 
