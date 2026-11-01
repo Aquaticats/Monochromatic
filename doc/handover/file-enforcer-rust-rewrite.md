@@ -1186,6 +1186,31 @@ each finished branch is reviewed and merged into `main`):
   the switch agent and the reviewer each wrote a scratch `.sh` helper,
   against AGENTS.md SCR and 1CB;
   both rules are now quoted in `${HOME}/temp/agent/fe-rust/brief-common.md`.
+- Security monitor flag 2026-11-01 ("Credential Leakage") on the switch agent's final build:
+  checked without printing the value,
+  the owner's GitHub token (40 characters) does not appear in the agent's transcript
+  (it ran `gh auth token` into files),
+  and no token pattern is in the switch branch's new commits;
+  but it sat in `${HOME}/temp/agent/fe-rust/switch/docker-context-final2/.env.local` (mode 600)
+  and,
+  through the Dockerfile's `COPY . .` with no `.env*` in `.dockerignore`,
+  in a local image layer.
+  The agent was told to delete every copy and the image,
+  layers and cache,
+  report each removal,
+  and build with an empty `.env.local` from now on (the build installs from the lock's release-asset URLs).
+  The underlying Dockerfile and `.dockerignore` findings belong to the repo-review session
+  (`doc/handover/repo-review-2026-10-31.md`).
+- wg round 5 (tip `873d57d232`):
+  re-check clean (`shutdown.target` the only stop signal;
+  `=` paths refused as a service;
+  a failed stop reported;
+  quoted names cannot forge a cause).
+  Owner's answer 2026-11-01 on linked install roots:
+  "Refuse links"
+  (a toolchain folder that is a link is ignored and reported loudly at every start;
+  measured:
+  the owner's toolchain folders contain no links).
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
