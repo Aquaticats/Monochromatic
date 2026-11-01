@@ -6290,3 +6290,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the single writer), replaced by a lock-free mechanism, or kept with evidence. The list: push single-flight, landing
   and owner locks, leases, recovery locks, the index-lock wait and holder machinery, `worktree_copy_lock`. Exclusive
   create used as a one-time claim is not a lock.
+- 0.5.2 installed (lock `ea3d5c3599`, by this session; "1 installed, 64 unchanged, 0 failed"; `git --version` prints
+  0.5.2). Its first real commit provisioned the service: `cli-git.socket` listens at `/run/user/1000/cli-git/service.sock`,
+  and the units are in `/run/user/1000/systemd/user`. But `cli-git.service` never started (journal: no entries), and the
+  commit took the native path in 10.2 s including its push.
+  - Cause: the owner's global `~/.gitconfig` has `commit.gpgsign true` and `gpg.format ssh`. 4a declines
+    signing-required repositories, so every commit on this machine still uses the native path and its locks.
+  - Consequences: 4c (signing via the scratch dir) is what moves this machine onto the lock-free service, so it is
+    reordered before 4b-2. The wrapper should provision only when the service will be used. The latency agent
+    `ae5d0d69af19e9c8c` must measure signed commits.
+- Fuzz sidecar compile fix READY `e61c118579` (agent `a0a08ba8c0924f668`): `interpret_embedded_run` replaces the removed
+  function, the planted defects and copy lists were updated, and `lint:types` now checks all targets with `--locked`. The
+  agent is adding `[tasks.lint]`, copying `forbidden-strings/core.fuzz`, so the root lint reaches the sidecar. Merge after
+  that.
