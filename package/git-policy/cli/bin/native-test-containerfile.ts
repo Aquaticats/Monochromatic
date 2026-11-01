@@ -25,11 +25,13 @@ import {
 export const subjectCrate = 'git-policy/cli';
 
 /**
- Path crates the subject links, as directories below `package`: the JSONC crate, the scanner with its engine and
- the Markdown linter library.
+ Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate, the
+ scanner with its engine and the Markdown linter library.
+ `native-layered-build.unit.test.ts` checks this list against the path dependencies the manifests declare.
  */
 export const pathCrates = [
   'jsonc-edit/core-rust',
+  'catalog-specifier/core-rust',
   'forbidden-strings/cli',
   'forbidden-strings/core',
   'linter/monochromatic-lint',

@@ -1121,3 +1121,7 @@ pub mod work_item;
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]
 mod no_self_invocation_tests;
+
+/// The structural check that the review's network client is reachable only from the service run; never in the release build.
+#[cfg(test)]
+mod standards_review_boundary_tests;
