@@ -17,7 +17,7 @@ fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
     let said: &str = "! [rejected] main -> main (non-fast-forward)";
     let text: String = push_failure_text(BRANCH, COMMIT, said);
     assert!(text.contains("branch main"), "{text}");
-    assert!(text.contains(&COMMIT[..SHORT_COMMIT]), "{text}");
+    assert!(text.contains(COMMIT), "{text}");
     assert!(text.contains(said), "{text}");
     assert!(text.contains("saved in this repository"), "{text}");
     assert!(text.contains("`git push`"), "{text}");
@@ -156,4 +156,85 @@ fn machine_read_commands_are_told_from_human_ones() {
     }
     // After the separator a word is a name, never an option.
     assert!(!is_machine_read(b"log", &region(&["--", "-z"])));
+}
+
+/// The record names the commit as the asker's abbreviation gives it, and the text does not call it the reader's own.
+#[test]
+fn a_record_is_worded_with_the_askers_abbreviation() {
+    let root: PathBuf = fixture("push-failure-abbreviated");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit| { return commit[..12].to_string(); });
+    assert_eq!(shown, vec![push_failure_text(BRANCH, &COMMIT[..12], "rejected")]);
+    assert!(!shown[0].contains("your commit"), "{}", shown[0]);
+    assert!(!shown[0].contains(COMMIT), "{}", shown[0]);
+    remove(root.as_path());
+}
+
+/// A record is for the worktree that has its branch checked out; another worktree leaves it, and when no worktree has the
+///  branch any command takes it.
+#[test]
+fn a_record_waits_for_the_worktree_that_has_its_branch() {
+    let root: PathBuf = fixture("push-failure-worktrees");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, "rejected too").expect("record");
+    let all: Vec<String> = vec![BRANCH.to_string(), "refs/heads/other".to_string()];
+    let identity = |commit: &str| { return commit.to_string(); };
+    let elsewhere: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: all.clone() };
+    assert!(take_push_failures_for(root.as_path(), Some(&elsewhere), &identity).is_empty(), "both branches are held by other worktrees");
+    assert_eq!(std::fs::read_dir(notice_directory(root.as_path())).expect("directory").count(), 2, "nothing was taken");
+    let detached: Worktrees = Worktrees { here: None, all: all.clone() };
+    assert!(take_push_failures_for(root.as_path(), Some(&detached), &identity).is_empty());
+    let owner: Worktrees = Worktrees { here: Some(BRANCH.to_string()), all: all.clone() };
+    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    let nobody_holds: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: vec![BRANCH.to_string()] };
+    assert_eq!(
+        take_push_failures_for(root.as_path(), Some(&nobody_holds), &identity),
+        vec![push_failure_text("refs/heads/other", OTHER_COMMIT, "rejected too")],
+        "a branch no worktree holds is shown to anyone"
+    );
+    remove(root.as_path());
+}
+
+/// A record an earlier release wrote, which is finished text, is still shown, to anyone, and once.
+#[test]
+fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
+    let root: PathBuf = fixture("push-failure-earlier");
+    let directory: PathBuf = notice_directory(root.as_path());
+    std::fs::create_dir_all(&directory).expect("directory");
+    std::fs::write(directory.join(record_name(BRANCH, COMMIT)), "The backup push of branch main failed for your commit 0123456.\n").expect("record");
+    let nowhere: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: vec![BRANCH.to_string()] };
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), Some(&nowhere), &|commit| { return commit.to_string(); });
+    assert_eq!(shown, vec![String::from("The backup push of branch main failed for your commit 0123456.\n")]);
+    assert!(take_push_failures(root.as_path()).is_empty());
+    remove(root.as_path());
+}
+
+/// The credentials in Git's words never reach the file the service writes.
+#[test]
+fn the_record_on_disk_holds_no_credential() {
+    let root: PathBuf = fixture("push-failure-disk");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "fatal: unable to access 'https://user:s3cret@example.invalid/x'").expect("record");
+    for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten() {
+        let text: String = std::fs::read_to_string(entry.path()).expect("record");
+        assert!(!text.contains("s3cret") && !text.contains("user:"), "{text}");
+    }
+    remove(root.as_path());
+}
+
+/// Only the plain `ref:` line of a `HEAD` file names a branch, in the main worktree and in each linked one.
+#[test]
+fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
+    let root: PathBuf = fixture("push-failure-heads");
+    std::fs::write(root.join("HEAD"), "ref: refs/heads/main\n").expect("main head");
+    assert_eq!(branch_of_head(root.as_path()), Some(String::from("refs/heads/main")));
+    for (name, head) in [("linked-a", "ref: refs/heads/feature/a\n"), ("detached", "0123456789abcdef0123456789abcdef01234567\n"), ("tag", "ref: refs/tags/v1\n")] {
+        let directory: PathBuf = root.join("worktrees").join(name);
+        std::fs::create_dir_all(&directory).expect("directory");
+        std::fs::write(directory.join("HEAD"), head).expect("head");
+    }
+    let mut branches: Vec<String> = checked_out_branches(root.as_path());
+    branches.sort();
+    assert_eq!(branches, vec![String::from("refs/heads/feature/a"), String::from("refs/heads/main")]);
+    assert_eq!(branch_of_head(root.join("missing").as_path()), None);
+    remove(root.as_path());
 }

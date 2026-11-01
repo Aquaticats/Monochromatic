@@ -1270,6 +1270,9 @@ pub mod service_pruned;
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
+/// The words that say how to change the push deadline, for the terminal and for the resident commit service.
+pub mod push_deadline_advice;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

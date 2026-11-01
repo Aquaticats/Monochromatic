@@ -1,12 +1,15 @@
 //! What:
 //!  The record of a backup push that failed after its commit was saved, and the rule for when the wrapper shows it:
-//!  the resident service writes one record per failed push, any later wrapper command in the repository shows each
-//!  record once on standard error, and a later push of the same branch that succeeds removes the records of that branch.
+//!  the resident service writes one record per failed push, a later wrapper command shows each record once on standard
+//!  error in the worktree that has the record's branch checked out (in any worktree when none has it), and a later push
+//!  of the same branch that succeeds removes the records of that branch.
 //! Why:
 //!  The push runs in the service after the commit command returned, so nothing is attached to the command that could
 //!  print its failure; without a record the person would never learn that their backup push was refused
 //!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). Records are plain files in the common Git
-//!  directory so the check on every command is one directory read that finds nothing when nothing failed. Records are
+//!  directory so the check on every command is one directory read that finds nothing when nothing failed. A record holds
+//!  the branch, the whole commit name and Git's words with credentials already masked; the wrapper words the notice when it
+//!  shows it, so the commit name is abbreviated the way Git abbreviates it in the repository as it is then. Records are
 //!  shown on standard error only, and not at all to a command whose output a program reads (`--porcelain`, `-z`,
 //!  plumbing), so that program neither sees the text in its output nor consumes the record before a person can read it.
 //!
@@ -19,6 +22,7 @@ use super::auto_push::PUSH_FAILED_NOTE;
 use super::auto_push_branch_key::encode_branch_key;
 use super::lfs_output_mask::mask_userinfo_text;
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use super::service_messages::RESTART_COMMAND;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -35,8 +39,12 @@ const LONGEST_KEY: usize = 100;
 /// The most bytes of Git's own words a record keeps.
 const LONGEST_REASON: usize = 4000;
 
-/// How many characters of the commit name a record shows.
-const SHORT_COMMIT: usize = 7;
+/// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
+const RECORD_MAGIC: &str = "cli-git push notice 1";
+
+/// The field names of a record's header lines.
+const BRANCH_FIELD: &str = "branch: ";
+const COMMIT_FIELD: &str = "commit: ";
 
 /// Said when Git gave no words at all.
 const NO_REASON: &str = "Git gave no reason.";
@@ -104,38 +112,51 @@ pub fn clean_reason(said: &str) -> String {
 }
 
 /// What:
-///  The text shown for a failed backup push.
+///  The text shown for a failed backup push, with the commit named as given and Git's words already cleaned.
 /// Why:
 ///   It names the branch and the commit, gives Git's own reason, says the commit is safe on this computer, and says what to
 ///  do; the service runs with its own settings, which is the first thing to check when a push that works in a terminal
-///  fails here.
+///  fails here. The command that shows it may be anyone's, so it never calls the commit the reader's own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pushFailureText({ branchRef, commit, said })
+/// worded({ branchRef, shown, reason })
 /// ```
-pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
-    let short: &str = commit.get(..SHORT_COMMIT).unwrap_or(commit);
+fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    let reason: String = clean_reason(said);
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
         format!("Git said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
     };
     return format!(
-        "The backup push of branch {branch} failed for your commit {short}, so that commit exists only on this computer for now. \
+        "The backup push of branch {branch} failed for commit {shown}, so that commit exists only on this computer for now. \
          It is saved in this repository and nothing was lost.\n{detail}\n\
          Fix what Git names, then run `git push`. If it says the remote has commits you do not have, run `git pull` first. \
          The commit service runs with its own settings, not your terminal's, so a push that works in your terminal can \
-         fail here when it needs a variable only your terminal has.\n{PUSH_FAILED_NOTE}"
+         fail here when it needs a variable only your terminal has; give the service such a variable with \
+         `systemctl --user set-environment NAME=value` and then `{RESTART_COMMAND}`.\n{PUSH_FAILED_NOTE}"
     );
+}
+
+/// What:
+///  The text shown for a failed backup push, from Git's raw words.
+/// Why:
+///   The commit is named as the caller gives it, so a caller that has the repository passes Git's own abbreviation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pushFailureText({ branchRef, commit, said })
+/// ```
+pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
+    return worded(branch_ref, commit, clean_reason(said).as_str());
 }
 
 /// What:
 ///  Leaves the record of one failed push, replacing an earlier record of the same commit on the same branch.
 /// Why:
 ///   The name is derived from the branch and the commit, so a push that is tried again and fails again leaves one record.
+///  The reason is cleaned before it is written, so no credential reaches the disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,8 +168,22 @@ pub fn record_push_failure(common_dir: &Path, branch_ref: &str, commit: &str, sa
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
     let _removed = std::fs::remove_file(path.as_path());
-    let text: String = push_failure_text(branch_ref, commit, said);
+    let text: String = format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
     return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+}
+
+/// The branch, the commit and the cleaned reason of a record written by this release.
+fn parse_record(text: &str) -> Option<(&str, &str, &str)> {
+    let mut lines = text.splitn(5, '\n');
+    if lines.next()? != RECORD_MAGIC {
+        return None;
+    }
+    let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
+    let commit: &str = lines.next()?.strip_prefix(COMMIT_FIELD)?;
+    if !lines.next()?.is_empty() {
+        return None;
+    }
+    return Some((branch, commit, lines.next().unwrap_or("")));
 }
 
 /// What:
@@ -170,28 +205,103 @@ pub fn clear_push_failures(common_dir: &Path, branch_ref: &str) {
     }
 }
 
+/// Where the worktrees of a repository stand: the branch the asking worktree has checked out and every branch any
+///  worktree has checked out.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Worktrees {
+    /// The branch reference the command's worktree has checked out; nothing for a detached head or an unknown worktree.
+    pub here: Option<String>,
+    /// The branch references checked out in every worktree of the repository.
+    pub all: Vec<String>,
+}
+
 /// What:
-///  Reads and removes the repository's records, oldest name first.
+///  The branch reference a `HEAD` file names, or nothing for a detached head or an unreadable file.
 /// Why:
-///   A record is shown once. When nothing failed the notice directory does not exist, and this is one directory read.
+///   Only the plain `ref: refs/heads/<name>` form names a branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// branchOfHead(gitDir)
+/// ```
+pub fn branch_of_head(git_dir: &Path) -> Option<String> {
+    let text: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let target: &str = text.lines().next()?.strip_prefix("ref: ")?.trim();
+    return target.starts_with("refs/heads/").then(|| { return target.to_string(); });
+}
+
+/// What:
+///  The branches checked out in the repository's worktrees: the main one and each linked one.
+/// Why:
+///   A linked worktree keeps its own `HEAD` under `worktrees/<name>`; the main worktree's is the common directory's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// checkedOutBranches(commonDir)
+/// ```
+pub fn checked_out_branches(common_dir: &Path) -> Vec<String> {
+    let mut branches: Vec<String> = branch_of_head(common_dir).into_iter().collect();
+    if let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) {
+        for entry in listing.flatten() {
+            branches.extend(branch_of_head(entry.path().as_path()));
+        }
+    }
+    return branches;
+}
+
+/// Whether a record of `branch_ref` is for the asking worktree: it has the branch checked out, or no worktree has.
+fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
+    return worktrees.here.as_deref() == Some(branch_ref) || !worktrees.all.iter().any(|held| { return held == branch_ref; });
+}
+
+/// What:
+///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given), oldest name
+///  first, worded with the commit named by `abbreviate`.
+/// Why:
+///   A record is shown once, to the worktree whose commit it is about; another worktree's command leaves it where it is.
+///  When nothing failed the notice directory does not exist, and this is one directory read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const texts = await takePushFailuresFor(commonDir, worktrees, abbreviate)
+/// ```
+pub fn take_push_failures_for(common_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return Vec::new() };
+    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
+    paths.sort();
+    let mut texts: Vec<String> = Vec::new();
+    for path in paths {
+        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        let parsed: Option<(&str, &str, &str)> = parse_record(text.as_str());
+        if let (Some((branch, _, _)), Some(asking)) = (parsed, worktrees)
+            && !is_for(asking, branch)
+        {
+            continue;
+        }
+        // The record is removed before its text is used, so two commands that start together cannot both show it.
+        if std::fs::remove_file(path.as_path()).is_err() {
+            continue;
+        }
+        texts.push(match parsed {
+            Some((branch, commit, reason)) => worded(branch, abbreviate(commit).as_str(), reason),
+            // The finished text an earlier release wrote.
+            None => text,
+        });
+    }
+    return texts;
+}
+
+/// What:
+///  Reads and removes every record, with each commit named in full.
+/// Why:
+///   The service's own controls and a repository with no worktree to ask need all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const texts = await takePushFailures(commonDir)
 /// ```
 pub fn take_push_failures(common_dir: &Path) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
-    paths.sort();
-    let mut texts: Vec<String> = Vec::new();
-    for path in paths {
-        // The record is removed before its text is used, so two commands that start together cannot both show it.
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
-        if std::fs::remove_file(path.as_path()).is_ok() {
-            texts.push(text);
-        }
-    }
-    return texts;
+    return take_push_failures_for(common_dir, None, &|commit| { return commit.to_string(); });
 }
 
 /// Commands that a program reads the output of, or that carry a protocol on their streams.
