@@ -4908,3 +4908,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Open question sent to `monochromatic-6e`: `FORBIDDEN_STRINGS_RULES` (required `forbidden-strings.append.txt` plus
   optional `forbidden-strings.append.local.txt?`) is no longer set in `mise.toml`; the wrapper's own scan is unaffected
   because `cli-git.config.jsonc` `rulesFile` still lists both files.
+
+### Correction: `FORBIDDEN_STRINGS_RULES` was moved, not dropped
+
+- The previous section's open question was wrong. At `d2036021e2` the variable is set in
+  `.config/mise/conf.d/20-env.toml:59` with the same value as before, and `mise env --shell bash` in the main checkout
+  exports both files (the local one optional). My search skipped it because `rg` ignores hidden folders by default; use
+  `--hidden` when searching for configuration under `.config/` (rule QRY: a search that finds nothing proves nothing until
+  its reach is checked). Nothing needs to change.
