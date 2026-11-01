@@ -10,6 +10,7 @@ import {
   runSudo,
   runSudoAllowingFailure,
   runWgQuickerCli,
+  stageWgQuickerCli,
   type BypassFixture,
   writeRootFixtureFile,
 } from './tunnel-bypass-command-fixture.ts';
@@ -596,12 +597,19 @@ await writeRootFixtureFile({
   ].join('\n',),
 },);
 /**
+ One staged copy of the CLI for the whole lifecycle:
+ the watcher check compares the exact path of the watcher script,
+ so the copy that brought the tunnel up is the copy that takes it down.
+ */
+await using stagedCli = await stageWgQuickerCli();
+/**
  Captured activation with configured mark and no missing-mark warning.
  */
 const cliActivation = await runWgQuickerCli({
   fixture,
   operation: 'up',
   configPath,
+  staged: stagedCli,
 },);
 assert.equal(cliActivation.stderr.includes('has no ExemptMark',), false,);
 assert.ok((await runNamespaceIp({ fixture, args: ['link', 'show', 'dev', 'wgtest',], },)).includes('wgtest',));
@@ -625,6 +633,7 @@ await runWgQuickerCli({
   fixture,
   operation: 'down',
   configPath,
+  staged: stagedCli,
 },);
 assert.notEqual((await runSudoAllowingFailure({ args: ['ip', 'netns', 'exec', fixture.namespace, 'ip', 'link', 'show', 'dev', 'wgtest',], },)).exitCode, 0,);
 assert.notEqual((await runSudoAllowingFailure({ args: ['test', '-e', fixture.statePath,], },)).exitCode, 0,);

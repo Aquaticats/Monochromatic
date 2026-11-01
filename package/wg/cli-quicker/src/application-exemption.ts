@@ -376,8 +376,11 @@ export async function startExemptionsOrAbort(
  
  @returns Success or nothing to stop,
  or the report saying why the watcher could not be stopped.
- A missing companion does not throw,
- so tearing the tunnel down is never blocked by it.
+ A missing companion does not throw;
+ the caller decides what it means.
+ `down` treats it as a failed step,
+ because a watcher started earlier may still run,
+ and the rollback of a failed `up` does not.
  
  @example
  ```ts

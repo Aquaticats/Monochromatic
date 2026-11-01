@@ -351,6 +351,64 @@ await describe({
       },
     },),
     it({
+      name: 'retries in five seconds, still loudly, when every lookup timed out, and keeps the usual delay for every other failure',
+      fn: async () => {
+        /**
+         An error the resolver raises when it does not answer in time.
+         */
+        const timeout = Object.assign(new Error('/run/systemd/resolve/io.systemd.Resolve did not finish answering within 10000 ms',), { resolverTimeout: true, },);
+        /**
+         Outcome when all three lookups time out.
+         */
+        const silent = await syncUpdateHostRules({
+          state: STATE,
+          hosts: ['github.com', 'nodejs.org', 'crates.io',],
+          lookup: () => Promise.reject(timeout,),
+          tools: fakeTools().tools,
+          absentCounts: new Map(),
+        },);
+        expect(silent.nextRefreshSeconds,).toBe(5,);
+        expect(silent.failures,).toHaveLength(3,);
+        expect(hostSyncFailureText({ report: silent, },),).toContain('until the next refresh in 5 s',);
+        /**
+         Outcome when the lookups fail for another reason.
+         */
+        const broken = await syncUpdateHostRules({
+          state: STATE,
+          hosts: ['github.com', 'nodejs.org',],
+          lookup: () => Promise.reject(new Error('resolver down',),),
+          tools: fakeTools().tools,
+          absentCounts: new Map(),
+        },);
+        expect(broken.nextRefreshSeconds,).toBe(30,);
+        /**
+         Outcome when one host answers and the others time out.
+         */
+        const partial = await syncUpdateHostRules({
+          state: STATE,
+          hosts: ['github.com', 'nodejs.org',],
+          lookup: ({ host, },) => host === 'nodejs.org'
+            ? Promise.reject(timeout,)
+            : Promise.resolve({ addresses: [{ family: '-4', address: '185.199.108.133', ttlSeconds: 120, },], },),
+          tools: fakeTools().tools,
+          absentCounts: new Map(),
+        },);
+        expect(partial.nextRefreshSeconds,).toBe(120,);
+        expect(partial.failures,).toHaveLength(1,);
+        /**
+         Outcome when there is no host to ask.
+         */
+        const nothing = await syncUpdateHostRules({
+          state: STATE,
+          hosts: [],
+          lookup: () => Promise.reject(timeout,),
+          tools: fakeTools().tools,
+          absentCounts: new Map(),
+        },);
+        expect(nothing.nextRefreshSeconds,).toBe(30,);
+      },
+    },),
+    it({
       name: 'keeps existing rules through a DNS outage for one refresh and says nothing is wrong when answers are clean',
       fn: async () => {
         const { tools, operations, } = fakeTools();

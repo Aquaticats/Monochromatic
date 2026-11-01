@@ -1,12 +1,16 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { isResolverTimeout, } from './errors.ts';
 import { refreshSeconds, } from './host-address.ts';
 import {
   filterHostAnswers,
   type HostAnswer,
   type WantedRule,
 } from './host-answer-filter.ts';
-import { MAX_CONCURRENT_IP_COMMANDS, } from './host-rule-limits.data.ts';
+import {
+  ALL_LOOKUPS_TIMED_OUT_RETRY_SECONDS,
+  MAX_CONCURRENT_IP_COMMANDS,
+} from './host-rule-limits.data.ts';
 import { mapInChunks, } from './map-in-chunks.ts';
 import {
   type HostLookup,
@@ -95,6 +99,7 @@ function lookupAll(
         result: {
           addresses: [],
           failure: `lookup of ${host} threw: ${String(error,)}`,
+          ...(isResolverTimeout({ error, },) ? { timedOut: true, } : {}),
         },
       };
     }
@@ -223,6 +228,24 @@ function smallestTtl({ wanted, }: { readonly wanted: readonly WantedRule[]; },):
 }
 
 /**
+ Tells whether the lookup of a host ended because the resolver did not answer in time.
+
+ @param answer - The answer for one host.
+
+ @returns Whether it timed out.
+
+ @example
+ ```ts
+ didTimeOut({ host: 'crates.io', result: { addresses: [], timedOut: true } }); // true
+ ```
+ */
+function didTimeOut(answer: HostAnswer,): boolean {
+  return answer.result
+    .timedOut
+    === true;
+}
+
+/**
  Reconciles the update-host rules with current DNS answers.
 
  Nothing here throws or invents a fallback:
@@ -281,15 +304,24 @@ export async function syncUpdateHostRules(
     l,
   },);
   /**
+   One answer per host.
+   */
+  const answers = await lookupAll({
+    hosts,
+    lookup,
+  },);
+  /**
    Rules wanted now and the problems met while deriving them.
    */
   const filtered = filterHostAnswers({
-    answers: await lookupAll({
-      hosts,
-      lookup,
-    },),
+    answers,
     protectedKeys,
   },);
+  /**
+   Whether not one lookup was answered in time,
+   which is a resolver that is not answering yet and not a problem with a host.
+   */
+  const everyLookupTimedOut = (answers.length > 0) && answers.every(didTimeOut,);
   /**
    Rules installed now.
    */
@@ -346,7 +378,9 @@ export async function syncUpdateHostRules(
     added: applied.added,
     removed: applied.removed,
     failures,
-    nextRefreshSeconds: refreshSeconds({ ttlSeconds: smallestTtl({ wanted: filtered.wanted, },), },),
+    nextRefreshSeconds: everyLookupTimedOut
+      ? ALL_LOOKUPS_TIMED_OUT_RETRY_SECONDS
+      : refreshSeconds({ ttlSeconds: smallestTtl({ wanted: filtered.wanted, },), },),
   };
 }
 

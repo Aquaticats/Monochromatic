@@ -1,11 +1,18 @@
 //! Verifies the `busctl` arguments,
-//! the confirmation and failure paths against a fake client,
+//! the choice between creating a scope and attaching to it,
+//! the confirmation and failure paths,
+//! and the stop of a scope that stayed empty,
+//! against a fake manager that changes a fake procfs and a fake cgroup tree,
 //! and the real manager in an ignored test.
 
 /// The limits a scope carries.
-use crate::inherited_limits::InheritedLimits;
+use crate::inherited_limits::{DeviceLimits, InheritedLimits};
 /// Adoption under test.
-use crate::scope_adoption::{adopt_arguments, ensure_slice_arguments, AdoptError, AdoptRequest, Adopter, BusctlAdopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, BusctlAdopter, Joined, LimitRequest};
+/// The arguments under test.
+use crate::scope_calls::{attach_arguments, create_arguments, ensure_slice_arguments, set_properties_arguments, stop_arguments};
+/// Where a scope lives.
+use crate::scope_naming::scope_cgroup_directory;
 /// The client the adopter runs.
 use crate::user_client::UserClient;
 /// Executable mode for the fake client.
@@ -15,14 +22,29 @@ use std::path::{Path, PathBuf};
 /// Bounded waits.
 use std::time::{Duration, Instant};
 
-/// Slice used by the arguments tests.
+/// Slice used by the tests.
 const SLICE: &str = "app-monochromatic\\x2dupdates.slice";
+/// Scope used by the tests.
+const SCOPE: &str = "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope";
 
-/// The adoption call carries the scope name,
-/// the slice and every pid in the `au` array.
+/// The limits of the cgroup the processes left,
+/// all of the kinds a scope carries.
+fn all_limits() -> InheritedLimits {
+    return InheritedLimits {
+        cpu_quota_per_sec_usec: Some(8_000_000),
+        memory_max: Some(1_073_741_824),
+        tasks_max: Some(500),
+        io_weight: Some(10),
+        ..InheritedLimits::default()
+    };
+}
+
+/// A new scope is created delegated,
+/// collected when it stops,
+/// and with the limits as typed properties that the property count covers.
 #[test]
-fn the_adoption_arguments_follow_busctl_syntax() {
-    let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10, 11], &InheritedLimits::default());
+fn the_create_arguments_follow_busctl_syntax() {
+    let arguments = create_arguments(SCOPE, SLICE, &[10, 11], &InheritedLimits::default());
     assert_eq!(
         arguments,
         [
@@ -33,9 +55,9 @@ fn the_adoption_arguments_follow_busctl_syntax() {
             "org.freedesktop.systemd1.Manager",
             "StartTransientUnit",
             "ssa(sv)a(sa(sv))",
-            "wg-quicker-update-10.scope",
+            SCOPE,
             "fail",
-            "3",
+            "5",
             "Slice",
             "s",
             SLICE,
@@ -47,22 +69,86 @@ fn the_adoption_arguments_follow_busctl_syntax() {
             "Description",
             "s",
             "wg-quicker update traffic that bypasses the tunnel",
+            "Delegate",
+            "b",
+            "true",
+            "CollectMode",
+            "s",
+            "inactive-or-failed",
             "0",
         ]
     );
+    let limited = create_arguments(SCOPE, SLICE, &[10], &all_limits());
+    assert_eq!(limited[9], "9");
+    for (name, value) in [("CPUQuotaPerSecUSec", "8000000"), ("MemoryMax", "1073741824"), ("TasksMax", "500"), ("IOWeight", "10")] {
+        assert!(limited.windows(3).any(|window| return window == [name, "t", value]), "{name}");
+    }
+    assert_eq!(limited.last().map(String::as_str), Some("0"));
 }
 
-/// The limits of the cgroup the process left become typed properties of the scope,
-/// and the property count covers them.
+/// Attaching names the unit,
+/// passes an empty subgroup,
+/// and lists the pids.
 #[test]
-fn the_limits_become_scope_properties() {
-    let limits = InheritedLimits { cpu_quota_per_sec_usec: Some(8_000_000), memory_max: Some(1_073_741_824), ..InheritedLimits::default() };
-    let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10], &limits);
-    let properties = 3 + limits.properties().len();
-    assert_eq!(arguments[9], properties.to_string(), "Slice, PIDs and Description plus every carried limit");
-    assert!(arguments.windows(3).any(|window| return window == ["CPUQuotaPerSecUSec", "t", "8000000"]));
-    assert!(arguments.windows(3).any(|window| return window == ["MemoryMax", "t", "1073741824"]));
-    assert_eq!(arguments.last().map(String::as_str), Some("0"));
+fn the_attach_arguments_name_the_unit_and_the_pids() {
+    let arguments = attach_arguments(SCOPE, &[10, 11]);
+    assert_eq!(arguments[5], "AttachProcessesToUnit");
+    assert_eq!(arguments[6], "ssau");
+    assert_eq!(arguments[7..], [SCOPE, "", "2", "10", "11"]);
+}
+
+/// A limit change sends every limit,
+/// the unlimited and default ones as explicit values,
+/// because a property left out would keep its old value on the live scope.
+#[test]
+fn the_limit_change_sends_every_limit_with_unlimited_for_the_absent_ones() {
+    let arguments = set_properties_arguments(SCOPE, &InheritedLimits { cpu_quota_per_sec_usec: Some(250_000), ..InheritedLimits::default() });
+    assert_eq!(arguments[5], "SetUnitProperties");
+    assert_eq!(arguments[6], "sba(sv)");
+    assert_eq!(arguments[7..10], [SCOPE, "true", "10"]);
+    let unlimited = u64::MAX.to_string();
+    for (name, value) in [
+        ("CPUQuotaPerSecUSec", "250000"),
+        ("MemoryMax", unlimited.as_str()),
+        ("MemoryHigh", unlimited.as_str()),
+        ("MemorySwapMax", unlimited.as_str()),
+        ("TasksMax", unlimited.as_str()),
+        ("IOWeight", "100"),
+    ] {
+        assert!(arguments.windows(3).any(|window| return window == [name, "t", value]), "{name}");
+    }
+}
+
+/// The limits `io.max` sets per device are sent as arrays of device path and number,
+/// with the property count covering each non-empty kind on a new scope,
+/// and all four kinds on a live scope,
+/// an empty one clearing that kind.
+#[test]
+fn per_device_limits_are_sent_as_arrays_of_device_paths_and_numbers() {
+    let mut limits = InheritedLimits::default();
+    limits.io_devices.insert("259:0".to_string(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
+    limits.io_devices.insert("8:0".to_string(), DeviceLimits { read_bandwidth: Some(2_097_152), ..DeviceLimits::default() });
+    let created = create_arguments(SCOPE, SLICE, &[10], &limits);
+    assert_eq!(created[9], "7", "five fixed properties and two kinds of device limit");
+    let read_at = created.iter().position(|argument| return argument == "IOReadBandwidthMax").expect("the read bandwidth property");
+    assert_eq!(created[read_at..read_at + 7], ["IOReadBandwidthMax", "a(st)", "2", "/dev/block/259:0", "1048576", "/dev/block/8:0", "2097152"]);
+    let iops_at = created.iter().position(|argument| return argument == "IOWriteIOPSMax").expect("the write iops property");
+    assert_eq!(created[iops_at..iops_at + 5], ["IOWriteIOPSMax", "a(st)", "1", "/dev/block/259:0", "500"]);
+    assert!(!created.iter().any(|argument| return argument == "IOWriteBandwidthMax" || argument == "IOReadIOPSMax"), "a kind no device has is left out of a new scope");
+    let live = set_properties_arguments(SCOPE, &limits);
+    assert_eq!(live[9], "10");
+    let live_at = live.iter().position(|argument| return argument == "IOWriteBandwidthMax").expect("the write bandwidth property");
+    assert_eq!(live[live_at..live_at + 3], ["IOWriteBandwidthMax", "a(st)", "0"], "an empty array clears the kind on a live scope");
+    let cleared = set_properties_arguments(SCOPE, &InheritedLimits::default());
+    assert_eq!(cleared.iter().filter(|argument| return argument.as_str() == "a(st)").count(), 4);
+}
+
+/// Stopping names the unit and replaces a queued job.
+#[test]
+fn the_stop_arguments_name_the_unit() {
+    let arguments = stop_arguments(SCOPE);
+    assert_eq!(arguments[5], "StopUnit");
+    assert_eq!(arguments[7..], [SCOPE, "replace"]);
 }
 
 /// The slice call has one property and no auxiliary units.
@@ -77,55 +163,122 @@ fn the_slice_arguments_name_the_slice_with_one_property() {
     assert_eq!(arguments.len(), first_property + 3 * property_count + 1, "the property list and the aux unit count decide the rest");
 }
 
-/// Writes an executable fake `busctl` that appends its arguments to a log,
-/// optionally moves a fake pid into the slice,
-/// optionally removes the fake process,
-/// and exits with `code`.
-fn fake_busctl(directory: &Path, proc_dir: &Path, move_pid: bool, remove_process: bool, code: i32) -> PathBuf {
-    let path = directory.join("busctl");
-    let log = directory.join("log");
-    let cgroup_file = proc_dir.join("cgroup");
-    let moving = if move_pid {
-        format!("printf '%s\\n' '0::/user.slice/user-1000.slice/user@1000.service/app.slice/{SLICE}/x.scope' > '{}'\n", cgroup_file.display())
-    } else {
-        String::new()
-    };
-    let removing = if remove_process { format!("rm -r '{}'\n", proc_dir.display()) } else { String::new() };
-    let body = format!(
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\nprintf 'env=%s\\n' \"$XDG_RUNTIME_DIR\" >> '{}'\n{moving}{removing}echo 'boom' >&2\nexit {code}\n",
-        log.display(),
-        log.display()
+/// What the fake manager does for each call it is given,
+/// as shell snippets run after the call is logged.
+struct Manager {
+    /// For `StartTransientUnit`.
+    create: String,
+    /// For `AttachProcessesToUnit`.
+    attach: String,
+    /// For `SetUnitProperties`.
+    set_properties: String,
+}
+
+/// Paths of the fake process and the fake scope that a behavior may change.
+struct Paths {
+    /// The fake directory of pid 77 in the fake procfs.
+    process_directory: PathBuf,
+    /// The fake cgroup file of pid 77.
+    process_cgroup: PathBuf,
+    /// The fake directory of the scope in the fake cgroup tree.
+    scope_directory: PathBuf,
+}
+
+/// The default fake manager that accepts every call and changes nothing.
+fn accepting() -> Manager {
+    return Manager { create: "exit 0".to_string(), attach: "exit 0".to_string(), set_properties: "exit 0".to_string() };
+}
+
+/// A fake manager that accepts every call.
+fn accepting_all(_paths: &Paths) -> Manager {
+    return accepting();
+}
+
+/// Fixture of one test.
+struct Place {
+    /// The adopter under test.
+    adopter: BusctlAdopter,
+    /// The log of the calls the fake manager received.
+    log: PathBuf,
+    /// The paths a behavior may change.
+    paths: Paths,
+}
+
+/// Shell that moves pid 77 into the slice.
+fn moves(paths: &Paths) -> String {
+    return format!(
+        "printf '%s\\n' '0::/user.slice/user-1000.slice/user@1000.service/app.slice/{SLICE}/{SCOPE}' > '{}'",
+        paths.process_cgroup.display()
     );
-    std::fs::write(&path, body).expect("write the fake");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("make the fake executable");
-    return path;
 }
 
-/// What one fake client does.
-struct Behavior {
-    /// Whether the fake moves the pid into the slice.
-    move_pid: bool,
-    /// Whether the fake removes the process directory.
-    remove_process: bool,
-    /// The exit code.
-    code: i32,
+/// Shell that makes the scope's cgroup directory with the given populated state.
+fn makes_scope(paths: &Paths, populated: bool) -> String {
+    let flag = if populated { 1 } else { 0 };
+    let directory = paths.scope_directory.display();
+    return format!("mkdir -p '{directory}' && printf 'populated {flag}\\nfrozen 0\\n' > '{directory}/cgroup.events'");
 }
 
-/// Builds an adopter around the fake client and a fake procfs with one pid.
-fn adopter_with(name: &str, behavior: &Behavior) -> (BusctlAdopter, PathBuf, PathBuf) {
+/// Shell that makes an empty scope and moves pid 77 into it.
+fn makes_scope_and_moves(paths: &Paths, populated: bool) -> String {
+    return format!("{} && {}", makes_scope(paths, populated), moves(paths));
+}
+
+/// Builds the fixture:
+/// a fake `busctl` that logs its arguments and then does what `manager` says,
+/// a fake procfs with one live pid,
+/// and an empty fake cgroup tree.
+fn place(name: &str, manager: &dyn Fn(&Paths) -> Manager) -> Place {
     let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-adopt-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&directory);
     let proc_root = directory.join("proc");
+    let cgroup_root = directory.join("cgroup");
     std::fs::create_dir_all(proc_root.join("77")).expect("make the fake procfs");
-    let cgroup_file = proc_root.join("77/cgroup");
-    std::fs::write(&cgroup_file, "0::/user.slice/user-1000.slice/user@1000.service/app.slice/old.scope\n").expect("write cgroup");
-    let program = fake_busctl(&directory, &proc_root.join("77"), behavior.move_pid, behavior.remove_process, behavior.code);
+    std::fs::create_dir_all(&cgroup_root).expect("make the fake cgroup tree");
+    let process_cgroup = proc_root.join("77/cgroup");
+    std::fs::write(&process_cgroup, "0::/user.slice/user-1000.slice/user@1000.service/app.slice/old.scope\n").expect("write cgroup");
+    std::fs::write(proc_root.join("77/stat"), stat_text("S", 0)).expect("write a live stat");
+    let (uid, _gid) = own_ids();
+    let paths = Paths {
+        process_directory: proc_root.join("77"),
+        process_cgroup,
+        scope_directory: scope_cgroup_directory(&cgroup_root, uid, SLICE, SCOPE),
+    };
+    let behavior = manager(&paths);
+    let log = directory.join("log");
+    let body = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{log}'\nprintf 'env=%s\\n' \"$XDG_RUNTIME_DIR\" >> '{log}'\ncase \"$*\" in\n*StartTransientUnit*) {create} ;;\n*AttachProcessesToUnit*) {attach} ;;\n*SetUnitProperties*) {set_properties} ;;\nesac\nexit 0\n",
+        log = log.display(),
+        create = behavior.create,
+        attach = behavior.attach,
+        set_properties = behavior.set_properties,
+    );
+    let program = directory.join("busctl");
+    std::fs::write(&program, body).expect("write the fake");
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).expect("make the fake executable");
     let adopter = BusctlAdopter {
         client: UserClient { program: program.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) },
         proc_root,
+        cgroup_root,
         confirmation_timeout: Duration::from_millis(150),
     };
-    return (adopter, directory.join("log"), cgroup_file);
+    return Place { adopter, log, paths };
+}
+
+/// The calls the fake manager received,
+/// as the text of its log.
+fn calls(place: &Place) -> String {
+    return std::fs::read_to_string(&place.log).unwrap_or_default();
+}
+
+/// Builds the text of a stat file with the given state letter and task flags.
+fn stat_text(state: &str, flags: u64) -> String {
+    let mut fields: Vec<String> = vec!["0".to_string(); 20];
+    fields[0] = state.to_string();
+    fields[1] = "1".to_string();
+    fields[6] = flags.to_string();
+    fields[19] = "99".to_string();
+    return format!("77 (x) {}\n", fields.join(" "));
 }
 
 /// Our own uid and gid,
@@ -135,31 +288,129 @@ fn own_ids() -> (u32, u32) {
     return unsafe { (libc::getuid(), libc::getgid()) };
 }
 
-/// Builds a request for pid 77 with the given limits.
+/// Builds a request for the given pids and limits.
 fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_label: "77-1234" };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE };
 }
 
-/// Runs the client against the user's bus path and confirms the move.
+/// The manager that creates and populates the scope and moves pid 77 into it.
+fn creating(paths: &Paths) -> Manager {
+    return Manager { create: makes_scope_and_moves(paths, true), ..accepting() };
+}
+
+/// Makes the scope exist in the fake cgroup tree with the given populated state.
+fn let_scope_exist(place: &Place, populated: bool) {
+    std::fs::create_dir_all(&place.paths.scope_directory).expect("the scope exists");
+    let flag = if populated { 1 } else { 0 };
+    std::fs::write(place.paths.scope_directory.join("cgroup.events"), format!("populated {flag}\nfrozen 0\n")).expect("write the state");
+}
+
+/// A scope that does not exist is created with the limits,
+/// delegated and collected,
+/// and the move is confirmed.
 #[test]
-fn a_successful_adoption_runs_busctl_with_the_user_bus_and_confirms_the_move() {
-    let (adopter, log, _cgroup) = adopter_with("ok", &Behavior { move_pid: true, remove_process: false, code: 0 });
+fn a_missing_scope_is_created_with_the_limits_and_the_move_is_confirmed() {
+    let place = place("create", &creating);
     let (uid, _gid) = own_ids();
-    let limits = InheritedLimits { memory_max: Some(4096), ..InheritedLimits::default() };
-    adopter.adopt(&request(&limits, &[77])).expect("the move is confirmed");
-    let recorded = std::fs::read_to_string(log).expect("read the log");
-    assert!(recorded.contains("StartTransientUnit"));
-    assert!(recorded.contains("wg-quicker-update-77-1234.scope"));
-    assert!(recorded.contains("MemoryMax\nt\n4096"));
-    assert!(recorded.contains(&format!("env=/run/user/{uid}")));
+    let joined = place.adopter.adopt(&request(&all_limits(), &[77])).expect("the move is confirmed");
+    assert_eq!(joined, Joined::Created);
+    let log = calls(&place);
+    assert!(log.contains("StartTransientUnit") && !log.contains("AttachProcessesToUnit"), "{log}");
+    assert!(log.contains(&format!("{SCOPE}\nfail")), "{log}");
+    assert!(log.contains("Delegate\nb\ntrue") && log.contains("CollectMode\ns\ninactive-or-failed"), "{log}");
+    assert!(log.contains("MemoryMax\nt\n1073741824") && log.contains("IOWeight\nt\n10"), "{log}");
+    assert!(log.contains(&format!("env=/run/user/{uid}")), "{log}");
+    assert!(!log.contains("StopUnit"), "a populated scope is left running: {log}");
+}
+
+/// A scope that exists is attached to,
+/// and no second scope is created for the same origin.
+#[test]
+fn an_existing_scope_is_attached_to_and_not_created_again() {
+    let place = place("attach", &|paths| return Manager { attach: moves(paths), ..accepting() });
+    let_scope_exist(&place, true);
+    let joined = place.adopter.adopt(&request(&all_limits(), &[77, 78])).expect("the move is confirmed");
+    assert_eq!(joined, Joined::Attached);
+    let log = calls(&place);
+    assert!(log.contains("AttachProcessesToUnit") && !log.contains("StartTransientUnit") && !log.contains("StopUnit"), "{log}");
+    assert!(log.contains(&format!("{SCOPE}\n\n2\n77\n78")), "{log}");
+}
+
+/// A scope that ended while it was being attached to is created afresh,
+/// so a move is not lost to the end of the scope that used to hold its origin.
+#[test]
+fn a_scope_that_ends_during_the_attach_is_created_afresh() {
+    let place = place("ended", &|paths| {
+        return Manager {
+            attach: format!("rm -r '{}'; echo 'Unit not loaded.' >&2; exit 1", paths.scope_directory.display()),
+            create: makes_scope_and_moves(paths, true),
+            ..accepting()
+        };
+    });
+    let_scope_exist(&place, true);
+    assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Ok(Joined::Created));
+    let log = calls(&place);
+    assert!(log.contains("AttachProcessesToUnit") && log.contains("StartTransientUnit"), "{log}");
+}
+
+/// A scope that lives and refuses the attach is a failure that is retried later,
+/// and no second scope is created beside it.
+#[test]
+fn an_attach_refused_by_a_living_scope_is_a_failure() {
+    let place = place("refused", &|_paths| return Manager { attach: "echo 'boom' >&2; exit 1".to_string(), ..accepting() });
+    let_scope_exist(&place, true);
+    let error = place.adopter.adopt(&request(&all_limits(), &[77])).expect_err("refused");
+    assert!(matches!(&error, AdoptError::Failed(text) if text.contains("boom")), "{error}");
+    assert!(!calls(&place).contains("StartTransientUnit"));
+}
+
+/// A scope that was handed only a process that is exiting is empty and never gets an empty event,
+/// so it is stopped at once and the move counts as a vanish.
+#[test]
+fn a_new_scope_that_got_only_an_exiting_process_is_stopped() {
+    let place = place("exiting", &|paths| return Manager { create: makes_scope(paths, false), ..accepting() });
+    std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text("R", 4)).expect("flag it exiting");
+    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..place.adopter };
+    let started = Instant::now();
+    assert_eq!(slow.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
+    let log = std::fs::read_to_string(&place.log).unwrap_or_default();
+    assert!(log.contains(&format!("StopUnit\nss\n{SCOPE}\nreplace")), "{log}");
+}
+
+/// A process that moved and exited before the check leaves a scope that reads `populated 0`,
+/// which is stopped too,
+/// and an attach that left an empty scope behind is stopped the same way.
+#[test]
+fn a_scope_left_empty_after_the_move_is_stopped() {
+    let created = place("emptied", &|paths| return Manager { create: makes_scope_and_moves(paths, false), ..accepting() });
+    assert_eq!(created.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(calls(&created).contains("StopUnit"));
+    let attached = place("emptied-attach", &|paths| return Manager { attach: moves(paths), ..accepting() });
+    let_scope_exist(&attached, false);
+    assert_eq!(attached.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(calls(&attached).contains("StopUnit"));
+}
+
+/// A process that became a zombie after the manager accepted the job keeps its old cgroup path,
+/// so it never shows in the slice;
+/// it is a vanish and the wait does not run to its timeout.
+#[test]
+fn a_zombie_that_never_moves_is_vanished_without_waiting() {
+    let place = place("zombie", &|paths| return Manager { create: makes_scope(paths, true), ..accepting() });
+    std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text("Z", 0)).expect("make it a zombie");
+    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..place.adopter };
+    let started = Instant::now();
+    assert_eq!(slow.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
 }
 
 /// A job the manager accepted but did not apply is reported as a failure.
 #[test]
 fn an_unconfirmed_move_is_an_error() {
-    let (adopter, _log, _cgroup) = adopter_with("unmoved", &Behavior { move_pid: false, remove_process: false, code: 0 });
-    let error = adopter.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("not moved");
+    let place = place("unmoved", &|paths| return Manager { create: makes_scope(paths, true), ..accepting() });
+    let error = place.adopter.adopt(&request(&all_limits(), &[77])).expect_err("not moved");
     assert!(matches!(&error, AdoptError::Failed(text) if text.contains("is not in")), "{error}");
 }
 
@@ -167,27 +418,29 @@ fn an_unconfirmed_move_is_an_error() {
 /// and an empty request is refused.
 #[test]
 fn a_failing_client_is_an_error_naming_its_message() {
-    let (adopter, _log, _cgroup) = adopter_with("fails", &Behavior { move_pid: false, remove_process: false, code: 1 });
-    let error = adopter.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("client fails");
+    let place = place("fails", &|_paths| return Manager { create: "echo 'boom' >&2; exit 1".to_string(), ..accepting() });
+    let error = place.adopter.adopt(&request(&all_limits(), &[77])).expect_err("client fails");
     assert!(matches!(&error, AdoptError::Failed(text) if text.contains("boom")), "{error}");
-    assert!(matches!(adopter.adopt(&request(&InheritedLimits::default(), &[])), Err(AdoptError::Failed(_))));
+    assert!(matches!(place.adopter.adopt(&request(&all_limits(), &[])), Err(AdoptError::Failed(_))));
 }
 
 /// A process that exits while the manager call fails is a vanish and not a failure.
 #[test]
 fn a_process_that_exits_during_a_failed_call_is_vanished() {
-    let (adopter, _log, _cgroup) = adopter_with("gone-failed", &Behavior { move_pid: false, remove_process: true, code: 1 });
-    assert_eq!(adopter.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
+    let place = place("gone-failed", &|paths| return Manager { create: format!("rm -r '{}'; exit 1", paths.process_directory.display()), ..accepting() });
+    assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
 }
 
 /// A process that exits after the manager accepted the job is noticed at once,
 /// without waiting out the confirmation timeout.
 #[test]
 fn a_process_that_exits_after_an_accepted_call_is_vanished_without_waiting() {
-    let (adopter, _log, _cgroup) = adopter_with("gone-ok", &Behavior { move_pid: false, remove_process: true, code: 0 });
-    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..adopter };
+    let place = place("gone-ok", &|paths| {
+        return Manager { create: format!("{} && rm -r '{}'", makes_scope(paths, true), paths.process_directory.display()), ..accepting() };
+    });
+    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..place.adopter };
     let started = Instant::now();
-    assert_eq!(slow.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
+    assert_eq!(slow.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
     assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
 }
 
@@ -195,11 +448,11 @@ fn a_process_that_exits_after_an_accepted_call_is_vanished_without_waiting() {
 /// which the policy treats as a possibly hung manager.
 #[test]
 fn a_hung_client_is_a_timeout_failure() {
-    let (adopter, _log, _cgroup) = adopter_with("hung", &Behavior { move_pid: false, remove_process: false, code: 0 });
-    let sleeper = adopter.client.program.clone();
+    let place = place("hung", &creating);
+    let sleeper = place.adopter.client.program.clone();
     std::fs::write(&sleeper, "#!/bin/sh\nexec /usr/bin/sleep 30\n").expect("rewrite the fake");
-    let hung = BusctlAdopter { client: UserClient { program: sleeper, timeout: Duration::from_millis(200) }, ..adopter };
-    let error = hung.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("the client hangs");
+    let hung = BusctlAdopter { client: UserClient { program: sleeper, timeout: Duration::from_millis(200) }, ..place.adopter };
+    let error = hung.adopt(&request(&all_limits(), &[77])).expect_err("the client hangs");
     assert!(matches!(error, AdoptError::TimedOut(_)), "{error}");
 }
 
@@ -210,47 +463,132 @@ fn a_missing_client_is_an_error() {
     let adopter = BusctlAdopter {
         client: UserClient { program: "/nonexistent/busctl".to_string(), timeout: Duration::from_secs(1) },
         proc_root: PathBuf::from("/proc"),
+        cgroup_root: PathBuf::from("/nonexistent/cgroup"),
         confirmation_timeout: Duration::from_millis(10),
     };
-    assert!(matches!(adopter.adopt(&request(&InheritedLimits::default(), &[1])), Err(AdoptError::Failed(_))));
+    assert!(matches!(adopter.adopt(&request(&all_limits(), &[1])), Err(AdoptError::Failed(_))));
+}
+
+/// Builds a limit request for the tests of `apply_limits`.
+fn limit_request(limits: &InheritedLimits) -> LimitRequest<'_> {
+    let (uid, gid) = own_ids();
+    return LimitRequest { uid, gid, slice: SLICE, scope_name: SCOPE, limits };
+}
+
+/// A running scope is given the limits through `SetUnitProperties`.
+#[test]
+fn a_running_scope_is_given_new_limits() {
+    let place = place("limits", &accepting_all);
+    let_scope_exist(&place, true);
+    place.adopter.apply_limits(&limit_request(&all_limits())).expect("applied");
+    let log = calls(&place);
+    assert!(log.contains("SetUnitProperties") && log.contains("CPUQuotaPerSecUSec\nt\n8000000"), "{log}");
+}
+
+/// A scope that is not there is reported as gone without a call,
+/// and a scope that ends during the call is gone too,
+/// while a scope that lives and refuses is a failure.
+#[test]
+fn limits_for_a_scope_that_is_gone_say_so() {
+    let absent = place("limits-absent", &accepting_all);
+    assert_eq!(absent.adopter.apply_limits(&limit_request(&all_limits())), Err(AdoptError::ScopeGone));
+    assert!(!absent.log.exists(), "no call for a scope that is not there");
+    let ending = place("limits-ending", &|paths| {
+        return Manager { set_properties: format!("rm -r '{}'; echo 'not loaded' >&2; exit 1", paths.scope_directory.display()), ..accepting() };
+    });
+    let_scope_exist(&ending, true);
+    assert_eq!(ending.adopter.apply_limits(&limit_request(&all_limits())), Err(AdoptError::ScopeGone));
+    let refusing = place("limits-refused", &|_paths| return Manager { set_properties: "echo 'boom' >&2; exit 1".to_string(), ..accepting() });
+    let_scope_exist(&refusing, true);
+    let error = refusing.adopter.apply_limits(&limit_request(&all_limits())).expect_err("refused");
+    assert!(matches!(&error, AdoptError::Failed(text) if text.contains("boom")), "{error}");
 }
 
 /// An existing slice directory needs no call.
 #[test]
 fn an_existing_slice_is_not_requested_again() {
-    let (adopter, log, _cgroup) = adopter_with("slice", &Behavior { move_pid: false, remove_process: false, code: 1 });
+    let place = place("slice", &accepting_all);
     let (uid, gid) = own_ids();
-    let directory = log.parent().expect("parent").to_path_buf();
-    adopter.ensure_slice(uid, gid, SLICE, &directory).expect("an existing directory is enough");
-    assert!(!log.exists());
-    assert!(adopter.ensure_slice(uid, gid, SLICE, &directory.join("absent")).is_err());
+    let directory = place.log.parent().expect("parent").to_path_buf();
+    place.adopter.ensure_slice(uid, gid, SLICE, &directory).expect("an existing directory is enough");
+    assert!(!place.log.exists());
+    assert!(place.adopter.ensure_slice(uid, gid, SLICE, &directory.join("absent")).is_err());
 }
 
-/// Adopts a real sleeping child into a throwaway slice through the user's own manager,
-/// with a memory limit that the new scope must report.
+/// The `major:minor` of the first whole block device of this machine,
+/// the spelling `io.max` uses,
+/// or `None` when it has none to limit.
+fn a_whole_block_device() -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir("/dev/block").ok()?.flatten().filter_map(device_name).collect();
+    names.sort();
+    return names.into_iter().find(is_whole_device);
+}
+
+/// The file name of a directory entry as text.
+fn device_name(entry: std::fs::DirEntry) -> Option<String> {
+    return entry.file_name().into_string().ok();
+}
+
+/// Reports whether a `major:minor` names a disk and not one of its partitions.
+fn is_whole_device(name: &String) -> bool {
+    return !Path::new("/sys/dev/block").join(name).join("partition").exists();
+}
+
+/// Creates a scope for a real sleeping child in a throwaway slice of the user's own manager,
+/// attaches a second child to it,
+/// gives it new limits,
+/// and checks what the cgroup files hold and that the scope ends with its last process.
 /// It needs a user manager and its bus.
 #[test]
 #[ignore = "needs the user systemd manager"]
-fn the_real_manager_adopts_a_sleeping_child() {
-    let mut child = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the child");
-    let pid = i32::try_from(child.id()).expect("pid fits");
-    let slice = "app-wgtest\\x2dadopt.slice";
-    let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), ..InheritedLimits::default() };
-    let started = Instant::now();
+fn the_real_manager_creates_attaches_and_follows_limits() {
+    let mut first = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the first child");
+    let mut second = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the second child");
+    let first_pid = i32::try_from(first.id()).expect("pid fits");
+    let second_pid = i32::try_from(second.id()).expect("pid fits");
+    let slice = "app-wgtest\\x2dshared.slice";
+    let scope = format!("wg-quicker-update-wgtest-{first_pid}.scope");
     let (uid, gid) = own_ids();
-    let result = BusctlAdopter::new().adopt(&AdoptRequest { pids: &[pid], uid, gid, slice, limits: &limits, scope_label: &format!("{pid}-1") });
-    let elapsed = started.elapsed();
-    let shown = std::process::Command::new("systemctl")
-        .args(["--user", "show", &format!("wg-quicker-update-{pid}.scope"), "--property=MemoryMax,CPUQuotaPerSecUSec,TasksMax"])
-        .output()
-        .expect("ask the manager");
-    let _killed = child.kill();
-    let _reaped = child.wait();
+    let adopter = BusctlAdopter::new();
+    let mut limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), io_weight: Some(10), ..InheritedLimits::default() };
+    let device = a_whole_block_device();
+    if let Some(name) = &device {
+        limits.io_devices.insert(name.clone(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
+    }
+    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
+    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
+    let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), uid, slice, &scope);
+    let read = |name: &str| return std::fs::read_to_string(directory.join(name)).unwrap_or_default().trim().replace('\n', " | ");
+    let (created_cpu, created_memory, created_tasks, created_weight, created_bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
+    let created_io_max = read("io.max");
+    let relaxed = InheritedLimits { cpu_quota_per_sec_usec: Some(500_000), ..InheritedLimits::default() };
+    let applied = adopter.apply_limits(&LimitRequest { uid, gid, slice, scope_name: &scope, limits: &relaxed });
+    let members = read("cgroup.procs");
+    let (cpu, memory, tasks, weight, bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
+    let io_max = read("io.max");
+    let _killed = first.kill();
+    let _killed_second = second.kill();
+    let _reaped = first.wait();
+    let _reaped_second = second.wait();
+    std::thread::sleep(Duration::from_millis(500));
+    let ended = !directory.is_dir();
     let _stopped = std::process::Command::new("systemctl").args(["--user", "stop", slice]).status();
-    result.expect("the manager adopts the child");
-    let text = String::from_utf8_lossy(&shown.stdout).into_owned();
-    println!("adoption took {elapsed:?}: {text}");
-    assert!(text.contains("MemoryMax=1073741824"), "{text}");
-    assert!(text.contains("CPUQuotaPerSecUSec=2s"), "{text}");
-    assert!(text.contains("TasksMax=64"), "{text}");
+    assert_eq!(created, Ok(Joined::Created));
+    assert_eq!(attached, Ok(Joined::Attached));
+    assert_eq!(applied, Ok(()));
+    println!("at creation: cpu.max {created_cpu}; memory.max {created_memory}; pids.max {created_tasks}; io.weight {created_weight}; io.bfq.weight {created_bfq}");
+    println!("after the change: members {members}; cpu.max {cpu}; memory.max {memory}; pids.max {tasks}; io.weight {weight}; io.bfq.weight {bfq}");
+    assert!(created_cpu.starts_with("200000 ") && created_memory == "1073741824" && created_tasks == "64", "{created_cpu} {created_memory} {created_tasks}");
+    assert!(created_weight == "default 10" && created_bfq == "default 10", "{created_weight} {created_bfq}");
+    println!("device {device:?}: io.max at creation {created_io_max:?}, after the change {io_max:?}");
+    if let Some(name) = &device {
+        assert_eq!(created_io_max, format!("{name} rbps=1048576 wbps=max riops=max wiops=500"));
+    }
+    assert_eq!(io_max, "", "the per-device limits were cleared when the origin had none");
+    assert!(members.contains(&first_pid.to_string()) && members.contains(&second_pid.to_string()), "{members}");
+    assert!(cpu.starts_with("50000 "), "{cpu}");
+    assert_eq!(memory, "max");
+    assert_eq!(tasks, "max");
+    assert!(weight == "default 100" && bfq == "default 100", "{weight} {bfq}");
+    assert!(ended, "the scope was collected when its last process exited");
 }

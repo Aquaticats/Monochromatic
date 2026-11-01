@@ -3,7 +3,7 @@
 /// Account lookup under test.
 use crate::user_account::{account_from_entry, lookup_user};
 /// Parsers under test.
-use crate::process_info::{list_pids, parse_cgroup, parse_status_id, parse_stat, read_own_pid_namespace, read_process, split_cmdline};
+use crate::process_info::{list_pids, parse_cgroup, parse_stat, parse_stat_fields, parse_status_id, read_exiting, read_own_pid_namespace, read_process, read_whole, split_cmdline, StatFields};
 
 /// Reads the parent and start time past a command name that contains spaces and parentheses.
 #[test]
@@ -13,6 +13,43 @@ fn stat_parsing_skips_a_hostile_command_name() {
     assert_eq!(parse_stat(&text), Some((7, 123_456)));
     assert_eq!(parse_stat("42 (x)"), None);
     assert_eq!(parse_stat("garbage"), None);
+}
+
+/// Builds the text of a stat file whose fields after the command name are the given state,
+/// flags and start time.
+fn stat_text(state: &str, flags: u64) -> String {
+    let mut fields: Vec<String> = vec!["0".to_string(); 20];
+    fields[0] = state.to_string();
+    fields[1] = "1".to_string();
+    fields[6] = flags.to_string();
+    fields[19] = "99".to_string();
+    return format!("5 (x) {} \n", fields.join(" "));
+}
+
+/// The state letter and the task flags are read past a hostile command name,
+/// and a text too short for them is rejected.
+#[test]
+fn stat_fields_carry_the_state_and_the_flags() {
+    let text = stat_text("R", 4_194_368).replace("5 (x)", "42 (we ird) name)");
+    assert_eq!(parse_stat_fields(&text), Some(StatFields { state: 'R', parent: 1, flags: 4_194_368, start_time: 99 }));
+    assert_eq!(parse_stat_fields("42 (x) S 7 0 0"), None);
+}
+
+/// A zombie,
+/// a dead process and a process flagged `PF_EXITING` are on their way out,
+/// and a sleeping or running process,
+/// even with other flags set,
+/// is not.
+#[test]
+fn zombies_dead_processes_and_pf_exiting_processes_are_exiting() {
+    let exiting = |state: &str, flags: u64| return parse_stat_fields(&stat_text(state, flags)).expect("parses").exiting();
+    assert!(exiting("Z", 0));
+    assert!(exiting("X", 0));
+    assert!(exiting("S", 4));
+    assert!(exiting("R", 4 | 0x0040_0000));
+    assert!(!exiting("S", 0));
+    assert!(!exiting("R", 0x0040_0000));
+    assert!(!exiting("D", 0x0000_0200));
 }
 
 /// Reads the real id and ignores the effective ids.
@@ -89,6 +126,100 @@ fn a_fixture_without_a_namespace_link_parses_with_the_field_absent() {
     assert_eq!(info.pid_namespace, None);
     assert_eq!(info.start_time, 99);
     assert_eq!(info.parent, 1);
+}
+
+/// A process that is exiting is reported as absent,
+/// whether it is a zombie or is flagged `PF_EXITING` while it still looks alive,
+/// and a live process of the same fixture is reported.
+#[test]
+fn an_exiting_process_is_reported_as_absent() {
+    let (uid, _gid) = own_ids();
+    let root = fake_process("exiting");
+    assert!(read_process(&root, 5, uid).expect("readable").is_some());
+    std::fs::write(root.join("5/stat"), stat_text("Z", 0)).expect("write a zombie");
+    assert_eq!(read_process(&root, 5, uid).expect("a zombie is not an error"), None);
+    std::fs::write(root.join("5/stat"), stat_text("R", 4)).expect("write an exiting process");
+    assert_eq!(read_process(&root, 5, uid).expect("an exiting process is not an error"), None);
+    std::fs::write(root.join("5/stat"), stat_text("S", 0)).expect("write a sleeper");
+    assert!(read_process(&root, 5, uid).expect("readable").is_some());
+}
+
+/// The exiting check tells a live process from an exiting one and from a gone one.
+#[test]
+fn the_exiting_check_tells_live_exiting_and_gone_apart() {
+    let root = fake_process("exiting-check");
+    assert_eq!(read_exiting(&root, 5), Some(false));
+    std::fs::write(root.join("5/stat"), stat_text("S", 4)).expect("write an exiting process");
+    assert_eq!(read_exiting(&root, 5), Some(true));
+    assert_eq!(read_exiting(&root, 6), None);
+    assert_eq!(read_exiting(std::path::Path::new("/proc"), i32::try_from(std::process::id()).expect("pid fits")), Some(false));
+}
+
+/// A command line larger than the first read buffer is read whole,
+/// and the status head still yields the ids when the file is longer than it.
+#[test]
+fn large_files_are_read_whole() {
+    let (uid, _gid) = own_ids();
+    let root = fake_process("large");
+    let mut cmdline: Vec<u8> = b"mise\0run\0".to_vec();
+    cmdline.extend(std::iter::repeat_n(b'a', 20_000));
+    cmdline.push(0);
+    std::fs::write(root.join("5/cmdline"), &cmdline).expect("write a long command line");
+    assert_eq!(read_whole(&root.join("5/cmdline")).expect("read").len(), cmdline.len());
+    let info = read_process(&root, 5, uid).expect("readable").expect("alive");
+    assert_eq!(info.args.len(), 3);
+    assert_eq!(info.args[2].len(), 20_000);
+    let (_uid, gid) = own_ids();
+    let padding = "x".repeat(4_000);
+    std::fs::write(root.join("5/status"), format!("Uid:\t{uid}\t{uid}\t{uid}\t{uid}\nGid:\t{gid}\t{gid}\t{gid}\t{gid}\nPadding:\t{padding}\n")).expect("write a long status");
+    assert!(read_process(&root, 5, uid).expect("readable").is_some());
+}
+
+/// Counts the read calls this process has made,
+/// from the `syscr` line of its own io accounting.
+fn read_calls() -> u64 {
+    let text = std::fs::read_to_string("/proc/self/io").expect("read the io accounting");
+    for line in text.lines() {
+        if let Some(count) = line.strip_prefix("syscr: ") {
+            return count.trim().parse().expect("a number");
+        }
+    }
+    return 0;
+}
+
+/// The read calls `work` makes beyond those of taking the two counts.
+fn read_calls_during(work: impl FnOnce()) -> u64 {
+    let idle_before = read_calls();
+    let idle_after = read_calls();
+    let before = read_calls();
+    work();
+    let after = read_calls();
+    return (after - before) - (idle_after - idle_before);
+}
+
+/// A procfs file costs two read calls whole (the content,
+/// then the end of the file),
+/// and a process costs seven (the head of the status file once,
+/// then stat,
+/// command line and cgroup twice each):
+/// a pass over a thousand processes multiplies every extra call by a thousand.
+/// `std::fs::read` costs about five per file on procfs,
+/// which reports a size of zero,
+/// and that is what this guard keeps out.
+/// The files are the real procfs files of this process,
+/// because a regular file reports its size and is read in two calls whatever the buffer.
+#[test]
+fn a_file_is_read_with_two_calls_and_a_process_with_seven() {
+    let (uid, _gid) = own_ids();
+    let pid = i32::try_from(std::process::id()).expect("pid fits");
+    let whole = read_calls_during(|| {
+        let _bytes = read_whole(std::path::Path::new("/proc/self/stat")).expect("read");
+    });
+    assert_eq!(whole, 2, "a whole-file read made {whole} read calls");
+    let process = read_calls_during(|| {
+        let _info = read_process(std::path::Path::new("/proc"), pid, uid).expect("readable");
+    });
+    assert_eq!(process, 7, "reading one process made {process} read calls");
 }
 
 /// A file the reader cannot open is an error that names the problem,

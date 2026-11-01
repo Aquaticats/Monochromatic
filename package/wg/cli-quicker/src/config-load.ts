@@ -6,6 +6,10 @@ import { expandAllowedFromFiles, } from './config-expand.ts';
 import { parseConfigText, } from './config-parse.ts';
 import type { WireguardConfig, } from './config-types.ts';
 import { ConfigError, } from './errors.ts';
+import {
+  assertInterfaceName,
+  interfaceNameOfArgument,
+} from './interface-name.ts';
 
 /**
  Extension stripped from config basename to derive interface name.
@@ -90,18 +94,10 @@ export async function loadConfig(
    */
   const path = isPath ? arg : `${CONFIG_DIR}/${arg}${CONF_EXTENSION}`;
   /**
-   Config basename used to derive interface name.
-   */
-  const base = path.slice(path.lastIndexOf('/',) + 1,);
-  /**
    Interface name without optional `.conf` suffix.
    */
-  const interfaceName = base.endsWith(CONF_EXTENSION,)
-    ? base.slice(
-      0,
-      -CONF_EXTENSION.length,
-    )
-    : base;
+  const interfaceName = interfaceNameOfArgument({ arg, },);
+  assertInterfaceName({ interfaceName, },);
   l.debug(`loading ${path} for ${expandAllowedIps ? 'up' : 'down'}`,);
   /**
    Parsed config before optional address-set generation.
