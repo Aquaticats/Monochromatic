@@ -7159,3 +7159,7 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `ExecMainStartTimestamp` moved from 16:11:59 to 17:51:58 EST and `ExecStart` names 0.5.6.
 - Next: migration once the 0.5.7 integrator's merge is committed (its `MERGE_HEAD` blocks the preflight) and agents
   are paused; the apply needs the owner's grant.
+- 22:53Z: the 0.5.7 integrator's `MERGE_HEAD` is gone. Pause requested from the five running agents (0.5.7
+  integrator, fault_signal flake, migrate subcommand, bound follow-ups, mutation campaign m056); each ends with
+  "PAUSED at <commit>". Once all are paused: rerun the dry run, then the apply with the owner's grant, then
+  `git fsck` and a commit check, then "resume" to each agent. Their queued work stays as briefed.
