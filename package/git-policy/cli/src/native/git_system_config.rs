@@ -89,6 +89,25 @@ pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Pat
 }
 
 /// What:
+///  `variables` with the forward-target variable added for `real_git` when the variables do not name one.
+/// Why:
+///   The wrapper process learns the system configuration path from the real Git named by that variable.
+///  The environment `entry.rs` builds always carries it, but a resident process (the service) and callers that hold only a
+///  Git path and a bare overlay do not, and without it every read there would decline; the caller knows the Git it runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = { [FORWARD_TARGET]: realGit, ...variables }; // the variables win when they name one
+/// ```
+pub fn with_real_git(variables: &[(OsString, OsString)], real_git: &Path) -> Vec<(OsString, OsString)> {
+    let mut named: Vec<(OsString, OsString)> = variables.to_vec();
+    if environment_value(variables, FORWARD_TARGET_VARIABLE).is_none() {
+        named.push((OsString::from(FORWARD_TARGET_VARIABLE), real_git.as_os_str().to_os_string()));
+    }
+    return named;
+}
+
+/// What:
 ///  The system configuration path the Git a child would run reads, learned from the forward-target variable the wrapper
 ///  puts in every child's environment.
 /// Why:

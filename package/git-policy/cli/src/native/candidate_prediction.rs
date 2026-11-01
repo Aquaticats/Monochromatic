@@ -45,6 +45,7 @@ use super::candidate_version::{CandidateSource, CandidateVersion};
 /// Import the captured-query runner and its byte helpers.
 use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
 /// The in-process repository layout, tried before the `rev-parse --git-path` query.
+use super::git_system_config::with_real_git;
 use super::repo_read_layout::{git_path, read_layout};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -297,7 +298,7 @@ fn real_index_path(
     purpose: &str,
 ) -> Result<PathBuf, CandidateError> {
     // A plain layout names the index without a Git process.
-    if let Some(path) = read_layout(prefix, overlay).as_ref().and_then(|layout| { return git_path(layout, "index"); }) {
+    if let Some(path) = read_layout(prefix, with_real_git(overlay, real_git).as_slice()).as_ref().and_then(|layout| { return git_path(layout, "index"); }) {
         return Ok(path);
     }
     let output: MetadataOutput = run_git(

@@ -143,7 +143,9 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
         arguments.extend(context.global_prefix.iter().cloned());
     }
     arguments.extend(request.arguments.iter().cloned());
-    let mut variables: Vec<(OsString, OsString)> = context.overlay.clone();
+    // The context names the Git it runs, which the readers need to learn the system configuration file.
+    // The context names the Git it runs, which the readers need to learn the system configuration file.
+    let mut variables: Vec<(OsString, OsString)> = super::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
     variables.extend(request.environment.iter().cloned());
     if let Some(index) = &request.index {
         variables.push((OsString::from("GIT_INDEX_FILE"), index.clone().into_os_string()));

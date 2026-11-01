@@ -108,3 +108,32 @@ fn a_panicking_reader_is_left_to_git() {
     assert_eq!(guarded(|| { return Some(7u8); }), Some(7u8));
     assert_eq!(guarded(|| -> Option<u8> { return None; }), None);
 }
+
+/// An environment without `GIT_CONFIG_NOSYSTEM` and without the forward-target variable, as a resident process or a caller
+///  that holds only a Git path has it: the readers still learn the system file from the Git the caller names, so they answer.
+#[test]
+fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
+    let root = fixture("repo-read-hook-named-git");
+    let repo = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    let named_git = root.join("bin").join("git");
+    std::fs::create_dir(named_git.parent().expect("parent")).expect("bin");
+    std::fs::copy(REAL_GIT, &named_git).expect("an executable named git");
+    let cache = root.join("cache");
+    let overlay: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+        (OsString::from("HOME"), root.join("no-home").into_os_string()),
+        (OsString::from("XDG_CACHE_HOME"), cache.clone().into_os_string()),
+    ];
+    let context = GitContext { real_git: named_git.clone(), overlay: overlay.clone(), global_prefix: Vec::new(), common_dir: None };
+    let request = GitRequest::new(repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    let expected = git_output(repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    let found = try_request(&context, &request).expect("the readers answer without the forward-target variable");
+    assert_eq!(found.stdout, expected.stdout);
+    let learned = std::fs::read_dir(cache.join("cli-git")).expect("the cache directory").count();
+    assert_eq!(learned, 1, "the system file path was asked of the named Git once and recorded");
+    let found = run_metadata_git(named_git.as_path(), listing(repo.as_path()).as_slice(), overlay.as_slice()).expect("answer");
+    assert_eq!(found.stdout, expected.stdout);
+    remove(root.as_path());
+}
