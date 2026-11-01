@@ -6787,6 +6787,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   route 141.6 ms. Higher than the earlier medians (service 26.4, signed service 33.0), but the unchanged transaction
   route roughly doubled too, so load is likely; not concluded. A paired run (0.5.4 and 0.5.5 alternating, unit
   `gpc-perf-ab`, worktree `.claude/worktrees/perf-054`, log `~/temp/agent/perf/alternate.log`) is running.
+- Paired result (4 runs alternating 0.5.4, 0.5.5, 0.5.4, 0.5.5; 1-minute load 19 to 23; wrapped medians):
+  `commit-service` 44.7, 46.4, 46.2, 45.9 ms (difference 0.7 ms, inside 0.5.4's own 1.5 ms spread: no regression);
+  `commit-signed-service` 55.8, 58.3, 55.8, 57.7 ms (0.5.5 about +2 ms, both pairs); transaction route unchanged.
+  The earlier lower medians reflect different host conditions: both versions moved together. Worktree `perf-054`
+  removed afterwards.
 - DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): 4d part 2, deleting the old transaction route, "After
   per-worktree (Recommended)": start it as soon as the per-worktree service change merges and gates. Task created.
 
