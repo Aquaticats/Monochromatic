@@ -56,6 +56,8 @@ multi-line buffer and `starts` array for `fuzz_line_matches`.
 
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/forbidden-strings/core.fuzz:<task>`.
+A crash artifact or corpus directory is passed as an input path before the cargo-fuzz `--`;
+libFuzzer flags go after it.
 
 All tasks pin `--target x86_64-unknown-linux-gnu --sanitizer address`;
  macOS/Windows

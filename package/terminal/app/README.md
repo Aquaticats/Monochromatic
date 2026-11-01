@@ -260,7 +260,7 @@ mise run //package/terminal/app:image
 ```
 
 The tasks are defined in [`mise.toml`](mise.toml),
-which describes each one including the host-or-container choice.
+which describes each task and where the host or container fallback applies.
 Run one with `mise run //package/terminal/app:<task>`.
 The repository linter runs from the repository root:
 `mise run lint:monochromatic-lint -- package/terminal/app`.

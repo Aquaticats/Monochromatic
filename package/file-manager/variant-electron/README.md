@@ -52,6 +52,9 @@ The full derivation and the behavioral differences against the original are reco
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/file-manager/variant-electron:<task>`.
 
+The unit tests cover the model,
+band-geometry and sort behavior against the built artifacts.
+
 ## Pure Wayland verification
 
 The boundary test builds a throwaway fixture directory tree,

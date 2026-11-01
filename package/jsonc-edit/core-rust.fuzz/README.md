@@ -75,13 +75,14 @@ so the edit campaign tests edits rather than not-found errors.
 
 ## Tasks
 
-Run from this directory with `mise run <task>`;
 [`mise.toml`](mise.toml) defines the tasks.
+Run one from this directory with `mise run <task>`.
 
 The unit tests include negative controls:
 each invariant is shown to panic on a deliberately broken input,
 so a quiet campaign is evidence rather than silence.
-The repository linter covers this package;
+The repository linter runs from the repository root
+with `mise run lint:monochromatic-lint -- package/jsonc-edit/core-rust.fuzz`.
 `monochromatic-lint.config.jsonc` exempts fuzz sidecars from `rust/max-lines` and `rust/require-rustdoc`.
 
 Campaigns belong in a resource-bounded container rather than on a workstation,

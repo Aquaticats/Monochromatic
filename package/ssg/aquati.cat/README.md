@@ -31,6 +31,8 @@ The build pipeline runs as a sequence of mise tasks (`mise run build`):
 
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one from this directory with `mise run <task>`.
+`build:postprocess` and `build:search` expect a prior `mise run build:site`;
+`build` runs the full pipeline.
 
 ## Content authoring
 

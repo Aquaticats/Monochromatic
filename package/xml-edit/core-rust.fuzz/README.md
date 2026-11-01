@@ -57,8 +57,8 @@ truncate or replace using tokens such as `<!DOCTYPE`,
 
 ## Tasks
 
-Run from this directory with `mise run <task>`;
 [`mise.toml`](mise.toml) defines the tasks.
+Run one from this directory with `mise run <task>`.
 
 The unit tests include a validity sweep (every generated document must parse)
 and negative controls:
