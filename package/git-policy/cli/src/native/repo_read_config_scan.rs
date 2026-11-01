@@ -157,6 +157,9 @@ pub struct ScopeEnvironment {
     pub no_system: bool,
     /// `GIT_CONFIG_SYSTEM`.
     pub system: Option<PathBuf>,
+    /// The path the real Git compiles in, read when `GIT_CONFIG_SYSTEM` is not set; learned from that Git
+    ///  (`git_system_config`), and `None` when it is not known, which makes the scope unresolvable.
+    pub system_default: Option<PathBuf>,
     /// `GIT_CONFIG_GLOBAL`.
     pub global: Option<PathBuf>,
     /// Whether some fact cannot be settled from the variables alone: a relative path (Git resolves it against the
@@ -192,9 +195,15 @@ impl ScopeEnvironment {
             xdg: nonempty("XDG_CONFIG_HOME"),
             no_system,
             system: find("GIT_CONFIG_SYSTEM").map(PathBuf::from),
+            system_default: None,
             global: find("GIT_CONFIG_GLOBAL").map(PathBuf::from),
             unresolvable: !boolean_ok,
         };
+        // Git reads its compiled-in system file unless the environment removes or replaces it.
+        if boolean_ok && !scope.no_system && scope.system.is_none() {
+            scope.system_default = super::git_system_config::system_config_for(variables);
+            scope.unresolvable = scope.system_default.is_none();
+        }
         let relative: bool = [&scope.home, &scope.xdg, &scope.system, &scope.global].iter().any(|path| { return path.as_ref().is_some_and(|found| { return !found.is_absolute(); }); });
         scope.unresolvable = scope.unresolvable || relative;
         return scope;
@@ -204,7 +213,7 @@ impl ScopeEnvironment {
     pub fn labelled_files(&self) -> Vec<(&'static str, PathBuf)> {
         let mut labelled: Vec<(&'static str, PathBuf)> = Vec::new();
         let mut files: Vec<PathBuf> = self.files();
-        if !self.no_system && !files.is_empty() {
+        if !self.no_system && (self.system.is_some() || self.system_default.is_some()) {
             labelled.push(("system", files.remove(0)));
         }
         labelled.extend(files.into_iter().map(|file| { return ("global", file); }));
@@ -215,7 +224,7 @@ impl ScopeEnvironment {
     pub fn files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         if !self.no_system {
-            files.push(self.system.clone().unwrap_or_else(|| { return PathBuf::from("/etc/gitconfig"); }));
+            files.extend(self.system.clone().or_else(|| { return self.system_default.clone(); }));
         }
         if let Some(global) = &self.global {
             files.push(global.clone());

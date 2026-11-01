@@ -50,7 +50,7 @@ fn the_scope_environment_reads_booleans_and_refuses_relative_paths() {
     assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "")]).as_slice()).no_system);
     assert!(ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "perhaps")]).as_slice()).unresolvable);
     assert!(ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_GLOBAL", "relative.config")]).as_slice()).unresolvable);
-    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_GLOBAL", "/absolute.config")]).as_slice()).unresolvable);
+    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_GLOBAL", "/absolute.config"), ("GIT_CONFIG_NOSYSTEM", "1")]).as_slice()).unresolvable);
     let unresolved = ScopeEnvironment { unresolvable: true, ..ScopeEnvironment::default() };
     assert_eq!(outer_scopes_avoid_keys(&unresolved, &discovery_key), None);
 }
@@ -59,7 +59,7 @@ fn the_scope_environment_reads_booleans_and_refuses_relative_paths() {
 #[test]
 fn the_scope_environment_chooses_the_files() {
     let home = PathBuf::from("/home/someone");
-    let base = ScopeEnvironment { home: Some(home.clone()), ..ScopeEnvironment::default() };
+    let base = ScopeEnvironment { home: Some(home.clone()), system_default: Some(PathBuf::from("/etc/gitconfig")), ..ScopeEnvironment::default() };
     assert_eq!(base.files(), vec![PathBuf::from("/etc/gitconfig"), home.join(".config/git/config"), home.join(".gitconfig")]);
     let moved = ScopeEnvironment { no_system: true, xdg: Some(PathBuf::from("/xdg")), ..base.clone() };
     assert_eq!(moved.files(), vec![PathBuf::from("/xdg/git/config"), home.join(".gitconfig")]);
