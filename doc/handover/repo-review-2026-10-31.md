@@ -27,6 +27,66 @@ Calibration answers, in the user's words:
 - Wording correction (2026-10-31): "No code changes in the main worktree", not "anywhere";
   throwaway-worktree experiments are expected where needed.
 
+## 2026-11-01 pickup (new session)
+
+Fresh harness session. `agents.list` shows zero direct children: the 32-child pool is empty
+and `agents.spawn` works again (user: "This is a new session so all slots should be
+available"). The relay-through-five-children workaround is moot: the 27 failed sessions and
+the 5 live children of the dead session are not in this session's tree at all. New workers
+spawn directly.
+
+Relayed coverage verified against the findings files (rg counts, id-by-id): every claimed
+relayed area has entries on disk. electron-infra: docs-skills.jsonl 162 mentions, ci-depot
+69, docs-ops 11. hall-monitor: w2-async-b1 59, w2-i18n 57, ci-depot 31. cli-cube:
+w2-async-b2 162. allowedips: docs-skills 73, w2-throw-async-a 41. file-enforcer:
+root-configs 471, docs-philosophy 125, w2-th-diag-expect 48+46, ci-depot 41. Placement
+split recorded, not moved: relayed electron-infra entries sit in ci-depot.jsonl and
+docs-skills.jsonl rather than owner file docs-core.jsonl; the pipeline reads every findings
+file, so filing is unaffected.
+
+Schema bridge (batch-3 blocker, found and fixed): `verify-findings.ts` accepts only the
+canonical schema (id, package, title, severity, category, files, what, evidence, standard,
+confidence, ran, dedupe_keywords), but post-batch-2 rows used the compact shape (id,
+severity, kind, file, line, claim, evidence, checkable). `normalize-fold-b3.ts` normalized
+119 rows in place across 18 findings files (`.pre-b3.bak` backups kept) and folded the side
+files: staging-w2-th-core 062 to 075 already present (stale copies), 076 to 078 appended to
+w2-th-core.jsonl, w2-logger-tests-new 52 to 55 already present, w2-planning-staging 071 to
+073 already present, pkg-observable.relay-staging 046/047 already present. 70 rows held
+(ci-depot 22, pkg-figma-kiwi 29, pkg-observable 2, frag/fragment files 17): unrecognized
+shape, they flow to the manual queue through verify.
+
+Other state checks: `issues-all.jsonl` refreshed, 2541 entries (was stale at 1846).
+`rr-central-tests3.service` finished (inactive/dead); run-3 log carries 249 `[FAIL]` lines
+(the old fail-suites.txt held 228 from the SIGHUP-killed run 2). `filed-log.jsonl` still
+764. The dead session's scratchpad file `post-batch2-corrections.md` is gone with the
+session (harness scratchpads do not persist); recreate it in this scratch directory per
+ATH before posting corrections.
+
+Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
+wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
+- `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
+  root-configs.jsonl from root-configs-142.
+- `w3-cc-tests`: claude-code-plugin test slice 4 (resume luna-situation.unit.test.ts, then
+  bash-output-filter's 4, correction-reminder, guardrail, prompt-time,
+  session-start-housekeeping, claude-spawn/session-finder, terminal-title), findings to
+  docs-ops.jsonl from docs-ops-070.
+- `w3-mp-design`: doc/planning music-player design docs, HANDOFF.md line 880 onward,
+  findings to docs-planning-audit.jsonl from docs-planning-audit-178.
+
+Turn-1 returns (all verified against the files before acting): `w3-cc-tests` 11 of 11
+files, docs-ops-70 to 74. `w3-mp-design` 5 files, docs-planning-audit-178 to 185, 12
+doc/planning files uncovered. `w3-fe-core` 46 of 64 files read but zero rows persisted (it
+caught and removed its own corrupted append); its 6 pinned findings were re-briefed for
+append as root-configs-142 to 147, then its 18 uncovered test files. It also reported
+repeated tool-call parameter corruption forcing single-item operations (harness quirk) and
+no file-enforcer entries in the lint digest. All three re-briefed and busy.
+
+Wave 3 second wave spawned: `w3-desktop-app` (music-player/desktop-app slice 8,
+pkg-observable.jsonl from 048), `w3-android-app` (music-player/android-app slice 2,
+w2-async-b1.jsonl from 071), `w3-fm-variant-qt` (file-manager variant-qt, new file
+w3-fm-variant-qt.jsonl from 001). `verify-b3` completed as `rr-verify-b3.service` over the
+explicit 44-file `findings-list.txt` (never a glob); log `verify-b3.log`.
+
 ## Purpose and method
 
 The whole tracked tree is reviewed by scanning subagents (exactly one package each; giant
@@ -225,7 +285,7 @@ Relay rules learned the hard way:
   any of them and all five owner files unchanged. Verify every relayed coverage claim
   against the owner files before trusting it.
 
-## Manual queue
+## 2026-10-31 outage recovery mechanics
 
 All 32 subagents died mid-slice with `402 Vibe budget exhausted`; nothing user-visible was
 lost because every completed turn had already appended and verified its findings. The
@@ -259,57 +319,6 @@ Recovery mechanics measured after the reset (2026-10-31 20:xx):
 Excluded from batch-2 auto-filing: the figma-kiwi binary-reader family
 (`pkg-figma-kiwi-001/004/016/021`, `w2-typeface-figma-22/24/25/29`, an existing issue covers
 the family; manual review pending) and `w2-async-b1-006` (duplicate of `docs-ops-27`).
-
-## 2026-10-31 API kill investigation (user request: "kill all the failed subagents")
-
-Measured result: **killing a failed subagent session is impossible from inside the harness.**
-
-- The subagent API surface is exactly four functions: `agents.list`, `agents.send_message`,
-  `agents.spawn`, `agents.interrupt` (probed via the tool registry, all four). No
-  session-kill, retire, remove, or reap exists in the API or in the Vibe docs
-  (`docs.mistral.ai/vibe/...`; the `vibe:vibe` skill, `agents` API section).
-- `agents.interrupt` probed against five of the twenty-seven failed sessions
-  (root-configs, docs-core, docs-decisions, docs-ops, docs-planning-audit): every probe
-  rejected with `Subagent has no active Turn`. The documented precondition (an active
-  turn) is absent in every failed session, so interrupt is structurally useless against
-  them.
-- No per-subagent processes exist: the harness is one `vibe-rs` binary plus one
-  `vibe-app-server` child; every session, active or failed, is in-process state inside
-  the app server. `ps` shows only those two processes plus transient probe shells.
-  Killing the app server kills this session and every active child's turn simultaneously
-  (blast radius; not attempted).
-- The user reports restarts do not clear the failed sessions ("Restarting doesn't work"):
-  they survive harness restarts, so the only kill that exists in practice does not work.
-- **Resolution: kill is structurally impossible from inside the harness.** All
-  twenty-seven failed sessions' work is relayed to live owners (relay board below), so
-  they block nothing except the child-slot count. New-spawn capacity is exhausted by
-  them; new work goes through the relay instead. Session-kill capability request for the
-  Vibe team (interrupt accepting turn-less sessions as a hard clear, or a dedicated
-  terminate): not yet filed.
-
-## 2026-10-31 relay architecture (post-outage recovery)
-
-Work from the twenty-seven failed sessions is relayed to live children because a failed
-session's wake 402s inside `send_message` and consumes the brief (probed repeatedly,
-including well after the budget reset: root-configs three times with payload sizes from
-one sentence to a full brief, docs-core twice, pkg-async-iter twice). Measured rule:
-**sends to idle or running children succeed; sends to failed children always fail and
-consume the brief.**
-
-Relay rules learned the hard way:
-
-- Relay briefs must state the owner-session situation explicitly. A relay brief that
-  reads like an auto-continuation pattern gets rejected by the child as suspicious
-  (w2-th-diag-expect rejected the first relay on exactly those grounds).
-- Relay briefs must require the child to write relayed findings to the OWNER's findings
-  file, continuing the owner's id numbering, with a relayed marker in the entry. A child
-  that writes to its own file splits a package's findings across two files
-  (w2-typeface-figma wrote two wg/cli-allowedips entries into its own file; both were
-  moved back into `w2-throw-async-a.jsonl` as entries 119 and 120 by the orchestrator).
-- A child's completion report can overstate relayed coverage: w2-th-matrix-sandbox's
-  turn-11 report claimed five relayed areas done; verification showed zero entries for
-  any of them and all five owner files unchanged. Verify every relayed coverage claim
-  against the owner files before trusting it.
 
 ## Manual queue
 
