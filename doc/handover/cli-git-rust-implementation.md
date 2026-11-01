@@ -6824,6 +6824,20 @@ This block supersedes "State at 2026-10-29 (night, later)".
   in some runs and fails only on the forwarded `git add` exit 128. Choices it made (accepted): policies re-run on
   every retry (no recorded reads on the service path; all shipped policies are unrestricted); a merged tree equal to
   the tip ends exit 1 `already-committed`; the conflict is one JSONL `core-finding`.
+- Replay round 2 READY `78bf28090b` (red `02e33cccfa`, fix `e32f0071f5`, doc `78bf28090b`): capture order via
+  `CommitRequest.captured` (CLOCK_MONOTONIC nanoseconds at capture; a retry keeps the first stamp; 0 unknown), the
+  service keeps the last 128 landed commits per worktree with stamps (`service_captures.rs`) and sends them with
+  `retry_prepare`; the client applies "later capture wins" only to conflicting paths whose changing commits are all
+  remembered, else merges. A Git-built commit that gets `Moved` replays the captured tree (`write-tree` of its sent
+  index) and Git builds and signs it again. Pruned content now fails plainly (`ContentPruned`; the self-healing retry
+  is gone, since the captured bytes are what was removed). Protocol and service edits for the per-worktree agent:
+  `service_protocol.rs` (`captured`, `LandedCapture`, `RetryPrepare.landed`), `service_land.rs:314` (one
+  `record_landed` line), `service_server.rs:214`, `service_client.rs` (`PrepareAgain { base, landed }`). Lib 2772,
+  binary 448, e2e seed 4233994366 all four pass (t10 now `already-committed`).
+- Sent back to `afcbaabc8c4046584` (round 3): two same-base requests changing one path in ONE batch are not checked
+  against each other (`service_land.rs` around 209 to 229; `import_stream` writes in arrival order), so an
+  earlier-captured request landing last would overwrite a newer edit silently. Prove with a failing test, then fix
+  with the capture stamps; say whether 0.5.5 has it.
 - Sent back to `afcbaabc8c4046584`: capture order (the decision's "later capture wins" for one worktree; t10 now fails
   as a conflict where the decision lands it), and the two paths that still re-read the worktree (`Submitted::Moved`
   rebuild of a Git-built commit; the prune re-prepare on a first attempt).
