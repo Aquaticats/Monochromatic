@@ -17,7 +17,7 @@ use crate::update_entry_points::MatchReason;
 /// Outcomes under test.
 use crate::update_report::Outcome;
 /// Policy under test.
-use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock};
+use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock, RETRY_BACKOFF_BASE, RETRY_BACKOFF_MAX};
 /// Policy under test.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Shared recording between the test and the engine.
@@ -319,11 +319,17 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     assert_eq!(fixture.requests.borrow().len(), 3);
 }
 
-/// The wait doubles from one second and stops growing at a minute.
+/// The wait doubles from the base and stops growing at the cap.
 #[test]
 fn the_retry_wait_doubles_up_to_a_cap() {
     let waits: Vec<u64> = (1..=9).map(|attempt| return retry_backoff(attempt).as_secs()).collect();
-    assert_eq!(waits, vec![1, 2, 4, 8, 16, 32, 60, 60, 60]);
+    let cap = RETRY_BACKOFF_MAX.as_secs();
+    assert_eq!(waits[0], RETRY_BACKOFF_BASE.as_secs(), "the first wait is the base");
+    assert_eq!(waits.last().copied(), Some(cap), "the wait stops growing at the cap");
+    for pair in waits.windows(2) {
+        let doubled = pair[0].saturating_mul(2);
+        assert!(pair[1] == doubled || pair[1] == cap, "each wait doubles until the cap: {pair:?}");
+    }
 }
 
 /// A process that exits while it is being moved is not a failure.

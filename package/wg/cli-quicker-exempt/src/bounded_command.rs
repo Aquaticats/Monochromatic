@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 /// The search path the command gets,
 /// and the one its program is looked up in.
-const SECURE_PATH: &str = "/usr/bin:/bin";
+pub(crate) const SECURE_PATH: &str = "/usr/bin:/bin";
 /// Time between two checks whether the command ended.
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
 

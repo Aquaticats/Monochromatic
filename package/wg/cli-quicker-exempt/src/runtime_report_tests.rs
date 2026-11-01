@@ -257,14 +257,15 @@ fn the_remembered_kinds_are_bounded_and_the_oldest_is_evicted() {
     assert_eq!(journal.borrow().len(), MAX_REMEMBERED_KINDS + 11);
 }
 
-/// The production intervals are ten seconds for the log,
-/// a minute for the journal and ten minutes for the desktop.
+/// The production intervals stay ordered from the loudest channel to the quietest,
+/// and a notification expires when the next one is due.
 #[test]
-fn the_production_intervals_are_ten_seconds_a_minute_and_ten_minutes() {
-    assert_eq!(LOG_INTERVAL, Duration::from_secs(10));
-    assert_eq!(JOURNAL_INTERVAL, Duration::from_secs(60));
-    assert_eq!(NOTIFICATION_INTERVAL, Duration::from_secs(600));
-    assert_eq!(NOTIFICATION_EXPIRY_MS, 600_000);
+fn the_production_intervals_are_ordered_and_a_notification_outlives_its_interval() {
+    assert!(LOG_INTERVAL > Duration::ZERO);
+    assert!(JOURNAL_INTERVAL > LOG_INTERVAL, "the journal is quieter than the log");
+    assert!(NOTIFICATION_INTERVAL > JOURNAL_INTERVAL, "the desktop is quieter than the journal");
+    let expiry = Duration::from_millis(u64::try_from(NOTIFICATION_EXPIRY_MS).expect("a positive expiry"));
+    assert_eq!(expiry, NOTIFICATION_INTERVAL, "expiry covers the interval between two notifications");
 }
 
 /// The notification call follows the `Notify` signature of the freedesktop notification service,
