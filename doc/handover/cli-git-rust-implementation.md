@@ -6213,3 +6213,9 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `ad02e84404af49107`).
 - `package/git-policy/cli.fuzz` does not compile on main (`markdown.rs` imports the missing
   `markdown_linter_output::interpret_linter_run`). Sent to `a0a08ba8c0924f668` with a request for a cheap compile check.
+- Batch size is not the whole story. With `lfs.transfer.batchSize=25`, a direct traced `git-lfs push --all` sent 87
+  batches of 25 and got 200 x87, exit 0 (`~/temp/agent/lfs-trace25.log`). Minutes later a wrapper `git push` got 503
+  on 56 batches of 25 ("35% (769/2169)"). Error 1102 therefore also hits small batches, intermittently. Sent to the
+  Worker agent; per-isolate memory growth across a burst is one hypothesis, not established. Until the Worker or the
+  in-process skip ships, pushes of commits that touch no LFS path go out through `~/temp/agent/push-checked.ts`, which
+  pushes with `GIT_LFS_SKIP_PUSH=1` only when no unpushed commit touches an LFS-tracked path and refuses otherwise.
