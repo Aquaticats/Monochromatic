@@ -368,34 +368,48 @@ revision before and after the fix; it was not run.
 
 ### The fix
 
-`link_built_wrapper` links the built executable when the fixture is on its filesystem, and otherwise links one stored
-copy of the build on the fixture's filesystem (`binary_wrapper_store.rs`).
+`link_built_wrapper` links the built executable; when that link fails with `EXDEV` (the link's own failure, not a
+comparison of device numbers, which bind mounts defeat) it links one stored copy of the build on the fixture's
+filesystem (`link_stored` in `binary_wrapper_store.rs`), and it copies per fixture only where neither link works.
+The stored copy is named by a hash and the length of the build's bytes (`content_name`), read once per process, and a
+copy is read back and must have that name before it is published.
+Length and modification time were used first and rejected after the cross-vendor review: equal-length builds with one
+timestamp share them.
+The hash is SipHash from the standard library, which protects against accidental equality only.
+
 A caller that finds no stored copy writes its own uniquely named partial file in `<fixture root>/wrapper-store/` and
 links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
 first; it then removes its partial and uses the winner's file.
 There is no lock: the final name is only ever a complete file, a reader only opens the final name, and the first
 publisher wins.
-Callers that start together each write a partial copy once per build (the first wave after a rebuild still writes up
-to one copy per concurrent caller, then none); every later caller finds the final file.
-Copies of older builds are removed without a lock too, and a partial file is removed only when it is over an hour old
-(a dead caller's); a fixture that linked an older copy keeps its own link.
-The stored name holds the build's length and modification time, so a rebuild never matches an older copy.
+Callers that start together each write a partial copy once per build, so the first wave after a rebuild writes up to
+one copy per concurrent test process (derived, not measured: with one process per CPU on a 28-CPU host, up to about
+600 MB, against about 3.7 GB before and about 22 MB with a lock); every later caller finds the final file.
+
+Pruning is by idleness: a copy of another build, or a partial file, is removed only when its status-change time is
+more than a day old.
+A fixture's link changes that time, so a copy a run is linking is never idle, and the pruning cannot remove a copy
+between a caller's finding it and linking it except for a copy a day idle that a second run starts using in that
+instant.
+That remaining case is handled too: `link_stored` asks for the stored copy again when the link finds it gone (three
+attempts), so the caller still ends with a link to the stored file and not a per-fixture copy.
 Placing the fixtures beside the executable instead was tried first and rejected: `target/` is inside the repository,
 so a fixture meant to be outside any repository (the `require-root` and resolution controls) ran inside the
 worktree's own.
 
-Guards, each shown failing with its fix removed:
-`fixtures_share_one_wrapper_file_with_the_built_executables_bytes` (two fixtures, one file; failed with the link source
-forced back to the build) and `concurrent_callers_end_with_links_to_one_final_file_of_the_build` (several callers link
-the stored copy while an older build's copy is removed, and end with one file).
-With the publish step broken so that a caller returned its own partial path instead of the stored one, three controls
-failed (the two above and `an_older_builds_copy_leaves_the_store`).
-With `rename` in place of the link the concurrent control failed in 2 of 8 runs only, because it depends on callers
-finishing their copies in a particular order, so it is not the guard for that change;
-`a_late_publisher_leaves_the_winners_file_in_place` is, because it publishes a second file over an existing stored
-copy deterministically.
-The concurrent control's removal of an older copy while other callers link is a weak probe of removing a file another
-caller is linking from: the removed file is never the one being linked.
+Guards (`binary_wrapper_store_tests.rs`), shown failing together with six changes made at once, each failure naming
+the control it should (one build, six controls failed, six passed):
+- `a_late_publisher_leaves_the_winners_file_in_place`: `rename` in place of the link.
+- `the_name_of_a_build_is_its_content`: a name that ignores the bytes.
+- `a_copy_that_does_not_have_the_builds_name_is_not_published`: the check of the copy against its name removed.
+- `a_stored_copy_that_vanishes_before_the_link_is_made_again`: a single link attempt.
+- `concurrent_callers_end_with_links_to_one_final_file_of_the_build`: pruning every copy at once (the control keeps a
+  recent copy of another build and checks that no partial file or second copy stays).
+- `fixtures_share_one_wrapper_file_with_the_built_executables_bytes`: the `EXDEV` branch disabled, so each fixture
+  copies. It also covers a root in `/dev/shm`, which fails the link of the build with `EXDEV` where that is another
+  filesystem, and reports when it is not.
+Not covered: a copy of another build removed by a different process between its being found and linked is shown for
+one removal at one moment (the control removes the stored file in `link_stored`'s hook), not under a real second run.
 An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
 
 ## A wait notice in a diagnostics comparison
