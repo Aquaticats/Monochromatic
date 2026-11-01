@@ -4847,3 +4847,23 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Next: container gate on the combined tree (unit `gpc-surv-gate`, log `~/temp/agent/gate/surv-gate.log`), then the
   m045 scope reruns for `real_index_lock`, `private_storage`, `process_tree` once the old units end; remove merged
   agent worktrees.
+
+## m046 rerun, macOS build fix, worktree cleanup
+
+- Container gate on the combined survivor-test tree: 2738 run, 2738 passed, 7 skipped (log
+  `~/temp/agent/gate/surv-gate.log`); the `/dev/shm` cross-device test passes inside the podman image.
+- Final m045 results: `filesystem_identity` 71 mutants, 4 missed (`darwin_fs_id` x2, now covered by macOS-gated tests;
+  `windows_fs_id` x2, Windows only); `process_tree` 32 mutants, 6 missed (four macOS-only or equivalent, `terminate_members`
+  and `kill_members` now killed on Linux); `private_storage` and `real_index_lock` as recorded above.
+- Fix `5874ef1bd1`: macOS sender codes `SI_USER = 0x10001` and `SI_QUEUE = 0x10002` defined in `signal_relay.rs` for
+  `target_os = "macos"` (the `libc` crate lacks them there); tests use a `KERNEL_CODE` constant (`SI_KERNEL` on Linux, 0
+  elsewhere). The 16 `signal_relay` tests pass on Linux. An agent is checking the crate build and the `signal_relay` tests
+  on `m1` (scratch on `/Volumes/MacData`, deleted afterwards) and will list any other macOS compile errors.
+- Mutation rerun `m046` (units `cli-git-mutpar-m046-src-native-real-index-lock`, `...-private-storage`,
+  `...-process-tree`, `--timeout 2400`, images `m0460` to `m0463` from the gate image): confirms the new tests kill the
+  mutants they target and finds anything new in the seam code. Read results from `~/temp/agent/mutpar-m046-*.log.N`.
+- The five merged agent worktrees of this segment are removed (`git worktree remove --force`; each held only the
+  hook-generated `doc/audit/standards-review-gate-shadow.md`); about 35 older agent worktrees from other work remain and
+  are not mine to judge.
+- Still open: `private_storage.rs` over 300 lines (about 720) from before; Windows-only survivors; `windows_fs_id`;
+  cutover notice from `monochromatic-6e` (mpm-shadow 0.2.2 merge, it will message).
