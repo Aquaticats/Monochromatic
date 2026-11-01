@@ -8,14 +8,12 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join, } from 'node:path';
 
 import { plantedCommitControls } from './native-planted-controls-commit.ts';
 import { plantedEntryControls } from './native-planted-controls-entry.ts';
 import { plantedLandingControls } from './native-planted-controls-landing.ts';
+import { judgePlantedRun, } from './native-planted-controls-outcome.ts';
 import {
   createContainer,
   NativeVerificationError,
@@ -39,11 +37,13 @@ export type PlantedControl = {
 };
 
 /**
- Planted control plus what its container observed; `status` is absent when a signal ended the container's run.
+ Planted control plus what its container observed; `status` is absent when a signal ended the container's run, and
+ `buildFailure` holds the compiler's errors when the planted source did not compile, so no test ran.
  */
 export type PlantedControlResult = PlantedControl & {
   readonly status?: number;
   readonly noticed: boolean;
+  readonly buildFailure?: string;
 };
 
 /**
@@ -82,8 +82,13 @@ const plantedControls: readonly PlantedControl[] = [
  @param index - position of the control, which names its planted source and log files
 
  @returns control with its container's exit status and whether the named test failed
+
+ @example
+ ```ts
+ const result = await runPlantedControl({ base, limits, context, evidence, control, index: 0 });
+ ```
  */
-async function runPlantedControl({
+export async function runPlantedControl({
   base,
   limits,
   context,
@@ -94,37 +99,6 @@ async function runPlantedControl({
   readonly control: PlantedControl;
   readonly index: number;
 }): Promise<PlantedControlResult> {
-  /**
-   Current text of the file the control edits, so a control cannot silently stop applying.
-   */
-  const original = await readFile(
-    resolve(control.file),
-    'utf8',
-  );
-  /**
-   How many times the control's text occurs, which must be exactly once.
-   */
-  const occurrences = original.split(control.from)
-    .length
-    - 1;
-  if (occurrences !== 1)
-    throw new NativeVerificationError(
-      `Planted control "${control.name}" matches ${String(occurrences)} times in ${control.file}; it must match exactly once.`,
-    );
-  /**
-   Host path of the edited copy that is copied into the container.
-   */
-  const planted = join(
-    context,
-    `planted-${String(index)}.rs`,
-  );
-  await writeFile(
-    planted,
-    original.replace(
-      control.from,
-      control.to,
-    ),
-  );
   // Unit tests notice these removals first; `--no-fail-fast` keeps Cargo going so the named control also runs.
   /**
    The container that runs the suite against the planted source, removed when this function returns.
@@ -143,6 +117,55 @@ async function runPlantedControl({
       '--no-fail-fast',
     ],
   });
+  /**
+   Host path that receives the image's own copy of the file the control edits.
+   */
+  const imageCopy = join(
+    context,
+    `image-${String(index)}.rs`,
+  );
+  // The edit starts from the image's copy, never the host's: the planted file must fit the sibling files baked into
+  // the image, or a host that moved on makes the crate fail to compile and no test can notice anything.
+  await runCommand({
+    command: 'podman',
+    args: [
+      'cp',
+      `${container.id}:${containerSource}/${control.file}`,
+      imageCopy,
+    ],
+    capture: true,
+  });
+  /**
+   Text of the file in the tested image, so a control cannot silently stop applying.
+   */
+  const original = await readFile(
+    imageCopy,
+    'utf8',
+  );
+  /**
+   How many times the control's text occurs, which must be exactly once.
+   */
+  const occurrences = original.split(control.from)
+    .length
+    - 1;
+  if (occurrences !== 1)
+    throw new NativeVerificationError(
+      `Planted control "${control.name}" matches ${String(occurrences)} times in ${control.file} of the tested image; it must match exactly once.`,
+    );
+  /**
+   Host path of the edited copy that is copied into the container.
+   */
+  const planted = join(
+    context,
+    `planted-${String(index)}.rs`,
+  );
+  await writeFile(
+    planted,
+    original.replace(
+      control.from,
+      control.to,
+    ),
+  );
   await runCommand({
     command: 'podman',
     args: [
@@ -169,20 +192,14 @@ async function runPlantedControl({
    Both streams of the run, kept as the control's evidence.
    */
   const output = `${run.stdout}\n${run.stderr}`;
-  // nextest prints `FAIL [ 0.012s] <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a child
-  // running; the name is the last token of the line.
   /**
-   Whether the suite failed and the named test is among the failures.
+   What the run showed: the named test failed, no test failed it, or the planted source did not compile.
    */
-  const noticed = (run.status !== 0)
-    && output.split('\n')
-      .some(function failedLine(line) {
-        return line.trimStart()
-          .startsWith('FAIL ')
-          && line.includes('[')
-          && line.trimEnd()
-            .endsWith(` ${control.failing}`);
-      });
+  const verdict = judgePlantedRun({
+    output,
+    ...(run.status === undefined ? {} : { status: run.status, }),
+    failing: control.failing,
+  });
   await writeFile(
     join(
       evidence,
@@ -190,14 +207,19 @@ async function runPlantedControl({
     ),
     output,
   );
-  console.log(`Planted control "${control.name}": ${noticed ? 'noticed' : 'NOT noticed'} by ${control.failing}`);
+  console.log(
+    verdict.kind === 'build-failed'
+      ? `Planted control "${control.name}": the planted source did not compile, so no test ran:\n${verdict.detail}`
+      : `Planted control "${control.name}": ${verdict.kind === 'noticed' ? 'noticed' : 'NOT noticed'} by ${control.failing}`,
+  );
   /**
    The control with what its container observed.
    */
   const result = {
     ...control,
     ...(run.status === undefined ? {} : { status: run.status, }),
-    noticed,
+    noticed: verdict.kind === 'noticed',
+    ...(verdict.kind === 'build-failed' ? { buildFailure: verdict.detail, } : {}),
   };
   return result;
 }
@@ -252,6 +274,19 @@ export async function runPlantedControls(setting: PlantedControlSetting): Promis
       2,
     )}\n`,
   );
+  /**
+   Controls whose planted source did not compile, which says nothing about their guard.
+   */
+  const unbuilt = results.filter(function didNotBuild(result) {
+    return result.buildFailure !== undefined;
+  });
+  if (unbuilt.length > 0)
+    throw new NativeVerificationError(
+      `Planted guard removals did not compile, so no test could notice them: ${unbuilt.map(function controlName(result) {
+        return result.name;
+      })
+        .join('; ')}. The edit applies to the tested image's source; inspect ${setting.evidence}.`,
+    );
   /**
    Controls whose removal no test noticed.
    */
