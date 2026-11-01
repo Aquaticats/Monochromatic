@@ -1449,8 +1449,20 @@ each finished branch is reviewed and merged into `main`):
   up to 6 sends;
   a dry run skips the push step, so only a real run tests it).
   Real run 2:
-  `41306407444`,
-  watched with `release:wait`.
+  `41306407444` succeeded.
+  The push step lost the race once
+  ("main moved after the checkout"),
+  compared `7aaa29a740...09717e1413` (1 changed file, no watched path),
+  resent,
+  and pushed `55f3a1634e` (GitHub: verified, valid).
+  Publish run `41306795688` succeeded;
+  0.6.1 on crates.io at 2026-11-01T12:33:50Z with every platform's release assets.
+  The git-wrapper session was told.
+  forbidden-strings is not in the toolchain plan or lock:
+  `.github/workflows/forbidden-strings.yml` downloads the release matching `Cargo.toml`,
+  so no lock bump;
+  the runs that failed started before the assets existed;
+  run `41307405996` (12:37) is the first after.
   The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
   queued:
   send it the result of run `41306407444`.
@@ -1470,6 +1482,20 @@ each finished branch is reviewed and merged into `main`):
   (`removeTrafficBlock` never throws).
   Owner 2026-11-01:
   "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  Done in `dd293b2f82` (with `4337ec78ba` atomic replace,
+  `73502c7fff` loud lift failure,
+  `26377527b9`,
+  `c324bc2cfc`; under re-review):
+  the block accepts `meta mark 0x64` and the update-host destinations from `ip rule show`
+  ahead of the drop in the output chain;
+  forward stays a pure drop.
+  Limit:
+  `down` stops the application watcher before the block,
+  which detaches the marker links,
+  so only open connections and update-host destinations pass during `down`.
+  Veto-open:
+  if ownership state or the rule listing cannot be read,
+  `down` refuses with the tunnel fully up.
   Sent to the wg agent:
   the block table accepts traffic the routing already sends to clearnet
   (matched the way the policy rules match it),
