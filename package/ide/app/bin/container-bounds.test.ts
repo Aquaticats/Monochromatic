@@ -4,6 +4,8 @@
 // follow the CPU limit.
 // Why: a wrong bound either starves a build (an out-of-memory kill) or lets test threads outnumber the CPU quota.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   ContainerBoundError,
@@ -18,6 +20,14 @@ const gibibyte = 2 ** 30;
 const hostOf = ({ cpus, memoryGiB }: { cpus: number; memoryGiB: number }) => ({ cpus, memoryBytes: memoryGiB * gibibyte });
 // The host of the owner's decision: 28 CPUs and 61.83 GiB (66,394,247,168 bytes), a "64 GB" machine.
 const ownerHost = { cpus: 28, memoryBytes: 66_394_247_168 };
+// The package root, beside the module and this test, so the documented files are found from any working directory.
+const packageDirectory = join(import.meta.dirname, '..');
+// Every IDE_CONTAINER_* name one document lists, without repeats and sorted, so the documents and the module compare
+// as sets. A rename in one document alone leaves the old name there and the new one here.
+const documentedVariableNames = (file: string): string[] => {
+  const text = readFileSync(join(packageDirectory, file), 'utf8');
+  return [...new Set(text.match(/IDE_CONTAINER_[A-Z0-9_]+/g) ?? [])].sort();
+};
 
 test('nine tenths of a 28 CPU, 64 GB host is 25 CPUs and 55 GiB', () => {
   assert.deepEqual(hostBound(ownerHost), { cpus: 25, memoryGiB: 55 });
@@ -148,15 +158,11 @@ test('the error for memory states the accepted form', () => {
   );
 });
 
-test('the variables are the ones the README names', () => {
-  assert.deepEqual(Object.values(variableNames).sort(), [
-    'IDE_CONTAINER_CPUS',
-    'IDE_CONTAINER_JOBS',
-    'IDE_CONTAINER_MEMORY',
-    'IDE_CONTAINER_NOFILE',
-    'IDE_CONTAINER_PIDS',
-    'IDE_CONTAINER_TEST_THREADS',
-  ]);
+test('the variables are the ones the README and mise.toml name', () => {
+  const accepted: string[] = [...Object.values(variableNames)].sort();
+  for (const file of ['README.md', 'mise.toml']) {
+    assert.deepEqual(documentedVariableNames(file), accepted, `${file} names different IDE_CONTAINER_* variables than bin/container-bounds.ts`);
+  }
 });
 
 test('this host yields a bound with whole, positive numbers', () => {
