@@ -32,6 +32,27 @@ fn entries_equal_the_listing_in_every_version() {
     let bytes = std::fs::read(repo.join(".git/index")).expect("index");
     let entries = parse_index(bytes.as_slice(), ObjectFormat::Sha1).expect("parsed");
     assert!(entries.iter().any(|entry| { return entry.extended & INTENT_TO_ADD != 0; }));
+    assert_eq!(&bytes[4..8], &[0, 0, 0, 3], "an extended entry makes the file version 3");
+    remove(root.as_path());
+}
+
+/// A reserved extended-flag bit is not a format Git reads: patching the one entry of an intent-to-add index is declined.
+#[test]
+fn a_reserved_extended_flag_is_declined() {
+    let root = fixture("repo-read-index-reserved");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("only"), "x\n").expect("only");
+    git(repo.as_path(), &["add", "--intent-to-add", "only"]);
+    let bytes = std::fs::read(repo.join(".git/index")).expect("index");
+    let entries = parse_index(bytes.as_slice(), ObjectFormat::Sha1).expect("parsed");
+    assert_eq!(entries.len(), 1);
+    // Header 12 bytes, 40 of stat data, a 20-byte name, 2 flag bytes, then the 2 extended-flag bytes.
+    let extended_at: usize = 12 + 40 + 20 + 2;
+    let mut reserved = bytes.clone();
+    reserved[extended_at + 1] |= 0x01;
+    assert!(parse_index(reserved.as_slice(), ObjectFormat::Sha1).is_none());
     remove(root.as_path());
 }
 

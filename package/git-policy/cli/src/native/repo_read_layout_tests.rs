@@ -14,6 +14,7 @@ fn hermetic_scope(root: &Path) -> ScopeEnvironment {
         no_system: true,
         system: None,
         global: Some(PathBuf::from("/nonexistent-global-config")),
+        unresolvable: false,
     };
 }
 

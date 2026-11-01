@@ -73,6 +73,10 @@ fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a
             if !target.is_empty() {
                 *start = start.join(target);
             }
+            // Git changes directory at each `-C` in turn and fails at the first one that is not a directory.
+            if !std::fs::metadata(&*start).is_ok_and(|found| { return found.is_dir(); }) {
+                return None;
+            }
             index += 2;
         } else if word == "--no-literal-pathspecs" {
             index += 1;
@@ -116,7 +120,8 @@ fn environment(
         .collect();
     all.extend(variables.iter().cloned());
     let find = |wanted: &str| -> Option<OsString> {
-        return all.iter().find(|(name, _)| { return name == wanted; }).map(|(_, value)| { return value.clone(); });
+        // The last assignment wins, as it does for the child's environment.
+        return all.iter().rev().find(|(name, _)| { return name == wanted; }).map(|(_, value)| { return value.clone(); });
     };
     let index: Option<OsString> = find("GIT_INDEX_FILE");
     let objects: Option<OsString> = find("GIT_OBJECT_DIRECTORY");
@@ -219,7 +224,9 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
     let mut others: Vec<&str> = Vec::new();
     for flag in &parsed.flags {
         match flag.strip_prefix("--diff-filter=") {
-            Some(letters) if !porcelain => statuses = Some(parse_diff_filter(letters)?),
+            // A second `--diff-filter` adds its letters in Git; the reader leaves that spelling to it.
+            Some(letters) if !porcelain && statuses.is_none() => statuses = Some(parse_diff_filter(letters)?),
+            Some(_) => return None,
             _ => others.push(flag),
         }
     }

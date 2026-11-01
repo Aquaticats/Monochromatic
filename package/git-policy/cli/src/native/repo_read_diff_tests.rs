@@ -51,6 +51,8 @@ fn pathspecs_are_literal_or_declined() {
         assert!(PathFilter::parse(&[odd], true).is_none(), "{odd:?}");
     }
     assert!(PathFilter::parse(&[b"relative"], false).is_none(), "a relative name below the top level");
+    assert!(PathFilter::parse(&[b":/", b":(top,exclude)secret"], true).is_none(), "an exclusion after `:/` is still checked");
+    assert!(PathFilter::parse(&[b":/", b"*.txt"], true).is_none(), "a glob after `:/` is still checked");
 }
 
 /// The raw and name lines are spelled as Git spells them, with the zero name for an absent side.

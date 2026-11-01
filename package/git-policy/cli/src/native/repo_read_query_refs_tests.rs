@@ -135,6 +135,41 @@ fn the_symbolic_head_equals_git() {
     remove(root.as_path());
 }
 
+/// Symbolic chains, repeated upstream settings, dangling tracking refs and a bare-name file that shadows the short name
+///  are the cases where Git's answer differs from a plain read, so the reader leaves them to Git.
+#[test]
+fn chains_repeats_and_shadows_are_declined() {
+    let root = fixture("repo-read-refs-chains");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    let upstream = ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"];
+    answered(root.as_path(), repo.as_path(), &upstream);
+    // Two merge settings: Git takes the first.
+    git(repo.as_path(), &["config", "--add", "branch.main.merge", "refs/heads/feature/deep/name"]);
+    declined(root.as_path(), repo.as_path(), &upstream);
+    git(repo.as_path(), &["config", "--unset-all", "branch.main.merge"]);
+    git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    answered(root.as_path(), repo.as_path(), &upstream);
+    // A bare-name file in the Git directory is Git's first lookup rule.
+    std::fs::create_dir_all(repo.join(".git/origin")).expect("directory");
+    std::fs::write(repo.join(".git/origin/main"), format!("{}\n", "1".repeat(40))).expect("file");
+    declined(root.as_path(), repo.as_path(), &upstream);
+    std::fs::remove_dir_all(repo.join(".git/origin")).expect("remove");
+    // A tracking ref that is symbolic and points nowhere does not resolve.
+    git(repo.as_path(), &["symbolic-ref", "refs/remotes/origin/main", "refs/remotes/origin/gone"]);
+    declined(root.as_path(), repo.as_path(), &upstream);
+    git(repo.as_path(), &["update-ref", "--no-deref", "-d", "refs/remotes/origin/main"]);
+    git(repo.as_path(), &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    answered(root.as_path(), repo.as_path(), &upstream);
+    // `HEAD` through an alias branch follows the chain in Git.
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+    git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/alias"]);
+    declined(root.as_path(), repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
+    declined(root.as_path(), repo.as_path(), &upstream);
+    remove(root.as_path());
+}
+
 /// A key injected through the environment that can change a diff makes the content queries decline,
 ///  while an injected key that cannot (the wrapper injects hook settings) leaves them answered.
 #[test]

@@ -38,6 +38,23 @@ fn an_include_loop_is_declined() {
     remove(root.as_path());
 }
 
+/// `GIT_CONFIG_NOSYSTEM` is a boolean, and a relative path cannot be settled without the directory Git runs in.
+#[test]
+fn the_scope_environment_reads_booleans_and_refuses_relative_paths() {
+    let variables = |items: &[(&str, &str)]| -> Vec<(OsString, OsString)> {
+        return items.iter().map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); }).collect();
+    };
+    assert!(ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "true")]).as_slice()).no_system);
+    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "false")]).as_slice()).no_system);
+    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "0")]).as_slice()).no_system);
+    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "")]).as_slice()).no_system);
+    assert!(ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_NOSYSTEM", "perhaps")]).as_slice()).unresolvable);
+    assert!(ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_GLOBAL", "relative.config")]).as_slice()).unresolvable);
+    assert!(!ScopeEnvironment::from_variables(variables(&[("GIT_CONFIG_GLOBAL", "/absolute.config")]).as_slice()).unresolvable);
+    let unresolved = ScopeEnvironment { unresolvable: true, ..ScopeEnvironment::default() };
+    assert_eq!(outer_scopes_avoid_keys(&unresolved, &discovery_key), None);
+}
+
 /// The scope files follow `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG_GLOBAL` and the XDG directory.
 #[test]
 fn the_scope_environment_chooses_the_files() {

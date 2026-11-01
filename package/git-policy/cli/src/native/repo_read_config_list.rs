@@ -108,6 +108,9 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
 /// function listConfig(commonDir: string, scope: ScopeEnvironment, variables: [string, string][]): ListedEntry[] | undefined;
 /// ```
 pub fn list_config(common_dir: &Path, scope: &ScopeEnvironment, variables: &[(OsString, OsString)]) -> Option<Vec<ListedEntry>> {
+    if scope.unresolvable {
+        return None;
+    }
     let mut listed: Vec<ListedEntry> = Vec::new();
     for (label, file) in scope.labelled_files() {
         add_file(file.as_path(), label, scope.home.as_deref(), 0, &mut listed)?;

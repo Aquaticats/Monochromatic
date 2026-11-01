@@ -200,6 +200,14 @@ fn states_that_need_git_are_declined() {
     declined(root.as_path(), clean.as_path(), &["diff-index", "--cached", "--name-only", "-z", "HEAD"]);
     declined(root.as_path(), clean.as_path(), &["diff-index", "--cached", "--name-only", "--diff-filter=d", "-z", &head]);
     declined(root.as_path(), clean.as_path(), &["ls-files", "--stage", "-z", "--", "*.txt"]);
+    // A later exclusion after `:/`, a repeated `--diff-filter`, and a first `-C` that fails before a valid second one.
+    declined(root.as_path(), clean.as_path(), &["ls-files", "--stage", "-z", "--", ":/", ":(top,exclude)a.txt"]);
+    let clean_tip = text(clean.as_path(), &["rev-parse", "HEAD"]);
+    declined(root.as_path(), clean.as_path(), &["diff-index", "--cached", "--name-only", "-z", "--diff-filter=A", "--diff-filter=D", &clean_tip]);
+    let nowhere = root.join("no-such-directory");
+    let real = clean.to_str().expect("UTF-8");
+    declined(root.as_path(), root.as_path(), &["-C", nowhere.to_str().expect("UTF-8"), "-C", real, "ls-files", "--stage", "-z"]);
+    answered(root.as_path(), root.as_path(), &["-C", real, "ls-files", "--stage", "-z"]);
     declined(root.as_path(), clean.join("dir").as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     remove(root.as_path());
 }

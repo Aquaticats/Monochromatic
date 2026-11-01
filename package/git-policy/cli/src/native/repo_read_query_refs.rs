@@ -20,6 +20,7 @@ use super::repo_read_object::{ObjectKind, from_hex};
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query::{Answer, Context, Parsed, flags_are};
 use super::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
+use std::ffi::OsString;
 
 /// The `--format` text of the one listing the wrapper asks for.
 const LISTING_FORMAT: &str = "--format=%(refname)%00%(objectname)%00%(symref)";
@@ -40,9 +41,25 @@ fn listing(context: &Context) -> Option<Vec<ListedEntry>> {
     return list_config(context.layout.common_dir.as_path(), &context.scope, context.variables.as_slice());
 }
 
-/// The last value of `key` among the listed entries.
-fn last_value<'a>(listed: &'a [ListedEntry], key: &str) -> Option<&'a Option<Vec<u8>>> {
-    return listed.iter().rev().find(|item| { return item.entry.key == key; }).map(|item| { return &item.entry.value; });
+/// Every value of `key` among the listed entries, in order.
+fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>>> {
+    return listed.iter().filter(|item| { return item.entry.key == key; }).map(|item| { return &item.entry.value; }).collect();
+}
+
+/// Whether the symbolic ref target `name` is a plain, non-symbolic ref or does not exist yet;
+///  Git follows a chain of symbolic refs, so a target that is itself symbolic is left to it.
+fn is_terminal(refs: &Refs, name: &str) -> bool {
+    return matches!(refs.lookup(name), Lookup::Missing | Lookup::Found(RefValue::Direct(_)));
+}
+
+/// Whether Git's messages are in English under these variables, which the synthesized failures assume.
+fn messages_are_english(variables: &[(OsString, OsString)]) -> bool {
+    let find = |name: &str| -> Option<String> {
+        return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).and_then(|(_, value)| { return value.to_str().map(str::to_string); }).filter(|value| { return !value.is_empty(); });
+    };
+    let english = |value: &str| -> bool { return value == "C" || value == "POSIX" || value.starts_with("en"); };
+    let locale: Option<String> = find("LC_ALL").or_else(|| { return find("LC_MESSAGES"); }).or_else(|| { return find("LANG"); });
+    return locale.as_deref().is_none_or(english) && find("LANGUAGE").as_deref().is_none_or(english);
 }
 
 /// `config --list -z --show-scope`.
@@ -74,6 +91,9 @@ pub(super) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
         let prefix: String = format!("remote.{name}.");
         let legacy: bool = ["remotes", "branches"].iter().any(|directory| { return std::fs::symlink_metadata(context.layout.common_dir.join(directory).join(name)).is_ok(); });
         if legacy || listed.iter().any(|item| { return item.entry.key.starts_with(prefix.as_str()); }) {
+            return None;
+        }
+        if !messages_are_english(context.variables.as_slice()) {
             return None;
         }
         let message: String = format!("error: No such remote '{name}'\n");
@@ -115,7 +135,8 @@ pub(super) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
     for (name, value) in refs.list()? {
         let (object, symref): (String, &str) = match &value {
             RefValue::Direct(object) => (object.clone(), ""),
-            RefValue::Symbolic(target) => (refs.resolve(name.as_str())?, target.as_str()),
+            RefValue::Symbolic(target) if is_terminal(&refs, target.as_str()) => (refs.resolve(name.as_str())?, target.as_str()),
+            RefValue::Symbolic(_) => return None,
         };
         // Git skips, with a warning, a ref whose object is missing; that case is left to it.
         if !database.contains(from_hex(object.as_bytes(), context.layout.object_format)?.as_slice()) {
@@ -166,11 +187,17 @@ fn upstream(context: &Context) -> Option<Answer> {
         _ => return None,
     };
     let branch: &str = head.strip_prefix("refs/heads/")?;
+    // A `HEAD` that names a branch which is itself symbolic follows the chain in Git.
+    if !is_terminal(&refs, head.as_str()) {
+        return None;
+    }
     let listed: Vec<ListedEntry> = listing(context)?;
-    let remote_value = last_value(listed.as_slice(), &format!("branch.{branch}.remote"));
-    let merge_value = last_value(listed.as_slice(), &format!("branch.{branch}.merge"));
-    let (Some(Some(remote)), Some(Some(merge))) = (remote_value, merge_value) else {
-        if remote_value.is_none() && merge_value.is_none() {
+    let remotes = values_of(listed.as_slice(), &format!("branch.{branch}.remote"));
+    let merges = values_of(listed.as_slice(), &format!("branch.{branch}.merge"));
+    // More than one entry is a multi-valued setting whose choice Git makes; the reader declines it.
+    let (remote_value, merge_value) = (remotes.as_slice(), merges.as_slice());
+    let ([Some(remote)], [Some(merge)]) = (remote_value, merge_value) else {
+        if remote_value.is_empty() && merge_value.is_empty() && messages_are_english(context.variables.as_slice()) {
             let message: String = format!("fatal: no upstream configured for branch '{branch}'\n");
             return Some(Answer { stdout: Vec::new(), stderr: message.into_bytes(), code: 128 });
         }
@@ -183,10 +210,13 @@ fn upstream(context: &Context) -> Option<Answer> {
     }
     let tracking: String = tracking_ref(listed.as_slice(), remote_name, merge_name)?;
     let short: &str = tracking.strip_prefix("refs/remotes/")?;
-    if !matches!(refs.lookup(tracking.as_str()), Lookup::Found(_)) {
+    // The tracking ref must exist and resolve, not be a symbolic ref that points nowhere.
+    refs.resolve(tracking.as_str())?;
+    // The first of Git's lookup rules is the bare name itself, a file in the Git directory.
+    if std::fs::symlink_metadata(context.layout.common_dir.join(short)).is_ok() {
         return None;
     }
-    for prefix in ["", "refs/", "refs/tags/", "refs/heads/"] {
+    for prefix in ["refs/", "refs/tags/", "refs/heads/"] {
         if shadowed(&refs, prefix, short)? {
             return None;
         }
@@ -204,6 +234,8 @@ pub(super) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
     }
     let refs: Refs = shared_refs(context)?;
     return match refs.lookup_head(context.layout.git_dir.as_path())? {
+        // Git follows a chain of symbolic refs and prints the last; a target that is symbolic is left to it.
+        RefValue::Symbolic(target) if !is_terminal(&refs, target.as_str()) => None,
         RefValue::Symbolic(target) => Some(Answer { stdout: format!("{target}\n").into_bytes(), stderr: Vec::new(), code: 0 }),
         RefValue::Direct(_) => Some(Answer { stdout: Vec::new(), stderr: Vec::new(), code: 1 }),
     };

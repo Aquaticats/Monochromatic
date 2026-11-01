@@ -23,10 +23,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The environment variables a plain read tolerates, by prefix; any other `GIT_` variable can move a path or a key.
-const PLAIN_ENVIRONMENT_PREFIXES: [&str; 20] = [
+const PLAIN_ENVIRONMENT_PREFIXES: [&str; 19] = [
     "GIT_AUTHOR_",
     "GIT_COMMITTER_",
-    "GIT_TRACE",
     "GIT_TERMINAL_PROMPT",
     "GIT_ASKPASS",
     "GIT_PAGER",
@@ -180,6 +179,10 @@ fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
         if !path.is_empty() {
             directory = directory.join(path);
         }
+        // Git changes directory at each `-C` in turn and fails at the first one that is not a directory.
+        if !std::fs::metadata(&directory).is_ok_and(|found| { return found.is_dir(); }) {
+            return None;
+        }
     }
     return std::fs::canonicalize(directory).ok();
 }
@@ -192,7 +195,7 @@ fn small_file(path: &Path) -> Option<String> {
 
 /// Whether `directory` holds the three entries Git takes for a Git directory.
 fn has_git_directory_entries(directory: &Path) -> bool {
-    return directory.join("HEAD").exists() && directory.join("objects").exists() && directory.join("refs").exists();
+    return directory.join("HEAD").exists() && directory.join("objects").is_dir() && directory.join("refs").is_dir();
 }
 
 /// Whether the `HEAD` text is one of the two spellings Git accepts that this reader knows.
@@ -282,7 +285,8 @@ fn object_format_of(entries: &[ConfigEntry]) -> Option<ObjectFormat> {
         }
         let value: &[u8] = entry.value.as_deref().unwrap_or_default();
         match (entry.key.as_str(), value) {
-            ("extensions.noop" | "extensions.preciousobjects", _) => {}
+            ("extensions.noop", _) => {}
+            ("extensions.preciousobjects", _) if parse_bool(entry.value.as_deref()).is_some() => {}
             ("extensions.objectformat", b"sha1") => format = ObjectFormat::Sha1,
             ("extensions.objectformat", b"sha256") => format = ObjectFormat::Sha256,
             ("extensions.refstorage", b"files") => {}
@@ -349,7 +353,7 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
 
 /// The three-entry check, with `HEAD` in the worktree's directory and the rest in the common directory.
 fn has_git_directory_entries_split(git_dir: &Path, common_dir: &Path) -> bool {
-    return git_dir.join("HEAD").exists() && common_dir.join("objects").exists() && common_dir.join("refs").exists();
+    return git_dir.join("HEAD").exists() && common_dir.join("objects").is_dir() && common_dir.join("refs").is_dir();
 }
 
 /// What:

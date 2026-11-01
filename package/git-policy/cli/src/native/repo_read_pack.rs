@@ -156,6 +156,12 @@ impl Pack {
             return None;
         }
         let data_length: u64 = data.metadata().ok()?.len();
+        // The pack states its own version and object count; they must agree with the index.
+        let pack_header: Vec<u8> = read_at(&data, 0, 12)?;
+        let pack_count: u32 = u32::from_be_bytes([pack_header[8], pack_header[9], pack_header[10], pack_header[11]]);
+        if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
+            return None;
+        }
         return Some(Pack { index, data, hash_length, count, data_length, fanout });
     }
 
@@ -207,7 +213,8 @@ impl Pack {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;
         }
-        let head: Vec<u8> = read_at(&self.data, offset, 32.min((self.data_length - offset) as usize))?;
+        // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
+        let head: Vec<u8> = read_at(&self.data, offset, (32 + self.hash_length).min((self.data_length - offset) as usize))?;
         let mut cursor: usize = 0;
         let first: u8 = head[0];
         cursor += 1;
@@ -253,6 +260,10 @@ impl Pack {
 
     /// Inflate the stream at `start` that must be `size` bytes.
     fn inflated(&self, start: u64, size: usize) -> Option<Vec<u8>> {
+        // The size comes from the pack; it is checked before any window is allocated for it.
+        if size > OBJECT_SIZE_LIMIT {
+            return None;
+        }
         let remaining: u64 = self.data_length.checked_sub(start)?.checked_sub(self.hash_length as u64)?;
         for slack in [size / 4 + 4096, size * 2 + 65536] {
             let want: usize = usize::try_from(remaining).ok()?.min(size + slack);

@@ -10,6 +10,11 @@ fn stored(mode: &str, name: &str, id: u8) -> Vec<u8> {
     return bytes;
 }
 
+/// The subject of a message that holds a NUL byte, which Git's string handling would cut.
+fn parse_subject_with_nul() -> Option<Vec<u8>> {
+    return subject_of(b"left\0right\n");
+}
+
 /// Entries come back in stored order with their modes, and malformed ones are refused.
 #[test]
 fn trees_parse_and_malformed_ones_are_refused() {
@@ -23,6 +28,8 @@ fn trees_parse_and_malformed_ones_are_refused() {
     assert!(parse_tree(stored("0100644", "a", 1).as_slice(), 20).is_none(), "a leading zero");
     assert!(parse_tree(stored("100644", "a/b", 1).as_slice(), 20).is_none(), "a slash in a name");
     assert!(parse_tree(stored("10x644", "a", 1).as_slice(), 20).is_none(), "a non-octal mode");
+    assert!(parse_tree(stored("100664", "a", 1).as_slice(), 20).is_none(), "a mode Git canonicalizes to 100644");
+    assert!(parse_subject_with_nul().is_none(), "a message with a NUL");
 }
 
 /// The tree, parents and message of a commit are read; an `encoding` header is declined.

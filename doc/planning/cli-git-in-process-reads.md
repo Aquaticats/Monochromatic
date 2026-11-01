@@ -148,6 +148,26 @@ without a fixture that has one), trees with millions of entries, an owner mismat
 a device boundary on the walk up to `.git`, the index checksum (not verified; Git verifies it), a `/etc/gitconfig`
 installed outside `/etc`, and Windows (the readers are Unix-only and every query starts Git there).
 
+## Independent review
+
+A static review by a second model (`openai/gpt-6.1-sol`, no tools, a 240 KB diff of the readers; it could not run Git)
+reported 23 answer-equivalence findings and several coverage holes.
+Fixed in follow-up commits, each with a control: last assignment wins for `GIT_INDEX_FILE` and `GIT_OBJECT_DIRECTORY`;
+bounded reads of `info/alternates` and `packed-refs`; the pack size checked before a window is allocated;
+every pathspec checked after `:/`; environment-supplied configuration entries checked for missing values and for the
+content keys; `GIT_CONFIG_NOSYSTEM` read as a boolean; relative scope file paths declined; `diff.relative` declined;
+symbolic chains (`HEAD` through an alias branch) declined; a second `branch.<name>.merge` declined; a dangling
+symbolic tracking ref declined; the bare-name lookup rule of `@{upstream}` abbreviation; sequential `-C` validation;
+repeated `--diff-filter` declined; `objects` and `refs` required to be directories; the pack header checked;
+reserved index flags and non-canonical tree and index modes declined; misplaced peeled lines in `packed-refs`
+declined; NUL bytes in values and messages declined; `GIT_TRACE*` no longer accepted; SHA-256 `REF_DELTA` headers
+readable; synthesized failures only under an English locale.
+
+Not fixed, and so limits of this work: Git's typed validation of configuration values that the readers do not need
+(a non-boolean `core.fileMode` makes Git fail where the readers answer), the system configuration path
+(`/etc/gitconfig` is assumed for the gate's Git), and the sparse-index control (the control for the sparse case
+exercises the key and the extension check, not a real sparse index).
+
 Guard controls were shown failing, one guard at a time on a restored tree:
 disabling the discovery-key check, the file-to-directory check, the rename guard of the porcelain `diff`, the
 unmerged and intent-to-add check, the ambiguous upstream check, the replace-ref and shallow check, and the switch each

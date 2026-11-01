@@ -143,6 +143,10 @@ fn read_value(cursor: &mut Cursor<'_>) -> Option<Vec<u8>> {
     let mut quoted: bool = false;
     while let Some(byte) = cursor.peek() {
         cursor.advance();
+        // Git's values are C strings; a NUL cannot be represented, so the spelling is left to it.
+        if byte == 0 {
+            return None;
+        }
         if byte == b'\n' {
             if quoted {
                 return None;

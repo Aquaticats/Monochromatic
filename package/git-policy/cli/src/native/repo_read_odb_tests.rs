@@ -106,6 +106,29 @@ fn alternates_are_followed() {
     remove(root.as_path());
 }
 
+/// A pack whose own header is damaged and an alternates file that is a link to an endless device are declined.
+#[test]
+fn a_damaged_pack_and_a_hostile_alternates_file_are_declined() {
+    let root = fixture("repo-read-odb-hostile");
+    let repo = history(root.as_path(), "repo", "sha1");
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let git_dir = repo.join(".git");
+    assert!(ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_some(), "the intact pack opens");
+    let pack = std::fs::read_dir(git_dir.join("objects/pack")).expect("pack dir").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|ext| { return ext == "pack"; }); }).expect("a pack");
+    let original = std::fs::read(&pack).expect("pack bytes");
+    std::fs::set_permissions(&pack, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("writable");
+    let mut damaged = original.clone();
+    damaged[0] = b'X';
+    std::fs::write(&pack, &damaged).expect("damage");
+    assert!(ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(), "a pack with a bad signature");
+    std::fs::write(&pack, &original).expect("restore");
+    std::fs::create_dir_all(git_dir.join("objects/info")).expect("info");
+    std::os::unix::fs::symlink("/dev/zero", git_dir.join("objects/info/alternates")).expect("link");
+    assert!(ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(), "a link to an endless device");
+    remove(root.as_path());
+}
+
 /// Replace refs, a shallow file, grafts, a missing object and a damaged loose file are declined.
 #[test]
 fn what_cannot_be_trusted_is_declined() {

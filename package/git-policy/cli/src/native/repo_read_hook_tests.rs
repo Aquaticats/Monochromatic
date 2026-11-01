@@ -86,7 +86,11 @@ fn a_request_reads_its_private_index() {
         .expect("private add");
     assert!(added.status.success());
     let (program, count) = counting_git(root.as_path());
-    let context = GitContext { real_git: program, overlay: hermetic(root.as_path()), global_prefix: Vec::new(), common_dir: None };
+    // The overlay already names the repository's own index; the request's private index is added later and wins,
+    //  as the last assignment does in the child's environment.
+    let mut overlay = hermetic(root.as_path());
+    overlay.push((OsString::from("GIT_INDEX_FILE"), repo.join(".git/index").into_os_string()));
+    let context = GitContext { real_git: program, overlay, global_prefix: Vec::new(), common_dir: None };
     let mut request = GitRequest::new(repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     request.index = Some(private.clone());
     let found = run_git(&context, &request).expect("answer");

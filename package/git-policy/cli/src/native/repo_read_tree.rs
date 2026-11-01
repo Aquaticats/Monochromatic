@@ -63,6 +63,10 @@ pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
             return None;
         }
         let mode: u32 = u32::from_str_radix(mode_text, 8).ok()?;
+        // Git canonicalizes other spellings (`100664` reads as `100644`); only the canonical ones are read here.
+        if !matches!(mode, 0o100_644 | 0o100_755 | 0o120_000 | 0o160_000 | MODE_TREE) {
+            return None;
+        }
         let nul: usize = space + 1 + bytes[space + 1..].iter().position(|byte| { return *byte == 0; })?;
         let name: Vec<u8> = bytes[space + 1..nul].to_vec();
         if name.is_empty() || name.contains(&b'/') {
@@ -181,7 +185,7 @@ pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> 
 /// const subject = message.replace(/^\n+/, '').split(/\n\s*\n/)[0].split('\n').map((l) => l.trimEnd()).join(' ');
 /// ```
 pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
-    if message.contains(&b'\r') {
+    if message.contains(&b'\r') || message.contains(&0) {
         return None;
     }
     let mut subject: Vec<u8> = Vec::new();

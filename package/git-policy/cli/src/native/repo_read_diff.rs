@@ -120,9 +120,12 @@ impl PathFilter {
     /// Read the pathspec arguments; `at_top` says whether the command runs at the top of the worktree.
     pub fn parse(specs: &[&[u8]], at_top: bool) -> Option<PathFilter> {
         let mut names: Vec<Vec<u8>> = Vec::new();
+        let mut everything: bool = false;
         for spec in specs {
+            // `:/` selects everything, but every other spec is still checked: a later exclusion or error is Git's.
             if *spec == b":/" {
-                return Some(PathFilter { names: Vec::new() });
+                everything = true;
+                continue;
             }
             let (name, top_ok): (&[u8], bool) = match spec.strip_prefix(b":(top,literal)") {
                 Some(rest) => (rest, true),
@@ -139,6 +142,9 @@ impl PathFilter {
                 return None;
             }
             names.push(name.to_vec());
+        }
+        if everything {
+            names.clear();
         }
         return Some(PathFilter { names });
     }

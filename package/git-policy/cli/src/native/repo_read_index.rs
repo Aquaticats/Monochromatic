@@ -112,7 +112,10 @@ pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>
             path = bytes[name_start..name_start + terminator].to_vec();
             at = at.checked_add((head + terminator + 8) & !7)?;
         }
-        if at > end || path.is_empty() || mode & 0o170_000 == 0o040_000 {
+        // Only the intent-to-add and skip-worktree bits are defined; Git canonicalizes other modes.
+        let defined: bool = extended & !(INTENT_TO_ADD | 0x4000) == 0;
+        let canonical: bool = matches!(mode, 0o100_644 | 0o100_755 | 0o120_000 | 0o160_000);
+        if at > end || path.is_empty() || !defined || !canonical {
             return None;
         }
         previous.clone_from(&path);

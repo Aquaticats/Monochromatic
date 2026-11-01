@@ -12,6 +12,7 @@
 
 #![cfg(unix)]
 
+use super::private_storage::{ReadRefusal, read_regular_file};
 use super::repo_read_layout::ObjectFormat;
 use super::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
 use super::repo_read_pack::Pack;
@@ -19,6 +20,12 @@ use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
 const ALTERNATE_DEPTH_LIMIT: usize = 5;
+
+/// The largest `info/alternates` file the reader looks at.
+const ALTERNATES_LIMIT: u64 = 1 << 20;
+
+/// The largest `packed-refs` file the reader scans for replace refs.
+const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
 /// The loose directories and packs of a repository and its alternates.
 #[derive(Debug)]
@@ -37,9 +44,10 @@ fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<
         return None;
     }
     let file: PathBuf = root.join("info/alternates");
-    let text: String = match std::fs::read_to_string(&file) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(()),
+    // A bounded read of a regular file: a link, a pipe or a huge file is left to Git.
+    let text: String = match read_regular_file(&file, ALTERNATES_LIMIT) {
+        Ok(bytes) => String::from_utf8(bytes).ok()?,
+        Err(ReadRefusal::Missing) => return Some(()),
         Err(_) => return None,
     };
     for line in text.lines() {
@@ -68,9 +76,10 @@ fn objects_are_replaced(common_dir: &Path) -> bool {
     if common_dir.join("shallow").exists() || common_dir.join("info/grafts").exists() {
         return true;
     }
-    return match std::fs::read(common_dir.join("packed-refs")) {
+    return match read_regular_file(common_dir.join("packed-refs").as_path(), PACKED_REFS_LIMIT) {
         Ok(bytes) => bytes.windows(b" refs/replace/".len()).any(|window| { return window == b" refs/replace/"; }),
-        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        Err(ReadRefusal::Missing) => false,
+        Err(_) => true,
     };
 }
 

@@ -42,6 +42,22 @@ fn lists_and_lookups_equal_git() {
     remove(root.as_path());
 }
 
+/// A peeled line that does not follow a ref line makes the packed file unsure.
+#[test]
+fn a_misplaced_peeled_line_is_unsure() {
+    let root = fixture("repo-read-refs-peeled");
+    let repo = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["tag", "-a", "-m", "m", "v1"]);
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    let refs = Refs::new(repo.join(".git").as_path(), 40);
+    assert!(refs.list().is_some(), "Git's own packed file is read");
+    let packed = repo.join(".git/packed-refs");
+    let original = std::fs::read_to_string(&packed).expect("packed refs");
+    std::fs::write(&packed, format!("^{}\n{original}", "1".repeat(40))).expect("misplaced");
+    assert!(refs.list().is_none(), "a peeled line before any ref");
+    remove(root.as_path());
+}
+
 /// A name outside the plain alphabet, a link, a damaged value and a symbolic loop are unsure or unresolved.
 #[test]
 fn odd_spellings_are_unsure() {

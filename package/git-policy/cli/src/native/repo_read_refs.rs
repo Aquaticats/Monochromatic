@@ -100,8 +100,20 @@ impl Refs {
         };
         let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
         let mut packed: Vec<(String, String)> = Vec::new();
-        for line in text.lines() {
-            if line.starts_with('#') || line.starts_with('^') {
+        // A peeled line (`^<name>`) is valid only directly after a ref line.
+        let mut after_ref: bool = false;
+        for (position, line) in text.lines().enumerate() {
+            if line.starts_with('#') {
+                if position != 0 {
+                    return None;
+                }
+                continue;
+            }
+            if let Some(peeled) = line.strip_prefix('^') {
+                if !after_ref || !self.is_name(peeled) {
+                    return None;
+                }
+                after_ref = false;
                 continue;
             }
             let (object, name) = line.split_once(' ')?;
@@ -109,6 +121,7 @@ impl Refs {
                 return None;
             }
             packed.push((name.to_string(), object.to_string()));
+            after_ref = true;
         }
         return Some(packed);
     }

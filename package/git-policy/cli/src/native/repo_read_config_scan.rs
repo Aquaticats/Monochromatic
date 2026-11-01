@@ -12,7 +12,7 @@
 //! const safe: boolean | undefined = noScopeSetsBareOrWorktree({ home, env }); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_config_text};
+use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_bool, parse_config_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -23,7 +23,8 @@ const INCLUDE_DEPTH_LIMIT: usize = 10;
 const DISCOVERY_KEYS: [&str; 2] = ["core.bare", "core.worktree"];
 
 /// The keys whose presence in any file makes the content readers decline (listings, cached diffs, `show`).
-const CONTENT_KEYS: [&str; 10] = [
+const CONTENT_KEYS: [&str; 11] = [
+    "diff.relative",
     "core.ignorecase",
     "core.precomposeunicode",
     "core.sparsecheckout",
@@ -158,6 +159,9 @@ pub struct ScopeEnvironment {
     pub system: Option<PathBuf>,
     /// `GIT_CONFIG_GLOBAL`.
     pub global: Option<PathBuf>,
+    /// Whether some fact cannot be settled from the variables alone: a relative path (Git resolves it against the
+    /// directory it runs in) or a `GIT_CONFIG_NOSYSTEM` that is not a boolean. Readers that need the files decline.
+    pub unresolvable: bool,
 }
 
 impl ScopeEnvironment {
@@ -174,13 +178,26 @@ impl ScopeEnvironment {
         let nonempty = |name: &str| -> Option<PathBuf> {
             return find(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from);
         };
-        return ScopeEnvironment {
+        // `GIT_CONFIG_NOSYSTEM` is a boolean: absent or false reads the system file, an empty value is false.
+        let (no_system, boolean_ok): (bool, bool) = match find("GIT_CONFIG_NOSYSTEM") {
+            None => (false, true),
+            Some(value) if value.is_empty() => (false, true),
+            Some(value) => match parse_bool(Some(value.as_encoded_bytes())) {
+                Some(truth) => (truth, true),
+                None => (true, false),
+            },
+        };
+        let mut scope: ScopeEnvironment = ScopeEnvironment {
             home: nonempty("HOME"),
             xdg: nonempty("XDG_CONFIG_HOME"),
-            no_system: find("GIT_CONFIG_NOSYSTEM").is_some(),
+            no_system,
             system: find("GIT_CONFIG_SYSTEM").map(PathBuf::from),
             global: find("GIT_CONFIG_GLOBAL").map(PathBuf::from),
+            unresolvable: !boolean_ok,
         };
+        let relative: bool = [&scope.home, &scope.xdg, &scope.system, &scope.global].iter().any(|path| { return path.as_ref().is_some_and(|found| { return !found.is_absolute(); }); });
+        scope.unresolvable = scope.unresolvable || relative;
+        return scope;
     }
 
     /// The files with the scope name `config --show-scope` gives each, in Git's order.
@@ -226,6 +243,9 @@ impl ScopeEnvironment {
 /// scopeFiles(env).every((file) => avoidsDiscoveryKeys(file)); // undefined when unreadable
 /// ```
 pub fn outer_scopes_avoid_keys(scope: &ScopeEnvironment, declines: &dyn Fn(&str) -> bool) -> Option<bool> {
+    if scope.unresolvable {
+        return None;
+    }
     for file in scope.files() {
         if !file_avoids_keys(file.as_path(), scope.home.as_deref(), 0, declines)? {
             return Some(false);

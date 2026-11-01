@@ -91,6 +91,13 @@ fn the_reader_agrees_with_git_or_declines() {
     remove(root.as_path());
 }
 
+/// A NUL byte in a value cannot be a C string, so the reader declines it.
+#[test]
+fn a_nul_in_a_value_is_declined() {
+    assert!(parse_config_text(b"[a]\nb = left\0right\n").is_none());
+    assert!(parse_config_text(b"[a]\nb = fine\n").is_some());
+}
+
 /// A spelling Git reads and the reader leaves to Git is still safe, but the plain keys must be read.
 #[test]
 fn plain_repository_keys_are_read() {
