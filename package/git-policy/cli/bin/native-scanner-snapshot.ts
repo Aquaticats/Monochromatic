@@ -1,18 +1,14 @@
 /**
- Snapshot inputs the native wrapper gained by linking the repository's scanner:
- the scanner crate, its matching engine, and the locked registry dependencies both pull in.
+ Vendoring of the native wrapper's locked registry dependencies, which the wrapper and the crates it links pull in.
 
  The container has no network, so registry dependencies are vendored on the host from the Cargo cache
- and baked into the image beside the copied path crates.
+ and baked into the image beside the copied path crates (`native-wrapper-snapshot.ts` lists those).
  */
 import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join, } from 'node:path';
 
 import {
   NativeVerificationError,
@@ -23,91 +19,6 @@ import {
  Image path of the vendored registry sources; the Containerfile copies `vendor` there.
  */
 const imageVendorDirectory = '/work/vendor';
-
-/**
- One file or directory to copy from the repository into the build context.
- */
-export type SnapshotEntry = {
-  readonly from: string;
-  readonly to: string;
-};
-
-/**
- Copy entries for one path crate, resolved from the wrapper package directory the gate runs in.
-
- @param context - build context
-
- @param crate - crate's directory under `package`
-
- @param names - entries a library build of the crate reads
-
- @returns one entry per name, keeping the repository layout so relative path dependencies resolve
- */
-function crateEntries({
-  context,
-  crate,
-  names,
-}: {
-  readonly context: string;
-  readonly crate: string;
-  readonly names: readonly string[];
-}): readonly SnapshotEntry[] {
-  return names.map(function crateEntry(name) {
-    return {
-      from: resolve(
-        '../..',
-        crate,
-        name,
-      ),
-      to: join(
-        context,
-        'package',
-        crate,
-        name,
-      ),
-    };
-  });
-}
-
-/**
- Copy entries for the linked scanner and its matching engine.
-
- @param context - build context directory receiving the repository-shaped snapshot
-
- @returns entries for both path crates;
-   the scanner's `build.rs` and `data` hold the embedded baseline its library compiles in
-
- @example
- ```ts
- const entries = scannerSnapshotEntries({ context });
- ```
- */
-export function scannerSnapshotEntries({ context, }: {
-  readonly context: string;
-},): readonly SnapshotEntry[] {
-  return [
-    ...crateEntries({
-      context,
-      crate: 'forbidden-strings/cli',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'build.rs',
-        'src',
-        'data',
-      ],
-    }),
-    ...crateEntries({
-      context,
-      crate: 'forbidden-strings/core',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-      ],
-    }),
-  ];
-}
 
 /**
  Vendor the copied wrapper's locked registry dependencies from the host's Cargo cache into the build context,

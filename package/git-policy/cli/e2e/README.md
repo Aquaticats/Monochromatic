@@ -59,6 +59,39 @@ and `--limit` and `--revision` adjust the window.
 mise run //package/git-policy/cli:e2e:concurrent:trace
 ```
 
+## Commit service
+
+Every commit the scenarios make lands through the resident `cli-git-service`.
+The image build compiles it beside the wrapper as `/opt/native/cli-git-service`,
+and `service-fixture.ts` starts it before the first scenario and stops it after the last.
+Each scenario's wrapper environment names the service's runtime directory (`XDG_RUNTIME_DIR`).
+
+A commit the service landed returns before its push.
+The wrapper writes the push and maintenance records under `<common git dir>/cli-git/work`,
+and the service runs them on its own thread.
+`settleServiceWork` therefore waits until no record is pending or claimed
+before the observation compares the remote with the local branch,
+and the checker control waits before it tampers with the landed commit.
+
+Scenarios that still fail with the service as the only route:
+
+- Scenarios whose instrument was a configured hook cannot observe anything,
+  because the wrapper runs no external hook program:
+  `baseline-hooks-config`,
+  `baseline-sigkill-post-commit`,
+  `hooks-config-concurrent`,
+  `shared-file-adjacent-edits`,
+  `branch-switch-during-commit`,
+  and the hook-phase `sigkill-*` scenarios.
+  The `sigkill-phase-*` scenarios wait for transaction phases the service path never reaches.
+  A replacement instrument (an editor for kill points, a declared action for post-commit observation) needs a decision.
+- `amend-during-commits` and `reservation-after-lost-races` check behaviour of the retired inline push and of reservations,
+  which the service does not have.
+- `foreign-index-lock-holder`,
+  `foreign-index-lock-unproven`,
+  `gc-prune-during-commits`
+  and `lint-staged-stash-concurrent` are not explained by a missing instrument and are open product questions.
+
 ## Container
 
 `concurrent-commits.Containerfile` builds `cli-git-concurrent-e2e`:

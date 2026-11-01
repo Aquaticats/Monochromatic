@@ -24,7 +24,6 @@
  mise passes the `run` task's flags as `usage_memory` and `usage_cpus`.
  */
 import {
-  cp,
   mkdir,
   mkdtempDisposable,
   writeFile,
@@ -41,11 +40,8 @@ import {
   parseContainerLimitOptions,
   runLimitArguments,
 } from './container-limits.ts';
-import {
-  scannerSnapshotEntries,
-  type SnapshotEntry,
-  vendorLockedDependencies,
-} from './native-scanner-snapshot.ts';
+import { copyEndToEndSnapshot, } from './native-e2e-snapshot.ts';
+import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
@@ -153,115 +149,6 @@ const MILLISECONDS_PER_SECOND = 1_000;
 const compilerImage = 'docker.io/library/rust:1.97-bookworm';
 
 /**
- Copy the native crate, its path dependencies and the scanner crates into the build context.
- Copies run concurrently, and every copy settles before this returns or throws.
-
- @param context - build context directory receiving the repository-shaped snapshot
- */
-async function copySnapshot({ context, }: {
-  readonly context: string;
-},): Promise<void> {
-  /**
-   Where the wrapper crate lands in the repository-shaped snapshot.
-   */
-  const subject = join(
-    context,
-    'package/git-policy/cli',
-  );
-  /**
-   Where the JSONC crate the wrapper links lands in the snapshot.
-   */
-  const dependency = join(
-    context,
-    'package/jsonc-edit/core-rust',
-  );
-  /**
-   Where the catalog specifier crate the wrapper links lands in the snapshot.
-   */
-  const catalogDependency = join(
-    context,
-    'package/catalog-specifier/core-rust',
-  );
-  /**
-   Everything the compile stage builds from: the wrapper, its path dependencies and the scanner crates.
-   */
-  const entries: readonly SnapshotEntry[] = [
-    ...[
-      'Cargo.toml',
-      'Cargo.lock',
-      'README.md',
-      'src/native',
-    ].map(function crateEntry(name) {
-      return {
-        from: resolve(name),
-        to: join(
-          subject,
-          name,
-        ),
-      };
-    }),
-    ...[
-      'Cargo.toml',
-      'Cargo.lock',
-      'src',
-      'fixtures',
-    ].map(function dependencyEntry(name) {
-      return {
-        from: resolve(
-          '../../jsonc-edit/core-rust',
-          name,
-        ),
-        to: join(
-          dependency,
-          name,
-        ),
-      };
-    }),
-    ...[
-      'Cargo.toml',
-      'Cargo.lock',
-      'src',
-      'fixtures',
-    ].map(function catalogDependencyEntry(name) {
-      return {
-        from: resolve(
-          '../../catalog-specifier/core-rust',
-          name,
-        ),
-        to: join(
-          catalogDependency,
-          name,
-        ),
-      };
-    }),
-    ...scannerSnapshotEntries({ context }),
-  ];
-  /**
-   Result of every copy; a failed copy never stops the others, so none is still in flight afterwards.
-   */
-  const copies = await Promise.allSettled(entries.map(function copyEntry(entry) {
-    return cp(
-      entry.from,
-      entry.to,
-      { recursive: true },
-    );
-  }));
-  /**
-   Reasons of the copies that failed.
-   */
-  const failures: unknown[] = [];
-  for (const copy of copies) {
-    if (copy.status === 'rejected')
-      failures.push(copy.reason);
-  }
-  if (failures.length > 0)
-    throw new NativeVerificationError(
-      `Copying ${String(failures.length)} snapshot entries into ${context} failed.`,
-      { cause: failures },
-    );
-}
-
-/**
  Build the base image (Git builds, Node, `ssh-keygen`) from the end-to-end Containerfile; nothing is copied in.
  */
 async function buildBase(): Promise<void> {
@@ -310,7 +197,7 @@ async function buildImage(): Promise<void> {
     scratchBase,
     'cli-git-e2e-native-',
   ));
-  await copySnapshot({ context: context.path });
+  await copyEndToEndSnapshot({ context: context.path });
   await vendorLockedDependencies({ context: context.path });
   await writeFile(
     join(
