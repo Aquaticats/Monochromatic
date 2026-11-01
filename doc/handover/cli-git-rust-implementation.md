@@ -6988,3 +6988,37 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - `rpm-ostree status`: "State: busy", a rebase to `ghcr.io/ublue-os/bazzite:testing` started from a ghostty terminal
   (the owner's own transaction). A reboot into it would drop the runtime mount options and may lose files outside Git,
   so the migration script under `~/temp/agent/subvol-migrate` needs a home in Git before then.
+
+## 2026-11-01: ignored state, adopted btrfs choices, 0.5.6 READY
+
+- OWNER, verbatim: "carrying over ignored files like node_modules into a new worktree is expected, because agents and
+  people frequently forget to manually install node_modules in new worktrees."
+  This answers the btrfs report's open item "accept everything the source has as the ignored state": yes. Every rung of
+  the ladder carries the source worktree's ignored state (the snapshot gets it for free; the reflink and real-Git rungs
+  keep the existing ignored-state copy). The copy cost is a feature to make cheap, not a cost to remove.
+- Adopted without asking (each follows from an owner statement; veto open): every new linked worktree is created as a
+  subvolume ("I also intended for this to not be so heavy because we can take advantage of btrfs"); the wrapper deletes
+  a worktree subvolume itself through the ioctl when `user_subvol_rm_allowed` is active, else falls back to Git's
+  removal; rung 2 (reflink plus own index writer) ships ("Properly support overlayfs too"); no `checkout.workers=-1`
+  (63 processes against "Invoke real git as rarely as possible"); the snapshot source is the creating worktree, main
+  included when clean, with the snapshot's `.git` directory renamed aside and deleted after the command returns.
+- Kopia does not skip nested subvolumes under its global policy ("Scan one filesystem only: false").
+- The test hang guard: per the advisor, kept at 5 s as a test mechanism (the owner's 20:45 and 20:50 conditions on it
+  stand); only its wording changes, and the `TIME_BOUND_SECONDS` rename waits until the open branches merge.
+- `native:perf`: the 2,000 ms bound on forwarded commands comes from `package/git-policy/cli/SPEC.md:3562` ("must remain
+  strictly less than `2,000 ms`") and stays. The commit delta is reported, not enforced (handover entry of 2026-10-20);
+  enforcing the owner's measure (a wrapped commit less than 5 s slower than native Git) is queued.
+- Migration script made durable before the owner's pending reboot:
+  [cli-git-subvolume-migration-script.md](cli-git-subvolume-migration-script.md).
+- The earlier statement that `compress=zstd:1` was off because the boot mount takes only `rootflags` is inferred from
+  the mount table before and after the remount, not from a boot log.
+- 0.5.6 integrator READY: merged head `877bdab090` (replay `d0e70e1ec4`, then client `40334312d5`, onto `7f68f745f8`),
+  clippy clean, lib 2809 passed, binary 462 all passed counting reruns, e2e six scenarios on two seeds all PASS, no
+  forwarded `git add` exit 128. Gate 20 started on it (unit `gpc-main-gate20`, log
+  `~/temp/agent/gate/main-gate20.log`).
+- Queued: `fault_signal::an_interrupt_during_the_editor_ends_the_commit_and_leaves_nothing` failed once in the full
+  binary suite under load (60.85 s, exit 1 with "Aborting commit due to empty commit message" instead of 130) and passed
+  alone in 0.79 s. Undiagnosed; to be diagnosed and fixed properly, not rerun away.
+- Migration timing: after gate 20, the 0.5.6 release and the bump, with the service agent paused. 87 processes have a
+  working directory inside the checkout, among them the owner's ghostty shell (`bash --posix`) and `brh rebase testing`;
+  that shell needs `cd "$PWD"` after the exchange.
