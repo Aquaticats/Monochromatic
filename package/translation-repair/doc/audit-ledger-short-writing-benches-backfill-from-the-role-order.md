@@ -334,7 +334,7 @@ Slips:
   No key was read or printed.
 - The whole source-scan suite ran twice,
   not once:
-  the first run found the 4 scans' findings above,
+  the first run found the 4 scans' findings named in B1289,
   and the second ran on the commit that fixed them.
 - The message of `b48353727a` says 5 scans where the log shows 4 failing scans (8 failure lines,
   2 for each).
