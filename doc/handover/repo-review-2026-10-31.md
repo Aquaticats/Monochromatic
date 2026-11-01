@@ -1747,6 +1747,20 @@ troubleshooting lanes are still running):
 - Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
   fm-decision from position 11, troubleshooting from unread.txt.
 
+Wave-4 fortieth checkpoint (2026-11-01, fm follow-on turn verified; troubleshooting and the
+relaunched cc and desktop lanes are still running):
+
+- `w4-fm-variant-qt` (fm-decision round 3) read positions 11 to 24 except position
+  20: rows `w4-docs-decision-029` to `-036`, w4-docs-decision.jsonl 36 of 36 by my
+  run. My spots: dist-in-git's eight-plugin/21-file claim against the live nine
+  `bundle/` directories and 20 tracked bundle files, with `stop-reminder` singular
+  and `cost-dismissal` omitted from the record; config-tsdown has zero tracked
+  paths while the plugin manifests use config-rolldown; the Containerfile base
+  claim and the podman opus/zig/rcodesign rows quote live lines. Next: position 20
+  (deps-cube.md), then position 25 onward, id w4-docs-decision-037, base rr-fmv-60.
+- Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
+  fm-decision from position 20, troubleshooting from unread.txt.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
