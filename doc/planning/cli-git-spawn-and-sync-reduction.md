@@ -70,6 +70,12 @@ Measured process lifetimes of one commit (strace): `findmnt` 3 runs about 25 ms,
   event, not executable, links, configuration hooks, relative, absolute, empty, missing and `-c` hooks paths,
   disabled events, a linked worktree, a hook installed during the commit, a failing hook) and compares status,
   output, hook log, message and tree.
+  Superseded (note added 2026-11-01): commit `3aa714eac0` dropped traditional hook support and deleted
+  `hook_presence.rs` and its tests, and the hooks removal merged to main as `22dc5e82a6` (branch head `ed06e54a4f`)
+  then dropped every external hook: each real-Git start carries `core.hooksPath` pointing at a directory that cannot
+  exist plus `hook.<event>.enabled=false` for every event, and the wrapper starts no hook and no hook shim. The S1
+  shim record above, `write_hook_dispatch`, `run_post_commit_hook` and the fifteen-shape parity suite describe code that
+  no longer exists; the current behavior is in `package/git-policy/cli/SPEC.md` and `src/native/hooks_off.rs`.
 - `findmnt` (3 runs): the filesystem identity of `.git` and `index.lock`. To be replaced by `statx`, `/proc/self/mountinfo`
   and `/dev/disk/by-uuid` when the mapping is unambiguous; otherwise `findmnt` stays. Needs a check of how the
   identity is consumed before choosing (recorded below when read).

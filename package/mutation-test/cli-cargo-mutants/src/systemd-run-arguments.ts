@@ -1,4 +1,7 @@
-import { shellProgram } from './constants.ts';
+import {
+  shellProgram,
+  unitIoWeight,
+} from './constants.ts';
 
 /**
  Build the `systemd-run` arguments that start one capped transient user unit.
@@ -46,6 +49,7 @@ export function buildSystemdRunArguments({
     '--collect',
     `--property=MemoryMax=${memoryMax}`,
     `--property=CPUQuota=${cpuQuota}`,
+    `--property=IOWeight=${String(unitIoWeight)}`,
     `--working-directory=${workingDirectory}`,
     ...environment.map(function setenvArgument(entry) {
       return `--setenv=${entry}`;

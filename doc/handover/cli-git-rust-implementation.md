@@ -5805,3 +5805,40 @@ This block supersedes "State at 2026-10-29 (night, later)".
   wrapper again. Its own sol review is running (unit `mdlint-sol-review`, output `~/temp/agent/embedding-review.txt`). Its audit of other
   started programs: on Linux only `/usr/bin/git` starts (38 times for a Markdown commit); `ps`, `lsof`, `df`, `diskutil` are macOS-only and
   PowerShell is Windows-only, each with a named in-process replacement (libproc, `statfs`/`getattrlist`), not implemented.
+  Its size and start-up proposals (`cli` feature, Rust-fence feature, `opt-level = "s"`) are not scheduled: once the service owns the
+  commit path the linter links into the service only, which removes the client cost.
+- Gate 4 GREEN on `67d9f5487a` (same Rust sources as main `dc87ce5b71`): 2829 of 2829 passed, 7 skipped, Clippy clean. Wrapper 0.5.0
+  release dispatched (log `~/temp/agent/release-050.log`).
+- Service slice 1a READY from `a6e4566588e9ec087`: `a93f773000` (design last committed `0978a57fd3`). New `cli-git-service` binary and
+  `service_*` modules (protocol, messages with a denylist test, one journal file and one sync per batch, group landing through one
+  `git fast-import` and one compare-and-swap, request-id exactly-once across restarts, accept-order FIFO, client reconnect with the same id,
+  older service retired). No lock, `flock`, lock file, owner record or polling; a second service is refused by socket activation or the
+  abstract socket bind. Prototype measurements on the 20 207-file clone under load 25 to 50: K=32 makespan service 0.88 to 0.90 s against
+  wrapper 16.8 to 18.6 s and lean lock 2.5 to 5.8 s; per-commit K=64 median service 78 ms against wrapper 103.8 s; burst of 128 in 0.3 to
+  0.5 s; acknowledged in 35 to 91 ms with the push moved out. Kill tests at five points and eight random SIGKILLs: every commit landed
+  exactly once, clean index and `fsck`. Issue `#1770` still not reproduced (hypothesis only: another process's recovery removed the shadow).
+  Not merged yet (after 0.5.0). Agent resumed for slice 1b: wire `submit()` into the commit command, activation units and install path,
+  delete the old landing path (own locks 2 647 lines, recovery plus registry 4 031, shadow 1 052, replay and landing about 6 285), product
+  kill tests, `#1770` acceptance test as code. Thin spots it named: no per-repository parallel landing, per-user service untested, a failed
+  index update leaves the intent open until restart.
+- Release run `41310224439` followed by `native:release:wait` (log `~/temp/agent/release-050-wait.log`); on success, message
+  `monochromatic-c0` with 0.5.0 and the release commit.
+- The mutation launcher gave its units no `IOWeight`, so they ran at systemd's default 100; fixed `1782a95373` (`unitIoWeight = 50`).
+- Mutation relaunched on the gate 4 image from `.claude/worktrees/gate-main` at `1782a95373` (Rust sources identical to the image):
+  unit `cli-git-mut-m048-planted` runs the planted controls WITHOUT the skip (the proof that the three fixed controls are noticed) and
+  then `index_flags.rs` (tag `main-gate4`, log `~/temp/agent/mut-m048-planted.log`); `native:mutation:parallel` label `m048d` runs
+  `child_class.rs child_watch.rs process_tree.rs real_index_lock.rs` on tags `m048d0` to `m048d3` (each `podman tag` of `main-gate4`),
+  logs `~/temp/agent/mutpar-m048d-<file>.log.<attempt>`. Survivors go to an agent to kill with tests.
+- Slow and flaky tests READY from `a54d6b24f9cf91c20`: `0d05a26037`. Proven cause of the 5-second-bound kills in `builtin::`,
+  `worktree_copy::`, `direct_fix_corrects_only_worktree_files`: `build.build-dir` is on another device than the fixtures, so every
+  fixture's hard link of `cli-git-native` failed with `Invalid cross-device link` and copied 21.9 MB (about 3.7 GB per wave); the guard
+  that should have caught it skipped itself exactly then. Fix: one stored copy per build on the fixture filesystem
+  (`binary_wrapper_store.rs`), fixtures hard-link it. The stall mechanism (write-back delaying other syncs) is inference, not reproduced.
+  `merge_isolation`'s "still waiting for git commit-tree" notice is correct behavior; the comparison now drops wait-notice lines
+  (`without_wait_notices`). `candidate_prediction` and `command_add` outliers appear only in one gate at load near 100: no change.
+  NOT merged yet: sent back to make the store lock-free (it used an advisory lock; owner: locks are an anti-pattern). Its own sol review:
+  unit `ct-pi-review`, output `~/temp/agent/ct/pi-review.out`.
+- 0.5.0 bump landed on main as `069e45a200` (the release commit); crates.io publish run `41310653546` in progress when recorded.
+- Docs issues fixed and closed by commit (each claim checked with `ls`, `rg` or `git merge-base` first): `#3194` (S1 hook-shim record
+  superseded), `#1906` (moved TypeScript sources), `#3187` (cutover finished), `#3274` (trust-registry bullets retired), `#2367` (task
+  form `//package/git-policy/cli:...`), `#2368` (README citation by section, not line).
