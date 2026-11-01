@@ -332,10 +332,11 @@ Slips:
   a few `sed` edits ran without the keyless wrapper,
   and `tail` read the end of a type-check log.
   No key was read or printed.
-- The whole source-scan suite ran twice,
+- The whole source-scan suite ran three times,
   not once:
   the first run found the 4 scans' findings named in B1289,
-  and the second ran on the commit that fixed them.
+  the second found a reference by position in this entry's own text,
+  and the third ran on the commit that fixed it.
 - The message of `b48353727a` says 5 scans where the log shows 4 failing scans (8 failure lines,
   2 for each).
   It was not amended.
