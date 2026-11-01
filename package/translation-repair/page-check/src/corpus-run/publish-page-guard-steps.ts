@@ -52,7 +52,7 @@ import {
 
  @example
  ```ts
- const steps = pageGuardSteps({ entryId, pageText, archiveText, artifact, slices, carried, l, },);
+ const steps = pageGuardSteps({ entryId, pageText, archiveText, artifact, slices, keptArchiveAt: [], carried, l, },);
  ```
  */
 export function pageGuardSteps(

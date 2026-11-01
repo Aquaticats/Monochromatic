@@ -30,7 +30,7 @@ const root = contextRoot({ tag: 'translation-repair', },);
 
  @param entryId - person entry the page belongs to
 
- @param naturalness - the defects the artifact's naturalness review makes, none when every slice has approval
+ @param naturalness - defects the artifact's naturalness review makes, none when every slice has approval
 
  @param pageGrammar - what the grammar says of the page on disk
 
@@ -86,7 +86,7 @@ export function shippedDefectLinesOf(
 
  @param artifact - settled artifact
 
- @returns The defects, none where the review has approval or cannot be read
+ @returns Defects, none where the review has approval or cannot be read
 
  @example
  ```ts

@@ -88,7 +88,7 @@ export function refusedBeforeAnyExchange({ error, }: { readonly error: unknown; 
 
  @param error - what the router caught or is about to raise after a call of the request was made
 
- @returns The same refusal marked as raised after an exchange, or the error itself when it is none or is marked
+ @returns Same refusal marked as raised after an exchange, or the error itself when it is none or is marked
 
  @example
  ```ts

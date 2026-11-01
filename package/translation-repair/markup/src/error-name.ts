@@ -89,14 +89,13 @@ export function errorClassOf(
   /**
    The class name with every character a field cannot hold written as an underscore, in one pass.
    */
-  const token = Array.from(
+  const characters = Array.from(
     error.name,
     function tokenCharacter(character,): string {
       return isTokenCharacter({ character, },) ? character : '_';
     },
-  )
-    .join('',);
-  return (token === '') ? 'Error' : token;
+  );
+  return (characters.length === 0) ? 'Error' : characters.join('',);
 }
 
 /**

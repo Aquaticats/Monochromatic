@@ -53,7 +53,7 @@ export type ReachReaders = {
 
  @param boundHolds - providers held out for one model after a call ran past its stream bound
 
- @returns The two readings
+ @returns Two readings
 
  @example
  ```ts

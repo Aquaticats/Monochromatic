@@ -16,7 +16,7 @@ import type { ChatTextRequest, } from './chat-contract.ts';
 
  @param exchanged - whether a call of this request was made before the decision
 
- @param choose - the router's decision of which provider takes the call
+ @param choose - router's decision of which provider takes the call
 
  @param request - call being routed
 

@@ -127,6 +127,8 @@ function slicingOf(
     const cut = prepareDocumentPair({
       sourceText,
       targetText,
+      attestedDetails: [],
+      referenceContext: '',
       sealArchiveOriginal: true,
     },);
     return {
@@ -336,7 +338,7 @@ export async function shipPageOfStop(
 
  @param publishDir - root of the mirrored tree
 
- @returns The page, counted as carrying no slice, since no slicing addressed it
+ @returns Page, counted as carrying no slice, since no slicing addressed it
 
  @throws What making the directory or writing the page raises
 

@@ -12,6 +12,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
+import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SEAT_BEDROCK_ONLY_TEXT, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import {
   createCredentialHolds,
@@ -25,7 +26,7 @@ const REQUEST = {
   modelId: SEAT_BEDROCK_ONLY_TEXT,
   messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
   signal: new AbortController().signal,
-  perCallTimeoutMs: 1_000,
+  perCallTimeoutMs: HANG_STOP_MS,
 } as const;
 
 /**

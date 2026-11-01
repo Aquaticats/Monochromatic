@@ -54,7 +54,7 @@ function neverStopped(): boolean {
 
  @param errorClass - class token of the outcome
 
- @returns The field with its leading space, or an empty string
+ @returns Field with its leading space, or an empty string
 
  @example
  ```ts
