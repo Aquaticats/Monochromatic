@@ -71,7 +71,7 @@ directly.
     so the commit is usually refused once for a moved `main`.
     The push command then compares the new head with the checkout over every path the release depends on,
     and sends the same commit again on the new head when none changed
-    (see the push command below).
+    (see "Push command").
 4.  The `publish` job dispatches `.github/workflows/cargo-publish.yml` on `main` for the crate with its `dry-run` input off.
     A push made with the repository's `GITHUB_TOKEN` starts no workflow
     ([GitHub documents][token-trigger-rule] that events triggered by the `GITHUB_TOKEN` create no workflow run,

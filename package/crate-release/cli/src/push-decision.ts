@@ -10,7 +10,10 @@ import {
   parseBranchHead,
   parseChangedTreePaths,
 } from './branch-api.ts';
-import { ghProgram } from './constants.ts';
+import {
+  ghProgram,
+  loggedPathLimit,
+} from './constants.ts';
 import {
   foundValue,
   type Lookup,
@@ -54,6 +57,32 @@ function failureText(result: ProgramResult): string {
     .trim()
     === '' ? `gh exited with status ${String(result.status)}` : result.stderr
       .trim();
+}
+
+/**
+ List paths for a log line, naming the first few and counting the rest.
+
+ @param paths - repository-relative paths
+
+ @returns the text to print: the first paths, then how many more there are, or `none` for an empty list
+
+ @example
+ ```ts
+ describePaths(['a', 'b']);
+ ```
+ */
+function describePaths(paths: readonly string[]): string {
+  if (paths.length === 0)
+    return 'none';
+  /**
+   The paths past the limit, which are counted instead of named.
+   */
+  const rest = paths.length - loggedPathLimit;
+  return `${paths.slice(
+    0,
+    loggedPathLimit
+  )
+    .join(', ')}${rest > 0 ? `, and ${String(rest)} more` : ''}`;
 }
 
 /**
@@ -237,6 +266,8 @@ export async function decideAfterStaleHead({
         .truncated ? ', a list as long as the endpoint ever gives, which may be cut' : ''
     }`,
   );
+  print(`changed files: ${describePaths(comparison.value
+    .changedPaths)}`);
   if (!movedForward(comparison.value))
     return missingValue(
       `${options.branch} is ${comparison.value

@@ -12,6 +12,7 @@ import {
   comparisonStatuses,
   defaultPushAttempts,
   failureExitCode,
+  loggedPathLimit,
   lockFileName,
   manifestFileName,
   staleHeadMessage,
@@ -621,6 +622,34 @@ await describe({
             expect(joined).toContain(`main now points to ${moved}; the checkout started from ${checkout}`);
             expect(joined).toContain(`compare ${checkout}...${moved}: ${comparisonStatuses.ahead}, ${String(unrelatedChanges.length)} changed files`);
             expect(joined).toContain(`decision: none of the watched paths changed; send the commit again on ${moved}`);
+            expect(joined).toContain(`changed files: ${unrelatedChanges.join(', ')}`);
+          },
+        }),
+        it({
+          name: 'names the first changed files of a long comparison and counts the rest',
+          fn: async () => {
+            const extra = 3;
+            const files = Array.from({ length: loggedPathLimit + extra }, function fileAt(_value, index) {
+              return `doc/file-${String(index)}.md`;
+            });
+            const result = await record({
+              commitAnswers: [stale, created],
+              compare: () => compareAnswer({ status: comparisonStatuses.ahead, files }),
+            });
+            const line = result.printed.find(function isList(printedLine) {
+              return printedLine.startsWith('changed files: ');
+            }) ?? '';
+            expect(line).toBe(`changed files: ${files.slice(0, loggedPathLimit).join(', ')}, and ${String(extra)} more`);
+          },
+        }),
+        it({
+          name: 'prints none when the comparison lists no changed file',
+          fn: async () => {
+            const result = await record({
+              commitAnswers: [stale, created],
+              compare: () => compareAnswer({ status: comparisonStatuses.ahead, files: [] }),
+            });
+            expect(result.printed).toContain('changed files: none');
           },
         }),
         it({

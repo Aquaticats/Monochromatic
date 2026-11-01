@@ -116,6 +116,11 @@ export const comparisonStatuses = {
   identical: 'identical',
 } as const;
 
+/**
+ Most changed files a log line lists by name; the rest of a longer list is counted.
+ */
+export const loggedPathLimit = 20;
+
 //endregion Push of the release commit
 
 //region Publish check defaults
