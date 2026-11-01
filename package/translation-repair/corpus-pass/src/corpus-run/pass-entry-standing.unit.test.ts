@@ -144,8 +144,8 @@ await describe({
     },),
 
     it({
-      name: 'REPLACES AN INTERIM PAGE WITH ONE THAT SETTLED AS MANY OR MORE, the control: the guard keeps a fuller page '
-        + 'and nothing else',
+      name: 'REPLACES AN INTERIM PAGE WITH ONE THAT SETTLED MORE (the case of the same number follows), the control: the '
+        + 'guard keeps a fuller page and nothing else',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-standing-', },);
         const dirs = dirsOf({ root: root.path, },);
@@ -181,6 +181,55 @@ await describe({
         },);
         expect(await pageOf({ dirs, },),).toBe(`${SETTLED_FIRST}${SETTLED_SECOND}`,);
         expect((await readInterimEntries({ interimDir: dirs.interimDir, },)).get(ENTRY_ID,)?.settledSlices,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'REPLACES AN INTERIM PAGE WITH ONE THAT SETTLED THE SAME NUMBER OF SLICES (B1242), the equal case: the later '
+        + 'attempt\'s page is the fresher, so its wording stands and its record replaces the earlier one',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'pass-entry-standing-', },);
+        const dirs = dirsOf({ root: root.path, },);
+        /**
+         Another wording of the first section, which the later attempt settled.
+         */
+        const fresher = '## Section one\n\nThe cat dozes on the sill.\n';
+        await shipOver({
+          dirs,
+          error: new RangeError('scripted transport failure',),
+          progress: {
+            ...slicedProgress(),
+            consolidated: [consolidatedAt({
+              sliceIndex: 0,
+              text: SETTLED_FIRST,
+            },),],
+          },
+          messages: [],
+        },);
+        /**
+         The record the first attempt left.
+         */
+        const first = (await readInterimEntries({ interimDir: dirs.interimDir, },)).get(ENTRY_ID,);
+        await shipOver({
+          dirs,
+          error: new RangeError('scripted transport failure',),
+          progress: {
+            ...slicedProgress(),
+            consolidated: [consolidatedAt({
+              sliceIndex: 0,
+              text: fresher,
+            },),],
+          },
+          messages: [],
+        },);
+        /**
+         The record the second attempt left.
+         */
+        const second = (await readInterimEntries({ interimDir: dirs.interimDir, },)).get(ENTRY_ID,);
+
+        expect(await pageOf({ dirs, },),).toBe(`${fresher}\n## Section two\n\nThe cat has a bowl.\n`,);
+        expect([first?.settledSlices, second?.settledSlices,],).toEqual([1, 1,],);
+        expect(second?.pageSha256,).not.toBe(first?.pageSha256,);
       },
     },),
 

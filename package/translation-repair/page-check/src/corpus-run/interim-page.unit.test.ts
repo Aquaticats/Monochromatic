@@ -49,6 +49,17 @@ const TARGET_DOC = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section 
 const SETTLED_FIRST = '## Section one\n\nThe cat naps on the sill.\n';
 
 /**
+ How many block quote markers the original of a slice is nested under, past the bound of 256 that the plain reading
+ keeps, so no writing of it makes a page parse and the composition leaves it off the page.
+ */
+const NESTED_PAST_BOUND = 300;
+
+/**
+ Original of the second section nested past that bound.
+ */
+const NESTED_ORIGINAL = `${ '> '.repeat(NESTED_PAST_BOUND,) }猫猫有自己的碗。\n`;
+
+/**
  Wording the grammar of these cases refuses (`refusingNope`), which the page-grammar fallback puts back to the archive.
  The assembly guard reads no fault in it, so the fallback is what reverts the slice.
  */
@@ -344,6 +355,64 @@ await describe({
         expect(shipped.pageText,).toContain(`${UNTRANSLATED_PASSAGE_NOTE}\n\n`,);
         expect(shipped.pageText,).toContain('猫猫有自己的碗。',);
         expect([shipped.settledSlices, shipped.archiveSlices, shipped.sourceSlices,],).toEqual([0, 1, 1,],);
+      },
+    },),
+
+    it({
+      name: 'COUNTS A SLICE WHOSE ORIGINAL THE COMPOSITION LEFT OFF THE PAGE AS THE ARCHIVE\'S, not as a slice that '
+        + 'carries the original (B1300): an original no writing makes parse ships without it and with the defect '
+        + '`page-source-unparseable`, and the counts of the record read the page that shipped',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-page-', },);
+        /**
+         The pair as the archive covers it whole.
+         */
+        const whole = prepareDocumentPair({
+          sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
+          includeFrontMatter: true,
+          sealArchiveOriginal: true,
+        },);
+        const covered = nonNullishOrThrow(whole.slices[0],);
+        const cut = nonNullishOrThrow(whole.slices[1],);
+        const archiveText = whole.targetText.slice(
+          0,
+          covered.target
+            .endOffset,
+        );
+        const shipped = await publishInterimPage({
+          stop: { consolidateSlices: [], },
+          slices: [
+            covered,
+            {
+              source: {
+                ...cut.source,
+                text: NESTED_ORIGINAL,
+              },
+              target: makeInsertionChunk({
+                sliceIndex: 1,
+                offset: covered.target
+                  .endOffset,
+              },),
+            },
+          ],
+          archiveText,
+          sourceText: SOURCE_DOC,
+          entryId: 'CatEntryDropped',
+          publishDir: root.path,
+          l: capturingLogger({ messages: [], },),
+        },);
+        expect({
+          page: shipped.pageText,
+          counts: [shipped.settledSlices, shipped.archiveSlices, shipped.sourceSlices,],
+          dropped: shipped.defects.some(function namesTheDrop({ check, },): boolean {
+            return check === 'page-source-unparseable';
+          },),
+        },).toEqual({
+          page: archiveText,
+          counts: [0, 2, 0,],
+          dropped: true,
+        },);
       },
     },),
   ],
