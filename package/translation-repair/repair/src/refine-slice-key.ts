@@ -415,8 +415,19 @@ import type {
  searched for a record written by code that holds it, so records may stand at 18 and the change cannot ride inside
  it; the number moves. The repair slice version moves with it (49), which holds the strip. No record has been written
  at 19, which this change sets first.
+
+ Version 20 covers the model that answered for a seat as the author of its text (ledger B1142, B1160, B1168; the owner's
+ "Other model, own name" of 2026-10-31): a refiner reply and a checker ballot name the model that answered where they
+ named the runaway seat, so the half weight of a model's own text and the test that a checker wrote the text it checks
+ read another model than before for the same key. A refinement stored at 19 holds replies and ballots counted under the
+ old authorship, and the key hashes the version, the shape of the run and the texts, not the authorship, so only the
+ number retires a record. No record is known to have been written by a build that holds the change (the one run since,
+ XingZ6023, started on `bf5d1f00fa`, which does not contain `98d5b63eb`), and the audit's newest record follows the change
+ by time, so the exception of the rule does not apply and the number moves, beside the namespace of the build
+ (`openNamespacedCache`). The repair slice (51) moves with it, and the translate slice (37), consolidate (44) and lane
+ contest (19) versions too (ledger B1168). No record has been written at 20, which this change sets first.
  */
-export const REFINE_CACHE_VERSION = 19;
+export const REFINE_CACHE_VERSION = 20;
 
 /**
  Everything about this run that changes what the voices are ASKED.

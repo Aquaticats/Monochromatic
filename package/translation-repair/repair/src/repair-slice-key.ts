@@ -770,8 +770,21 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  verdict changes reaches it under a different key. The consolidate version stays (43) for the same reason: its key
  hashes the repair text it is offered. The translate, lane-contest, consistency, pairing and page-title versions stay:
  none of them runs this measurement. This change sets 50 first.
+
+ Version 51 covers the model that answered for a seat as the author of its text (ledger B1142, B1160, B1161, B1164,
+ B1168; the owner's "Other model, own name" and "Order by role standing" of 2026-10-31): an editor candidate, a refiner
+ reply, a ballot and the check of a text name the model that answered where they named the runaway seat, so the half
+ weight of a model's own text and the test that a checker wrote the text it checks read another model than before for
+ the same key, and a picture whose cut reply was asked of another model is labelled with that model in the sheet. A slice
+ stored at 50 holds candidates and ballots counted under the old authorship, and the key hashes the version, the shape of
+ the run and the texts, not the authorship, so only the number retires a record. No record is known to have been written
+ by a build that holds the change (the one run since, XingZ6023, started on `bf5d1f00fa`, which does not contain
+ `98d5b63eb`), and the audit's newest record follows the change by time, so the exception of the rule does not apply and
+ the number moves, beside the namespace of the build (`openNamespacedCache`). The translate slice (37), consolidate (44),
+ lane contest (19) and refine (20) versions move with it (ledger B1168). No record has been written at 51, which this
+ change sets first.
  */
-export const SLICE_CACHE_VERSION = 50;
+export const SLICE_CACHE_VERSION = 51;
 /**
  Everything about a repair run that changes what the models are ASKED, folded
  into every cache key.

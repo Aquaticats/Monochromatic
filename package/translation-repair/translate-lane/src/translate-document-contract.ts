@@ -559,8 +559,21 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  Stays at 36 for the removal of `hf:Qwen/Qwen3.8-27B` from the select judges (owner, 2026-10-29, "Remove Qwen from wide
  seats"; ledger B1030; commits `6d39223583` and `ac692efa7f`). `translateRunShape` hashes the translator and judge lists, so a slice settled with Qwen
  judging is keyed apart from one settled without it, and no stored record is served to a bench it was not settled by.
+
+ Version 37 covers the follow-up of the repair of a candidate, the model that answered for a seat and the label of a
+ picture reading (ledger B1142, B1145, B1146, B1160, B1161, B1164, B1168; the re-check of 2026-10-31). The findings that
+ spoke to the author are written without a second person, the turn for another translator takes the article for the
+ possessive outside quotations, a revision by another model is a candidate of its own under its own id, a ballot weighs
+ a text by its true author, and a picture whose cut reply was asked of another model is labelled with that model in the
+ sheet. A slice stored at 36 holds candidates and ballots made under the old words and authorship. The key hashes the
+ version, the shape of the run and the texts, and names a picture reading by its inputs and not by its text or its label,
+ so only the number retires a record. No record is known to have been written by a build that holds these changes (the
+ one run since, XingZ6023, started on `bf5d1f00fa`, which does not contain `98d5b63eb`), and the audit's newest record
+ follows them by time, so the exception of the rule does not apply and the number moves, beside the namespace of the
+ build (`openNamespacedCache`). The consolidate (44), lane contest (19), repair slice (51) and refine (20) versions move
+ with it (ledger B1168). No record has been written at 37, which this change sets first.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 36;
+export const TRANSLATE_SLICE_CACHE_VERSION = 37;
 
 /**
  Models the translate lane seats.

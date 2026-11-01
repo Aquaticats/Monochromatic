@@ -105,7 +105,7 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '5925d39143526917de216c16675d54c6363800d37061a511a7b939c0a305ddd6';
+const LEGACY_WINDOWLESS_KEY = 'a00e350e1f5fe430033e7c4b7f1789d481f462f3a379652ccf72001b92d518b9';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -138,7 +138,7 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 36: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+      name: 'IS AT VERSION 37: the repair follow-up, the authorship of a text and the label of a picture reading changed (ledger B1168), and the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
         + 'ships a candidate only when two judges named it (29), a tie across every candidate ships by the fixed '
         + 'preference only among candidates two judges named (30), the sentence the judges read about a declined '
         + 'round over wording that cannot ship stopped contradicting itself (31) and then said that declining does not '
@@ -153,7 +153,7 @@ await describe({
         + 'the run and the texts, not the sheet, so only this number retires a record written '
         + 'under the old sentence before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(36,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(37,);
       },
     },),
     it({

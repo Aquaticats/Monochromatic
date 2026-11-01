@@ -82,11 +82,11 @@ await describe({
   name: laneContestSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 18: the reader of a model\'s reply takes a value that differs from a listed enum or const '
+      name: 'IS AT VERSION 19: a ballot and a text name the model that answered where they named the runaway seat (ledger B1168), and the reader of a model\'s reply takes a value that differs from a listed enum or const '
         + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
         + 'the texts, not the reader, so only this number retires a record written under the reader before',
       fn: async () => {
-        expect(LANE_CONTEST_CACHE_VERSION,).toBe(18,);
+        expect(LANE_CONTEST_CACHE_VERSION,).toBe(19,);
       },
     },),
     it({
@@ -133,7 +133,7 @@ await describe({
         // Version 17 (2026-10-22) re-keys every ballot cast before the rendered-break
         // counts moved out of the system text into the user turn (R4 of the third
         // review of the Claude route).
-        expect(key,).toBe('45a984ed36bfb4ffff0999650beb1dbfddd09061a4ede943b1a9999c74df7bbd',);
+        expect(key,).toBe('7c1ea78be4a3d72dcfe8b8caaf078c4ffe4a23a63525a3eeda861c74a0e57759',);
       },
     },),
     it({

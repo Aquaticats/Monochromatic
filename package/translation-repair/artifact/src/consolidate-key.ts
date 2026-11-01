@@ -639,8 +639,23 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  and the change cannot ride inside it, so the number moves. The translate slice version (36) moves for the same
  sheets; the repair slice (49) and refine (19) versions stay, since neither reads these sentences. The first ask does
  not carry the phrase, so its text is the same as at 42.
+
+ Version 44 covers the follow-up of the repair of a candidate and the model that answered for a seat (ledger B1142,
+ B1145, B1146, B1160, B1161, B1168; the re-check of 2026-10-31). The findings that spoke to the author are written without
+ a second person, the turn for another translator takes the article for the possessive outside quotations, a revision by
+ another model is a candidate of its own under its own id and weighs half for its own text, and a candidate, a ballot or
+ a voice names the model that answered where it named the seat. A slice stored at 43 holds candidates and ballots made
+ under the old words and the old authorship, so the number moves. The key hashes the version, the shape of the run and
+ the texts, not the follow-up turn or the authorship (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only
+ the number retires a record. No record is known to have been written by a build that holds these changes: the one run
+ since, XingZ6023, started on `bf5d1f00fa`, and `git merge-base --is-ancestor 98d5b63eb bf5d1f00fa` exits 1; the audit
+ (`cache-account-audit`) still prints a newest record at 08:24 UTC that follows the commits by time, so the exception of
+ the rule does not apply and the number moves. A build whose pipeline digest differs discards the namespace before it
+ reads it (`openNamespacedCache`), and the number is the belt beside that brace. The translate slice (37), lane contest
+ (19), repair slice (51) and refine (20) versions move with it; the consistency (10), pairing (3) and page title (9)
+ versions stay (ledger B1168). No record has been written at 44, which this change sets first.
  */
-export const CONSOLIDATE_CACHE_VERSION = 43;
+export const CONSOLIDATE_CACHE_VERSION = 44;
 
 /**
  What a line-structured slice appends to its key material.

@@ -81,7 +81,7 @@ await describe({
   name: repairSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 50: the owner\'s ruling of 2026-10-29 ("Count as restoration") makes a footnote reference '
+      name: 'IS AT VERSION 51: a candidate, a reply and a ballot name the model that answered where they named the runaway seat (ledger B1168), and the owner\'s ruling of 2026-10-29 ("Count as restoration") makes a footnote reference '
         + 'the slice\'s own source also carries a restoration in the chunk-scoped integrity count, so a patch that '
         + 'lost on a restored `[^3]` whose definition lives in another chunk now wins on the same texts; the key '
         + 'hashes the version, the shape of the run and the texts, not the gate, so only this number retires a '
@@ -89,7 +89,7 @@ await describe({
         + 'made an issue regress only on two worse ballots; 46 was the reader taking a capital-only difference as '
         + 'the listed value, merged with the `silentStages` settlement)',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(50,);
+        expect(SLICE_CACHE_VERSION,).toBe(51,);
       },
     },),
     it({
@@ -100,7 +100,7 @@ await describe({
           + 'change to the FIXTURE INPUTS of this case moves it too, and must not, because those inputs are '
           + 'already part of the key and invalidate their own entries',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(50,);
+        expect(SLICE_CACHE_VERSION,).toBe(51,);
 
         // MOVED THREE TIMES ON 2026-08-20, FOR THREE DIFFERENT REASONS, which
         // is the whole point of keeping the note.
@@ -210,8 +210,11 @@ await describe({
         //
         // VERSION 50 ON 2026-10-29 (a footnote reference the slice's own source also carries is a restoration in the
         // chunk-scoped integrity count, owner "Count as restoration"): moved the same way.
+        //
+        // VERSION 51 ON 2026-10-31 (a candidate, a reply and a ballot name the model that answered for a runaway seat,
+        // owner "Other model, own name", ledger B1168): moved the same way.
         expect(keyed({ runShape: repairRunShape({ models: MODELS, },), },),)
-          .toBe('4385df42039416daa88986d9dfd32eb10e55cceb01d6b7a4e1c37597ac0e1bf1',);
+          .toBe('46e7e6b0d4401de54429954d2609da295180e838727c8803bbc6ecc4ae8f363e',);
       },
     },),
     it({

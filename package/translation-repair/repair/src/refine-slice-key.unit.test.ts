@@ -91,7 +91,7 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'IS AT VERSION 19: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
+          name: 'IS AT VERSION 20: a reply and a ballot name the model that answered where they named the runaway seat (ledger B1168), and the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
             + 'refinement may hold a rewrite the same texts now ship where they were declined, a stored recheck '
             + 'reading holds a regressed flag that now needs two worse ballots (re-check 3, M1), and a rewrite is '
             + 'rolled back only on that same regression ("Two ballots for undo too"); the key hashes the '
@@ -99,7 +99,7 @@ await describe({
             + 'retires a record written under the floors before (16 was the reader taking a capitalization-only '
             + 'difference as the listed value)',
           fn: async () => {
-            expect(REFINE_CACHE_VERSION,).toBe(19,);
+            expect(REFINE_CACHE_VERSION,).toBe(20,);
           },
         },),
         it({
@@ -137,7 +137,7 @@ await describe({
             + '(owner, 2026-10-25, "Two ballots for undo too"): a stored refinement was rolled back on a single worse '
             + 'ballot)',
           fn: async () => {
-            expect(refineSliceKey(BASE,),).toBe('daf30b1435e0f4bee519cd7aea7b912632e73fe7393c89b744e6cd616367f12c',);
+            expect(refineSliceKey(BASE,),).toBe('60683ed679f831b03f4affc233667fb25aa7e0aa20adb57b8cc9a2106f12d6f4',);
           },
         },),
 

@@ -77,7 +77,7 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 43: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 44: the repair follow-up and the authorship of a text changed (ledger B1168), and the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
         + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
         + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
@@ -92,7 +92,7 @@ await describe({
         + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
         + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(43,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(44,);
       },
     },),
     it({
@@ -473,7 +473,7 @@ await describe({
         // narrow asks no such question, in place of a round that leaves no
         // candidate behind (re-check 7, nit 1), which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '20703993fb84bf425d445d9758dd8ca12509e2bda339ca5bed96d78c26181b22',
+          'b1887e6a3b81bc82434ddb487bd8029404d5960c7badccedebdd720ff8671048',
         );
       },
     },),

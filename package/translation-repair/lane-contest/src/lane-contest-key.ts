@@ -337,8 +337,19 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  ride inside it and the number moves. A build whose pipeline digest differs discards the namespace before it reads it
  (`openNamespacedCache`), and the number is the belt beside that brace. The account of every cache is in the
  header of `provider/src/enum-case-fold.ts`.
+
+ Version 19 covers the model that answered for a seat as the author of its text (ledger B1142, B1160, B1168; the owner's
+ "Other model, own name" of 2026-10-31): a ballot, a candidate and the check of a text name the model that answered where
+ they named the runaway seat, so the half weight of a model's own text and the test that a judge wrote the text it
+ judges read another model than before for the same key. A contest stored at 18 holds ballots counted under the old
+ authorship, and the key hashes the version, the shape of the run and the texts, not the authorship, so only the number
+ retires a record. No record is known to have been written by a build that holds the change (the one run since,
+ XingZ6023, started on `bf5d1f00fa`, which does not contain `98d5b63eb`), and the audit's newest record follows the change
+ by time, so the exception of the rule does not apply and the number moves, beside the namespace of the build
+ (`openNamespacedCache`). The consolidate (44), translate slice (37), repair slice (51) and refine (20) versions move with
+ it (ledger B1168). No record has been written at 19, which this change sets first.
  */
-export const LANE_CONTEST_CACHE_VERSION = 18;
+export const LANE_CONTEST_CACHE_VERSION = 19;
 
 /**
  Everything about this run that changes what the judges are ASKED, folded into
