@@ -1084,7 +1084,11 @@ The user confirmed the shared understanding and the order below, after the third
 - Push state after the reboot: the handover commit `07c02186b1` was saved locally and its auto-push failed with the git-lfs 503
   ("commit saved locally, but auto-push to origin failed"); the earlier release commit had already gone out with a push that worked.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
-- For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
+- Measured on 2026-11-01 with read-only `gh api`: `main` protection has `required_status_checks` with `strict: true` and empty `checks` and
+  `contexts`, `required_signatures: true`, `enforce_admins: false` and no required pull request reviews; the one active ruleset
+  (`Copilot review active branch`, id 9126851) has the single rule type `copilot_code_review`. So no status check is required and a failing
+  `catalog-specifiers.yml` run blocks nothing; this is the detection-only guarantee the user chose ("Fail the job on a violation").
+  Making it required would be the owner's setting; nothing in the repository's direct pushes to `main` would satisfy a required check.
 - Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
@@ -1095,4 +1099,4 @@ The user confirmed the shared understanding and the order below, after the third
 
 Nothing is queued. The whole design is built and live: the `zod` fix, the library crate, the cli-git policy at `error`, the CI
 workflow, and the `pnpm` shadow in front of the real pnpm. Remaining are only items for the user, in Open items (the hook that no longer
-runs, branch protection, token revocation not checkable from here).
+runs, token revocation not checkable from here; branch protection was measured, see Open items).
