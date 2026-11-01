@@ -5149,7 +5149,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   after the tree walk (needs a subreaper, not done).
 - Independent design review running: agent `a5dcd5dad237603e3` (report `doc/planning/cli-git-design-review.md` on its branch).
 
-### Owner decision: preparation hooks are no longer supported
+### RETRACTED, WRONG: "preparation hooks are no longer supported"
+
+- This section is wrong and was committed by mistake in `f6817bb22f`. The owner did NOT decide to drop preparation hook
+  support ("No, not dropping preparation hook support. I didn't ask you to do that. I only asked you to stop supporting OTHER
+  PEOPLE's hooks."). The settled decision is the section "Owner decision (hooks): only hooks we declare, run natively; no
+  external hook commands", further down. Do not act on the text of this section; it is kept only as the record of the mistake.
 
 - User asked: "'spawn only other people's programs' - we aren't supporting other people's programs at all though?" Facts: this
   repository configures one hook only (`hook.standards-review-shadow`, event `post-commit`); traditional hooks were already
