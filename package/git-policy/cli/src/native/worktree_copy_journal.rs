@@ -604,7 +604,7 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 /// What:
 ///  Writes one private file atomically beside its final name; a failure names `subject` and leaves no temporary.
 /// Why:
-///   Journals and stage claims share one rule: a reader sees a complete file or none.
+///   Journals share one rule: a reader sees a complete file or none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

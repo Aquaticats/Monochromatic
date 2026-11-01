@@ -338,8 +338,8 @@ fn leftover_transaction_state_refuses_guarded_commands() {
     );
     assert!(legacy.exists());
     std::fs::remove_dir(&legacy).expect("remove legacy directory");
-    // A worktree-copy journal or lease in the environment no longer stops a guarded command;
-    // the forwarding recovers or honors it.
+    // A worktree-copy journal or a leftover lease variable no longer stops a guarded command;
+    // the forwarding recovers the journal and ignores the variable.
     assert_eq!(
         observe(
             wrapped(&fixture)

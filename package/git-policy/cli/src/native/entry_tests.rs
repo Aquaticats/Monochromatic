@@ -494,7 +494,7 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
         assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }));
         assert!(facts.main_checkout_paths.is_empty(), "a linked source copies everything it ignores");
     }
-    // The inherited environment is handed on, so a nested command can present an outer lease.
+    // The inherited environment stays in the facts; since the settlement lease went away the copy reads none of it.
     let environment: Vec<(OsString, OsString)> = vec![(
         OsString::from("CLI_GIT_WORKTREE_COPY_LEASE"),
         OsString::from("token"),

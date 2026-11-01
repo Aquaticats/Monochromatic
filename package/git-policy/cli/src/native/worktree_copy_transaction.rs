@@ -370,7 +370,8 @@ pub fn synchronize_with_checkpoints(
     checkpoint: &mut dyn FnMut(Checkpoint),
 ) -> Result<Synchronized, WorktreeCopyError> {
     let admin_root: PathBuf = common_dir.join("worktrees");
-    if copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())? {
+    let marked_before_claiming: bool = copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())?;
+    if marked_before_claiming {
         return Ok(Synchronized::AlreadyCopied);
     }
     let journals: PathBuf = ensure_journal_root(common_dir)?;
@@ -388,11 +389,14 @@ pub fn synchronize_with_checkpoints(
     };
     checkpoint(Checkpoint::Claimed);
     // A copy that finished between the first look and the claim leaves its marker; the claim is released unused.
-    if copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())? {
+    let marked_after_claiming: bool = copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())?;
+    if marked_after_claiming {
         claim.release()?;
         return Ok(Synchronized::AlreadyCopied);
     }
-    if destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered {
+    let removed_before_staging: bool =
+        destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered;
+    if removed_before_staging {
         claim.release()?;
         return Ok(Synchronized::Unregistered);
     }
@@ -422,7 +426,9 @@ pub fn synchronize_with_checkpoints(
     };
     checkpoint(Checkpoint::Staged);
     // Staging takes minutes, so the worktree may have been removed meanwhile; nothing is installed into a removed one.
-    if destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered {
+    let removed_while_staging: bool =
+        destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered;
+    if removed_while_staging {
         remove_pending_journal(&pending)?;
         claim.release()?;
         return Ok(Synchronized::Unregistered);

@@ -276,7 +276,7 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
 /// What:
 ///  Prints a wait's notices to a sink at the pace of its ticker.
 /// Why:
-///   Wait loops that poll (reservations, child processes, settlement locks) share one printing rule:
+///   Wait loops that poll (reservations, child processes) share one printing rule:
 ///  the line is built only when it is due,
 ///  so a poll that is not due costs a clock read and nothing else.
 ///
