@@ -1577,8 +1577,13 @@ each finished branch is reviewed and merged into `main`):
   the stale `toolchain:sync` names are harmless extras.
   The gap is only what `every_fetching_mise_task_is_listed` and the mpm-shadow verb test name;
   an earlier claim here that `toolchain:install` was unmatched was wrong.
-  An agent is updating both lists;
-  the restart waits for it so one restart carries everything.
+  The panic messages show the tests' detection reads deleted TypeScript sources
+  (`[]` fetching tasks,
+  "mpm-shadow has no verb install: []",
+  `package/file-enforcer/core/src/toolchain/sync.ts`),
+  so no policy gap is shown;
+  an agent is fixing the tests and dropping the stale entries,
+  and the restart no longer waits for it.
   Queued after the restart (inert here:
   `ip_forward` 0,
   no guests,
