@@ -4,7 +4,8 @@ Rules for what is put to the owner and how an answer is read:
 questions that are measured before they are asked,
 choices decided for quality,
 rulings kept in the design commitments,
-and the work a ruling reaches.
+the work a ruling reaches,
+and the guards that stop an entry where a ruling says to ship.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
@@ -83,3 +84,43 @@ the narrower reading is carried out and the wider one is asked.
 
 What enforces it:
 habit.
+
+## Guards that stop an entry where a ruling says to ship
+
+What happened:
+the entry `XingZ60` settled every slice on the XingZ6023 pass and shipped no page and no artifact (ledger B1181).
+A page-level guard had found a definition of note 3 that no paragraph referred to,
+and threw an interruption,
+which the pass files as a stop;
+only a stop with every provider dry ships an interim page.
+The check was written on 2026-09-09,
+before the owner ruled on 2026-09-27 that a run always ships
+and that a check of the page ships with the defect reported,
+and it was never read against that ruling;
+a second guard,
+for the evidence of a carried passage,
+threw the same way.
+The two footnote readers also judged two pages:
+the guard read the page with no original in it,
+the assembly proof counted a withdrawn anchor as carrying its original (ledger B1182).
+
+The rule:
+a check of the page that ships reports and does not throw.
+It is a step of `publishFixedPage`,
+whose refusal `publishDefects` collects and the DEFECTS line names.
+A throw is for a fault of the code,
+or for a page the site cannot build.
+Before a check that can stop an entry is added,
+the owner's rulings on shipping are read,
+and what the check finds is put in the list of defects.
+Two checks of one fact read one page,
+the one that ships,
+unless a test says why one must leave part of it out
+(the carried-evidence check leaves the originals out,
+because a region found there is no evidence the lanes wrote).
+
+What enforces it:
+the cases of `page-check/src/corpus-run/publish-page-guards-report.unit.test.ts`
+and the `settleEntry` case of `corpus-pass/src/corpus-run/pass-entry.unit.test.ts`,
+which fail if either guard stops the entry again;
+the reading of the rulings is habit.

@@ -44,10 +44,12 @@ named for that subject and listed here.
   questions that are measured before they are asked,
   choices decided for quality,
   rulings kept in the design commitments,
-  and the work a ruling reaches.
+  the work a ruling reaches,
+  and the guards that stop an entry where a ruling says to ship.
   Sections:
   - [Questions to the owner](mistake-prevention-questions-to-the-owner-and-rulings.md#questions-to-the-owner)
   - [Rulings read for the work they reach](mistake-prevention-questions-to-the-owner-and-rulings.md#rulings-read-for-the-work-they-reach)
+  - [Guards that stop an entry where a ruling says to ship](mistake-prevention-questions-to-the-owner-and-rulings.md#guards-that-stop-an-entry-where-a-ruling-says-to-ship)
 - [Preventing mistakes: tasks, builds and bulk output](mistake-prevention-tasks-builds-and-bulk-output.md):
   Rules for running the repository's tasks and builds:
   where a task runs from,

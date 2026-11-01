@@ -950,6 +950,17 @@ named for that subject and listed here.
   with no provider (B692),
   Synthetic's request-size cap claimed for every provider's reply (B693),
   and the client type every driver takes named for Synthetic (B694).
+- [Audit ledger: XingZ6023 shipped no page](audit-ledger-xingz6023-shipped-no-page.md):
+  The entry that settled every slice and shipped no page,
+  and its two causes:
+  the translate winner's ballots counted off the unwrapped text (B1180)
+  and the page guards that threw where the owner's rule is to ship with the defect reported (B1181),
+  with the two footnote readers that judged different pages (B1182),
+  the reasons of the interruption error and the interim ship for a stage that heard no voice (B1183),
+  the throws still open (B1184),
+  the pre-launch meter reading that printed Bedrock wet (B1185),
+  the cache versions and the artifact generation (B1186),
+  and what stays open with the slips (B1187).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
