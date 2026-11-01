@@ -6614,5 +6614,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - the Mac and Windows spawn replacements (record only);
   - any Windows or macOS item in the final re-review (#79).
   The copy agent and the integrator were told to do Linux only.
+- Seen live on 0.5.4 (commit `30b22118fc`, landed by the service on top of another session's `eba2840123`): the
+  wrapper printed two summary lines, `[main a2eec05176] ...` from native Git for a build that never landed, then
+  `[main 30b2211] ...` for the landed commit (`service_commit.rs:412` to `:417`). QUEUED for the e2e fix agent:
+  1. the landed line uses a fixed 7-character abbreviation (`service_commit.rs:408`, `:415`,
+     `service_messages.rs:257`); Git abbreviates to 10 here (`core.abbrev` unset, 379598 packed objects), and a fixed 7
+     can turn ambiguous as the repository grows. Suggested: honor `core.abbrev`, else Git's auto length from the
+     object count, without spawning Git;
+  2. the first line names a commit that is not on the branch, which a person may copy. Suggested: one summary line
+     naming the landed commit, the way native Git prints one.
 - Cleanup done: `~/temp/agent/hotfix/measure` was 143 MB, not 2 GB; its build copies are removed, logs and
   `measure.ts` kept.
