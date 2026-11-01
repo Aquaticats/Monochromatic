@@ -470,10 +470,17 @@ await describe({
             const cost = await runBatch({
               operation: 'download',
               requested,
+              stored: requested,
               indexed: [],
             },);
             expect(cost.heads,).toHaveLength(DOWNLOAD_MISS_CHECK_LIMIT,);
             expect(cost.entries,).toHaveLength(requested.length,);
+            expect(cost.entries.filter(function hasDownloadAction(entry,): boolean {
+              return 'actions' in entry;
+            },),).toHaveLength(DOWNLOAD_MISS_CHECK_LIMIT,);
+            expect(cost.entries.filter(function hasError(entry,): boolean {
+              return 'error' in entry;
+            },),).toHaveLength(requested.length - DOWNLOAD_MISS_CHECK_LIMIT,);
           },
         },),
       ],

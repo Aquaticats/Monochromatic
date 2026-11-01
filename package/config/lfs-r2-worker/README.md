@@ -89,9 +89,10 @@ R2 stays the source of truth:
   and a missing row proves nothing;
 - an upload batch gives an upload action to every oid the index lacks,
   and `PUT` is idempotent;
-- a download batch confirms its first 20 index misses with `head`,
+- a download batch confirms its first 10 index misses with `head`,
   records the ones R2 holds,
-  and reports further misses absent;
+  and reports further misses absent (a stored object can then get a per-object 404
+  until later batches record it, so rebuild a stale index promptly);
 - `PUT /<oid>` records the oid once R2 has accepted the bytes;
 - without the binding,
   or when a query fails,

@@ -188,9 +188,13 @@ R2 stays the source of truth.
   which is idempotent,
   and the `PUT` records the oid);
 - download batch: an index hit gets a download action,
-  and the first 20 misses are confirmed with `head` and recorded when R2 has them,
+  and the first 10 misses are confirmed with `head` and recorded when R2 has them,
   so a stale index heals toward R2,
-  and misses beyond 20 are reported absent;
+  and misses beyond 10 are reported absent
+  (the one wrong answer the design allows: a stored object beyond the cap gets a per-object 404,
+  and git-lfs fails that checkout until later batches record the object;
+  the cap exists because each `head` costs 0.25 to 0.45 ms and a fresh isolate already uses 5 to 9 ms,
+  so 10 misses add 2.5 to 4.5 ms and stay under 10 ms where 20 would reach about 14 ms);
 - `PUT /<oid>` records the oid after R2 accepted the bytes,
   and a failing index write is logged and ignored,
   so the object is stored either way;
@@ -291,8 +295,9 @@ Each guard was shown to fail without its fix:
 
 ## Open items
 
-- The cold-start cost (5 to 9 ms in a fresh isolate) is still close to 10 ms.
-  A 100-object request in a fresh isolate read 13 ms once and was not killed.
+- The cold-start cost (5 to 9 ms in a fresh isolate for one object) leaves 1 to 5 ms for the batch itself,
+  and a 100-object batch costs 1 to 8 ms warm.
+  A 100-object request read 13 ms once and was not killed.
   If failures return, `wrangler tail` will show `exceededCpu` with a small object count,
   and Workers Paid is the remaining remedy.
 - The plan was inferred,

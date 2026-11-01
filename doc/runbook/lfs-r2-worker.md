@@ -103,7 +103,7 @@ TODO
    ```
 
    Expected:
-    the output lists the binding `env.BUCKET (monochromatic-lfs)`,
+    the output lists the bindings `env.INDEX (monochromatic-lfs-index)` and `env.BUCKET (monochromatic-lfs)`,
    then `Deployed monochromatic-lfs triggers` and the URL
    `https://monochromatic-lfs.aquaticat.workers.dev`.
 
@@ -123,11 +123,14 @@ The Worker answers batches from the D1 database `monochromatic-lfs-index` (bindi
 because one R2 `head` per object exceeds the 10 ms CPU limit of a Workers Free request
 (`doc/troubleshooting/lfs-r2-worker-error-1102.md`).
 The database was created and filled on 2026-11-01.
-A full recreate needs these steps;
-the index also heals itself (downloads confirm and record their first 20 misses per batch,
+A full recreate needs these steps.
+The index also heals itself (downloads confirm and record their first 10 misses per batch,
 and every `PUT` records its oid),
-so a partly stale index costs redundant uploads and a few `head` calls,
-not wrong answers.
+but a stale index is not harmless:
+uploads of unindexed objects are redundant but correct,
+while a download batch with more than 10 unindexed stored objects answers the rest with per-object 404s
+and git-lfs fails that checkout until later batches record them.
+Rebuild a stale index promptly.
 
 1. Create the database and note the printed `database_id`
    (update `wrangler.toml` if it changed).

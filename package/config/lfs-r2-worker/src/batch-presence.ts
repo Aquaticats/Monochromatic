@@ -27,7 +27,7 @@ import type { WorkerEnv, } from './store.ts';
  misses are rare, and each confirmation is an R2 `head` costing 0.25 to 0.45 ms
  of CPU. Past this many misses the index is trusted and the rest are reported absent.
  */
-export const DOWNLOAD_MISS_CHECK_LIMIT = 20;
+export const DOWNLOAD_MISS_CHECK_LIMIT = 10;
 
 /**
  What is known about one object before the bucket is asked.
