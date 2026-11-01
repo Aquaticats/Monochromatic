@@ -225,6 +225,10 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A backup push the service made after a commit returned and the remote refused, shown by the next wrapper command.
+#[path = "binary_push_failure_tests.rs"]
+mod push_failure;
+
 /// The message and identity options through the service, compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
 mod service_options;

@@ -137,19 +137,21 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
             match handlers.push(items.as_slice()) {
                 Verdict::Done => {
-                    settle_all(work_dir.as_path(), &members, DONE);
-                    // A push of the branch went through, so an earlier failure to push it is no longer true.
+                    // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
+                    //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
                         clear_push_failures(common_dir, newest.item.branch_ref.as_str());
                     }
+                    settle_all(work_dir.as_path(), &members, DONE);
                 }
                 Verdict::Failed(text) => {
-                    settle_all(work_dir.as_path(), &members, FAILED);
+                    // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
                         && let Err(reason) = record_push_failure(common_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
                     {
                         eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
+                    settle_all(work_dir.as_path(), &members, FAILED);
                 }
             }
         }
