@@ -908,7 +908,7 @@ and if it is,
 it reports nothing.
 The system counts as stopping only when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
 `/run/nologin` is deliberately not a signal:
-`systemd-logind` also creates it in the minutes before a scheduled shutdown,
+`man 8 shutdown` documents that with a time argument the file is created five minutes before the system goes down,
 when a real death should still be reported,
 and a stale or administrator-made file would hide every death.
 A logout while the system keeps running is still reported:
