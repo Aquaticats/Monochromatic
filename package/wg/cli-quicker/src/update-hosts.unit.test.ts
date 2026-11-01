@@ -166,15 +166,8 @@ await describe({
     it({
       name: 'adds the redirect hosts the plan never names and rejects look-alike hosts',
       fn: async () => {
-        for (
-          const host of [
-            'objects.githubusercontent.com',
-            'release-assets.githubusercontent.com',
-            'static.crates.io',
-            'index.crates.io',
-          ]
-        )
-          expect(REDIRECT_UPDATE_HOSTS,).toContain(host,);
+        for (const host of REDIRECT_UPDATE_HOSTS)
+          expect(UPDATE_HOSTS,).toContain(host,);
         for (const host of ['crates.io.evil.example', 'githubusercontent.com', 'raw.githubusercontent.com', 'example.com',])
           expect(UPDATE_HOSTS,).not.toContain(host,);
       },

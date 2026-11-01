@@ -5,6 +5,8 @@ import { redirectLogScratch, } from './log-scratch.ts';
 // per-run scratch even though the imports above evaluated first.
 redirectLogScratch();
 
+export { RUNTIME_KEY, } from './async-failure-runtime-key.ts';
+
 export { caught, } from './caught.ts';
 export {
   extractAssertionExpression,

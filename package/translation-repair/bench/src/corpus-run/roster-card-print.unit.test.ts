@@ -24,6 +24,7 @@ import { printRosterCard, } from '../../dist/final/node/index.mjs';
 import { recordedTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts/recorded-transport.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/command-line.test-fixture.ts';
+import { REQUIRABLE_PROVIDERS, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/requirable-providers.ts';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 
 /**
@@ -266,13 +267,7 @@ await describe({
          Provenance line and first step the fragment of each provider carries.
          */
         const named: string[][] = [];
-        for (const provider of [
-          'synthetic',
-          'hyper',
-          'openrouter',
-          'bedrock',
-          'neuralwatt',
-        ]) {
+        for (const provider of REQUIRABLE_PROVIDERS) {
           /* oxlint-disable no-await-in-loop -- one provider at a time on purpose: each case diverts the process-wide console.log */
           const [fragment = '',] = await printReplying({
             provider,
@@ -290,8 +285,17 @@ await describe({
 
         expect(named,).toEqual([
           [
+            '// neuralwatt side for cat/mittens-9, read from https://api.neuralwatt.com/v1/models on 2026-10-06',
+            "// 1. Add 'cat/mittens-9' to NEURALWATT_SERVED_IDS in roster-id.ts.",
+          ],
+          [
             '// synthetic side for cat/mittens-9, read from https://api.synthetic.new/openai/v1/models on 2026-10-06',
             "// 1. Add 'cat/mittens-9' to SYNTHETIC_SERVED_IDS in roster-id.ts.",
+          ],
+          [
+            '// bedrock side for cat/mittens-9, read from https://bedrock-mantle.us-east-1.api.aws/v1/models '
+              + 'on 2026-10-06',
+            "// 1. Add 'cat/mittens-9' to BEDROCK_SERVED_IDS in roster-id.ts.",
           ],
           [
             '// hyper side for cat/mittens-9, read from https://hyper.charm.land/v1/models on 2026-10-06',
@@ -300,15 +304,6 @@ await describe({
           [
             '// openrouter side for cat/mittens-9, read from https://openrouter.ai/api/v1/models on 2026-10-06',
             "// 1. Add 'cat/mittens-9' to OPENROUTER_SERVED_IDS in roster-id.ts.",
-          ],
-          [
-            '// bedrock side for cat/mittens-9, read from https://bedrock-mantle.us-east-1.api.aws/v1/models '
-              + 'on 2026-10-06',
-            "// 1. Add 'cat/mittens-9' to BEDROCK_SERVED_IDS in roster-id.ts.",
-          ],
-          [
-            '// neuralwatt side for cat/mittens-9, read from https://api.neuralwatt.com/v1/models on 2026-10-06',
-            "// 1. Add 'cat/mittens-9' to NEURALWATT_SERVED_IDS in roster-id.ts.",
           ],
         ],);
       },

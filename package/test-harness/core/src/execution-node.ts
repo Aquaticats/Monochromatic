@@ -13,6 +13,7 @@ import {
   SandboxOwnershipError,
 } from '@monochromatic-dev/test-harness-core-sandbox/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { RUNTIME_KEY, } from './async-failure-runtime-key.ts';
 import type {
   ExecutionOptions,
   ObservedExecution,
@@ -21,11 +22,6 @@ import type {
 import { reportUnhandledRejection, } from './rejection-report.ts';
 
 //region Shared state — module copies use one observation protocol
-
-/**
- Shared key also joins source imports and separately bundled artifact copies.
- */
-const RUNTIME_KEY: unique symbol = Symbol.for('@monochromatic-dev/test-harness-core/async-failure-runtime/v1',);
 
 /**
  All copies in one global realm must share storage as well as the observer.
