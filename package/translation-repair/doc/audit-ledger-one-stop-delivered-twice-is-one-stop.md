@@ -603,3 +603,7 @@ Slips in how the work was run:
 - The waits for the gate and for a commit were two small scripts that poll a file and the head commit every few seconds,
   bounded,
   and not a wait on a process id.
+- The message of `7f94f07ec1c6f293bce3c64a38fa41e3908bae6a` says 3 deletions where its diff has 2:
+  the count was written before `git diff --stat` was run.
+  It is not amended;
+  this entry is its correction.
