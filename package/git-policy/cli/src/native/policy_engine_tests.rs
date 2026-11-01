@@ -168,6 +168,7 @@ fn policies_run_in_order_for_their_triggers() {
             PolicyId::MarkdownAutofix,
             PolicyId::ForbiddenRootContext,
             PolicyId::DependentVersionBump,
+            PolicyId::CatalogSpecifiers,
             PolicyId::ForbiddenStrings,
         ]
     );

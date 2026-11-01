@@ -19,6 +19,7 @@ use crate::config_schema::{
     ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting, RulesFileEntry,
 };
 use crate::policy_registry::{PolicyId, Severity};
+use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
 /// What:
@@ -123,4 +124,55 @@ fn the_repository_configuration_keeps_the_markdown_options() {
             exclude: vec![String::from("package/ssg/")],
         }
     );
+}
+
+/// The repository does not activate `mono/catalog-specifiers` yet: the policy is built and shipped, and this file
+///  neither lists it nor sets it.
+///  Activation is its own change, and the change that makes it flips this control.
+#[test]
+fn the_repository_configuration_does_not_activate_the_catalog_policy() {
+    let loaded: LoadedConfig = load_shipped();
+    assert_eq!(
+        loaded.config.policies.setting(PolicyId::CatalogSpecifiers),
+        PolicySetting {
+            id: PolicyId::CatalogSpecifiers,
+            severity: Severity::Off,
+            explicit: false
+        },
+        "an unlisted catalog policy is off; activate it deliberately and update this control"
+    );
+}
+
+/// A configuration written before the catalog policy shipped still loads, behaves as it did, and leaves the new
+///  policy off:
+///  the four listed policies keep their severities, and so do an empty file and no file.
+#[test]
+fn a_configuration_that_does_not_name_the_catalog_policy_behaves_as_before() {
+    let root: PathBuf = fixture("config-before-catalog");
+    std::fs::write(
+        root.join(CONFIG_FILE_NAME),
+        concat!(
+            "{ \"policies\": { \"markdown/autofix\": [\"warn\", { \"rules\": [\"lfs-image-url\"], \"exclude\": [\"package/ssg/\"] }],\n",
+            "  \"mono/dependent-version-bump\": \"error\", \"mono/forbidden-root-context\": \"error\",\n",
+            "  \"security/forbidden-strings\": [\"error\", { \"builtinRules\": true }] } }\n"
+        ),
+    )
+    .expect("older configuration");
+    let older: LoadedConfig = load_repository_config(root.as_path()).expect("the older file loads");
+    for (id, severity, explicit) in [
+        (PolicyId::MarkdownAutofix, Severity::Warn, true),
+        (PolicyId::ForbiddenRootContext, Severity::Error, true),
+        (PolicyId::DependentVersionBump, Severity::Error, true),
+        (PolicyId::ForbiddenStrings, Severity::Error, true),
+        (PolicyId::CatalogSpecifiers, Severity::Off, false),
+    ] {
+        assert_eq!(older.config.policies.setting(id), PolicySetting { id, severity, explicit }, "{id:?}");
+    }
+    std::fs::write(root.join(CONFIG_FILE_NAME), "{}\n").expect("empty configuration");
+    let empty: LoadedConfig = load_repository_config(root.as_path()).expect("the empty file loads");
+    assert_eq!(empty.config.policies.setting(PolicyId::CatalogSpecifiers).severity, Severity::Off);
+    std::fs::remove_file(root.join(CONFIG_FILE_NAME)).expect("remove");
+    let absent: LoadedConfig = load_repository_config(root.as_path()).expect("no file loads");
+    assert_eq!(absent.config.policies.setting(PolicyId::CatalogSpecifiers).severity, Severity::Off);
+    remove(root.as_path());
 }

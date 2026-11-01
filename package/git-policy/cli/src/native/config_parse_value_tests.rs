@@ -91,7 +91,7 @@ fn invalid_concurrency_values_are_rejected_by_key() {
 fn unknown_policy_ids_are_rejected_with_the_shipped_list() {
     let listed: &str = "Shipped policies: require-root, linked-worktree-only, branch-worktree-only, \
                         add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, \
-                        mono/dependent-version-bump, security/forbidden-strings.";
+                        mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.";
     for id in [
         "forbidden-strings",
         "security/forbidden-string",

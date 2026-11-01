@@ -27,6 +27,10 @@ use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+/// Direct runs that select a policy which is off, warns or blocks.
+#[path = "management_off_policy_tests.rs"]
+mod off_policy_cases;
+
 /// Inputs whose PATH holds nothing:
 ///  any attempt to resolve Git fails visibly.
 fn no_git(root: &Path) -> ResolutionInputs {
@@ -251,7 +255,7 @@ fn unknown_selected_policy_is_reported_on_stdout() {
             exit(
                 2,
                 format!(
-                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
+                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
                 )
                 .as_str(),
                 ""
@@ -292,8 +296,6 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
                 "fix",
                 "--policy",
                 "final-newline",
-                "--policy",
-                "security/forbidden-strings",
                 "--",
                 "a.txt"
             ],

@@ -85,6 +85,7 @@ fn unlisted_policies_run_only_when_built_in() {
             PolicyId::MarkdownAutofix,
             PolicyId::ForbiddenRootContext,
             PolicyId::DependentVersionBump,
+            PolicyId::CatalogSpecifiers,
             PolicyId::ForbiddenStrings,
         ]
     );

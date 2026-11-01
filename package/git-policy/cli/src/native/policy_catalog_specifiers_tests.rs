@@ -30,6 +30,10 @@ use std::path::{Path, PathBuf};
 #[path = "policy_catalog_specifiers_path_tests.rs"]
 mod path_cases;
 
+/// The policy inside the stage: severities, skips and escapes.
+#[path = "policy_catalog_specifiers_stage_tests.rs"]
+mod stage_cases;
+
 /// The check's outcome for `git add` with these paths in `repo`.
 pub(super) fn add_outcome(repo: &Path, values: &[OsString]) -> PolicyOutcome {
     let mut facts: ScriptedFacts = scripted_facts();
