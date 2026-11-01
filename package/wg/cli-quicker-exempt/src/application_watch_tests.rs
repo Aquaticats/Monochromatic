@@ -8,7 +8,7 @@
 //! because the test harness keeps a main thread that never blocks it.
 
 /// The setup under test.
-use crate::application_watch::{prepare_application_watch, ReporterIdentity};
+use crate::application_watch::{prepare_application_watch, rescan_due, ReporterIdentity};
 /// Fake scan roots.
 use crate::application_targets::ScanRoots;
 /// A move the fake manager never has to make.
@@ -99,4 +99,19 @@ fn every_thread_the_setup_creates_starts_with_the_shutdown_signals_blocked() {
         assert_eq!(blocked & (SIGTERM_BIT | SIGINT_BIT), SIGTERM_BIT | SIGINT_BIT, "thread {thread_id} started with a shutdown signal unblocked: mask {blocked:x}");
     }
     drop(watch);
+}
+
+/// The periodic scan is due after its interval,
+/// and a drop of process events brings the next scan forward only to the overrun spacing,
+/// so a storm of dropped events cannot make the watcher scan every process on every wakeup.
+#[test]
+fn a_dropped_event_brings_the_scan_forward_only_to_the_spacing() {
+    let at = std::time::Duration::from_millis;
+    assert!(!rescan_due(false, at(0)));
+    assert!(!rescan_due(false, at(1_999)));
+    assert!(rescan_due(false, at(2_000)));
+    assert!(!rescan_due(true, at(0)));
+    assert!(!rescan_due(true, at(999)));
+    assert!(rescan_due(true, at(1_000)));
+    assert!(rescan_due(true, at(10_000)));
 }

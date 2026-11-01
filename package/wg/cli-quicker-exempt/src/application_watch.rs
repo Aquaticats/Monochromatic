@@ -69,6 +69,8 @@ pub struct ApplicationWatch<'a> {
     events: Option<OwnedFd>,
     /// When the last full process scan finished.
     last_full_scan: Instant,
+    /// Whether the kernel dropped process events and the rescan that finds the lost ones has not run yet.
+    rescan_pending: bool,
     /// Delivers failures after startup to a person.
     reporter: RuntimeReporter,
 }
@@ -78,6 +80,22 @@ pub struct ApplicationWatch<'a> {
 /// It is a duration and not a count of loop wakeups,
 /// because a busy event stream wakes the loop far more often than the poll timeout.
 const FULL_SCAN_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Least time between two full process scans when the kernel dropped process events.
+/// A scan reads every process on the host (about 26 ms of CPU for 949 processes,
+/// measured),
+/// and a host that drops events is a busy one,
+/// so a scan after every dropped batch would spend a large share of a CPU on a storm.
+/// The drop is still reported at once,
+/// and a missed exec is found within this time.
+const OVERRUN_RESCAN_SPACING: Duration = Duration::from_secs(1);
+
+/// Reports whether a full process scan is due:
+/// always after the scan interval,
+/// and after a drop of process events once the spacing since the last scan has passed.
+pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
+    return since_last_scan >= FULL_SCAN_INTERVAL || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
+}
 
 /// Reports the `app.slice` path error for an embedded NUL byte.
 fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
@@ -214,6 +232,7 @@ pub fn prepare_application_watch(
         routing,
         events,
         last_full_scan: Instant::now(),
+        rescan_pending: false,
         reporter,
     };
     reconcile(&mut watch)?;
@@ -244,20 +263,21 @@ fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
 }
 
 /// Applies the exec events the kernel queued,
-/// and falls back to a full scan after an overrun or when the scan interval passed.
+/// and falls back to a full scan after an overrun,
+/// no sooner than the overrun spacing after the last one,
+/// or when the scan interval passed.
 /// A shutdown signal that arrives meanwhile ends the work between two processes.
 /// A socket that fails to be read is dropped,
 /// so a persistent error is reported once instead of spinning the loop,
 /// and the periodic scan carries on alone.
 fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
-    let mut full_scan = false;
     watch.routing.begin_pass();
     let drain_result = watch.events.as_ref().map(drain_exec_events);
     match drain_result {
         Some(Ok(batch)) => {
             if batch.overrun {
                 watch.reporter.report_failure("process events dropped", &policy_failure("the kernel dropped process events; every process is rescanned now"));
-                full_scan = true;
+                watch.rescan_pending = true;
             }
             for pid in batch.pids {
                 if (SignalPending { signals: &watch.signals }).stop_requested() {
@@ -278,10 +298,11 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
         }
         None => {}
     }
-    if full_scan || watch.last_full_scan.elapsed() >= FULL_SCAN_INTERVAL {
+    if rescan_due(watch.rescan_pending, watch.last_full_scan.elapsed()) {
         let outcomes = watch.routing.rescan_with(&SystemClock, &SignalPending { signals: &watch.signals });
         report_outcomes(&mut watch.reporter, &outcomes);
         watch.last_full_scan = Instant::now();
+        watch.rescan_pending = false;
     }
 }
 

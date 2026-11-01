@@ -4,6 +4,17 @@
 //! delivered within the exec itself.
 //! The subscription needs no BPF loader and no new dependency,
 //! and the watcher already holds the privilege it needs.
+//! The socket asks the kernel for exec events only:
+//! the plain listen message subscribes to every kind of process event
+//! (fork,
+//! exec,
+//! exit,
+//! comm,
+//! uid,
+//! gid,
+//! sid,
+//! ptrace and core dumps),
+//! which on a busy host is several times the exec rate and overflows the socket buffer.
 //! Delivery is lossy when this process falls behind,
 //! so an overrun is reported and the caller rescans `/proc` as its backstop.
 
@@ -13,6 +24,8 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::io;
 /// Duplicate detection in constant time.
 use std::collections::HashSet;
+/// Notices that are not failures of a policy.
+use crate::log_line::log_line;
 
 /// `NETLINK_CONNECTOR` from `linux/netlink.h`.
 const NETLINK_CONNECTOR: libc::c_int = 11;
@@ -24,6 +37,14 @@ const CN_VAL_PROC: u32 = 1;
 const PROC_CN_MCAST_LISTEN: u32 = 1;
 /// `PROC_EVENT_EXEC` from `linux/cn_proc.h`.
 const PROC_EVENT_EXEC: u32 = 2;
+/// `sizeof(struct proc_input)`:
+/// the operation,
+/// then the mask of event kinds to receive.
+const PROC_INPUT_LEN: usize = 8;
+/// Bytes the receive buffer of the socket is asked to hold,
+/// the `net.core.rmem_max` of the host this was measured on (4194304),
+/// so the request is honored even without the privilege to exceed that limit.
+const RECEIVE_BUFFER_BYTES: libc::c_int = 4_194_304;
 /// `NLMSG_DONE` from `linux/netlink.h`.
 const NLMSG_DONE: u16 = 3;
 
@@ -65,9 +86,30 @@ pub struct DrainedEvents {
     pub overrun: bool,
 }
 
-/// Builds the datagram that subscribes the socket to process events.
+/// Builds the datagram that subscribes the socket to every kind of process event.
 pub fn build_listen_message(port_id: u32) -> Vec<u8> {
-    let total = NLMSG_HEADER_LEN + CN_MSG_LEN + 4;
+    return build_control_message(port_id, &PROC_CN_MCAST_LISTEN.to_ne_bytes());
+}
+
+/// Builds the datagram that narrows the subscription to exec events.
+/// The kernel reads a payload of the size of `struct proc_input`
+/// (`cn_proc_mcast_ctl` in `drivers/connector/cn_proc.c` of Linux v7.2.11,
+/// lines 413 to 416)
+/// as an operation and an event mask,
+/// and `cn_filter` (lines 51 to 82) then drops every other event inside the kernel,
+/// before it takes room in the socket buffer.
+/// A kernel that does not know the form ignores the datagram,
+/// and the socket keeps the subscription to everything that the plain listen message made.
+pub fn build_exec_filter_message(port_id: u32) -> Vec<u8> {
+    let mut payload: Vec<u8> = Vec::with_capacity(PROC_INPUT_LEN);
+    payload.extend_from_slice(&PROC_CN_MCAST_LISTEN.to_ne_bytes());
+    payload.extend_from_slice(&PROC_EVENT_EXEC.to_ne_bytes());
+    return build_control_message(port_id, &payload);
+}
+
+/// Builds one control datagram of the process connector around `payload`.
+fn build_control_message(port_id: u32, payload: &[u8]) -> Vec<u8> {
+    let total = NLMSG_HEADER_LEN + CN_MSG_LEN + payload.len();
     let mut message: Vec<u8> = Vec::with_capacity(total);
     message.extend_from_slice(&u32::try_from(total).unwrap_or(0).to_ne_bytes());
     message.extend_from_slice(&NLMSG_DONE.to_ne_bytes());
@@ -78,9 +120,9 @@ pub fn build_listen_message(port_id: u32) -> Vec<u8> {
     message.extend_from_slice(&CN_VAL_PROC.to_ne_bytes());
     message.extend_from_slice(&0_u32.to_ne_bytes());
     message.extend_from_slice(&0_u32.to_ne_bytes());
-    message.extend_from_slice(&4_u16.to_ne_bytes());
+    message.extend_from_slice(&u16::try_from(payload.len()).unwrap_or(0).to_ne_bytes());
     message.extend_from_slice(&0_u16.to_ne_bytes());
-    message.extend_from_slice(&PROC_CN_MCAST_LISTEN.to_ne_bytes());
+    message.extend_from_slice(payload);
     return message;
 }
 
@@ -109,8 +151,45 @@ pub fn parse_exec_event(datagram: &[u8]) -> Option<i32> {
     return i32::try_from(tgid).ok();
 }
 
-/// Opens a nonblocking connector socket and subscribes it to process events.
+/// Asks for a larger receive buffer,
+/// with the privilege to exceed `net.core.rmem_max` when there is one.
+/// The request is best effort:
+/// the buffer only absorbs a burst of exec events,
+/// and a smaller one still works.
+pub fn enlarge_receive_buffer(socket: &OwnedFd, bytes: libc::c_int) -> io::Result<()> {
+    for option in [libc::SO_RCVBUFFORCE, libc::SO_RCVBUF] {
+        // SAFETY: the pointer and length describe the integer passed for the duration of the call.
+        let result = unsafe {
+            libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                option,
+                std::ptr::addr_of!(bytes).cast(),
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if result == 0 {
+            return Ok(());
+        }
+    }
+    return Err(io::Error::last_os_error());
+}
+
+/// Opens a nonblocking connector socket and subscribes it to exec events.
 pub fn subscribe() -> io::Result<OwnedFd> {
+    return subscribe_to(true);
+}
+
+/// Opens a nonblocking connector socket and subscribes it to every kind of process event,
+/// the positive control that shows the exec-only filter removes events.
+#[cfg(test)]
+pub fn subscribe_to_everything() -> io::Result<OwnedFd> {
+    return subscribe_to(false);
+}
+
+/// Opens the socket and subscribes it,
+/// to exec events only or to everything.
+fn subscribe_to(exec_only: bool) -> io::Result<OwnedFd> {
     // SAFETY: socket returns a new descriptor on success.
     let raw = unsafe {
         libc::socket(
@@ -141,13 +220,25 @@ pub fn subscribe() -> io::Result<OwnedFd> {
     if bound < 0 {
         return Err(io::Error::last_os_error());
     }
-    let message = build_listen_message(port_id);
-    // SAFETY: the buffer pointer and length describe the message built above.
+    // The buffer is set before the subscription, so no burst finds the small default.
+    if let Err(error) = enlarge_receive_buffer(&socket, RECEIVE_BUFFER_BYTES) {
+        log_line(&format!("the process-event socket keeps its default receive buffer: {error}"));
+    }
+    send_control(&socket, &build_listen_message(port_id))?;
+    if exec_only {
+        send_control(&socket, &build_exec_filter_message(port_id))?;
+    }
+    return Ok(socket);
+}
+
+/// Sends one control datagram to the kernel.
+fn send_control(socket: &OwnedFd, message: &[u8]) -> io::Result<()> {
+    // SAFETY: the buffer pointer and length describe the message passed.
     let sent = unsafe { libc::send(socket.as_raw_fd(), message.as_ptr().cast(), message.len(), 0) };
     if sent < 0 {
         return Err(io::Error::last_os_error());
     }
-    return Ok(socket);
+    return Ok(());
 }
 
 /// One source of datagrams.
