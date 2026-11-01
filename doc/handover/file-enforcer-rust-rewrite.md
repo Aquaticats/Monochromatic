@@ -1232,6 +1232,45 @@ each finished branch is reviewed and merged into `main`):
   then the Docker removal (#35) and the Depot removal (#36),
   the global plan conversion,
   and a real `prepare:playwright` pull.
+- Done 2026-11-01 after the cutover:
+  - Docker:
+    root `Dockerfile`,
+    `docker-compose.yml`,
+    the `testDockerImage` task (`85bfcc4230`)
+    and the root `.dockerignore`
+    (no build with a copy step uses the repo root as its build folder without an explicit `--ignorefile`)
+    removed.
+  - Depot:
+    `.depot/`,
+    `current-baseline.yml`,
+    `admission-gate.yml`,
+    the decision withdrawn,
+    the Depot docs marked not adopted;
+    the unused `repository` input of `repo-tools-setup` removed (owner: "Remove");
+    25 Depot issues closed as not planned (owner: "Close as not planned"; 995 to 2133);
+    the four `depot/skills` agent skills removed;
+    the global `depot` CLI dropped,
+    and mise's own `depot` 2.102.23 installs uninstalled.
+  - Global plan converted:
+    59 tools in sync,
+    `.pre-cutover` backups kept (`d181d56d92`).
+  - Heavy-command rule:
+    `RXI` names `--pids-limit` and `--blkio-weight`,
+    each limit sized to the command;
+    new `RXD` gives the fallback numbers
+    (2g, 2 CPUs, 512 processes, weight 50; my numbers, open to the owner's veto);
+    the Claude preamble's `systemd-run` rule adds `TasksMax` and `IOWeight` (`2774a5e1d4`).
+  - Troubleshooting doc `doc/troubleshooting/gh-list-json-stops-at-limit-without-notice.md`
+    (owner: "You're second guessing jq's behavior, so /troubleshooting-doc").
+- Queued:
+  - an `AGENTS.md` `QRY` tightening to propose to the owner:
+    add gh's `--limit` beside the `head` caps in its list of silent search failures;
+  - #41,
+    `claude-cpu-watch` writes `io.weight`,
+    which BFQ ignores (`io.bfq.weight` stays 100);
+  - #39,
+    per-agent instruction files,
+    waiting on the research agent's `doc/research/agent-instruction-files.md`.
 - wg-quicker update scopes and whole-system performance (2026-11-01, owner:
   "And wg-quicker-update might have been causing some whole-system perf issues. Fix it.").
   Measured about 01:20 EDT,
