@@ -66,8 +66,8 @@ decide that it is unchanged. The cost grows with the worktree and with host load
 Live confirmation on the real checkout: while this record was committed through the installed (unfixed) wrapper,
 the shadow `git commit` ran for more than 640 s with 5 s of CPU time, in uninterruptible disk wait
 (`blk_mq_get_tag`), reading and hashing the worktree. That child runs with the terminal attached and no bound, so it
-never printed the "still waiting" line; the commit looked hung for ten minutes. This, not `pack-objects`, is how a commit
-takes minutes on a loaded host and why "some commits time out".
+never printed the "still waiting" line; the commit looked hung for ten minutes.
+This, not `pack-objects`, is how a commit takes minutes on a loaded host and why "some commits time out".
 
 Probe on the same index and repository (three rounds each):
 
@@ -83,9 +83,26 @@ keeps the stat data of every entry the two share.
 ### Private index seeded from the real index
 
 `commit_index.rs`: an explicit-path commit copies the captured real index to the private commit index (timestamps
-preserved, as for the other modes) and runs `read-tree --reset <base>` on it. Entries unchanged since the base keep
-their stat data, flags included, exactly as in Git's partial commit; unmerged entries of the real index are discarded.
-The tree the private index produces is pinned by the existing `commit_index` tests against the incumbent, which pass.
+preserved, from the open file so a rename of another index over the path cannot give the copy its times) and runs
+`read-tree --reset <base>` on it. Entries unchanged since the base keep their stat data; unmerged entries of the real
+index are discarded. The tree the private index produces is pinned by the existing `commit_index` tests against the
+incumbent, which pass.
+
+The copy keeps one thing Git's own partial commit does not act on: an assume-unchanged or skip-worktree mark.
+After the reset such an entry still carries the mark, and `git add --all -- <path>` then skips a modified
+assume-unchanged file that the commit named (the commit exits 0 without it) and refuses a skip-worktree one
+(exit 1, "matched paths that exist outside of your sparse-checkout definition"). An independent review found and
+reproduced both. The fix is a safeguard, not a flag edit: `index_flags.rs` reads the entries of the captured index
+in-process (no Git start; versions 2 to 4, SHA-1 and SHA-256, everything checked against real Git by its tests) and the
+copy is used only when every entry was read and none is marked. A marked index, a split index, or a file the reader does
+not fully understand builds the private index the old way, from the base alone, so those commits keep their previous
+behaviour and cost. The earlier sentence "flags included, exactly as in Git's partial commit" was wrong about the
+commit result and is withdrawn.
+
+Reviewed and left as is: the fsmonitor and untracked-cache extensions are carried by the copy; the shadow
+repository's own config enables neither, so Git ignores them when it reads the copy (by reading, no daemon was run).
+`core.sharedRepository` is not applied to the shadow's subdirectories as `git init` applied it; the shadow root is
+mode 0700 afterwards in both flows, so no other account reaches them.
 
 After, same arms and clone (seconds): shadow `git commit` 0.16 to 0.49 against 4.3 to 9.8; whole commit 1.0 to 2.7
 against 5.1 to 11.8 (control 5.2 to 7.1).
@@ -117,16 +134,37 @@ unchanged (the `config` read that follows the old `init` is the wrapper's own re
 
 `child_class.rs` classes each Git step by its subcommand; `child_watch.rs` stops the child at the class bound.
 
-- Plumbing step (queries and edits of refs and indexes): bound 60 s, first notice after 5 s.
-  Worst measured 0.43 s (`reset`) at a load average above 80; the bound is more than a hundred times that.
-- Object-writing step (`pack-objects`, `index-pack`, `add`, and any unclassed subcommand, `maintenance` among them,
-  and the `cat-file --batch` reader): bound 300 s, first notice after 10 s.
-  Worst measured 0.065 s, but time grows with the bytes moved,
-  so the bound leaves room for a large file on a loaded host.
+The first version put `reset`, `read-tree`, `update-index`, `ls-files`, `diff`, `diff-index` and `show` in the short
+class on the evidence of a stat-clean index. A stat-dirty index (every file touched, content unchanged) changes that.
+Three runs each, 20 207 files, warm page cache, load above 80, milliseconds:
+
+- `reset -q HEAD -- README.md`: 27 to 101 clean, 2 930 to 5 771 dirty.
+- `update-index --refresh`: 26 to 32 clean, 2 806 to 2 889 dirty.
+- `ls-files --modified`: 57 to 58 clean, 2 803 to 2 862 dirty.
+- `diff-index HEAD`: 17 to 51 clean, 93 to 102 dirty (compares stat first, hashes only on a size or mode difference).
+- `diff-index --cached HEAD`, `ls-files --stage`, `write-tree`, `rev-list --count HEAD`, `merge-base HEAD origin/main`,
+  `diff --stat --summary HEAD~1 HEAD`: 3 to 44 clean and 3 to 24 dirty, unchanged by the state of the worktree.
+
+A killed refresh is discarded, so a rerun repeats the same work: only a bound sized for the dirty case helps.
+The classes are therefore:
+
+- Quick query step: bound 60 s, first notice after 5 s. Only steps that read refs, commits and trees, or write one
+  ref or one tree from the index as it is: `rev-parse`, `rev-list`, `symbolic-ref`, `for-each-ref`, `ls-tree`,
+  `cat-file`, `diff-tree`, `merge-base`, `write-tree`, `update-ref`, `config`, `remote`, `version`.
+  Worst measured 44 ms, unaffected by the worktree. A `reference-transaction` hook cannot slow `update-ref` or
+  `symbolic-ref` here, because named and traditional external hooks do not run (owner decision).
+- Bulk step: bound 300 s, first notice after 10 s. Every other step: `pack-objects`, `index-pack`, `add`,
+  `hash-object`, `maintenance`, and the index-versus-worktree steps `reset`, `read-tree`, `update-index`, `ls-files`,
+  `diff`, `diff-index`, `show`, `ls-remote`, plus any subcommand not named. There is no second list: a step is a
+  query only when it is named a query, so a new subcommand gets the longer bound instead of an early stop.
+- The object reader (`cat-file --batch`) is a bulk step on purpose: one request can name a large blob, and its subject
+  now carries the class like every other step (a single `cat-file` query through `run_git` is a quick query step).
 - The user's `git commit` with its hooks is not bounded (its runtime is the user's), unchanged.
 - `CLI_GIT_CHILD_WAIT_SECONDS` still overrides both classes with one value. No per-class variables were added.
-- The notice interval stays `CLI_GIT_WAIT_NOTICE_SECONDS` (10 s); the grace never exceeds the interval.
+- The first notice comes after the class grace, never later than the notice interval and never later than half the
+  bound, so a bound set below the grace still prints a notice before the step is stopped.
 - The notice and the timeout sentence name the command and its class, the bound, what to run next and how to raise it.
+  The sentence is shared with the object reader, so it says "if the step belonged to a commit".
 
 A step stopped at its bound is an ordinary failed Git step: `GitFailure` ends the transaction like a non-zero exit,
 and the recovery tables (tearing sweep, kill, signal) accept every state a killed child leaves.
@@ -170,3 +208,38 @@ paused budget; it does not fit a child that ran and hung, and a second mechanism
 - Passing: `budget` (4), `recovery_tearing` (25, shadow tearing included), `fault_kill` (8), `fault_signal` (4),
   `landing` (17), `landing_crash` (11), `wait_notice` (9), and the unit tests of `child_class`, `child_watch`,
   `shadow_skeleton`, `shadow_create`, `commit_index` and `transaction_git`. Clippy with warnings denied is clean.
+
+## Review follow-up: tests added and guards shown failing
+
+- `index_flags_tests.rs`: the reader against `git ls-files -v` for versions 2, 3 and 4, a SHA-256 repository, names
+  of every length (every padding), a path longer than one directory name, intent-to-add entries (not a mark), a split
+  index (unreadable), an empty index (plain) and truncated, wrong-version and non-index bytes (unreadable).
+- `commit_index_stat_tests.rs`: a named assume-unchanged file is committed, an unnamed one stays as the base has it,
+  a named directory takes its assume-unchanged files, a named skip-worktree file does not fail the commit, and only a
+  plain index seeds the private index.
+- `child_watch_tests.rs`: the reader subject carries its class, the terms of a class stay inside the interval and the
+  bound, a bound below the grace pulls the first notice inside it.
+- `transaction_git_tests.rs`: the production entry takes its terms from the request's own subcommand.
+- `binary_child_bound_tests.rs`: the class label in the sentence is the one the production classification gives the
+  command that was stopped; the notice interval is tied to the bound.
+- Guard breaks, each shown to fail the named tests and restored: the reader answering "plain" for every index fails the
+  five assume-unchanged, skip-worktree, SHA-256, split and damaged-index tests and the "only a plain index seeds" test;
+  the terms of a request always taking the bulk class fails `the_terms_of_a_request_follow_its_subcommand`; the grace
+  without the half-bound cap fails `a_short_bound_pulls_the_first_notice_inside_it`; `reset` added to the query list
+  fails the two class tests. The unnamed assume-unchanged test passes under every break by design: it guards a
+  regression in the other direction.
+- Not testable cheaply: the copy taking its times from the open file (a rename between a copy and a stat has no seam);
+  it is a read of the handle instead of the path, which the existing copy tests exercise.
+
+## The shadow commit is still unbounded and silent: proposal
+
+`run_native_commit` (`commit_preparation.rs`) runs the shadow `git commit` with the terminal attached through the
+signal guard, so it is not watched and prints nothing, which is how a hash-everything refresh looked like a hang.
+With the stat seeding it is fast unless the real index is itself stat-dirty (a fresh clone, a restored tree), when the
+copy carries that state and the child hashes every file again.
+It must stay interactive only for the message editor (no external hooks run). A minimal change, not made here because
+the file belongs to the preparation owner and the guard has no way to report the child's process identity yet:
+when the commit arguments carry a message source (`-m`, `--message`, `-F`, `--file`, `-C`, `--no-edit`), run the child
+under a `ChildWatch` with notice-only terms (a limit no wait reaches) so the usual "still waiting for ... (process N)"
+line appears at the bulk grace; when an editor will open, do nothing. That needs `SignalGuard::run_child` to hand
+back the child's identifier before it waits.

@@ -19,7 +19,7 @@
 use super::{ObjectReader, start_object_reader, start_object_reader_with};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::candidate_object::{ObjectId, parse_object_id};
-use crate::child_watch::WatchTerms;
+use crate::child_watch::{WatchTerms, reader_subject};
 use crate::test_support::{SharedSink, executable, fixture, remove};
 use crate::wait_progress::Cadence;
 use std::path::{Path, PathBuf};
@@ -78,14 +78,14 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     assert!(started.elapsed() < Duration::from_secs(20), "{:?}", started.elapsed());
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
     assert!(
-        error.message.contains("git cat-file --batch did not finish within 1 seconds and was stopped"),
+        error.message.contains(format!("{} did not finish within 1 seconds and was stopped", reader_subject()).as_str()),
         "{error}"
     );
     assert!(error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "{error}");
     let text: String = sink.text();
     // The notice that is due goes out before the bound is checked, so a stopped process was announced at least once.
     assert!(text.lines().count() >= 1, "{text}");
-    assert!(text.starts_with("cli-git: still waiting for git cat-file --batch (process "), "{text}");
+    assert!(text.starts_with(format!("cli-git: still waiting for {} (process ", reader_subject()).as_str()), "{text}");
     let later: CandidateError = subject.head_commit().expect_err("closed");
     assert_eq!(later.failure, CandidateFailure::ReaderEnded);
     drop(subject);

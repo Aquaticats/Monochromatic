@@ -16,14 +16,15 @@ use super::commit::remove_settled;
 use super::fault::{Effect, Injection, Ran, When, run_injected_with_environment, staged_repository, verify_recovery};
 use super::fork_failure::strace_available;
 use super::support::{Fixture, fixture};
-use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass, class_of};
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// The bound the control sets, in seconds: the smallest the variable accepts.
 const BOUND_SECONDS: u64 = 1;
 
 /// How long the start of each Git child is delayed beyond the bound, in seconds.
-const MARGIN_SECONDS: u64 = 2;
+const MARGIN_SECONDS: u64 = 1;
 
 /// The commit with the bound set and the notice interval at its smallest, so a notice precedes the stop.
 fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran {
@@ -34,12 +35,13 @@ fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran
         follow_forks: true,
     };
     let bound: String = BOUND_SECONDS.to_string();
+    // The notice interval equals the bound, so the grace, which never passes the interval, is at most the bound.
     return run_injected_with_environment(
         fixture,
         repo,
         label,
         &fault,
-        &[(CHILD_WAIT_VARIABLE, bound.as_str()), ("CLI_GIT_WAIT_NOTICE_SECONDS", "1")],
+        &[(CHILD_WAIT_VARIABLE, bound.as_str()), ("CLI_GIT_WAIT_NOTICE_SECONDS", bound.as_str())],
     );
 }
 
@@ -59,11 +61,28 @@ fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {
     assert_ne!(ran.code(), 0, "a stopped step must fail the commit: {text}");
     assert!(text.contains(format!("did not finish within {BOUND_SECONDS} seconds and was stopped").as_str()), "{text}");
     assert!(text.contains(CHILD_WAIT_VARIABLE), "{text}");
-    // The first watched step is whichever the wrapper starts first; the sentence names its class, whichever it is.
-    assert!(
-        [ChildClass::Plumbing, ChildClass::Object].iter().any(|class| { return text.contains(class.label()); }),
-        "the sentence names the class of the stopped step: {text}"
-    );
+    // The sentence is "<command>, <class label> did not finish within ...": the label must be the one the production
+    // classification gives that command.
+    let (before, found): (&str, ChildClass) = [ChildClass::Plumbing, ChildClass::Object]
+        .iter()
+        .filter_map(|class| {
+            return text
+                .find(format!(", {} did not finish within", class.label()).as_str())
+                .map(|at| { return (at, *class); });
+        })
+        .min_by_key(|(at, _)| { return *at; })
+        .map(|(at, class)| { return (&text[..at], class); })
+        .expect("the sentence names a class");
+    // The command starts at the last "git " that follows a space, a colon or a quote (an earlier path may hold one).
+    let start: usize = before
+        .match_indices("git ")
+        .map(|(at, _)| { return at; })
+        .filter(|at| { return *at == 0 || before[..*at].ends_with(|previous: char| { return " :\"(".contains(previous); }); })
+        .last()
+        .expect("the stopped command is named");
+    let command: &str = &before[start..];
+    let words: Vec<OsString> = command.split_whitespace().skip(1).map(OsString::from).collect();
+    assert_eq!(found, class_of(words.as_slice()), "the class of `{command}`: {text}");
     assert_eq!(verify_recovery(&fixture, repo.as_path(), "child-bound", text.as_str()), Ok(()));
     remove_settled(&fixture);
 }

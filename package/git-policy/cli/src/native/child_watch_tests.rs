@@ -27,21 +27,44 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
 #[test]
 fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
     let limit: Duration = ChildClass::Object.default_limit();
-    let text: String = watched_timeout_text("git add -- a.md, an object-writing step", limit);
-    assert!(text.starts_with("git add -- a.md, an object-writing step did not finish within "), "{text}");
+    let subject: String = format!("git add -- a.md, {}", ChildClass::Object.label());
+    let text: String = watched_timeout_text(subject.as_str(), limit);
+    assert!(text.starts_with(format!("{subject} did not finish within ").as_str()), "{text}");
     assert!(text.contains(format!("within {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
-    assert_eq!(text.matches(CHILD_WAIT_VARIABLE).count(), 2, "the variable changes the bound, and the next step uses it: {text}");
+    assert!(text.contains(format!("{CHILD_WAIT_VARIABLE}=").as_str()), "the raise hint spells the variable: {text}");
     assert!(text.contains("run the command again"), "{text}");
     assert!(text.contains("`ps`"), "{text}");
 }
 
-/// The terms of a class carry the class's grace, held to the notice interval, and the class's bound.
+/// The object reader names itself with its class, like every other step.
 #[test]
-fn the_terms_of_a_class_carry_its_grace_and_bound() {
+fn the_reader_subject_names_the_command_and_its_class() {
+    let subject: String = reader_subject();
+    assert!(subject.starts_with("git cat-file --batch"), "{subject}");
+    assert!(subject.ends_with(ChildClass::Object.label()), "{subject}");
+}
+
+/// The terms of a class carry its bound, and a grace that never passes the interval or the bound.
+#[test]
+fn the_terms_of_a_class_carry_its_bound_and_a_grace_inside_it() {
     for class in [ChildClass::Plumbing, ChildClass::Object] {
         let terms: WatchTerms = WatchTerms::for_class(class);
-        assert_eq!(terms.cadence.grace, class.notice_grace().min(terms.cadence.interval), "{class:?}");
         assert_eq!(terms.limit, class.limit(), "{class:?}");
+        assert!(terms.cadence.grace <= class.notice_grace(), "{class:?}");
+        assert!(terms.cadence.grace <= terms.cadence.interval, "{class:?}");
+        assert!(terms.cadence.grace < terms.limit, "{class:?}");
+    }
+}
+
+/// A bound set below a class's grace still gets its first notice before the step is stopped,
+///  and a bound above the grace leaves the grace alone.
+#[test]
+fn a_short_bound_pulls_the_first_notice_inside_it() {
+    for class in [ChildClass::Plumbing, ChildClass::Object] {
+        let interval: Duration = class.notice_grace() * 2;
+        let short: Duration = class.notice_grace() / 2;
+        assert!(grace_for(class, interval, short) < short, "{class:?}");
+        assert_eq!(grace_for(class, interval, class.default_limit()), class.notice_grace(), "{class:?}");
     }
 }
 

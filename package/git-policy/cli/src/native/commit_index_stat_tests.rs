@@ -106,3 +106,95 @@ fn a_named_path_is_staged_from_the_worktree_not_from_the_cached_entry() {
     assert_eq!(content, "changed");
     remove(root.as_path());
 }
+
+/// The content of `path` in the tree the private index produces.
+fn private_content(repo: &Path, indexes: &CaptureIndexes, path: &str) -> String {
+    let tree: String = write_private_tree(
+        &git_context(),
+        repo,
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("tree");
+    return git_text(repo, &["show", format!("{tree}:{path}").as_str()]);
+}
+
+/// A repository with `a.txt`, `b.txt` and `d/x.txt` committed.
+fn repository_with_directory(root: &Path) -> (PathBuf, CaptureIndexes, String) {
+    let (repo, indexes, _base) = committed_repository(root);
+    std::fs::create_dir(repo.join("d")).expect("directory");
+    std::fs::write(repo.join("d").join("x.txt"), "x\n").expect("x");
+    git(repo.as_path(), &["add", "d/x.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=directory"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    return (repo, indexes, base);
+}
+
+/// A file marked assume-unchanged that the commit names is staged from the worktree, as Git's own partial commit does;
+///  without that, the mark in the copied index makes `git add` skip it and the named file is silently left out.
+#[test]
+fn a_named_assume_unchanged_file_is_committed() {
+    let root: PathBuf = fixture("commit-index-assume-named");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed b\n").expect("change b");
+    initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("a.txt"), OsString::from("b.txt")]);
+    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
+    assert_eq!(private_content(repo.as_path(), &indexes, "b.txt"), "changed b");
+    remove(root.as_path());
+}
+
+/// A file marked assume-unchanged that the commit does not name stays as the base has it.
+#[test]
+fn an_unnamed_assume_unchanged_file_stays_as_the_base_has_it() {
+    let root: PathBuf = fixture("commit-index-assume-unnamed");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed b\n").expect("change b");
+    initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("b.txt")]);
+    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "a");
+    assert_eq!(private_content(repo.as_path(), &indexes, "b.txt"), "changed b");
+    remove(root.as_path());
+}
+
+/// A directory named by the commit takes the marked files inside it too.
+#[test]
+fn a_named_directory_takes_its_assume_unchanged_files() {
+    let root: PathBuf = fixture("commit-index-assume-directory");
+    let (repo, indexes, base) = repository_with_directory(root.as_path());
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "d/x.txt"]);
+    std::fs::write(repo.join("d").join("x.txt"), "changed x\n").expect("change x");
+    initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("d")]);
+    assert_eq!(private_content(repo.as_path(), &indexes, "d/x.txt"), "changed x");
+    remove(root.as_path());
+}
+
+/// A path marked skip-worktree by hand that the commit names does not fail the commit, as before the copy.
+#[test]
+fn a_named_skip_worktree_file_does_not_fail_the_commit() {
+    let root: PathBuf = fixture("commit-index-skip-named");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    git(repo.as_path(), &["update-index", "--skip-worktree", "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed b\n").expect("change b");
+    initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("a.txt"), OsString::from("b.txt")]);
+    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
+    assert_eq!(private_content(repo.as_path(), &indexes, "b.txt"), "changed b");
+    remove(root.as_path());
+}
+
+/// An index no mark touches still seeds the private index, so the safeguard costs nothing for it:
+///  the copy is used exactly when the reader found the index plain, and an absent file seeds nothing.
+#[test]
+fn only_a_plain_index_seeds_the_private_index() {
+    let root: PathBuf = fixture("commit-index-seeds");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let real: PathBuf = repo.join(".git").join("index");
+    assert!(seeds_private_index(real.as_path()));
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    assert!(!seeds_private_index(real.as_path()));
+    assert!(!seeds_private_index(indexes.commit_index.as_path()));
+    remove(root.as_path());
+}

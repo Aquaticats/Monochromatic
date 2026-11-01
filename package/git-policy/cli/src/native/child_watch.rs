@@ -60,12 +60,14 @@ pub struct WatchTerms {
 impl WatchTerms {
     /// The terms a step of `class` runs under: the class's bound (or the variable's) and the class's grace before
     ///  the first notice, the notice interval of the environment, notices on standard error.
-    ///  The grace never exceeds the interval, so a short interval still announces a wait quickly.
+    ///  The grace never exceeds the interval, so a short interval still announces a wait quickly, nor half the bound,
+    ///  so a bound set below the class's grace still gets a notice before the step is stopped.
     pub fn for_class(class: ChildClass) -> Self {
         let interval: Cadence = Cadence::from_environment();
+        let limit: Duration = class.limit();
         return Self {
-            limit: class.limit(),
-            cadence: Cadence { grace: class.notice_grace().min(interval.interval), interval: interval.interval },
+            limit,
+            cadence: Cadence { grace: grace_for(class, interval.interval, limit), interval: interval.interval },
             notices: Box::new(std::io::stderr()),
         };
     }
@@ -75,6 +77,20 @@ impl WatchTerms {
     pub fn from_environment() -> Self {
         return Self::for_class(ChildClass::Object);
     }
+}
+
+/// What:
+///  How long a step of `class` runs before its first notice, for a notice `interval` and a `limit`.
+/// Why:
+///   The class's grace, but never past the interval (a short interval still announces a wait quickly) and never past
+///  half the bound (a bound set below the grace still gets a notice before the step is stopped).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Math.min(class.noticeGrace, interval, limit / 2)
+/// ```
+pub fn grace_for(class: ChildClass, interval: Duration, limit: Duration) -> Duration {
+    return class.notice_grace().min(interval).min(limit / 2);
 }
 
 /// What:
@@ -294,6 +310,21 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
 }
 
 /// What:
+///  How the object reader's wait names itself in notices and in the timeout sentence.
+/// Why:
+///   The reader is one long-lived `cat-file --batch` whose single request can name a large blob, so it runs under the
+///  bulk class on purpose (a `cat-file` that answers one query through `run_git` is a quick query step), and its
+///  subject says so like every other step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `git cat-file --batch, ${labelOf(BULK)}`
+/// ```
+pub fn reader_subject() -> String {
+    return format!("git cat-file --batch, {}", ChildClass::Object.label());
+}
+
+/// What:
 ///  The sentence for a watched wait that crossed its bound.
 /// Why:
 ///   It names what was waited for, the bound, where to change it and what to do next.
@@ -305,8 +336,8 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
 pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
     return format!(
         "{waiting_for} did not finish within {} seconds and was stopped ({CHILD_WAIT_VARIABLE} changes this). \
-         A commit this step belonged to is finished or undone by the next Git command of this wrapper, so run the \
-         command again. If the step was only slow, raise the bound with {CHILD_WAIT_VARIABLE}=<seconds>; \
+         If the step belonged to a commit, the next Git command of this wrapper finishes or undoes that commit, so \
+         run the command again. If the step was only slow, raise the bound with {CHILD_WAIT_VARIABLE}=<seconds>; \
          if it stalls again, check with `ps` what that process waits for.",
         limit.as_secs()
     );

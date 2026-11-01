@@ -639,14 +639,18 @@ fractional or non-numeric value is ignored.
   The command leaves the lock in place and changes nothing else,
    so it can simply be run again.
 - `CLI_GIT_CHILD_WAIT_SECONDS`,
-   default `60` for a plumbing step and `300` for an object-writing step.
+   default `60` for a quick query step and `300` for a bulk step.
   How long one Git process that the wrapper starts for itself may run before it is stopped.
-  A plumbing step is a query or an edit of a ref or an index (`rev-parse`, `ls-files`, `diff-index`, `read-tree`,
-   `write-tree`, `reset`, `update-ref` and the like);
-   the measured worst case is a fraction of a second.
-  An object-writing step moves bytes (`pack-objects`, `index-pack`, `add`) and so does anything the wrapper has not
-   classed, such as `maintenance run` and the object reader (`git cat-file --batch`);
-   its time grows with the size of what is committed.
+  A quick query step only reads refs, commits and trees (`rev-parse`, `rev-list`, `ls-tree`, `cat-file`, `diff-tree`,
+   `merge-base`, `write-tree`, `update-ref` and the like);
+   the measured worst case is a fraction of a second whatever the worktree holds.
+  A bulk step is every other step:
+   it moves bytes (`pack-objects`, `index-pack`, `add`, `maintenance run`),
+   or compares the index with the worktree (`reset`, `update-index`, `ls-files`, `diff`),
+   or is not known to be a query.
+  Its time grows with the size of what is committed and with how many files the index must read again
+   (a stat-dirty 20 000-file index made `reset` take 2.9 s against 0.03 s on a clean one).
+  The object reader (`git cat-file --batch`) is a bulk step too, because one request can name a large blob.
   Setting the variable gives every class the same bound.
   A process that crosses its bound is stopped,
    and the command reports which one, its class, the bound and how to go on:
@@ -705,7 +709,7 @@ Each line names what the command waits for,
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
-  The first notice of a plumbing step comes after 5 seconds and that of an object-writing step after 10 seconds,
+  The first notice of a quick query step comes after 5 seconds and that of a bulk step after 10 seconds,
    so a step that only needed a moment prints nothing.
 
 ```text

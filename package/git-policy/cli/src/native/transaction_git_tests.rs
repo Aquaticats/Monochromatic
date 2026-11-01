@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository};
+use crate::child_class::ChildClass;
 use crate::wait_progress::Cadence;
 
 /// Requests carry their arguments and nothing else by default.
@@ -317,6 +318,16 @@ fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> Watc
         cadence: Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
         notices,
     };
+}
+
+/// The production entry runs a query under the query bound and any other step under the bulk bound:
+///  the terms come from the request's own subcommand.
+#[test]
+fn the_terms_of_a_request_follow_its_subcommand() {
+    let query: GitRequest = GitRequest::new(Path::new("."), &["rev-parse", "HEAD"]);
+    let bulk: GitRequest = GitRequest::new(Path::new("."), &["pack-objects", "--stdout"]);
+    assert_eq!(terms_for_request(&query).limit, ChildClass::Plumbing.limit());
+    assert_eq!(terms_for_request(&bulk).limit, ChildClass::Object.limit());
 }
 
 /// A Git step that runs long is announced by name while it lasts, and its output still comes back.
