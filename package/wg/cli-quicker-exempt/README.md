@@ -426,6 +426,18 @@ is given the origin's limits when processes first join it.
 When the origin's directory is gone the scope keeps the limits it has,
 and a failure to apply is reported as `scope limits not applied`.
 When the scope is gone its record is dropped.
+Each application is a call to the user's manager that may run as long as the client timeout,
+three seconds,
+on the watcher's own thread,
+so it is bounded like a move:
+a scan spends at most one second on them and leaves the rest for the next scan,
+an origin whose application failed waits one second,
+then two,
+up to a minute,
+before it is tried again,
+no scan asks the manager while moves are paused after a timeout,
+and a call that times out ends the scan and pauses the moves for ten seconds,
+so a hung manager cannot stall the watcher for more than one call.
 
 A process that is exiting is never handed to the manager.
 The kernel's `cgroup_migrate_add_task` returns early for a `PF_EXITING` task while the write to `cgroup.procs` still succeeds,

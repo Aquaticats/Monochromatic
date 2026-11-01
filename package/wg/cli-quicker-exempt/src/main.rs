@@ -39,6 +39,8 @@ mod update_entry_points;
 mod install_roots;
 /// The always-on update traffic policy.
 mod update_routing;
+/// Collects the group of a matched process.
+mod routing_group;
 /// Looks up the watched user's account.
 mod user_account;
 /// Non-panicking bounded log and escaping.

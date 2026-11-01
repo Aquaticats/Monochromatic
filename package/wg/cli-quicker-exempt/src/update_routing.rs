@@ -15,7 +15,9 @@ use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
-use crate::process_info::{list_pids, read_cgroup_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
+use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time};
+/// Collecting and checking the group of a matched process.
+use crate::routing_group::{collect_group, recheck_group};
 /// The seam to the service manager.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// The scope of each origin.
@@ -50,16 +52,6 @@ const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
 const PASS_MOVE_BUDGET: Duration = Duration::from_secs(2);
 /// How long no move is attempted after the manager did not answer in time.
 const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// Reports whether a collected group already holds `pid`.
-fn contains_pid(group: &[(i32, u64)], pid: i32) -> bool {
-    for (member, _start_time) in group {
-        if *member == pid {
-            return true;
-        }
-    }
-    return false;
-}
 
 /// Does nothing,
 /// the default step between collecting a group and checking it again.
@@ -195,59 +187,6 @@ impl UpdateRouting {
         return Outcome::Unreadable { pid, error: error.to_string() };
     }
 
-    /// Collects the live descendants of `root` that run as the watched user in the same cgroup,
-    /// with their start times,
-    /// and the number of processes of this user that could not be inspected.
-    /// The candidates are the members of the cgroup,
-    /// read from its `cgroup.procs`,
-    /// because a pass over every process of the host cost about 26 ms of CPU for each move.
-    /// A cgroup whose member list cannot be read falls back to the pass over every process.
-    fn collect_group(&self, root: &ProcessInfo) -> Result<(Vec<(i32, u64)>, usize), String> {
-        let pids = match read_cgroup_pids(&self.setup.cgroup_root, &root.cgroup) {
-            Some(members) => members,
-            None => match list_pids(&self.setup.proc_root) {
-                Ok(pids) => pids,
-                Err(error) => return Err(format!("listing the processes failed: {error}")),
-            },
-        };
-        let mut snapshot: Vec<ProcessInfo> = Vec::new();
-        let mut unreadable = 0;
-        for pid in pids {
-            match read_process(&self.setup.proc_root, pid, self.setup.uid) {
-                Ok(Some(info)) => snapshot.push(info),
-                Ok(None) => {}
-                Err(_error) => unreadable += 1,
-            }
-        }
-        let mut found: Vec<(i32, u64)> = vec![(root.pid, root.start_time)];
-        let mut index = 0;
-        while index < found.len() {
-            let parent = found[index].0;
-            index += 1;
-            for candidate in &snapshot {
-                if candidate.parent == parent && candidate.cgroup == root.cgroup && !contains_pid(&found, candidate.pid) {
-                    found.push((candidate.pid, candidate.start_time));
-                }
-            }
-        }
-        return Ok((found, unreadable));
-    }
-
-    /// Keeps the processes that are still the same ones,
-    /// and counts the rest.
-    /// A pid that exited and was reused has another start time and is dropped.
-    fn recheck_group(&self, group: &[(i32, u64)], cgroup: &str) -> (Vec<i32>, usize) {
-        let mut kept: Vec<i32> = Vec::new();
-        let mut dropped = 0;
-        for (pid, start_time) in group {
-            match read_process(&self.setup.proc_root, *pid, self.setup.uid) {
-                Ok(Some(again)) if again.start_time == *start_time && again.cgroup == cgroup => kept.push(*pid),
-                _ => dropped += 1,
-            }
-        }
-        return (kept, dropped);
-    }
-
     /// Records a failed move and builds its outcome.
     fn register_failure(&mut self, key: (i32, u64), now: Instant, error: String) -> Outcome {
         self.failed_attempts_this_pass += 1;
@@ -320,12 +259,12 @@ impl UpdateRouting {
         if let Some(why) = self.postponement(now) {
             return Outcome::Deferred { pid, why };
         }
-        let (group, unreadable) = match self.collect_group(&info) {
+        let (group, unreadable) = match collect_group(&self.setup, &info) {
             Ok(collected) => collected,
             Err(error) => return self.register_failure(key, now, error),
         };
         before_move();
-        let (pids, dropped) = self.recheck_group(&group, &info.cgroup);
+        let (pids, dropped) = recheck_group(&self.setup, &group, &info.cgroup);
         // The matched process must still be the same process when the move is requested.
         if pids.first() != Some(&pid) {
             return Outcome::Ignored;
@@ -351,7 +290,10 @@ impl UpdateRouting {
             Ok(joined) => {
                 self.handled.insert(key);
                 self.failures.remove(&key);
-                self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits);
+                // A join that finds the manager hung pauses the moves like a hung move does.
+                if self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits, now) {
+                    self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                }
                 Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
             }
             Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
@@ -414,7 +356,15 @@ impl UpdateRouting {
             }
         }
         self.forget_exited(&pids);
-        outcomes.extend(self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE));
+        // Following the origins asks the manager too: not while its calls are paused,
+        // for at most a budget, and a call that times out pauses the moves.
+        if !self.is_blocked(clock.now()) {
+            let followed = self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE, clock);
+            if followed.timed_out {
+                self.blocked_until = Some(clock.now() + BLOCK_AFTER_TIMEOUT);
+            }
+            outcomes.extend(followed.outcomes);
+        }
         return outcomes;
     }
 }
