@@ -253,8 +253,7 @@ It exits 0 when it finds none or only such shims, 1 when it finds any other hook
  the repository.
 Traditional hooks are not supported,
  so a script that still checks something should become a cli-git policy under `policies`.
-It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1), a
- `core.fsmonitor` that names a program (it is the hook `fsmonitor-watchman`), and
+It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1) and
  notes a `hooks` key in `cli-git.config.jsonc`, which is accepted for older files and ignored.
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.

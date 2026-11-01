@@ -74,6 +74,15 @@ The wrapper runs no external hook program and no program any configuration names
   `describe_hook_changes`), `no_verify` tracking, the preparation lease, the hook lock, the plan and `hooks/plan.json`,
   `defines_named_hook`, and the post-landing hook run.
 
+## core.fsmonitor
+
+Measured on Git 2.56.0 (`status` with a `core.fsmonitor` program): the program runs with `core.hooksPath` pointing at a
+missing directory and with `-c hook.fsmonitor-watchman.enabled=false`, so the event switch does not reach it.
+The owner decided the wrapper does not stop it ("To stop the fsmonitor program - we don't need to."), so `core.fsmonitor`
+is left as configured, like the other programs Git starts for its own features, and the built-in monitor daemon keeps
+working.
+A first attempt switched it off with `-c core.fsmonitor=false` and reported it as a configured hook; both were removed.
+
 ## Deleted, with line counts at the base of this work (`5561c8b7cb`)
 
 Whole files, 3409 lines:

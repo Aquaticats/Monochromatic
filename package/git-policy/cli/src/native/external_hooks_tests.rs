@@ -15,22 +15,14 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(bytes.as_slice(), true).expect("a well-formed listing");
 }
 
-/// A `core.fsmonitor` that names a program is reported as the hook it is; a boolean names none.
+/// A `core.fsmonitor` is left as configured: it is no hook of the report, whatever it names.
 #[test]
-fn a_monitor_program_is_reported_like_a_configured_hook() {
-    let program: ConfigSnapshot = listing_snapshot(&[("local", "core.fsmonitor\n/usr/local/bin/watch")]);
-    let hooks: Vec<ConfiguredHook> = configured_hooks(&program);
-    assert_eq!(hooks.len(), 1);
-    assert_eq!(hook_key(&hooks[0]), FSMONITOR_KEY);
-    assert_eq!(describe_hook(&hooks[0]), format!("{FSMONITOR_KEY} (events: {FSMONITOR_EVENT})"));
-    let warning: String = external_hooks_warning(Some(&program)).expect("a warning");
-    assert!(warning.contains(FSMONITOR_KEY), "{warning}");
-    for value in ["true", "false", "yes", "off"] {
-        let boolean: ConfigSnapshot = listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
-        assert!(configured_hooks(&boolean).is_empty(), "{value}");
+fn core_fsmonitor_is_not_reported_as_a_hook() {
+    for value in ["/usr/local/bin/watch", "true", "false"] {
+        let snapshot: ConfigSnapshot = listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
+        assert!(configured_hooks(&snapshot).is_empty(), "{value}");
+        assert_eq!(external_hooks_warning(Some(&snapshot)), None, "{value}");
     }
-    let unset: ConfigSnapshot = listing_snapshot(&[("local", "core.bare\nfalse")]);
-    assert!(configured_hooks(&unset).is_empty());
 }
 
 /// A stream that refuses every write.
