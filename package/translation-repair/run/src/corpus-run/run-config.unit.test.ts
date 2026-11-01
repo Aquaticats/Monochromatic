@@ -410,6 +410,28 @@ function inDirectory({ path, }: { readonly path: string; },): Disposable {
   };
 }
 
+/**
+ Builds a transport that records the label of every exchange, answers the first provider's chat with a length stop and
+ no content (a reasoning runaway), and refuses every other endpoint outright.
+
+ @param labels - sink the labels are pushed to, in the order the exchanges arrive
+
+ @returns Transport for `runClientFrom`
+
+ @example
+ ```ts
+ const transport = runawayTransport({ labels: [], },);
+ ```
+ */
+function runawayTransport({ labels, }: { readonly labels: string[]; },): Parameters<typeof runClientFrom>[0]['transport'] {
+  return async function answerRunaway(exchange,) {
+    labels.push(exchange.label,);
+    return isFirstProviderChat(exchange.url,)
+      ? { status: ANSWERED, bodyText: 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n', }
+      : { status: REFUSED_OUTRIGHT, bodyText: '{}', };
+  };
+}
+
 await describe({
   name: '',
   concurrency: 1,
@@ -937,12 +959,7 @@ await describe({
               await runClientFrom({
                 maxHoldMs: TEST_MAX_HOLD_MS,
                 env: TWO_KEYS,
-                transport: async (exchange,) => {
-                  labels.push(exchange.label,);
-                  return isFirstProviderChat(exchange.url,)
-                    ? { status: ANSWERED, bodyText: 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n', }
-                    : { status: REFUSED_OUTRIGHT, bodyText: '{}', };
-                },
+                transport: runawayTransport({ labels, },),
               },).chatJson({
                 modelId: SHARED_SEAT,
                 messages: MESSAGES,
@@ -1026,12 +1043,7 @@ await describe({
             await runClientFrom({
               maxHoldMs: TEST_MAX_HOLD_MS,
               env: { [API_KEY_VAR]: 'whiskers-not-a-real-key', },
-              transport: async (exchange,) => {
-                labels.push(exchange.label,);
-                return isFirstProviderChat(exchange.url,)
-                  ? { status: ANSWERED, bodyText: 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n', }
-                  : { status: REFUSED_OUTRIGHT, bodyText: '{}', };
-              },
+              transport: runawayTransport({ labels, },),
             },).chatJson({
               modelId: RUNAWAY_EDITOR_SEAT,
               messages: MESSAGES,

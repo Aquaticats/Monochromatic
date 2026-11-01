@@ -360,8 +360,7 @@ Measured with `slice-cache:cache-account-audit -- --runs-under /var/home/user/te
 read-only,
 no provider called) and `find` over the run folders:
 - The repair slice version is 51 and the refine version 20,
-  both set by `945af136ba` at 2026-11-01T00:12Z
-  (committed 2026-10-31 20:12 in the committer's zone).
+  both set by `945af136ba` at 2026-11-01T00:12Z.
   The audit counts 0 of 8 versions set after the newest record.
 - The folders under the agent folder hold 3,300 repair slice records and 3,310 refine records.
   The newest repair slice record is 2026-10-31T09:08Z and the newest refine record 2026-10-31T09:20Z,

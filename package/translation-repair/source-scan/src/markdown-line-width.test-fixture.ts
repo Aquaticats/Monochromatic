@@ -139,7 +139,7 @@ function spanEnd({
 
  @param line - one line of Markdown
 
- @returns The line without its indent and marker (`-`, `*`, `+`, or a number with `.` or `)`), or without its indent
+ @returns Line without its indent and marker (`-`, `*`, `+`, or a number with `.` or `)`), or without its indent
  alone where it has no marker
 
  @example
@@ -273,7 +273,7 @@ export function wideLinesOf({ text, }: { readonly text: string; },): readonly nu
  const paths = await readWidthDocPaths();
  ```
  */
-export async function readWidthDocPaths(): Promise<readonly string[]> {
+async function readWidthDocPaths(): Promise<readonly string[]> {
   return [
     ...(await readPackageDocPaths()),
     join(

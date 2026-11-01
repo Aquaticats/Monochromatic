@@ -106,7 +106,7 @@ function routerRecordingProviders(): {
  @param modelId - model to re-ask
  @param reaskSeat - seat the request names, when it names one
 
- @returns The provider that served the re-ask, or the refusal the router gave it
+ @returns Provider that served the re-ask, or the refusal the router gave it
 
  @example
  ```ts
