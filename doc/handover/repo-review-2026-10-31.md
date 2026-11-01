@@ -520,6 +520,24 @@ Wave-4 tenth checkpoint (2026-11-01, all rows verified against the tree before r
   first of the unproven-coverage subpackages; openai-fast 53, goal 51, bash-poke 48,
   advisor 23, current-time-context 12, cost-dismissal 8 follow).
 
+Wave-4 eleventh checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- music-player/desktop-app src complete: all 285 src/*.rs files covered or cited (rows
+  `pkg-observable-112` and `-113` verified, my own run over `pkg-observable.jsonl` is
+  112 of 112 clean; headline row 113: unplayable_notification deliver never drops a
+  failed cached connection, contradicting its drop-and-retry docs; row 112: the ui_search
+  ingest Trk helper's documented plain track is never built when best_in is out of the
+  batch range. The admit-before-deliver ledger behavior is pinned as intended by its
+  named test, so no row). `w4-desktop-app` reassigned to music-player/asset (20 files,
+  rows continue in `pkg-observable.jsonl` from id 114 with package field
+  package/music-player/asset; desktop-e2e 94 and the truepeak-core bench follow).
+- Design mockups verified: `docs-planning-audit-213` to `-215` (215 of 215 clean;
+  213: candidates.md repeats the D34 white center spacer claim that light-c contradicts,
+  214: rows-c's 48px caption under the family arithmetic, 215: scan-b/d catalog cells
+  claim 860x~540 geometry the files do not carry). 20 mockups plus the empty-a/b
+  residual cells remain (scan-ef, scroll-a, settings-a/b, sub-a/b, tabletop-a/b/c,
+  toast-a, unf-a to unf-j).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
