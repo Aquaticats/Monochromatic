@@ -144,17 +144,17 @@ fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     let _service: Running = start(&fixture, name.as_str());
     let first: Output = served(&fixture, &unborn, name.as_str(), &["commit", "-m", "the root", "--", "a.txt"]).output().expect("the wrapped commit runs");
     assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
-    let lines: Vec<(String, String)> = summaries(&first);
-    assert_eq!(lines.len(), 1, "{:?}", String::from_utf8_lossy(&first.stdout));
-    assert!(lines[0].0.starts_with("[main (root-commit) "), "{}", lines[0].0);
-    assert_eq!(lines[0].1, git_short_head(&fixture, &unborn));
+    let root_lines: Vec<(String, String)> = summaries(&first);
+    assert_eq!(root_lines.len(), 1, "{:?}", String::from_utf8_lossy(&first.stdout));
+    assert!(root_lines[0].0.starts_with("[main (root-commit) "), "{}", root_lines[0].0);
+    assert_eq!(root_lines[0].1, git_short_head(&fixture, &unborn));
     git(&fixture, unborn.as_path(), &["checkout", "--quiet", "--detach"]);
     std::fs::write(unborn.join("a.txt"), b"first\nsecond\n").expect("edit");
     let detached: Output = served(&fixture, &unborn, name.as_str(), &["commit", "-m", "adrift", "--", "a.txt"]).output().expect("the wrapped commit runs");
     assert!(detached.status.success(), "{}", String::from_utf8_lossy(&detached.stderr));
-    let lines: Vec<(String, String)> = summaries(&detached);
-    assert_eq!(lines.len(), 1, "{:?}", String::from_utf8_lossy(&detached.stdout));
-    assert!(lines[0].0.starts_with("[detached HEAD "), "{}", lines[0].0);
+    let detached_lines: Vec<(String, String)> = summaries(&detached);
+    assert_eq!(detached_lines.len(), 1, "{:?}", String::from_utf8_lossy(&detached.stdout));
+    assert!(detached_lines[0].0.starts_with("[detached HEAD "), "{}", detached_lines[0].0);
     remove_settled(&fixture);
 }
 
@@ -239,7 +239,7 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     let name: String = format!("client-index-wait-{}", std::process::id());
     let _service: Held = service_with_git(&fixture, name.as_str(), program.as_path());
     let mut landing: Command = served(&fixture, &repo, name.as_str(), &["commit", "--quiet", "-m", "slow landing", "--", "a.txt"]);
-    let mut landing_child: Child = landing.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
+    let landing_child: Child = landing.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
     let began: Instant = Instant::now();
     while !entered.exists() {
         assert!(began.elapsed() < PATIENCE, "the landing never reached the branch move");

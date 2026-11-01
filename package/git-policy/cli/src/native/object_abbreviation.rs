@@ -226,9 +226,9 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
     }
     let chunks: u64 = u64::from(header[6]);
     let packs: u64 = u64::from(u32::from_be_bytes([header[8], header[9], header[10], header[11]]));
-    let mut fanout_at: Option<u64> = None;
-    let mut names_at: Option<u64> = None;
-    let mut packs_at: Option<(u64, u64)> = None;
+    let mut fanout_chunk: Option<u64> = None;
+    let mut names_chunk: Option<u64> = None;
+    let mut packs_chunk: Option<(u64, u64)> = None;
     let mut previous: Option<(u32, u64)> = None;
     for index in 0..=chunks {
         let at: u64 = 12 + index * 12;
@@ -236,15 +236,15 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
         let offset: u64 = be64(&file, at + 4).ok_or(())?;
         if let Some((earlier, start)) = previous {
             match earlier {
-                CHUNK_FANOUT => fanout_at = Some(start),
-                CHUNK_NAMES => names_at = Some(start),
-                CHUNK_PACKS => packs_at = Some((start, offset)),
+                CHUNK_FANOUT => fanout_chunk = Some(start),
+                CHUNK_NAMES => names_chunk = Some(start),
+                CHUNK_PACKS => packs_chunk = Some((start, offset)),
                 _ => {}
             }
         }
         previous = Some((id, offset));
     }
-    let (fanout_at, names_at, (packs_start, packs_end)) = (fanout_at.ok_or(())?, names_at.ok_or(())?, packs_at.ok_or(())?);
+    let (fanout_at, names_at, (packs_start, packs_end)) = (fanout_chunk.ok_or(())?, names_chunk.ok_or(())?, packs_chunk.ok_or(())?);
     let count: u64 = u64::from(be32(&file, fanout_at + 255 * 4).ok_or(())?);
     let mut listed: Vec<u8> = vec![0; usize::try_from(packs_end.saturating_sub(packs_start)).map_err(|_| {})?];
     file.read_exact_at(listed.as_mut_slice(), packs_start).map_err(|_| {})?;

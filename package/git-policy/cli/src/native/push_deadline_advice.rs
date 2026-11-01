@@ -13,14 +13,22 @@
 
 use super::bounded_push::PUSH_DEADLINE_VARIABLE;
 use super::service_messages::RESTART_COMMAND;
-use super::service_provision::SERVICE_PROGRAM;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The deadline the service advice gives as its example, in seconds.
 pub const EXAMPLE_SECONDS: u32 = 120;
 
-/// Whether this process is the resident commit service, from the name of its program.
+/// Whether this process is the resident commit service, which says so once at its start.
+static IN_SERVICE: AtomicBool = AtomicBool::new(false);
+
+/// Says that this process is the resident commit service, so that the advice it prints is the service's.
+pub fn mark_service_process() {
+    IN_SERVICE.store(true, Ordering::SeqCst);
+}
+
+/// Whether this process is the resident commit service.
 fn runs_in_service() -> bool {
-    return std::env::current_exe().ok().and_then(|path| { return path.file_stem().map(|stem| { return stem.to_string_lossy().into_owned(); }); }).is_some_and(|stem| { return stem == SERVICE_PROGRAM; });
+    return IN_SERVICE.load(Ordering::SeqCst);
 }
 
 /// The user manager's command that gives the service the variable at its next start.
