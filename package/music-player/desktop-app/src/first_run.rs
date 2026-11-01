@@ -202,7 +202,7 @@ pub fn first_run_copy(
                 "Allow access, or open a folder instead.",
             )
             .to_owned(),
-            primary_action: Some(ALLOW_ACCESS_LABEL),
+            primary_action: Some(OPEN_FOLDER_LABEL),
             secondary_actions: vec![OPEN_FOLDER_LABEL, SETTINGS_LABEL],
             explains_analysis: true,
         }),

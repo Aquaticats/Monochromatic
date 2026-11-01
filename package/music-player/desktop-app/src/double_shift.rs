@@ -108,7 +108,7 @@ impl DoubleShift {
             return (Self::default(), false);
         }
         return match self.first_tap_at {
-            Some(first_at) if now_ms.saturating_sub(first_at) <= DOUBLE_SHIFT_WINDOW_MS => (Self::default(), true),
+            Some(first_at) if now_ms.saturating_sub(first_at) < DOUBLE_SHIFT_WINDOW_MS => (Self::default(), true),
             _ => (Self { held: None, first_tap_at: Some(pressed_at) }, false),
         };
     }

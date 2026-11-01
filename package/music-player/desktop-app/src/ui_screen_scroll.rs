@@ -54,7 +54,7 @@ pub struct ScrollInput<'a> {
 /// Why: the scroll offset of a row is the sum of the heights above it, and the list does not report its layout back.
 pub fn row_height_px(row: &ListRow) -> f32 {
     if row.kind == 1 {
-        return HEADER_HEIGHT_PX;
+        return ROW_MIN_HEIGHT_PX;
     }
     return if row.supporting.is_empty() {
         ROW_MIN_HEIGHT_PX

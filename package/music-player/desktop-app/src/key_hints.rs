@@ -71,7 +71,7 @@ impl KeyHints {
     /// function onTick(hints: KeyHints, nowMs: number): KeyHints;
     /// ```
     pub fn on_tick(self, now_ms: u64) -> Self {
-        if self.shown || self.held.is_empty() || now_ms.saturating_sub(self.since_ms) < HINT_HOLD_MS {
+        if self.shown || self.held.is_empty() || now_ms.saturating_sub(self.since_ms) <= HINT_HOLD_MS {
             return self;
         }
         return Self { shown: true, ..self };

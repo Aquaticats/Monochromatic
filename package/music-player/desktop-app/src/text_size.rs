@@ -126,7 +126,7 @@ impl TextSizes {
     /// Why: no caller can build a size outside the limits, so the window never draws one.
     #[must_use]
     pub fn with(self, element: TextElement, px: u16) -> TextSizes {
-        let held = px.clamp(MIN_TEXT_SIZE_PX, MAX_TEXT_SIZE_PX);
+        let held = px.clamp(MIN_TEXT_SIZE_PX + 1, MAX_TEXT_SIZE_PX);
         let mut next = self;
         match element {
             TextElement::PaneTitle => next.pane_title_px = held,

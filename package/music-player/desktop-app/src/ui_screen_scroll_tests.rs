@@ -50,24 +50,29 @@ fn live_folder_rows() -> Vec<ListRow> {
 
 #[test]
 fn row_offset_px_sums_the_heights_of_the_rows_above_the_index() {
-    // Track without a second line is 48, header is 54, track with a second line is 72.
+    // A track without a second line is ROW_MIN_HEIGHT_PX, a header is HEADER_HEIGHT_PX, and a track with a second
+    // line is ROW_TWO_LINE_HEIGHT_PX.
     let rows = [
         list_row(0, "", false),
         list_row(1, "2 tracks", false),
         list_row(0, "4:35", false),
         list_row(0, "", true),
     ];
+    let after_first = ROW_MIN_HEIGHT_PX;
+    let after_header = after_first + HEADER_HEIGHT_PX;
+    let after_two_line = after_header + ROW_TWO_LINE_HEIGHT_PX;
+    let after_last = after_two_line + ROW_MIN_HEIGHT_PX;
     assert_eq!(row_offset_px(&rows, 0), 0.0);
-    assert_eq!(row_offset_px(&rows, 1), 48.0);
-    assert_eq!(row_offset_px(&rows, 2), 102.0);
-    assert_eq!(row_offset_px(&rows, 3), 174.0);
-    assert_eq!(row_offset_px(&rows, 4), 222.0);
+    assert_eq!(row_offset_px(&rows, 1), after_first);
+    assert_eq!(row_offset_px(&rows, 2), after_header);
+    assert_eq!(row_offset_px(&rows, 3), after_two_line);
+    assert_eq!(row_offset_px(&rows, 4), after_last);
 }
 
 #[test]
 fn row_offset_px_gives_a_header_its_height_even_without_a_count() {
     let rows = [list_row(1, "", false), list_row(0, "", false)];
-    assert_eq!(row_offset_px(&rows, 1), 54.0);
+    assert_eq!(row_offset_px(&rows, 1), HEADER_HEIGHT_PX);
 }
 
 #[test]
@@ -77,12 +82,15 @@ fn scroll_offset_for_top_is_the_start_of_the_list() {
 
 #[test]
 fn scroll_offset_for_playing_row_is_the_offset_of_the_playing_row() {
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &live_folder_rows()), 102.0);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingRow, &live_folder_rows()),
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX
+    );
 }
 
 #[test]
 fn scroll_offset_for_playing_folder_is_the_offset_of_the_header_above_the_playing_row() {
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &live_folder_rows()), 48.0);
+    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &live_folder_rows()), ROW_MIN_HEIGHT_PX);
 }
 
 #[test]
@@ -99,8 +107,14 @@ fn scroll_offset_for_playing_folder_uses_the_nearest_header_above_the_playing_ro
         list_row(1, "1 track", false),
         list_row(0, "", true),
     ];
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &rows), 102.0);
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &rows), 156.0);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingFolder, &rows),
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX
+    );
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingRow, &rows),
+        2.0 * HEADER_HEIGHT_PX + ROW_MIN_HEIGHT_PX
+    );
 }
 
 #[test]
@@ -117,7 +131,7 @@ fn scroll_offset_for_playing_folder_ignores_headers_below_the_playing_row() {
 #[test]
 fn scroll_offset_for_playing_row_counts_a_two_line_header_above_it() {
     let rows = [list_row(1, "1 track", false), list_row(0, "3:00", true)];
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &rows), 54.0);
+    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &rows), HEADER_HEIGHT_PX);
     assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &rows), 0.0);
 }
 
@@ -135,8 +149,11 @@ fn scroll_offset_for_a_playing_track_in_a_subfolder_of_the_real_view() {
     state.track_name = "Camellia/Live/Ghost.flac".to_string();
     let screen = view(&state, &no_supporting_line);
     assert_eq!(screen.rows[1].kind, 1);
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &screen.rows), 102.0);
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &screen.rows), 48.0);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingRow, &screen.rows),
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX
+    );
+    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &screen.rows), ROW_MIN_HEIGHT_PX);
 }
 
 #[test]
@@ -329,7 +346,11 @@ fn row_tops_px_lists_where_every_row_starts_and_ends_with_the_content_height() {
         list_row(0, "4:35", false),
         list_row(0, "", true),
     ];
-    assert_eq!(row_tops_px(&rows), vec![0.0, 48.0, 102.0, 174.0, 222.0]);
+    let after_first = ROW_MIN_HEIGHT_PX;
+    let after_header = after_first + HEADER_HEIGHT_PX;
+    let after_two_line = after_header + ROW_TWO_LINE_HEIGHT_PX;
+    let after_last = after_two_line + ROW_MIN_HEIGHT_PX;
+    assert_eq!(row_tops_px(&rows), vec![0.0, after_first, after_header, after_two_line, after_last]);
 }
 
 #[test]
@@ -339,20 +360,26 @@ fn row_tops_px_of_an_empty_list_is_just_the_start() {
 
 #[test]
 fn row_at_px_finds_the_row_that_contains_an_offset() {
-    let tops = [0.0, 48.0, 102.0, 174.0, 222.0];
-    assert_eq!(row_at_px(&tops, 0.0), 0);
-    assert_eq!(row_at_px(&tops, 47.9), 0);
-    assert_eq!(row_at_px(&tops, 48.0), 1, "a row starts exactly at its top");
-    assert_eq!(row_at_px(&tops, 101.0), 1);
-    assert_eq!(row_at_px(&tops, 102.0), 2);
-    assert_eq!(row_at_px(&tops, 221.0), 3);
+    let tops = [
+        0.0,
+        ROW_MIN_HEIGHT_PX,
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX,
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX + ROW_TWO_LINE_HEIGHT_PX,
+        ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX + ROW_TWO_LINE_HEIGHT_PX + ROW_MIN_HEIGHT_PX,
+    ];
+    assert_eq!(row_at_px(&tops, tops[0]), 0);
+    assert_eq!(row_at_px(&tops, tops[1] - 0.1), 0);
+    assert_eq!(row_at_px(&tops, tops[1]), 1, "a row starts exactly at its top");
+    assert_eq!(row_at_px(&tops, tops[2] - 0.1), 1);
+    assert_eq!(row_at_px(&tops, tops[2]), 2);
+    assert_eq!(row_at_px(&tops, tops[4] - 0.1), 3);
 }
 
 #[test]
 fn row_at_px_clamps_a_bounce_above_the_list_and_a_scroll_past_the_end() {
-    let tops = [0.0, 48.0, 102.0];
+    let tops = [0.0, ROW_MIN_HEIGHT_PX, ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX];
     assert_eq!(row_at_px(&tops, -30.0), 0, "above the list is the first row");
-    assert_eq!(row_at_px(&tops, 102.0), 1, "the end of the content is the last row");
+    assert_eq!(row_at_px(&tops, tops[2]), 1, "the end of the content is the last row");
     assert_eq!(row_at_px(&tops, 5000.0), 1);
 }
 
@@ -364,11 +391,11 @@ fn row_at_px_of_an_empty_list_is_the_first_row() {
 
 #[test]
 fn top_of_px_gives_the_start_of_a_row_and_the_end_of_the_content_past_the_last() {
-    let tops = [0.0, 48.0, 102.0];
-    assert_eq!(top_of_px(&tops, 0), 0.0);
-    assert_eq!(top_of_px(&tops, 1), 48.0);
-    assert_eq!(top_of_px(&tops, 2), 102.0);
-    assert_eq!(top_of_px(&tops, 9), 102.0);
+    let tops = [0.0, ROW_MIN_HEIGHT_PX, ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX];
+    assert_eq!(top_of_px(&tops, 0), tops[0]);
+    assert_eq!(top_of_px(&tops, 1), tops[1]);
+    assert_eq!(top_of_px(&tops, 2), tops[2]);
+    assert_eq!(top_of_px(&tops, 9), tops[2]);
     assert_eq!(top_of_px(&[], 3), 0.0);
 }
 

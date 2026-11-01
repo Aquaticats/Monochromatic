@@ -15,7 +15,7 @@ use crate::template_model::TemplateResult;
 #[test]
 fn sample_tracks_show_an_analysed_and_an_unanalysed_stand_in() {
     let samples = template_sample_tracks();
-    assert_eq!(samples.len(), 2);
+    assert_eq!(samples.len(), TEMPLATE_PREVIEW_ROW_COUNT);
     assert_eq!(samples[0].track.title, "Track title");
     assert_eq!(samples[0].track.peak.as_deref(), Some("\u{2212}1.0 dBTP"));
     assert_eq!(samples[1].track.title, "Track not analyzed yet");

@@ -25,7 +25,7 @@ fn the_hints_are_a_normal_urgency_byte_and_the_desktop_entry_and_nothing_else() 
     let who = identity();
     let hints = notice_hints(&who);
     assert_eq!(hints.len(), 2);
-    assert_eq!(hints.get("urgency"), Some(&Value::U8(1)));
+    assert_eq!(hints.get("urgency"), Some(&Value::U8(URGENCY_NORMAL)));
     assert_eq!(hints.get("desktop-entry"), Some(&Value::from("monochromatic.music-player")));
 }
 
@@ -51,13 +51,13 @@ fn one_notify_call_carries_the_identity_the_fixed_title_the_message_and_the_deci
             app_name: "Music Player".to_string(),
             replaces_id: 0,
             app_icon: "multimedia-player".to_string(),
-            summary: "Cannot play a file".to_string(),
+            summary: SUMMARY.to_string(),
             body: "Example Track.flac can't be played.".to_string(),
             actions: Vec::new(),
             hint_names: vec!["desktop-entry".to_string(), "urgency".to_string()],
-            urgency: Some(1),
+            urgency: Some(URGENCY_NORMAL),
             desktop_entry: Some("monochromatic.music-player".to_string()),
-            expire_timeout: -1,
+            expire_timeout: EXPIRY_SERVER_DEFAULT,
         }]
     );
 }

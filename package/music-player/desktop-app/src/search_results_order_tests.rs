@@ -4,6 +4,7 @@
 // Why:      Split from `search_results_tests.rs` to keep each file under the line budget. Reaches the module items
 //           via `use super::*` because this file is the `order_tests` CHILD of search_results.
 use super::*;
+use crate::search_matcher::TIER_WHOLE_NAME;
 
 // What:     `fn library_of<S: AsRef<str>>(paths: &[S]) -> Vec<Track>` test helper: one track per display path.
 // Why:      Each track needs its own URI so that library positions are distinct in the results.
@@ -170,7 +171,7 @@ fn limit_keeps_strongest_matches() {
     let state: SearchState = search_library("cam", &library_of(&paths), true);
     let items: &[SearchResult] = items_of(&state);
     assert_eq!(items[0].name, "Cam");
-    assert_eq!(items[0].tier, 0);
+    assert_eq!(items[0].tier, TIER_WHOLE_NAME);
     assert_eq!(items.len(), SEARCH_RESULT_LIMIT);
     assert!(truncated_of(&state));
 }

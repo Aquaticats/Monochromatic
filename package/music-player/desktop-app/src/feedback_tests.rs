@@ -23,10 +23,6 @@ const ONE_SECOND_MS: i64 = 1_000;
 // Why:      A re-show at this offset must restart the timer rather than inherit the earlier show time.
 const THREE_SECONDS_MS: i64 = 3_000;
 
-// What:     `const FOUR_SECONDS_MS` is the expected default visible time.
-// Why:      The default-duration tests compare against this literal, so the accepted value is stated once.
-const FOUR_SECONDS_MS: i64 = 4_000;
-
 // What:     `fn error_message(id)` builds one error message with no action.
 // Why:      Each test names only the id it cares about, so the other fields stay identical across tests.
 //
@@ -94,7 +90,7 @@ fn replacement_restarts_timer() {
     let queue = FeedbackQueue::EMPTY
         .show(error_message("a"), START_MS)
         .show(error_message("b"), START_MS + HALF_SECOND_MS)
-        .expire(START_MS + FOUR_SECONDS_MS);
+        .expire(START_MS + FEEDBACK_ERROR_DURATION_MS);
     assert_eq!(queue.visible(), [error_message("b")]);
 }
 
@@ -155,7 +151,7 @@ fn stale_dismiss_keeps_replacement() {
 fn expire_keeps_message_one_ms_before_duration() {
     let queue = FeedbackQueue::EMPTY
         .show(error_message("e"), START_MS)
-        .expire(START_MS + FOUR_SECONDS_MS - 1);
+        .expire(START_MS + FEEDBACK_ERROR_DURATION_MS - 1);
     assert_eq!(queue.visible(), [error_message("e")]);
 }
 
@@ -165,7 +161,7 @@ fn expire_keeps_message_one_ms_before_duration() {
 fn expire_removes_message_at_duration() {
     let queue = FeedbackQueue::EMPTY
         .show(error_message("e"), START_MS)
-        .expire(START_MS + FOUR_SECONDS_MS);
+        .expire(START_MS + FEEDBACK_ERROR_DURATION_MS);
     assert!(queue.visible().is_empty());
 }
 
@@ -196,7 +192,7 @@ fn repeated_id_resets_timer() {
     let queue = FeedbackQueue::EMPTY
         .show(error_message("e"), START_MS)
         .show(error_message("e"), START_MS + THREE_SECONDS_MS)
-        .expire(START_MS + FOUR_SECONDS_MS);
+        .expire(START_MS + FEEDBACK_ERROR_DURATION_MS);
     assert_eq!(queue.visible(), [error_message("e")]);
 }
 
@@ -230,14 +226,14 @@ fn next_expiry_is_earliest_entry() {
 // Why:      The accepted study used the Short duration, which is 4000 ms.
 #[test]
 fn error_default_duration_is_four_seconds() {
-    assert_eq!(FeedbackKind::Error.default_duration_ms(), FOUR_SECONDS_MS);
+    assert_eq!(FeedbackKind::Error.default_duration_ms(), FEEDBACK_ERROR_DURATION_MS);
 }
 
 // What:     `#[test] fn undo_default_duration_is_four_seconds()` checks the default Undo duration.
 // Why:      The study showed the Undo message with the same Short duration as the error message.
 #[test]
 fn undo_default_duration_is_four_seconds() {
-    assert_eq!(FeedbackKind::Undo.default_duration_ms(), FOUR_SECONDS_MS);
+    assert_eq!(FeedbackKind::Undo.default_duration_ms(), FEEDBACK_UNDO_DURATION_MS);
 }
 
 // What:     `#[test] fn blank_id_rejected()` checks that a message id cannot be blank.
@@ -279,7 +275,7 @@ fn zero_duration_rejected() {
         .expect_err("a zero duration must be rejected");
     assert_eq!(
         error.to_string(),
-        "Feedback duration must be between 1 and 60000 ms, was 0."
+        format!("Feedback duration must be between 1 and {} ms, was 0.", FEEDBACK_MAX_DURATION_MS)
     );
 }
 
@@ -292,7 +288,11 @@ fn duration_above_bound_rejected() {
         .expect_err("a duration above the bound must be rejected");
     assert_eq!(
         error.to_string(),
-        "Feedback duration must be between 1 and 60000 ms, was 60001."
+        format!(
+            "Feedback duration must be between 1 and {} ms, was {}.",
+            FEEDBACK_MAX_DURATION_MS,
+            FEEDBACK_MAX_DURATION_MS + 1
+        )
     );
 }
 
@@ -303,6 +303,6 @@ fn transitions_leave_older_queue_unchanged() {
     let before = FeedbackQueue::EMPTY.show(error_message("e"), START_MS);
     let _after_show = before.show(undo_message("u"), START_MS);
     let _after_dismiss = before.dismiss("e");
-    let _after_expire = before.expire(START_MS + FOUR_SECONDS_MS);
+    let _after_expire = before.expire(START_MS + FEEDBACK_ERROR_DURATION_MS);
     assert_eq!(before.visible(), [error_message("e")]);
 }

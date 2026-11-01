@@ -258,7 +258,7 @@ impl SearchIndex {
             return SearchState::NoMatch(trim_kotlin_whitespace(query).to_string());
         }
         candidates.extend(folders);
-        let best: Vec<Ranked> = select_best(self, candidates, SEARCH_RESULT_LIMIT);
+        let best: Vec<Ranked> = select_best(self, candidates, SEARCH_RESULT_LIMIT + 1);
         let items: Vec<SearchResult> = best.into_iter().map(|ranked| return self.result_for(ranked, &terms)).collect();
         return SearchState::Results {
             items,
