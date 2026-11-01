@@ -37,7 +37,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     file: 'src/native/entry.rs',
     from: '&& same_file(Path::new(&target), inputs.own_executable.as_path())',
     to: '&& false',
-    failing: 'resolution::different_wrapper_build_stops_instead_of_looping',
+    failing: 'entry::stop_tests::forward_target_naming_this_executable_stops',
   },
   {
     name: 'dry-run commit classification',

@@ -34,11 +34,11 @@ const noticedRun = [
 ].join('\n');
 
 await describe({
-  name: 'judgePlantedRun',
+  name: judgePlantedRun.name,
   children: [
     it({
       name: 'a failed named test is noticed',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: noticedRun,
           status: 100,
@@ -48,7 +48,7 @@ await describe({
     }),
     it({
       name: 'a leaking failed named test is noticed',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: `    Starting 3 tests across 1 binary\n        FAIL + LEAK [   5.056s] (1/3) crate::bin ${failing}`,
           status: 100,
@@ -58,7 +58,7 @@ await describe({
     }),
     it({
       name: 'a run where other tests failed but not the named one is not noticed',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: `    Starting 3 tests across 1 binary\n        FAIL [   0.1s] (1/3) crate::bin other::test`,
           status: 100,
@@ -68,7 +68,7 @@ await describe({
     }),
     it({
       name: 'a named test with a longer name sharing its ending is not noticed',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: `    Starting 1 test across 1 binary\n        FAIL [   0.1s] (1/1) crate::bin extra_${failing}`,
           status: 100,
@@ -78,7 +78,7 @@ await describe({
     }),
     it({
       name: 'a passing run is not noticed even when it names the test',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: `    Starting 1 test across 1 binary\n        FAIL [   0.1s] (1/1) crate::bin ${failing}`,
           status: 0,
@@ -88,7 +88,7 @@ await describe({
     }),
     it({
       name: 'a run killed by a signal is not noticed',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: noticedRun,
           failing,
@@ -97,7 +97,7 @@ await describe({
     }),
     it({
       name: 'a build that did not compile reports the compiler errors instead of a missed guard',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: compileFailure,
           status: 101,
@@ -113,7 +113,7 @@ await describe({
     }),
     it({
       name: 'a build failure wins even when the output also names the test',
-      fn: () => {
+      fn: async () => {
         expect(judgePlantedRun({
           output: `${noticedRun}\n${compileFailure}`,
           status: 100,
