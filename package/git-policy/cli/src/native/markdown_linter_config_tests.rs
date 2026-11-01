@@ -11,11 +11,9 @@
 //! ```
 
 /// The document builder and file writer.
-use super::{MARKDOWN_FILE_PATTERNS, one_rule_configuration, write_configuration};
+use super::{MARKDOWN_FILE_PATTERNS, one_rule_configuration};
 use crate::config_schema::MarkdownRule;
-use crate::test_support::{fixture, remove};
 use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc, units_to_string};
-use std::path::{Path, PathBuf};
 
 /// The text of a JSON string value.
 fn text_of(value: &JsoncValue) -> String {
@@ -109,52 +107,4 @@ fn hostile_patterns_stay_data() {
     assert_eq!(blocks.len(), 1);
     let lfs: &JsoncValue = member(member(&blocks[0], "rules"), "markdown/lfs-image-url");
     assert_eq!(texts(member(lfs, "exclude")), exclude);
-}
-
-/// The file holds the document,
-///  sits in the given directory with the policy's name,
-///  is
-/// readable by its owner only,
-///  and is gone once dropped.
-#[test]
-fn the_file_is_private_and_removed_when_dropped() {
-    use std::os::unix::fs::PermissionsExt;
-    let root: PathBuf = fixture("linter-config");
-    let file = write_configuration("[]", root.as_path()).expect("written");
-    let path: PathBuf = file.path().to_path_buf();
-    assert_eq!(path.parent(), Some(root.as_path()));
-    let name: String = path
-        .file_name()
-        .expect("name")
-        .to_string_lossy()
-        .into_owned();
-    assert!(
-        name.starts_with("cli-git-markdown-") && name.ends_with(".jsonc"),
-        "{name}"
-    );
-    assert_eq!(std::fs::read_to_string(&path).expect("readable"), "[]");
-    let mode: u32 = std::fs::metadata(&path)
-        .expect("metadata")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o600, "{mode:o}");
-    drop(file);
-    assert!(!path.exists());
-    remove(root.as_path());
-}
-
-/// A directory that does not exist is reported,
-///  naming it.
-#[test]
-fn a_missing_directory_is_reported() {
-    let missing: &Path = Path::new("/nonexistent-cli-git-scratch");
-    match write_configuration("[]", missing) {
-        Err(reason) => assert!(
-            reason.starts_with(
-                "cli-git could not create the temporary linter configuration in /nonexistent-cli-git-scratch: "
-            ),
-            "{reason}"
-        ),
-        Ok(file) => panic!("created {:?}", file.path()),
-    }
 }

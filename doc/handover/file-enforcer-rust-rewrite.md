@@ -1511,6 +1511,45 @@ each finished branch is reviewed and merged into `main`):
   (exact manual steps in the refusal,
   and a "table absent" check that does not read nft's English error text).
   Sent to the wg agent with a request for the exact live-apply sequence.
+  Done (`c324bc2cfc..fcc8acf734`:
+  `24b77fcf08` forward accepts for update hosts,
+  no mark rule in forward;
+  `9340348337` and `b3ca86a566` "table absent" from `nft --json list tables`;
+  `6d61239e61` refusal with this host's manual steps;
+  `fcc8acf734` README).
+  Live facts from the agent:
+  route watcher pid 2285916 runs `dist/final/node/bypass-watch.mjs`,
+  application watcher pid 2286473 runs `target/release/wg-quicker-exempt __watch fr-par-fr1 100 1000`,
+  both in `/user.slice/user-0.slice/session-c368.scope`;
+  sentinels 2286003 and 2286679;
+  `down` checks the exact watcher script path, so it must run the main checkout's rebuilt bundle.
+  Final review of that range:
+  the forward accepts do not work
+  (replies to the guest are dropped;
+  reproduced in a three-namespace setup),
+  the manual steps remove routing with no block in place,
+  the "move damaged state aside" path leaves the route watcher running,
+  and interface names and paths go unquoted into root commands
+  (`parseCliArgs` does not validate the interface name).
+  All sent back to the wg agent
+  (reply accepts `ip saddr`/`ip6 saddr` for the hosts, not `ct state established`).
+  On the restart plan:
+  `/etc/pam.d/sudo` includes `system-auth` with `-session optional pam_systemd.so`,
+  and session `c368` is Service sudo,
+  so `sudo` from the unit should get its own session scope;
+  the script asserts the watchers' cgroups after `up`,
+  runs `up` at once after a non-zero `down` only when the link and the block are both gone,
+  sends a critical desktop notification on any failure,
+  and logs to `~/temp/agent/wg-restart/restart.log`;
+  the unit gets `KillMode=process`.
+  Planned restart:
+  merge,
+  build both packages,
+  then one `systemd-run --user` unit running a `.ts` script:
+  baseline,
+  `wg-quicker down fr-par-fr1`,
+  `up` only if `down` exits 0,
+  then post-checks.
   Probed:
   `sudo --non-interactive true` exited 0,
   and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,

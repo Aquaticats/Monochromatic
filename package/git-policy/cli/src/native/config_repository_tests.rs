@@ -126,20 +126,20 @@ fn the_repository_configuration_keeps_the_markdown_options() {
     );
 }
 
-/// The repository does not activate `mono/catalog-specifiers` yet: the policy is built and shipped, and this file
-///  neither lists it nor sets it.
-///  Activation is its own change, and the change that makes it flips this control.
+/// The repository activates `mono/catalog-specifiers` at `error`, listed explicitly
+///  (activated deliberately in d0d1a8bc35 together with the always-run workflow).
+///  Changing that is its own change, and the change that makes it flips this control.
 #[test]
-fn the_repository_configuration_does_not_activate_the_catalog_policy() {
+fn the_repository_configuration_activates_the_catalog_policy_at_error() {
     let loaded: LoadedConfig = load_shipped();
     assert_eq!(
         loaded.config.policies.setting(PolicyId::CatalogSpecifiers),
         PolicySetting {
             id: PolicyId::CatalogSpecifiers,
-            severity: Severity::Off,
-            explicit: false
+            severity: Severity::Error,
+            explicit: true
         },
-        "an unlisted catalog policy is off; activate it deliberately and update this control"
+        "the catalog policy is listed at error; change it deliberately and update this control"
     );
 }
 

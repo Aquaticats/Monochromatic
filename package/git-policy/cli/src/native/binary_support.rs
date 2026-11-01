@@ -181,36 +181,53 @@ fn warm_wrapper(linked: &Path) {
 }
 
 /// What:
-///  Give a fixture its wrapper path: a hard link of the built executable, or a data copy where a hard link is
-///  impossible (a fixture root moved to another filesystem with `CLI_GIT_TEST_ROOT`).
+///  Give a fixture its wrapper path: a hard link of the built executable; when the link fails because the fixture is on
+///  another filesystem (`EXDEV`), a hard link of the one stored copy of the build in `store_root`; and a data copy
+///  only where neither link works.
 /// Why:
 ///  The wrapper never reads its own path except to recognise itself by file identity and to find hook entries by
 ///  the name it was started under (`real_git_candidate::same_file`, `main.rs`), and no control writes to it, so a
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
-fn link_built_wrapper(built: &Path, to: &Path) {
+///  The fallback follows the link's own failure and not a comparison of device numbers, which bind mounts defeat.
+///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
+///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
     if let Err(error) = std::fs::hard_link(built, to) {
-        eprintln!("fixture wrapper: no hard link of {} at {} ({error}); copying it instead", built.display(), to.display());
-        copy_executable(built, to);
+        let stored: std::io::Result<()> = if error.raw_os_error() == Some(libc::EXDEV) {
+            super::wrapper_store::link_stored(built, store_root, to, &mut |_| {})
+        } else {
+            Err(error)
+        };
+        if let Err(reason) = stored {
+            eprintln!("fixture wrapper: no hard link of {} at {} ({reason}); copying it instead", built.display(), to.display());
+            copy_executable(built, to);
+        }
     }
     // After the link, not before: on overlay storage a hard link of an image-layer file copies the file up to a
     // new inode, whose pages are the ones every fixture then shares and the ones a start needs.
     warm_wrapper(to);
 }
 
-/// Create a fixture:
+/// Create a fixture in the fixture root:
 ///  `<root>/wrapper/cli-git-native` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
-    let created: PathBuf = fixture_root().join(format!("native-binary-{}-{name}", std::process::id()));
+    return fixture_in(fixture_root().as_path(), name);
+}
+
+/// Create a fixture in `directory`, which may be on another filesystem than the build; see `fixture`.
+pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
+    std::fs::create_dir_all(directory).expect("fixture directory root");
+    let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }
     std::fs::create_dir(&created).expect("fresh fixture");
     let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
-    for directory in ["wrapper", "bin", "home"] {
-        std::fs::create_dir(root.join(directory)).expect("fixture directory");
+    for subdirectory in ["wrapper", "bin", "home"] {
+        std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
     }
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
-    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path());
+    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
     return Fixture { root, wrapper };
 }
@@ -323,6 +340,26 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
         }
     }
     return kept;
+}
+
+/// How every wait notice of the wrapper begins (`wait_progress.rs`, `live_lock.rs`, `replay_reservation.rs`).
+pub const WAIT_NOTICE_PREFIX: &[u8] = b"cli-git: still waiting for ";
+
+/// What:
+///  The bytes without the lines that are wait notices.
+/// Why:
+///  A step that outlasts its notice grace (5 seconds for a query, 10 for a bulk step) prints a notice on standard
+///  error however healthy it is, and a loaded host stretches any step past that. A control that compares the
+///  wrapper's diagnostics with native Git's words means the words, not that the host was fast, so it compares what
+///  is left. Only a line that starts with the notice prefix goes; every other line stays, and a control that
+///  asserts a notice reads the raw bytes.
+pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
+    return bytes
+        .split_inclusive(|byte| { return *byte == b'\n'; })
+        .filter(|line| { return !line.starts_with(WAIT_NOTICE_PREFIX); })
+        .flatten()
+        .copied()
+        .collect();
 }
 
 /// Run a command to completion and observe it without its hint fields,

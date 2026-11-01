@@ -20,7 +20,8 @@ use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, r
 use super::lfs_push_precheck::lfs_refusal;
 /// What to upload and the bounded run of it.
 use super::lfs_upload::run_upload_bounded;
-use super::lfs_upload_plan::plan_upload;
+use super::lfs_pre_push::plan_failed_message;
+use super::lfs_upload_plan::{Query, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -45,18 +46,34 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
                 output: strip_one_line_break(refusal.as_str()).to_owned(),
             });
         }
-        let mut query = |query_arguments: &[&str]| -> Option<String> {
+        let mut query = |query_arguments: &[&str]| -> Result<String, String> {
             let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
-            let output = run_query(git, owned.as_slice()).ok()?;
-            if output.code != Some(0) {
-                return None;
-            }
-            return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+            let output = run_query(git, owned.as_slice()).map_err(|error| {
+                return error.to_string();
+            })?;
+            let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+            return match output.code {
+                Some(0) => Ok(text),
+                Some(1) if text.is_empty() => Ok(text),
+                code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+            };
         };
-        if let Some(plan) = plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), &mut query)
-            && let Some(failed) = run_upload_bounded(git, &plan)?
-        {
-            return Ok(failed);
+        let planned = read_settings(&mut query as Query<'_>).and_then(|settings| {
+            return plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query);
+        });
+        match planned {
+            Ok(Some(plan)) => {
+                if let Some(failed) = run_upload_bounded(git, &plan)? {
+                    return Ok(failed);
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                return Ok(PushAttempt {
+                    exit_code: REFUSED_EXIT_CODE,
+                    output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str()).to_owned(),
+                });
+            }
         }
     }
     let mut command = git_command(git, arguments);

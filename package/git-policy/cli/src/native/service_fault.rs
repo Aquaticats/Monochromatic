@@ -1,0 +1,38 @@
+//! What:
+//!  Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
+//!  `SIGKILL` the moment it reaches the named point of a batch.
+//! Why:
+//!  The kill tests need a deterministic instant, as the transaction phase markers give the wrapper
+//!  (`transaction_phase.rs`). The marker is compiled into the release executable, and only the explicit variable arms it.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! if (process.env.CLI_GIT_TEST_ONLY_SERVICE_FAULT === point) process.kill(process.pid, 'SIGKILL');
+//! ```
+
+/// Environment variable arming one fault point.
+pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
+
+/// The instants of a batch at which a kill is tested, in the order a batch reaches them.
+pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
+
+/// What:
+///  Ends the process if `point` is the armed one.
+/// Why:
+///   A kill at a point is the strongest crash a test can name without injecting a system call failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reach('after-intent')
+/// ```
+pub fn reach(point: &str) {
+    if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
+        eprintln!("cli-git-service: test fault at {point}");
+        #[cfg(unix)]
+        // SAFETY: `kill` takes no pointers; the process ends itself.
+        unsafe {
+            libc::kill(libc::getpid(), libc::SIGKILL);
+        }
+        std::process::exit(137);
+    }
+}

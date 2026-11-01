@@ -158,10 +158,8 @@ Read-only commands,
   and refuses older Git.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and any shim that leads back to it.
-- `monochromatic-lint` on an absolute `PATH` entry,
-   only when `markdown/autofix` is configured.
 - `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
-- The scanner is linked into the executable and needs no separate installation.
+- The scanner and the Markdown linter are linked into the executable and need no separate installation.
 
 ## Install
 
@@ -209,7 +207,7 @@ The wrapper adds one namespace to Git.
 git cli-git check --all
 git cli-git fix -- docs/ README.md
 git cli-git check --all --policy final-newline
-# List the traditional hooks the repository holds; they are unsupported.
+# List the hook files and configured hooks the repository holds; none of them runs.
 git cli-git doctor
 git cli-git --help
 ```
@@ -217,11 +215,15 @@ git cli-git --help
 The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
 parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
 A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
-the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
+nothing is on its exception list that starts the wrapper.
 
 Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
+`check` and `fix` read the worktree files the scope selects,
+ unstaged changes included;
+ a commit or a push checks the staged or committed content instead,
+ so a violation that exists only in the worktree fails `check` but not a commit that leaves it unstaged.
 `--policy <id>` limits the run to one policy and may be repeated.
 A selected policy that is off stops the run with exit `2`,
  because it would check nothing and read as clean:
@@ -542,7 +544,7 @@ Listing one with a severity is the only way to turn it on,
   Files below `dist/final/node/` or `bundle/node/` are also exempt, as generated output.
 - `markdown/autofix`:
    default `warn`.
-  Runs `monochromatic-lint --fix` over staged Markdown inside the commit.
+  Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit, in-process on a guarded thread.
   Options:
    `rules` (only `lfs-image-url` exists) and `exclude` (gitignore-style patterns).
 - `mono/forbidden-root-context`:
@@ -689,8 +691,8 @@ fractional or non-numeric value is ignored.
    default `1800`.
   How long a command waits for a lock that a live process holds:
    the capture,
-   landing,
-   hook and registry locks,
+   landing
+   and registry locks,
    the landing reservation,
    the worktree-copy settlement and a live `index.lock` holder.
   At the limit it stops with a message that names the holder and every way forward:
@@ -717,7 +719,6 @@ fractional or non-numeric value is ignored.
    and the command reports which one, its class, the bound and how to go on:
    run the command again (the next command of the wrapper finishes or undoes an unfinished commit),
    or raise the bound when the step was only slow.
-  The user's own commit with its hooks is never bounded.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints").
@@ -752,7 +753,7 @@ Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
  how long the wait has lasted and where it gives up.
 
-- A lock held by a live process (the landing, hook, capture and registry locks),
+- A lock held by a live process (the landing, capture and registry locks),
    as in the sample below.
   The first line of a wait adds a hint,
    and the repeats stay short.
@@ -766,7 +767,9 @@ Each line names what the command waits for,
    which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
 - The worktree-copy settlement lock and another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
-   which names the file and stops the linter after 60 seconds.
+   which names the file and stops waiting for the linter after 60 seconds,
+   leaving its thread to end with the command.
+   The guard contains a hang and a panic, not a stack overflow or an abort in the linter.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
@@ -1045,3 +1048,23 @@ The license texts are in `LICENSES/`.
 
 [mise]: https://mise.jdx.dev/
 [repository]: https://github.com/Aquaticat/Monochromatic
+
+## The commit service
+
+A plain scoped commit (`git commit -m <message> -- <paths>`) can be landed by a resident commit service instead of by the
+wrapper itself. The service is a separate program, `cli-git-service`, that the operating system starts on demand; the
+wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one durable write, and a
+commit that waits says how many commits go first.
+
+- `git cli-git service install` writes two unit files for the account's service manager (systemd on Linux), naming the
+  service program next to the wrapper and the real Git, and enables the socket. It is repeatable and says what it did.
+- `git cli-git service uninstall` stops and removes them; `git cli-git service status` says whether the socket is ready.
+- Once the activation is installed, plain scoped commits go through the service with no setting. `CLI_GIT_COMMIT_SERVICE=0`
+  keeps a run out of it. Every command line the service does not cover yet (amend, `-a`, `-F`, an editor, signing, dates,
+  trailers) commits as before.
+- `CLI_GIT_COMMIT_SERVICE=1` asks for the service on a machine that has not installed it: the commit stops at once with a plain
+  message that names the install command, and nothing changes in the repository.
+- When the activation is installed and the service does not answer, the commit stops with a plain message that says what to do;
+  there is no other way for the same commit to be made behind the user's back.
+
+The design, the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.

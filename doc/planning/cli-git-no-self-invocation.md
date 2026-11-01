@@ -322,6 +322,29 @@ their correction.
   change are in the follow-up report. The probe's dry run and `ls-remote` are bounded by the push deadline (30 seconds
   by default, `CLI_GIT_PUSH_DEADLINE_SECONDS`), which is the same bound the push itself would get.
 
+## Second review (static, cross-vendor) and what was done
+
+Each finding was first reproduced with real Git 2.56.0 and real git-lfs 3.8.1 in a throwaway repository (a local LFS
+server logs every batch and upload) against the merged head; the fixes were run against the same scenarios.
+
+- Reproduced and fixed: pointers published without objects when a remote-tracking ref of this clone hides an object the
+  destination lacks (a changed push URL; without `--all` git-lfs scans only past the tracking refs); a source with a
+  colon (`:/message:refs/heads/new`) read as a deletion, in the plan and in the probe; the matching refspec `:` read as
+  a deletion; a pattern whose star crosses `/` (`feature/nested`) missed; `remote.<name>.mirror`; several push URLs; a
+  relative path typed as the remote; a relative `PATH` entry under `-C`; a failed ref listing read as "nothing to
+  upload" (now an error and a refusal); a credential-stripped `To` address used to reach the remote in the probe (now
+  only a typed URL or path is its own location, a remote name asks for its push URLs).
+- Could not happen end to end: a valueless `-c hook.cli-git-lfs-pre-push.enabled` (real Git itself refuses the push with
+  `missing value`); the switch's name is now matched as Git matches it (section and variable ignore case, the subsection
+  is exact) and a later value overrides an earlier one.
+- Test findings fixed: the two-worktree control now needs the uploads to overlap (each waits for the other to start) and
+  compares each branch with its new commit; a signal sent to the wrapper is relayed and the child is gone; the
+  `push.autoSetupRemote` control is a bare push of a branch with no upstream and checks the upstream.
+- Not changed: the interactive upload has no deadline of its own (a person is watching it and can end it with a signal,
+  which is relayed); the lock waiter limit (finding 12) belongs to code that the lock-free service replaces; the
+  `git` start counts are as before: the plan reads its configuration from the snapshot already taken (no start), a
+  named remote costs one `remote get-url` in the probe, and `--all` makes git-lfs scan the pushed refs fully.
+
 ## The bans
 
 - `clippy.toml` in `package/git-policy/cli` bans `std::env::current_exe` (the file also repeats the repository root

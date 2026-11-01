@@ -116,27 +116,3 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
         None => eprintln!("the filesystem under {} reports no extents; nothing to check", created.root.display()),
     }
 }
-
-/// Every fixture starts the built executable itself, through a hard link, so one set of cached pages serves all
-/// fixtures of all test processes and the cold read of a slow disk is paid once, not once per test.
-/// A fixture on another filesystem (a moved root) gets a copy and the check does not apply.
-#[test]
-fn a_fixture_wrapper_is_the_built_executable_itself() {
-    use std::os::unix::fs::MetadataExt;
-    let created: Fixture = fixture("same-inode");
-    let built = std::fs::metadata(super::support::WRAPPER).expect("built wrapper");
-    let linked = std::fs::metadata(&created.wrapper).expect("fixture wrapper");
-    // The fixture falls back to a copy exactly where a hard link of the build cannot be made, so ask the same question.
-    let probe: PathBuf = created.root.join("link-probe");
-    if let Err(error) = std::fs::hard_link(super::support::WRAPPER, &probe) {
-        eprintln!("{} cannot hold a hard link of the build ({error}); nothing to check", created.root.display());
-        return;
-    }
-    assert_eq!(
-        (linked.dev(), linked.ino()),
-        (built.dev(), built.ino()),
-        "{} is not the same file as {}",
-        created.wrapper.display(),
-        super::support::WRAPPER
-    );
-}

@@ -8,9 +8,9 @@
 //!  notice before the refusal, which the wait guarantees.
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
-use super::commit::{COMMIT_BOUND_SECONDS, await_marker, remove_settled, wrapped_commit};
+use super::commit::{await_marker, remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, bounded_for, executable, fixture, git, observe_raw, repository, stderr_of,
+    Fixture, Observed, fixture, git, observe_raw, repository, stderr_of,
 };
 use git_policy_cli::owner_lock::{OwnerLock, try_acquire_owner_lock};
 use git_policy_cli::transaction_registry::{LANDING_LOCK_NAME, RESERVATION_LOCK_NAME, ensure_transaction_root};
@@ -255,52 +255,6 @@ fn a_commit_waiting_for_an_unproven_index_lock_says_so_while_it_retries() {
     assert!(notices.len() >= 2, "a first notice and a repeat: {}", watched.stderr);
     assert!(notices.iter().all(|line| { return line.contains("indexLock.unprovenOwnerTimeoutMs"); }), "{}", watched.stderr);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
-    remove_settled(&fixture);
-}
-
-/// A commit whose Markdown linter runs long prints a notice naming the linter and the file while it waits;
-///  the second notice releases the linter, and the commit then lands.
-#[test]
-fn a_commit_waiting_for_the_markdown_linter_names_it() {
-    let fixture: Fixture = fixture("wait-notice-linter");
-    let repo: PathBuf = edited_repository(&fixture);
-    let release: PathBuf = fixture.root.join("linter-release");
-    let program: PathBuf = fixture.root.join("slow-linter");
-    executable(
-        program.as_path(),
-        format!("#!/bin/sh\nwhile [ ! -e '{}' ]; do sleep 0.05; done\ncat\n", release.display()).as_bytes(),
-    );
-    let directory: PathBuf = fixture.root.join("linter");
-    std::fs::create_dir_all(&directory).expect("linter directory");
-    std::os::unix::fs::symlink(&program, directory.join("monochromatic-lint")).expect("link");
-    std::fs::write(repo.join(".lfsconfig"), b"[lfs]\n\turl = https://lfs.example.com/org/repo\n").expect("lfsconfig");
-    std::fs::write(
-        repo.join("cli-git.config.jsonc"),
-        "{ \"policies\": { \"final-newline\": \"off\", \"markdown/autofix\": \"warn\" } }\n",
-    )
-    .expect("configuration");
-    std::fs::write(repo.join("doc.md"), b"# Title\n").expect("markdown");
-    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
-    path.push(":");
-    path.push(directory);
-    path.push(":/usr/bin:/bin");
-    let mut command: Command = bounded_for(
-        &fixture,
-        fixture.root.join("bin/git").as_path(),
-        path.as_os_str(),
-        COMMIT_BOUND_SECONDS,
-    );
-    command
-        .current_dir(&repo)
-        .args(["commit", "--message=waiter", "doc.md"])
-        .env("CLI_GIT_WAIT_NOTICE_SECONDS", NOTICE_SECONDS);
-    let watched: Watched = watch_notices(&mut command, "waiting for monochromatic-lint", 2, move || {
-        std::fs::write(&release, b"").expect("release the linter");
-    });
-    assert_eq!(watched.code, Some(0), "{}", watched.stderr);
-    let notices: Vec<&str> = lines_with(watched.stderr.as_str(), "waiting for monochromatic-lint");
-    assert!(notices.len() >= 2, "a first notice and a repeat: {}", watched.stderr);
-    assert!(notices.iter().all(|line| { return line.contains("doc.md"); }), "{}", watched.stderr);
     remove_settled(&fixture);
 }
 

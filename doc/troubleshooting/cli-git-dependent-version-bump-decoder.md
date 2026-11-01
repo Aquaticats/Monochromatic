@@ -65,7 +65,7 @@ Repeating the original command after the new manifests are already committed doe
 ## Verified workaround
 
 The CLI documents policy-specific one-invocation escapes in
-`package/git-policy/cli/README.md:729`.
+`package/git-policy/cli/README.md`, section "Wrapper-only options" (`--no-enforce-<policy id>`).
 The successful extraction used:
 
 ```sh

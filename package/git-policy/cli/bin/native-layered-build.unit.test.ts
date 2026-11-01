@@ -24,10 +24,6 @@ import {
   writeDependencyStubs,
 } from './native-layered-build.ts';
 import {
-  linterCrates,
-  linterStageLines,
-} from './native-linter-snapshot.ts';
-import {
   pathCrates,
   runArguments,
   subjectCrate,
@@ -520,41 +516,6 @@ await describe({
           return candidate.includes('--no-run');
         }))
           expect(line).not.toContain('--no-fail-fast');
-      },
-    }),
-  ],
-});
-
-await describe({
-  name: linterStageLines.name,
-  children: [
-    it({
-      name: 'compiles the linter dependencies before the linter and JSONC sources are copied',
-      fn: async () => {
-        /**
-         Lines of the linter stage.
-         */
-        const lines = linterStageLines({ base: baseImage, });
-        /**
-         Position of the copy of the real sources.
-         */
-        const sourceCopy = lines.findIndex(function copiesPackage(line) {
-          return line.startsWith('COPY') && line.endsWith('/package /work/package');
-        });
-        expect(sourceCopy).toBeGreaterThan(0);
-        /**
-         Position of the dependency compile: the last `RUN` before the real sources.
-         */
-        const dependencyRun = lines.slice(
-          0,
-          sourceCopy,
-        ).findLastIndex(function isRun(line) {
-          return instructionOf(line) === 'RUN';
-        });
-        expect(lines[dependencyRun]).toContain('cargo');
-        expect(lines.at(-1)).toContain('touch');
-        for (const crate of linterCrates)
-          expect(lines.at(-1)).toContain(`/${crate}/src`);
       },
     }),
   ],

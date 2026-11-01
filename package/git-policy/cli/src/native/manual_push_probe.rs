@@ -116,6 +116,17 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
     return arguments;
 }
 
+/// Whether text typed as the repository is an URL, an scp-style address or a path, not a remote name.
+fn looks_like_location(typed: &str) -> bool {
+    return typed.contains("://")
+        || typed.starts_with('/')
+        || typed.starts_with("./")
+        || typed.starts_with("../")
+        || typed.split_once(':').is_some_and(|(front, _)| {
+            return !front.contains('/');
+        });
+}
+
 /// One Git query of the probe: its trimmed standard output when it exits with status zero.
 fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
     let output = run_query(git, arguments).ok()?;
@@ -258,16 +269,32 @@ pub fn probe_manual_push_updates(
     let named = push_shape(post_subcommand).and_then(|shape| {
         return shape.repository;
     });
-    let mut asking = |query: &[&str]| -> Option<String> {
+    let typed_location: Option<String> = named.as_ref().map(|typed| {
+        return typed.to_string_lossy().into_owned();
+    });
+    let mut asking = |query: &[&str]| -> Result<String, String> {
         let mut owned: Vec<OsString> = global_prefix.to_vec();
         owned.extend(query.iter().map(OsString::from));
-        return answer(git, owned.as_slice());
+        let answered = run_query(git, owned.as_slice()).map_err(|error| {
+            return error.to_string();
+        })?;
+        let text: String = String::from_utf8_lossy(answered.stdout.as_slice()).trim().to_owned();
+        return match answered.code {
+            Some(0) => Ok(text),
+            Some(1) if text.is_empty() => Ok(text),
+            code => Err(format!("exited with {code:?}")),
+        };
     };
-    let remote_name: String = resolve_push_remote(named, &mut asking).to_string_lossy().into_owned();
-    // The location Git printed for a single destination is the push URL after every rewrite; it is used as it is
-    //  unless it could have had credentials removed (an `@` in a URL is where they were), which costs one query.
-    let locations: Vec<String> = match blocks.as_slice() {
-        [only] if !only.shown.contains('@') => vec![only.shown.clone()],
+    let remote_name: String = resolve_push_remote(named, &mut asking)
+        .map_err(|error| {
+            return probe_error(error.0);
+        })?
+        .to_string_lossy()
+        .into_owned();
+    // A destination the caller typed as an URL or a path is its own location, with its credentials; Git's printed `To`
+    //  line has them removed, so it is never used as an address. A remote name costs one query for its push URLs.
+    let locations: Vec<String> = match typed_location {
+        Some(typed) if looks_like_location(typed.as_str()) => vec![typed],
         _ => locations_of(git, global_prefix, remote_name.as_str()),
     };
     if locations.len() != blocks.len() {

@@ -67,6 +67,10 @@ fn a_configuration_query_goes_without_the_option() {
     );
     // A word that only looks like the command is not one.
     assert_eq!(tokens(&built(&["log", "config"])), with_prefix(&[], &["log", "config"]));
+    // A configuration command that opens an editor starts programs, so it gets the options; `--` ends the options.
+    assert_eq!(tokens(&built(&["config", "--edit"])), with_prefix(&[], &["config", "--edit"]));
+    assert_eq!(tokens(&built(&["config", "--global", "-e"])), with_prefix(&[], &["config", "--global", "-e"]));
+    assert_eq!(tokens(&built(&["config", "--", "-e"])), vec!["config", "--", "-e"]);
 }
 
 /// The directory is below a device, so it can never exist.
@@ -194,12 +198,17 @@ fn a_configured_hook_for_each_switched_off_event_does_not_run() {
     remove(root.as_path());
 }
 
-/// The hook events the host Git documents in `githooks(5)`: the manual page lists each as a heading indented by three
-///  spaces.
-///  This is the most robust source on a host: the binary lists its hook names in generated tables whose layout is not a
-///  contract, and `git hook list` can only confirm a name it is given, never find a missing one.
-///  `None` when the manual is not installed, which the test reports instead of passing silently.
-fn documented_events() -> Option<Vec<String>> {
+/// Whether `name` is spelled like a hook event: lowercase letters, digits and hyphens.
+fn is_event_spelling(name: &str) -> bool {
+    return !name.is_empty()
+        && name.chars().all(|character| {
+            return character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-';
+        });
+}
+
+/// The events the rendered manual page lists: each is a heading indented by three spaces. `None` when `man` cannot
+///  render the page.
+fn events_from_manual() -> Option<Vec<String>> {
     let output = Command::new("man")
         .args(["--pager=cat", "githooks"])
         .env("MANWIDTH", "200")
@@ -210,27 +219,68 @@ fn documented_events() -> Option<Vec<String>> {
         return None;
     }
     let text: String = String::from_utf8_lossy(&output.stdout).into_owned();
-    let mut events: Vec<String> = Vec::new();
-    for line in text.lines() {
-        let Some(name) = line.strip_prefix("   ") else {
-            continue;
-        };
-        if !name.is_empty() && name.chars().all(|character| { return character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'; }) {
-            events.push(String::from(name));
-        }
-    }
-    return Some(events);
+    return Some(
+        text.lines()
+            .filter_map(|line| { return line.strip_prefix("   "); })
+            .filter(|name| { return is_event_spelling(name); })
+            .map(String::from)
+            .collect(),
+    );
+}
+
+/// The events the AsciiDoc source of the page lists: each is a line of event spelling followed by a line of tildes.
+///  `None` when no installed copy of the source exists.
+fn events_from_source() -> Option<Vec<String>> {
+    // The gate image keeps the source tree Git 2.56.0 was built from, so the list always matches the Git under test;
+    //  a host's own documentation comes second.
+    let directories: [&str; 3] = ["/work/git-source/Documentation", "/usr/share/doc/git", "/usr/share/doc/git-doc"];
+    let text: String = directories
+        .iter()
+        .find_map(|directory| { return std::fs::read_to_string(Path::new(directory).join("githooks.adoc")).ok(); })?;
+    let lines: Vec<&str> = text.lines().collect();
+    return Some(
+        lines
+            .windows(2)
+            .filter(|pair| {
+                return is_event_spelling(pair[0]) && !pair[1].is_empty() && pair[1].chars().all(|c| { return c == '~'; });
+            })
+            .map(|pair| { return String::from(pair[0]); })
+            .collect(),
+    );
+}
+
+/// The hook events the host Git documents in `githooks(5)`, from the installed AsciiDoc source or the rendered page.
+///  The binary lists its hook names in generated tables whose layout is not a contract, and `git hook list` can only
+///  confirm a name it is given, never find a missing one, so the documentation is the independent source.
+///  The test fails when neither copy is installed, because a guard that skips on a host that lacks its source checks
+///  nothing there; install Git's documentation (the `git-doc` or `git-man` package) on such a host.
+fn documented_events() -> Vec<String> {
+    let found: Option<Vec<String>> = events_from_source().or_else(events_from_manual);
+    return found.expect(
+        "no copy of the githooks documentation is installed (looked for githooks.adoc under /usr/share/doc/git and \
+         a rendered page through `man githooks`), so the list of hook events cannot be checked for completeness",
+    );
 }
 
 /// Every hook event the host Git documents is in `HOOK_EVENTS`, so a configured hook for it is switched off.
 ///  The positive control is a name every manual lists.
 #[test]
 fn every_documented_hook_event_is_listed() {
-    let Some(documented) = documented_events() else {
-        eprintln!("skipped: the githooks manual page is not installed, so completeness was not checked");
-        return;
-    };
+    let documented: Vec<String> = documented_events();
     assert!(documented.iter().any(|name| { return name == "pre-commit"; }), "the manual was not read: {documented:?}");
     let missing: Vec<&String> = documented.iter().filter(|name| { return !HOOK_EVENTS.contains(&name.as_str()); }).collect();
     assert!(missing.is_empty(), "documented by this Git but not switched off: {missing:?}");
+}
+
+/// Both sources agree on the events, so a layout change in one is caught by the other.
+#[test]
+fn the_source_and_the_rendered_page_list_the_same_events() {
+    let (Some(source), Some(manual)) = (events_from_source(), events_from_manual()) else {
+        return;
+    };
+    let mut from_source: Vec<String> = source;
+    let mut from_manual: Vec<String> = manual;
+    from_source.sort();
+    from_manual.sort();
+    assert_eq!(from_source, from_manual);
 }

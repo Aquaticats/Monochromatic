@@ -29,14 +29,14 @@ use super::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
 use super::doctor::doctor_action;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
+use super::service_install::{SERVICE_PROGRAM, ServiceHost, install, status, uninstall, unit_directory};
 use super::management_arguments::{
-    MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
+    MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand, ServiceCommand,
     parse_management_arguments,
 };
 /// The refusal of a `--policy` selection that is off.
 use super::management_selection::{selected_policies, selection_error};
 /// The linter the executable gives the Markdown policy.
-use super::markdown_linter::executable_linter;
 /// The shipped checks and their constructor.
 use super::policy_checks::{ShippedChecks, shipped_checks};
 /// What the direct command offers its content policies.
@@ -336,6 +336,36 @@ fn run_direct_command(
 /// ```ts
 /// function planDoctor(gitGlobalArgs, environment, inputs): Action;
 /// ```
+fn plan_service(command: ServiceCommand, environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+    let Ok(own) = std::fs::canonicalize(inputs.own_executable.as_path()) else {
+        return failure("this program cannot find itself, so the commit service cannot be located");
+    };
+    let real_git: PathBuf = match resolve_real_git(inputs) {
+        Ok(found) => found,
+        Err(error) => return failure(error.to_string().as_str()),
+    };
+    let value = |name: &str| -> Option<PathBuf> { return environment_value(environment, name).filter(|text| { return !text.is_empty(); }).map(PathBuf::from); };
+    let Some(unit_directory) = unit_directory(value("XDG_CONFIG_HOME").as_deref(), value("HOME").as_deref()) else {
+        return failure("this account has no home directory, so the commit service cannot be installed");
+    };
+    let systemctl: PathBuf = std::env::split_paths(&inputs.path)
+        .map(|directory| { return directory.join("systemctl"); })
+        .find(|candidate| { return candidate.is_file(); })
+        .unwrap_or_else(|| { return PathBuf::from("/usr/bin/systemctl"); });
+    let host: ServiceHost = ServiceHost {
+        unit_directory,
+        systemctl,
+        service_binary: own.parent().map_or_else(|| { return PathBuf::from(SERVICE_PROGRAM); }, |directory| { return directory.join(SERVICE_PROGRAM); }),
+        git: real_git,
+    };
+    let report = match command {
+        ServiceCommand::Install => install(&host),
+        ServiceCommand::Uninstall => uninstall(&host),
+        ServiceCommand::Status => status(&host),
+    };
+    return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
+}
+
 fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
@@ -424,6 +454,7 @@ pub fn plan_management(
             };
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs),
+        ManagementAction::Service(command) => return plan_service(command, environment, inputs),
         ManagementAction::Direct {
             fix,
             all,
@@ -453,8 +484,6 @@ pub fn plan_management(
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);
-    // The Markdown linter is found on, and runs with, this invocation's environment.
-    checks.markdown.linter = Box::new(executable_linter(environment));
     let location: RepositoryLocation = match checks.facts.location() {
         Ok(found) => found,
         Err(message) => return failure(message.as_str()),

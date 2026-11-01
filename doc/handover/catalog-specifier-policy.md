@@ -842,18 +842,75 @@ The user confirmed the shared understanding and the order below, after the third
   `--no-enforce-mono/catalog-specifiers` skips it. A direct `git cli-git check|fix --policy <id>` that would run nothing now exits 2
   with a `config-invalid` event. It depends on `monochromatic-catalog-specifier` `=0.1.0` by path plus exact pin.
   The release waits for the LFS and hook-removal branches and the CI release fix.
-  Consequence for the CI workflow: the check reads index bytes, so the negative-control fixture must be staged (`git add`) in a
-  throwaway repository before `check --all --policy mono/catalog-specifiers`; an unstaged file proves nothing. The CI run on a
-  checkout reads the real index, which equals the worktree there. Both must be exercised when the workflow is written.
+  Correction (measured, then confirmed by 8c): the claim above that the policy never reads the worktree is wrong for direct
+  commands. In a throwaway repository a clean staged `package.json` plus a violating unstaged one made
+  `check --all --policy mono/catalog-specifiers` exit 1 (`~/temp/agent/cs-policy-050-probe.ts`, case `violation-unstaged-only`).
+  8c confirmed: `check` and `fix` read the worktree files their scope selects; the commit and push paths check the index or
+  commit content (`package/git-policy/cli/src/native/management.rs`). The CI checkout has index equal to worktree, so the
+  workflow is unaffected.
+
+- 2026-11-01, cli-git 0.5.0 landed in the lock and the CI workflow with the policy activation landed (task 3 done):
+  - `monochromatic-git-policy-cli` 0.5.0 is on crates.io (2026-11-01T13:21:46Z, not yanked) with release commit `069e45a200` (8c).
+    `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` moved exactly one row (0.4.6 to 0.5.0, plus the file digest),
+    committed alone as `efba845e0b`; `mise run toolchain:install` reported 1 installed, 63 unchanged, 0 failed, and the installed
+    binary prints 0.5.0.
+  - Probes with the installed binary in throwaway repositories (`~/temp/agent/cs-policy-050-probe.ts`): a clean staged manifest
+    exits 0; a staged violation, a nested staged violation and a staged `package.yaml` each exit 1 with the expected codes;
+    an unlisted policy exits 2 with `config-invalid`.
+  - `.github/workflows/catalog-specifiers.yml` runs on pull requests, merge groups and pushes to `main` with `cancel-in-progress`.
+    It installs cargo-binstall from the lock row (sha256-checked), installs the lock's cli-git version with
+    `--disable-strategies compile`, runs `cli-git-native cli-git check --all --policy mono/catalog-specifiers`, then a negative
+    control in a throwaway repository that must exit exactly 1 with the `disallowed-specifier` finding.
+  - Evidence for the workflow: its three `run:` blocks were extracted and executed in a mount-free podman build on an image with
+    no Rust toolchain (`~/temp/agent/cs-workflow-test.ts`, log `cs-workflow-test/build.log`): the sha256 check printed OK, the cli-git
+    install took 1.99 s, the check exited 0 and the negative control was rejected as expected. `zizmor` v1.31.1 reports no findings;
+    its one suppressed finding is the pedantic `anonymous-definition` (job `check` has no `name:`), the same as sibling workflows.
+    First GitHub run: run 41311571968 on `d0d1a8bc35` (push, created 2026-11-01T13:30:21Z) completed with conclusion success.
+  - Before activation: 257 manifests scanned, 0 parse failures, 0 violations, and no tracked `package.json5`, `package.yaml` or
+    `package.yml`. With the policy listed, the real repository check exits 0.
+  - Activation: `cli-git.config.jsonc` lists `"mono/catalog-specifiers": "error"`. The workflow fails with exit 2 while the policy is
+    unlisted, so the workflow and the listing landed together in one commit, `d0d1a8bc35`, which already passed the policy at
+    commit time and is on `origin/main`. The tree already satisfied the policy, so the commit-time and CI runs had no violation to find.
+  - Observed with 0.5.0: external hooks are switched off, and the commit printed the `external-hooks-unsupported` warning for the
+    configured `hook.standards-review-shadow` (event `post-commit`). That hook produced the "Running as unit:
+    standards-review-shadow-..." lines after earlier commits; it no longer runs. This is outside the catalog-specifier work and is
+    for the user and the hook's owner to decide.
+
+- 2026-11-01, `pnpm-shadow` built (task 4): crate `monochromatic-pnpm-shadow` 0.1.0 at `package/pnpm-shadow/cli`, commits
+  `3637230e60` (sources), `32ba0bbd2e` (tests), `31b9f343bc` (fix, generated dependency table, lockfile), `82c2a88ba5` (parallel walk, README).
+  - Design as agreed: Rust with clap, Unix only (the build fails elsewhere on purpose), `ignore` crate walk, no YAML (only the
+    presence of `pnpm-workspace.yaml` is tested), no skip switch, warns on every invocation, advisory report on standard error
+    then delegation to the real pnpm, never blocks. Started as `pnpm` it is the shadow; under any other name clap answers only
+    `--help` and `--version`. The rule is the published `monochromatic-catalog-specifier` 0.1.0, so the shadow, the cli-git
+    policy and CI cannot disagree. Exit codes: pnpm's own, `127` no real pnpm, `126` could not start it.
+  - Verification: `cargo clippy --release --all-targets -- --deny warnings` clean; `mise run //package/pnpm-shadow/cli:test`
+    29 tests run, 29 passed (unit tests for the PATH lookup, the scan, the report and the launch, plus integration tests of the
+    built binary against a fake pnpm: warning on stderr with pnpm's own stdout and status, silence on a clean workspace and
+    outside any workspace, the same warning on every run, `127` with no real pnpm, own-name `--help` and `--version`).
+  - A defect the tests found: clap's derive turned the struct's doc comment into `--help` text and its long form beat the
+    explicit `about`; fixed with `long_about = None` (`31b9f343bc`).
+  - Measured on this repository (22,508 walked entries, 257 `package.json`, 0 findings, silent):
+    serial walk, whole call: about 95 ms to 114 ms mean (two identical shadow arms differed by 19 ms, the noise floor), against
+    2.1 ms to 2.7 ms for the fake pnpm alone. The split (`~/temp/agent/pnpm-shadow-split`): the walk alone took 98 ms to 138 ms
+    and the full scan 126 ms to 137 ms, so the walk is most of the cost and reading and checking the 257 manifests adds about
+    15 ms to 30 ms. Serial against parallel walk alternating 30 rounds on the same tree and filters: serial median 78.9 ms
+    (min 72.0, max 91.6), parallel median 10.0 ms (min 7.9, max 14.8), ranges not overlapping. The parallel walk was adopted.
+    Whole call after the change (`~/temp/agent/pnpm-shadow-bench.ts`, 30 runs per arm, hyperfine): 14.3 ms and 14.5 ms in the two
+    identical shadow arms against 2.3 ms and 2.4 ms for the fake pnpm alone, so the shadow adds about 12 ms to a trivial call.
+    Those arms ran one after another, not interleaved, on a host other sessions also load.
+  - Not done, by design of the agreed scope: the crate is not published, not in the crate-release registry, not linked as
+    `pnpm` by the toolchain plan, and no mutation run was made (the user said mutation runs do not block publish and release).
 
 ## Open items
 
-- Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
-- After that release: run `toolchain:update`, review the `toolchain.lock.json` diff, confirm the lock names the new cli-git version,
-  then write the separate always-run CI workflow (lock-pinned cargo-binstall, binstall of the pinned cli-git, the check, and a
-  negative-control fixture that must exit nonzero).
-- Then tell 7a the CI step is ready so the policy is listed in `cli-git.config.jsonc` at severity `error`.
-- Last: the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
+- Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).
+- Done: the first real run of `catalog-specifiers.yml` on a GitHub runner succeeded (run 41311571968).
+- Open: whether a failing run blocks a merge depends on branch protection, which is the owner's setting; not measured.
+- Open for the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0.
+- Open for the user (task 4 follow-ups, none started): publish `monochromatic-pnpm-shadow` (a first publication needs the owner's
+  personal crates.io token; never ask for it in chat) and register it for CI releases; link the binary as `pnpm` through the
+  toolchain plan (owned by the toolchain session, and it changes every pnpm call on every checkout).
+- Done, kept for the record (task 4): the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
   invocation, no skip switch, advisory diagnostics then delegation to pnpm.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
@@ -862,5 +919,5 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for 7a's message or for the waiter (`~/temp/agent/wait-cli-git-policy-release.ts`), then follow the order in Open items.
-Nothing else is runnable before the release.
+All four agreed steps are built. What remains is the user's choice on publishing `monochromatic-pnpm-shadow` and on linking it as
+`pnpm` (see Open items); nothing else is queued.

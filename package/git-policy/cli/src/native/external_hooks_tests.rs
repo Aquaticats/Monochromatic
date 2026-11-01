@@ -15,6 +15,16 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(bytes.as_slice(), true).expect("a well-formed listing");
 }
 
+/// A `core.fsmonitor` is left as configured: it is no hook of the report, whatever it names.
+#[test]
+fn core_fsmonitor_is_not_reported_as_a_hook() {
+    for value in ["/usr/local/bin/watch", "true", "false"] {
+        let snapshot: ConfigSnapshot = listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
+        assert!(configured_hooks(&snapshot).is_empty(), "{value}");
+        assert_eq!(external_hooks_warning(Some(&snapshot)), None, "{value}");
+    }
+}
+
 /// A stream that refuses every write.
 struct RefusingStream;
 

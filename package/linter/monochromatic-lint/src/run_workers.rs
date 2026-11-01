@@ -56,7 +56,7 @@ use std::{
 /// ```ts
 /// const WORKER_STACK_BYTES = 8 * 1024 * 1024;
 /// ```
-pub(crate) const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+pub const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
 
 /// What:
 ///  A thread builder with the lint stack,
@@ -68,7 +68,7 @@ pub(crate) const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
 /// ```ts
 /// function lintThread(): ThreadOptions { return { stackBytes: WORKER_STACK_BYTES }; }
 /// ```
-pub(crate) fn lint_thread() -> Builder {
+pub fn lint_thread() -> Builder {
     return Builder::new().stack_size(WORKER_STACK_BYTES);
 }
 
