@@ -850,13 +850,13 @@ What stays open:
   since none of their sources changed.
 - The pass still prints `INTERIM` and `TALLY` lines on stdout through `console.log`,
   which ends the process on `EPIPE` (B1238).
-- Round w404 gave each item of this list,
+- Round w404 gives each item of this list,
   and each item the re-check of round w400 added,
-  a status in B1303.
-  Round w406 repeats them here with their status,
-  since this list pointed to B1303 and did not carry them
-  (the statuses are those of B1303 as corrected by round w406,
-  B1337):
+  a status (B1303).
+  Note of 2026-11-01 (round w406, B1337; the pointer corrected by round w407, B1361):
+  this list pointed to B1303 and did not carry the items,
+  so round w406 repeats them here with their status
+  (the statuses are those of B1303, with the `KillMode` measurement of B1335 added):
   - The relabel to `gate-kept-standing` as a round trip:
     fixed (B1301).
   - The page an operator left by removing the artifact,

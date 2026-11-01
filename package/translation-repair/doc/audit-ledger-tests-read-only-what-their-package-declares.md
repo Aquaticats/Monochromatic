@@ -373,18 +373,17 @@ and `source-scan` has the same lines it had.
   and fails if the file holds it more or fewer times than listed;
   since round w405 it also lists the expression that names the file (B1314).
   A change of the lock alone does run the case:
-  the gate's selector sends a changed path outside `package/translation-repair/`
-  that is no Markdown file to a full gate,
+  the gate's selector sends any changed path outside `package/translation-repair/` to a full gate,
   which runs every package,
-  `typography/src/semantic-wrap-binary.unit.test.ts` included
-  (corrected in place by round w406 (B1325):
-  this sentence said "any changed path outside `package/translation-repair/`",
-  but the selector sends a changed Markdown file in no package folder
+  `typography/src/semantic-wrap-binary.unit.test.ts` included.
+  Correction of 2026-11-01 (round w406, B1325, restored as a note in round w407, B1356):
+  the sentence above is as first written, and it is not what the selector does.
+  The selector sends a changed Markdown file in no package folder
   and any file of the family's `doc` folder
   to a gate that runs `source-scan` alone,
   and only the other changed paths outside a package folder to the full gate;
   the lock is a JSON file at the repository root,
-  so it is one of the other paths).
+  so it is one of the other paths.
   The first writing of this entry said the selector would not run the case when only the lock changed.
   That was wrong,
   and B1311 records the reading of the selector.
@@ -738,9 +737,14 @@ the guard of a glob against a base that is no chain,
 the check that a URL resolves against `import.meta.url`
 and the check that the object of `cwd()` is `process`),
 and a reading of the reader found more.
-Round w406 switched off every remaining branch,
-added the cases that were missing,
-and named the branches that cannot change what the scan reports (B1327).
+Round w406 switched off 56 branches of the reader one at a time on 2026-11-01,
+the four of the re-check among them (all four failed at once, so they are among the 36 that did and not among the 20
+that survived),
+gave a case to 5 of the 20 survivors,
+and argued by reading, with no case, that the other 15 cannot change what the scan reports (B1327, as corrected by
+B1355).
+It did not switch off the guard that stops the loop of held constants when a name is already held,
+since removing it never ends.
 That statement stays as written,
 since it was true of that round's work.
 
@@ -776,7 +780,7 @@ A climb held in a constant is reported at the constant,
 and what is later joined to the constant is not part of the pin;
 the listed read is written whole,
 and a rewrite of it into a constant changes the expression and so fails.
-The last sentence was false (corrected in place by round w406,
+The last sentence was false (noted by round w406 on 2026-11-01,
 B1326):
 the constant's initializer is the same expression as the listed read,
 so it matched the pin,
@@ -801,15 +805,8 @@ which catches it.
 - The message of `f258a3bcfe` points by position ("the artifact-pool test below").
   It is not amended;
   B1272 names the file and records the correction.
-- Older ledger files named `claude-schemas.unit.test.ts` for cases that moved.
-  This entry first said two files,
-  with three places in the first and two in the second;
-  round w406 corrected it in place (B1325),
-  since round w400 had moved the entry B1264 out of the first file before the notes were merged.
-  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (one place,
-  in the slips of B1229),
-  `audit-ledger-a-republish-keeps-the-page-that-stands.md` (two places,
-  both in the entry B1264)
+- Two older ledger files named `claude-schemas.unit.test.ts` for cases that moved.
+  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (three places)
   and `audit-ledger-guard-demonstration-survivors-and-their-pins.md` (two places)
   keep their text and carry a note with the new file
   (`source-scan/src/claude-schema-source-search.unit.test.ts`) and the date of the move,
@@ -819,6 +816,15 @@ which catches it.
   `doc/decision/translation-repair-direct-providers.md` names the same test for the cases that stayed
   (the schemas read through the Claude body),
   so it needs no note.
+  Correction of 2026-11-01 (round w406, B1325, restored as a note in round w407, B1356):
+  the bullet above is as first written, and it counted wrong.
+  Round w400 had moved the entry B1264 out of the first file before the notes were merged,
+  so the files are three:
+  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (one place,
+  in the slips of B1229),
+  `audit-ledger-a-republish-keeps-the-page-that-stands.md` (two places,
+  both in the entry B1264)
+  and `audit-ledger-guard-demonstration-survivors-and-their-pins.md` (two places).
 
 ## B1316: the whole `source-scan` suite at the head, and the cache versions
 
@@ -912,9 +918,8 @@ Slips:
   which `markdown-lint-clean` found;
   they were fixed before the docs commit.
   The commit that recorded B1316 and B1317 had five more,
-  found by the same scan run alone and fixed in the commit after it (`dbd80988f5`,
-  named by round w406,
-  B1325).
+  found by the same scan run alone and fixed in the commit after it.
+  Named on 2026-11-01 by round w406 (B1325): that commit is `dbd80988f5`.
 - Two `Edit` calls named a file the session had not read and were refused,
   and nothing changed.
 - The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites

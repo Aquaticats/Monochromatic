@@ -416,21 +416,28 @@ TODO | DONE
     `systemctl --user show --property=MainPID --value corpus-pass-<name>` prints that pid and not the pass's own,
     which is a descendant of it in the unit's control group (`systemctl --user status corpus-pass-<name>` lists the
     group).
-    `systemctl --user stop` signals every process of the unit and is the way to stop the pass;
-    a signal sent to the wrapper alone is the wrapper's to forward.
-    The unit sets `KillMode=mixed`:
-    one stop signals the wrapper alone,
-    which relays it,
-    and the pass hears SIGTERM once.
-    Measured on 2026-11-01 UTC with the same unit run twice and stopped once each
+    `systemctl --user stop` is the way to stop the pass.
+    The unit sets `KillMode=mixed`,
+    under which that one stop sends SIGTERM to the main process alone, the wrapper
+    (`man systemd.kill`: the final SIGKILL goes to every process left in the control group),
+    and the wrapper relays it, so the pass hears SIGTERM once;
+    under systemd's default `KillMode=control-group` the stop would signal every process of the unit.
+    A signal sent to the wrapper alone is the wrapper's to forward.
+    Measured on 2026-11-01 UTC in two transient units, one for each kill mode,
+    `tr-sigprobe-control-group` and `tr-sigprobe-mixed`, each stopped once
     (`/var/home/user/temp/agent/tr-fan/sigprobe/killmode-20261101.txt`,
     with `signals-control-group.log` and `signals-mixed.log` beside it):
-    under systemd's default `KillMode=control-group` node received SIGTERM twice at the same millisecond,
+    under `KillMode=control-group` node received SIGTERM twice at the same millisecond,
     and under `KillMode=mixed` it received exactly one SIGTERM,
-    which mise relayed,
-    and exited cleanly;
-    the stop took 3,045 ms against the 3 s exit delay of the probe
-    (ledger B1295 and B1296).
+    which mise relayed;
+    in both units the probe's script then wrote its `exit` line about 3 s after the stop was sent,
+    which is the 3 s exit delay of the probe
+    (3,011 ms under `control-group` and 3,037 ms under `mixed`;
+    the stop command returned after 3,019 ms and 3,045 ms).
+    The probe recorded no exit code,
+    so "exited cleanly" is only that its script reached its `exit` line,
+    and its units set `TimeoutStopSec=20` where this launch keeps systemd's default of 90 seconds
+    (ledger B1295, B1296 and B1357).
     The pass still reads a second signal inside `SECOND_SIGNAL_MIN_GAP_MS` as one stop delivered twice and ignores it,
     as the backstop for a launch with the default kill mode and for a foreground Ctrl-C,
     which reaches the wrapper and the pass alike;
@@ -438,6 +445,8 @@ TODO | DONE
     With `KillMode=mixed` the final SIGKILL goes to every process left in the control group
     once the main process has exited or the stop timeout has passed,
     and the tools the pass starts get no SIGTERM of their own.
+    What those tools do when the stop signals the wrapper alone is not measured:
+    the probe's units held mise and node and no other tool.
 
     A `--setenv=PATH=` on the unit decides which build tools the task's build runs.
     A session's shell started in the main checkout carries that checkout's `node_modules/.bin` first,
