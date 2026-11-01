@@ -40,7 +40,7 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 
  @param l - logger the lost carried regions are written to, which a defect's message does not hold
 
- @returns The footnote integrity step, then the carried-evidence step
+ @returns Footnote integrity step, then the carried-evidence step
 
  @example
  ```ts

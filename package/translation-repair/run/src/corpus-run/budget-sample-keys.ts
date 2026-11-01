@@ -98,7 +98,7 @@ type KeyRow = Readonly<{
 
  @param off - providers left off
 
- @returns The row for the refusal and the key the sample uses
+ @returns Row for the refusal and the key the sample uses
 
  @example
  ```ts

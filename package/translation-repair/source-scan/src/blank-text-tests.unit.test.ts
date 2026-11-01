@@ -1296,8 +1296,8 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
-  'run/corpus-run/budget-sample-keys.ts#readProviderKeys': {
-    tests: 10,
+  'run/corpus-run/budget-sample-keys.ts#keyRowOf': {
+    tests: 1,
     why: SETTING,
   },
   'slice-cache/corpus-run/cache-account-commits.ts#sourceCommitOf': {
@@ -1670,7 +1670,7 @@ const HELD_TESTS: Readonly<Record<string, {
     why: SETTING,
   },
   'run/corpus-run/budget-sample-run.ts#sampleBudgets': {
-    tests: 3,
+    tests: 4,
     why: SETTING,
   },
   'provider/direct-usage.ts#fingerprintOf': {

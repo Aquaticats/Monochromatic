@@ -10,5 +10,6 @@ export {
   assertPageFootnotesIntact,
   PageFootnoteIntegrityError,
 } from './page-footnote-integrity.ts';
+export { pageGuardSteps, } from './publish-page-guard-steps.ts';
 
 //endregion Page guard reports

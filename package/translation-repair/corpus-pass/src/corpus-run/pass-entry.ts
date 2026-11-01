@@ -520,8 +520,8 @@ export async function runEntryPipeline(
     },);
 
     // THE PAGE GUARDS ARE CHECKS OF THE PUBLISHED PAGE (B1181): the footnote graph the page introduces over its archive
-    // and the carried passages whose evidence the English lost are reported as defects by `publishFixedPage`, through
-    // `persistSettledEntry` below, and the page ships. They were a call here that threw an interruption, which the pass
+    // and the carried passages whose evidence the English lost are reported as defects by `publishFixedPage`, which
+    // `persistSettledEntry` calls, and the page ships. They were a call here that threw an interruption, which the pass
     // files as a stop with no page and no artifact (XingZ6023, 2026-10-30).
 
     // This entry's TALLY line, read off the artifact BEFORE it is written.
