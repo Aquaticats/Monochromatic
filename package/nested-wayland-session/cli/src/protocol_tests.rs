@@ -250,7 +250,7 @@ fn argumentless_taskbar_and_window_verbs_reject_trailing_tokens() {
 /// `launcher-log` takes an optional count of at least one, defaulting to 64.
 #[test]
 fn launcher_log_parses_optional_count() {
-    assert_eq!(parse_command("launcher-log"), Ok(Command::LauncherLog { count: 64 }));
+    assert_eq!(parse_command("launcher-log"), Ok(Command::LauncherLog { count: super::launcher::DEFAULT_LOG_COUNT }));
     assert_eq!(parse_command("launcher-log 5"), Ok(Command::LauncherLog { count: 5 }));
     assert!(parse_command("launcher-log 0").is_err());
     assert!(parse_command("launcher-log -1").is_err());
