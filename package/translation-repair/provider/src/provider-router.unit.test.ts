@@ -24,6 +24,7 @@ import {
   createRoutingClient,
   EveryProviderDryError,
   type NeuralWattReturn,
+  type ReaskSeat,
 } from '../dist/final/node/index.mjs';
 import { textCallOutcome, } from './provider-router-text-call.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
@@ -376,6 +377,16 @@ function isNapSpot(value: unknown,): value is { readonly spot: string; } {
 }
 
 /**
+ The seat of the cases of the routing policy: a measurement, which scores a model on the provider that carries it, so no
+ hold of a card keeps a call off a provider (ledger B1141, B1373).
+ */
+const MEASUREMENT_SEAT: ReaskSeat = {
+  role: 'roster',
+  reask: 'measured-model',
+  bench: [],
+};
+
+/**
  Routes one text call for Qwen3.8-27B by default, which Synthetic and Hyper
  serve and the run buys from each, and reports what happened.
 
@@ -385,7 +396,9 @@ function isNapSpot(value: unknown,): value is { readonly spot: string; } {
 
  @param signal - abort the call carries, one that never fires unless a case that fakes the clock hands its own
 
- @param reaskSeat - seat the call names, when it names one; the cases of the routing policy name none
+ @param reaskSeat - seat the call names; the cases of the routing policy name a measurement (ledger B1373), which no hold
+ of a card reaches, so each still tests the routing its name says and not the hold that a request naming no seat is
+ now held to
 
  @returns Reply text, or the error thrown
 
@@ -399,12 +412,12 @@ function ask(
     client,
     modelId = SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
     signal = SIGNAL,
-    reaskSeat,
+    reaskSeat = MEASUREMENT_SEAT,
   }: {
     readonly client: ReturnType<typeof createRoutingClient>;
     readonly modelId?: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['modelId'];
     readonly signal?: AbortSignal;
-    readonly reaskSeat?: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['reaskSeat'];
+    readonly reaskSeat?: ReaskSeat;
   },
 ): Promise<{ readonly text: string; } | { readonly thrown: unknown; }> {
   return textCallOutcome({
@@ -412,8 +425,7 @@ function ask(
     modelId,
     messages: MESSAGES,
     signal,
-    // Conditional spread keeps the seat absent for a call that names none.
-    ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+    reaskSeat,
   },);
 }
 

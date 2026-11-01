@@ -282,16 +282,22 @@ await describe({
     },),
 
     it({
-      name: 'SERVES A FIRST ASK THAT NAMES NO SEAT ON HYPER (ledger B1365): the refusal is for a seat that names its '
-        + 'role, as the owner\'s ruling reads, and a caller that names none, the model health probe and the picture '
-        + 'reader among them, keeps the routing it had',
+      name: 'REFUSES A FIRST ASK THAT NAMES NO SEAT AS IT REFUSES A SEAT OF ANY ROLE (ledger B1373): every production '
+        + 'caller names its seat or its measurement, so a request that names none is held to the holds every role honours '
+        + 'and no unnamed path reaches a held provider',
       fn: async () => {
         const unseated = await firstAsk({
           read: readingAs(HYPER_WET_ONLY,),
           modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
         },);
-        expect(unseated.servedBy,).toBe('hyper',);
-        expect(unseated.reached,).toEqual(['hyper',],);
+        expect(unseated.refusal,).toBeInstanceOf(NoProviderForModelError,);
+        expect(unseated.reached,).toEqual([],);
+        // The control: the same request is served where the hold names no provider the policy chose.
+        const served = await firstAsk({
+          read: readOlderProvidersWet,
+          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+        },);
+        expect(served.servedBy,).toBe('synthetic',);
       },
     },),
 

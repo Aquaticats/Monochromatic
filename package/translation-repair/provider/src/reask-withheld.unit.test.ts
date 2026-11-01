@@ -115,54 +115,46 @@ await describe({
     },),
 
     it({
-      name: 'HOLDS A SEAT OF A ROLE THAT HONOURS THE HOLD OFF HYPER and off no other provider, whatever the rule for a '
-        + 'request that names no seat (ledger B1365)',
+      name: 'HOLDS A SEAT OF A ROLE THAT HONOURS THE HOLD OFF HYPER and off no other provider (ledger B1365)',
       fn: async () => {
         /**
          The seat of an editor of a run.
          */
         const reaskSeat: ReaskSeat = { role: 'editor', bench: [], reask: 'other-model', };
-        for (const whenNoSeat of ['hold', 'serve',] as const) {
-          expect(holdsKeepingRequestOff({
-            request: requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', reaskSeat, },),
-            provider: 'hyper',
-            whenNoSeat,
-          },),).toEqual(['hyper-slow',],);
-          expect(holdsKeepingRequestOff({
-            request: requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', reaskSeat, },),
-            provider: 'synthetic',
-            whenNoSeat,
-          },),).toEqual([],);
-        }
+        expect(holdsKeepingRequestOff({
+          request: requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', reaskSeat, },),
+          provider: 'hyper',
+        },),).toEqual(['hyper-slow',],);
+        expect(holdsKeepingRequestOff({
+          request: requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', reaskSeat, },),
+          provider: 'synthetic',
+        },),).toEqual([],);
       },
     },),
 
     it({
-      name: 'HOLDS A REQUEST THAT NAMES NO SEAT TO THE HOLDS EVERY ROLE HONOURS WHERE THE RULE SAYS HOLD, and serves it '
-        + 'where the rule says serve (ledger B1365, B1350)',
+      name: 'HOLDS A REQUEST THAT NAMES NO SEAT TO THE HOLDS EVERY ROLE HONOURS (ledger B1373, B1350): every production '
+        + 'caller names its seat or its measurement, so a request that names none is held on the first ask as on the re-ask',
       fn: async () => {
         /**
          Request for Qwen3.8-27B that names no seat.
          */
         const request = requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', },);
-        expect(holdsKeepingRequestOff({ request, provider: 'hyper', whenNoSeat: 'hold', },),).toEqual(['hyper-slow',],);
-        expect(holdsKeepingRequestOff({ request, provider: 'hyper', whenNoSeat: 'serve', },),).toEqual([],);
+        expect(holdsKeepingRequestOff({ request, provider: 'hyper', },),).toEqual(['hyper-slow',],);
+        expect(holdsKeepingRequestOff({ request, provider: 'synthetic', },),).toEqual([],);
       },
     },),
 
     it({
-      name: 'HOLDS NO MEASUREMENT whatever the rule and the provider (ledger B1141, B1365)',
+      name: 'HOLDS NO MEASUREMENT whatever the provider (ledger B1141, B1365)',
       fn: async () => {
-        for (const whenNoSeat of ['hold', 'serve',] as const) {
-          expect(holdsKeepingRequestOff({
-            request: requestFor({
-              modelId: 'hf:Qwen/Qwen3.8-27B',
-              reaskSeat: { role: 'editor', bench: [], reask: 'measured-model', },
-            },),
-            provider: 'hyper',
-            whenNoSeat,
-          },),).toEqual([],);
-        }
+        expect(holdsKeepingRequestOff({
+          request: requestFor({
+            modelId: 'hf:Qwen/Qwen3.8-27B',
+            reaskSeat: { role: 'editor', bench: [], reask: 'measured-model', },
+          },),
+          provider: 'hyper',
+        },),).toEqual([],);
       },
     },),
 
@@ -175,7 +167,6 @@ await describe({
             reaskSeat: { role: 'select-judge', bench: [], reask: 'other-model', },
           },),
           provider: 'hyper',
-          whenNoSeat: 'serve',
         },),).toEqual(['hyper-slow-select',],);
         expect(holdsKeepingRequestOff({
           request: requestFor({
@@ -183,7 +174,6 @@ await describe({
             reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
           },),
           provider: 'hyper',
-          whenNoSeat: 'serve',
         },),).toEqual([],);
       },
     },),
