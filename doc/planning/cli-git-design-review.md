@@ -13,13 +13,14 @@ journals, recovery) does not earn its complexity for the stated workload.
 Three findings carry that verdict, each with its measurement in the sections that follow.
 
 - In a 20,000-file clone a wrapped explicit-path commit takes a median 2740 ms (3043 ms with the repository's
-  policies) against 45 ms for the real Git on the same file, and 96 percent of the wrapped time is one defect, not the
-  protocol: the private commit index is built with `read-tree`, so it carries no stat data and the native `git commit`
-  inside the shadow rehashes every tracked file (2377 ms against 24.8 ms when the private index is a copy of the real
-  index).
+  policies) against 45 ms for the real Git on the same file, and about 87 percent of the wrapped time (2377 of 2740 ms)
+  is one defect, not the protocol: the private commit index is built with `read-tree`, so it carries no stat data and
+  the native `git commit` inside the shadow rehashes every tracked file (2377 ms against 24.8 ms, 96 times, when the
+  private index is a copy of the real index).
 - The design's concurrency premise is that preparation is long and conflicts are rare.
   The recorded sweeps show about one lost landing race per commit at concurrency 8 (SPEC.md "Benchmark method"),
-  so replay is the normal path, and the long part of preparation, the hooks, is serialized by default anyway.
+  so replay is the normal path, and the owner has since settled that the wrapper supports no external hooks at all
+  (see the scope note), which removes the one long part of preparation.
   A serial design that builds each commit after taking a lock never replays, so the replay, capture-order,
   subsumption and starvation-reservation machinery has no reason to exist.
 - A prototype of the serial plumbing sequence (no hooks, no policies, no signing, so a floor and not a result)
@@ -38,14 +39,21 @@ Read: `doc/decision/cli-git-concurrent-commits.md`, `doc/planning/cli-git-concur
 "Auto-push" and "Benchmark method", `doc/handover/wrapper-sync-attribution.md`,
 `doc/planning/cli-git-spawn-and-sync-reduction.md`, the sync and gate sections of
 `doc/handover/cli-git-rust-implementation.md`, and, from the unmerged branch `worktree-agent-a21d6fec9d0d04797`,
-`doc/planning/cli-git-no-self-invocation.md` (commit `156415d696`) and the stat of `7cd936b6bc`.
+`doc/planning/cli-git-no-self-invocation.md` (commit `156415d696`) and the stat of `7cd936b6bc`, and the sections the
+owner's hook corrections added to that handover on `main` after the base commit.
 Source reads are cited as `file:line` relative to `package/git-policy/cli/src/native/`.
 
 Important scope note: the hook change the owner quoted ("Git now runs the configured hooks itself") is not on `main`
 or on this review's base.
 It is commit `7cd936b6bc` on `worktree-agent-a21d6fec9d0d04797`.
 On the base commit the commit hooks still go through the self-started dispatcher.
-Both states are discussed.
+After the base commit, `main` (`99a7575f5a`) recorded the owner's corrections in
+`doc/handover/cli-git-rust-implementation.md`, which I read after the first version of this report: the owner rejected
+"Git runs your configured hooks directly", and then settled "B: Only hooks we declare, natively", meaning the wrapper
+supports no external hook commands at all (Git-config `hook.<name>.*` commands included), every lifecycle stage is an
+in-process policy or declared action, and a repository that still configures `hook.*` gets a loud explanation.
+That handover also retracts a mistaken earlier entry ("preparation hooks are no longer supported", `f6817bb22f`).
+This report treats the settled decision as the current state; the dispatcher and the branch are discussed as history.
 
 Run, in a throwaway shallow clone of this repository under `~/temp/agent/dr/`
 (20,218 tracked files, `/usr/bin/git` 2.56.0, installed wrapper `cli-git-native` 0.4.6, btrfs, a hermetic `HOME`
@@ -164,13 +172,14 @@ is for a 2048-file tmpfs fixture and does not describe a 20,000-file repository.
 Optimistic preparation with replay pays off when preparation is long and the base rarely moves.
 
 - Replay is the normal path under contention.
-  `SPEC.md` 3753 records 1.02 to 1.09 lost races per commit at concurrency 8 with the chosen default
-  (`landing.reserveAfterLostRaces` = 1), 2.5 for 4 and 3.0 for 8.
+  `SPEC.md` 3753 to 3756 records, all at concurrency 8, 1.02 to 1.09 lost races per commit with the chosen setting
+  `landing.reserveAfterLostRaces` = 1, and 2.5 and 3.0 with the settings 4 and 8.
   Each lost race is a `merge-tree`, a revalidation, possibly a `pre-commit` re-run, and for a signed commit another
   signature (the owner signs every commit with SSH: `commit.gpgsign=true` in the global configuration).
-- Hooks, the part of preparation that can be long, are serialized by default
-  (`doc/decision/cli-git-concurrent-commits.md`, "Parallel preparation", last bullet), so for any repository with a
-  hook the parallel window is the policy pass (about 300 ms in this review, median of 6) and the signature (not
+- Hooks, the part of preparation that can be long, were serialized by default even in the accepted design
+  (`doc/decision/cli-git-concurrent-commits.md`, "Parallel preparation", last bullet), and under the owner's settled
+  decision (no external hook commands) they are gone from preparation.
+  What remains parallel is the policy pass (about 300 ms in this review, median of 6) and the signature (not
   measured here).
 - The workload commits explicit paths with `-m`, so there is no editor.
 - Every complication in the replay family exists because the commit is prepared against a base that moves: capture
@@ -225,11 +234,12 @@ toolchain: a second handle's `try_lock` is refused while held and succeeds after
 2.  `git add -- <paths>` into that private index (the bytes are captured here, in the lock).
 3.  Evaluate policies on the private index's blobs, so they see exactly what will be committed.
 4.  Run native `git commit` with `GIT_INDEX_FILE` set to the private index and no pathspec, against the real
-    repository, so Git runs the hooks, the editor, the template, signing, the reference update and the reflog.
+    repository, with every hook off as the settled decision requires, so Git owns the template, message cleanup,
+    signing, the reference update and the reflog, and the wrapper runs its declared post-commit actions afterwards.
 5.  Update the real index entries of the committed paths (a short `index.lock`, using the existing foreign-lock wait).
 
-- Correctness: the policy sees the blobs that Git commits, and a hook that re-stages files is handled by Git
-  itself.
+- Correctness: the policy sees the blobs that Git commits, and no hook can change them between the check and the
+  commit because none runs.
   Explicit-path semantics are unchanged because the private index is base plus the named paths.
   No replay exists, so there is no capture-order or subsumption rule to get wrong.
 - Crash safety: a crash between the reference update and the real-index update leaves stale index entries for the
@@ -244,8 +254,8 @@ toolchain: a second handle's `try_lock` is refused while held and succeeds after
   The accepted design rejected this to survive `gc --prune=now`; the price was a pack per commit, three `index-pack`
   syncs and a geometric repack on the commits that follow.
 - Latency (prototype floor): 64 ms alone; 299 to 404 ms for four at once; 601 to 828 ms for eight.
-  Hook and signing time are inside the lock under C.
-  Under the wrapper only the policy pass and the signature overlap between commits, because hooks serialize.
+  The policy pass (about 300 ms measured) and the signature are inside the lock under C.
+  Under the wrapper they are the only work that overlaps between commits, now that no external hook runs.
 - Starts: the prototype used 7; with the native commit instead of `commit-tree` plus `update-ref`, about 8.
   In-process reads (Option E) cut the reads.
 - Limits: an editor commit holds the lock while the editor is open.
@@ -253,8 +263,8 @@ toolchain: a second handle's `try_lock` is refused while held and succeeds after
   who would wait behind the existing wait notices.
   An editor commit could instead keep the shadow path as a fallback, at the cost of keeping that code.
 - Complexity: removes the shadow repository, alternates, object migration, `.keep` packs, replay, capture order,
-  subsumption, reservation, the hook lock, the dispatcher and the 247-cell tearing table; keeps policies, candidates,
-  config, the foreign-lock wait, auto-push.
+  subsumption, reservation and the 247-cell tearing table (the hook lock and the dispatcher go with the owner's hook
+  decision either way); keeps policies, candidates, config, the foreign-lock wait, auto-push.
 
 #### Option D: per-agent worktrees as the isolation unit
 
@@ -283,10 +293,12 @@ The crate's `Cargo.lock` already carries `gix-index`, `gix-object`, `gix-lock`, 
 
 ### What would change my mind on question 1
 
-- Repositories where `pre-commit` hooks run for seconds and the owner sets `hooks.concurrentCommits` on:
-  then preparation is long and parallel preparation has a real job.
-  Measure the hook durations in the repositories the sessions use; the Monochromatic checkout has no `pre-commit`
-  hook at all (`.git/hooks` holds `post-checkout`, `post-commit`, `post-merge`, `pre-push`).
+- A declared native action or a policy that runs for seconds inside preparation: then preparation is long and
+  parallel preparation has a real job.
+  The settled hook decision removes external hooks, and this checkout has no `pre-commit` hook at all (`.git/hooks`
+  holds `post-checkout`, `post-commit`, `post-merge`, `pre-push`), so today the longest preparation step is the
+  policy pass, measured at about 300 ms.
+  If the owner reverses the hook decision, this item flips.
 - Sessions whose contract is "the bytes at invocation, not at lock time" for a file edited while the commit waits.
   The accepted design records that choice (capture at invocation); C captures at lock time, which is what native
   sequential commits do.
@@ -338,14 +350,15 @@ change my mind.
 
 ### 4. Hook handling
 
-On the base commit:
+On the base commit (history, superseded by the owner's settled decision):
 
 - Hooks run through links to the wrapper itself (`SPEC.md` "Hook dispatcher shim"; `commit_command.rs:168` takes
   `std::env::current_exe()`): Git starts the wrapper per event, which re-enters through `argv[0]`, takes the hook lock
   and runs `git hook run`.
   This is the self-start the owner banned.
 
-On branch `worktree-agent-a21d6fec9d0d04797` (commit `7cd936b6bc`, unmerged):
+On branch `worktree-agent-a21d6fec9d0d04797` (commit `7cd936b6bc`, unmerged, and per the handover "must not merge in
+its first form"):
 
 - Git runs the hooks itself inside the native commit and the dispatcher is gone (1,776 lines removed, 1,020 added),
   which fixes the self-start.
@@ -353,28 +366,33 @@ On branch `worktree-agent-a21d6fec9d0d04797` (commit `7cd936b6bc`, unmerged):
   says a waiting commit waits up to `CLI_GIT_LOCK_WAIT_SECONDS` (1800 s).
   Hooks no longer see `GIT_WORK_TREE`, and `GIT_CONFIG_PARAMETERS` changes.
 
-My answer to "Isn't this poor design?": the branch's change removes a real defect (the self-start) but exposes the
-actual problem.
-User hooks are written to run in an exclusive worktree with an exclusive index (stash, formatters, `git add`), so
-running them in a parallel private context is only safe when serialized, and so the lock must cover whatever Git runs,
-editor included.
-The hook lock is a symptom of parallel preparation being unsound for hooks, and Option C removes it: hooks run
-natively under the commit lock with the real `GIT_WORK_TREE`.
+My answer to "Isn't this poor design?": yes, and the owner reached the same conclusion from the other side.
+That change removed one defect (the self-start) by making Git run user hooks inside the shadow, which exposed the
+real problem: user hooks are written to run in an exclusive worktree with an exclusive index (stash, formatters,
+`git add`), so running them in a parallel private context is only safe when serialized, and the lock then has to cover
+whatever Git runs, editor included.
+The hook lock was always a symptom of parallel preparation being unsound for hooks.
+The owner's settled decision ("B: Only hooks we declare, natively") removes the cause: no external hook runs, the
+dispatcher, hook lock, plan and lease go, and declared actions are wrapper code.
+That decision is sound and also weakens the case for parallel preparation, since hooks were its only long step.
 
-- Fix: the branch is done; merging is a decision the handover lists with five behavior changes.
-  The root fix is Option C.
-- Confidence: high on the cause; medium on the editor behavior (read from the handover, not run).
-- Would change if: the owner's repositories have hooks that are safe to run in parallel against one shared worktree,
-  which `hooks.concurrentCommits` already declares per repository.
+- Fix: the decision is made and an agent is carrying it; what remains is to carry the rollout order the handover
+  gives (wrapper release with the native action, then the installer source, then removing the Git config hook).
+- Confidence: high on the cause; medium on the editor behavior of the unmerged branch (read from the handover, not
+  run).
+- Would change if: the owner reverses the decision and lets repositories run parallel-safe external hooks, which
+  `hooks.concurrentCommits` declared per repository.
 
 ### 5. Three more self-start sites and shell text on the base commit
 
-Found by reading and confirmed in the strace of a push:
+Found by reading and confirmed in the strace of a push in a repository whose configuration has Git LFS keys:
 
 - `entry.rs:614` (`lfs_hook_executable`) configures `hook.cli-git-lfs-pre-push.command` as `sh -c '<wrapper>
   cli-git lfs-pre-push'`.
   The strace of an auto-push shows `sh` starting the installed `cli-git-native` with `cli-git lfs-pre-push origin ...`
   as a child of `git push` (an `sh` and a second wrapper process per push).
+  Without LFS keys (the rerun) there is no such start.
+  The handover's newest direction replaces the hook with a parent-run `git lfs push`.
 - `push_stacking.rs:142` runs `Command::new(request.own_executable)` for the merge push.
 - `manual_push_probe.rs:229` writes a `#!/bin/sh` capture script for a dry-run push.
 - Fix: S each, and already built in `156415d696` on a branch (phase 1: LFS upload through plain `git-lfs pre-push`,
@@ -395,6 +413,8 @@ Found by reading and confirmed in the strace of a push:
   --git-dir=<shadow> ... pack-objects --revs --local --stdout --quiet (process N) after 1 seconds; stopping it after
   1800 seconds`.
   Under a load average of 60 to 126 any child over a second prints this; a healthy `pack-objects` looks hung.
+  The same happened to `git cli-git check -- <this report>`, whose only output was `still waiting for
+  monochromatic-lint ... after 1 seconds; stopping it after 60 seconds` for a check that then passed.
 - A 30 second push deadline kills a healthy large Git LFS upload that runs inside the push as `pre-push`, and the
   failure is recorded as exit 124 and retried by the next commit.
   I could not exercise a slow upload (no LFS server in the throwaway).
@@ -407,7 +427,11 @@ Found by reading and confirmed in the strace of a push:
 
 ### 7. More Git starts than the work needs, and facts read repeatedly
 
-- A wrapped commit with auto-push in my trace: 60 `execve` calls, 58 of them children.
+- A wrapped commit with auto-push to a local bare remote and no LFS keys (the rerun, complete through
+  `merge-base --is-ancestor` after the push): 60 `execve` calls, 58 of them children, among them 11 `rev-parse` and
+  7 `config`; the push itself, from the first `config --get` to the last child, took about 0.5 s of strace time.
+  The duplicates named in this entry were counted in the first push trace, which stopped at the LFS precheck before the push;
+  the code path before the push is the same.
   After the one `config --list -z --show-scope` snapshot, auto-push runs six separate `git config --get` processes
   (`branch.<b>.remote`, `branch.<b>.pushRemote`, `remote.pushDefault`, `remote.<r>.push`, `push.default`,
   `branch.<b>.merge`); the long `rev-parse --is-bare-repository --git-dir --git-common-dir --show-toplevel
@@ -530,12 +554,23 @@ All from recorded measurements and reading; I did not run the gate.
 - The recorded per-commit numbers in `SPEC.md` come from older fixtures and Git 2.47.3; I did not re-derive them.
 - No mutation, interop, Windows or macOS behavior was exercised.
 - The unmerged branch was read through `git show`, not built.
+- The first auto-push trace stopped at the wrapper's Git LFS precheck, because my throwaway had `lfs.*` keys and no
+  `git-lfs` on its hermetic `PATH`.
+  I removed the keys and reran once; that run completed the push and the post-push `merge-base`.
+  The push record write and `last-pushed.json` handling were not examined separately.
+- CPU quotas differ between my arms: the four-at-once wrapper arms ran in a unit with `CPUQuota=400%` and the
+  prototype in units with `CPUQuota=200%`.
+  The wrapper's rehash is CPU-bound and the prototype is not, so the quota disadvantages the arm I am measuring
+  against, not the prototype; the real-Git arms ran in the first unit.
+  I did not repeat the runs with equal quotas.
+- The policy check of this report (`git cli-git check -- doc/planning/cli-git-design-review.md`, through the PATH
+  wrapper) ran after the first commit, which I made with `/usr/bin/git`.
 
 ## Suggested order of work
 
 1.  Fix finding 1 (stat-carrying private index) and add a wall-time ratchet on a 20,000-file clone (finding 2).
-2.  Merge or drop the hook-dispatcher branch and the phase 1 self-start fixes (findings 4 and 5), deciding the five
-    listed behavior changes.
+2.  Carry the owner's settled hook decision and the LFS rework (findings 4 and 5), which also remove the three
+    self-start sites; the dispatcher branch is not to merge in its first form.
 3.  Derive bounds by kind and quiet the one-second child notice (finding 6).
 4.  Land the in-process reads behind `RepositoryFacts` and remove the repeated discovery (finding 7).
 5.  Decide Option C with the owner using these floors, then build it behind the existing tests; retire shadow,
