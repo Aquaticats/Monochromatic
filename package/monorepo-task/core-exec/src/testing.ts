@@ -26,6 +26,17 @@ export {
 } from './oxlint-fix-loop.ts';
 export { RULE_GUIDANCE, } from './oxlint-guidance.ts';
 export {
+  ensurePlaywrightImage,
+  PLAYWRIGHT_LOCAL_IMAGE,
+  PLAYWRIGHT_REGISTRY_IMAGE,
+  PLAYWRIGHT_TAG_LENGTH,
+  PlaywrightImageError,
+  type PlaywrightImageSource,
+  type Podman,
+  type PodmanResult,
+  playwrightImageTag,
+} from './playwright-image-logic.ts';
+export {
   filterPnpmOutput,
   isAllowedCycleWarning,
 } from './pnpm-output-filter.ts';

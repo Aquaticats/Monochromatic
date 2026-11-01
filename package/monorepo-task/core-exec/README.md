@@ -5,7 +5,8 @@ CLI utilities for mise task orchestration:
 a file append helper,
  a make-style dependency checker,
 a `tsc` wrapper that filters `node_modules` diagnostics,
-and an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status.
+an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status,
+and the pull-or-build step for the Playwright container image.
 
 ## Orchestration regression tests
 
@@ -180,6 +181,37 @@ and `off` opt out.
 See `TROUBLESHOOTING.typescript.md` section
 "JSR packages ship `.ts` source files that `skipLibCheck` cannot skip"
 for the full root cause analysis.
+
+### task-playwright-image
+
+Makes the Playwright container image available locally;
+it is what `mise run prepare:playwright` runs.
+CI publishes `playwright.Dockerfile` as `ghcr.io/aquaticats/monochromatic-playwright:<tag>`,
+where `<tag>` is the first 16 hex digits of the SHA-256 of the file
+(`.github/workflows/playwright-image.yml`,
+`doc/runbook/publish-playwright-image.md`).
+The command,
+run from the repository root,
+computes the same tag and then:
+
+- keeps a local `monochromatic-playwright:<tag>` as it is,
+- otherwise pulls the registry image and names it `monochromatic-playwright:<tag>` and `monochromatic-playwright`
+  (the name the Playwright tasks run),
+- and when the pull fails,
+  prints why on one line and builds `playwright.Dockerfile` locally with the same two names.
+
+Podman's own output stays hidden;
+a failure prints the reason,
+and the local build's output when that fails too,
+and exits 1.
+Any edit of `playwright.Dockerfile`,
+comments included,
+changes the tag.
+
+```sh
+# Repository root
+task-playwright-image
+```
 
 ### task-oxlint
 
@@ -373,6 +405,11 @@ Strategies:
 No flags of its own.
  All arguments are forwarded directly to `tsc`.
 Defaults to `--build` when no arguments are provided.
+
+### task-playwright-image
+
+No flags and no arguments;
+it reads `playwright.Dockerfile` in the current directory and needs `podman` on `PATH`.
 
 ### task-oxlint
 

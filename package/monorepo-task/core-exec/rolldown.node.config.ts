@@ -6,9 +6,9 @@ import {
 /**
  Node-side rolldown build for `dev-script-task-util`.
  
- Seven entries: one internal testing seam plus one per declared `bin`
+ Eight entries: one internal testing seam plus one per declared `bin`
  (task-command, task-append, task-depends, task-oxlint, task-pnpm,
- task-tsc). The testing seam and six command-line entries land under
+ task-tsc, task-playwright-image). The testing seam and seven command-line entries land under
  `dist/final/node/` as `.mjs`; command-line shebangs remain preserved.
  node-only (node:fs/node:path, shells out to oxlint/tsc/pnpm).
  `package.json#bin` still resolves to the command-line files for normal
@@ -25,6 +25,7 @@ const config: NodeFlavorConfig = nodeConfig({
     './src/oxlint-wrapper.ts',
     './src/pnpm-filter.ts',
     './src/tsc-filter.ts',
+    './src/playwright-image.ts',
     './src/testing.ts',
   ],
 },);

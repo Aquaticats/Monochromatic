@@ -1051,7 +1051,7 @@ description = "Alias of toolchain:install: converge every tool to the versions t
 run = ["mise run toolchain:install"]
 
 [tasks.prepare]
-description = "Prepare environment: pnpm install, then fan out the prepare:* children (file sync, Playwright container, Android SDK, etc.). EXPENSIVE on a fresh clone: it auto-runs prepare:android (~2.9 GB Android SDK + NDK) and prepare:playwright (a podman image build) for every developer regardless of which packages they touch; this cost is intended and tolerated. Each child is idempotent, so reruns are cheap."
+description = "Prepare environment: pnpm install, then fan out the prepare:* children (file sync, Playwright container, Android SDK, etc.). EXPENSIVE on a fresh clone: it auto-runs prepare:android (~2.9 GB Android SDK + NDK) and prepare:playwright (pulls the published Playwright image, or builds it locally when the pull fails) for every developer regardless of which packages they touch; this cost is intended and tolerated. Each child is idempotent, so reruns are cheap."
 shell = "node --input-type=module-typescript -e"
 # Deliberate variant of the vars.fanout pattern, NOT a reuse: prepare:pnpm must run
 # first and complete (children need node_modules) before the remaining prepare:*
@@ -1099,12 +1099,19 @@ run = """
 {{vars.shadow_review}}
 """
 
+# The image is published by .github/workflows/playwright-image.yml as
+# ghcr.io/aquaticats/monochromatic-playwright:<tag>, <tag> being the first 16 hex digits of the SHA-256 of
+# playwright.Dockerfile (doc/runbook/publish-playwright-image.md). This task pulls that tag and names it
+# monochromatic-playwright, the name the Playwright tasks run; it builds the file locally, printing why, only when the
+# pull fails. A local monochromatic-playwright:<tag> is kept as it is, so a repeat costs one `podman image exists`.
+# Do not edit playwright.Dockerfile on a branch that is not main: its tag would exist in the registry only after the
+# change reaches main and CI runs.
 [tasks."prepare:playwright"]
-description = "Build Playwright container image via podman"
+description = "Get the Playwright container image: pull the published one for this playwright.Dockerfile, or build it locally when the pull fails"
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
-runWorkspaceNode('package/monorepo-task/core-exec', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'playwright-image', [])
 """
 
 # Android SDK components and the rustup Android targets for

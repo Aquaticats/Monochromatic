@@ -13,10 +13,18 @@ ENV PATH="/root/.local/bin:$PATH"
 ENV UV_PYTHON_PREFERENCE=only-system
 # vfs driver: avoids overlay mount issues inside Docker volumes.
 # Performance is acceptable: the canary pulls one small image infrequently.
-RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' \
+# `mise run prepare` pulls the published Playwright image (prepare:playwright) while this image is built, and a build
+# container is not allowed to run containers of its own, only to pull their layers. Pulling needs two things, measured
+# with `podman build` on 2026-11-01 (the real mcr.microsoft.com/playwright image, 2.5 GB, and a small ghcr.io one):
+# - one ID instead of a subordinate range: `root:100000:65536` makes podman ask for `newuidmap`, and with `uidmap`
+#   installed `newuidmap` fails writing the build container's ID map, so the files are empty;
+# - `ignore_chown_errors`, because a single-ID mapping cannot give layer files to their original owners (without it the
+#   pull fails with "potentially insufficient UIDs or GIDs available in user namespace").
+# Podman still cannot run a container in this image build (a nested `podman build` fails mounting devpts), which is why
+# the Playwright image is pulled and not built here.
+RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n[storage.options.vfs]\nignore_chown_errors = "true"\n' \
       > /etc/containers/storage.conf
-RUN echo 'root:100000:65536' > /etc/subuid \
- && echo 'root:100000:65536' > /etc/subgid
+RUN : > /etc/subuid && : > /etc/subgid
 
 WORKDIR /app
 COPY . .
