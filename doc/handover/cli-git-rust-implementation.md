@@ -5948,3 +5948,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `~/temp/agent/release-051b-wait.log`). HOLD all merges touching the wrapper or its path crates until its bump commit is on main.
 - Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
   `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.
+- 0.5.1 bump commit `b0d0b14a01` is on main (merge hold lifted). `native:release:wait` reported PUBLISH CHECK FAILED, but it
+  followed the wrong publish run: `41315224517` on `066f401d8c`, a `cargo-publish.yml` run another session dispatched by hand
+  17 seconds before ours. `await-run.ts` takes "the earliest manually started run created at or after the release run", which
+  any other dispatch can win. The real publish run is `41315248565` on `b0d0b14a01`; watched directly (log
+  `~/temp/agent/publish-051.log`). Fix sent to an agent: choose the run whose commit carries the target version, with a test of
+  this exact case. After 0.5.1 is on crates.io: message `monochromatic-c0` for the lock bump.
+- Planted-control proof (log `~/temp/agent/mut-m048-planted.log`): 6 of 7 noticed; "forward-target marker check"
+  (`entry.rs` `&& same_file(...)` to `&& false`) NOT noticed by `resolution::different_wrapper_build_stops_instead_of_looping`.
+  Sent to an agent: find what else stops the loop, make a test that fails exactly when that guard is off (GFP), and report
+  BLOCKED if the guard is dead code (do not delete it unasked).
+- Cross-vendor review of the lock-free wrapper store (`5e652a6628`, review `~/temp/agent/ct/pi-review2.out`): 8 findings
+  (partial-name collisions, prune racing a relink, inode test rejecting the private-copy fallback, `/dev/shm` assumption and
+  leak, scheduler-dependent slow-signer test, hashing outside `get_or_init`, unbounded copy burst in the concurrency test,
+  pruning test never ages an entry). Sent to an agent to verify each, fix the real ones lock-free, and void the rest with evidence.
+- Service-design cross-vendor review `~/temp/agent/sol/out-service.md` is still empty (written 07:50); it may never return.
+- Service step 3 READY `5d0d527e2c` (backup push and upkeep run in the service as work items after the command returns; one
+  coalesced push per branch, no lock; a failed push never fails the commit) merged as `8abacf428b`. Gate 9 runs in worktree
+  `.claude/worktrees/gate-main9` (gate-main stays on `54bc241fab` for the m048d units). Step 4 continues as sub-steps 4a to 4d.
