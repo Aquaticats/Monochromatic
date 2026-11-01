@@ -30,6 +30,7 @@ export {
   type AuthorizedParams,
 } from './authorize.ts';
 export {
+  BAD_REQUEST as BATCH_BAD_REQUEST,
   type BatchObject,
   type BatchOperation,
   type BatchRequest,
@@ -37,6 +38,7 @@ export {
   handleBatch,
   type HandleBatchParams,
   parseBatchRequest,
+  UNAUTHORIZED as BATCH_UNAUTHORIZED,
 } from './batch.ts';
 export {
   LFS_JSON,
@@ -58,13 +60,17 @@ export {
   OCTET_STREAM,
 } from './media-type.ts';
 export {
+  BAD_REQUEST as OBJECT_BAD_REQUEST,
   IMMUTABLE_CACHE_CONTROL,
+  NOT_FOUND as OBJECT_NOT_FOUND,
+  NOT_MODIFIED,
   objectHeaders,
   type ObjectHeadersParams,
   serveObject,
   type ServeObjectParams,
   storeObject,
   type StoreObjectParams,
+  UNAUTHORIZED as OBJECT_UNAUTHORIZED,
 } from './object-route.ts';
 export {
   isOid,
@@ -81,12 +87,12 @@ export type {
 /**
  HTTP status for a method the matched route does not support.
  */
-const METHOD_NOT_ALLOWED = 405;
+export const METHOD_NOT_ALLOWED = 405;
 
 /**
  HTTP status for an unmatched path.
  */
-const NOT_FOUND = 404;
+export const NOT_FOUND = 404;
 
 /**
  A request path split into its first segment and the remainder.
