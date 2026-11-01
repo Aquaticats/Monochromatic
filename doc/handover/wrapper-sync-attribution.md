@@ -226,11 +226,16 @@ Children:
 ## Ranked candidate removals
 
 Savings are in sync calls per warm commit (cold commits save the same, because none of these are cold-only).
-None was implemented when this was written.
-Item 4 was implemented afterwards (owner decision "Real gain real risk. We're high rollers."): cold 36 to 33 and warm
-35 to 32 syncs, measured with `strace` on a changed build; see `landing_objects.rs` and
+Status: removals 1, 2, 3 and 4 are implemented (owner decision "Real gain real risk. We're high rollers."); 5 was
+measured and not kept (breaks three tests and the pack keep).
+Item 4: cold 36 to 33 and warm 35 to 32 syncs, measured with `strace` on a changed build; see `landing_objects.rs` and
 `src/native/binary_index_pack_fsync_tests.rs`.
-Counts were computed from the per-object list; none was verified by a changed build.
+The measured result of a changed build matches the arithmetic below exactly: wrapper syncs 33 to 19 cold and 28 to 14
+warm, in `binary_budget_tests.rs`. The tests, guards and findings are in
+`doc/planning/cli-git-spawn-and-sync-reduction.md`, section "J4 outcome". Two cases do not converge: a lost `owner.json`
+name stops every guarded command, and a lost `preparing.json` or `index-lock-1.json` name next to a held `index.lock`
+makes every commit exit 2 until the lock is removed by hand.
+The text below is the ranking as it stood before the changes.
 
 1.  Drop the syncs of records the tearing harness shows to be benign: `captured.json`, `hooks/plan.json`,
     `prepared.json` (file and directory), `index~pid.lock`, the landed record (file and directory), and the

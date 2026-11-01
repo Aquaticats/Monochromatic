@@ -49,7 +49,7 @@ use super::pack_keep::{remove_pack_keep, transaction_keep_message};
 /// The held landing lock, which the caller must prove it holds.
 use super::owner_lock::OwnerLock;
 /// Journal files are written durably.
-use super::private_storage::{sync_directory, write_private_file};
+use super::journal_record::{RecordSync, write_record};
 /// Recovery failures that the shared steps report.
 use super::recovery_error::RecoveryError;
 /// File identities of the landing artifacts.
@@ -270,27 +270,20 @@ pub struct LandingRequest<'request> {
 }
 
 /// What:
-///  Write one journal record durably:
-///  exclusively,
-///  then the directory entry.
+///  Write one journal record exclusively and whole,
+///  then sync as `sync` says.
 /// Why:
 ///   `writeJournalRecord`:
 ///  a state file is never rewritten,
-///  so a crash leaves the newest complete state readable.
+///  so a crash leaves the newest complete state readable;
+///  the level says what a power loss may leave of this record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeJournalRecord({ directory, filename, record });
+/// await writeJournalRecord({ directory, filename, record, sync });
 /// ```
-fn write_journal(directory: &Path, filename: &str, bytes: &[u8]) -> Result<(), LandingError> {
-    let path: PathBuf = directory.join(filename);
-    if let Err(error) = write_private_file(path.as_path(), bytes) {
-        return Err(LandingError::Journal(format!("writing {} failed: {error}", path.display())));
-    }
-    if let Err(error) = sync_directory(directory) {
-        return Err(LandingError::Journal(format!("syncing {} failed: {error}", directory.display())));
-    }
-    return Ok(());
+fn write_journal(directory: &Path, filename: &str, bytes: &[u8], sync: RecordSync) -> Result<(), LandingError> {
+    return write_record(directory, filename, bytes, sync).map_err(LandingError::Journal);
 }
 
 /// What:
@@ -537,7 +530,8 @@ fn complete_landing(
         return Err(LandingError::Journal(String::from("the real index lock is not held")));
     };
     installing.install(post).map_err(LandingError::Recovery)?;
-    write_journal(workspace.directory.as_path(), INDEX_INSTALLED_FILENAME, b"")?;
+    // An empty, halved or lost marker completes in the tearing table (`doc/planning/cli-git-spawn-and-sync-reduction.md`).
+    write_journal(workspace.directory.as_path(), INDEX_INSTALLED_FILENAME, b"", RecordSync::Nothing)?;
     reach(Phase::IndexInstalled)?;
     if matches!(request.payload, LandingPayload::Commit { .. }) {
         reproduce_conclusion_cleanup(
@@ -658,6 +652,8 @@ fn record_landing(
         workspace.directory.as_path(),
         landing_record_filename(request.attempt).as_str(),
         encode_landing(&record).as_bytes(),
+        // The barrier before the compare-and-swap: the record and its directory entry reach the disk first.
+        RecordSync::FileAndDirectory,
     )?;
     return Ok(post);
 }
@@ -729,7 +725,13 @@ fn advance_target(
     }
     // From here recovery finds the landed commit by its nonce and installs the index through this lock.
     held.for_recovery = true;
-    write_journal(workspace.directory.as_path(), REF_UPDATED_FILENAME, encode_ref_updated(new_oid).as_bytes())?;
+    write_journal(
+        workspace.directory.as_path(),
+        REF_UPDATED_FILENAME,
+        encode_ref_updated(new_oid).as_bytes(),
+        // A record whose name a power loss took completes in the tearing table, so only the file is synced.
+        RecordSync::FileOnly,
+    )?;
     reach(Phase::RefUpdated)?;
     remove_pack_keep(objects, pack_name).map_err(LandingError::Recovery)?;
     record_landed_capture_or_warn(

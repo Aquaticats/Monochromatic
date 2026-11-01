@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::capture_store::{SEQUENCE_FILENAME, WORKTREE_ID_FILENAME};
-use crate::private_storage::take_directory_syncs;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
 use crate::transaction_registry::{OWNER_FILENAME, TRANSACTION_ROOT_NAME};
 
@@ -204,16 +204,17 @@ fn a_repeated_landing_record_syncs_nothing() {
     )
     .expect("captured");
     let store: PathBuf = git_dir.join(crate::capture_store::CAPTURE_STORE_NAME);
-    let landed_directory: PathBuf = landed_record_directory(git_dir.as_path());
     take_directory_syncs();
+    take_file_syncs();
     assert_eq!(
         record_landed_capture(git_dir.as_path(), transaction.as_path(), "t", "c0"),
         Ok(true)
     );
-    assert_eq!(
-        take_directory_syncs(),
-        vec![git_dir.clone(), store.clone(), landed_directory.clone()]
-    );
+    // The creations are synced (the Git directory for the store, the store for the landed directory); the record
+    // itself is neither file-synced nor directory-synced.
+    assert_eq!(take_directory_syncs(), vec![git_dir.clone(), store.clone()]);
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new());
+    assert!(landed_record_directory(git_dir.as_path()).join("c0.json").is_file());
     assert_eq!(
         record_landed_capture(git_dir.as_path(), transaction.as_path(), "t", "c0"),
         Ok(true)

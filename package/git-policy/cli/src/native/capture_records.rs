@@ -28,8 +28,8 @@ use super::diagnostic_log::{debug, warn};
 use super::json_record::{
     MAX_SAFE_INTEGER, ObjectWriter, parse_object, safe_integer, string_array,
 };
-/// Private exclusive files and directory syncs.
-use super::private_storage::{sync_directory, write_private_file};
+/// Private exclusive files, written without a sync.
+use super::private_storage::write_private_file_unsynced;
 /// The journal schema version `captured.json` shares.
 use super::transaction_journal::JOURNAL_SCHEMA_VERSION;
 /// Registry listing and root creation.
@@ -387,17 +387,12 @@ pub fn record_landed_capture(
         worktree_paths: captured.worktree_paths,
     };
     let path: PathBuf = directory.join(format!("{landed_oid}{LANDED_RECORD_SUFFIX}"));
-    match write_private_file(
+    // Unsynced, file and directory: a torn or lost landed record completes in the tearing table at every phase.
+    match write_private_file_unsynced(
         path.as_path(),
         encode_landed_capture_record(&record).as_bytes(),
     ) {
         Ok(()) => {
-            if let Err(error) = sync_directory(directory.as_path()) {
-                return Err(CaptureError(format!(
-                    "syncing {} failed: {error}",
-                    directory.display()
-                )));
-            }
             debug(
                 "recordLandedCapture",
                 format!(

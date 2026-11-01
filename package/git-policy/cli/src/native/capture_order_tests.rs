@@ -4,7 +4,7 @@
 use super::*;
 use crate::capture_records::read_captured_record;
 use crate::capture_store::CAPTURE_STORE_NAME;
-use crate::private_storage::take_directory_syncs;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::transaction_git::run_git_checked;
 
@@ -326,5 +326,34 @@ fn capture_commit_content_journals_the_stamp_and_the_listing() {
     assert_eq!(record.next_sequence_before_base, 1);
     assert!(record.worktree_paths.is_empty());
     assert_eq!(read_captured_record(directory.as_path()).expect("read"), Some(record));
+    remove(root.as_path());
+}
+
+/// `captured.json` is written without a file sync, and the sequence and identity files keep theirs.
+#[test]
+fn only_the_captured_record_is_written_without_a_file_sync() {
+    let root: PathBuf = fixture("capture-order-file-sync");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let store: PathBuf = git_dir.join(CAPTURE_STORE_NAME);
+    take_file_syncs();
+    capture_in_order(git_dir.as_path(), nothing).expect("capture");
+    let synced: Vec<PathBuf> = take_file_syncs();
+    // The capture lock's owner record, the worktree identity and the sequence file, in that order.
+    assert_eq!(synced.len(), 3, "{synced:?}");
+    assert!(synced[0].ends_with("owner.json"), "{synced:?}");
+    assert_eq!(synced[1], store.join(WORKTREE_ID_FILENAME));
+    assert!(synced[2].starts_with(store.as_path()) && synced[2].to_string_lossy().contains(SEQUENCE_FILENAME), "{synced:?}");
+    let directory: PathBuf = root.join("transaction");
+    std::fs::create_dir(&directory).expect("transaction directory");
+    let record: CapturedRecord = CapturedRecord {
+        worktree_id: String::from("w"),
+        sequence: 1,
+        next_sequence_before_base: 1,
+        worktree_paths: Vec::new(),
+    };
+    take_file_syncs();
+    write_captured_record(directory.as_path(), &record).expect("write");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new());
     remove(root.as_path());
 }

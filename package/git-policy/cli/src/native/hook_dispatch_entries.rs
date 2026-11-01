@@ -20,7 +20,7 @@ use super::hook_dispatch_plan::{
     HookDispatchPlan, PLAN_FILENAME, PREPARATION_HOOK_EVENTS, encode_hook_dispatch_plan,
 };
 /// Private directory creation and exclusive private file writes.
-use super::private_storage::{create_private_directory, write_private_file};
+use super::private_storage::{create_private_directory, write_private_file_unsynced};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -134,7 +134,8 @@ pub fn write_hook_dispatch(
     })?;
     let plan_path: PathBuf = hooks_directory.join(PLAN_FILENAME);
     let plan_bytes: String = format!("{}\n", encode_hook_dispatch_plan(plan));
-    write_private_file(plan_path.as_path(), plan_bytes.as_bytes()).map_err(|error| {
+    // Unsynced: an empty, halved or lost plan completes or discards in the tearing table at every phase.
+    write_private_file_unsynced(plan_path.as_path(), plan_bytes.as_bytes()).map_err(|error| {
         return HookEntryError(format!(
             "cannot write the hook plan {}: {error}",
             plan_path.display()

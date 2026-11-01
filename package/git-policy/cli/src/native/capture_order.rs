@@ -26,9 +26,9 @@ use super::capture_store::{
 };
 /// Record encoding and the `captured.json` name.
 use super::capture_records::{CapturedRecord, encode_captured_record};
-/// Exclusive durable writes and directory sync.
+/// Exclusive writes, durable and not, and directory sync.
 use super::private_storage::{
-    sync_directory, write_exclusive_synced, write_private_file,
+    sync_directory, write_exclusive_unsynced, write_private_file,
 };
 /// Owner lock acquisition, its poll delay, its silent wait notice and its failure.
 use super::live_lock::acquire_live_owner_lock;
@@ -228,17 +228,20 @@ pub fn capture_in_order<Value, Failure: From<CaptureOrderError>>(
 }
 
 /// What:
-///  Writes `captured.json` exclusively and makes it durable.
+///  Writes `captured.json` exclusively and whole, without syncing it.
 /// Why:
 ///   A transaction directory holds one captured record,
 ///  and a second write means a bug, so the exclusive open refuses it.
+///  A torn or lost record only costs a warning and subsumption in later replays (the tearing table in
+///  `doc/planning/cli-git-spawn-and-sync-reduction.md`), so no flush is worth waiting for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await writeCapturedRecord({ directory, record });
 /// ```
 pub fn write_captured_record(directory: &Path, record: &CapturedRecord) -> Result<(), CaptureOrderError> {
-    return write_exclusive_synced(
+    // Unsynced: a torn or lost record costs a warning and subsumption in later replays, not the landing.
+    return write_exclusive_unsynced(
         directory.join(CAPTURED_FILENAME).as_path(),
         encode_captured_record(record).as_bytes(),
     )

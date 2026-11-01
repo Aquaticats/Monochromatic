@@ -37,7 +37,8 @@ use super::index_writer_coordination::{CoordinationFailure, wait_for_lock};
 #[cfg(unix)]
 use super::filesystem_identity::filesystem_identity;
 /// Announcing this process through the PID file, the journal record, and the lock's mode.
-use super::private_storage::{protect_path, sync_directory, write_private_file};
+use super::journal_record::{RecordSync, write_record};
+use super::private_storage::{protect_path, write_private_file_unsynced};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -485,7 +486,8 @@ pub fn acquire_real_index_lock(
 ) -> Result<RealIndexLock, CoordinationFailure> {
     let (lock_path, identity): (PathBuf, LockIdentity) = create_identified_lock(real_index, timeout_ms, consequence)?;
     let pid_path: PathBuf = real_pid_path(real_index);
-    if let Err(error) = write_private_file(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
+    // The PID file is unsynced: a torn or lost one completes or discards in the tearing table.
+    if let Err(error) = write_private_file_unsynced(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
         let _ = std::fs::remove_file(lock_path.as_path());
         return Err(CoordinationFailure::Stop(error.to_string()));
     }
@@ -498,29 +500,28 @@ pub fn acquire_real_index_lock(
 }
 
 /// What:
-///  Write `index-lock-<n>.json` for a lock just created,
-///  then make the directory entry durable.
+///  Write `index-lock-<n>.json` for a lock just created and sync the file, not its directory.
 /// Why:
 ///   Recovery can prove ownership of the lock before any landing record exists,
-///  so the record must be durable before the PID file announces the lock.
+///  so the bytes must be durable before the PID file announces the lock.
+///  The transaction directory's entry is made durable by the directory sync of `landing-<n>.json`, before the branch
+///  moves; a name lost earlier leaves the state of a kill between creating the lock and writing its record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeJournalRecord({ directory: transactionDirectory, filename: indexLockRecordFilename(attempt), record });
+/// await writeJournalRecord({ directory: transactionDirectory, filename: indexLockRecordFilename(attempt), record, sync: 'file' });
 /// ```
 fn write_lock_record(transaction_directory: &Path, attempt: i64, identity: &LockIdentity) -> Result<(), String> {
     let record: IndexLockRecord = IndexLockRecord {
         attempt,
         lock: identity.clone(),
     };
-    let path: PathBuf = transaction_directory.join(index_lock_record_filename(attempt));
-    if let Err(error) = write_private_file(path.as_path(), encode_index_lock(&record).as_bytes()) {
-        return Err(format!("writing {} failed: {error}", path.display()));
-    }
-    if let Err(error) = sync_directory(transaction_directory) {
-        return Err(format!("syncing {} failed: {error}", transaction_directory.display()));
-    }
-    return Ok(());
+    return write_record(
+        transaction_directory,
+        index_lock_record_filename(attempt).as_str(),
+        encode_index_lock(&record).as_bytes(),
+        RecordSync::FileOnly,
+    );
 }
 
 /// What:
@@ -616,7 +617,8 @@ fn announce_held_lock(real_index: &Path, lock_path: &Path) -> Result<(), String>
         return Err(format!("protecting {} failed: {error}", lock_path.display()));
     }
     let pid_path: PathBuf = real_pid_path(real_index);
-    match write_private_file(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
+    // Unsynced, as in `acquire_real_index_lock`: a torn or lost PID file completes or discards in the tearing table.
+    match write_private_file_unsynced(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             debug(TAG, format!("a PID file already exists beside the lock: {}", pid_path.display()).as_str());
