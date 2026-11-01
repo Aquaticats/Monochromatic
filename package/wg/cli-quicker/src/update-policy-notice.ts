@@ -141,45 +141,38 @@ export function policiesNotInForceWithTableOff(): string {
 }
 
 /**
- Builds the loud report for a start where the Rust companion cannot be found.
+ Builds the message of the error that stops a start whose config sets `ExemptMark`
+ when the Rust companion cannot be found.
 
- The companion runs the process watch and marks the sockets of application and update cgroups,
- so without it neither policy is in force.
+ The companion runs the process watch and marks the sockets of application and update cgroups.
+ The owner chose that such a start fails and rolls back:
+ "`up` fails and rolls back, as before this branch."
  Only root-controlled locations are searched,
  and the caller's own `PATH` is never searched,
  because it could name a different program to run as root.
 
  @param searched - Every location that was looked at.
 
- @returns One report naming both policies.
+ @returns The message naming the places searched and how to install the program.
 
  @example
  ```ts
- watcherMissingReport({ searched: ['/usr/bin/wg-quicker-exempt'] });
+ watcherMissingAbortMessage({ searched: ['/usr/bin/wg-quicker-exempt'] });
  ```
  */
-export function watcherMissingReport({ searched, }: { readonly searched: readonly string[]; },): string {
+export function watcherMissingAbortMessage({ searched, }: { readonly searched: readonly string[]; },): string {
   /**
    What was looked at,
    in words.
    */
   const where = searched.length === 0 ? 'no location' : searched.join(', ',);
-  /**
-   Why and what to do,
-   shared by both policies.
-   */
-  const cause = `wg-quicker-exempt was not found in any root-controlled location (searched: ${where}), `
-    + 'and the caller\'s own PATH is never searched, because it could name a different program to run as root';
-  return `${policyNotInForce({
-    policy: POLICY_PROCESS_WATCH,
-    detail: `${cause}, so no process is moved into the exempt slice. `
-      + 'Build it with `mise run //package/wg/cli-quicker-exempt:build` or install it where sudo\'s secure_path finds it, '
-      + 'then bring this interface down and up again',
-  },)}; ${policyNotInForce({
-    policy: POLICY_SOCKET_MARKING,
-    detail: 'the same program marks the sockets, so no application or update cgroup is marked; '
-      + 'the update-host rules do not need it and are unaffected',
-  },)}`;
+  return `wg-quicker-exempt was not found in any root-controlled location (searched: ${where}), `
+    + 'and this config sets ExemptMark, so the process watch and the socket marking cannot run. '
+    + 'The start stops here and is rolled back: the tunnel is not left up, and traffic goes direct. '
+    + 'Build the program with `mise run //package/wg/cli-quicker-exempt:build` '
+    + 'or install it where sudo\'s secure_path finds it, then run `wg-quicker up` again. '
+    + 'The caller\'s own PATH is never searched, because it could name a different program to run as root. '
+    + 'A config without ExemptMark does not need the program.';
 }
 
 /**

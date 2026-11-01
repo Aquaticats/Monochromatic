@@ -9,6 +9,7 @@ import {
   applicationWatchStopArgs,
   resolveApplicationUid,
   startApplicationExemptions,
+  startExemptionsOrAbort,
   startupFailureLines,
   stopApplicationExemptions,
 } from '../dist/final/node/application-exemption.mjs';
@@ -151,7 +152,7 @@ await describe({
   name: startApplicationExemptions.name,
   children: [
     it({
-      name: 'does not start, does not throw and reports both policies as not in force when the companion is missing',
+      name: 'does not start, does not throw and returns the message with every searched location when the companion is missing',
       fn: async () => {
         /**
          Commands the start tried to run.
@@ -172,15 +173,16 @@ await describe({
         expect(ran,).toEqual([],);
         expect(outcome.ok,).toBe(false,);
         /**
-         Report carried by the failed outcome.
+         Message carried by the failed outcome.
          */
-        const report = outcome.ok ? '' : outcome.report;
-        expect(report,).toContain('POLICY NOT IN FORCE',);
-        expect(report,).toContain(POLICY_PROCESS_WATCH,);
-        expect(report,).toContain(POLICY_SOCKET_MARKING,);
-        expect(report,).toContain('/usr/bin/wg-quicker-exempt',);
-        expect(report,).toContain('the caller\'s own PATH is never searched',);
-        expect(report,).toContain('mise run //package/wg/cli-quicker-exempt:build',);
+        const message = outcome.ok ? '' : outcome.message;
+        expect(message,).toContain('/usr/bin/wg-quicker-exempt',);
+        expect(message,).toContain('The caller\'s own PATH is never searched',);
+        expect(message,).toContain('mise run //package/wg/cli-quicker-exempt:build',);
+        expect(outcome.ok ? [] : outcome.searched,).toEqual([
+          '/repo/package/wg/cli-quicker-exempt/target/release/wg-quicker-exempt',
+          '/usr/bin/wg-quicker-exempt',
+        ],);
       },
     },),
     it({
@@ -206,6 +208,67 @@ await describe({
         expect(ran,).toHaveLength(1,);
         expect(ran[0]?.command,).toBe('/usr/bin/wg-quicker-exempt',);
         expect(ran[0]?.args.slice(0, 3,),).toEqual(['watch-start', 'wg0', '100',],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: startExemptionsOrAbort.name,
+  children: [
+    it({
+      name: 'throws the missing-watcher error naming the searched paths and how to install, and runs nothing, when the companion is missing',
+      fn: async () => {
+        /**
+         Commands the start tried to run.
+         */
+        const ran: string[] = [];
+        /**
+         Error the abort threw.
+         */
+        const error = await startExemptionsOrAbort({
+          interfaceName: 'wg0',
+          mark: 100,
+          start: (call,) => startApplicationExemptions({
+            ...call,
+            resolveCommand: () => Promise.resolve(NOT_FOUND,),
+            runCommand: (command,) => {
+              ran.push(command.command,);
+              return Promise.resolve({ stdout: '', stderr: '', },);
+            },
+          },),
+        },).then(
+          () => new Error('The start did not throw.',),
+          (thrown: unknown,) => thrown,
+        );
+        expect(ran,).toEqual([],);
+        expect(Error.isError(error,),).toBe(true,);
+        expect((error as Error).name,).toBe('WatcherMissingError',);
+        expect((error as Error).message,).toContain('/repo/package/wg/cli-quicker-exempt/target/release/wg-quicker-exempt, /usr/bin/wg-quicker-exempt',);
+        expect((error as Error).message,).toContain('mise run //package/wg/cli-quicker-exempt:build',);
+        expect((error as Error).message,).toContain('rolled back',);
+      },
+    },),
+    it({
+      name: 'returns normally and runs the watcher start when the companion is found',
+      fn: async () => {
+        /**
+         Commands the start ran.
+         */
+        const ran: string[] = [];
+        await startExemptionsOrAbort({
+          interfaceName: 'wg0',
+          mark: 100,
+          start: (call,) => startApplicationExemptions({
+            ...call,
+            resolveCommand: () => Promise.resolve({ found: true, path: '/usr/bin/wg-quicker-exempt', },),
+            runCommand: (command,) => {
+              ran.push(command.command,);
+              return Promise.resolve({ stdout: '', stderr: '', },);
+            },
+          },),
+        },);
+        expect(ran,).toEqual(['/usr/bin/wg-quicker-exempt',],);
       },
     },),
   ],

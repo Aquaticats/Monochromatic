@@ -338,12 +338,14 @@ then the absolute directories of the privileged `PATH`,
 which under `sudo` is its `secure_path`.
 The caller's own `PATH` is never searched,
 and a relative or empty `PATH` entry is skipped because it means the current directory.
-When nothing is found,
-`up` does not fail and does not search further:
-it prints `POLICY NOT IN FORCE` for the process-watch policy and for the socket-marking policy,
-naming every location it searched and the build command,
-and goes on with the tunnel and the update-host rules,
-which do not need the companion.
+When nothing is found and the config sets `ExemptMark`,
+`up` does not search further and does not go on:
+it throws a `WatcherMissingError` that names every location it searched and says how to install the program,
+and the failure runs the same rollback as any other failed step of the up,
+so the tunnel is not left up and traffic goes direct.
+The owner chose that,
+see "A missing watcher stops `up`" below.
+A config without `ExemptMark` never looks for the program.
 `down` reports instead of failing when the companion is missing,
 so tearing the tunnel down is never blocked;
 it says that a watcher an earlier run started may still run.
@@ -499,6 +501,35 @@ recorded here so a later review does not mistake them for a gap.
 `run-subcommand.unit.test.ts` checks that `up` runs after the report in both cases,
 that the report comes first,
 and that `down` prints no start report.
+
+### A missing watcher stops `up`
+
+A config that sets `ExemptMark` needs `wg-quicker-exempt`,
+which runs the process watch and marks the sockets.
+When the program cannot be found in a root-controlled location,
+the owner chose "Abort up as before".
+The owner's words,
+verbatim:
+
+> `up` fails and rolls back,
+as before this branch.
+
+So `up` throws a `WatcherMissingError` from the exemption step,
+the rollback of `up` removes what the earlier steps did,
+and the message names the locations searched,
+the build command `mise run //package/wg/cli-quicker-exempt:build`,
+and the option of installing the program where sudo's `secure_path` finds it.
+The caller's own `PATH` is still never searched.
+A config without `ExemptMark` is not affected,
+which is the owner's earlier decision above.
+`tunnel-up.unit.test.ts` runs the real `up` sequence over recording steps and the real exemption step:
+a missing program with `ExemptMark` stops the up,
+runs the rollback once and skips the post hooks;
+no `ExemptMark` goes on without the exemption step;
+a found program is run once;
+and any other failing step is rolled back and rethrown.
+The real `up` needs root,
+so only this sequence is covered here.
 
 ### Three methods, one union
 

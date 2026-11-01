@@ -18,7 +18,7 @@ import {
   startNotices,
   updatePolicyNotice,
   watcherMissingAtStopReport,
-  watcherMissingReport,
+  watcherMissingAbortMessage,
 } from '../dist/final/node/update-policy-notice.mjs';
 
 /**
@@ -318,28 +318,28 @@ await describe({
 },);
 
 await describe({
-  name: watcherMissingReport.name,
+  name: watcherMissingAbortMessage.name,
   children: [
     it({
-      name: 'names both policies, every searched location, the build command and that the caller path is never searched',
+      name: 'names every searched location, that the start is rolled back, how to install, and that the caller path is never searched',
       fn: async () => {
         /**
-         Report for a start where the companion is missing.
+         Message for a start where the companion is missing.
          */
-        const report = watcherMissingReport({ searched: ['/repo/a/wg-quicker-exempt', '/usr/bin/wg-quicker-exempt',], },);
+        const message = watcherMissingAbortMessage({ searched: ['/repo/a/wg-quicker-exempt', '/usr/bin/wg-quicker-exempt',], },);
         for (
           const phrase of [
-            'POLICY NOT IN FORCE',
-            POLICY_PROCESS_WATCH,
-            POLICY_SOCKET_MARKING,
             '/repo/a/wg-quicker-exempt, /usr/bin/wg-quicker-exempt',
-            'the caller\'s own PATH is never searched',
+            'this config sets ExemptMark',
+            'The start stops here and is rolled back',
             'mise run //package/wg/cli-quicker-exempt:build',
-            'the update-host rules do not need it',
+            'secure_path',
+            'The caller\'s own PATH is never searched',
+            'A config without ExemptMark does not need the program',
           ]
         )
-          expect(report,).toContain(phrase,);
-        expect(watcherMissingReport({ searched: [], },),).toContain('searched: no location',);
+          expect(message,).toContain(phrase,);
+        expect(watcherMissingAbortMessage({ searched: [], },),).toContain('searched: no location',);
       },
     },),
     it({

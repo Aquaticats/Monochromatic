@@ -37,6 +37,7 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/opensnitch-toolchain-rules.ts',
     './src/opensnitch-rules-command.ts',
     './src/tunnel.ts',
+    './src/tunnel-up.ts',
     './src/config.ts',
     './src/tunnel-bypass.ts',
     './src/tunnel-bypass-route.ts',

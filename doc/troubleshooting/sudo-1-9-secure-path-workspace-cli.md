@@ -240,7 +240,7 @@ and invalid home.
 the secure path,
 a caller path that is never searched,
 relative path entries that are skipped,
-and a missing companion that is reported with every searched location.
+and a missing companion that stops a start with every searched location.
 
 Verification commands:
 
@@ -273,7 +273,7 @@ and restores only allowlisted values.
 Application watcher uses sudo identity for desktop cgroup selection.
 Source-file `~` expansion and ASN cache selection retain caller context.
 Rust companion resolves to the exact paired workspace or privileged-path executable,
-and a missing companion is reported loudly at start.
+and a missing companion stops a start with `ExemptMark` and rolls it back.
 
 Tradeoff:
 this intentionally executes current user-owned workspace runtime,
@@ -308,6 +308,8 @@ and package currently targets repository-local development rather than published
   and companion selection.
 - Resolving `wg-quicker-exempt` only after interface setup:
   discovers missing companion after network mutation.
+  The owner chose that this failure aborts and rolls back through the existing cleanup of `up`,
+  so the mutation is undone.
 - Re-executing by bare `node` and bare `wg-quicker`:
   both names can disappear or resolve differently under `secure_path`.
 
@@ -358,5 +360,12 @@ Each let the caller choose which program runs as root in place of the update-tra
 or which user it follows,
 and the owner's policy is that the behavior has no toggle and always enforces the policy.
 The companion is now found only in the paired repository build and the privileged `PATH`;
-a missing companion is reported as `POLICY NOT IN FORCE` and never searched for in the caller's `PATH`.
+a missing companion was first reported as `POLICY NOT IN FORCE` and never searched for in the caller's `PATH`.
+Later the owner chose "Abort up as before",
+verbatim "`up` fails and rolls back,
+as before this branch":
+a config with `ExemptMark` whose companion is not found now stops `up` with `WatcherMissingError`,
+naming the searched locations and how to install,
+and rolls back through the cleanup of `up`.
+A config without `ExemptMark` is unaffected.
 Text above that names the removed settings is kept as the record of the first design.

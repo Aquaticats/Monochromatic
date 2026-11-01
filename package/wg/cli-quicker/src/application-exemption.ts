@@ -2,14 +2,17 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { sanitizeText, } from './escape-text.ts';
-import { BypassRouteError, } from './errors.ts';
+import {
+  BypassRouteError,
+  WatcherMissingError,
+} from './errors.ts';
 import {
   run,
 } from './runner.ts';
 import {
   POLICY_NOT_IN_FORCE_MARKER,
   watcherMissingAtStopReport,
-  watcherMissingReport,
+  watcherMissingAbortMessage,
 } from './update-policy-notice.ts';
 import {
   BYPASS_STATE_ABSENT,
@@ -197,7 +200,18 @@ export function startupFailureLines({ stderr, }: { readonly stderr: string; },):
 }
 
 /**
- What starting or stopping the watcher led to.
+ What starting the watcher led to.
+ */
+export type StartOutcome =
+  | { readonly ok: true; }
+    | {
+      readonly ok: false;
+      readonly message: string;
+      readonly searched: readonly string[]
+    };
+
+/**
+ What stopping the watcher led to.
  */
 export type ExemptionOutcome =
   | { readonly ok: true; }
@@ -220,9 +234,10 @@ export type ExemptionOutcome =
  replaceable in tests.
  
  @returns Success,
- or the loud report saying neither the process watch nor the socket marking is in force.
- A missing companion does not throw and does not stop the tunnel,
- because the update-host rules and the tunnel itself do not need it.
+ or the message saying the companion was not found,
+ with every location searched.
+ A missing companion does not throw here:
+ the caller decides, and `startExemptionsOrAbort` stops the start.
  
  @example
  ```ts
@@ -241,7 +256,7 @@ export async function startApplicationExemptions(
     readonly resolveCommand?: typeof resolveApplicationExemptionCommand;
     readonly runCommand?: typeof run;
   },
-): Promise<ExemptionOutcome> {
+): Promise<StartOutcome> {
   /**
    Function-scoped lifecycle logger.
    */
@@ -276,13 +291,14 @@ export async function startApplicationExemptions(
   const command = await resolveCommand();
   if (!command.found) {
     /**
-     Loud report that neither policy is in force.
+     Message for the error that stops the start.
      */
-    const report = watcherMissingReport({ searched: command.searched, },);
-    fl.error(report,);
+    const message = watcherMissingAbortMessage({ searched: command.searched, },);
+    fl.error(message,);
     return {
       ok: false,
-      report,
+      message,
+      searched: command.searched,
     };
   }
   /**
@@ -300,6 +316,49 @@ export async function startApplicationExemptions(
   for (const line of startupFailureLines({ stderr: started.stderr, },))
     fl.error(line,);
   return { ok: true, };
+}
+
+/**
+ Starts the watcher and stops the start when the program cannot be found.
+
+ @param interfaceName - Stable watcher key and tunnel owner.
+
+ @param mark - Socket mark routed through bypass table.
+
+ @param start - Starter of the watcher,
+ replaceable in tests.
+
+ @throws {@link WatcherMissingError} when the program is in no root-controlled location,
+ so the caller rolls the start back.
+
+ @example
+ ```ts
+ await startExemptionsOrAbort({ interfaceName: 'wg0', mark: 100 });
+ ```
+ */
+export async function startExemptionsOrAbort(
+  {
+    interfaceName,
+    mark,
+    start = startApplicationExemptions,
+  }: {
+    readonly interfaceName: string;
+    readonly mark: number;
+    readonly start?: typeof startApplicationExemptions;
+  },
+): Promise<void> {
+  /**
+   What the start led to.
+   */
+  const outcome = await start({
+    interfaceName,
+    mark,
+  },);
+  if (!outcome.ok)
+    throw new WatcherMissingError({
+      message: outcome.message,
+      searched: outcome.searched,
+    },);
 }
 
 /**
