@@ -1302,3 +1302,28 @@ pub mod service_review;
 
 /// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
 pub mod service_review_key;
+
+/// The typed failure of one Linux filesystem primitive:
+///  the call, the path and the error number.
+#[cfg(target_os = "linux")]
+pub mod fs_primitive_error;
+
+/// Which filesystem holds a path (btrfs, overlayfs, other) and whether a directory is a btrfs subvolume root.
+#[cfg(target_os = "linux")]
+pub mod fs_kind;
+
+/// The mount of a path read from `/proc/self/mountinfo`, with its options (`user_subvol_rm_allowed`).
+#[cfg(target_os = "linux")]
+pub mod fs_mount_options;
+
+/// The btrfs ioctls that create, snapshot and destroy a subvolume, called in process.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl;
+
+/// `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
+#[cfg(target_os = "linux")]
+pub mod fs_clone_exchange;
+
+/// The btrfs fixture root of the primitive and migration controls, and the loud report where there is none.
+#[cfg(all(test, target_os = "linux"))]
+mod fs_btrfs_test_support;
