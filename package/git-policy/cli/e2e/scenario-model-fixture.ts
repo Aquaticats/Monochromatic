@@ -26,6 +26,7 @@ import {
   workloadDigest,
 } from './ledger-fixture.ts';
 import { observeRun, } from './observation-fixture.ts';
+import { startScenarioService, } from './service-fixture.ts';
 import { killActiveGroups, } from './process-fixture.ts';
 import {
   createScenarioRepository,
@@ -410,12 +411,17 @@ export async function runScenario({
      */
     const options = definition.repository(random.fork('repository',),);
     /**
+     The scenario's own commit service, stopped when the scenario ends.
+     */
+    await using service = await startScenarioService({ root, },);
+    /**
      Fresh repositories.
      */
     const repository = await createScenarioRepository({
       root,
       gitVersion,
       options,
+      service,
     },);
     /**
      Cancels the timeout once the workload settles.
@@ -474,6 +480,8 @@ export async function runScenario({
      Scenario-specific expectations.
      */
     const { expectations, } = first;
+    // A scenario that killed the service leaves it for the observation, which waits for the after-commit work.
+    await service.ensureRunning();
     /**
      Repository and ledger facts.
      */

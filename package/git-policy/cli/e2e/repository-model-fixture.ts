@@ -5,6 +5,7 @@
  */
 
 import type { HookEvent, } from './hook-program-fixture.ts';
+import type { ScenarioService, } from './service-fixture.ts';
 
 //region Types
 
@@ -93,6 +94,14 @@ export type ScenarioRepository = Readonly<{
    Holding editor program.
    */
   editorProgram: string;
+  /**
+   Scripted editor program that marks and holds two points of a commit's preparation.
+   */
+  scriptedEditorProgram: string;
+  /**
+   The scenario's commit service.
+   */
+  service: ScenarioService;
   /**
    Environment whose PATH puts the wrapper first.
    */
