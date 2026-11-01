@@ -228,8 +228,10 @@ Children:
 Savings are in sync calls per warm commit (cold commits save the same, because none of these are cold-only).
 Status: removals 1, 2 and 3 are implemented (the owner accepted the durability risk); 4 and 5 are not.
 The measured result of a changed build matches the arithmetic below exactly: wrapper syncs 33 to 19 cold and 28 to 14
-warm, in `binary_budget_tests.rs`. The tests, guards and findings are in `doc/planning/cli-git-spawn-and-sync-reduction.md`,
-section "J4 outcome"; the one case that does not converge is a lost `owner.json` name, which stops every guarded command.
+warm, in `binary_budget_tests.rs`. The tests, guards and findings are in
+`doc/planning/cli-git-spawn-and-sync-reduction.md`, section "J4 outcome". Two cases do not converge: a lost `owner.json`
+name stops every guarded command, and a lost `preparing.json` or `index-lock-1.json` name next to a held `index.lock`
+makes every commit exit 2 until the lock is removed by hand.
 The text below is the ranking as it stood before the changes.
 
 1.  Drop the syncs of records the tearing harness shows to be benign: `captured.json`, `hooks/plan.json`,

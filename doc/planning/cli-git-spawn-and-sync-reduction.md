@@ -559,21 +559,26 @@ before the barrier where the loss is reachable:
   `published_owners_must_be_valid` in `recovery_inspect_tests.rs`. Open: whether to accept that, make recovery remove
   such a directory when it holds no landing record, or put the candidate directory sync back (one call per commit).
 
-The stale `index.lock` of the first two bullets is not new. It is the state a kill between creating the lock and writing
-its record leaves today. The wrapper cannot prove the lock is its own, so every commit waits `indexLock.unprovenOwnerTimeoutMs`
-and stops with `index-lock-unproven-owner` ("Remove the lock only after confirming no Git process is using this
-repository"), the same as for any foreign stale lock; nothing is lost and the commit that landed nothing leaves the
-worktree edit intact.
+The "leaves `index.lock`" outcome of the first two bullets does not converge either, and the exposure grew. The wrapper
+cannot prove the lock is its own, so `git status` works but every commit waits `indexLock.unprovenOwnerTimeoutMs`,
+stops with exit 2 and `index-lock-unproven-owner` ("Remove the lock only after confirming no Git process is using this
+repository"), and does so again on every later commit (three rounds were run) until the lock is removed by hand.
+Nothing is lost and the edit stays intact. The state is not new: a kill between creating the lock and writing its
+record leaves it today. What changed is the window. The directory sync after `index-lock-1.json` closed the gap
+between creating the lock and the entry of its record; the gap now stays open until the directory sync of
+`landing-1.json`, and a power loss anywhere in it can take the record's name.
 
 Guards shown failing, then restored: restoring any one of the nine syncs fails the unit pin of its writer and all four
 budget scenarios by one or two calls (all six file syncs at once: 30 observed against 24 budgeted on the cold commit;
 all three directory syncs at once: 27 against 24); `the_files_snapshot_is_not_synced` and the budgets fail with the
 shadow sync restored (24 against 23 cold); the budgets fail with the `preparing.json` directory sync restored (20
 against 19) and with the `ref-updated.json` directory sync restored (20 against 19), and
-`a_landing_lock_syncs_its_record_file_only` and `publication_syncs_the_owner_file_and_the_registry_and_not_the_candidate`
-fail with the lock record's directory sync and the candidate sync restored. For the lost-name tests, making recovery
-refuse a missing `preparing.json`, a missing `ref-updated.json` or a lock record missing while a PID file exists fails
-`a_lost_preparing_name_equals_a_preparing_record_never_written`, `a_lost_ref_updated_name_still_completes_the_landing` and
+`a_landing_lock_syncs_its_record_file_only` and
+`publication_syncs_the_owner_file_and_the_registry_and_not_the_candidate` fail with the lock record's directory sync
+and the candidate sync restored. For the lost-name tests, making recovery refuse a missing `preparing.json`, a missing
+`ref-updated.json` or a lock record missing while a PID file exists fails
+`a_lost_preparing_name_equals_a_preparing_record_never_written`,
+`a_lost_ref_updated_name_still_completes_the_landing` and
 `a_lost_index_lock_name_equals_a_lock_record_never_written`.
 
 Wrapper syncs of the budget scenarios, before and after (the Git children's syncs are unchanged):
@@ -653,14 +658,16 @@ The ratchet tests are `src/native/binary_budget_tests.rs` (the constants and the
 (`git commit --quiet --message=x -- a.txt`) runs under `strace --follow-forks` on a disposable repository in four
 scenarios: no hooks, one hook defined in the configuration (`hook.<name>.event` and `hook.<name>.command`), `--amend`,
 and the second wrapped commit of a repository (warm, where Git's maintenance repacks and the creation syncs of a first
-commit do not happen). After the J4 removals the wrapper makes 19 syncs in a cold commit and 14 in a warm one. The tests count every `execve` of Git by subcommand, every start of another program, and every `fsync`,
+commit do not happen). After the J4 removals the wrapper makes 19 syncs in a cold commit and 14 in a warm one.
+The tests count every `execve` of Git by subcommand, every start of another program, and every `fsync`,
 `fdatasync`, `syncfs` and `sync_file_range` call, attributed to the wrapper process (threads included) or to the Git
 subcommand that made it. They compare exact counts with the constants, so a rise and a saving both fail, naming each
 figure that moved, and the constants are lowered in the same change that makes a commit cheaper; a rise needs a recorded
 reason. Zero entries (`findmnt`, `hash-object`) keep removed starts from returning. Background maintenance is kept in
-the foreground (`maintenance.autoDetach=false`, as `keep_maintenance_in_the_foreground` does), so a landing's
-`maintenance run --auto` is one counted start with no repack child. The `stat` figure depends on the temporary
-directory's filesystem (three `stat --file-system` starts without a filesystem UUID, such as tmpfs or overlayfs, none
+the foreground (`maintenance.autoDetach=false`, as `keep_maintenance_in_the_foreground` does), so in the cold scenarios
+a landing's `maintenance run --auto` is one counted start with no repack child; the warm scenario counts the `repack`,
+the `multi-pack-index write` and the three `pack-objects` the maintenance of the second commit starts. The `stat`
+figure depends on the temporary directory's filesystem (three `stat --file-system` starts without a filesystem UUID, such as tmpfs or overlayfs, none
 with one) and the test adjusts for it. A host without `strace` skips the tests with a printed message. Counts were
 measured with the host's Git 2.56.0, the version the gate builds; the gate run is the authority.
 

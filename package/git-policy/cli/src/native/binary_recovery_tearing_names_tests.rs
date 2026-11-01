@@ -128,6 +128,8 @@ fn a_lost_preparing_name_equals_a_preparing_record_never_written() {
 /// The name `index-lock-1.json` loses, compared at each phase that holds the real index lock with a repository where
 ///  the lock exists and neither its record nor its PID file does: a commit killed between creating the lock and writing
 ///  the record.
+///  Equal does not mean converged: both cells are `discards+residue!commit-exit-2`, a stale `index.lock` that fails every
+///  later commit until it is removed by hand, and the window for it is wider than before the directory sync was dropped.
 #[test]
 fn a_lost_index_lock_name_equals_a_lock_record_never_written() {
     for phase in ["landing-locked", "objects-migrated"] {
@@ -179,8 +181,11 @@ fn status_after_losing_the_owner_name(phase: &str) -> Probe {
 
 /// The owner record's name lost from the published directory (the candidate directory sync dropped): every phase before
 ///  the landing barrier sticks, and the failure names the directory.
+///  This pins a known gap, not a goal: the repository is stuck until the directory is removed by hand
+///  (`doc/planning/cli-git-spawn-and-sync-reduction.md`, section "J4 outcome"); a recovery that converges here should
+///  change this test.
 #[test]
-fn a_lost_owner_name_fails_closed_and_names_the_directory() {
+fn a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory() {
     for phase in PHASES_BEFORE_THE_LANDING_BARRIER {
         let first: Probe = status_after_losing_the_owner_name(phase);
         assert_eq!(first.code, Some(2), "{phase}: {}", first.stderr);
