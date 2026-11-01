@@ -812,8 +812,10 @@ which leaves their runs out of the count.
   the key hashes the version,
   the shape of the run and the texts a stage is given,
   and no stage asks or accepts anything differently.
-- The three commits of this round appear in the audit as source commits no account names,
+- The two source commits of this round (`8c607fdeb3` and `0bfa9e6a0`) appear in the audit as source commits no account
+  names,
   with every version listed as one they ride inside.
+  The red test commit holds no source and is not listed.
   They touch `page-check` alone,
   and `rg translation-repair-page-check package --glob package.json` lists `slice-cache`,
   `probe`,
@@ -835,6 +837,17 @@ Slips of the round:
   `0bfa9e6a0` fixes them,
   and the three new exports sit in `page-guard-reports.ts`,
   the module that already exports `pageThatParses`.
+- The whole source-scan suite,
+  run once on the docs commit,
+  found 3 things the oxlint run could not:
+  `FallbackPageRefusedError` was not in the marked-class inventory of `message-names-only.unit.test.ts`
+  and `checks.join` was not among its named parts,
+  a `@returns` of the new test helper opened with an article,
+  and the new test file held two top-level awaited describes.
+  The class and the part are listed,
+  the article is gone and the describes are one.
+  The 3 files then passed alone,
+  with oxlint and `lint:types` on `page-check` and `source-scan`.
 - `lint:types` of the four dependents first ran with no `dist` of their own,
   and printed `TS2307` and the implicit `any` it causes;
   it passed after their `build`.
@@ -843,7 +856,11 @@ Slips of the round:
   both stopped,
   and several placeholder monitors.
 - One read of a harness task output file under the session's `/tmp` folder (empty),
-  an `rg` and a `git log` with a count cap,
+  `rg` with `--max-count` twice and a `git log` with a count cap,
+  a `tail --lines` on this file,
+  a `cut` in a wait condition,
+  four Edit calls to this file in one block,
+  an oxlint run started while the fix commit's hook was still running,
   and one read of a 406 KB audit file that the tool refused and a second read of a slice of it.
 
 Open:

@@ -118,6 +118,7 @@ const MARKED_CLASSES: readonly string[] = [
   'EntryInfoParseError',
   'EnvelopeOverlapError',
   'EveryProviderDryError',
+  'FallbackPageRefusedError',
   'FamilyEntryConflictError',
   'FidelityReferenceError',
   'FloorGroundDisagreementError',
@@ -334,6 +335,8 @@ const NAMED_PARTS: Record<string, string> = {
   'String(unavailableCount,)': 'count of source-referenced assets without usable visual evidence',
   'String(sliceIndices.length,)': 'count',
   'sliceIndices.join(\', \',)': 'slice indexes',
+  'checks.join(\', \',)': 'defect names the publisher fixes (page-grammar-archive-kept, page-unparseable), all written in this '
+    + 'repository',
   'String(writes,)': 'schema version',
   'String(pinnedStart,)': 'number a launch pinned as the start of the bench, shown as it was given',
   'String(lastSeat,)': 'index of the last seat of the bench, a count less one',
