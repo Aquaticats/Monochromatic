@@ -1222,3 +1222,9 @@ mod no_self_invocation_tests;
 /// The structural check that the review's network client is reachable only from the service run; never in the release build.
 #[cfg(test)]
 mod standards_review_boundary_tests;
+
+/// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
+pub mod standards_review_append;
+
+/// The service's handler for a review work item, bounded by a call deadline and a total budget.
+pub mod service_review;

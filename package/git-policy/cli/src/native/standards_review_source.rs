@@ -76,6 +76,43 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
 }
 
 /// What:
+///  The names `git diff-tree` reports for the landed commit, read raw (NUL separated, so no name is quoted) in one start.
+///  A root commit and a merge report none.
+/// Why:
+///   The service has only the commit name; the landing's own list is not in the work item.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git('diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha).split('\0').filter(Boolean)
+/// ```
+pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<String>, String> {
+    let request: GitRequest = GitRequest::new(cwd, &["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha]);
+    let output = run_git(context, &request).map_err(|error| return format!("starting git diff-tree failed: {error}"))?;
+    if !output.succeeded() {
+        return Err(format!("git diff-tree {sha} failed: {}", output.error_text()));
+    }
+    return Ok(output.stdout.split(|byte| return *byte == 0).filter(|name| return !name.is_empty()).map(|name| return String::from_utf8_lossy(name).into_owned()).collect());
+}
+
+/// What:
+///  The commit message of `sha`, read in one start.
+/// Why:
+///   The subject is folded from it in-process (`commit_subject`), as `git log --format=%s` folds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git('show', '--no-patch', '--format=%B', sha)
+/// ```
+pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
+    let request: GitRequest = GitRequest::new(cwd, &["show", "--no-patch", "--format=%B", sha]);
+    let output = run_git(context, &request).map_err(|error| return format!("starting git show failed: {error}"))?;
+    if !output.succeeded() {
+        return Err(format!("git show {sha} failed: {}", output.error_text()));
+    }
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).into_owned());
+}
+
+/// What:
 ///  Read the patch and the excerpted files' new-side texts of a landed commit.
 ///  `code_files` are the code names in name order; only the first `MAX_EXCERPT_FILES` are fetched.
 /// Why:

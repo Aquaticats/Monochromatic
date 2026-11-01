@@ -20,13 +20,14 @@ use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::service_messages::push_failed_notice;
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use super::service_review::{BUDGET, options_for, review_item};
 use super::transaction_git::GitContext;
 use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_expired, settle};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
+pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
 
 /// How long a claim stands before it is taken back: longer than a push's whole budget, so a push that is merely slow is
 ///  never run twice at once.
@@ -53,6 +54,8 @@ pub trait WorkHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict;
     /// Run the repository's automatic upkeep.
     fn maintenance(&self, item: &WorkItem) -> Verdict;
+    /// Review one landed commit into the repository's shadow log.
+    fn review(&self, item: &WorkItem) -> Verdict;
 }
 
 /// The work directory of a repository.
@@ -157,7 +160,8 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
         }
         let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, common_dir); });
         settle_all(work_dir.as_path(), &refused, FAILED);
-        let (pushes, upkeep): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
+        let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
+        let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
         let mut groups: Vec<((String, String), Vec<super::work_item::Claimed>)> = Vec::new();
         for item in pushes {
             let key = (item.item.repository.clone(), item.item.branch_ref.clone());
@@ -188,6 +192,16 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                 }
             }
             settle_all(work_dir.as_path(), std::slice::from_ref(&item), DONE);
+        }
+        // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
+        for item in reviews {
+            match handlers.review(&item.item) {
+                Verdict::Done => settle_all(work_dir.as_path(), std::slice::from_ref(&item), DONE),
+                Verdict::Failed(reason) => {
+                    eprintln!("cli-git-service: the review of {} failed: {reason}", item.item.oid);
+                    settle_all(work_dir.as_path(), std::slice::from_ref(&item), FAILED);
+                }
+            }
         }
     }
 }
@@ -230,6 +244,10 @@ impl WorkHandlers for GitHandlers {
             Ok(_) => Verdict::Done,
             Err(error) => Verdict::Failed(format!("{error:?}")),
         };
+    }
+
+    fn review(&self, item: &WorkItem) -> Verdict {
+        return review_item(&self.context, item, options_for(item, &|name| { return std::env::var(name).ok(); }), BUDGET);
     }
 }
 
