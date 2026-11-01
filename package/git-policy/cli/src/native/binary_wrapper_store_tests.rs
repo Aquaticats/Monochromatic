@@ -148,12 +148,12 @@ fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
         let handles: Vec<_> = (0..PUBLISHING_CALLERS)
             .map(|caller| {
                 let link: PathBuf = created.root.join(format!("link-{caller}"));
-                let (root, built, name, arrived, together): (&Path, &Path, &str, &AtomicUsize, &AtomicUsize) =
+                let (root, build, stored_name, gate, counted): (&Path, &Path, &str, &AtomicUsize, &AtomicUsize) =
                     (created.root.as_path(), built.as_path(), name.as_str(), &arrived, &together);
                 return scope.spawn(move || {
-                    let stored: PathBuf = shared_copy_named(built, name, root, &|| {
-                        if meet_at_gate(arrived, PUBLISHING_CALLERS) {
-                            together.fetch_add(1, Ordering::SeqCst);
+                    let stored: PathBuf = shared_copy_named(build, stored_name, root, &|| {
+                        if meet_at_gate(gate, PUBLISHING_CALLERS) {
+                            counted.fetch_add(1, Ordering::SeqCst);
                         }
                     })
                     .expect("stored copy");
