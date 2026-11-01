@@ -5,7 +5,7 @@
 //!  and
 //! ranks window policies by the decided objective using the shared truepeak-core math.
 //! Usage:
-//!  `truepeak-core-bench <tracks.jsonl> [window_count]`.
+//!  `truepeak-core-bench <tracks.jsonl> [metadata.jsonl]`.
 
 /// The per-track corpus record and loader.
 mod corpus;
