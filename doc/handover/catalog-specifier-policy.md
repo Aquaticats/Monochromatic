@@ -729,7 +729,22 @@ The user confirmed the shared understanding and the order below, after the third
   - A whole-repository check of an existing policy exited 0; naming `mono/catalog-specifiers` against 0.4.6 exited 2 with
     `engine-failure` `config-invalid` (`Unknown policy ID`, listing the nine shipped ids), which is exactly the failure a lock
     that predates the policy produces, so a lagging lock fails loudly instead of passing.
-  Cost note: the 6m47s is the cargo-binstall compile. The direct route was measured afterwards
+  Correction after the user's challenge ("Doesn't cargo-binstall download gh releases too?"): yes, it does, and it fetched this same
+  release archive in 2.8 s in the probe above. The 6m47s was only the compile of cargo-binstall itself (`cargo install`, the
+  music-player precedent), and the "direct download against cargo-binstall" comparison that follows compared two different things.
+  The right comparison is how cargo-binstall itself is obtained. The lock already pins a prebuilt one: row `cargo-binstall`, route
+  `bin-sourced`, `artifacts.linux-x64` with `url`
+  `https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-gnu.tgz` and a `sha256`
+  (keys also for `linux-arm64`, `linux-arm64-musl`, `linux-x64-musl`).
+  Measured (`~/temp/agent/cs-binstall-from-lock.ts`, host, empty scratch directory): downloading that archive took 0.78 s and its
+  sha256 matched the lock; extraction 0.08 s; `cargo-binstall --no-confirm --disable-strategies compile --root <dir> --version 0.4.6
+  monochromatic-git-policy-cli` took 6.60 s and installed `cli-git-native`; `--version` printed
+  `monochromatic-git-policy-cli 0.4.6, shadowing git at /usr/bin/git`. About 7.5 s in total, with the cargo-binstall archive
+  verified by the lock's checksum.
+  Decision for the draft: use this lock-pinned route (prebuilt cargo-binstall from the lock row, verified by sha256, then binstall for
+  the pinned cli-git), not `cargo install cargo-binstall` and not a hand-rolled download of the cli-git archive.
+  The earlier direct-download measurement is kept as a measurement of that alternative only:
+  The direct route was measured afterwards
   (`~/temp/agent/cs-direct-download.ts`, host, empty scratch directory): downloading
   `monochromatic-git-policy-cli-0.4.6-x86_64-unknown-linux-gnu.tar.gz` from the release URL that the crate's
   `[package.metadata.binstall]` `pkg-url` pattern gives took 0.67 s (2,685,208 bytes); `gh attestation verify <archive> --repo
