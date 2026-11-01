@@ -26,7 +26,7 @@ use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
 use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_claimed, settle};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
@@ -92,6 +92,34 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
     }
 }
 
+/// How long a push waits before it is tried again after a held reference lock refused it, times the number of tries so far.
+const PUSH_LOCK_PAUSE: Duration = Duration::from_millis(50);
+
+/// What:
+///  Pushes a branch, trying again when Git refused to update a shared reference because another process held its lock.
+/// Why:
+///   The instances of two worktrees share the repository's references: a push or a fetch of the other can hold the lock of the
+///  remote-tracking reference this push updates for a moment, and Git's compare-and-swap refuses the loser. The loser tries
+///  again; the person's backup is not failed for a collision that clears by itself. Any other refusal would only repeat, and
+///  a lock that stays held past the tries is reported as the failed push it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let attempt = 0; ; attempt++) { const verdict = await handlers.push(items); if (!lockRefused(verdict) || attempt === RETRIES) return verdict; await wait(pause * (attempt + 1)) }
+/// ```
+fn push_with_retries(handlers: &dyn WorkHandlers, items: &[WorkItem]) -> Verdict {
+    let mut attempt: u32 = 0;
+    loop {
+        let verdict: Verdict = handlers.push(items);
+        let refused_by_lock: bool = matches!(&verdict, Verdict::Failed(text) if text.contains("cannot lock ref"));
+        if !refused_by_lock || attempt >= PUSH_LOCK_RETRIES {
+            return verdict;
+        }
+        attempt += 1;
+        std::thread::sleep(PUSH_LOCK_PAUSE * attempt);
+    }
+}
+
 /// What:
 ///  Runs everything pending for one repository: takes back the claims an earlier service left, claims every pending push and maintenance
 ///  item, runs one push per branch and one upkeep per repository, settles the items, and leaves a notice for each
@@ -138,7 +166,7 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
         }
         for (_, members) in groups {
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
-            match handlers.push(items.as_slice()) {
+            match push_with_retries(handlers, items.as_slice()) {
                 Verdict::Done => {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
