@@ -37,6 +37,9 @@ use std::time::{Duration, Instant};
 const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
 /// Pause between confirmation reads.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+/// What the manager says, in the client's message, when a pid of the request no longer exists (`ESRCH`),
+/// for example `Call failed: No such process` or `Failed to set unit properties: No such process`.
+const NO_SUCH_PROCESS: &str = "No such process";
 
 /// One adoption of a process group into the scope of its origin.
 pub struct AdoptRequest<'a> {
@@ -199,17 +202,29 @@ impl BusctlAdopter {
         return scope_cgroup_directory(&self.cgroup_root, request.uid, request.slice, request.scope_name);
     }
 
+    /// Reports whether the process is gone or on its way out,
+    /// a zombie or one flagged as exiting,
+    /// which the manager cannot move and answers with "No such process".
+    fn is_gone(&self, pid: i32) -> bool {
+        return !self.process_exists(pid) || read_exiting(&self.proc_root, pid) != Some(false);
+    }
+
     /// Runs one manager call as the user and turns its failure into the adoption's error.
-    /// A failure while the first process is gone is a vanish and not a failure.
+    /// A failure while the first process is gone or exiting is a vanish and not a failure.
+    /// So is the manager's "No such process" answer while any process of the request is gone or exiting,
+    /// because the answer names no pid and the group is collected again on the next scan.
+    /// A living first process whose move fails for another reason stays a failure.
     fn call(&self, request: &AdoptRequest<'_>, first: i32, arguments: &[String]) -> Result<(), AdoptError> {
         return match self.client.run(request.uid, request.gid, arguments) {
             Ok(_output) => Ok(()),
             Err(ClientError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
             Err(error) => {
-                if self.process_exists(first) {
-                    Err(AdoptError::Failed(error.to_string()))
-                } else {
+                let answers_no_such_process = matches!(&error, ClientError::Failed(text) if text.contains(NO_SUCH_PROCESS));
+                let member_gone = answers_no_such_process && request.pids.iter().any(|pid| return self.is_gone(*pid));
+                if member_gone || self.is_gone(first) {
                     Err(AdoptError::Vanished)
+                } else {
+                    Err(AdoptError::Failed(error.to_string()))
                 }
             }
         };

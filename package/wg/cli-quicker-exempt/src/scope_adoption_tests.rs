@@ -431,6 +431,75 @@ fn a_process_that_exits_during_a_failed_call_is_vanished() {
     assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
 }
 
+/// The shell of a fake manager call that fails the way the real one does for a pid that no longer exists.
+const NO_SUCH_PROCESS_CALL: &str = "echo 'Call failed: No such process' >&2; exit 1";
+
+/// Adds a fake process with the given pid to the fake procfs.
+/// `state` and `flags` become its stat file.
+fn add_process(place: &Place, pid: i32, state: &str, flags: u64) {
+    let directory = place.adopter.proc_root.join(pid.to_string());
+    std::fs::create_dir_all(&directory).expect("make the fake process");
+    std::fs::write(directory.join("cgroup"), "0::/user.slice/user-1000.slice/user@1000.service/app.slice/old.scope\n").expect("write cgroup");
+    std::fs::write(directory.join("stat"), stat_text(state, flags)).expect("write stat");
+}
+
+/// A failed call for a process that is a zombie or flagged as exiting is a vanish,
+/// as the real manager answers "No such process" for it while its `/proc` entry still exists.
+#[test]
+fn a_zombie_or_exiting_process_during_a_failed_call_is_vanished() {
+    for (state, flags, call) in [
+        ("Z", 0, NO_SUCH_PROCESS_CALL),
+        ("R", 4, "echo 'Failed to set unit properties: No such process' >&2; exit 1"),
+        ("Z", 0, "echo 'boom' >&2; exit 1"),
+    ] {
+        let place = place("zombie-failed", &|_paths| return Manager { create: call.to_string(), ..accepting() });
+        std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text(state, flags)).expect("make it exit");
+        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished), "{state} {flags} {call}");
+    }
+}
+
+/// The same answer for an attach to a living scope is a vanish too,
+/// and no scope is created beside it.
+#[test]
+fn a_zombie_during_a_failed_attach_is_vanished_and_creates_nothing() {
+    let place = place("zombie-attach", &|_paths| return Manager { attach: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+    let_scope_exist(&place, true);
+    std::fs::write(place.adopter.proc_root.join("77/stat"), stat_text("Z", 0)).expect("make it a zombie");
+    assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Err(AdoptError::Vanished));
+    assert!(!calls(&place).contains("StartTransientUnit"));
+}
+
+/// The manager's answer names no pid,
+/// so a group member that is gone, a zombie or exiting explains it,
+/// while the matched process is still alive.
+#[test]
+fn a_gone_group_member_explains_the_no_such_process_answer() {
+    for member in [None, Some(("Z", 0)), Some(("R", 4))] {
+        let place = place("member-gone", &|_paths| return Manager { create: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+        if let Some((state, flags)) = member {
+            add_process(&place, 78, state, flags);
+        }
+        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::Vanished), "{member:?}");
+    }
+}
+
+/// A living matched process whose move fails stays a failure,
+/// whatever the answer says,
+/// unless a member of the group is gone and the answer is "No such process".
+#[test]
+fn a_living_process_whose_move_fails_stays_a_failure() {
+    let answer = place("live-answer", &|_paths| return Manager { create: NO_SUCH_PROCESS_CALL.to_string(), ..accepting() });
+    let error = answer.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the process lives");
+    assert!(matches!(&error, AdoptError::Failed(text) if text.contains("No such process")), "{error}");
+    add_process(&answer, 78, "S", 0);
+    assert!(matches!(answer.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::Failed(_))), "every member lives");
+    for other in ["echo 'boom' >&2; exit 1", "echo 'Call failed: No such file or directory' >&2; exit 1", "echo 'Access denied' >&2; exit 1"] {
+        let place = place("live-other", &|_paths| return Manager { create: other.to_string(), ..accepting() });
+        let error = place.adopter.adopt(&request(&all_limits(), &[77, 78])).expect_err("another reason");
+        assert!(matches!(&error, AdoptError::Failed(_)), "{other}: {error}");
+    }
+}
+
 /// A process that exits after the manager accepted the job is noticed at once,
 /// without waiting out the confirmation timeout.
 #[test]
