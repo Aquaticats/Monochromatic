@@ -2425,6 +2425,19 @@ Wave-4 seventy-fourth checkpoint (2026-11-01, pnpm family complete):
   troubleshooting 142 rr-ts-388, truepeak bench 001 rr-tpb-001,
   music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
 
+Wave-4 seventy-fifth checkpoint (2026-11-01, truepeak bench closed):
+
+- `w5-truepeak-core-bench` is COMPLETE: 11 rows, 11 of 11 clean; 32 reviewable
+  files read end to end, with Cargo.lock and the two license texts treated as
+  artifacts. The default sweep's missing `out/` directory was spot-read: the
+  README promises `out/long_features.jsonl`, mise creates nothing, and
+  `write_long_features` calls `File::create` without a parent mkdir. Next id 012.
+- The freed slot opens `package/music-player/android-app`, slice 2 (paths 101 to
+  200, separate ledger `w5-music-player-android-app-2`, id 001, base rr-maa-002).
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 142 rr-ts-388, music-player asset 001 rr-mpa-001,
+  android-app slice 1 001 rr-maa-001, and android-app slice 2 001 rr-maa-002.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
