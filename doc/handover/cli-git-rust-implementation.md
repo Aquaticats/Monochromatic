@@ -6458,3 +6458,59 @@ This block supersedes "State at 2026-10-29 (night, later)".
   service. Also protocol v5 `04f91f1d85`: detached-HEAD compare-and-swap, unborn zero-old compare-and-swap, extra
   parents, and index entries as bytes. Remaining: the other line groups, the 15 push tests, and the full suite with
   `CLI_GIT_TEST_SERVICE=1`.
+- Harness READY `fd1e04672e` (agent `acc6062b235d35966`):
+  - one shared crate list for every snapshot (`bin/native-wrapper-snapshot.ts`, typed so a new path crate fails
+    type-checking), plus a manifest-scan guard (GFP shown);
+  - interop 42 of 42;
+  - the e2e image builds again: 36 runs, 13 pass, 21 fail, 2 skipped, seed 1871738767, log
+    `~/temp/agent/harness/e2e3.log`.
+  Merged onto integ with the review scratch fix `aa3d87fdcd` (the service review sets `common_dir` per work item; test
+  through the real `GitHandlers`). Integ head `75483a8d6e`.
+- e2e findings on 0.5.4 code:
+  - Live index risk (`foreign-index-lock-holder`/`-unproven`): the service moves the ref, then gives up on Git's
+    `index.lock` after 5 x 100 ms, so the index stages replaced content until the next batch. Probe at 12:5x: the main
+    checkout's index had 0 staged entries, so the risk has not hit yet.
+    - Decided: take `index.lock` first (exclusive create), hold it across the compare-and-swap and the index write;
+      wait for a foreign holder with inotify, bounded by the incumbent deadline; fail before anything moves.
+    - Sent to the landings agent `abebb58839c985773` as top priority, for 0.5.5.
+    - Correction: the foreign `index.lock` waiting and holder-evidence family is NOT deletable in 4d part 2; it moves
+      into the service landing.
+  - Editor commits are not rebuilt on a moved tip (`reservation-after-lost-races`, `lint-staged-stash-concurrent`).
+    Decided: rebuild with `-F <saved message>` within the bound. Queued for the same agent. Typical agent lines are
+    unaffected: `opens_editor` treats `-m`/`--message` as no editor.
+  - A rejected service push is never shown (`amend-during-commits`), and raw engine JSON reached a user
+    (`gc-prune-during-commits`). Both sent to a new agent.
+  - The 15 hook-instrument scenarios: the earlier agent's proposal (editor for kill points, declared `postCommit`
+    action for observation, external SIGKILL for service phases) is adopted, and a new agent ports them.
+  - Rollback to 0.5.3 was considered and rejected (advisor): the downgrade would re-stale the unit and strand a 0.5.4
+    service process. Fixing forward.
+- 0.5.5 = the unit hotfix + the review key + the review scratch fix + the index-lock ordering. One install. Run
+  `reset-service-units.ts` before the lock bump.
+- Open question for the owner, not built: the incident showed there is no operator escape hatch to force the native
+  route when the service misbehaves. The owner refused install switches; a debug override would be a different thing.
+- Lock-free worktree copy READY `1679491470` (agent `ab3dd6294f9d91284`), design in
+  `package/git-policy/cli/doc/worktree-copy-claim.md`:
+  - The settlement lock and the stage claim are deleted. A per-destination claim file is published by `hard_link`, so
+    exactly one creator wins.
+  - Liveness: a process holding the claim open, found through `/proc/*/fd` with open-then-rescan. Claims from another
+    PID namespace or from a hidden process are judged by age.
+  - A copied marker sits in Git's `worktrees/<id>/`, and the registration is checked before and after staging.
+  - Evidence: 19 planted controls, each failing its named test. Host suites: lib 2723 passed, binary 424 passed.
+  - New dependencies: `process_use.rs` and `pid_namespace.rs`, which 4d part 2 must keep. Dead fields
+    `CopyFacts.global_prefix` and `environment` are left for part 2.
+  - Kept OUT of 0.5.5 (the urgent hotfix). It goes to 0.5.6 after review. Cross-vendor review running:
+    `~/temp/agent/review-wtc/sol-review.txt`.
+- Cross-vendor review (GPT, `~/temp/agent/review-wtc/sol-review.txt`) REJECTS lock-free worktree copy `1679491470`.
+  P1s:
+  1. the age rule returns "abandoned" before the descriptor check, so two recoverers can both settle;
+  2. unreadable or remote holders count as absent;
+  3. the marker keys on Git's reusable admin name;
+  4. a half-filled destination can serve as another copy's source;
+  5. `initializing` text detection fails with `--lock` and a translated Git;
+  6. a kill between journal cleanup and the marker forgets completion.
+  P2s: macOS never adopts; a live temporary can be unlinked; `journal-*` name collisions; no retry after a failed copy.
+  Decision (veto-open, owner asked same turn): move the worktree copy into the resident single-writer service. That
+  removes inter-process exclusion, so the claim, liveness and age machinery go; every other finding is fixed inside
+  the service with a GFP test. Sent back to `ab3dd6294f9d91284`. Options weighed: a kernel try-lock as the liveness
+  signal (correct across namespaces, but a lock), keeping `/proc` and failing closed (leaves unsettled state), or
+  restoring the old lock (waits and polls).
