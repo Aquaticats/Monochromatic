@@ -39,6 +39,32 @@ Its result is read when the notification arrives, and survivors are killed or ju
 patch release.
 The passing gate (container tests, lint, check) still precedes every release.
 
+### Final re-review (queued 2026-11-01)
+
+The user's words on 2026-11-01:
+"You yourself do a re-review of the entire thing when all tasks are drained.
+During the re-review: Assume nothing on disk ever makes sense and I answered every question with via magic 8 ball."
+
+My reading, revisable by the user:
+
+- When it starts: after the queue is drained. That means every delegated agent has reported and its branch is
+  merged or rejected, gates are green, no release is in flight, and every task-list and handover queue item is
+  done or recorded as blocked with its reason.
+- Who does it: this coordinator session itself, not a delegate. A cross-vendor pass may run alongside it, but never
+  instead of it.
+- Scope ("the entire thing"): the `git-policy/cli` wrapper and everything this effort built or changed for it. That
+  covers the crate, the service, the embedded linter seam, the fuzz and mutation sidecars, the gate and release
+  tooling (`crate-release/cli`, the containerfile, the planted controls), and the docs (README, SPEC,
+  `doc/decision`, `doc/planning`, this handover).
+- "Nothing on disk ever makes sense": every comment, doc, test name, commit message, config and recorded result is
+  an unverified claim. Each one is checked against behavior I run in a throwaway fixture, or against the deciding
+  source. A test counts only once a planted fault has shown it failing.
+- "Every question answered with a magic 8 ball": recorded user decisions carry no evidence of being right. Judge each
+  on its merits for the target workload. Where my judgment differs, ask the user with options, pros, cons and a
+  ranking. Never change decided behavior without asking.
+- Output: a findings report in `doc/audit/` with evidence per finding. Clear bugs get fixed under the standing goal,
+  with GFP proofs. Flagged decisions go to the user in the question tool.
+
 ## Handoff 2026-10-05
 
 This session hands off to Claude Opus after the Astra usage limit was reached.
@@ -5948,3 +5974,26 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `~/temp/agent/release-051b-wait.log`). HOLD all merges touching the wrapper or its path crates until its bump commit is on main.
 - Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
   `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.
+- 0.5.1 bump commit `b0d0b14a01` is on main (merge hold lifted). `native:release:wait` reported PUBLISH CHECK FAILED, but it
+  followed the wrong publish run: `41315224517` on `066f401d8c`, a `cargo-publish.yml` run another session dispatched by hand
+  17 seconds before ours. `await-run.ts` takes "the earliest manually started run created at or after the release run", which
+  any other dispatch can win. The real publish run is `41315248565` on `b0d0b14a01`; watched directly (log
+  `~/temp/agent/publish-051.log`). Fix sent to an agent: choose the run whose commit carries the target version, with a test of
+  this exact case. After 0.5.1 is on crates.io: message `monochromatic-c0` for the lock bump.
+- Planted-control proof (log `~/temp/agent/mut-m048-planted.log`): 6 of 7 noticed; "forward-target marker check"
+  (`entry.rs` `&& same_file(...)` to `&& false`) NOT noticed by `resolution::different_wrapper_build_stops_instead_of_looping`.
+  Sent to an agent: find what else stops the loop, make a test that fails exactly when that guard is off (GFP), and report
+  BLOCKED if the guard is dead code (do not delete it unasked).
+- Cross-vendor review of the lock-free wrapper store (`5e652a6628`, review `~/temp/agent/ct/pi-review2.out`): 8 findings
+  (partial-name collisions, prune racing a relink, inode test rejecting the private-copy fallback, `/dev/shm` assumption and
+  leak, scheduler-dependent slow-signer test, hashing outside `get_or_init`, unbounded copy burst in the concurrency test,
+  pruning test never ages an entry). Sent to an agent to verify each, fix the real ones lock-free, and void the rest with evidence.
+- Service-design cross-vendor review `~/temp/agent/sol/out-service.md` is still empty (written 07:50); it may never return.
+- Service step 3 READY `5d0d527e2c` (backup push and upkeep run in the service as work items after the command returns; one
+  coalesced push per branch, no lock; a failed push never fails the commit) merged as `8abacf428b`. Gate 9 runs in worktree
+  `.claude/worktrees/gate-main9` (gate-main stays on `54bc241fab` for the m048d units). Step 4 continues as sub-steps 4a to 4d.
+- 0.5.1 PUBLISHED: crates.io created 2026-11-01T14:19:49Z; release assets x86_64 and aarch64 linux-gnu present; publish run
+  `41315248565` on `b0d0b14a01`. Messaged `monochromatic-c0` for the lock bump.
+- Tasks #69 and #78 closed as superseded: service step 4 deletes the old journal and shadow-repository path they target.
+- Queued: the user's final re-review, recorded under the heading "Final re-review (queued 2026-11-01)" in the Authority
+  section (task #79). It starts once the queue is drained.

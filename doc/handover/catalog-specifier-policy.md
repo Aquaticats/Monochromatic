@@ -945,6 +945,29 @@ The user confirmed the shared understanding and the order below, after the third
   - Checks: clippy clean; 54 tests pass, among them the verb rules (every listed verb, every value option, `--`, help anywhere),
     which commands warn and which stay silent in a workspace with a violation, and the signal pass-through.
 
+- 2026-11-01, `monochromatic-pnpm-shadow` 0.1.0 published (the user answered "Publish it now", logged in with their own token
+  through the terminal, then answered "Token is logged in, publish now"):
+  - `mise run //package/pnpm-shadow/cli:publish:dry-run` passed first (20 files, 111.5 KiB, verified by compile), then
+    `:publish` uploaded; the crates.io API lists `0.1.0`, not yanked. cargo warned that `tests/shim.rs` is not in the package
+    because `include` omits `tests/`; `mpm-shadow` has the same `include` and the same warning.
+  - Trusted Publishing was created by API with the crate's token read in-process and never printed
+    (`~/temp/agent/pnpm-shadow-trusted-publishing.ts`): config id 30204, owner `Aquaticats` (id 343218767), repository
+    `Monochromatic`, workflow `cargo-publish.yml`, no environment; the list after showed one entry.
+  - `.github/workflows/cargo-publish.yml` gained five jobs `ps-detect`, `ps-publish-crate`, `ps-release-state`, `ps-build-binary`,
+    `ps-create-release`, the dispatch option `monochromatic-pnpm-shadow` and the push path `package/pnpm-shadow/cli/Cargo.toml`.
+    They were generated from the `ms-*` jobs by a checked rename (`~/temp/agent/wire-pnpm-shadow-publish.ts`), and
+    `~/temp/agent/check-publish-workflow.ts` parsed the YAML and showed each `ps-*` job equals its `ms-*` sibling after the rename and
+    that every `needs` names a real job. `zizmor` reports only `artipacked` mediums, the same finding every checkout of this file
+    already has. The crate is not in `package/crate-release/cli/releasable-crates.json`: `doc/decision/releases-run-in-ci.md`
+    says only crates with release tasks are listed and the others release by a version bump pushed to `main`.
+  - Dry run of the workflow: run 41315224517 (dispatch `crate=monochromatic-pnpm-shadow`, `dry-run=true`); it builds both Linux
+    targets, smoke-runs the binary, verifies the archive layout and uploads nothing to crates.io or GitHub. The real dispatch
+    (`dry-run=false`) follows a green dry run, because a GitHub release is immutable here.
+  - Still the user's: revoke the token on crates.io and tell the agent, who then runs `cargo logout` (the credential file holds
+    the token until then).
+  - Still to do after the release: ask the toolchain session to add a `cargo:monochromatic-pnpm-shadow` row (route
+    `cargo-binstall`, bin `pnpm-shadow`) and link the binary as `pnpm` (the user's answer: "Yes, ask the toolchain session to link it").
+
 ## Open items
 
 - Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).

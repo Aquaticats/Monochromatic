@@ -1872,6 +1872,117 @@ the other four lanes are still running):
   fm-decision at position 41, troubleshooting at line 71, slice-cache on its
   unread tests.
 
+Wave-4 forty-sixth checkpoint (2026-11-01, cc, desktop and fm returns verified; the desktop lane
+moves to corpus-pass, and troubleshooting and slice-cache keep running):
+
+- `w4-cc-statusline` (cc-docs round 6) deep-swept the 419 to 520 middles at
+  digest-plus-regional depth: 83 markdown files, 91,190 lines, zero new rows.
+  w4-docs.jsonl stays 37 of 37. Verified live: 432 backticked references, the
+  scratch-path notes, all four supersession markers, the rescreen arithmetic,
+  the chunk exit counts and the single H1 per file. Next: line-by-line deep
+  reads of the zero-cited tech-* vets, id w4-docs-039, base rr-gp-336.
+- Lane milestone: `w4-desktop-app` COMPLETE. The last 14 deepmerge-ts.fuzz
+  type files read end to end; rows `w4-upstream-fork-072` (isTypeLevelFile omits
+  type-export-name.ts, leaving one unrewritten specifier in 18 copied names),
+  `-073` (declaredTypeNames returns [''] for a type-only re-export) and `-074`
+  (type-record's "each case pins the runtime value" claim: 1 of 14 cases has no
+  expect). Ledger 74 of 74; the upstream-fork family is complete at 16 of 16.
+  The lane is released and its slot moved to translation-repair/corpus-pass.
+- `w4-fm-variant-qt` (fm-decision round 6) read positions 41 and 43: rows
+  `w4-docs-decision-052` to `-055` (mise.lock read as live, the floating stable
+  claims, the kopia-stack 2-gate Status against three FULL PASS plus 18 renders,
+  and the 29 split .NET wraps). Concurrent commit 93390c7afe shifted
+  cargo-publish.yml by two lines; I repaired rows 020 and 027 to :61 and :228
+  and the ledger is 55 of 55. Next: position 44, id w4-docs-decision-056, base
+  rr-fmv-63.
+- Freed slot: package/translation-repair/corpus-pass opened (362 tracked files),
+  findings to w5-tr-corpus-pass.jsonl from id `w5-tr-corpus-pass-001`, base
+  rr-tcp-001, deduping the earlier corpus-pass mentions.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 71, slice-cache on its unread tests, corpus-pass on
+  its package.
+
+Wave-4 forty-seventh checkpoint (2026-11-01, troubleshooting round 3 verified; the other four
+lanes keep running):
+
+- doc/troubleshooting round 3: worklist lines 70 to 72, rows
+  `w2-logger-src-086` to `-091`. My spots: the cargo-nightly doc carries zero
+  URLs, the shallow-publish doc writes cargo-publish.old.yml into the repository
+  root, and checksExecuted appears only in the doc. The unstable row 35 moved to
+  w2-logger-src-concurrent.jsonl with a re-verify note after the README reflowed
+  twice; w2-logger-src.jsonl is now 90 of 90 clean. Next: worklist line 73, id
+  w2-logger-src-092, base rr-ts-380.
+- Active: cc-docs on the deep middles, fm-decision at position 44, slice-cache
+  on its unread tests, corpus-pass on its package, troubleshooting at line 73.
+
+Wave-4 forty-eighth checkpoint (2026-11-01, slice-cache and corpus-pass returns verified and
+relaunched; cc and fm still running):
+
+- slice-cache round 2: 12 more tests read, rows `w5-tr-slice-cache-005`
+  (commitFileAt example doubles its newline escape), `-006` (corpus-pin test
+  names an unqualified run-config.ts that lives in the sibling run package) and
+  `-007` (the settled-carve test promises an unsettled or legacy forward but
+  asserts only unsettled). My spots reproduce all three; ledger 7 of 7, 95 of 119
+  files. Next: consolidate-cache-store.unit.test.ts, id
+  w5-tr-slice-cache-008, base rr-tsc-003.
+- corpus-pass round 1: rows `w5-tr-corpus-pass-001` (README files adjudication as
+  a test-only devDependency while production imports its /ts subpath), `-002`
+  (README names pass-entry.ts for settleEntry, which is declared in
+  pass-entry-settle.ts) and `-003` (visualEvidenceReader lacks @param in both
+  functions). My spots reproduce all three; ledger 3 of 3; about 17 of 101
+  non-test modules read fully. Next: pass-dry-stop and the remaining modules, id
+  w5-tr-corpus-pass-004, base rr-tcp-002.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 73, slice-cache on its remaining tests, corpus-pass
+  on its remaining modules.
+
+Wave-4 forty-ninth checkpoint (2026-11-01, cc deep-read turn verified and relaunched; fm,
+troubleshooting, slice-cache and corpus-pass keep running):
+
+- `w4-cc-statusline` (cc-docs round 7) deep-read six zero-cited tech vets and
+  swept all 39 of them (36,897 lines): rows `w4-docs-039` (the fearless-simd vet
+  wraps paragraphs into list markers, splitting the fingerprint literal between
+  lines 19 and 20 and the search pattern between 74 and 75; 139 of 222
+  list-marker lines continue an open sentence) and `-040` (six bold-label bullets
+  at lines 252, 258, 268, 275, 281 and 285). My spots reproduce both; w4-docs.jsonl
+  is 39 of 39. Next: position 423 onward, id w4-docs-041, base rr-gp-337.
+- Active: fm-decision at position 44, troubleshooting at line 73, slice-cache on
+  its remaining tests, corpus-pass on its remaining modules, cc-docs at position
+  423 onward.
+
+Wave-4 fiftieth checkpoint (2026-11-01, fm follow-on turn verified and relaunched; the other four
+lanes keep running):
+
+- `w4-fm-variant-qt` (fm-decision round 7) read positions 44 to 48 and 63:
+  rows `w4-docs-decision-056` to `-062` (split dotted names and quote spans,
+  sixteen escaped quotes inside inline code, one URL repeated 3 to 7 times as an
+  autolink, the vet-slint Cargo.toml citation landing on a PipeWire comment, the
+  jsonc scan.rs pointer on the error TSDoc, the vet-react-native grep of a
+  zero-tracked package, and the device-gate pre-gate plan). My spots confirm the
+  zero-tracked react-native grep and the jsonc pointer; ledger 62 of 62. Next:
+  position 49, id w4-docs-decision-063, base rr-fmv-64.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules.
+
+Wave-4 fifty-first checkpoint (2026-11-01, corpus-pass round 2 verified and relaunched; the
+translation-repair/run package opened as a sixth lane):
+
+- corpus-pass round 2: eight more production modules and two targeted reads; rows
+  `w5-tr-corpus-pass-004` (three hand-written slice-N nameOf formatters with a
+  duplicated TSDoc sentence and no owner), `-005` (three copies of the
+  carrier-map recording loop in applyConsistency) and `-006` (consolidateDocument
+  logs contests.length while settling eligibleRows). Ledger 6 of 6; about 25 of 94
+  production modules. Next: consolidate-driver-subject.ts, id
+  w5-tr-corpus-pass-007, base rr-tcp-003.
+- Freed slot: package/translation-repair/run opened (228 tracked files), findings
+  to w5-tr-run.jsonl from id `w5-tr-run-001`, base rr-trrun-001, deduping the
+  pkg-array-at, w2-i18n, docs-decisions, w2-fs-a and orchestrator-central-tests
+  mentions.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules, run on its package.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
