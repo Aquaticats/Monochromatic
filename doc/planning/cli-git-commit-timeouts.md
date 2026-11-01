@@ -163,8 +163,10 @@ paused budget; it does not fit a child that ran and hung, and a second mechanism
 - Guard failures shown (break, run, restore): `class_of` without the plumbing branch fails the plumbing-class test;
   the skeleton without `refs/tags` fails the differential test; the private index without the copy fails the stat
   test; the terms with the grace not held to the class fail the terms test; the sentence without "run the command
-  again" fails the sentence test; the variable ignored by `limit()` fails `child_bound` after 114.8 s (the commit
-  then waits out the default bound instead of failing).
+  again" fails the sentence test; `maintenance` added to the plumbing list fails `maintenance_is_object_work` (and
+  only that test); the variable ignored by `limit()` fails `child_bound` after 114.8 s (no step then reaches the
+  60 s default, every start is only 3 s late, so about forty delayed starts outlast the control's own 120 s outer
+  bound and the sentence is never printed).
 - Passing: `budget` (4), `recovery_tearing` (25, shadow tearing included), `fault_kill` (8), `fault_signal` (4),
   `landing` (17), `landing_crash` (11), `wait_notice` (9), and the unit tests of `child_class`, `child_watch`,
   `shadow_skeleton`, `shadow_create`, `commit_index` and `transaction_git`. Clippy with warnings denied is clean.
