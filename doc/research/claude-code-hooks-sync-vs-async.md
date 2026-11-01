@@ -297,6 +297,34 @@ can use `"async": true` on a `PostToolUse` handler and let Claude keep working,
 at the cost of delivering the result one turn later
 ([hooks guide, how hooks work][guide-work]).
 
+## Measured delivery timing
+
+The "one turn later" cost was measured directly on 2026-11-01,
+against the installed v2.1.316.
+
+The probe registered a `UserPromptSubmit` command hook
+that injected `PROBE-NONCE-4f3a` as `additionalContext`,
+then asked `claude -p` which nonce it sees,
+both from a scratch settings file with the `haiku` model.
+
+- Positive control,
+  synchronous hook:
+  the model answered `PROBE-NONCE-4f3a`.
+- Async arm,
+  `"async": true`:
+  the model answered `NO-NONCE`,
+  while a side-effect marker file proved the hook process had run.
+
+So an async handler's `additionalContext` does not reach the turn in
+progress.
+A hook whose job is same-turn context (a time stamp,
+a correction reminder,
+child-session results) must stay synchronous.
+The marker arm matters:
+without it,
+"no nonce" would also fit a hook
+that never ran.
+
 ## Sources
 
 - [Hooks reference][hooks-reference],

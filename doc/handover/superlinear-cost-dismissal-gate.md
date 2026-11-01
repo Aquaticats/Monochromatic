@@ -787,13 +787,75 @@ live verification of the first Luna entries
 on real code landings in `doc/audit/standards-review-gate-shadow.md`,
 the owner's later graduation call
 (`AGENTS.md` rule versus git-policy landing check),
-site fixes of the named real costs
+and site fixes of the named real costs
 (the cost-dismissal hook's own `readRecordedKeys` whole-log rescan per event
 among them),
-which need a separate request,
-and a rebuild of the other eight `package/claude-code-plugin/*` bundles
-so every committed bundle carries the stderr routing;
-their polluted stdout is invisible in Claude Code today.
+which need a separate request.
+Done 2026-11-01:
+the rebuild of the other eight `package/claude-code-plugin/*` bundles
+(and of cost-dismissal's own),
+so every committed bundle carries the stderr routing
+(`d2e83c095e`);
+their polluted stdout was invisible in Claude Code,
+and one bounded probe per host
+now shows `Completed` on every hook event
+with the shadow records landing
+(`~/temp/agent/hook-async-verify/`).
+Made asynchronous 2026-11-01
+at the owner's "make all the hooks async where possible":
+command hooks now carry `"async": true`
+where the handler only observes.
+The split,
+measured before it was applied:
+hooks whose output decides stay synchronous,
+since async output cannot block,
+deny,
+or rewrite input
+(`ccgr` guardrail deny,
+`ccsr` stop-reminder block,
+`bash-output-filter` `updatedInput`,
+`codex-bash-limit` allow plus rewrite,
+claude-spawn `Stop` block);
+hooks whose output is same-turn context stay synchronous,
+since a `UserPromptSubmit` probe delivered a nonce in-turn
+from a synchronous hook
+but not from an async one
+whose process verifiably ran
+(`doc/research/claude-code-hooks-sync-vs-async.md`,
+`cccr` correction-reminder,
+`prompt-time`,
+claude-spawn tool events);
+everything else runs async
+(`cccd` cost-dismissal `PreToolUse` and `PostToolUse`,
+`ccssh` session-start-housekeeping,
+terminal-title's seven events,
+claude-spawn `SessionStart` and `SessionEnd`,
+cost-dismissal's codex legs).
+One leg was reverted mid-change after measurement:
+cost-dismissal `Stop` stays synchronous,
+because only it sees turn-ending thinking,
+both hosts abort pending async hooks at session teardown,
+and on one event it costs what the sync stop-reminder already costs
+(97 to 155 ms against 82 to 159 ms,
+alternating runs on a 400-row transcript),
+so async there bought no latency and risked the record.
+Async hook invocations overlap,
+so the shadow log's read,
+deduplicate,
+append section now runs
+under a cross-process lock with an unlocked fallback
+(`099ff3bf43`,
+tests proved the duplicates it prevents);
+records may now land out of event order,
+which consumers of the log must tolerate.
+Codex's hook trust hashes were refreshed for the two changed declarations
+(`pre_tool_use:1:0`,
+`post_tool_use:0:0`),
+recomputed with a fingerprint tool
+validated first against all five stored hashes;
+this is the same act as approving in `/hooks`,
+flagged to the owner for veto
+(`doc/troubleshooting/codex-hook-trust-hash.md`).
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
