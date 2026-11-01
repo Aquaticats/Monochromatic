@@ -96,6 +96,10 @@ The groups that follow name the main ones.
   `runnerEntrySources`.
   Declared in `family-build-entries.ts`;
   this package's own list is in `build-entries.ts`.
+  The scan `source-scan/src/family-build-entries.unit.test.ts` holds `FAMILY_ENTRY_LISTS` to the packages whose `src`
+  holds a `build-entries.ts`;
+  it used to be a case of this package's own tests,
+  which listed every package's folder (ledger B1265).
 
 ## Runners
 

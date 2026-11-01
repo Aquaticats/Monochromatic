@@ -131,6 +131,10 @@ this package through its own build,
 `../dist/final/node/index.mjs`,
 and the siblings they need through their package names,
 which resolve to each sibling's built entry.
+A test reads only what this package declares:
+the cases of `corpus-run/artifact-eligible.unit.test.ts` that ask git about ancestry build a throwaway repository of two
+commits and hand its path to `selectEligible`,
+and read nothing of the checkout the test runs in (ledger B1265).
 
 Build before testing:
 `mise run //package/translation-repair/artifact-pool:build` builds this package,

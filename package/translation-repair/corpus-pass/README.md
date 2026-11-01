@@ -178,8 +178,13 @@ used by tests):
 
 - `adjudication`
 - `source-scan`
-  (the schema cases parse the family's source with its `parseSource` and walk the tree with its helpers,
-  through `@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts`)
+  (two schema cases import its `producerFilesOf` and `SHARED_BUILDERS`,
+  through `@monochromatic-dev/translation-repair-source-scan/ts/claude-schema-producer-files.test-fixture.ts` and
+  `@monochromatic-dev/translation-repair-source-scan/ts/claude-schema-shared-builders.test-fixture.ts`;
+  the search of the family's source for files that declare an answer schema,
+  which used to run here,
+  moved there with its fixtures,
+  ledger B1265)
 
 ### Used by
 

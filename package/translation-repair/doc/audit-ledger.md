@@ -865,6 +865,18 @@ named for that subject and listed here.
   the missing page that ships its fallback (B1262),
   the cache versions (B1263)
   and the slips with what stays open (B1264).
+- [Audit ledger: tests read only what their package declares](audit-ledger-tests-read-only-what-their-package-declares.md):
+  The tests that read other packages' files without listing those packages,
+  which a gate that runs the packages a change reaches through the package graph cannot see,
+  and the fixes of round w402:
+  the rule and the owner's rulings (B1265),
+  the census (B1266),
+  the scan that fails on each kind of read and its red evidence (B1267),
+  the answer-schema search that moved to `source-scan` (B1268),
+  the three smaller moves and rewrites (B1269),
+  the reads that stay and why (B1270),
+  the cache versions (B1271)
+  and the slips with what stays open (B1272).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
