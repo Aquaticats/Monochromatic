@@ -49,6 +49,8 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/tunnel-bypass-watcher-control.ts',
     './src/tunnel-teardown.ts',
     './src/tunnel-traffic-block.ts',
+    './src/tunnel-clearnet.ts',
+    './src/runner.ts',
     './src/bypass-watch-sentinel-core.ts',
     './src/bypass-watch-sentinel.ts',
     './src/bypass-watch-sentinel-launch.ts',

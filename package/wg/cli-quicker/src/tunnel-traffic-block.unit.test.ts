@@ -13,6 +13,13 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  formatMark,
+  RECOMMENDED_EXEMPT_MARK,
+} from '../dist/final/node/exempt-mark-reservation.mjs';
+import type { Clearnet, } from '../dist/final/node/tunnel-clearnet.mjs';
+import {
+  BLOCK_EXCEPTIONS,
+  blockTraffic,
   installTrafficBlock,
   removeTrafficBlock,
   trafficBlockExists,
@@ -161,6 +168,13 @@ await describe({
         expect(lines[1],).toBe('flush table inet wg-quicker-wgtest-blocked',);
         expect(lines.some((line,) => line.startsWith('delete',) || line.includes('delete table',),),).toBe(false,);
         expect(seen[0]?.script,).toBe(trafficBlockScript({ interfaceName: 'wgtest', },),);
+        /**
+         The same install with exceptions.
+         */
+        seen.length = 0;
+        await installTrafficBlock({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, runCommand: runner, makeDirectory: scratchDirectory, },);
+        expect(seen[0]?.script,).toBe(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, },),);
+        expect(seen[0]?.script,).toContain('counter accept',);
       },
     },),
   ],
@@ -238,6 +252,241 @@ await describe({
         expect(String(thrown,),).toContain('could not tell whether the traffic block (nft table inet wg-quicker-wgtest-blocked) was removed',);
         expect(String(thrown,),).toContain('sudo nft list table inet wg-quicker-wgtest-blocked',);
         expect(String(thrown,),).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+      },
+    },),
+  ],
+},);
+
+/**
+ The block of an interface that has an application bypass:
+ the exempt mark and destinations of both families.
+ */
+const CLEARNET: Clearnet = {
+  mark: RECOMMENDED_EXEMPT_MARK,
+  hosts: [
+    { family: '-4', address: '203.0.113.7', },
+    { family: '-4', address: '203.0.113.8', },
+    { family: '-6', address: '2001:db8::7', },
+  ],
+};
+
+/**
+ Reads what the thrown value says.
+
+ @param run - Call expected to throw.
+
+ @returns The error,
+ or nothing when it did not throw.
+
+ @example
+ ```ts
+ await thrownBy({ run: () => Promise.reject(new Error('x')) });
+ ```
+ */
+async function thrownBy({ run, }: { readonly run: () => unknown; },): Promise<unknown> {
+  try {
+    await run();
+    return undefined;
+  }
+  catch (error) {
+    return error;
+  }
+}
+
+await describe({
+  name: trafficBlockScript.name,
+  children: [
+    it({
+      name: 'lets the exempt mark and the update hosts through ahead of the drop, and keeps loopback allowed and forwarding dropped',
+      fn: async () => {
+        /**
+         Lines of the script.
+         */
+        const lines = trafficBlockScript({ interfaceName: 'wgtest', clearnet: CLEARNET, },).split('\n',);
+        /**
+         Table that holds the block.
+         */
+        const table = 'wg-quicker-wgtest-blocked';
+        /**
+         Where each rule stands.
+         */
+        const markAccept = lines.indexOf(`add rule inet ${table} output meta mark ${formatMark({ mark: RECOMMENDED_EXEMPT_MARK, },)} counter accept`,);
+        const v4Accept = lines.indexOf(`add rule inet ${table} output ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
+        const v6Accept = lines.indexOf(`add rule inet ${table} output ip6 daddr { 2001:db8::7 } counter accept`,);
+        const outputDrop = lines.indexOf(`add rule inet ${table} output oifname != "lo" counter drop`,);
+        const outputChain = lines.indexOf(`add chain inet ${table} output { type filter hook output priority -400; policy accept; }`,);
+        expect(outputChain,).toBeGreaterThan(-1,);
+        expect(markAccept,).toBeGreaterThan(outputChain,);
+        expect(v4Accept,).toBeGreaterThan(markAccept,);
+        expect(v6Accept,).toBeGreaterThan(v4Accept,);
+        expect(outputDrop,).toBeGreaterThan(v6Accept,);
+        // The forward chain accepts nothing: every forwarded packet is dropped.
+        expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
+        expect(lines.includes(`add rule inet ${table} forward counter drop`,),).toBe(true,);
+        // Loopback is the one interface the drop leaves alone.
+        expect(lines.some((line,) => line.includes('oifname != "lo"',) && line.endsWith('counter drop',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'has no accept rule at all when the interface has no application bypass',
+      fn: async () => {
+        /**
+         Rules that accept,
+         not counting the policy of the chains.
+         */
+        const accepts = trafficBlockScript({ interfaceName: 'wgtest', },).split('\n',).filter((line,) => line.startsWith('add rule',) && line.endsWith('accept',),);
+        expect(accepts,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'writes one address once, and nothing for a family without addresses',
+      fn: async () => {
+        /**
+         Script for repeated and single-family destinations.
+         */
+        const script = trafficBlockScript({
+          interfaceName: 'wgtest',
+          clearnet: { hosts: [{ family: '-4', address: '203.0.113.7', }, { family: '-4', address: '203.0.113.7', },], },
+        },);
+        expect(script,).toContain('ip daddr { 203.0.113.7 } counter accept',);
+        expect(script,).not.toContain('ip6 daddr',);
+      },
+    },),
+    it({
+      name: 'accepts the smallest and the largest packet mark and refuses what is not a 32-bit mark',
+      fn: async () => {
+        /**
+         Largest 32-bit value.
+         */
+        const largest = (2 ** 32) - 1;
+        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: 0, hosts: [], }, },),).toContain(`meta mark ${formatMark({ mark: 0, },)} counter accept`,);
+        expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: largest, hosts: [], }, },),).toContain(`meta mark ${formatMark({ mark: largest, },)} counter accept`,);
+        for (const mark of [-1, largest + 1, 1.5, Number.NaN,]) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own error.
+          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark, hosts: [], }, },), },);
+          expect((thrown as Error).name,).toBe('TrafficBlockError',);
+        }
+      },
+    },),
+    it({
+      name: 'refuses an address that is not an address of its family, so nothing but an address reaches the script',
+      fn: async () => {
+        for (const address of ['203.0.113.7 } ; flush ruleset ; { ', '203.0.113.7\nflush ruleset', 'example.test', '2001:db8::7', '203.0.113.7/24', '',]) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own error.
+          const thrown = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-4', address, },], }, },), },);
+          expect((thrown as Error).name,).toBe('TrafficBlockError',);
+        }
+        /**
+         A v4 address under the v6 family.
+         */
+        const crossed = await thrownBy({ run: () => trafficBlockScript({ interfaceName: 'wgtest', clearnet: { hosts: [{ family: '-6', address: '203.0.113.7', },], }, },), },);
+        expect((crossed as Error).name,).toBe('TrafficBlockError',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: blockTraffic.name,
+  children: [
+    it({
+      name: 'installs the block with what the routing sends around the tunnel when the ownership state is there',
+      fn: async () => {
+        /**
+         What was installed.
+         */
+        const installed: { readonly interfaceName: string; readonly clearnet?: Clearnet; }[] = [];
+        /**
+         Whether the block was installed.
+         */
+        const done = await blockTraffic({
+          interfaceName: 'wgtest',
+          readExceptions: () => Promise.resolve({ bypass: true, clearnet: CLEARNET, },),
+          blockExists: () => Promise.resolve(true,),
+          install: (call,) => {
+            installed.push(call,);
+            return Promise.resolve();
+          },
+        },);
+        expect(done,).toBe(true,);
+        expect(installed,).toEqual([{ interfaceName: 'wgtest', clearnet: CLEARNET, },],);
+      },
+    },),
+    it({
+      name: 'installs the block with no exceptions when there is no ownership state and no block',
+      fn: async () => {
+        /**
+         What was installed.
+         */
+        const installed: { readonly interfaceName: string; readonly clearnet?: Clearnet; }[] = [];
+        expect(await blockTraffic({
+          interfaceName: 'wgtest',
+          readExceptions: () => Promise.resolve({ bypass: false, },),
+          blockExists: () => Promise.resolve(false,),
+          install: (call,) => {
+            installed.push(call,);
+            return Promise.resolve();
+          },
+        },),).toBe(true,);
+        expect(installed,).toEqual([{ interfaceName: 'wgtest', },],);
+      },
+    },),
+    it({
+      name: 'keeps a block that stands, with its exceptions, when an earlier down already removed the ownership state',
+      fn: async () => {
+        /**
+         Installs attempted.
+         */
+        const installed: unknown[] = [];
+        expect(await blockTraffic({
+          interfaceName: 'wgtest',
+          readExceptions: () => Promise.resolve({ bypass: false, },),
+          blockExists: () => Promise.resolve(true,),
+          install: (call,) => {
+            installed.push(call,);
+            return Promise.resolve();
+          },
+        },),).toBe(false,);
+        expect(installed,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'fails, and installs nothing, when what to let through cannot be read',
+      fn: async () => {
+        /**
+         Installs attempted.
+         */
+        const installed: unknown[] = [];
+        /**
+         What was thrown.
+         */
+        const thrown = await thrownBy({
+          run: () => blockTraffic({
+            interfaceName: 'wgtest',
+            readExceptions: () => Promise.reject(new Error('state unreadable',),),
+            blockExists: () => Promise.resolve(false,),
+            install: (call,) => {
+              installed.push(call,);
+              return Promise.resolve();
+            },
+          },),
+        },);
+        expect(String(thrown,),).toContain('state unreadable',);
+        expect(installed,).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: 'BLOCK_EXCEPTIONS',
+  children: [
+    it({
+      name: 'says what the block was installed to let through, and that this depends on the application bypass',
+      fn: async () => {
+        expect(BLOCK_EXCEPTIONS,).toContain('exempt mark',);
+        expect(BLOCK_EXCEPTIONS,).toContain('update hosts',);
+        expect(BLOCK_EXCEPTIONS,).toContain('when the interface has an application bypass',);
       },
     },),
   ],

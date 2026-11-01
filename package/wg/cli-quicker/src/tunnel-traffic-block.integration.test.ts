@@ -4,12 +4,18 @@
  replacing a block that is in place never deletes its table,
  the old sequence does (the positive control),
  and the removal shows the table gone.
+ A second scenario sends real packets through a block that lets the clearnet traffic through:
+ a packet with the exempt mark and a packet to an update host pass,
+ a packet with any other mark, an unmarked packet and nothing else leaving the machine are dropped,
+ loopback stays allowed,
+ and a process without `CAP_NET_RAW` and `CAP_NET_ADMIN` cannot give its packets the mark.
 
  @module
  */
 
 import assert from 'node:assert/strict';
 import { execFileSync, } from 'node:child_process';
+import { constants, } from 'node:os';
 
 /**
  Result of the scenario,
@@ -105,5 +111,113 @@ assert.ok(
 );
 assert.equal(observed.installed, 'present',);
 assert.equal(observed.removed, 'absent',);
+
+/**
+ What `nft` counted for a packet,
+ as the clearnet scenario prints it.
+ */
+type Probed = {
+  /**
+   Kinds of rule whose counters grew while the packet was sent.
+   */
+  readonly counted: readonly string[];
+
+  /**
+   Exit status of the sender.
+   */
+  readonly status: number;
+
+  /**
+   Standard output of the sender.
+   */
+  readonly output: string;
+};
+
+/**
+ Result of the clearnet scenario.
+ */
+type ObservedClearnet = {
+  /**
+   Kinds of the rules of the output chain,
+   in order.
+   */
+  readonly outputOrder: readonly string[];
+
+  /**
+   Kinds of the rules of the forward chain,
+   in order.
+   */
+  readonly forwardOrder: readonly string[];
+
+  /**
+   A packet with the exempt mark to an address that is not an exception.
+   */
+  readonly marked: Probed;
+
+  /**
+   A packet with a mark one above the exempt mark.
+   */
+  readonly markedPlusOne: Probed;
+
+  /**
+   A packet without a mark.
+   */
+  readonly unmarked: Probed;
+
+  /**
+   An unmarked packet to an update host.
+   */
+  readonly host: Probed;
+
+  /**
+   An echo request to loopback.
+   */
+  readonly loopback: Probed;
+
+  /**
+   A program that may set the mark.
+   */
+  readonly withCapabilities: Probed;
+
+  /**
+   The same program without the capabilities the kernel asks for.
+   */
+  readonly withoutCapabilities: Probed;
+};
+
+/**
+ Output of the clearnet scenario in a namespace where the caller is mapped to root.
+ */
+const clearnetOutput = execFileSync(
+  'unshare',
+  [
+    '--user',
+    '--net',
+    '--map-root-user',
+    process.execPath,
+    new URL('tunnel-traffic-block-clearnet.scenario.ts', import.meta.url,).pathname,
+  ],
+  { timeout: 120_000, encoding: 'utf8', },
+);
+/**
+ What the clearnet scenario observed.
+ */
+const clearnet = JSON.parse(clearnetOutput.trim().split('\n',).at(-1,) ?? '{}',) as ObservedClearnet;
+// The accept rules stand ahead of the drop, in the order the routing's rules are read: mark, then hosts.
+assert.deepEqual(clearnet.outputOrder, ['mark', 'hosts4', 'hosts6', 'drop',],);
+// Forwarded packets are all dropped.
+assert.deepEqual(clearnet.forwardOrder, ['drop',],);
+assert.deepEqual(clearnet.marked.counted, ['mark',], 'a packet with the exempt mark must pass the block',);
+assert.deepEqual(clearnet.markedPlusOne.counted, ['drop',], 'only the exact exempt mark passes',);
+assert.deepEqual(clearnet.unmarked.counted, ['drop',], 'an unmarked packet must be dropped',);
+assert.deepEqual(clearnet.host.counted, ['hosts4',], 'a packet to an update host must pass the block',);
+// Loopback is not counted by any rule and is answered.
+assert.deepEqual(clearnet.loopback.counted, [],);
+assert.equal(clearnet.loopback.status, 0,);
+assert.deepEqual(clearnet.withCapabilities.counted, ['mark',],);
+assert.equal(clearnet.withCapabilities.output.trim(), 'marked',);
+// Without the capabilities the kernel refuses the mark, and the packet goes out unmarked and is dropped.
+assert.equal(clearnet.withoutCapabilities.output.trim(), `refused ${String(constants.errno.EPERM,)}`,);
+assert.deepEqual(clearnet.withoutCapabilities.counted, ['drop',],);
 process.stdout
   .write('wg-quicker traffic block integration passed\n',);

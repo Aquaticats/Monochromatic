@@ -1,4 +1,7 @@
-import { trafficBlockTable, } from './tunnel-traffic-block.ts';
+import {
+  BLOCK_EXCEPTIONS,
+  trafficBlockTable,
+} from './tunnel-traffic-block.ts';
 
 /**
  Words for a caught value in a message.
@@ -63,7 +66,8 @@ export function refusedMessage(
    */
   const headline = earlierRemoval
     ? `an earlier down already removed part of the routing of ${interfaceName}, so the tunnel is NOT fully up, and traffic is BLOCKED `
-      + `(nft table inet ${trafficBlockTable({ interfaceName, },)} drops everything that leaves the machine); this attempt: ${state}`
+      + `(nft table inet ${trafficBlockTable({ interfaceName, },)} drops everything that leaves the machine ${BLOCK_EXCEPTIONS}; `
+      + `see what it lets through with \`sudo nft list table inet ${trafficBlockTable({ interfaceName, },)}\`); this attempt: ${state}`
     : `the tunnel ${interfaceName} is still fully up; ${state}`;
   return `error: could not ${what} (${why})\n`
     + `${headline}\n`
@@ -104,8 +108,8 @@ export function incompleteMessage(
    */
   const table = trafficBlockTable({ interfaceName, },);
   return `error: down ${interfaceName} failed part way: could not ${what} (${why})\n`
-    + `traffic is BLOCKED (nft table inet ${table} drops everything that leaves the machine, and was installed before any routing was removed), `
-    + 'so nothing goes outside the tunnel unprotected, and the network will not work until down is finished\n'
+    + `traffic is BLOCKED (nft table inet ${table} drops everything that leaves the machine ${BLOCK_EXCEPTIONS}, and was installed before any routing was removed), `
+    + 'so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished\n'
     + `to finish: run \`wg-quicker down ${interfaceName}\` again, with this build or with the build that started the tunnel; a down that succeeds removes the block\n`
     + `to lift the block by hand: sudo nft delete table inet ${table}`;
 }
@@ -160,6 +164,6 @@ export function leftoverMessage(
    */
   const state = blockFailure === undefined
     ? 'nothing is blocked and no routing is left over; finish these by hand'
-    : `traffic is still BLOCKED (nft table inet ${table} drops everything that leaves the machine) and the network will not work until it is lifted: sudo nft delete table inet ${table}`;
+    : `traffic is still BLOCKED (nft table inet ${table} drops everything that leaves the machine ${BLOCK_EXCEPTIONS}) and the rest of the network will not work until it is lifted: sudo nft delete table inet ${table}`;
   return `error: down ${interfaceName} removed the tunnel but ${problems.join('; ',)}\n${state}`;
 }

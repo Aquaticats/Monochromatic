@@ -10,6 +10,7 @@ import {
   type TeardownSteps,
 } from '../dist/final/node/tunnel-teardown.mjs';
 import {
+  BLOCK_EXCEPTIONS,
   trafficBlockScript,
   trafficBlockTable,
 } from '../dist/final/node/tunnel-traffic-block.mjs';
@@ -209,6 +210,8 @@ await describe({
         const message = messageOf({ thrown, },);
         expect(message,).toContain('an earlier down already removed part of the routing of wgtest, so the tunnel is NOT fully up, and traffic is BLOCKED',);
         expect(message,).toContain('nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain(BLOCK_EXCEPTIONS,);
+        expect(message,).toContain('sudo nft list table inet wg-quicker-wgtest-blocked',);
         expect(message,).toContain('this attempt: nothing was removed',);
         expect(message,).not.toContain('is still fully up',);
         expect(message,).toContain('then run `wg-quicker down wgtest` again',);
@@ -259,6 +262,7 @@ await describe({
         expect(message,).toContain('the tunnel wgtest is still fully up; no routing was removed',);
         expect(message,).toContain('the application watcher stays stopped',);
         expect(message,).toContain('sudo nft list ruleset',);
+        expect(message,).toContain('application-bypass state and `ip rule show` can be read',);
       },
     },),
     it({
@@ -294,6 +298,8 @@ await describe({
           expect(message,).toContain(`could not ${what} (Error: ${failing} failed)`,);
           expect(message,).toContain('traffic is BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
           expect(message,).toContain('installed before any routing was removed',);
+          expect(message,).toContain(BLOCK_EXCEPTIONS,);
+          expect(message,).toContain('except what the routing sends around it by design',);
           expect(message,).toContain('run `wg-quicker down wgtest` again, with this build or with the build that started the tunnel',);
           expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
         }
@@ -316,6 +322,7 @@ await describe({
         const message = messageOf({ thrown, },);
         expect(message,).toContain('removed the tunnel but could not lift the traffic block (Error: removeTrafficBlock failed)',);
         expect(message,).toContain('traffic is still BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain(BLOCK_EXCEPTIONS,);
         expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
         expect(message,).not.toContain('nothing is blocked',);
       },

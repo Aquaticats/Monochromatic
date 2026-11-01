@@ -515,10 +515,11 @@ and not when `down` is killed or crashes part way,
 because the block is an nft table in the kernel and stays until it is removed.
 It is an nft table of its own,
 `inet wg-quicker-<interface>-blocked`,
-that drops everything leaving through an interface other than loopback and everything forwarded.
+that drops everything forwarded and everything leaving through an interface other than loopback,
+except the clearnet traffic described under the heading "Clearnet traffic still flows".
 The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
 it blocks nothing outbound.
-The network does not work while the block is in place,
+The rest of the network does not work while the block is in place,
 which is a few moments in a `down` that succeeds.
 Installing the block is one nft transaction that creates the table when it is absent,
 empties it when it is present and fills it,
@@ -530,12 +531,82 @@ which needs no privilege:
 replacing a block in place is one transaction,
 where deleting the table and installing it again is two,
 with the table gone between them.
+
+### Clearnet traffic still flows
+
+The owner decided on 2026-11-01:
+
+> `down` doesn't have to block all traffic during `down`.
+> It can avoid blocking already-clearnet ones.
+
+So the block does not drop what the routing already sends around the tunnel by design,
+while `down` runs and while a block left by a failed `down` stands.
+It reads that from what the routing itself matches on,
+and adds no rule of its own:
+
+- A packet carrying the exempt mark (`ExemptMark`) passes.
+  This is exactly what the policy rule `fwmark <mark> table <bypass table>` matches,
+  with no mask,
+  so the block matches the whole mark too.
+  The cgroup programs of the updates slice and of the exempted applications set the mark on their sockets
+  (`connect4`,
+  `connect6`,
+  `udp4_sendmsg` and `udp6_sendmsg`).
+- A packet to an update host passes.
+  These are the destinations of the `to <address> table <bypass table>` rules the route watcher keeps,
+  read from `ip rule show` at the time the block is installed.
+- Loopback passes,
+  as before.
+- Everything else is dropped:
+  an unmarked packet,
+  a packet with any other mark,
+  and everything forwarded.
+
+These rules stand ahead of the drop in the output chain of the same nft transaction that installs the block.
+The block is built from the ownership state in `/run/wg-quicker`,
+which is still there when the block is installed.
+An interface without an application bypass has nothing to let through,
+and its block drops everything outbound as before.
+If the state or the rules cannot be read,
+`down` stops before it changes anything,
+with the tunnel fully up and an error that says what could not be read,
+because a block built without that knowledge would cut traffic the owner wants to keep.
+
+A `down` that is run again after a failed one may find that the failed one already removed the ownership state.
+The block of the earlier attempt is then kept as it is,
+with the exceptions it was installed with,
+and not replaced by one that has none.
+Marked traffic of the updates slice keeps passing during that window,
+because the kept block still lets it through.
+The kill switch (`inet wg-quicker-<interface>`) has chains only in the prerouting and postrouting hooks (`src/tunnel-firewall.ts`),
+so it has nothing that drops marked output packets and does not change this.
+
+An unprivileged process cannot give its packets the mark.
+The kernel refuses `SO_MARK` without `CAP_NET_RAW` or `CAP_NET_ADMIN`
+in the user namespace of the socket's network namespace
+(`sk_setsockopt` and `sock_cmsg_send` in `net/core/sock.c` of Linux v7.2.11,
+lines 1527 to 1532 and 3041 to 3044).
+A process in a user and network namespace of its own can mark its own sockets there,
+but its packets reach this host through the forward hook,
+which stays dropped,
+and not through the output hook that the exceptions sit in.
+`mise run //package/wg/cli-quicker:test:integration:block` shows all of this with the real `nft`
+in a disposable user and network namespace:
+a packet with the exempt mark and a packet to an update host are counted by their accept rules,
+a packet with the mark one higher,
+an unmarked packet and an unmarked packet from a process
+without `CAP_NET_RAW` and `CAP_NET_ADMIN` (whose attempt to set the mark fails with `EPERM`) are counted by the drop,
+loopback is counted by none,
+and the accept rules stand ahead of the drop.
+
+### Failure messages
+
 If a step of the routing removal fails,
 the error says the block is in place:
 
 ```text
 error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
-traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine, and was installed before any routing was removed), so nothing goes outside the tunnel unprotected, and the network will not work until down is finished
+traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
 to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
 to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ```

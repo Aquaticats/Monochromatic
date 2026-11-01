@@ -280,6 +280,7 @@ export class TeardownIncompleteError extends Error {
  after the attempt to remove it.
  While the block stands,
  everything that leaves the machine is dropped,
+ except the clearnet traffic it was installed to let through,
  so the message names the nft table and the command that removes it.
 
  @example

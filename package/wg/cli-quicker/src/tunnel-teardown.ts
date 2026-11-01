@@ -29,7 +29,7 @@ import {
   refusedMessage,
 } from './tunnel-teardown-messages.ts';
 import {
-  installTrafficBlock,
+  blockTraffic,
   removeTrafficBlock,
   trafficBlockExists,
 } from './tunnel-traffic-block.ts';
@@ -92,9 +92,11 @@ export type TeardownSteps = {
   readonly removeOpenSnitchAllowance: (call: { readonly config: WireguardConfig; },) => Promise<void>;
 
   /**
-   Blocks all traffic that does not stay on the machine.
+   Blocks all traffic that does not stay on the machine,
+   except the clearnet traffic the routing sends around the tunnel by design (the exempt mark and the update hosts).
    It runs before any routing is removed,
    so a `down` that is killed part way leaves traffic blocked and not outside the tunnel.
+   It fails, with the tunnel still up, when it cannot read what to let through.
    */
   readonly blockTraffic: (call: { readonly config: WireguardConfig; },) => Promise<void>;
 
@@ -184,8 +186,8 @@ const PRODUCTION_STEPS: TeardownSteps = {
   removeOpenSnitchAllowance: function removeOpenSnitchAllowanceStep({ config, }: { readonly config: WireguardConfig; },): Promise<void> {
     return removeOpenSnitchEndpointAllowance({ interfaceName: config.interfaceName, },);
   },
-  blockTraffic: function blockTrafficStep({ config, }: { readonly config: WireguardConfig; },): Promise<void> {
-    return installTrafficBlock({ interfaceName: config.interfaceName, },);
+  blockTraffic: async function blockTrafficStep({ config, }: { readonly config: WireguardConfig; },): Promise<void> {
+    await blockTraffic({ interfaceName: config.interfaceName, },);
   },
   removeTrafficBlock: function removeTrafficBlockStep({ config, }: { readonly config: WireguardConfig; },): Promise<void> {
     return removeTrafficBlock({ interfaceName: config.interfaceName, },);
@@ -517,7 +519,8 @@ export async function teardownKeepingTunnelOnFailure(
         what: 'install the traffic block that protects the removal of the routing',
         why: reason({ error, },),
         state: `no routing was removed; ${restored}; the application watcher stays stopped, so application bypass is not enforced until down is run again or the tunnel is brought up again`,
-        fix: 'make sure `nft` works (for example `sudo nft list ruleset`)',
+        fix: 'make sure `nft` works (for example `sudo nft list ruleset`) and that the application-bypass state and `ip rule show` can be read; '
+          + 'the block lets through the traffic the routing sends around the tunnel, so it needs them',
       },),
       { cause: error, },
     );
