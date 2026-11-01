@@ -6556,3 +6556,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Push notices are skipped for machine-read output.
   - 0.5.5 = hotfix + landings + notices + e2e port, merged by an integrator. The upgrade is verified at the user
     boundary WITHOUT the manual reset, to prove the self-heal; `reset-service-units.ts` stays ready as the fallback.
+- OWNER ANSWERS (AskUserQuestion, 2026-11-01):
+  - Event JSON: "Keep JSON as is". The SPEC JSONL stream contract stays unchanged; only specific resolvable cases (the
+    pruned-content retry) get a plain message. Do not re-ask.
+  - Escape hatch: "No override (Recommended)". No env switch to bypass the service; failures stay loud and plain, and
+    fixes land in the wrapper. Do not re-ask.
+- 0.5.5 integrator: agent `a84894bfa146cfcc4` merges `1084be64d5`, `457495dbba`, `57e27ae533` and `b6fdeee5f5` onto
+  integ, with an upgrade test against the real 0.5.4 service binary.
+- Cross-vendor review of the copy-in-service redesign `3204e0e14a` is running: `~/temp/agent/review-wtc/v2/sol-review.txt`.
+- QUEUED after 0.5.5 integrates (they touch the same service files): one agent fixes the e2e product findings:
+  1. the service route never prints `external-hooks-unsupported`;
+  2. a SIGKILLed client leaves `.git/cli-git-service-<uuid>`. Suggested: the service owns the scratch dir's life, and
+     the client's connection closing is the death signal (no `/proc`);
+  3. on start, the service reclaims records claimed by another instance at once, instead of after the 30-minute lease;
+  4. a branch switch during a held commit: fail like native Git ("cannot lock ref HEAD") with nothing changed and the
+     message saved, and push the record's `branch_ref`, never the symbolic HEAD;
+  5. stale socket `bind --path`;
+  plus the landing prune gap (check that the new commit's objects exist before the ref moves); per-repository landing
+  so one repository's foreign lock wait does not block other repositories; and kqueue on macOS.
