@@ -77,11 +77,16 @@ fn read_only_commands_start_at_most_the_location_query() {
     let fixture: Fixture = fixture("fast-path-count");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
-    executable(
-        fixture.root.join("shim/git").as_path(),
-        // The hooks-off option the wrapper puts first is not part of the count's question, so the log leaves it out.
-        b"#!/bin/sh\nargs=\"$*\"\nargs=\"${args#-c core.hooksPath=/dev/null/cli-git-no-hooks }\"\nprintf '%s\\n' \"$args\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n",
+    // The hooks-off options the wrapper puts in front of the subcommand are not part of the count's question, so the
+    //  log leaves them out when nothing precedes them; a global option the wrapper adds itself precedes them.
+    let mut hooks_off: String = format!("-c core.hooksPath={} ", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY);
+    for event in git_policy_cli::hooks_off::switched_off_events() {
+        hooks_off.push_str(format!("-c hook.{event}.enabled=false ").as_str());
+    }
+    let script: String = format!(
+        "#!/bin/sh\nargs=\"$*\"\nargs=\"${{args#{hooks_off}}}\"\nprintf '%s\\n' \"$args\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n"
     );
+    executable(fixture.root.join("shim/git").as_path(), script.as_bytes());
     // Invalid configuration and a legacy file: reading either would stop the command.
     std::fs::write(repo.join(CONFIG_FILE_NAME), "this is not JSONC").expect("invalid");
     std::fs::write(
@@ -136,7 +141,7 @@ fn read_only_commands_start_at_most_the_location_query() {
         (vec!["diff", "--stat"], "diff --stat"),
         (
             vec!["status", "--porcelain=v1"],
-            "-c advice.statusHints=false status --porcelain=v1",
+            format!("-c advice.statusHints=false {hooks_off}status --porcelain=v1").as_str(),
         ),
         (vec!["--cli-git-keep-going", "ls-files"], "ls-files"),
     ] {

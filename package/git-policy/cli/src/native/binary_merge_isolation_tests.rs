@@ -474,10 +474,10 @@ fn marker_hook(fixture: &Fixture, repo: &Path, event: &str) -> PathBuf {
     return marker;
 }
 
-/// The merge runs `post-merge` once, as native Git does, and runs none of the hooks that gate a commit: the merge
-/// commit is made from objects, as the auto-push merge is.
+/// The merge runs no configured hook at all, `post-merge` included: the wrapper supports no external hook program, and
+/// the merge commit is made from objects, as the auto-push merge is.
 #[test]
-fn post_merge_runs_once_and_the_commit_hooks_do_not_run() {
+fn no_configured_hook_runs_on_the_isolated_merge() {
     let fixture: Fixture = fixture("merge-hooks");
     let repo: PathBuf = diverged(&fixture, "repo");
     let post_merge: PathBuf = marker_hook(&fixture, repo.as_path(), "post-merge");
@@ -486,8 +486,10 @@ fn post_merge_runs_once_and_the_commit_hooks_do_not_run() {
     stage_unrelated_work(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert_eq!(std::fs::read_to_string(post_merge).expect("post-merge ran"), "ran\n");
-    assert!(!pre_merge_commit.exists() && !commit_msg.exists(), "no commit-gating hook runs on the isolated merge");
+    assert!(
+        !post_merge.exists() && !pre_merge_commit.exists() && !commit_msg.exists(),
+        "no hook runs on the isolated merge"
+    );
     remove_settled(&fixture);
 }
 

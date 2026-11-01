@@ -5693,3 +5693,32 @@ This block supersedes "State at 2026-10-29 (night, later)".
   valid); publish run `41306795688` succeeded; 0.6.1 on crates.io (2026-11-01T12:33:50Z) with all platform assets. My dry run (run `41306647962`) also
   passed. The wrapper release can go through `crate-release.yml`: `mise run //package/git-policy/cli:native:release -- <from> <to> <note>`, then
   `native:release:wait` with the printed run URL (needs `<run> <version>`).
+
+### Merged to main: LFS, ITA fix, standards-review port (pure parts), hooks removal; first cross-vendor review
+
+- Owner, verbatim: "You should (almost) never be waiting. There is always more work." and "Avoid wasting compute on stuff that would be shortly superseded." Applied: stopped
+  the LFS-only gate `gpc-lfs-gate2` (superseded by the combined gate), narrowed the mutation campaign, kept lock/shadow/journal code out of every new task.
+- Merged to main by the coordinator (each READY by its author, charter amendment): the LFS branch `dde983848f` (merge `db364f4a6f`); my fix `fix(git-policy/cli): an intent-to-add entry no
+  longer seeds the private index ...` (below); the standards-review port `a90e29a979` (pure parts, ureq client, `work_item` record, nothing wired); the hooks removal `ed06e54a4f`
+  (generic action facility deleted: 938 lines in 6 files; `postCommit` is a clear config error; all 28 hook events including `pre-push` switched off after the caller's globals; warnings on
+  commit, push and doctor; `HOOK_EVENTS` checked against the host's githooks(5); Cargo.lock forbidden-strings 0.6.0 to 0.6.1 drift). Combined gate on the clean worktree
+  `.claude/worktrees/gate-main` (unit `gpc-main-gate`, log `~/temp/agent/gate/main-gate.log`) is running.
+- First CROSS-VENDOR review result (`gpt-6.1-sol`, static diff review of the commit-timeouts merge, `~/temp/agent/sol/out-ct2.md`, input `ct2.diff`): P1 an intent-to-add entry of a TRACKED EMPTY
+  FILE survives the one-tree `read-tree --reset` of the copied real index and is then left out of the tree, so an explicit-path commit of another path DROPS THE EMPTY FILE FROM THE COMMIT.
+  CONFIRMED by me with real Git in a throwaway repository (script `~/temp/agent/ita-repro.ts`: tree without `empty`, base tree with it). The Claude second pass missed it and
+  `index_flags_tests.rs` had even asserted that intent-to-add "is not a mark that matters". Fixed on main: `index_flags.rs` treats the intent-to-add bit (0x2000 of the extended
+  flags) as a mark; tests: reader against `git status --porcelain` and the production seeding through `write_private_tree`. NOT yet shown failing without the fix by the guard
+  procedure (the real-Git repro is the demonstration); add to the planted controls. P2 (not fixed; design questions for the service): the "quick" 60 s class is chosen by subcommand
+  only, so `cat-file blob`, `diff-tree -p`, `rev-list --objects --all`, `ls-tree -r`, `write-tree` after a large change, `remote show/prune` can legitimately exceed it; P3: the 300 s bulk
+  bound is a sixfold cut from 1 800 s for `add`, `pack-objects`, `index-pack`, maintenance (a 2 GiB object at 5 MiB/s needs about 410 s); P4: the class wiring has no production-wired test
+  (`run_git_once` could go back to `WatchTerms::from_environment` and the tests stay green); unproven suspicions: racy-timestamp coverage, `shadow_skeleton.rs` `fs::write(HEAD)` follows a
+  pre-existing symlink if another principal can prepare entries in the shadow namespace. To be decided in the service design (bounds by workload, not by subcommand).
+- Corrective comments posted on the LFS commits `9a03d59467`, `02b4862916`, `6e747cd1a4`, `26627b5bcc`, `156415d696` (script `~/temp/agent/post-comments.ts`).
+- Standards-review port decisions (answered to `ad02e84404af49107`): the review client lives only in the resident service (structural boundary test, no client-path linking of `ureq`; the
+  port adds about 58 KB unreached and a probe binary of the client alone is 2.55 MB); fix both script quirks in the port (excerpt window old-side numbers on the new-side file; unescaped
+  response body in the log), recording differences; wiring of `enqueue` and `review_landed` waits for the service slices; the old hook, the `shadow-review` task and the runbook trigger go
+  in the change that wires it. Until then the review is switched off by the hooks removal (audit-only; accepted).
+- Not done by the hooks author (deliberately, superseded by the service): the container e2e suite port (its hook-based scenarios observe nothing), `guarded_paths` plumbing, stale
+  comments and supersession notes in `doc/decision/cli-git-concurrent-commits.md` and `e2e/README.md`, `git hook run <event>` silently exiting 0.
+- Open: `sol-lfs2` (cross-vendor review of the LFS merge diff, `out-lfs2.md`), the combined gate, mutation campaign `m048c`, agents: `a6e4566588e9ec087` (service design),
+  `a19be37e1bd9ea63d` (linter embedding), `ad02e84404af49107` (port quirk fixes), `abdf738d7cb09a5e6` (in-process queries), `a54d6b24f9cf91c20` (architecture-independent slow and flaky tests).

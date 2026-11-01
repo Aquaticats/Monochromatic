@@ -19,6 +19,7 @@
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
+use super::external_hooks::external_hooks_warning;
 use super::lfs_pre_push::uses_lfs;
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
@@ -595,25 +596,30 @@ fn forward_action(
 }
 
 /// What:
-///  Whether `command` is a push that must upload LFS objects first.
+///  Whether `command` is a push that must upload LFS objects first, and the configuration warning for configured
+///  external hooks, when the same read shows any, as empty text otherwise.
+///  A dry-run push reads the configuration too, for the warning, but uploads nothing.
 /// Why:
 ///   A push that sends nothing (`--dry-run`) needs no upload, and a repository without LFS keys needs none either.
 ///  One configuration read answers it, made with the invocation's own global options; when Git cannot list its
 ///  configuration the hook is added anyway, because it then decides with Git's own answers.
+///  The warning costs no read of its own: a push is the one forwarded command that already holds the snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function needsLfsUpload(command, realGit, overlay): boolean;
+/// function needsLfsUpload(command, realGit, overlay): [boolean, string];
 /// ```
-fn needs_lfs_upload(command: &ResolvedCommand, real_git: &Path, overlay: &[(OsString, OsString)]) -> bool {
+fn needs_lfs_upload(
+    command: &ResolvedCommand,
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+) -> (bool, String) {
     if command.word() != b"push" {
-        return false;
+        return (false, String::new());
     }
-    if parse_push_region(command.region(), &[]).is_ok_and(|region| {
+    let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
         return region.dry_run;
-    }) {
-        return false;
-    }
+    });
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -624,9 +630,13 @@ fn needs_lfs_upload(command: &ResolvedCommand, real_git: &Path, overlay: &[(OsSt
         Ok(directory) => read_config_snapshot(&context, directory.as_path()),
         Err(_) => None,
     };
+    let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
+    if dry_run {
+        return (false, warning);
+    }
     return match snapshot {
-        Some(found) => uses_lfs(&found),
-        None => true,
+        Some(found) => (uses_lfs(&found), warning),
+        None => (true, warning),
     };
 }
 
@@ -671,7 +681,8 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    let lfs: bool = needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+    let (lfs, hook_warning): (bool, String) = needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+    let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
     let stack: bool =
         !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some();
@@ -689,7 +700,7 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
                 lfs,
                 stack,
             }),
-            stderr,
+            stderr: stderr_with_warning,
         };
     }
     let forwarded: Vec<OsString> = arguments;
@@ -699,13 +710,13 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
             arguments: forwarded,
             overlay,
             copy: facts,
-            stderr,
+            stderr: stderr_with_warning,
         },
         None => Action::Forward {
             real_git,
             arguments: forwarded,
             overlay,
-            stderr,
+            stderr: stderr_with_warning,
         },
     };
 }

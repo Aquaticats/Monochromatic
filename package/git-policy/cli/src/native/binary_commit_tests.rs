@@ -311,41 +311,6 @@ fn an_unknown_option_is_refused_by_git_and_nothing_lands() {
     remove_settled(&fixture);
 }
 
-/// A configured `pre-commit` hook that fails ends the commit with Git's status and leaves nothing behind.
-#[test]
-fn a_failing_pre_commit_hook_stops_the_commit_with_its_status() {
-    let fixture: Fixture = fixture("commit-hook-fails");
-    let repo: PathBuf = edited_repository(&fixture, "repo");
-    super::support::configure_pre_commit_hook(&fixture, repo.as_path(), b"#!/bin/sh\necho rejected by the hook >&2\nexit 1\n");
-    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    let rejected: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=x", "a.txt"]);
-    assert_eq!(rejected.code, Some(1), "{}", stderr_of(&rejected));
-    assert!(stderr_of(&rejected).contains("rejected by the hook"), "{}", stderr_of(&rejected));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head);
-    assert_nothing_left(&fixture, repo.as_path());
-    remove_settled(&fixture);
-}
-
-/// A configured `pre-commit` hook that re-stages the file through the wrapper has its change kept in the commit.
-#[test]
-fn a_pre_commit_hook_restaging_a_file_is_kept() {
-    let fixture: Fixture = fixture("commit-hook-restages");
-    let repo: PathBuf = edited_repository(&fixture, "repo");
-    super::support::configure_pre_commit_hook(
-        &fixture,
-        repo.as_path(),
-        b"#!/bin/sh\nprintf 'hooked\\n' >> a.txt\ngit add -- a.txt\n",
-    );
-    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=second", "a.txt"]);
-    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
-    assert_eq!(
-        git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]),
-        "one\ntwo\nhooked\n"
-    );
-    assert_nothing_left(&fixture, repo.as_path());
-    remove_settled(&fixture);
-}
-
 /// Waits until a phase marker exists, or fails the control.
 pub(super) fn await_marker(path: &Path) {
     let started: Instant = Instant::now();
@@ -432,20 +397,17 @@ fn a_commit_that_overlaps_the_winner_ends_in_a_replay_conflict() {
     remove_settled(&fixture);
 }
 
-/// A termination signal sent to the wrapper while a `pre-commit` hook runs ends the hook's Git, leaves no
+/// A termination signal sent to the wrapper while the commit sits in the editor ends the commit's Git, leaves no
 ///  transaction behind, and exits with 128 plus the signal number.
 #[test]
-fn a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing() {
+fn a_termination_signal_during_the_editor_ends_the_commit_and_leaves_nothing() {
     let fixture: Fixture = fixture("commit-signal");
     let repo: PathBuf = edited_repository(&fixture, "repo");
-    let started: PathBuf = fixture.root.join("hook-started");
-    super::support::configure_pre_commit_hook(
-        &fixture,
-        repo.as_path(),
-        format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes(),
-    );
+    let started: PathBuf = fixture.root.join("editor-started");
+    let editor: PathBuf = super::support::stalling_editor(&fixture, started.as_path());
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "--message=x", "a.txt"])
+    let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "a.txt"])
+        .env("GIT_EDITOR", &editor)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()

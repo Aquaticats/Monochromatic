@@ -96,9 +96,10 @@ fn a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explan
     remove_settled(&fixture);
 }
 
-/// Another configured `pre-push` hook of the caller that fails is not blamed on the upload.
+/// Another configured `pre-push` hook of the caller does not run (the wrapper runs no configured hook), so its failure
+///  can neither stop the push nor be blamed on the upload.
 #[test]
-fn another_pre_push_hook_that_fails_is_not_blamed_on_the_upload() {
+fn another_configured_pre_push_hook_does_not_run_and_is_not_blamed_on_the_upload() {
     let fixture: Fixture = fixture("lfs-parent-other-hook");
     let world: World = world(&fixture, true, Some(0));
     let pushed: Observed = wrapped(
@@ -107,9 +108,9 @@ fn another_pre_push_hook_that_fails_is_not_blamed_on_the_upload() {
         &["-c", "hook.theirs.event=pre-push", "-c", "hook.theirs.command=false", "push", "origin", "main"],
     );
     let stderr: String = stderr_of(&pushed);
-    assert_ne!(pushed.code, Some(0), "{stderr}");
+    assert_eq!(pushed.code, Some(0), "{stderr}");
     assert!(!stderr.contains(EXPLANATION), "{stderr}");
-    assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
+    assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
     remove_settled(&fixture);
 }
 

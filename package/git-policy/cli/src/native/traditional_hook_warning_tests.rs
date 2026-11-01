@@ -67,8 +67,8 @@ fn the_warning_says_what_is_wrong_and_what_to_run() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
     let line: String = traditional_hooks_warning(Some(&snapshot)).expect("a warning");
     assert!(line.contains("`core.hooksPath` is set to my-hooks"), "{line}");
-    assert!(line.contains("does not support traditional hooks"), "{line}");
-    assert!(line.contains("undefined"), "{line}");
+    assert!(line.contains("supports no external hook program"), "{line}");
+    assert!(line.contains("policy under policies"), "{line}");
     assert!(line.contains("`git cli-git doctor`"), "{line}");
     assert!(line.contains("\"hint\":\"Hint: "), "{line}");
 }
@@ -93,21 +93,23 @@ fn the_last_entry_decides_and_empty_entries_name_no_directory() {
     assert_eq!(configured_hooks_path(&valueless), None);
 }
 
-/// The wrapper's own per-transaction overrides are not the user's choice and never warn; lookalikes still do.
+/// The wrapper's own hooks-off values are not the user's choice and never warn; lookalikes still do.
 #[test]
 fn the_wrappers_own_overrides_do_not_warn() {
     for own in [
-        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/no-hooks"),
-        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/hooks"),
+        String::from(NO_HOOKS_DIRECTORY),
+        format!("/repo/.git/cli-git/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
     ] {
         assert!(is_wrapper_hooks_path(own.as_str()), "{own}");
         let snapshot: ConfigSnapshot = listing_snapshot(&[("command", format!("core.hookspath\n{own}").as_str())]);
         assert_eq!(traditional_hooks_warning(Some(&snapshot)), None, "{own}");
     }
     for other in [
-        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/elsewhere"),
-        format!("/repo/.git/other-root/{TRANSACTION}/no-hooks"),
-        String::from("/repo/.git/cli-git-transactions/not-a-transaction/hooks"),
+        format!("/repo/.git/cli-git/{SHADOW_ROOT_NAME}/{TRANSACTION}/elsewhere"),
+        format!("/repo/.git/cli-git/{SHADOW_ROOT_NAME}/{TRANSACTION}/hooks"),
+        format!("/repo/.git/other-root/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
+        format!("/repo/.git/cli-git/{SHADOW_ROOT_NAME}/not-a-transaction/{SHADOW_NO_HOOKS_NAME}"),
+        format!("{NO_HOOKS_DIRECTORY}/more"),
         String::from("/repo/.git/hooks"),
         String::from("hooks"),
         String::new(),

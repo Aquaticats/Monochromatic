@@ -1501,7 +1501,21 @@ each finished branch is reviewed and merged into `main`):
   Veto-open:
   if ownership state or the rule listing cannot be read,
   `down` refuses with the tunnel fully up.
-  Sent to the wg agent:
+  Final re-review (`f7217a7b5b..c324bc2cfc`):
+  no blockers and no should-fix items.
+  Owner answers, 2026-11-01, in the question tool:
+  restart "I run it" (this session runs `down` then `up`);
+  "Accept the gap (Recommended)";
+  "Pass forwarded update hosts" (update-host accepts in the forward chain too);
+  "Keep refusing + manual steps (Recommended)"
+  (exact manual steps in the refusal,
+  and a "table absent" check that does not read nft's English error text).
+  Sent to the wg agent with a request for the exact live-apply sequence.
+  Probed:
+  `sudo --non-interactive true` exited 0
+  (possibly a cached credential, so re-probe right before the restart);
+  `wg-quicker` resolves to `/var/home/user/Monochromatic/node_modules/.bin/wg-quicker`.
+  Sent to the wg agent earlier:
   the block table accepts traffic the routing already sends to clearnet
   (matched the way the policy rules match it),
   during `down` and in a leftover block.

@@ -84,10 +84,8 @@ pub fn git_command(
 ) -> Command {
     // `mut` allows the builder to be configured step by step.
     let mut command: Command = Command::new(real_git);
-    // Traditional hooks never run through the wrapper; see `hooks_off`.
-    super::hooks_off::disable_traditional_hooks(&mut command, arguments);
-    // `.args` appends each argument as its own array element, bytes unchanged.
-    command.args(arguments);
+    // No hook runs through the wrapper, and the options follow the caller's globals; see `hooks_off`.
+    super::hooks_off::add_arguments(&mut command, arguments);
     // `for (name, value) in overlay` destructures each borrowed pair.
     for (name, value) in overlay {
         command.env(name, value);

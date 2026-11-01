@@ -155,7 +155,7 @@ fn a_default_directory_hook_is_listed_with_status_one() {
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("unsupported"), "{stderr}");
+    assert!(stderr.contains("never run through cli-git"), "{stderr}");
     remove(root.as_path());
 }
 
@@ -256,7 +256,7 @@ fn a_foreign_hook_beside_shims_still_ends_with_status_one() {
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("unsupported"), "{stderr}");
+    assert!(stderr.contains("never run through cli-git"), "{stderr}");
     assert!(stderr.contains(shim.to_str().expect("UTF-8")), "{stderr}");
     assert!(stderr.contains("nothing needs doing"), "{stderr}");
     remove(root.as_path());

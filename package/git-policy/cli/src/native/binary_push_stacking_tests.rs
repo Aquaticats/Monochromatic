@@ -1,7 +1,9 @@
 //! Binary-level controls for an explicit `git push` that lost a race to another session:
 //!  the built executable merges what landed on the remote, publishes the merge through its own push, and leaves every
 //!  other failure exactly as Git reported it.
-//! A recording pre-push hook shows which pushes Git ran and whether each carried the marker of a stacked push.
+//! A recording `pre-receive` hook in the bare origin (a server-side hook, which a local-path remote runs itself) shows
+//!  which pushes reached the origin and whether each carried the marker of a stacked push.
+//! No hook of the pushing repository is used: the wrapper runs no configured hook.
 
 use super::support::{Fixture, git, remove, fixture, repository, run_wrapped, stderr_of};
 use std::ffi::OsStr;
@@ -16,29 +18,26 @@ struct Race {
     origin: PathBuf,
     /// The clone another session pushes from.
     rival: PathBuf,
-    /// The file the pre-push hook appends to.
+    /// The file the origin's `pre-receive` hook appends to.
     record: PathBuf,
 }
 
-/// Install a pre-push hook that records the marker and every pushed object, and exits with `exit_when_stacked`
-///  when it runs inside a stacked push and `0` otherwise.
-fn install_hook(fixture: &Fixture, repo: &Path, record: &Path, exit_when_stacked: i32) {
-    let hooks: PathBuf = fixture.root.join("hooks");
+/// Install a `pre-receive` hook in the bare origin that records the marker and every received object, and exits with
+///  `exit_when_stacked` when it runs inside a stacked push and `0` otherwise.
+fn install_hook(origin: &Path, record: &Path, exit_when_stacked: i32) {
+    let hooks: PathBuf = origin.join("hooks");
     std::fs::create_dir_all(&hooks).expect("hooks directory");
-    let hook: PathBuf = hooks.join("pre-push");
+    let hook: PathBuf = hooks.join("pre-receive");
     let source = format!(
         "#!/bin/sh\n\
          printf 'marker=%s\\n' \"${{CLI_GIT_STACKED_PUSH-unset}}\" >> '{record}'\n\
-         while read local_ref local_oid remote_ref remote_oid; do printf 'pushed=%s\\n' \"$local_oid\" >> '{record}'; done\n\
+         while read old_oid new_oid ref_name; do printf 'pushed=%s\\n' \"$new_oid\" >> '{record}'; done\n\
          [ \"${{CLI_GIT_STACKED_PUSH-}}\" = 1 ] && exit {exit_when_stacked}\n\
          exit 0\n",
         record = record.display(),
     );
     std::fs::write(&hook, source).expect("hook source");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("hook mode");
-    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
-    git(fixture, repo, &["config", "hook.control.event", "pre-push"]);
-    git(fixture, repo, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
 }
 
 /// Commit `text` to `name` with real Git, so no auto-push runs.
@@ -70,7 +69,7 @@ fn race(fixture: &Fixture, hook_exit_when_stacked: i32) -> Race {
     git(fixture, rival.as_path(), &["push", "--quiet", "origin", "HEAD:main"]);
     commit(fixture, repo.as_path(), "local.txt", "local\n");
     let record: PathBuf = fixture.root.join("hook-record.txt");
-    install_hook(fixture, repo.as_path(), record.as_path(), hook_exit_when_stacked);
+    install_hook(origin.as_path(), record.as_path(), hook_exit_when_stacked);
     return Race {
         repo,
         origin,
@@ -137,13 +136,11 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
     let lines = record_lines(&race);
-    // Two pushes publish, so two runs: the typed push, which the origin rejects, and the stacked merge push.
-    //  The wrapper's three dry-run probes (the typed push's scope probe, the integration probe after the rejection and
-    //  the stacked push's scope probe) disable configured `pre-push` hooks and add no run.
-    assert_eq!(hook_runs(&race), 2, "{lines:?}");
-    assert_eq!(lines.first().map(String::as_str), Some("marker=unset"), "{lines:?}");
+    // Only the stacked merge push reaches the origin's hook: Git rejects the typed push before it sends anything,
+    //  and the wrapper's dry-run probes send nothing.
+    assert_eq!(hook_runs(&race), 1, "{lines:?}");
     assert!(stacked_push_ran(&race), "the merge went through a stacked push: {lines:?}");
-    assert!(lines.contains(&format!("pushed={published}")), "the hook saw the merge: {lines:?}");
+    assert!(lines.contains(&format!("pushed={published}")), "the origin's hook saw the merge: {lines:?}");
     remove(&fixture);
 }
 
@@ -160,7 +157,7 @@ fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     assert!(!stderr.contains("had new commits"), "{stderr}");
     assert!(
         stacked_push_ran(&race),
-        "the merge was pushed through a stacked push and the hook refused it: {:?}",
+        "the merge was pushed through a stacked push and the origin's hook refused it: {:?}",
         record_lines(&race)
     );
     remove(&fixture);

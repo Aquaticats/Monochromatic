@@ -190,19 +190,22 @@ pub struct PolicyConfig {
 }
 
 /// What:
-///  Hook serialization tuning (`hooks` key).
+///  The retired `hooks` key.
 /// Why:
-///   `false` serializes preparation and post-landing hooks through the hook lock.
+///   `hooks.concurrentCommits` tuned the hook lock, and the wrapper runs no external hook, so there is no lock to
+///  tune.
+///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HooksConfig = { concurrentCommits: boolean };
+/// type HooksConfig = { concurrentCommits: boolean; present: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HooksConfig {
-    /// Whether hooks of concurrent commits may overlap;
-    ///  default `false`.
+    /// The value the file gave; never used.
     pub concurrent_commits: bool,
+    /// Whether the file states `hooks.concurrentCommits`.
+    pub present: bool,
 }
 
 /// What:
@@ -299,6 +302,7 @@ impl ConcurrencyConfig {
         return ConcurrencyConfig {
             hooks: HooksConfig {
                 concurrent_commits: false,
+                present: false,
             },
             index_lock: IndexLockConfig {
                 unproven_owner_timeout_ms: DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS,
