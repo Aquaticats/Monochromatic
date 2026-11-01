@@ -8,7 +8,7 @@ import type {
   AttemptRecord,
   AuxiliaryRecord,
 } from './ledger-fixture.ts';
-import { rejectionReachedPerson, } from './observation-attempt-fixture.ts';
+import { rejectionReachedPerson, } from './push-rejection-fixture.ts';
 
 //region Fixtures
 

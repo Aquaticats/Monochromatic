@@ -44,6 +44,7 @@ import {
   runBytes,
   runProcess,
 } from './process-fixture.ts';
+import { showPushNotices, } from './push-notice-fixture.ts';
 import {
   realGit,
   type ScenarioRepository,
@@ -299,6 +300,11 @@ export async function observeRun({
    Records the service did not finish.
    */
   const unsettledWork = await settleServiceWork(repository.commonDir,);
+  // A refused push leaves a notice that the next wrapped command shows, so one runs before the ledger is read.
+  await showPushNotices({
+    repository,
+    ledger,
+  },);
   /**
    Ledger contents.
    */
