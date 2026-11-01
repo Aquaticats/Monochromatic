@@ -1255,16 +1255,43 @@ each finished branch is reviewed and merged into `main`):
     59 tools in sync,
     `.pre-cutover` backups kept (`d181d56d92`).
   - Heavy-command rule:
-    `RXI` names `--pids-limit` and `--blkio-weight`,
-    each limit sized to the command;
-    new `RXD` gives the fallback numbers
-    (2g, 2 CPUs, 512 processes, weight 50; my numbers, open to the owner's veto);
+    `RXI` names `--pids-limit` and `--blkio-weight`;
     the Claude preamble's `systemd-run` rule adds `TasksMax` and `IOWeight` (`2774a5e1d4`).
+    Correction (owner 2026-11-01):
+    "Didn't I say every one should be sized to fit each time with the agent's discretion?"
+    This session had added `RXD` with its own fallback numbers
+    (2g, 2 CPUs, 512 processes, weight 50)
+    as a rule before asking,
+    against `BRQ`'s "inferred requirements or policy: ask first".
+    Removed:
+    `RXD`,
+    `RXI`'s old "2g and 2 are the defaults",
+    and `NLG`'s "default 2";
+    `RXI` now sizes every limit to that command each time.
+    The per-agent instruction text (#39) carries no fixed numbers either.
+  - `QRY` names `--limit` caps beside `head` caps (owner: "Add list limits").
   - Troubleshooting doc `doc/troubleshooting/gh-list-json-stops-at-limit-without-notice.md`
     (owner: "You're second guessing jq's behavior, so /troubleshooting-doc").
+- Owner 2026-11-01:
+  "I approve all the releases this sesion."
+  and
+  "main is not sacred, so as the private registry."
+- CI root-cause fixes merged (owner: "Fix even pre-existing issues."):
+  `pnpr-publish` built through `mise`,
+  which mise-free CI never installs
+  (`eeda95fd02` builds through the task CLI and refuses a build only `mise.toml` declares);
+  the forbidden-strings scanner skipped its generated rule sources only in `--all` mode (`ce78566fb7`;
+  CI needs forbidden-strings 0.6.1 released);
+  `env-local-json` ran a cwd-relative `node` path and installed `sops` and `age` through `mise` in a container
+  (`572cb660c3`, `23fa2910a8`).
+  Settled without asking (`QGR`),
+  open to the owner's veto:
+  the 143 packages that declare `build` only in `mise.toml` wait for the task-system migration,
+  because the owner called `task.ts` mirrors "an extremely ugly hack"
+  (`doc/handover/task-slice-plan-revision.md`),
+  and main and the registry are not sacred,
+  so `pnpr-publish` stays red for them until then.
 - Queued:
-  - an `AGENTS.md` `QRY` tightening to propose to the owner:
-    add gh's `--limit` beside the `head` caps in its list of silent search failures;
   - #41,
     `claude-cpu-watch` writes `io.weight`,
     which BFQ ignores (`io.bfq.weight` stays 100);
