@@ -64,13 +64,17 @@ Read-only commands,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
   The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
-   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
-   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+   `-c hook.cli-git-lfs-pre-push.event=pre-push` and the plain command `git-lfs pre-push`;
+   Git starts `git-lfs` itself and hands it the remote, the URL and the ref-update lines, and a failed upload stops
+   the push.
+  The wrapper never starts itself and writes no shell text for this: the push runs as a child of the wrapper,
+   and the wrapper, as that parent, prints the explanation of a failed upload from Git's own trace of the hook
+   (`GIT_TRACE2_EVENT`, unless you set it yourself; then the push still stops and Git's events go to your target).
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
-  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
-   or use `git push --no-verify`.
+  Without `git-lfs` on `PATH` the push stops before Git starts and the message says to install it, remove the LFS
+   configuration or use `git push --no-verify`.
   The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
    files read-only, do nothing without the `lockable` attribute, and are not run.
   See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
@@ -204,9 +208,10 @@ git cli-git doctor
 git cli-git --help
 ```
 
-`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
-it is not meant to be typed.
-It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
+The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
+A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
 
 Exactly one scope is required:
  `--all`,

@@ -816,24 +816,43 @@ The step:
   When the configuration cannot be read, the hook is put in effect, and the hook decides with Git's own answers.
 - Mechanism.
   The wrapper adds `-c hook.cli-git-lfs-pre-push.event=pre-push` and
-  `-c hook.cli-git-lfs-pre-push.command='<own executable>' cli-git lfs-pre-push` before the global options of the real
-  `git push` it starts.
-  Nothing is written to any configuration file, so an upgraded or moved executable never leaves a stale path.
+  `-c hook.cli-git-lfs-pre-push.command=git-lfs pre-push` before the global options of the real `git push` it starts.
+  The command is two plain words with no shell syntax and no path of the wrapper.
+  The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+  parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
+  Nothing is written to any configuration file.
   Git then runs the hook exactly as it runs a `pre-push` hook:
   with `<remote> <url>` as arguments, the update lines `<local ref> <local oid> <remote ref> <remote oid>` on standard
   input, before it sends anything, and a non-zero status stops the push before any ref changes.
-  Measured: Git 2.56.0 runs a configuration hook for `pre-push` with these arguments and input, appends the hook's
-  arguments to a shell command as `"$@"`, runs it on `--dry-run` too, and skips it for `--no-verify`.
-- The hook command.
-  `git cli-git lfs-pre-push <remote> <url>` runs `git-lfs pre-push <remote> <url>` with its own standard streams and
-  returns that status.
-  A `git-lfs` that cannot be started, a non-zero status and a signal each stop the push with an explanation that names
-  the cause and every way forward: fix the cause and push again, `git lfs push --all <remote>` by hand,
-  `git push --no-verify` (publishes pointers without objects), install Git LFS, or remove the LFS configuration.
-  The entry is recognized only as the exact words `cli-git lfs-pre-push` at the start of the arguments.
+  Measured: Git 2.56.0 runs a configuration hook for `pre-push` with these arguments and input, starts a command
+  without shell metacharacters directly (its parent process is Git, with no `sh` between), runs it on `--dry-run` too,
+  and skips it for `--no-verify`.
+  The programs the hook starts see Git's exec path first on `PATH` (`setup_path`), so a `git` they call is the real Git
+  and not the wrapper.
+- The explanation.
+  A push of a repository with LFS keys runs as a child of the wrapper, in every case (a push that is neither stackable
+  nor eligible for integration included), so a parent exists to explain.
+  Before Git starts, one stat per `PATH` directory finds `git-lfs`; when it is absent the wrapper prints the
+  install-or-remove explanation and exits with status 1.
+  That check is skipped for `--no-verify` (any accepted abbreviation), a dry run, and
+  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options.
+  The wrapper sets `GIT_TRACE2_EVENT` to a private file for the push, unless the caller set it.
+  After a non-zero status the wrapper reads that file: Git records, in any language, a `child_start` event
+  (`child_class` `hook`, `hook_name` `pre-push`, `argv[0]` the exact command string) and a `child_exit` event with the
+  status.
+  Only the first session's events count (processes the hook starts write longer session IDs), the command string must
+  be the upload command, and the first non-zero exit wins; then the explanation names the cause and every way forward:
+  fix the cause and push again, `git lfs push --all <remote>` by hand, `git push --no-verify` (publishes pointers
+  without objects), install Git LFS, or remove the LFS configuration.
+  A status above 128 is shown with the signal it may stand for.
+  A remote refusal, another configured hook or a stop by deadline is never blamed on the upload, and text printed by a
+  remote cannot add the explanation, because the file is written by Git alone.
+  The auto-push appends the explanation to the recorded output of the failed attempt, so a commit that joined that
+  push shows it too.
 - Paths.
   A typed `git push` carries the hook, on the exec path and on the path that integrates a lost race;
-  the merge push the wrapper runs for a lost race re-enters the wrapper and carries it again.
+  the merge push the wrapper runs for a lost race is planned and run inside the same process (`plan_invocation` with
+  the stacking marker set in the planner's environment) and carries it again; the wrapper does not start itself.
   The auto-push after a landed commit carries it, and so does each reconcile push of that auto-push
   (`<merge oid>:<ref>`; Git passes the object name as the local ref of the update line).
   The scope probe of a manual push and the integration step's probe are dry-run pushes that must not upload:
@@ -1765,6 +1784,13 @@ The Git processes the wrapper starts on the commit path name a hooks directory t
 controls pin that because the dispatcher must never start its own entries again,
 and it is an implementation property, not a promise to users.
 `git cli-git doctor` lists the traditional hooks a repository holds.
+
+The dispatcher below is the one remaining place where the wrapper is started because of something it arranged
+(`argv[0]` dispatch and shim entries naming the executable), and the one remaining shell text is the manual push
+probe's recording hook. The rule is that the wrapper never starts itself, never writes shell text or scripts, and
+explains failures from the parent that owns the child; both leftovers are on the allow-list of
+`src/native/no_self_invocation_tests.rs` and are removed by the follow-up changes named in
+`doc/planning/cli-git-no-self-invocation.md`.
 
 Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
 plus `-c hook.<event>.enabled=false` for each event.
