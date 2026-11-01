@@ -37,9 +37,10 @@
  and a read of a file by a child process the test starts. Reading the package graph itself (which package
  imports which) is another scan's.
 
- THE FILES LISTED are reads the scan finds that belong to no package: each holds its reason, the file, the kind and the
- number of findings. A listed read the source no longer holds as often fails the scan, so the list cannot outlive
- its reasons.
+ THE FILES LISTED are reads the scan finds that belong to no package: each holds its reason, the file, the kind, the
+ expression as the scan prints it and the number of findings. The expression names the file the read reaches, so a
+ listed read rewritten to reach another file is a finding, and a listed read the source no longer holds as often fails
+ the scan, so the list cannot outlive its reasons.
 
  THE FIXTURE CASES COME FIRST, so the package-wide case is read against a scan shown able to find each form and to
  leave each control alone (ledger M21). Fixtures are cat-themed; the package case reads the family's own tests.
@@ -1371,6 +1372,12 @@ type BoundaryRead = {
   readonly kind: FindingKind;
 
   /**
+   The expression as the scan prints it, which names the file the read reaches: a rewrite of the listed read to reach
+   another file changes it and so is not covered.
+   */
+  readonly shown: string;
+
+  /**
    How many such reads the file holds.
    */
   readonly count: number;
@@ -1388,6 +1395,7 @@ const BOUNDARY_READS: readonly BoundaryRead[] = [
   {
     path: 'typography/semantic-wrap-binary.unit.test.ts',
     kind: 'climb',
+    shown: 'join( import.meta.dirname, \'..\', \'..\', \'..\', \'..\', \'toolchain.lock.json\', )',
     count: 1,
     reason: 'the case holds the version the package pins to the one the repository root\'s toolchain.lock.json records, '
       + 'and the lock is root configuration that belongs to no package',
@@ -1418,20 +1426,20 @@ function unlistedReads({ files, listed, }: { readonly files: readonly SourceText
   /**
    A line for each listed read held more or fewer times than listed.
    */
-  const miscounted = listed.flatMap(function countOf({ path, kind, count, },): readonly string[] {
+  const miscounted = listed.flatMap(function countOf({ path, kind, shown, count, },): readonly string[] {
     /**
-     How often the file holds that kind of read.
+     How often the file holds that read, the same expression included.
      */
     const held = reads.filter(function isListed(read,): boolean {
-      return (read.path === path) && (read.kind === kind);
+      return (read.path === path) && (read.kind === kind) && (read.shown === shown);
     },).length;
     return (held === count) ? [] : [`${path} ${kind}: listed ${String(count,)} and held ${String(held,)}`,];
   },);
   return [
     ...reads
       .filter(function stands(read,): boolean {
-        return !listed.some(function covers({ path, kind, },): boolean {
-          return (read.path === path) && (read.kind === kind);
+        return !listed.some(function covers({ path, kind, shown, },): boolean {
+          return (read.path === path) && (read.kind === kind) && (read.shown === shown);
         },);
       },)
       .map(function lineText(read,): string {
@@ -1981,8 +1989,9 @@ await describe({
       },
     },),
     it({
-      name: 'LISTS A READ OF A FILE THAT BELONGS TO NO PACKAGE and fails for a listed read the source holds more or fewer '
-        + 'times than listed, so the list cannot outlive its reason',
+      name: 'LISTS A READ OF A FILE THAT BELONGS TO NO PACKAGE BY THE EXPRESSION THAT NAMES ITS FILE and fails for a listed '
+        + 'read the source holds more or fewer times than listed, or rewritten to reach another file, so the list cannot '
+        + 'outlive its reason',
       fn: async () => {
         /**
          A file with the one climb a listed entry covers.
@@ -1993,11 +2002,19 @@ await describe({
           isTest: true,
         };
         /**
+         The same file after its climb was rewritten to read another file of the repository root.
+         */
+        const rewritten: SourceText = {
+          ...holding,
+          text: 'export const lock = join(import.meta.dirname, \'..\', \'..\', \'package.json\',);\n',
+        };
+        /**
          The entry that covers it.
          */
         const entry: BoundaryRead = {
           path: SHALLOW,
           kind: 'climb',
+          shown: 'join(import.meta.dirname, \'..\', \'..\', \'toolchain.lock.json\',)',
           count: 1,
           reason: 'the lock belongs to no package',
         };
@@ -2008,11 +2025,14 @@ await describe({
             ...unlistedReads({ files: [], listed: [entry,], },),
             ...unlistedReads({ files: [holding,], listed: [], },),
             ...unlistedReads({ files: [holding,], listed: [{ ...entry, count: 2, },], },),
+            ...unlistedReads({ files: [rewritten,], listed: [entry,], },),
           ],
           listed: [
             'cat/nap.unit.test.ts climb: listed 1 and held 0',
             'cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, \'..\', \'..\', \'toolchain.lock.json\',)',
             'cat/nap.unit.test.ts climb: listed 2 and held 1',
+            'cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, \'..\', \'..\', \'package.json\',)',
+            'cat/nap.unit.test.ts climb: listed 1 and held 0',
           ],
         },);
       },
