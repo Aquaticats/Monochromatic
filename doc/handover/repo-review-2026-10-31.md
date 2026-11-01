@@ -185,6 +185,26 @@ process event); its 228 `[FAIL]` lines are preserved in `fail-suites.txt` and a 
 (`rr-sysd-source-trace-083`, a `mvm/cli` buildAndTest) was stopped after the outage.
 Children were re-briefed with resume points; each reports what it added before the outage.
 
+Recovery mechanics measured after the reset (2026-10-31 20:xx):
+
+- `send_message` to a failed child returns success but the wake attempt happens inside the
+  call; when the wake 402s, the message is consumed and lost (`pending_turn: false` in
+  `agents.list` = brief lost, re-send required).
+- Wake budget returns in small windows: after each child completion, roughly 1 to 3 sends
+  succeed, then 402s again. Re-briefs are paced one program call per send, aligned with
+  child completions.
+- Persistently 402ing children (docs-core 4x, docs-decisions 2x, docs-ops 3x) are parked;
+  their orphaned work was reassigned: electron-infra to ci-depot, git-policy/cli slice 9 to
+  pkg-shell-argument, android-exempt-unused/cli pending. `agents.spawn` cannot relieve them:
+  the 32-child pool cap counts wedged sessions and no terminate exists; `agents.interrupt`
+  refuses without an active turn. Only re-sends can revive them.
+- Post-reset re-briefs that landed: root-configs (slice 11, position 188), ci-depot
+  (electron-infra), w2-th-diag-expect (forbidden-strings/cli.fuzz), pkg-figma-kiwi
+  (pi-plugin/bash-poke), w2-logger-tests (prefer-readonly package 2 slice 2), w2-dom-a
+  (retry pending, stream failure), w2-logger-src (retry pending).
+- The detached central-test rerun (`rr-central-tests3`, oneshot service) survived the
+  window; check `test-unit-full3.log` and `systemctl --user show rr-central-tests3`.
+
 Excluded from batch-2 auto-filing: the figma-kiwi binary-reader family
 (`pkg-figma-kiwi-001/004/016/021`, `w2-typeface-figma-22/24/25/29`, an existing issue covers
 the family; manual review pending) and `w2-async-b1-006` (duplicate of `docs-ops-27`).
