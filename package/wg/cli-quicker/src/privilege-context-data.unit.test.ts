@@ -14,7 +14,6 @@ const VALID_CONTEXT = {
     HOME: '/home/caller',
     IPINFO_TOKEN: 'token',
     WG_ALLOWEDIPS_CACHE_DIRECTORY: '/home/caller/.cache/allowedips',
-    WG_QUICKER_CALLER_PATH: '/home/caller/bin:/usr/bin',
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/etc/opensnitchd/default-config.json',
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/etc/opensnitchd/system-fw.json',
     WG_QUICKER_RUNTIME_DIRECTORY: '/run/wg-quicker',
@@ -82,6 +81,17 @@ const INVALID_CONTEXTS = [
       environment: {
         ...VALID_CONTEXT.environment,
         WG_QUICKER_EXEMPT_UID: '2000',
+      },
+    },),
+    diagnostic: 'environment is invalid',
+  },
+  {
+    name: 'the caller path, which would let the caller choose the program run as root in place of the process watch',
+    text: JSON.stringify({
+      ...VALID_CONTEXT,
+      environment: {
+        ...VALID_CONTEXT.environment,
+        WG_QUICKER_CALLER_PATH: '/home/caller/bin:/usr/bin',
       },
     },),
     diagnostic: 'environment is invalid',

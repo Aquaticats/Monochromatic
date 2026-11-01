@@ -11,11 +11,14 @@ import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
 import {
   POLICY_NOT_IN_FORCE_MARKER,
   POLICY_PROCESS_WATCH,
+  POLICY_SOCKET_MARKING,
   POLICY_UPDATE_HOSTS,
   policiesNotInForceWithoutMark,
   policyNotInForce,
   startNotices,
   updatePolicyNotice,
+  watcherMissingAtStopReport,
+  watcherMissingReport,
 } from '../dist/final/node/update-policy-notice.mjs';
 
 /**
@@ -308,6 +311,56 @@ await describe({
         const companion = await readCompanionReport();
         expect(companion,).toContain(`pub const POLICY_PROCESS_WATCH: &str = "${POLICY_PROCESS_WATCH}";`,);
         expect(companion,).toContain(`pub const POLICY_NOT_IN_FORCE_MARKER: &str = "${POLICY_NOT_IN_FORCE_MARKER}";`,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: watcherMissingReport.name,
+  children: [
+    it({
+      name: 'names both policies, every searched location, the build command and that the caller path is never searched',
+      fn: async () => {
+        /**
+         Report for a start where the companion is missing.
+         */
+        const report = watcherMissingReport({ searched: ['/repo/a/wg-quicker-exempt', '/usr/bin/wg-quicker-exempt',], },);
+        for (
+          const phrase of [
+            'POLICY NOT IN FORCE',
+            POLICY_PROCESS_WATCH,
+            POLICY_SOCKET_MARKING,
+            '/repo/a/wg-quicker-exempt, /usr/bin/wg-quicker-exempt',
+            'the caller\'s own PATH is never searched',
+            'mise run //package/wg/cli-quicker-exempt:build',
+            'the update-host rules do not need it',
+          ]
+        )
+          expect(report,).toContain(phrase,);
+        expect(watcherMissingReport({ searched: [], },),).toContain('searched: no location',);
+      },
+    },),
+    it({
+      name: 'says at a stop that a watcher an earlier run started may still run',
+      fn: async () => {
+        /**
+         Report for a stop where the companion is missing.
+         */
+        const report = watcherMissingAtStopReport({ searched: ['/usr/bin/wg-quicker-exempt',], },);
+        expect(report,).toContain('cannot stop a watcher an earlier run may have started',);
+        expect(report,).toContain('watch-stop <interface>',);
+        expect(watcherMissingAtStopReport({ searched: [], },),).toContain('searched: no location',);
+      },
+    },),
+    it({
+      name: 'uses the socket-marking policy name the Rust watcher reports under',
+      fn: async () => {
+        /**
+         Rust source that reports the socket-marking policy.
+         */
+        const rust = await readFile(join(COMPANION_SOURCE_DIRECTORY, 'application_watch.rs',), 'utf8',);
+        expect(rust,).toContain(`POLICY NOT IN FORCE: ${POLICY_SOCKET_MARKING}`,);
       },
     },),
   ],

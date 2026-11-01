@@ -5,7 +5,11 @@ import { BypassRouteError, } from './errors.ts';
 import {
   run,
 } from './runner.ts';
-import { POLICY_NOT_IN_FORCE_MARKER, } from './update-policy-notice.ts';
+import {
+  POLICY_NOT_IN_FORCE_MARKER,
+  watcherMissingAtStopReport,
+  watcherMissingReport,
+} from './update-policy-notice.ts';
 import {
   BYPASS_STATE_ABSENT,
   readBypassState,
@@ -188,11 +192,32 @@ export function startupFailureLines({ stderr, }: { readonly stderr: string; },):
 }
 
 /**
+ What starting or stopping the watcher led to.
+ */
+export type ExemptionOutcome =
+  | { readonly ok: true; }
+    | {
+      readonly ok: false;
+      readonly report: string
+    };
+
+/**
  Starts detached Rust watcher after bypass routing exists.
  
  @param interfaceName - Stable watcher key and tunnel owner.
  
  @param mark - Socket mark routed through bypass table.
+ 
+ @param resolveCommand - Finder of the Rust companion,
+ replaceable in tests.
+ 
+ @param runCommand - Command runner,
+ replaceable in tests.
+ 
+ @returns Success,
+ or the loud report saying neither the process watch nor the socket marking is in force.
+ A missing companion does not throw and does not stop the tunnel,
+ because the update-host rules and the tunnel itself do not need it.
  
  @example
  ```ts
@@ -203,11 +228,15 @@ export async function startApplicationExemptions(
   {
     interfaceName,
     mark,
+    resolveCommand = resolveApplicationExemptionCommand,
+    runCommand = run,
   }: {
     readonly interfaceName: string;
     readonly mark: number;
+    readonly resolveCommand?: typeof resolveApplicationExemptionCommand;
+    readonly runCommand?: typeof run;
   },
-): Promise<void> {
+): Promise<ExemptionOutcome> {
   /**
    Function-scoped lifecycle logger.
    */
@@ -236,15 +265,27 @@ export async function startApplicationExemptions(
   },);
   fl.debug(`starting application watcher for ${interfaceName}, uid=${String(uid,)}`,);
   /**
-   Exact companion path validated before command execution.
+   Companion found in a root-controlled location,
+   or every location searched.
    */
-  const command = await resolveApplicationExemptionCommand();
+  const command = await resolveCommand();
+  if (!command.found) {
+    /**
+     Loud report that neither policy is in force.
+     */
+    const report = watcherMissingReport({ searched: command.searched, },);
+    fl.error(report,);
+    return {
+      ok: false,
+      report,
+    };
+  }
   /**
    Output of the start command,
    whose standard error carries the watcher's startup reports.
    */
-  const started = await run({
-    command,
+  const started = await runCommand({
+    command: command.path,
     args: applicationWatchStartArgs({
       interfaceName,
       mark,
@@ -253,6 +294,7 @@ export async function startApplicationExemptions(
   },);
   for (const line of startupFailureLines({ stderr: started.stderr, },))
     fl.error(line,);
+  return { ok: true, };
 }
 
 /**
@@ -261,6 +303,17 @@ export async function startApplicationExemptions(
  @param interfaceName - Stable watcher key and tunnel owner.
  
  @param configured - Whether current config still carries `ExemptMark`.
+ 
+ @param resolveCommand - Finder of the Rust companion,
+ replaceable in tests.
+ 
+ @param runCommand - Command runner,
+ replaceable in tests.
+ 
+ @returns Success or nothing to stop,
+ or the report saying why the watcher could not be stopped.
+ A missing companion does not throw,
+ so tearing the tunnel down is never blocked by it.
  
  @example
  ```ts
@@ -271,11 +324,22 @@ export async function stopApplicationExemptions(
   {
     interfaceName,
     configured,
+    resolveCommand = resolveApplicationExemptionCommand,
+    runCommand = run,
   }: {
     readonly interfaceName: string;
     readonly configured: boolean;
+    readonly resolveCommand?: typeof resolveApplicationExemptionCommand;
+    readonly runCommand?: typeof run;
   },
-): Promise<void> {
+): Promise<ExemptionOutcome> {
+  /**
+   Function-scoped lifecycle logger.
+   */
+  const fl = tagged({
+    tag: stopApplicationExemptions.name,
+    l,
+  },);
   /**
    Persisted bypass state detects changed config whose `ExemptMark` was removed.
    */
@@ -283,13 +347,26 @@ export async function stopApplicationExemptions(
     ? BYPASS_STATE_ABSENT
     : await readBypassState({ interfaceName, },);
   if ((!configured) && (state === BYPASS_STATE_ABSENT))
-    return;
+    return { ok: true, };
   /**
-   Exact companion path validated before command execution.
+   Companion found in a root-controlled location,
+   or every location searched.
    */
-  const command = await resolveApplicationExemptionCommand();
-  await run({
-    command,
+  const command = await resolveCommand();
+  if (!command.found) {
+    /**
+     Report that a watcher started earlier may still run.
+     */
+    const report = watcherMissingAtStopReport({ searched: command.searched, },);
+    fl.error(report,);
+    return {
+      ok: false,
+      report,
+    };
+  }
+  await runCommand({
+    command: command.path,
     args: applicationWatchStopArgs({ interfaceName, },),
   },);
+  return { ok: true, };
 }

@@ -17,7 +17,6 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { loadConfig, } from './config.ts';
 import { CliUsageError, } from './errors.ts';
 import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
@@ -143,13 +142,6 @@ async function main(): Promise<void> {
       recommendedMark: RECOMMENDED_EXEMPT_MARK,
     },))
       l.warn(notice,);
-    if (config.exemptMark !== undefined) {
-      /*
-       The companion must exist before the first network mutation,
-       so a missing watcher stops `up` instead of leaving the process policy unenforced.
-       */
-      await resolveApplicationExemptionCommand();
-    }
   }
   await (subcommand === 'up' ? up({ config, },) : down({ config, },));
 }

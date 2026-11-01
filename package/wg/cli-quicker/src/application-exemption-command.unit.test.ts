@@ -8,6 +8,7 @@ import {
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  delimiter,
   dirname,
   join,
 } from 'node:path';
@@ -19,12 +20,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { resolveApplicationExemptionCommand, } from '../dist/final/node/application-exemption-command.mjs';
-
-/**
- Sentinel proving resolver threw before assertion.
- */
-const COMMAND_DID_NOT_FAIL: unique symbol = Symbol('companion resolver did not fail',);
+import {
+  resolveApplicationExemptionCommand,
+  type ApplicationExemptionCommand,
+} from '../dist/final/node/application-exemption-command.mjs';
 
 /**
  Absolute built resolver artifact copied into disposable layouts.
@@ -42,7 +41,7 @@ const RESOLVER_ARTIFACT = join(
  Resolver module shape loaded from a disposable built-artifact copy.
  */
 type ResolverModule = {
-  readonly resolveApplicationExemptionCommand: () => Promise<string>;
+  readonly resolveApplicationExemptionCommand: () => Promise<ApplicationExemptionCommand>;
 };
 
 /**
@@ -51,12 +50,8 @@ type ResolverModule = {
  restoring the exact prior values on dispose.
  */
 function isolateResolverEnvironment(): AsyncDisposable {
-  const {
-    PATH: path,
-    WG_QUICKER_CALLER_PATH: callerPath,
-  } = process.env;
+  const { PATH: path, } = process.env;
   process.env.PATH = '/usr/bin:/bin';
-  process.env.WG_QUICKER_CALLER_PATH = '';
   return {
     /**
      Restores the discovery variables captured before mutation.
@@ -66,10 +61,6 @@ function isolateResolverEnvironment(): AsyncDisposable {
         delete process.env.PATH;
       else
         process.env.PATH = path;
-      if (callerPath === undefined)
-        delete process.env.WG_QUICKER_CALLER_PATH;
-      else
-        process.env.WG_QUICKER_CALLER_PATH = callerPath;
     },
   };
 }
@@ -176,7 +167,7 @@ await describe({
           'custom-exempt',
         ), },);
         process.env.WG_QUICKER_EXEMPT_COMMAND = command;
-        expect(await resolveApplicationExemptionCommand(),).not.toBe(command,);
+        expect(await resolveApplicationExemptionCommand(),).not.toEqual({ found: true, path: command, },);
       },
     },),
     it({
@@ -198,7 +189,9 @@ await describe({
           },
         };
         process.env.WG_QUICKER_EXEMPT_COMMAND = '/does-not-exist/wg-quicker-exempt';
-        expect(await resolveApplicationExemptionCommand(),).not.toContain('/does-not-exist/',);
+        expect(
+          JSON.stringify(await resolveApplicationExemptionCommand(),),
+        ).not.toContain('/does-not-exist/',);
       },
     },),
     it({
@@ -207,10 +200,7 @@ await describe({
         /**
          Original command and search paths restored after test.
          */
-        const {
-          PATH: originalPath,
-          WG_QUICKER_CALLER_PATH: originalCallerPath,
-        } = process.env;
+        const { PATH: originalPath, } = process.env;
         await using cleanup = {
           /**
            Restores environment after workspace resolution.
@@ -220,19 +210,14 @@ await describe({
               delete process.env.PATH;
             else
               process.env.PATH = originalPath;
-            if (originalCallerPath === undefined)
-              delete process.env.WG_QUICKER_CALLER_PATH;
-            else
-              process.env.WG_QUICKER_CALLER_PATH = originalCallerPath;
           },
         };
         process.env.PATH = '/usr/bin:/bin';
-        process.env.WG_QUICKER_CALLER_PATH = '';
         /**
          Workspace release companion resolved from test file package layout.
          */
         const command = await resolveApplicationExemptionCommand();
-        expect(command.endsWith(
+        expect(command.found && command.path.endsWith(
           '/package/wg/cli-quicker-exempt/target/release/wg-quicker-exempt',
         ),).toBe(true,);
       },
@@ -284,7 +269,7 @@ await describe({
           ),
         },);
         const resolver = await loadResolverCopy({ modulePath, },);
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(companion,);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: true, path: companion, },);
       },
     },),
     it({
@@ -346,7 +331,7 @@ await describe({
           ),
         },);
         const resolver = await loadResolverCopy({ modulePath, },);
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(releaseCompanion,);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: true, path: releaseCompanion, },);
       },
     },),
     it({
@@ -398,7 +383,7 @@ await describe({
           ),
         },);
         const resolver = await loadResolverCopy({ modulePath, },);
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(companion,);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: true, path: companion, },);
       },
     },),
     it({
@@ -445,22 +430,30 @@ await describe({
         },);
         process.env.PATH = join(root, 'bin',);
         const resolver = await loadResolverCopy({ modulePath, },);
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(companion,);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: true, path: companion, },);
       },
     },),
     it({
-      name: 'falls back to caller installation in captured caller path',
+      name: 'never searches a caller-set path, whatever variable carries it, so the caller cannot choose the program run as root',
       fn: async () => {
         await using cleanup = isolateResolverEnvironment();
+        /**
+         Original variable restored after test.
+         */
+        const original = process.env.WG_QUICKER_CALLER_PATH;
         /**
          Disposable directory outside any workspace layout.
          */
         const root = await mkdtemp(join(scratchRoot(), 'wg-quicker-companion-caller-',),);
         await using workspaceCleanup = {
           /**
-           Removes the disposable directory tree.
+           Restores the variable and removes the disposable directory tree.
            */
           async [Symbol.asyncDispose](): Promise<void> {
+            if (original === undefined)
+              delete process.env.WG_QUICKER_CALLER_PATH;
+            else
+              process.env.WG_QUICKER_CALLER_PATH = original;
             await rm(
               root,
               {
@@ -481,9 +474,9 @@ await describe({
           ),
         },);
         /**
-         Caller-installed companion reachable only through the captured caller path.
+         Companion a caller could plant in a directory it controls.
          */
-        const companion = await writeCompanionExecutable({
+        const planted = await writeCompanionExecutable({
           path: join(
             root,
             'bin',
@@ -491,12 +484,75 @@ await describe({
           ),
         },);
         process.env.WG_QUICKER_CALLER_PATH = join(root, 'bin',);
+        process.env.PATH = '/usr/bin:/bin';
         const resolver = await loadResolverCopy({ modulePath, },);
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(companion,);
+        /**
+         Outcome with the planted companion named by the old variable.
+         */
+        const outcome = await resolver.resolveApplicationExemptionCommand();
+        expect(outcome.found,).toBe(false,);
+        expect(JSON.stringify(outcome,),).not.toContain(planted,);
       },
     },),
     it({
-      name: 'reports build guidance when every companion candidate is missing',
+      name: 'skips relative and empty path entries, which mean the current directory and are not root-controlled',
+      fn: async () => {
+        await using cleanup = isolateResolverEnvironment();
+        /**
+         Directory the process starts in,
+         restored afterwards.
+         */
+        const startDirectory = process.cwd();
+        /**
+         Disposable directory that becomes the current directory.
+         */
+        const root = await mkdtemp(join(scratchRoot(), 'wg-quicker-companion-relative-',),);
+        await using workspaceCleanup = {
+          /**
+           Restores the directory and removes the disposable tree.
+           */
+          async [Symbol.asyncDispose](): Promise<void> {
+            process.chdir(startDirectory,);
+            await rm(
+              root,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
+          },
+        };
+        /**
+         Resolver copy whose module directory matches no workspace layout.
+         */
+        const modulePath = await installResolverCopy({
+          directory: join(
+            root,
+            'isolated',
+            'node',
+          ),
+        },);
+        await writeCompanionExecutable({
+          path: join(
+            root,
+            'bin',
+            'wg-quicker-exempt',
+          ),
+        },);
+        await writeCompanionExecutable({
+          path: join(
+            root,
+            'wg-quicker-exempt',
+          ),
+        },);
+        process.chdir(root,);
+        process.env.PATH = `bin${delimiter}${delimiter}.`;
+        const resolver = await loadResolverCopy({ modulePath, },);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: false, searched: [], },);
+      },
+    },),
+    it({
+      name: 'reports every searched location, and does not throw, when every companion candidate is missing',
       fn: async () => {
         await using cleanup = isolateResolverEnvironment();
         /**
@@ -527,20 +583,16 @@ await describe({
             'node',
           ),
         },);
-        process.env.PATH = '';
+        process.env.PATH = `${join(root, 'bin',)}${delimiter}${join(root, 'sbin',)}`;
         const resolver = await loadResolverCopy({ modulePath, },);
         /**
-         Domain error captured from the exhausted discovery chain.
+         Outcome of the exhausted discovery chain.
          */
-        let caught: unknown = COMMAND_DID_NOT_FAIL;
-        try {
-          await resolver.resolveApplicationExemptionCommand();
-        }
-        catch (error) {
-          caught = error;
-        }
-        expect(String(caught,),).toContain('wg-quicker-exempt is unavailable',);
-        expect(String(caught,),).toContain('Build it with',);
+        const outcome = await resolver.resolveApplicationExemptionCommand();
+        expect(outcome,).toEqual({
+          found: false,
+          searched: [join(root, 'bin', 'wg-quicker-exempt',), join(root, 'sbin', 'wg-quicker-exempt',),],
+        },);
       },
     },),
   ],

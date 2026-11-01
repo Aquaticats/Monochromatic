@@ -38,7 +38,6 @@ const REVIEWED_ENVIRONMENT: Readonly<Record<string, string>> = {
   XDG_RUNTIME_DIR: 'Set by the watcher for its own bus client so the client reaches the user\'s manager; never read from the caller.',
   IPINFO_TOKEN: 'Credential for the allowed-IPs lookup; it does not affect update routing.',
   WG_ALLOWEDIPS_CACHE_DIRECTORY: 'Locates the allowed-IPs cache only.',
-  WG_QUICKER_CALLER_PATH: 'The caller\'s PATH, searched last for a companion installed by name. It can substitute a different watcher when neither the sibling build nor the secure path has one, so it is the same class as the removed overrides and is an open question for the reviewer.',
   WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: 'Locates the OpenSnitch daemon config for the rule maintenance command only.',
   WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: 'Locates the OpenSnitch firewall config for the rule maintenance command only.',
   WG_QUICKER_RUNTIME_DIRECTORY: 'Locates the directory of the bypass state file; the state is still written and read.',
@@ -61,6 +60,19 @@ const POLICY_WORDS: readonly string[] = [
   'DISABLE',
   'OPT_OUT',
   'SKIP',
+];
+
+/**
+ Words that mark a name as able to choose a program or a path to run.
+ */
+const PROGRAM_WORDS: readonly string[] = [
+  'PATH',
+  'COMMAND',
+  'EXECUTABLE',
+  'PROGRAM',
+  'BINARY',
+  'SHELL',
+  'INTERPRETER',
 ];
 
 /**
@@ -375,7 +387,7 @@ await describe({
             'HOME',
             'XDG_CACHE_HOME',
             'WG_QUICKER_RUNTIME_DIRECTORY',
-            'WG_QUICKER_CALLER_PATH',
+            'SUDO_GID',
             'XDG_RUNTIME_DIR',
             'WG_QUICKER_EXEMPT_TEST_FORCE_PIN_INVALID',
           ]
@@ -446,6 +458,32 @@ await describe({
       },
     },),
     it({
+      name: 'reads no variable whose name selects a program or a path to run as root, and reads PATH only to search the secure path',
+      fn: async () => {
+        /**
+         Names found in production.
+         */
+        const found = await productionEnvironment();
+        /**
+         Names that could choose which program runs.
+         */
+        const selectors = [...found.keys(),].filter(function choosesProgram(name,): boolean {
+          return (name !== 'PATH') && PROGRAM_WORDS.some(function appears(word,): boolean {
+            return name.includes(word,);
+          },);
+        },);
+        expect(selectors,).toEqual([],);
+        /**
+         Files that touch PATH:
+         the TypeScript resolver reads it,
+         and the Rust client sets it for a child it starts with a cleared environment.
+         */
+        const pathFiles = [...new Set(found.get('PATH',),),].toSorted((left, right,) => left.localeCompare(right,),);
+        expect(pathFiles.filter((file,) => file.endsWith('.ts',),),).toEqual(['application-exemption-command.ts',],);
+        expect(pathFiles.filter((file,) => file.endsWith('.rs',),),).toEqual(['user_client.rs',],);
+      },
+    },),
+    it({
       name: 'does not carry a policy-affecting name across sudo, whatever its spelling',
       fn: async () => {
         /**
@@ -457,6 +495,9 @@ await describe({
         const candidates = new Set([
           'WG_QUICKER_EXEMPT_COMMAND',
           'WG_QUICKER_EXEMPT_UID',
+          'WG_QUICKER_CALLER_PATH',
+          'WG_QUICKER_EXEMPT_PATH',
+          'WG_QUICKER_WATCHER_BINARY',
           'MONOCHROMATIC_TOOLCHAIN_CLEARNET',
           'WG_QUICKER_BYPASS_OFF',
           ...[...(await productionEnvironment()).keys(),].filter(function isPolicyWorded(name,): boolean {

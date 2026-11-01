@@ -70,11 +70,12 @@ and bounded size before parsing and applying allowlisted values.
 Context carries caller `HOME`,
 cache locations,
 `IPINFO_TOKEN`,
-runtime directory,
-exemption UID,
-companion command,
-and original path under private name.
+and runtime directory.
 It never assigns original path to privileged `PATH`.
+Until 2026-10-31 it also carried the exemption UID,
+a companion command and the original path under the private
+name `WG_QUICKER_CALLER_PATH`;
+see "Change record" below.
 
 ### sudo intentionally replaces command search path
 
@@ -235,10 +236,11 @@ UIDs,
 unknown keys,
 non-string values,
 and invalid home.
-`package/wg/cli-quicker/src/application-exemption-command.unit.test.ts` checks explicit path,
-missing path,
-captured caller path,
-and paired repository release.
+`package/wg/cli-quicker/src/application-exemption-command.unit.test.ts` checks the paired repository release,
+the secure path,
+a caller path that is never searched,
+relative path entries that are skipped,
+and a missing companion that is reported with every searched location.
 
 Verification commands:
 
@@ -270,15 +272,13 @@ validates private file against it,
 and restores only allowlisted values.
 Application watcher uses sudo identity for desktop cgroup selection.
 Source-file `~` expansion and ASN cache selection retain caller context.
-Rust companion resolves to exact configured,
-paired workspace,
-privileged-path,
-or captured-caller-path executable before network mutation.
+Rust companion resolves to the exact paired workspace or privileged-path executable,
+and a missing companion is reported loudly at start.
 
 Tradeoff:
 this intentionally executes current user-owned workspace runtime,
 bundle,
-and selected paired or caller-path companion as root after sudo authentication.
+and the paired repository build of the companion as root after sudo authentication.
 That matches local-development workflow but is inappropriate when workspace integrity is not trusted.
 
 ### Install root-owned artifact and invoke exact path
@@ -347,3 +347,16 @@ Nothing to file or comment upstream.
 Sudo 1.9.17p2 behaves as documented by applying `secure_path` to bare command lookup.
 The actionable defect was `wg-quicker` reading privileged config before elevation and relying on bare workspace command name.
 ```
+
+## Change record
+
+2026-10-31:
+the private context no longer carries `WG_QUICKER_EXEMPT_COMMAND`,
+`WG_QUICKER_EXEMPT_UID` or the caller
+`PATH` (`WG_QUICKER_CALLER_PATH`).
+Each let the caller choose which program runs as root in place of the update-traffic process watch,
+or which user it follows,
+and the owner's policy is that the behavior has no toggle and always enforces the policy.
+The companion is now found only in the paired repository build and the privileged `PATH`;
+a missing companion is reported as `POLICY NOT IN FORCE` and never searched for in the caller's `PATH`.
+Text above that names the removed settings is kept as the record of the first design.

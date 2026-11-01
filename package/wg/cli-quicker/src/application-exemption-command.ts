@@ -7,13 +7,12 @@ import {
   basename,
   delimiter,
   dirname,
+  isAbsolute,
   join,
   resolve,
 } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
-
-import { BypassRouteError, } from './errors.ts';
 
 /**
  Module logger for Rust companion discovery.
@@ -78,22 +77,24 @@ async function isExecutableFile({ path, }: { readonly path: string; },): Promise
 }
 
 /**
- Resolves bare executable through selected path text.
- 
- Empty path segments are skipped so privileged discovery never treats cwd as executable source.
- 
+ Lists the candidates for a bare executable name along a search path.
+
+ Only absolute directories count.
+ An empty segment means the current directory and a relative one is resolved against it,
+ and the current directory is not a root-controlled location.
+
  @param command - Bare executable name.
- 
+
  @param pathText - Delimited search path.
- 
- @returns Exact executable path or absence sentinel.
- 
+
+ @returns Absolute candidates in search order.
+
  @example
  ```ts
- await findInPath({ command: 'wg-quicker-exempt', pathText: '/usr/bin:/bin' });
+ pathCandidates({ command: 'wg-quicker-exempt', pathText: '/usr/bin:/bin' });
  ```
  */
-function findInPath(
+function pathCandidates(
   {
     command,
     pathText,
@@ -101,22 +102,18 @@ function findInPath(
     readonly command: string;
     readonly pathText: string;
   },
-): Promise<string | typeof COMMAND_NOT_FOUND> {
-  /**
-   Absolute candidates preserving declared search order.
-   */
-  const candidates = pathText
+): readonly string[] {
+  return pathText
     .split(delimiter,)
-    .filter(function nonemptyPath(directory,): boolean {
-      return directory !== '';
+    .filter(function absolutePath(directory,): boolean {
+      return isAbsolute(directory,);
     },)
     .map(function commandPath(directory,): string {
-      return resolve(
+      return join(
         directory,
         command,
       );
     },);
-  return firstExecutable({ candidates, },);
 }
 
 /**
@@ -215,27 +212,25 @@ function currentPackageRoot(): string | typeof COMMAND_NOT_FOUND {
 }
 
 /**
- Resolves repository sibling release or debug executable.
- 
- @returns Exact executable path or absence sentinel.
- 
+ Lists the repository sibling release and debug builds.
+
+ @returns Release first,
+ then debug for development before the first optimized build;
+ empty when this code does not run from the repository layout.
+
  @example
  ```ts
- await findWorkspaceCompanion();
+ workspaceCandidates();
  ```
  */
-async function findWorkspaceCompanion(): Promise<string | typeof COMMAND_NOT_FOUND> {
+function workspaceCandidates(): readonly string[] {
   /**
    Current TypeScript package root when running from repository layout.
    */
   const packageRoot = currentPackageRoot();
   if ((typeof packageRoot) === 'symbol')
-    return COMMAND_NOT_FOUND;
-  /**
-   Release first,
-   then debug for development before first optimized build.
-   */
-  const candidates = [
+    return [];
+  return [
     join(
       dirname(packageRoot,),
       CLI_QUICKER_EXEMPT_DIRECTORY,
@@ -251,66 +246,84 @@ async function findWorkspaceCompanion(): Promise<string | typeof COMMAND_NOT_FOU
       DEFAULT_COMMAND,
     ),
   ];
-  return await firstExecutable({ candidates, },);
 }
 
 /**
- Resolves the workspace
- or installed Rust companion to exact executable path.
- 
- @returns Executable path immune to sudo secure-path reset.
- 
- @throws {@link BypassRouteError} when no executable candidate exists.
- 
+ Outcome of looking for the Rust companion.
+ */
+export type ApplicationExemptionCommand =
+  | {
+    /**
+     The companion was found.
+     */
+    readonly found: true;
+
+    /**
+     Exact executable path.
+     */
+    readonly path: string;
+  }
+    | {
+    /**
+     The companion was not found.
+     */
+      readonly found: false;
+
+    /**
+     Every location that was looked at.
+     */
+      readonly searched: readonly string[];
+    };
+
+/**
+ Finds the Rust companion in root-controlled locations only:
+ the repository sibling release or debug build,
+ then the secure path.
+
+ The caller's own `PATH` is never searched,
+ because whoever can set it before `sudo` would choose which program runs as root in place of the process watch,
+ which is a switch for a policy that has none.
+ Under `sudo` the `PATH` here is its `secure_path`.
+
+ @returns The exact executable path,
+ or every location searched when there is none.
+
  @example
  ```ts
  await resolveApplicationExemptionCommand();
  ```
  */
-export async function resolveApplicationExemptionCommand(): Promise<string> {
+export async function resolveApplicationExemptionCommand(): Promise<ApplicationExemptionCommand> {
   /**
-   Secure path and captured caller path.
-   No environment variable names the executable,
-   because a name that could be set before `sudo` would be a switch for the process watch.
+   Repository siblings paired with the current TypeScript package.
    */
-  const {
-    PATH: securePathValue,
-    WG_QUICKER_CALLER_PATH: callerPathValue,
-  } = process.env;
+  const workspace = workspaceCandidates();
   /**
-   Current root secure path searched for root-owned installation.
+   Directories of the secure path.
    */
-  const securePath = securePathValue ?? '';
-  /**
-   Caller path restored under internal name,
-   never assigned to privileged PATH.
-   */
-  const callerPath = callerPathValue ?? '';
-  /**
-   Repository sibling paired with current TypeScript package.
-   */
-  const workspace = await findWorkspaceCompanion();
-  if ((typeof workspace) === 'string')
-    return workspace;
-  /**
-   Root-owned installation from sudo secure path.
-   */
-  const installed = await findInPath({
+  const installed = pathCandidates({
     command: DEFAULT_COMMAND,
-    pathText: securePath,
+    pathText: process.env
+      .PATH
+      ?? '',
   },);
-  if ((typeof installed) === 'string')
-    return installed;
   /**
-   Caller installation captured before secure path replacement.
+   First executable in search order.
    */
-  const callerInstalled = await findInPath({
-    command: DEFAULT_COMMAND,
-    pathText: callerPath,
-  },);
-  if ((typeof callerInstalled) === 'string')
-    return callerInstalled;
-  throw new BypassRouteError(
-    'wg-quicker-exempt is unavailable. Build it with `mise run //package/wg/cli-quicker-exempt:build`.',
-  );
+  const found = await firstExecutable({ candidates: [
+    ...workspace,
+    ...installed,
+  ], },);
+  if ((typeof found) === 'string')
+    return {
+      found: true,
+      path: found,
+    };
+  return {
+    found: false,
+    searched: [
+      ...workspace,
+      ...installed,
+    ],
+  };
 }

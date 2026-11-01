@@ -20,9 +20,10 @@ Default sudo `env_reset` drops custom settings and replaces `PATH`.
 The launcher carries only allowlisted caller home,
 cache,
 token,
-runtime,
-UID,
-and companion settings through a private mode-`0600` bounded file.
+and runtime settings through a private mode-`0600` bounded file.
+No setting that names the companion program,
+the watched user or the caller's `PATH` crosses `sudo`,
+because any of them would let the caller choose what runs as root in place of the process watch.
 The root child validates file type,
 ownership,
 mode,
@@ -35,7 +36,7 @@ Consequently,
 
 Self-elevation intentionally authorizes current user-owned runtime,
 bundle,
-and selected paired or caller-path companion for root execution;
+and the paired repository build of the companion for root execution;
 use root-owned installed artifacts when workspace integrity is not trusted.
 
 See
@@ -331,9 +332,21 @@ The tunnel lifecycle does not move Ghostty into another systemd slice.
 
 Before network mutation,
 `wg-quicker` resolves `wg-quicker-exempt` to exact executable path.
-It prefers the paired repository release or debug build,
-then an installed command in the privileged or captured caller `PATH`.
-An unavailable companion fails before interface creation.
+It looks only in root-controlled locations:
+the paired repository release or debug build,
+then the absolute directories of the privileged `PATH`,
+which under `sudo` is its `secure_path`.
+The caller's own `PATH` is never searched,
+and a relative or empty `PATH` entry is skipped because it means the current directory.
+When nothing is found,
+`up` does not fail and does not search further:
+it prints `POLICY NOT IN FORCE` for the process-watch policy and for the socket-marking policy,
+naming every location it searched and the build command,
+and goes on with the tunnel and the update-host rules,
+which do not need the companion.
+`down` reports instead of failing when the companion is missing,
+so tearing the tunnel down is never blocked;
+it says that a watcher an earlier run started may still run.
 No environment variable names the executable or the watched user:
 `WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` were removed,
 because setting either before `sudo` pointed the process watch at a stand-in program or at another user,
@@ -679,6 +692,34 @@ A report that starts with `POLICY NOT IN FORCE` names the policy that cannot be 
 
 No failure installs a different route on its own:
 the traffic that the failed policy covers stays in the tunnel.
+
+### Failures after startup
+
+The route watcher runs detached with its own output discarded,
+so a failure after `up` returned would reach nobody.
+Each failure is therefore delivered the way the owner chose,
+"Notification + journal":
+to the system journal at error level,
+and as a desktop notification to the user who started the tunnel through `sudo`,
+which is `SUDO_UID` and `SUDO_GID` as the watcher inherits them.
+The journal line carries the identifier `wg-quicker`
+(`journalctl --identifier=wg-quicker`),
+once per distinct failure per minute;
+the notification comes once per distinct failure every ten minutes,
+sent by `busctl` as that user through `setpriv` with a cleared environment.
+Two failures are the same when they differ only in digits.
+A repeat held back by the limit is counted,
+and the next delivery says "repeated N more time(s) since the last report".
+A channel that fails is named in the watcher's log,
+and a start without a `sudo` caller still journals and says that no user can be notified.
+
+The failures that reach this channel are a failed update-host refresh,
+a refresh with problems (including a tunnel with no `DNS =` server),
+a route monitor session that failed and will be replaced,
+and a watcher that stopped for good.
+The same texts stay on the terminal during `up`.
+`wg-quicker-exempt` delivers its own failures the same way,
+under the identifier `wg-quicker-exempt`.
 
 ### Boundaries
 

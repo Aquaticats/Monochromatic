@@ -8,8 +8,24 @@ import {
   applicationWatchStartArgs,
   applicationWatchStopArgs,
   resolveApplicationUid,
+  startApplicationExemptions,
   startupFailureLines,
+  stopApplicationExemptions,
 } from '../dist/final/node/application-exemption.mjs';
+import type { ApplicationExemptionCommand, } from '../dist/final/node/application-exemption-command.mjs';
+import {
+  POLICY_PROCESS_WATCH,
+  POLICY_SOCKET_MARKING,
+} from '../dist/final/node/update-policy-notice.mjs';
+
+/**
+ Resolution that finds nothing,
+ after searching two root-controlled locations.
+ */
+const NOT_FOUND: ApplicationExemptionCommand = {
+  found: false,
+  searched: ['/repo/package/wg/cli-quicker-exempt/target/release/wg-quicker-exempt', '/usr/bin/wg-quicker-exempt',],
+};
 
 await describe({
   name: resolveApplicationUid.name,
@@ -121,6 +137,115 @@ await describe({
         ],);
         expect(startupFailureLines({ stderr: '', },),).toEqual([],);
         expect(startupFailureLines({ stderr: 'moved pid 5\n', },),).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: startApplicationExemptions.name,
+  children: [
+    it({
+      name: 'does not start, does not throw and reports both policies as not in force when the companion is missing',
+      fn: async () => {
+        /**
+         Commands the start tried to run.
+         */
+        const ran: string[] = [];
+        /**
+         Outcome of a start without a companion.
+         */
+        const outcome = await startApplicationExemptions({
+          interfaceName: 'wg0',
+          mark: 100,
+          resolveCommand: () => Promise.resolve(NOT_FOUND,),
+          runCommand: (call,) => {
+            ran.push(call.command,);
+            return Promise.resolve({ stdout: '', stderr: '', },);
+          },
+        },);
+        expect(ran,).toEqual([],);
+        expect(outcome.ok,).toBe(false,);
+        /**
+         Report carried by the failed outcome.
+         */
+        const report = outcome.ok ? '' : outcome.report;
+        expect(report,).toContain('POLICY NOT IN FORCE',);
+        expect(report,).toContain(POLICY_PROCESS_WATCH,);
+        expect(report,).toContain(POLICY_SOCKET_MARKING,);
+        expect(report,).toContain('/usr/bin/wg-quicker-exempt',);
+        expect(report,).toContain('the caller\'s own PATH is never searched',);
+        expect(report,).toContain('mise run //package/wg/cli-quicker-exempt:build',);
+      },
+    },),
+    it({
+      name: 'runs the companion that was found with the watcher arguments for the caller',
+      fn: async () => {
+        /**
+         Commands the start ran.
+         */
+        const ran: { readonly command: string; readonly args: readonly string[]; }[] = [];
+        /**
+         Outcome of a start with a companion.
+         */
+        const outcome = await startApplicationExemptions({
+          interfaceName: 'wg0',
+          mark: 100,
+          resolveCommand: () => Promise.resolve({ found: true, path: '/usr/bin/wg-quicker-exempt', },),
+          runCommand: (call,) => {
+            ran.push({ command: call.command, args: call.args, },);
+            return Promise.resolve({ stdout: '', stderr: '', },);
+          },
+        },);
+        expect(outcome,).toEqual({ ok: true, },);
+        expect(ran,).toHaveLength(1,);
+        expect(ran[0]?.command,).toBe('/usr/bin/wg-quicker-exempt',);
+        expect(ran[0]?.args.slice(0, 3,),).toEqual(['watch-start', 'wg0', '100',],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: stopApplicationExemptions.name,
+  children: [
+    it({
+      name: 'reports instead of throwing when the companion is missing, so teardown is never blocked',
+      fn: async () => {
+        /**
+         Outcome of a stop without a companion.
+         */
+        const outcome = await stopApplicationExemptions({
+          interfaceName: 'wg0',
+          configured: true,
+          resolveCommand: () => Promise.resolve(NOT_FOUND,),
+          runCommand: () => Promise.reject(new Error('must not run',),),
+        },);
+        expect(outcome.ok,).toBe(false,);
+        expect(outcome.ok ? '' : outcome.report,).toContain('cannot stop a watcher an earlier run may have started',);
+      },
+    },),
+    it({
+      name: 'stops through the companion that was found',
+      fn: async () => {
+        /**
+         Arguments the stop ran with.
+         */
+        const ran: string[][] = [];
+        /**
+         Outcome of a stop with a companion.
+         */
+        const outcome = await stopApplicationExemptions({
+          interfaceName: 'wg0',
+          configured: true,
+          resolveCommand: () => Promise.resolve({ found: true, path: '/usr/bin/wg-quicker-exempt', },),
+          runCommand: (call,) => {
+            ran.push([call.command, ...call.args,],);
+            return Promise.resolve({ stdout: '', stderr: '', },);
+          },
+        },);
+        expect(outcome,).toEqual({ ok: true, },);
+        expect(ran,).toEqual([['/usr/bin/wg-quicker-exempt', 'watch-stop', 'wg0',],],);
       },
     },),
   ],

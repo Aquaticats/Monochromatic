@@ -113,6 +113,66 @@ export function policiesNotInForceWithTableOff(): string {
 }
 
 /**
+ Builds the loud report for a start where the Rust companion cannot be found.
+
+ The companion runs the process watch and marks the sockets of application and update cgroups,
+ so without it neither policy is in force.
+ Only root-controlled locations are searched,
+ and the caller's own `PATH` is never searched,
+ because it could name a different program to run as root.
+
+ @param searched - Every location that was looked at.
+
+ @returns One report naming both policies.
+
+ @example
+ ```ts
+ watcherMissingReport({ searched: ['/usr/bin/wg-quicker-exempt'] });
+ ```
+ */
+export function watcherMissingReport({ searched, }: { readonly searched: readonly string[]; },): string {
+  /**
+   What was looked at,
+   in words.
+   */
+  const where = searched.length === 0 ? 'no location' : searched.join(', ',);
+  /**
+   Why and what to do,
+   shared by both policies.
+   */
+  const cause = `wg-quicker-exempt was not found in any root-controlled location (searched: ${where}), `
+    + 'and the caller\'s own PATH is never searched, because it could name a different program to run as root';
+  return `${policyNotInForce({
+    policy: POLICY_PROCESS_WATCH,
+    detail: `${cause}, so no process is moved into the exempt slice. `
+      + 'Build it with `mise run //package/wg/cli-quicker-exempt:build` or install it where sudo\'s secure_path finds it, '
+      + 'then bring this interface down and up again',
+  },)}; ${policyNotInForce({
+    policy: POLICY_SOCKET_MARKING,
+    detail: 'the same program marks the sockets, so no application or update cgroup is marked; '
+      + 'the update-host rules do not need it and are unaffected',
+  },)}`;
+}
+
+/**
+ Builds the report for a stop where the Rust companion cannot be found.
+
+ @param searched - Every location that was looked at.
+
+ @returns One report saying that a watcher an earlier run started may still run.
+
+ @example
+ ```ts
+ watcherMissingAtStopReport({ searched: [] });
+ ```
+ */
+export function watcherMissingAtStopReport({ searched, }: { readonly searched: readonly string[]; },): string {
+  return `wg-quicker-exempt was not found in any root-controlled location (searched: ${searched.length === 0 ? 'no location' : searched.join(', ',)}), `
+    + 'so this run cannot stop a watcher an earlier run may have started; '
+    + 'if one still runs, stop it with `wg-quicker-exempt watch-stop <interface>` once the program is available';
+}
+
+/**
  Builds the loud report for a policy that cannot be enforced.
 
  @param policy - Policy name.
