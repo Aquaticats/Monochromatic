@@ -26,6 +26,7 @@ import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
+  alternateModelsFor,
   type ChatJsonOutcome,
   type ChatJsonRequest,
   createReaskClaims,
@@ -50,6 +51,7 @@ import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fix
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
 import { refusalOrder, } from '@monochromatic-dev/translation-repair-test-fixture/ts/refusal-order.test-fixture.ts';
 import {
+  SEAT_HYPER_TEXT_BEDROCK,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
@@ -983,6 +985,60 @@ await describe({
           l,
         },);
         expect(seats[0]?.bench.toSorted(),).toEqual([TRANSLATOR, runawaySeat, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),);
+      },
+    },),
+
+    it({
+      name: 'PUTS EVERY SEAT OF THE GATHER BENCH ON THE BENCH OF THE RE-ASK (ledger B1200), a seat that ran away and left '
+        + 'no voice too: it is not asked to revise another seat\'s text on the question it ran away on',
+      fn: async () => {
+        /**
+         Seat that ran away in the gather, whose every re-ask failed, so it has no voice here.
+         */
+        const lostSeat = SEAT_HYPER_TEXT_BEDROCK;
+        /**
+         The bench of the gather: the lost seat and the two that were heard.
+         */
+        const gatherBench = [lostSeat, TRANSLATOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,];
+        /**
+         Seats the follow-up calls carried.
+         */
+        const seats: ReaskSeat[] = [];
+        await repairInvalidCandidates({
+          client: seatRecordingClient({ seats, },),
+          voices: [
+            { modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },
+            { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, value: { translation: GOOD_TEXT, }, },
+          ],
+          benchModelIds: gatherBench,
+          sourceText: SOURCE_TEXT,
+          incumbentText: '',
+          priorMessages: PRIOR_MESSAGES,
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
+          reask: 'other-model',
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+        },);
+        /**
+         Bench the one follow-up call carried.
+         */
+        const bench = seats[0]?.bench ?? [];
+        expect(bench.toSorted(),).toEqual(gatherBench.toSorted(),);
+
+        // THE CONTROL: with the bench of the voices heard alone, the lost seat is a model the translator's re-ask may ask,
+        // so its absence from the list below is the bench's work.
+        expect(alternateModelsFor({
+          modelId: TRANSLATOR,
+          role: 'translator',
+          bench: [TRANSLATOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
+        },).alternates,).toContain(lostSeat,);
+        expect(alternateModelsFor({
+          modelId: TRANSLATOR,
+          role: 'translator',
+          bench,
+        },).alternates,).not.toContain(lostSeat,);
       },
     },),
 

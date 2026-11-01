@@ -22,11 +22,12 @@ import type {
   RosterModelId,
   SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract';
-import type {
-  ChatJsonOutcome,
-  ChatJsonRequest,
-  ModelClient,
-  ReaskSeat,
+import {
+  type ChatJsonOutcome,
+  type ChatJsonRequest,
+  createReaskClaims,
+  type ModelClient,
+  type ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
 import {
   CUT_SHORT_RECOVERY_NUDGE,
@@ -88,20 +89,25 @@ type SeenAsk = {
 
  @param noProvider - models the router refuses for want of a provider with budget
 
+ @param transportFails - models whose exchange fails in transport, which the stage reads as a lost voice that never
+ arrived (ledger B1200)
+
  @returns Client honouring that script
 
  @example
  ```ts
- const client = scriptedClient({ seen, noProvider: [], },);
+ const client = scriptedClient({ seen, noProvider: [], transportFails: [], },);
  ```
  */
 function scriptedClient(
   {
     seen,
     noProvider,
+    transportFails,
   }: {
     readonly seen: SeenAsk[];
     readonly noProvider: readonly RosterModelId[];
+    readonly transportFails: readonly RosterModelId[];
   },
 ): ModelClient {
   return {
@@ -126,6 +132,8 @@ function scriptedClient(
           reason: 'every provider serving this model is out of budget',
         },);
       }
+      if (transportFails.includes(request.modelId,))
+        throw new Error(`connection reset while ${request.modelId} was answering`,);
 
       /**
        Scripted payload for the answering call, naming the model that wrote it.
@@ -175,6 +183,8 @@ type RunawayRun = {
 
  @param noProvider - models the router refuses for want of a provider
 
+ @param transportFails - models whose exchange fails in transport, none by default
+
  @param reaskSeat - role and bench the round request carries, when it carries any
 
  @param askedInstead - model an earlier re-ask for the seat already went to
@@ -189,12 +199,14 @@ type RunawayRun = {
 async function recoverRunaway(
   {
     noProvider,
+    transportFails = [],
     // A ROUND NAMES ITS SEAT (ledger B1079): the roster-wide role with no bench is what the cases that care about
     // neither the role nor the bench were written under.
     reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
     askedInstead,
   }: {
     readonly noProvider: readonly RosterModelId[];
+    readonly transportFails?: readonly RosterModelId[];
     readonly reaskSeat?: ReaskSeat;
     readonly askedInstead?: RosterModelId;
   },
@@ -217,6 +229,7 @@ async function recoverRunaway(
       client: scriptedClient({
         seen,
         noProvider,
+        transportFails,
       },),
       messages: [{ role: 'user', content: STAGE_PROMPT, },],
       signal: new AbortController().signal,
@@ -315,6 +328,36 @@ await describe({
         expect(run.outcomes,).toEqual([
           { modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_BEDROCK_ONLY_TEXT, answeredBy: SEAT_BEDROCK_ONLY_TEXT, },
         ],);
+      },
+    },),
+
+    it({
+      name: 'MOVES ON TO THE NEXT MODEL when one\'s exchange fails in transport (ledger B1200), as it does for one with no '
+        + 'provider: the seat is lost only when every model of the order has failed, and its own model is not asked '
+        + 'while another is left',
+      fn: async () => {
+        const run = await recoverRunaway({ noProvider: [], transportFails: [SEAT_HYPER_TEXT_BEDROCK,], },);
+        expect(run.seen.map(function modelOf(seen,) {
+          return seen.modelId;
+        },),).toEqual([SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,],);
+        expect(run.outcomes,).toEqual([
+          { modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_BEDROCK_ONLY_TEXT, answeredBy: SEAT_BEDROCK_ONLY_TEXT, },
+        ],);
+      },
+    },),
+
+    it({
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED (ledger B1200) and keeps that of one whose exchange failed '
+        + 'in transport, since only the second was asked',
+      fn: async () => {
+        const claims = createReaskClaims();
+        await recoverRunaway({
+          noProvider: [SEAT_HYPER_TEXT_BEDROCK,],
+          transportFails: [SEAT_BEDROCK_ONLY_TEXT,],
+          reaskSeat: { role: 'roster', reask: 'other-model', bench: [], claims, },
+        },);
+        expect(claims.list(),).not.toContain(SEAT_HYPER_TEXT_BEDROCK,);
+        expect(claims.list(),).toContain(SEAT_BEDROCK_ONLY_TEXT,);
       },
     },),
 

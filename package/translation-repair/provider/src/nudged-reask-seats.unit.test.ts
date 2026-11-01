@@ -17,6 +17,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   alternateModelsFor,
@@ -296,6 +297,39 @@ await describe({
         },);
         expect(asked,).toEqual([failing, next,],);
         expect(result.kind === 'ok' ? result.answeredBy : 'not ok',).toBe(next,);
+      },
+    },),
+
+    it({
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE (ledger B1200) and keeps the claim of '
+        + 'one whose exchange failed, since only the second was asked: another seat of the question may still take the first',
+      fn: async () => {
+        /**
+         Models the seat could be re-asked of, in order.
+         */
+        const bench = [FIRST_SEAT, SECOND_SEAT,];
+        const { alternates, } = alternateModelsFor({ modelId: FIRST_SEAT, role: 'roster', bench, },);
+        const [refused, failing, answering,] = alternates;
+        if ((refused === undefined) || (failing === undefined) || (answering === undefined))
+          throw new Error('the seat has three models to try',);
+        const claims = createReaskClaims();
+        const result = await reaskElsewhereNudged({
+          request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench, claims, }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            if (nudged.modelId === refused) {
+              throw new NoProviderForModelError({
+                modelId: nudged.modelId,
+                reason: 'the run withheld this seat',
+              },);
+            }
+            if (nudged.modelId === failing)
+              throw new Error('the connection to the provider was reset',);
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(result.kind === 'ok' ? result.answeredBy : 'not ok',).toBe(answering,);
+        expect(claims.list(),).toEqual([failing, answering,],);
       },
     },),
 
