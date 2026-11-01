@@ -1107,6 +1107,82 @@ recording):
   `w4-fm-variant-qt` (corpus repair slice 2, rows 61 to 120), `w4-desktop-app`
   (upstream-fork family, opening).
 
+Wave-4 thirtieth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Corpus milestone: `w4-fm-variant-qt` corpus-repair slice 2 complete and fully
+  verified. 60 enumeration rows (61 to 120) plus the queued ci-depot-133; outcome log
+  `corpus-repair-slice2.jsonl` holds 61 lines: 7 schema-restore, 16 repair, 38
+  stale-evidence. Notable adjudications: the 336bed345f sync-to-install repoint
+  resolved three orchestrator rows (advice and assertions rewritten together); kiwi-034
+  buildAndTest depends rewrite stale-kept (572cb660c3); penpot-36 narrowed into
+  ci-depot-133 (rust_trust runs continue-on-error at advisory-core.yml:158 while the
+  Enforce loop at :237-246 checks seven names without it; my control: rust_trust has
+  exactly one occurrence in the file); fragment restores copied clean canonical twins
+  (kiwi-065/066/067, dom-038/039, obs-047); image-diff's describe call moved from :154
+  to :159 mid-slice and the POST caught it. My verify over every touched file:
+  fragment-060-067 8/8, new-round6 3/3, relay-staging 2/2, async-time 26/26, dom 67/67,
+  shell-argument 99/99, throws 49/49, figma-kiwi 80/79 (034 stale-kept),
+  figma-to-penpot 55/53 (35/36 stale-kept), orchestrator-central-tests 34/29 (5
+  stale-kept), root-configs 159/36, ci-depot 133/120 (13 stale-kept). Remaining BAD vs
+  enumeration: 139 rows (121 to 259), root-configs-67 onward; slice 3 opens at row 121.
+- Returns verified since the twenty-ninth checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-062` to `-064`, 64 of 64 clean by my run. 062: forwarded_command.rs:15
+  cites removed src/forwarded-command.ts present-tense (absence 0, control 1, delete
+  commit 642b6d72cb). 063/064: hook_dispatch_plan.rs:7 and hook_dispatch.rs:6 cite
+  the removed src/hook-dispatch TypeScript present-tense (absences 0 and 0, control 1).
+  The VALUE_OPTIONS adjudication closed: every modeled entry validated against pinned
+  git 2.56.0 with unknown-option probes as the positive control; the three detached
+  forms confirmed at global_arguments.rs:50/:52/:53 and the OnceLock single-ask proofs
+  in git_version_tests.rs (my controls). The hooks_off ACTIVE-switch adjudication
+  confirmed (static ACTIVE at :47, activate at :60, disable_traditional_hooks at :90);
+  no row, correctly.
+- `w4-android-app` b-025 amended per my finding (nine removed TypeScript files, not
+  eight; the line 47 repository-policy/index.ts entry now quoted), then rows
+  `w4-git-policy-b-035` to `-037`, 37 of 37 clean by my run. b-035:
+  recovery_completion.rs:10 cites removed
+  src/policy-engine/commit-transaction-recovery-completion.ts (absence 0, control 1).
+  b-036 (warning): commit_landed maps a failed merge-base invocation to not reachable
+  (Err arm at :150) against the fail-closed contract at :8, the caller discarding at
+  recovery_landing.rs:297; b-037: refuse_unreconciled_landing's no-capture branch
+  tested only in the both-records-present combination (definition at
+  recovery_contradiction.rs:52, single call site recovery_landing.rs:245; my
+  controls). The partner relay resolved with no relay needed: b-019 covers
+  policy_dependent_version.rs:8 and b-025's evidence quotes policy_registry_tests.rs:48;
+  docs-decisions-60 lists real_index_lock.rs:15 among its 12 files, so the
+  do-not-re-raise call stands.
+- `w4-fe-core-tests` rows `w4-tr-artifact-008` and `-009`, 9 of 9 clean by my run. 008:
+  the polish-generation consolidation refusal (branch at :196-203) is live through
+  read.ts:453's requirements spread but pinned by no test; the refusal string has
+  exactly one tree-wide hit, the throw itself (my recount), and the helper passes only
+  tenseRecorded and benchFloorRecorded (:231-232). 009: backtick for the possessive
+  apostrophe across ten files, 30 lines (my recount: 30 by rg -c line counting, 31
+  occurrences, build.unit.test.ts:594 carries two; proper-apostrophe control hits
+  present). Turns 52 and 53 clean (consolidate-parts tests, slice polish arm at :322,
+  contest cluster); 104 of 178 covered. Still open: parseConsistency section-level
+  gates and the slice polish arm at read.unit.test.ts, the rendered-sheets
+  sheet-count, and parseSoleLaneSlice's benchBelowFloor and refusal branches pending
+  the contest-refusal test.
+- `w4-desktop-app` upstream-fork rows `w4-upstream-fork-004` to `-007`, 7 of 7 clean by
+  my run: 004 pify.fuzz coverage-report template not adapted ('parse.ts' example at
+  :110, phantom test-support.ts exclusion at :96 with the five-fork ls-files control,
+  Record-literal checkBaseline example at :257), 005 symbolKey/symbolModule imported at
+  coverage-driver.ts:33-34 but never exercised (two tree-internal occurrences each, my
+  recount), 006 MAX_PATTERNS_PER_SLOT dead at pify-arbitrary.ts:147 with maxLength 3
+  hardcoded at :247, 007 p-limit.fuzz's checkBaseline example passes Record literals
+  where the signature requires ReadonlyMap (:263-264, my control read). pify and
+  pify.fuzz complete (20 plus 15 reviewable); both selection quirks genuinely upstream
+  at pify@6.1.0 index.js:51-67.
+- `w4-mp-design` turn 41 verified (19 of 19; minimap_scene CHUNK_ROWS and BUILD_WORK
+  spots); positions 46 to 53 clean, position 40 support.rs closed turn 39; turn 42 in
+  flight at position 54 refresh_policy.rs.
+- In flight: `w4-cc-statusline` (head, index_lock_evidence.rs position 259; 318
+  remain), `w4-android-app` (tail, recovery_evidence.rs position 413; 172 remain),
+  `w4-mp-design` (tests slice, refresh_policy.rs position 54), `w4-fe-core-tests`
+  (artifact, contest-refusal.unit.test.ts; 74 remain), `w4-fm-variant-qt` (corpus
+  repair slice 3, rows 121 onward), `w4-desktop-app` (upstream-fork,
+  make-asynchronous).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
