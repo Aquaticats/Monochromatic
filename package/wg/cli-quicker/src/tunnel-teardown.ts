@@ -23,9 +23,15 @@ import { removeKillSwitch, } from './tunnel-firewall.ts';
 import { linkExists, } from './tunnel-link.ts';
 import { removePolicyRules, } from './tunnel-route.ts';
 import {
+  incompleteMessage,
+  leftoverMessage,
+  reason,
+  refusedMessage,
+} from './tunnel-teardown-messages.ts';
+import {
   installTrafficBlock,
   removeTrafficBlock,
-  trafficBlockTable,
+  trafficBlockExists,
 } from './tunnel-traffic-block.ts';
 
 /**
@@ -87,13 +93,21 @@ export type TeardownSteps = {
 
   /**
    Blocks all traffic that does not stay on the machine.
+   It runs before any routing is removed,
+   so a `down` that is killed part way leaves traffic blocked and not outside the tunnel.
    */
   readonly blockTraffic: (call: { readonly config: WireguardConfig; },) => Promise<void>;
 
   /**
    Removes the block.
+   It runs once the interface is verified gone.
    */
   readonly removeTrafficBlock: (call: { readonly config: WireguardConfig; },) => Promise<void>;
+
+  /**
+   Tells whether the block of an earlier `down` is in place.
+   */
+  readonly trafficBlockPresent: (call: { readonly config: WireguardConfig; },) => Promise<boolean>;
 };
 
 /**
@@ -176,34 +190,24 @@ const PRODUCTION_STEPS: TeardownSteps = {
   removeTrafficBlock: function removeTrafficBlockStep({ config, }: { readonly config: WireguardConfig; },): Promise<void> {
     return removeTrafficBlock({ interfaceName: config.interfaceName, },);
   },
+  trafficBlockPresent: function trafficBlockPresentStep({ config, }: { readonly config: WireguardConfig; },): Promise<boolean> {
+    return trafficBlockExists({ interfaceName: config.interfaceName, },);
+  },
 };
 
 /**
- Words for a caught value in a message.
+ Message for a refusal before any routing is removed by this attempt,
+ truthful about an earlier `down` that did remove routing.
 
- @param error - Caught value.
+ @param config - Interface lifecycle configuration.
 
- @returns Its text.
-
- @example
- ```ts
- reason({ error: new Error('x') }); // 'Error: x'
- ```
- */
-function reason({ error, }: { readonly error: unknown; },): string {
-  return String(error,);
-}
-
-/**
- Message for a `down` that stopped before it changed anything.
-
- @param interfaceName - Tunnel interface.
+ @param steps - Steps.
 
  @param what - The step that failed.
 
  @param why - Why it failed.
 
- @param state - What was and was not changed.
+ @param state - What this attempt did and did not change.
 
  @param fix - What to do about it.
 
@@ -211,80 +215,38 @@ function reason({ error, }: { readonly error: unknown; },): string {
 
  @example
  ```ts
- refusedMessage({ interfaceName: 'wg0', what: 'stop the route watcher', why: 'x', state: 'nothing was removed', fix: 'y' });
+ await refusal({ config, steps, what: 'stop the route watcher', why: 'x', state: 'nothing was removed', fix: 'y' });
  ```
  */
-function refusedMessage(
+async function refusal(
   {
-    interfaceName,
+    config,
+    steps,
     what,
     why,
     state,
     fix,
   }: {
-    readonly interfaceName: string;
+    readonly config: WireguardConfig;
+    readonly steps: TeardownSteps;
     readonly what: string;
     readonly why: string;
     readonly state: string;
     readonly fix: string;
   },
-): string {
-  return `error: could not ${what} (${why})\n`
-    + `the tunnel ${interfaceName} is still fully up; ${state}\n`
-    + `fix: ${fix}, then run \`wg-quicker down ${interfaceName}\` again`;
-}
-
-/**
- Message for a `down` that failed after it started removing routing.
-
- @param interfaceName - Tunnel interface.
-
- @param what - The step that failed.
-
- @param why - Why it failed.
-
- @param blockFailure - Why traffic could not be blocked,
- absent when it is blocked.
-
- @returns The loud message.
-
- @example
- ```ts
- incompleteMessage({ interfaceName: 'wg0', what: 'delete the interface', why: 'x' });
- ```
- */
-function incompleteMessage(
-  {
-    interfaceName,
+): Promise<string> {
+  return refusedMessage({
+    interfaceName: config.interfaceName,
     what,
     why,
-    blockFailure,
-  }: {
-    readonly interfaceName: string;
-    readonly what: string;
-    readonly why: string;
-    readonly blockFailure?: string;
-  },
-): string {
-  /**
-   Table that holds the block.
-   */
-  const table = trafficBlockTable({ interfaceName, },);
-  /**
-   What happens to traffic now.
-   */
-  const traffic = blockFailure === undefined
-    ? `traffic is BLOCKED (nft table inet ${table} drops everything that leaves the machine), `
-      + 'so nothing goes outside the tunnel unprotected, and the network will not work until down is finished'
-    : `traffic could NOT be blocked (${blockFailure}), so it leaves OUTSIDE the tunnel now`;
-  return `error: down ${interfaceName} failed part way: could not ${what} (${why})\n`
-    + `${traffic}\n`
-    + `to finish: run \`wg-quicker down ${interfaceName}\` again, with this build or with the build that started the tunnel; a down that succeeds removes the block\n`
-    + `to lift the block by hand: sudo nft delete table inet ${table}`;
+    state,
+    fix,
+    earlierRemoval: await steps.trafficBlockPresent({ config, },),
+  },);
 }
 
 /**
- Starts the route watcher again after the application watcher could not be stopped,
+ Starts the route watcher again after a later step could not be done,
  and says in words what state that leaves.
 
  @param config - Interface lifecycle configuration.
@@ -309,7 +271,7 @@ async function restoreRouteWatcher(
 ): Promise<string> {
   try {
     await steps.restartRouteWatcher({ config, },);
-    return 'the route watcher was started again, so only the application watcher state is uncertain';
+    return 'the route watcher was started again';
   }
   catch (restartError) {
     return `the route watcher was already stopped and could not be started again (${reason({ error: restartError, },)}), `
@@ -318,21 +280,55 @@ async function restoreRouteWatcher(
 }
 
 /**
- Blocks traffic and says whether that worked.
+ Stops the application watcher and fails when it could not be stopped.
+ A missing `wg-quicker-exempt` program is such a failure:
+ a watcher started earlier may still run,
+ and a tunnel is not taken down over a watcher that was not stopped.
 
  @param config - Interface lifecycle configuration.
 
  @param steps - Steps.
 
- @returns Why the block failed,
- absent when traffic is blocked.
+ @throws {@link Error} carrying the report when the program was not found.
 
  @example
  ```ts
- await tryBlockTraffic({ config, steps });
+ await stopApplicationWatcher({ config, steps });
  ```
  */
-async function tryBlockTraffic(
+async function stopApplicationWatcher(
+  {
+    config,
+    steps,
+  }: {
+    readonly config: WireguardConfig;
+    readonly steps: TeardownSteps;
+  },
+): Promise<void> {
+  /**
+   What the stop led to.
+   */
+  const outcome = await steps.stopApplicationExemptions({ config, },);
+  if (!outcome.ok)
+    throw new Error(outcome.report,);
+}
+
+/**
+ Lifts the traffic block once the interface is gone.
+
+ @param config - Interface lifecycle configuration.
+
+ @param steps - Steps.
+
+ @returns Why the block could not be lifted,
+ absent when it was lifted.
+
+ @example
+ ```ts
+ await liftBlock({ config, steps });
+ ```
+ */
+async function liftBlock(
   {
     config,
     steps,
@@ -342,31 +338,92 @@ async function tryBlockTraffic(
   },
 ): Promise<{ readonly blockFailure?: string; }> {
   try {
-    await steps.blockTraffic({ config, },);
+    await steps.removeTrafficBlock({ config, },);
     return {};
   }
-  catch (blockError) {
-    l.error(`down ${config.interfaceName}: traffic could not be blocked: ${reason({ error: blockError, },)}`,);
-    return { blockFailure: reason({ error: blockError, },), };
+  catch (error) {
+    l.error(`down ${config.interfaceName}: could not lift the traffic block: ${reason({ error, },)}`,);
+    return { blockFailure: reason({ error, },), };
   }
 }
 
 /**
- Tears the interface down in an order that keeps the tunnel up when a step that can fail fails.
+ Runs the steps after the interface is gone and collects their failures.
+ They cannot expose anything:
+ the failures are reported and the other steps still run.
+
+ @param config - Interface lifecycle configuration.
+
+ @param steps - Steps.
+
+ @returns Words for each failure.
+
+ @example
+ ```ts
+ await finishLeftovers({ config, steps });
+ ```
+ */
+async function finishLeftovers(
+  {
+    config,
+    steps,
+  }: {
+    readonly config: WireguardConfig;
+    readonly steps: TeardownSteps;
+  },
+): Promise<readonly string[]> {
+  /**
+   Failures of the steps.
+   */
+  const leftovers: string[] = [];
+  for (
+    const [what, step,] of [
+      [
+        'revert the DNS settings',
+        steps.revertDns,
+      ],
+      [
+        'remove the OpenSnitch allowance',
+        steps.removeOpenSnitchAllowance,
+      ],
+    ] as const
+  ) {
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- Each leftover step runs after the previous one finished.
+      await step({ config, },);
+    }
+    catch (error) {
+      l.error(`down ${config.interfaceName}: could not ${what}: ${reason({ error, },)}`,);
+      leftovers.push(`could not ${what} (${reason({ error, },)})`,);
+    }
+  }
+  return leftovers;
+}
+
+/**
+ Tears the interface down in an order that keeps the tunnel up when a step that can fail fails,
+ and blocks traffic from before the first removal until the interface is verified gone.
 
  The steps that can fail without having changed routing run first:
  the route watcher is stopped,
- then the application watcher (a missing `wg-quicker-exempt` program counts as a failure).
- If either fails,
+ then the application watcher (a missing `wg-quicker-exempt` program counts as a failure),
+ then the traffic block is installed.
+ If any of them fails,
  nothing has been removed (a route watcher that was already stopped is started again),
  the tunnel is still fully up,
  and the error says what to do.
  Only then is routing removed,
  the policy rules first.
- If a step fails after that point traffic would go outside the tunnel from a tunnel the person believes is up,
- so traffic is blocked instead and the error says how to finish.
+ The block is already in place,
+ so a step that fails,
+ or a `down` that is killed or crashes,
+ leaves traffic blocked and not outside the tunnel,
+ and the error says how to finish.
+ When the interface is verified gone the block is lifted.
  The steps after the interface is gone cannot expose anything;
- their failures are reported without a block.
+ their failures are reported without a block,
+ except that a block that cannot be lifted is reported as the first problem,
+ because it stops the network.
 
  @param config - Interface lifecycle configuration.
 
@@ -401,8 +458,9 @@ export async function teardownKeepingTunnelOnFailure(
   catch (error) {
     l.error(`down ${iface}: the route watcher could not be stopped: ${reason({ error, },)}`,);
     throw new TeardownRefusedError(
-      refusedMessage({
-        interfaceName: iface,
+      await refusal({
+        config,
+        steps,
         what: 'stop the route watcher',
         why: reason({ error, },),
         state: 'nothing was removed',
@@ -413,12 +471,10 @@ export async function teardownKeepingTunnelOnFailure(
     );
   }
   try {
-    /**
-     What the stop led to.
-     */
-    const outcome = await steps.stopApplicationExemptions({ config, },);
-    if (!outcome.ok)
-      throw new Error(outcome.report,);
+    await stopApplicationWatcher({
+      config,
+      steps,
+    },);
   }
   catch (error) {
     l.error(`down ${iface}: the application watcher could not be stopped: ${reason({ error, },)}`,);
@@ -430,13 +486,38 @@ export async function teardownKeepingTunnelOnFailure(
       steps,
     },);
     throw new TeardownRefusedError(
-      refusedMessage({
-        interfaceName: iface,
+      await refusal({
+        config,
+        steps,
         what: 'stop the application watcher',
         why: reason({ error, },),
-        state: `no routing was removed; ${restored}`,
+        state: `no routing was removed; ${restored}, so only the application watcher state is uncertain`,
         fix: `run \`sudo wg-quicker-exempt watch-stop ${iface}\` yourself and read its error; `
           + 'if the wg-quicker-exempt program is missing, put it back where wg-quicker looks for it (the error names the places)',
+      },),
+      { cause: error, },
+    );
+  }
+  try {
+    await steps.blockTraffic({ config, },);
+  }
+  catch (error) {
+    l.error(`down ${iface}: the traffic block that protects the removal could not be installed: ${reason({ error, },)}`,);
+    /**
+     Whether the route watcher that was just stopped runs again.
+     */
+    const restored = await restoreRouteWatcher({
+      config,
+      steps,
+    },);
+    throw new TeardownRefusedError(
+      await refusal({
+        config,
+        steps,
+        what: 'install the traffic block that protects the removal of the routing',
+        why: reason({ error, },),
+        state: `no routing was removed; ${restored}; the application watcher stays stopped, so application bypass is not enforced until down is run again or the tunnel is brought up again`,
+        fix: 'make sure `nft` works (for example `sudo nft list ruleset`)',
       },),
       { cause: error, },
     );
@@ -457,57 +538,37 @@ export async function teardownKeepingTunnelOnFailure(
     await steps.deleteLink({ config, },);
   }
   catch (error) {
-    l.error(`down ${iface}: could not ${current.what}: ${reason({ error, },)}; blocking traffic`,);
-    /**
-     Why traffic could not be blocked,
-     absent when it is blocked.
-     */
-    const blocked = await tryBlockTraffic({
-      config,
-      steps,
-    },);
+    l.error(`down ${iface}: could not ${current.what}: ${reason({ error, },)}; traffic stays blocked`,);
     throw new TeardownIncompleteError(
       incompleteMessage({
         interfaceName: iface,
         what: current.what,
         why: reason({ error, },),
-        ...blocked,
       },),
       { cause: error, },
     );
   }
   /**
-   Failures of the steps after the interface is gone.
+   Why the block could not be lifted,
+   absent when it was.
    */
-  const leftovers: string[] = [];
-  for (
-    const [what, step,] of [
-      [
-        'revert the DNS settings',
-        steps.revertDns,
-      ],
-      [
-        'remove the OpenSnitch allowance',
-        steps.removeOpenSnitchAllowance,
-      ],
-      [
-        'remove the traffic block',
-        steps.removeTrafficBlock,
-      ],
-    ] as const
-  ) {
-    try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- Each leftover step runs after the previous one finished.
-      await step({ config, },);
-    }
-    catch (error) {
-      l.error(`down ${iface}: could not ${what}: ${reason({ error, },)}`,);
-      leftovers.push(`could not ${what} (${reason({ error, },)})`,);
-    }
-  }
-  if (leftovers.length > 0)
+  const lifted = await liftBlock({
+    config,
+    steps,
+  },);
+  /**
+   Failures of the other steps after the interface is gone.
+   */
+  const leftovers = await finishLeftovers({
+    config,
+    steps,
+  },);
+  if ((lifted.blockFailure !== undefined) || (leftovers.length > 0))
     throw new TeardownIncompleteError(
-      `error: down ${iface} removed the tunnel but ${leftovers.join('; ',)}\n`
-        + 'nothing is blocked and no routing is left over; finish these by hand',
+      leftoverMessage({
+        interfaceName: iface,
+        leftovers,
+        ...lifted,
+      },),
     );
 }

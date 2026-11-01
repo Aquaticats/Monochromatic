@@ -63,6 +63,8 @@ function configWith({ table, interfaceName = 'wgtest', }: { readonly table?: str
 
  @param exemptionOutcome - What the application watcher stop answers.
 
+ @param earlierBlock - Whether the traffic block of an earlier `down` is in place.
+
  @returns What the steps did,
  and what the sequence threw.
 
@@ -76,10 +78,12 @@ async function run(
     failing = [],
     table,
     exemptionOutcome = { ok: true, },
+    earlierBlock = false,
   }: {
     readonly failing?: readonly string[];
     readonly table?: string;
     readonly exemptionOutcome?: Awaited<ReturnType<TeardownSteps['stopApplicationExemptions']>>;
+    readonly earlierBlock?: boolean;
   } = {},
 ): Promise<{ readonly events: readonly string[]; readonly thrown: unknown; }> {
   /**
@@ -119,6 +123,7 @@ async function run(
     removeOpenSnitchAllowance: step('removeOpenSnitchAllowance',),
     blockTraffic: step('blockTraffic',),
     removeTrafficBlock: step('removeTrafficBlock',),
+    trafficBlockPresent: () => Promise.resolve(earlierBlock,),
   };
   /**
    What the sequence threw,
@@ -157,29 +162,31 @@ await describe({
   name: teardownKeepingTunnelOnFailure.name,
   children: [
     it({
-      name: 'runs the steps that can fail before any routing is removed, the policy rules next, and the leftovers after the interface is gone',
+      name: 'runs the steps that can fail before any routing is removed, then the block, the policy rules, the lift of the block once the interface is gone, and the leftovers',
       fn: async () => {
         const { events, thrown, } = await run();
         expect(thrown,).toBe(undefined,);
         expect(events,).toEqual([
           ...CAN_FAIL_FIRST,
+          'blockTraffic',
           'removePolicyRules',
           'removeBypassState',
           'removeKillSwitch',
           'deleteLink',
+          'removeTrafficBlock',
           'revertDns',
           'removeOpenSnitchAllowance',
-          'removeTrafficBlock',
         ],);
       },
     },),
     it({
-      name: 'skips the policy rules when Table is off, and removes everything else',
+      name: 'skips the policy rules when Table is off, and still blocks before the first removal',
       fn: async () => {
         const { events, thrown, } = await run({ table: 'off', },);
         expect(thrown,).toBe(undefined,);
         expect(events.includes('removePolicyRules',),).toBe(false,);
         expect(events.includes('deleteLink',),).toBe(true,);
+        expect(events.indexOf('blockTraffic',),).toBeLessThan(events.indexOf('removeBypassState',),);
       },
     },),
     it({
@@ -196,7 +203,19 @@ await describe({
       },
     },),
     it({
-      name: 'starts the route watcher again when the application watcher cannot be stopped, removes no routing, and says what is uncertain',
+      name: 'does not say nothing was removed when an earlier down removed routing and left its block: the retried down says the tunnel is not fully up and traffic is blocked',
+      fn: async () => {
+        const { thrown, } = await run({ failing: ['stopRouteWatcher',], earlierBlock: true, },);
+        const message = messageOf({ thrown, },);
+        expect(message,).toContain('an earlier down already removed part of the routing of wgtest, so the tunnel is NOT fully up, and traffic is BLOCKED',);
+        expect(message,).toContain('nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('this attempt: nothing was removed',);
+        expect(message,).not.toContain('is still fully up',);
+        expect(message,).toContain('then run `wg-quicker down wgtest` again',);
+      },
+    },),
+    it({
+      name: 'starts the route watcher again when the application watcher cannot be stopped, removes no routing, installs no block, and says what is uncertain',
       fn: async () => {
         const { events, thrown, } = await run({ failing: ['stopApplicationExemptions',], },);
         expect(events,).toEqual([...CAN_FAIL_FIRST, 'restartRouteWatcher',],);
@@ -230,7 +249,34 @@ await describe({
       },
     },),
     it({
-      name: 'blocks traffic and says how to finish when a step after the routing removal began fails',
+      name: 'stops with the tunnel fully up when the traffic block that protects the removal cannot be installed, and removes no routing',
+      fn: async () => {
+        const { events, thrown, } = await run({ failing: ['blockTraffic',], },);
+        expect(events,).toEqual([...CAN_FAIL_FIRST, 'blockTraffic', 'restartRouteWatcher',],);
+        expect((thrown as Error).name,).toBe('TeardownRefusedError',);
+        const message = messageOf({ thrown, },);
+        expect(message,).toContain('could not install the traffic block that protects the removal of the routing (Error: blockTraffic failed)',);
+        expect(message,).toContain('the tunnel wgtest is still fully up; no routing was removed',);
+        expect(message,).toContain('the application watcher stays stopped',);
+        expect(message,).toContain('sudo nft list ruleset',);
+      },
+    },),
+    it({
+      name: 'has blocked traffic before the first routing removal, so a down killed anywhere in the removal leaves traffic blocked and not outside the tunnel',
+      fn: async () => {
+        for (const failing of ['removePolicyRules', 'removeBypassState', 'removeKillSwitch', 'deleteLink',] as const) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own recording.
+          const { events, } = await run({ failing: [failing,], },);
+          expect(events.filter((event,) => event === 'blockTraffic',).length,).toBe(1,);
+          // The policy rules are the first removal, and are recorded even when they are the step that fails.
+          expect(events.indexOf('blockTraffic',),).toBeLessThan(events.indexOf('removePolicyRules',),);
+          expect(events.includes(failing,),).toBe(true,);
+          expect(events.includes('removeTrafficBlock',),).toBe(false,);
+        }
+      },
+    },),
+    it({
+      name: 'says traffic is blocked, and how to finish, when a step of the routing removal fails, without a second block',
       fn: async () => {
         for (
           const [failing, what,] of [
@@ -242,34 +288,45 @@ await describe({
         ) {
           // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own recording.
           const { events, thrown, } = await run({ failing: [failing,], },);
-          expect(events.at(-2,),).toBe(failing,);
-          expect(events.at(-1,),).toBe('blockTraffic',);
+          expect(events.at(-1,),).toBe(failing,);
           expect((thrown as Error).name,).toBe('TeardownIncompleteError',);
           const message = messageOf({ thrown, },);
           expect(message,).toContain(`could not ${what} (Error: ${failing} failed)`,);
           expect(message,).toContain('traffic is BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
+          expect(message,).toContain('installed before any routing was removed',);
           expect(message,).toContain('run `wg-quicker down wgtest` again, with this build or with the build that started the tunnel',);
           expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
         }
       },
     },),
     it({
-      name: 'says that traffic leaves outside the tunnel when the block cannot be installed either',
+      name: 'lifts the block once the interface is verified gone, before the other leftovers',
       fn: async () => {
-        const { thrown, } = await run({ failing: ['deleteLink', 'blockTraffic',], },);
+        const { events, } = await run();
+        expect(events.indexOf('removeTrafficBlock',),).toBe(events.indexOf('deleteLink',) + 1,);
+      },
+    },),
+    it({
+      name: 'says traffic is still blocked, and how to lift it, when the block cannot be lifted, and still runs the other leftovers',
+      fn: async () => {
+        const { events, thrown, } = await run({ failing: ['removeTrafficBlock',], },);
+        expect(events.includes('revertDns',),).toBe(true,);
+        expect(events.includes('removeOpenSnitchAllowance',),).toBe(true,);
+        expect((thrown as Error).name,).toBe('TeardownIncompleteError',);
         const message = messageOf({ thrown, },);
-        expect(message,).toContain('traffic could NOT be blocked (Error: blockTraffic failed)',);
-        expect(message,).toContain('it leaves OUTSIDE the tunnel now',);
-        expect(message,).not.toContain('traffic is BLOCKED',);
+        expect(message,).toContain('removed the tunnel but could not lift the traffic block (Error: removeTrafficBlock failed)',);
+        expect(message,).toContain('traffic is still BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+        expect(message,).not.toContain('nothing is blocked',);
       },
     },),
     it({
       name: 'reports a failure after the interface is gone without blocking anything, and still runs the other leftovers',
       fn: async () => {
         const { events, thrown, } = await run({ failing: ['revertDns',], },);
-        expect(events.includes('blockTraffic',),).toBe(false,);
-        expect(events.at(-1,),).toBe('removeTrafficBlock',);
-        expect(events.includes('removeOpenSnitchAllowance',),).toBe(true,);
+        expect(events.filter((event,) => event === 'blockTraffic',).length,).toBe(1,);
+        expect(events.at(-1,),).toBe('removeOpenSnitchAllowance',);
+        expect(events.includes('removeTrafficBlock',),).toBe(true,);
         const message = messageOf({ thrown, },);
         expect(message,).toContain('removed the tunnel but could not revert the DNS settings',);
         expect(message,).toContain('nothing is blocked',);

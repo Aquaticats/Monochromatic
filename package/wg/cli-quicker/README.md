@@ -478,6 +478,14 @@ The order is:
   A missing `wg-quicker-exempt` program is a failure too:
   a watcher started earlier may still run,
   so `down` stops with the tunnel fully up and the error names the places the program was looked for.
+- Install the traffic block (an nft table,
+  described next).
+  If this fails,
+  nothing was removed,
+  the route watcher is started again,
+  and `down` stops with the tunnel fully up;
+  the application watcher stays stopped,
+  and the error says so.
 - Remove the routing:
   the policy rules,
   the application-bypass routes,
@@ -486,9 +494,8 @@ The order is:
   and the interface.
   The interface delete is verified:
   an interface that is still there after `ip link delete` is a failure.
-- Revert the DNS settings,
-  remove the OpenSnitch allowance,
-  and remove a leftover block.
+- Lift the block as soon as the interface is verified gone.
+- Revert the DNS settings and remove the OpenSnitch allowance.
   The tunnel is gone by then,
   so a failure here exposes nothing and is reported without a block.
 
@@ -501,25 +508,34 @@ the tunnel fr-par-fr1 is still fully up; nothing was removed
 fix: <what to do>, then run `wg-quicker down fr-par-fr1` again
 ```
 
-If a step of the routing removal fails,
-traffic would go outside the tunnel from a tunnel that looks up,
-so `down` blocks traffic instead and says how to finish.
-The block is an nft table of its own,
+The block is installed before any routing is removed and lifted after the interface is verified gone,
+so traffic cannot go outside the tunnel from a tunnel that looks up at any point of the removal:
+not when a step fails,
+and not when `down` is killed or crashes part way,
+because the block is an nft table in the kernel and stays until it is removed.
+It is an nft table of its own,
 `inet wg-quicker-<interface>-blocked`,
 that drops everything leaving through an interface other than loopback and everything forwarded.
 The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
 it blocks nothing outbound.
-The network does not work while the block is in place:
+The network does not work while the block is in place,
+which is a few moments in a `down` that succeeds.
+If a step of the routing removal fails,
+the error says the block is in place:
 
 ```text
 error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
-traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine), so nothing goes outside the tunnel unprotected, and the network will not work until down is finished
+traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine, and was installed before any routing was removed), so nothing goes outside the tunnel unprotected, and the network will not work until down is finished
 to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
 to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ```
 
-If the block cannot be installed either,
-the error says that traffic leaves outside the tunnel now.
+A block that cannot be lifted after the interface is gone is the first problem the error names,
+with the command that lifts it.
+A `down` that is run again after a failed one finds the block of the earlier attempt,
+and a refusal in its first steps says that the earlier `down` already removed part of the routing,
+that the tunnel is not fully up and that traffic is blocked,
+where it would otherwise say that nothing was removed.
 A successful `down`,
 a `down` of an interface that is already gone,
 and an `up` (which refuses an existing interface) remove a leftover block.

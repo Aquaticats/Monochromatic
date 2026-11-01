@@ -121,3 +121,32 @@ export async function removeTrafficBlock({ interfaceName, }: { readonly interfac
     ],
   },);
 }
+
+/**
+ Tells whether the block is in place.
+ A retried `down` uses this to say truthfully what an earlier one left behind.
+
+ @param interfaceName - Tunnel interface.
+
+ @returns Whether the nft table of the block exists.
+
+ @example
+ ```ts
+ await trafficBlockExists({ interfaceName: 'wg0' });
+ ```
+ */
+export async function trafficBlockExists({ interfaceName, }: { readonly interfaceName: string; },): Promise<boolean> {
+  /**
+   What `nft list table` said.
+   */
+  const listed = await runAllowingFailure({
+    command: 'nft',
+    args: [
+      'list',
+      'table',
+      'inet',
+      trafficBlockTable({ interfaceName, },),
+    ],
+  },);
+  return listed.exitCode === 0;
+}
