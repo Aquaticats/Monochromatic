@@ -53,3 +53,23 @@ the container reproduction above is the check.
 Released builds up to 0.2.0 have the defect,
 and a lock that names one of them as its `mpm-shadow` bootstrap runs it
 until a release with the fix is locked.
+
+## Source of the mechanism
+
+The version in `package/mpm-shadow/cli/Cargo.lock` is `hyper-util` 0.1.21.
+At the commit its tag `v0.1.21` names (`23a868965964c1d6bb1b94f30ba4c420a4bebe7c`),
+`src/client/legacy/pool.rs` says:
+
+- `Config::is_enabled` returns `self.max_idle_per_host > 0`
+  ([lines 114 to 115][pool-is-enabled]).
+- `Pool::new` creates the idle-connection table only `if config.is_enabled()`
+  and keeps no table at all otherwise
+  ([line 127][pool-new]).
+
+`pool_max_idle_per_host` in `src/client/legacy/client.rs`
+([lines 1093 to 1096][pool-setter]) sets that `max_idle_per_host`,
+so `pool_max_idle_per_host(0)` turns the pool off.
+
+[pool-is-enabled]: https://github.com/hyperium/hyper-util/blob/23a868965964c1d6bb1b94f30ba4c420a4bebe7c/src/client/legacy/pool.rs#L114-L115
+[pool-new]: https://github.com/hyperium/hyper-util/blob/23a868965964c1d6bb1b94f30ba4c420a4bebe7c/src/client/legacy/pool.rs#L127
+[pool-setter]: https://github.com/hyperium/hyper-util/blob/23a868965964c1d6bb1b94f30ba4c420a4bebe7c/src/client/legacy/client.rs#L1093-L1096
