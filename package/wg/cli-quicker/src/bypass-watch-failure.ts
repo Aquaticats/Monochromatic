@@ -89,3 +89,58 @@ export function createWatcherDelivery(
     ...(run === undefined ? {} : { run, }),
   },);
 }
+
+/**
+ Builds the loud report for a route watcher that died without being stopped.
+
+ @param pid - Process identifier of the dead watcher.
+
+ @returns Report naming both policies the watcher enforced.
+
+ @example
+ ```ts
+ watcherDiedReport({ pid: 4242 });
+ ```
+ */
+export function watcherDiedReport({ pid, }: { readonly pid: number; },): string {
+  return `${policyNotInForce({
+    policy: POLICY_BYPASS_TABLE,
+    detail: `the route watcher (pid ${String(pid,)}) is no longer running and wg-quicker did not stop it (it was killed, ran out of memory or crashed), `
+      + 'so the bypass table no longer follows the physical default route',
+  },)}; ${policyNotInForce({
+    policy: POLICY_UPDATE_HOSTS,
+    detail: 'the same watcher died, so update-host rules are no longer refreshed from DNS and stay as they are '
+      + 'until `wg-quicker down` removes them; run `wg-quicker up` again',
+  },)}`;
+}
+
+/**
+ Builds the loud report for a route watcher that ended while its identity record cannot be read.
+
+ @param pid - Process identifier of the watcher that ended.
+
+ @param reason - Why the record cannot be read.
+
+ @returns Report saying it cannot be told whether wg-quicker asked for the end.
+
+ @example
+ ```ts
+ watcherEndUnknownReport({ pid: 4242, reason: 'EACCES' });
+ ```
+ */
+export function watcherEndUnknownReport(
+  {
+    pid,
+    reason,
+  }: {
+    readonly pid: number;
+    readonly reason: string;
+  },
+): string {
+  return policyNotInForce({
+    policy: POLICY_BYPASS_TABLE,
+    detail: `the route watcher (pid ${String(pid,)}) is no longer running and its identity record cannot be read (${reason}), `
+      + 'so it cannot be told whether wg-quicker asked for that; if not, the bypass table no longer follows the physical default route '
+      + 'and update-host rules are no longer refreshed',
+  },);
+}

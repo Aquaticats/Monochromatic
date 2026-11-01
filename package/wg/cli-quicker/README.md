@@ -547,7 +547,8 @@ and a test fails if one appears in either wg package.
    `cmake`,
    `rust`,
    `caddy`,
-   `sops` and `age`,
+   `sops` and `age` (the examples are the tools installed when this was written;
+   the start notice of `wg-quicker-exempt` lists what is installed on the machine now),
    so while a tunnel with `ExemptMark` is up,
    every script and dev server run by the toolchain's node,
    every build by its compilers,
@@ -577,7 +578,10 @@ documentation,
 benchmarking,
 protocol-assignment,
 6to4,
-NAT64,
+Teredo,
+segment-routing,
+deprecated site-local,
+NAT64 (both prefixes),
 IPv4-mapped,
 multicast or reserved address,
 so a hostile or broken DNS answer cannot route local traffic through the bypass table;
@@ -605,6 +609,11 @@ but it would send plain DNS to the stub on `127.0.0.53`,
 and the stub would choose the upstream by its own routing domains and not by the tunnel link.
 The varlink call names the link,
 so the choice is not left to routing domains.
+A call ends at a total deadline of ten seconds from its start,
+not after ten seconds of silence,
+because a peer that sends one byte now and then is never silent,
+and a reply longer than 1 MiB is refused,
+because the reply for one record is a few hundred bytes.
 
 The link keeps its own DNS-over-TLS setting,
 so the query path keeps DNS-over-TLS.
@@ -636,14 +645,17 @@ the refresh changes nothing and says so.
   in any spelling,
   because a rule for them would move the tunnel's control traffic or its DNS onto the physical network.
   The refusal is reported by name.
-- More than 64 addresses from one host,
+- More than 64 usable addresses from one host,
   or more than 384 distinct addresses in total.
+  Only an address that passed every check counts toward the 64,
+  so a resolver cannot hide the real addresses behind unusable ones.
   The numbers come from the answers measured on 2026-10-31:
   132 addresses in total,
   92 distinct,
   and at most 24 for one host (`registry.npmjs.org`),
   so 64 is about 2.7 times the largest answer and 384 about four times the distinct total.
   The cut is reported with how many addresses were cut.
+  A report names its first ten problems and counts the rest.
 
 `ip rule` commands run at most 8 at a time,
 and each rule added or removed is logged at info level with the host or hosts behind it.
@@ -732,22 +744,77 @@ and as a desktop notification to the user who started the tunnel through `sudo`,
 which is `SUDO_UID` and `SUDO_GID` as the watcher inherits them.
 The journal line carries the identifier `wg-quicker`
 (`journalctl --identifier=wg-quicker`),
-once per distinct failure per minute;
-the notification comes once per distinct failure every ten minutes,
+once per failure kind per minute;
+the notification comes once per failure kind every ten minutes,
 sent by `busctl` as that user through `setpriv` with a cleared environment.
-Two failures are the same when they differ only in digits.
+
+The limit keys on the kind of failure and never on the text,
+because the text embeds names a user chose,
+such as a host answer,
+and distinct names would defeat a text key.
+The kinds are `update-host problems`,
+`update-host refresh failed`,
+`route monitor failed`,
+`route watcher stopped` and `route watcher died`.
+The map of remembered kinds holds at most 64,
+dropping the expired ones first and then the oldest.
 A repeat held back by the limit is counted,
 and the next delivery says "repeated N more time(s) since the last report".
+A later notification of the same kind replaces the earlier one on the desktop
+(the id `Notify` printed is passed as `replaces_id`),
+and each notification expires after ten minutes,
+so one persistent failure shows one notification and not several.
 A channel that fails is named in the watcher's log,
 and a start without a `sudo` caller still journals and says that no user can be notified.
+
+Text that a user chose reaches a line escaped.
+The loud report builder escapes control characters,
+escape sequences,
+line breaks and direction marks as `\u{XXXX}`,
+the journal input is escaped again,
+the notification body has its markup characters turned into entities as well,
+and the lines relayed from the start of `wg-quicker-exempt` are escaped before they are logged.
 
 The failures that reach this channel are a failed update-host refresh,
 a refresh with problems (including a tunnel with no `DNS =` server),
 a route monitor session that failed and will be replaced,
-and a watcher that stopped for good.
+a watcher that stopped for good,
+and a watcher that died.
 The same texts stay on the terminal during `up`.
 `wg-quicker-exempt` delivers its own failures the same way,
 under the identifier `wg-quicker-exempt`.
+
+### When the route watcher itself dies
+
+The watcher cannot report its own death when `SIGKILL`,
+the out-of-memory killer or `systemd-oomd` ends it,
+and from then on the bypass table no longer follows the physical default route
+and the update-host rules are no longer refreshed.
+A second small process,
+the sentinel (`bypass-watch-sentinel`),
+is started once the watcher has registered its identity record.
+It checks every half second that the process with the watcher's pid and start time still exists,
+so a reused pid is not mistaken for the watcher.
+When the watcher is gone it waits one and a half seconds and reads the identity record:
+a record removed by the watcher's own clean exit or by `wg-quicker down`,
+or a record that names another watcher,
+means the end was asked for and the sentinel exits quietly;
+a record that still names the dead watcher means it was killed or crashed,
+and the sentinel delivers a report of kind `route watcher died` naming both policies;
+an unreadable record is reported as unknown.
+A watcher that stops with an error already delivers its own report,
+and its record is removed on the way out,
+so that case is not reported twice.
+The sentinel is started detached with the same environment,
+so the report reaches the same user.
+If it cannot be started,
+`up` says so loudly and continues.
+The limit is stated plainly:
+if the sentinel is killed first,
+or both die together,
+nothing reports it,
+and a clean system shutdown ends both without a report.
+`wg-quicker-exempt` has its own sentinel for its watcher.
 
 ### Boundaries
 
