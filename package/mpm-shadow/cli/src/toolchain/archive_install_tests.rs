@@ -292,3 +292,74 @@ fn removing_the_downloads_of_one_version_never_touches_another_tools_with_a_simi
     remove_downloads(&root, "never-installed", "1.0.0").expect("nothing to remove is not an error");
     assert!(remove_downloads(&root, "..", "1.0.0").is_err(), "a crafted id is refused");
 }
+
+/// A repository lock text that names the release tool at `version` with `first_bin` as its first program.
+fn lock_naming_first_bin(version: &str, first_bin: &str) -> String {
+    return named_lock(version).replace(&format!("\"bins\":[\"{BIN}\"]"), &format!("\"bins\":[\"{first_bin}\"]"));
+}
+
+#[test]
+fn a_symlinked_or_hidden_directory_is_never_a_version() {
+    let rig = rig_with_working_older_release();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    // A finished-looking higher version under a hidden name, and a link to one outside the tool's directory.
+    finish_archive(&root, ".0.9.0");
+    let elsewhere = rig.scope.toolchain_root.join("elsewhere");
+    let outside_program = elsewhere.join("9.9.9").join("release-folder").join(BIN);
+    write_executable(&outside_program);
+    write_complete_marker(&elsewhere.join("9.9.9"), ID, "9.9.9").expect("mark");
+    symlink(elsewhere.join("9.9.9"), tool_dir.join("9.9.9")).expect("link");
+    assert_eq!(newest_installed_archive(&root, ID, BIN).as_deref(), Some("0.2.0"), "neither is listed as a version");
+
+    fs::write(rig.scope.root.join("toolchain.lock.json"), named_lock("0.2.0")).expect("write the lock");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let untouched = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert!(untouched.is_empty(), "{untouched:?}");
+    assert!(tool_dir.join(".0.9.0").is_dir() && outside_program.is_file(), "nothing they point at or hide was touched");
+    assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.0"));
+
+    // Positive control: the link replaced by a real finished directory is the newest and supersedes 0.2.0.
+    fs::remove_file(tool_dir.join("9.9.9")).expect("unlink");
+    finish_archive(&root, "9.9.9");
+    let superseded = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert_eq!(superseded, vec![tool_dir.join("0.2.0")]);
+}
+
+#[test]
+fn installing_leaves_an_unfinished_newer_directory_alone_and_replaces_the_older_working_version() {
+    let rig = rig_with_working_older_release();
+    serve_releases(&rig, &["0.2.1"]);
+    let root = rig.scope.toolchain_root.clone();
+    // Another run may be installing 0.2.2, or an earlier release was cut short there: either way it is not finished.
+    unmarked_archive(&root, "0.2.2");
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    assert_eq!(names_in_tool_directory(&rig), vec!["0.2.1".to_string(), "0.2.2".to_string(), "current".to_string()]);
+    assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.1"), "current names the newest finished version");
+}
+
+#[test]
+fn the_last_lock_read_decides_which_program_shows_an_install_finished() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_archive(&root, "0.2.0");
+    finish_archive(&root, "0.2.1");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), named_lock("0.2.1")).expect("write the lock");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let extra = rig.scope.root.join("extra.lock.json");
+
+    // The scope's lock is read first and `--lock` files last, so the extra lock's program decides: no version of
+    // the tool holds `other-program`, none is finished, and nothing is judged superseded.
+    fs::write(&extra, lock_naming_first_bin("0.2.1", "other-program")).expect("write");
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], true).expect("planned");
+    assert_eq!(removed.len(), 1, "with the scope's lock alone 0.2.0 is superseded: {removed:?}");
+    let judged_by_extra = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&extra), true).expect("planned");
+    assert!(judged_by_extra.is_empty(), "the extra lock's first program is the last one read: {judged_by_extra:?}");
+
+    // The same two locks in the other order: the scope's program is last, and 0.2.0 is superseded again.
+    fs::write(&extra, named_lock("0.2.1")).expect("write");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), lock_naming_first_bin("0.2.1", "other-program")).expect("write");
+    let reversed = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&extra), true).expect("planned");
+    assert_eq!(reversed, vec![tool_directory(&root, ID).expect("a plain name").join("0.2.0")]);
+}
