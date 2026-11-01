@@ -159,6 +159,73 @@ fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
     remove_settled(&fixture);
 }
 
+/// The signature's verdict as Git reports it: the status letter, the signing key and the signer.
+fn verdict(fixture: &Fixture, repo: &Path) -> Vec<String> {
+    return ["%G?", "%GK", "%GS"].map(|format| { return git_text(fixture, repo, &["log", "-1", format!("--format={format}").as_str()]); }).to_vec();
+}
+
+/// The way this machine signs: SSH signing with a key file and an allowed-signers file, set by `commit.gpgsign` alone. A
+///  throwaway key made in the fixture signs a commit that Git builds, the service lands, and `git verify-commit` accepts,
+///  with the same verdict and the same stored fields as the transaction's signed commit.
+#[test]
+fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
+    let fixture: Fixture = fixture("service-native-ssh");
+    let (repo, start_commit) = repository_with_programs(&fixture);
+    let key: PathBuf = fixture.root.join("signing-key");
+    let made = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "fixture", "-f"])
+        .arg(&key)
+        .output()
+        .expect("ssh-keygen starts");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let public: String = std::fs::read_to_string(key.with_extension("pub")).expect("public key");
+    let allowed: PathBuf = fixture.root.join("allowed-signers");
+    std::fs::write(&allowed, format!("fixture@example.invalid {}", public.trim())).expect("allowed signers");
+    for (setting, value) in [
+        ("gpg.format", "ssh"),
+        ("user.signingkey", key.to_str().expect("UTF-8")),
+        ("gpg.ssh.allowedsignersfile", allowed.to_str().expect("UTF-8")),
+        ("commit.gpgsign", "true"),
+    ] {
+        git(&fixture, &repo, &["config", setting, value]);
+    }
+    let name: String = format!("native-ssh-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let mut outcomes: Vec<(Vec<String>, Vec<String>, Vec<String>)> = Vec::new();
+    for through in [true, false] {
+        git(&fixture, &repo, &["reset", "--hard", "--quiet", start_commit.as_str()]);
+        edit_a(&repo);
+        let before: usize = finished(&fixture);
+        let output: Output = if through {
+            through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "signed by ssh", "--", "a.txt"])
+        } else {
+            wrapped_commit(&fixture, &repo, &["commit", "-m", "signed by ssh", "--", "a.txt"]).output().expect("transaction")
+        };
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        if through {
+            assert_eq!(finished(&fixture), before + 1, "the service landed it");
+        }
+        git(&fixture, &repo, &["verify-commit", "HEAD"]);
+        assert!(
+            git_text(&fixture, &repo, &["cat-file", "commit", "HEAD"]).contains("\ngpgsig -----BEGIN SSH SIGNATURE-----"),
+            "the signature is Git's own SSH signature"
+        );
+        outcomes.push((stored(&fixture, &repo), left_behind(&fixture, &repo), verdict(&fixture, &repo)));
+    }
+    assert_eq!(outcomes[0].2, outcomes[1].2, "the verdict");
+    assert_eq!(outcomes[0].2[0].trim(), "G", "a good signature by a known signer");
+    assert_eq!(outcomes[0].1, outcomes[1].1, "what is left behind");
+    for (index, (left, right)) in outcomes[0].0.iter().zip(&outcomes[1].0).enumerate() {
+        if index != 3 {
+            assert_eq!(left, right, "stored field {index}");
+        }
+    }
+    assert_eq!(outcomes[0].0[6], "true", "signed");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
 /// An editor that leaves an empty message, or fails, ends the commit with Git's status; nothing lands, nothing moves, and
 ///  the commit's scratch directory is gone.
 #[test]

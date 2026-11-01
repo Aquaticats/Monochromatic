@@ -318,10 +318,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut native: bool = embedded.is_none();
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let allow_empty: bool = region.allow_empty;
-    if let Some(host) = provisioning.as_ref() {
-        // The first commit that needs the service sets up its socket activation; the manager starts the service.
-        provision(host).map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
-    }
+    let mut provisioned: bool = false;
     let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..LANDING_ATTEMPTS {
@@ -393,6 +390,12 @@ pub fn try_service_commit<F: RepositoryFacts>(
             }
             (None, None) => return Ok(None),
         };
+        // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
+        //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
+        if let Some(host) = provisioning.as_ref().filter(|_| { return !provisioned; }) {
+            provision(host).map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
+            provisioned = true;
+        }
         match submit(&config, &sent, &mut std::io::stderr()) {
             Ok(Submitted::Landed { commit, .. }) => {
                 if let Some(made) = embedded.as_ref().filter(|made| { return !native && !made.quiet; }) {

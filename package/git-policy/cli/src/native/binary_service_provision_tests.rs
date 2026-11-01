@@ -200,6 +200,22 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     finish(&fixture, runtime.as_path());
 }
 
+/// A commit the service does not take (here one with nothing to commit, which the transaction answers) sets nothing up:
+///  no unit is written and the bus is never asked.
+#[test]
+fn a_commit_the_service_does_not_take_sets_nothing_up() {
+    let (fixture, repo, runtime) = prepared("provision-unused");
+    std::fs::write(repo.join("a.txt"), "base\n").expect("undo the edit");
+    let bus = fake_bus(runtime.as_path(), false, Box::new(|| {}));
+    let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    assert!(!output.status.success(), "there was nothing to commit");
+    assert!(!runtime.join("systemd").exists(), "no unit was written for a commit the service never saw");
+    // A connection made and dropped here lets the stand-in's wait for the wrapper end.
+    drop(std::os::unix::net::UnixStream::connect(runtime.join("bus")));
+    assert_eq!(bus.join().expect("bus"), Vec::<String>::new(), "the bus was never asked");
+    finish(&fixture, runtime.as_path());
+}
+
 /// A bus that refuses the wrapper stops the commit with the plain remedy, quickly, and changes nothing.
 #[test]
 fn a_refusing_bus_stops_the_commit_plainly() {
