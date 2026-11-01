@@ -90,7 +90,7 @@ type SeenAsk = {
  @param noProvider - models the router refuses for want of a provider with budget
 
  @param transportFails - models whose exchange fails in transport, which the stage reads as a lost voice that never
- arrived (ledger B1200)
+ arrived (ledger B1201)
 
  @returns Client honouring that script
 
@@ -332,7 +332,7 @@ await describe({
     },),
 
     it({
-      name: 'MOVES ON TO THE NEXT MODEL when one\'s exchange fails in transport (ledger B1200), as it does for one with no '
+      name: 'MOVES ON TO THE NEXT MODEL when one\'s exchange fails in transport (ledger B1201), as it does for one with no '
         + 'provider: the seat is lost only when every model of the order has failed, and its own model is not asked '
         + 'while another is left',
       fn: async () => {
@@ -347,7 +347,7 @@ await describe({
     },),
 
     it({
-      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED (ledger B1200) and keeps that of one whose exchange failed '
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED (ledger B1201) and keeps that of one whose exchange failed '
         + 'in transport, since only the second was asked',
       fn: async () => {
         const claims = createReaskClaims();

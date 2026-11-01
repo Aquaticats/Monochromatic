@@ -1,5 +1,9 @@
 import { PROVIDER_ORDER, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { CommandLineOf, } from './command-lines.ts';
+import {
+  leftOffLines,
+  providersLeftOffIn,
+} from './meter-report-off.ts';
 import { reportProvider, } from './meter-report-provider.ts';
 import { readLogTexts, } from './report-log-read.ts';
 import {
@@ -105,9 +109,19 @@ export async function reportMeters({ line, }: { readonly line: CommandLineOf<'me
   const paths = line.positionals;
 
   /**
+   The whole text of every named log.
+   */
+  const texts = await readLogTexts({ paths, },);
+
+  /**
+   Providers the logs say the run left off, which the report names as left off and gives no figures (B1209).
+   */
+  const leftOff = providersLeftOffIn({ texts, },);
+
+  /**
    Everything every named log held.
    */
-  const readings = (await readLogTexts({ paths, },))
+  const readings = texts
     .map(function read(text,): MeterLogReading {
       return readMeterLog({ text, },);
     },);
@@ -167,6 +181,17 @@ export async function reportMeters({ line, }: { readonly line: CommandLineOf<'me
   // EVERY PROVIDER, in the order the record names them; one absent from a
   // sample contributes no reading to its series.
   for (const provider of PROVIDER_ORDER) {
+    /**
+     The line that says this provider was left off, absent for one the run asked.
+     */
+    const off = leftOff.find(function isThis(entry,): boolean {
+      return entry.provider === provider;
+    },);
+    if (off !== undefined) {
+      for (const printed of leftOffLines({ off, },))
+        console.log(printed,);
+      continue;
+    }
     reportProvider({
       samples,
       provider,

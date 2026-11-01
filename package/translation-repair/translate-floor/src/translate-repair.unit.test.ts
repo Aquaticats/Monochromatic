@@ -229,6 +229,7 @@ async function runRepair(
    Outcome over one heard voice.
    */
   const repaired = await repairInvalidCandidates({
+    benchModelIds: [],
     client: repairClient({
       answer,
       log,
@@ -302,6 +303,7 @@ await describe({
          */
         const refusal = await rejectionOf({
           promise: repairInvalidCandidates({
+            benchModelIds: [],
             role: 'translator',
             reaskClaims: createReaskClaims(),
             reask: 'other-model',
@@ -396,6 +398,7 @@ await describe({
          The repair, started and left waiting on every re-ask.
          */
         const repair = repairInvalidCandidates({
+          benchModelIds: [],
           role: 'translator',
           reaskClaims: createReaskClaims(),
           reask: 'other-model',
@@ -531,6 +534,7 @@ await describe({
                    What the repair settled, which this case never reaches.
                    */
                   const repaired = await repairInvalidCandidates({
+                    benchModelIds: [],
                     role: 'translator',
                     reaskClaims: createReaskClaims(),
                     reask: 'other-model',
@@ -662,6 +666,7 @@ await describe({
           SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
         ] as const;
         const repaired = await repairInvalidCandidates({
+          benchModelIds: [],
           role: 'translator',
           reaskClaims: createReaskClaims(),
           reask: 'other-model',
@@ -871,6 +876,7 @@ await describe({
         const other = SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
         const claims = createReaskClaims();
         const repaired = await repairInvalidCandidates({
+          benchModelIds: [],
           client: {
             chatText: async () => {
               throw new Error('chatText unused',);
@@ -920,6 +926,7 @@ await describe({
           reply: { readonly resolution: string; readonly translation: string; readonly translatorNote: string; },
         ): Promise<readonly string[]> => {
           const repaired = await repairInvalidCandidates({
+            benchModelIds: [],
             client: {
               chatText: async () => {
                 throw new Error('chatText unused',);
@@ -969,6 +976,7 @@ await describe({
          */
         const seats: ReaskSeat[] = [];
         await repairInvalidCandidates({
+          benchModelIds: [],
           client: seatRecordingClient({ seats, },),
           voices: [
             { modelId: TRANSLATOR, seat: runawaySeat, value: { translation: MERGED_TEXT, }, },
@@ -989,7 +997,7 @@ await describe({
     },),
 
     it({
-      name: 'PUTS EVERY SEAT OF THE GATHER BENCH ON THE BENCH OF THE RE-ASK (ledger B1200), a seat that ran away and left '
+      name: 'PUTS EVERY SEAT OF THE GATHER BENCH ON THE BENCH OF THE RE-ASK (ledger B1202), a seat that ran away and left '
         + 'no voice too: it is not asked to revise another seat\'s text on the question it ran away on',
       fn: async () => {
         /**
@@ -1051,6 +1059,7 @@ await describe({
          */
         const runawaySeat = SEAT_SYNTHETIC_TEXT_EVERYWHERE;
         const repaired = await repairInvalidCandidates({
+          benchModelIds: [],
           client: repairClient({
             answer: { resolution: 'revised', translation: GOOD_TEXT, translatorNote: 'restored the heading', },
             log: { calls: 0, messages: [], },
@@ -1082,6 +1091,7 @@ await describe({
         const seats: ReaskSeat[] = [];
         const claims = createReaskClaims();
         await repairInvalidCandidates({
+          benchModelIds: [],
           client: seatRecordingClient({ seats, },),
           voices: [{ modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },],
           sourceText: SOURCE_TEXT,
@@ -1221,6 +1231,7 @@ await describe({
         let raised: unknown;
         try {
           await repairInvalidCandidates({
+            benchModelIds: [],
             role: 'translator',
             reaskClaims: createReaskClaims(),
             reask: 'other-model',

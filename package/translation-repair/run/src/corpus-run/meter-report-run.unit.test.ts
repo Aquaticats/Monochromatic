@@ -350,7 +350,7 @@ await describe({
         },),
 
         it({
-          name: 'SAYS A PROVIDER THE RUN LEFT OFF IS LEFT OFF (ledger B1200), from the PROVIDER OFF line of the record, and '
+          name: 'SAYS A PROVIDER THE RUN LEFT OFF IS LEFT OFF (ledger B1209), from the PROVIDER OFF line of the record, and '
             + 'gives it no wet or dry count, no spendable share and no outage, since its dry readings are no outage',
           fn: async (ctx) => {
             await using scratch = await scratchDir({ prefix: 'meter-report-off-', },);

@@ -435,7 +435,7 @@ await describe({
       },
     },),
     it({
-      name: 'WORDS AN INTERIM PAGE BY THE REASON OF ITS RECORD (ledger B1200): a stage that heard no voice stopped the '
+      name: 'WORDS AN INTERIM PAGE BY THE REASON OF ITS RECORD (ledger B1208): a stage that heard no voice stopped the '
         + 'entry, and no provider need have gone dry, so the line does not say a dry stop shipped it',
       fn: async (ctx) => {
         await using published = await publishedRun();

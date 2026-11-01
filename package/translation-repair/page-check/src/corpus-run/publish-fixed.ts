@@ -53,7 +53,7 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
-import { assertPageParses, } from './page-grammar.ts';
+import { pageThatParses, } from './page-grammar-fallback.ts';
 import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
   archiveKeptDefects,
@@ -223,14 +223,28 @@ export async function publishFixedPage(
     entryId,
     l,
   },);
+  // A PAGE THE GRAMMAR REFUSES STILL SHIPS (B1207): the archive is kept at the slices that break it and they are named
+  // as a defect, where `assertPageParses` used to throw here after the defects were logged and before anything was
+  // written (`page-grammar-fallback.ts`).
+  /**
+   The page as composed, or with the archive kept at the slices that broke it.
+   */
+  const parsing = pageThatParses({
+    entryId,
+    pageText: composed.pageText,
+    replacements: composed.replacements,
+    slices,
+    archiveText,
+    l,
+  },);
   /**
    The page.
    */
-  const { pageText, } = composed;
+  const { pageText, } = parsing;
   /**
    What the page was spliced from.
    */
-  const { replacements, } = composed;
+  const { replacements, } = parsing;
 
   /**
    What would-ship page carries of source destinations, the archive's
@@ -420,6 +434,9 @@ export async function publishFixedPage(
       pageText,
     },),
     ...composed.defects,
+    // A PAGE THE GRAMMAR REFUSED is a defect every slice floor passed, since the would-ship reading runs after them; the
+    // yulianNyanner page of 2026-09-06 carried a curled JSX string literal that way (page-grammar.ts).
+    ...parsing.defects,
   ];
   for (const {
     check,
@@ -427,16 +444,8 @@ export async function publishFixedPage(
   } of defects)
     l.warn(`publish: shipping with defect ${check}: ${message}`,);
 
-  // A PAGE THE GRAMMAR REFUSES is a defect every slice floor passed, since the
-  // would-ship reading runs after them; the yulianNyanner page of 2026-09-06
-  // carried a curled JSX string literal that way (page-grammar.ts).
-  assertPageParses({
-    entryId,
-    pageText,
-  },);
-
   /**
-   Where the page goes, once every check has reported and the grammar passed.
+   Where the page goes, once every check has reported.
    */
   const path = fixedPagePath({
     publishDir,

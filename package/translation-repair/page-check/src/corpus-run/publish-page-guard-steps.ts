@@ -9,9 +9,14 @@ import {
 import {
   assertPageFootnotesIntact,
   PageFootnoteIntegrityError,
+  type ShippedOriginal,
 } from './page-footnote-integrity.ts';
 import type { PublishCheckStep, } from './publish-defects.ts';
-import type { WouldShipSource, } from './would-ship-text.ts';
+import { textOnPage, } from './source-ships.ts';
+import {
+  type WouldShipSource,
+  wouldShipTextPerSlice,
+} from './would-ship-text.ts';
 
 //region Publish page guard steps
 // THE TWO PAGE-LEVEL GUARDS AS CHECKS OF THE PAGE THE PUBLISHER WRITES (B1181). Both used to be called by the pass before
@@ -76,6 +81,20 @@ export function pageGuardSteps(
           entryId,
           pageText,
           targetText: archiveText,
+          // THE ORIGINALS THE PAGE SHIPS, so a footnote that sits in one is named by its slice (B1210): the check reads
+          // them with the rest of the page, and without this a note of an original reads as one the lanes introduced.
+          shippedOriginals: wouldShipTextPerSlice({ artifact, },)
+            .flatMap(function originalOf({
+              sliceIndex,
+              reading,
+            },): readonly ShippedOriginal[] {
+              return (reading.kind === 'source-ships')
+                ? [{
+                  sliceIndex,
+                  text: textOnPage({ reading, },),
+                },]
+                : [];
+            },),
         },);
       },
     },

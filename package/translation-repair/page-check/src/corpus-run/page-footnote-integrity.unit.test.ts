@@ -30,6 +30,42 @@ const ARCHIVE = 'The cat sleeps in warm sunlight.\n\nThe cat naps on the sill.\n
  */
 const ORPHANED = `${ARCHIVE}\n[^3]: That is, a sunbeam.\n`;
 
+/**
+ Findings of the refusal for a page, weighed with the original of slice 4, which refers to note 7.
+
+ @param pageText - page as it ships
+
+ @returns Findings the refusal carries
+
+ @throws Error when the page is not refused as a footnote integrity defect
+
+ @example
+ ```ts
+ const findings = refusalFor({ pageText: ORPHANED, },);
+ ```
+ */
+function refusalFor(
+  { pageText, }: { readonly pageText: string; },
+): readonly string[] {
+  /**
+   What weighing the page threw.
+   */
+  const refusal = caught(function act(): unknown {
+    return assertPageFootnotesIntact({
+      entryId: 'BookshopCat',
+      pageText,
+      targetText: ARCHIVE,
+      shippedOriginals: [{
+        sliceIndex: 4,
+        text: '她说[^7]\n',
+      },],
+    },);
+  },);
+  if (!(refusal instanceof PageFootnoteIntegrityError))
+    throw new Error('expected a footnote integrity defect',);
+  return refusal.findings;
+}
+
 await describe({
   name: assertPageFootnotesIntact.name,
   children: [
@@ -106,28 +142,10 @@ await describe({
       },
     },),
     it({
-      name: 'NAMES THE SLICE WHOSE SHIPPED ORIGINAL HOLDS THE FOOTNOTE a finding is about (ledger B1200), so a reader can '
+      name: 'NAMES THE SLICE WHOSE SHIPPED ORIGINAL HOLDS THE FOOTNOTE a finding is about (ledger B1210), so a reader can '
         + 'tell a note in an untranslated original from one the lanes wrote; a note outside every original is not named '
         + 'so (the control)',
       fn: async () => {
-        /**
-         Refusal for a page whose original at slice 4 refers to note 7, and one whose orphan definition no original holds.
-         */
-        const refusalFor = function refusalFor(
-          { pageText, }: { readonly pageText: string; },
-        ): readonly string[] {
-          const refusal = caught(function act(): unknown {
-            return assertPageFootnotesIntact({
-              entryId: 'BookshopCat',
-              pageText,
-              targetText: ARCHIVE,
-              shippedOriginals: [{ sliceIndex: 4, text: '她说[^7]\n', },],
-            },);
-          },);
-          if (!(refusal instanceof PageFootnoteIntegrityError))
-            throw new Error('expected a footnote integrity defect',);
-          return refusal.findings;
-        };
         expect(refusalFor({
           pageText: `${ARCHIVE}\n> This passage has not been translated yet. The original text follows.\n\n她说[^7]\n`,
         },),).toEqual(['page-footnote-unresolved-reference gfm 7 (inside the original shipped at slice 4)',],);

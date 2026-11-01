@@ -26,7 +26,6 @@ import type {
   ChatJsonRequest,
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
-import { NaturalnessCompletenessError, } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   persistSettledEntry,
   preparePassEntry,
@@ -322,7 +321,7 @@ await describe({
       },
     },),
     it({
-      name: 'SHIPS A BODY WITHOUT ABSOLUTE NATURALNESS REVIEW WITH THE SHORTFALL REPORTED (ledger B1200): the page and the '
+      name: 'SHIPS A BODY WITHOUT ABSOLUTE NATURALNESS REVIEW WITH THE SHORTFALL REPORTED (ledger B1207): the page and the '
         + 'artifact are written and the defect names the slice, where the entry used to stop with nothing written',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'pass-persist-naturalness-', },);
@@ -334,48 +333,40 @@ await describe({
           mkdir(artifactsDir,),
         ],);
 
-        let thrown: unknown;
-        let shipped: Awaited<ReturnType<typeof persistSettledEntry>> | undefined;
-        try {
-          shipped = await persistSettledEntry({
-            artifact: unreviewedNaturalnessArtifact(),
-            slices: [{
-              source: {
-                kind: 'content',
-                sliceIndex: 0,
-                nodes: [],
-                startOffset: 0,
-                endOffset: '猫在睡觉。'.length,
-                text: '猫在睡觉。',
-              },
-              target: {
-                kind: 'content',
-                sliceIndex: 0,
-                nodes: [],
-                startOffset: 0,
-                endOffset: 'The cat naps.'.length,
-                text: 'The cat naps.',
-              },
-            },],
-            archiveText: 'The cat naps.',
-            sourceText: '猫在睡觉。',
-            entryId: 'Cat',
-            publishDir,
-            artifactsDir,
-            l,
-          },);
-        }
-        catch (error) {
-          thrown = error;
-        }
+        const shipped = await persistSettledEntry({
+          artifact: unreviewedNaturalnessArtifact(),
+          slices: [{
+            source: {
+              kind: 'content',
+              sliceIndex: 0,
+              nodes: [],
+              startOffset: 0,
+              endOffset: '猫在睡觉。'.length,
+              text: '猫在睡觉。',
+            },
+            target: {
+              kind: 'content',
+              sliceIndex: 0,
+              nodes: [],
+              startOffset: 0,
+              endOffset: 'The cat naps.'.length,
+              text: 'The cat naps.',
+            },
+          },],
+          archiveText: 'The cat naps.',
+          sourceText: '猫在睡觉。',
+          entryId: 'Cat',
+          publishDir,
+          artifactsDir,
+          l,
+        },);
 
         const written = await Promise.all([
           readdir(publishDir,),
           readdir(artifactsDir,),
         ],);
 
-        expect(thrown,).toBeUndefined();
-        expect(shipped?.defects.map(function checkOf({ check, },): string {
+        expect(shipped.defects.map(function checkOf({ check, },): string {
           return check;
         },),).toContain('final-naturalness',);
         expect(written.map(function countOf(names,): number {
@@ -399,40 +390,33 @@ await describe({
           mkdir(artifactsDir,),
         ],);
 
-        let thrown: unknown;
-        let shipped: Awaited<ReturnType<typeof persistSettledEntry>> | undefined;
-        try {
-          shipped = await persistSettledEntry({
-            artifact: declinedArtifact(),
-            slices: [{
-              source: {
-                kind: 'content',
-                sliceIndex: 0,
-                nodes: [],
-                startOffset: 0,
-                endOffset: '猫在睡觉。'.length,
-                text: '猫在睡觉。',
-              },
-              target: {
-                kind: 'content',
-                sliceIndex: 0,
-                nodes: [],
-                startOffset: 0,
-                endOffset: 'The cat naps.'.length,
-                text: 'The cat naps.',
-              },
-            },],
-            archiveText: 'The cat naps.',
-            sourceText: '猫在睡觉。',
-            entryId: 'Cat',
-            publishDir,
-            artifactsDir,
-            l,
-          },);
-        }
-        catch (error) {
-          thrown = error;
-        }
+        const shipped = await persistSettledEntry({
+          artifact: declinedArtifact(),
+          slices: [{
+            source: {
+              kind: 'content',
+              sliceIndex: 0,
+              nodes: [],
+              startOffset: 0,
+              endOffset: '猫在睡觉。'.length,
+              text: '猫在睡觉。',
+            },
+            target: {
+              kind: 'content',
+              sliceIndex: 0,
+              nodes: [],
+              startOffset: 0,
+              endOffset: 'The cat naps.'.length,
+              text: 'The cat naps.',
+            },
+          },],
+          archiveText: 'The cat naps.',
+          sourceText: '猫在睡觉。',
+          entryId: 'Cat',
+          publishDir,
+          artifactsDir,
+          l,
+        },);
 
         const written = await Promise.all([
           readdir(publishDir,),
@@ -441,10 +425,9 @@ await describe({
 
         // The contest non-endorsement no longer refuses the page: the next
         // boundary this minimal fixture trips is the structural naturalness
-        // completeness, which is a reported defect and no longer a stop (ledger B1200),
+        // completeness, which is a reported defect and no longer a stop (ledger B1207),
         // proving final selection recorded instead of throwing.
-        expect(thrown,).toBeUndefined();
-        expect(shipped?.defects.map(function checkOf({ check, },): string {
+        expect(shipped.defects.map(function checkOf({ check, },): string {
           return check;
         },),).toContain('final-naturalness',);
         expect(written.map(function countOf(names,): number {

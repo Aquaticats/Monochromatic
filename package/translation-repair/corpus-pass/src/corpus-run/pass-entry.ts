@@ -86,8 +86,8 @@ import {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
- @param interimDir - directory the interim record is written into when every provider goes dry in the middle of the
- page and the entry ships what it has and stays open; the directory beside `artifactsDir` where the pass's runs layout
+ @param interimDir - directory the interim record is written into when every provider goes dry, or a stage hears no voice,
+ in the middle of the page and the entry ships what it has and stays open (the record's reason says which); the directory beside `artifactsDir` where the pass's runs layout
  puts it when absent
 
  @param entryCacheDir - this entry's own cache directory
@@ -185,8 +185,8 @@ export async function runEntryPipeline(
   const el = entryLoggerOf({ entryId: entry.id, },);
 
   /**
-   What the stages have finished so far, which the entry's `catch` reads when every provider goes dry in the middle of the
-   page and the entry ships what it has (`pass-entry-interim.ts`).
+   What the stages have finished so far, which the entry's `catch` reads when every provider goes dry, or a stage hears no voice,
+   in the middle of the page and the entry ships what it has (`pass-entry-interim.ts`).
    */
   const progress = startEntryProgress();
 

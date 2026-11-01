@@ -226,6 +226,8 @@ export async function produceConsolidations(
   const repaired = await repairInvalidCandidates({
     client,
     voices: intake.voices,
+    // EVERY SEAT OF THE GATHER, one that ran away and left no voice too (ledger B1202).
+    benchModelIds: roster,
     sourceText: subject.sourceText,
     incumbentText: standingText,
     pageText: subject.incumbentText,

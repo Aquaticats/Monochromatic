@@ -272,6 +272,8 @@ export async function produceTranslateSlate(
   const repaired = await repairInvalidCandidates({
     client,
     voices: intake.voices,
+    // EVERY SEAT OF THE GATHER, one that ran away and left no voice too (ledger B1202).
+    benchModelIds: translatorModelIds,
     sourceText,
     incumbentText,
     // STATED, NOT DEFAULTED (ledger B29): a translator replaces the incumbent

@@ -283,7 +283,7 @@ await describe({
       },
     },),
     it({
-      name: 'LEAVES ANY PROVIDER OFF AS IT LEAVES BEDROCK (ledger B1200): a provider named off is sent nothing and avoided, '
+      name: 'LEAVES ANY PROVIDER OFF AS IT LEAVES BEDROCK (ledger B1209): a provider named off is sent nothing and avoided, '
         + 'where only the Bedrock client was left unbuilt before, though its key is set',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'budget-run-', },);

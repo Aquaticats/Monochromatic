@@ -23,6 +23,7 @@ import {
   type FanOutMode,
   gatherStageVoices,
   MIN_STAGE_VOICES,
+  seatOfVoice,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -229,14 +230,16 @@ export async function settlePageTitles(
     reask: stageSettings.reask,
   },);
   /**
-   Voices in roster order, so the earliest seat breaks a tie.
+   Voices in roster order, so the earliest seat breaks a tie. A voice orders by the seat it answered for, never by the
+   model that answered: another model that stood in for a seat that ran away is on no bench of the gather, and its
+   position would be -1, which sorts it before every seat (ledger B1200).
    */
   const voices = gather.voices
     .toSorted(function byRoster(
       left,
       right,
     ): number {
-      return modelIds.indexOf(left.modelId,) - modelIds.indexOf(right.modelId,);
+      return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
     },);
   /**
    Voices heard.

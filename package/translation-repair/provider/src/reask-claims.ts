@@ -29,6 +29,13 @@ export type ReaskClaims = {
   readonly take: (taking: { readonly modelId: RosterModelId; },) => boolean;
 
   /**
+   Gives a model back, for a seat whose ask the router refused before any exchange (ledger B1201): the model was
+   never asked, so it is no voice of the question and another seat may still take it. A model that was asked and
+   failed stays taken.
+   */
+  readonly release: (releasing: { readonly modelId: RosterModelId; },) => void;
+
+  /**
    Lists the models taken so far, in the order they were taken, as a copy.
    */
   readonly list: () => readonly RosterModelId[];
@@ -56,6 +63,18 @@ export function createReaskClaims(): ReaskClaims {
         return false;
       taken.push(modelId,);
       return true;
+    },
+    release: function release({ modelId, }: { readonly modelId: RosterModelId; },): void {
+      /**
+       Place the model was taken at, absent when it was not taken.
+       */
+      const at = taken.indexOf(modelId,);
+      if (at !== (-1)) {
+        taken.splice(
+          at,
+          1,
+        );
+      }
     },
     list: function list(): readonly RosterModelId[] {
       return [...taken,];
@@ -111,6 +130,34 @@ export function takeFor(
    */
   const { claims, } = seat;
   return (claims === undefined) || claims.take({ modelId, },);
+}
+
+/**
+ Gives back a model the seat took and the router then refused before any exchange, where the seat has a record.
+
+ @param seat - seat that ran away
+
+ @param modelId - model the seat took and was refused
+
+ @example
+ ```ts
+ releaseFor({ seat, modelId, },);
+ ```
+ */
+export function releaseFor(
+  {
+    seat,
+    modelId,
+  }: {
+    readonly seat: ReaskSeat;
+    readonly modelId: RosterModelId;
+  },
+): void {
+  /**
+   Record the seat shares with the other seats of its question.
+   */
+  const { claims, } = seat;
+  claims?.release({ modelId, },);
 }
 
 //endregion Re-ask claims

@@ -87,7 +87,8 @@ export type RunsLayout = {
 
   /**
    Directory of interim records, one per entry the pass shipped a page for and kept open because every provider went dry
-   in the middle of its page (the owner's answer of 2026-10-29, "Ship interim, resumable"); not part of the skip set,
+   or a stage heard no voice in the middle of its page (the owner's answer of 2026-10-29, "Ship interim, resumable");
+   each record names which in its reason; not part of the skip set,
    since such an entry is still pending.
    */
   readonly interimDir: string;

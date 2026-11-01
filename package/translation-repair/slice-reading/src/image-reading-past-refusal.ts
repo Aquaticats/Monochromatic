@@ -6,17 +6,16 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
-  alternateModelsFor,
   describeLeftOut,
-  type LeftOutModel,
+  EveryProviderDryError,
   type ModelCaller,
-  readsImages,
   type ReaskClaims,
   type ReaskMode,
-  type ReaskSeat,
-  takenFor,
+  releaseFor,
   takeFor,
 } from '@monochromatic-dev/translation-repair-provider/ts';
+import { otherReadersOf, } from './image-reading-other-readers.ts';
+import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   type ImageReading,
   IMAGE_READING_PERSPECTIVES,
@@ -405,10 +404,24 @@ async function reaskCut(
         };
       }
       catch (error) {
-        // Only the router's "nowhere to ask" moves on to the next model; a stop, or a transport failure, keeps its own handling.
-        if (!(error instanceof NoProviderForModelError))
+        // THE CALLER'S ABORT AND EVERY PROVIDER DRY END THE RE-ASK, not the one model, as in the provider's own re-ask
+        // (`nudged-reask.ts`, ledger B1201): the first stops all work and the second ends the run at the owner's
+        // instruction. Any other failure of one model moves the order on to the next.
+        if (signal.aborted || (error instanceof EveryProviderDryError))
           throw error;
-        rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
+        if (error instanceof NoProviderForModelError) {
+          // REFUSED BEFORE ANY EXCHANGE: the model was not asked, so its claim goes back for another reader of the picture.
+          releaseFor({
+            seat,
+            modelId: other,
+          },);
+          rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
+        }
+        else {
+          rl.warn(
+            `${modelId}: re-asking ${other} of ${assetName} failed (${exchangeFailureLogText({ error, },)}); trying the next model`,
+          );
+        }
       }
     }
     rl.warn(
@@ -454,93 +467,6 @@ async function reaskCut(
       perCallTimeoutMs,
       l,
     },),
-  };
-}
-
-/**
- The models a cut picture reading may be re-asked of, in order, with the seat they are drawn for and every model left
- out with why.
-
- @param modelId - reader whose reply was cut
-
- @param benchModelIds - every reader of this picture
-
- @param reask - whose answer the re-ask may give, which the seat carries
-
- @param claims - record of the models asked for the readers of this picture; absent for a reader alone on its picture
-
- @returns Models that read pictures in the order of their runaway shares, the seat the asks are claimed on, and the
- models left out: those the reader role or the bench keeps out, those that read no picture and those asked already
-
- @example
- ```ts
- const others = otherReadersOf({ modelId, benchModelIds, reask: 'other-model', },);
- ```
- */
-function otherReadersOf(
-  {
-    modelId,
-    benchModelIds,
-    reask,
-    claims,
-  }: {
-    readonly modelId: RosterModelId;
-    readonly benchModelIds: readonly RosterModelId[];
-    readonly reask: ReaskMode;
-    readonly claims?: ReaskClaims;
-  },
-): {
-  readonly readers: readonly RosterModelId[];
-  readonly seat: ReaskSeat;
-  readonly leftOut: readonly LeftOutModel[];
-} {
-  /**
-   The seat of this reader: the reader role, the readers of the picture and the record they share.
-   */
-  const seat: ReaskSeat = {
-    role: 'reader',
-    bench: benchModelIds,
-    reask,
-    // Conditional spread keeps the record absent for a reader that is alone on its picture.
-    ...((claims === undefined) ? {} : { claims, }),
-  };
-
-  /**
-   Models to ask in the order of their runaway shares, and the ones the reader role, the bench or an ask for another
-   reader leaves out.
-   */
-  const {
-    alternates,
-    leftOut,
-  } = alternateModelsFor({
-    modelId,
-    role: seat.role,
-    bench: seat.bench,
-    askedForOtherSeats: takenFor({ seat, },),
-  },);
-
-  /**
-   The models that read pictures among them, in the same order.
-   */
-  const readers = alternates.filter(function readsPictures(alternate,): boolean {
-    return readsImages({ modelId: alternate, },);
-  },);
-  return {
-    readers,
-    seat,
-    leftOut: [
-      ...leftOut,
-      ...alternates
-        .filter(function readsNoPicture(alternate,): boolean {
-          return !readers.includes(alternate,);
-        },)
-        .map(function withReason(alternate,): LeftOutModel {
-          return {
-            modelId: alternate,
-            why: 'reads no picture',
-          };
-        },),
-    ],
   };
 }
 

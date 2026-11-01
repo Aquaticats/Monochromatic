@@ -775,8 +775,8 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  B1168; the owner's "Other model, own name" and "Order by role standing" of 2026-10-31): an editor candidate, a refiner
  reply, a ballot and the check of a text name the model that answered where they named the runaway seat, so the half
  weight of a model's own text and the test that a checker wrote the text it checks read another model than before for
- the same key, and a picture whose cut reply was asked of another model is labelled with that model in the sheet. A slice
- stored at 50 holds candidates and ballots counted under the old authorship, and the key hashes the version, the shape of
+ the same key. The repair and the lane contest read no picture reading, so the label of one reaches neither (ledger
+ B1204). A slice stored at 50 holds candidates and ballots counted under the old authorship, and the key hashes the version, the shape of
  the run and the texts, not the authorship, so only the number retires a record. No record is known to have been written
  by a build that holds the change (the one run since, XingZ6023, started on `bf5d1f00fa`, which does not contain
  `98d5b63eb`), and the audit's newest record follows the change by time, so the exception of the rule does not apply and

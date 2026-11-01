@@ -62,6 +62,7 @@ await describe({
         const client = seatRecordingClient({ seats, },);
         const claims = createReaskClaims();
         await repairInvalidCandidates({
+          benchModelIds: [],
           client,
           voices: [
             { modelId: SEAT_SYNTHETIC_VISION_WITHHELD, value: { translation: MERGED_TEXT, }, },
@@ -97,6 +98,7 @@ await describe({
         const seats: ReaskSeat[] = [];
         const client = seatRecordingClient({ seats, },);
         await repairInvalidCandidates({
+          benchModelIds: [],
           client,
           voices: [{ modelId: SEAT_SYNTHETIC_VISION_WITHHELD, value: { translation: MERGED_TEXT, }, },],
           sourceText: SOURCE_TEXT,

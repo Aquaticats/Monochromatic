@@ -159,7 +159,8 @@ function withoutEdgeBreaks({ text, }: { readonly text: string; },): string {
  (ledger B112), wrapped at its semantic boundaries unless the line-structure
  rule governs the slice, without the line breaks around it.
 
- @param seat - seat that wrote it, which each finding names
+ @param writer - model that wrote it, which each finding of the fold names: the model that answered for the seat, not
+ the seat (ledger B1205)
 
  @param translation - paragraph as the model wrote it
 
@@ -171,16 +172,16 @@ function withoutEdgeBreaks({ text, }: { readonly text: string; },): string {
 
  @example
  ```ts
- const paragraph = shippingParagraphOf({ seat, translation, lineStructured: false, },);
+ const paragraph = shippingParagraphOf({ writer, translation, lineStructured: false, },);
  ```
  */
 function shippingParagraphOf(
   {
-    seat,
+    writer,
     translation,
     lineStructured,
   }: {
-    readonly seat: string;
+    readonly writer: string;
     readonly translation: string;
     readonly lineStructured: boolean;
   },
@@ -189,7 +190,7 @@ function shippingParagraphOf(
    The reply folded of invisible variants.
    */
   const folded = foldTranslation({
-    modelId: seat,
+    modelId: writer,
     translation,
   },)
     .translation;
@@ -370,7 +371,7 @@ export function writtenParagraphsOf(
        The paragraph as it would ship.
        */
       const text = shippingParagraphOf({
-        seat,
+        writer: answeredBy ?? seat,
         translation,
         lineStructured: facts.lineStructured,
       },);

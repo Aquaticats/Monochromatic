@@ -27,6 +27,7 @@ import type { ModelTransport, } from '@monochromatic-dev/translation-repair-prov
 import { readProviderKeys, } from './budget-sample-keys.ts';
 import { taskPathOf, } from './command-owners.ts';
 import {
+  isProviderOff,
   PROVIDERS_LEFT_OFF,
   type ProviderOff,
   providerOffLine,
@@ -136,23 +137,45 @@ export async function sampleBudgets(
   const budgets = createProviderBudgets({
     // A SINGLE READING MARKS NO REFUSAL, so no hold is ever set and this bound never cuts; the budgets require one.
     maxHoldMs: PROBE_MAX_HOLD_MS,
-    neuralwatt: createNeuralWattClient({
-      apiKey: keys.neuralwatt,
-      ledger: neuralWattLedgerFromEnv({ env, },),
-      dayStartSetting: neuralWattDayStartFrom({ env, },),
-      transport,
-    },),
-    synthetic: createSyntheticClient({
-      apiKey: keys.synthetic,
-      transport,
-    },),
-    hyper: createHyperClient({
-      apiKey: keys.hyper,
-      transport,
-    },),
-    // A PROVIDER LEFT OFF HAS NO CLIENT, as in the run (`configureProviders`): `readProviderKeys` reads its key as
-    // unset, an unset one has no caller, and the budgets read a provider with no caller as dry with nothing to report.
-    // Bedrock read wet here while the run held it off (the pre-launch reading of 2026-10-30, B1185).
+    // A PROVIDER LEFT OFF HAS NO CLIENT, as in the run (`configureProviders`), whichever provider it is (B1209): the off
+    // list is read for every one, where only Bedrock's client was once left unbuilt. `readProviderKeys` reads an off
+    // provider's key as unset, an unset one has no caller, and the budgets read a provider with no caller as dry with
+    // nothing to report. Bedrock read wet here while the run held it off (the pre-launch reading of 2026-10-30, B1185).
+    ...(isProviderOff({
+      off,
+      provider: 'neuralwatt',
+    },)
+      ? {}
+      : {
+        neuralwatt: createNeuralWattClient({
+          apiKey: keys.neuralwatt,
+          ledger: neuralWattLedgerFromEnv({ env, },),
+          dayStartSetting: neuralWattDayStartFrom({ env, },),
+          transport,
+        },),
+      }),
+    ...(isProviderOff({
+      off,
+      provider: 'synthetic',
+    },)
+      ? {}
+      : {
+        synthetic: createSyntheticClient({
+          apiKey: keys.synthetic,
+          transport,
+        },),
+      }),
+    ...(isProviderOff({
+      off,
+      provider: 'hyper',
+    },)
+      ? {}
+      : {
+        hyper: createHyperClient({
+          apiKey: keys.hyper,
+          transport,
+        },),
+      }),
     ...((keys.bedrock === '')
       ? {}
       : {
@@ -190,10 +213,17 @@ export async function sampleBudgets(
           transport,
         },),
       }),
-    openrouter: createOpenRouterClient({
-      apiKey: keys.openrouter,
-      transport,
-    },),
+    ...(isProviderOff({
+      off,
+      provider: 'openrouter',
+    },)
+      ? {}
+      : {
+        openrouter: createOpenRouterClient({
+          apiKey: keys.openrouter,
+          transport,
+        },),
+      }),
   },);
 
   /**

@@ -26,6 +26,7 @@ export {
 export {
   createReaskClaims,
   type ReaskClaims,
+  releaseFor,
   takenFor,
   takeFor,
 } from './reask-claims.ts';

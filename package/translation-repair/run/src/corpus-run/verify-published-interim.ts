@@ -12,7 +12,8 @@ import {
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Verify published interim
-// HOW `verify-published` READS A PAGE A DRY STOP SHIPPED FOR AN ENTRY THAT IS STILL OPEN. Such a page has no artifact
+// HOW `verify-published` READS A PAGE A STOP SHIPPED FOR AN ENTRY THAT IS STILL OPEN, the stop of every provider dry or
+// of a stage that heard no voice, each worded by the reason of the record (B1208). Such a page has no artifact
 // to be weighed against, so what it can be checked against is its own record: the digest of the page as it was written.
 // A page that still has that digest is the interim page, and the report says so with what it is made of; any other page
 // standing at that path is named as disagreeing, since nothing the record says is then true of it.
@@ -47,6 +48,24 @@ function slicesOf(
       many: 'slices',
     },)
   }`;
+}
+
+/**
+ The stop a record names, in the words of the report line.
+
+ @param reason - why the entry stopped, as the record keeps it
+
+ @returns The subject of the sentence that says what shipped the page
+
+ @example
+ ```ts
+ const stop = stopOf({ reason: 'provider-unavailable', },); // => 'A stage that heard no voice stopped the entry and'
+ ```
+ */
+function stopOf({ reason, }: { readonly reason: InterimEntryRecord['reason']; },): string {
+  return (reason === 'dry-stop')
+    ? 'A dry stop'
+    : 'A stage that heard no voice stopped the entry and';
 }
 
 /**
@@ -89,7 +108,7 @@ export async function interimLine(
     return `  INTERIM PAGE DISAGREES WITH ITS RECORD: ${record.id}. The page on disk is not the page the record was `
       + 'written for; the next pass that reaches the entry overwrites it';
   }
-  return `  INTERIM PAGE: ${record.id}. A dry stop shipped it with ${
+  return `  INTERIM PAGE: ${record.id}. ${stopOf({ reason: record.reason, },)} shipped it with ${
     slicesOf({
       count: record.settledSlices,
       kind: 'settled',

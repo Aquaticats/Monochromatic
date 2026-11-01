@@ -18,8 +18,10 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 //
 // ONLY THE CHECK'S OWN REFUSAL IS A DEFECT. Anything else a check throws is a
 // fault in the code and still stops the entry, so a bug is never shipped as a
-// content report. A page that does not parse is not collected here at all:
-// it would break the site build, and still refuses.
+// content report. A page that does not parse is not collected through a check
+// either: `pageThatParses` keeps the archive at the slices that break it and
+// reports them as `page-grammar-archive-kept`, and where even that page does
+// not parse the page ships as `page-unparseable` (B1207).
 //
 // THE PAGE-AGREEMENT CHECK JOINED THEM by a second answer the same day ("Ship
 // with defect reported"): a page that does not carry what its artifact says
@@ -51,13 +53,16 @@ export type PublishCheck =
     | 'carried-evidence'
     | 'contributor-names'
     | 'destinations'
+    | 'final-naturalness'
     | 'front-matter'
     | 'headings'
     | 'no-valid-wording'
     | 'page-agreement'
     | 'page-footnote-integrity'
     | 'page-footnotes'
+    | 'page-grammar-archive-kept'
     | 'page-source-unparseable'
+    | 'page-unparseable'
     | 'page-without-body'
     | 'placeholder-heading'
     | 'source-reading-not-compared'

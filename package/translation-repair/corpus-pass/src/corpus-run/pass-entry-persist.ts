@@ -13,10 +13,10 @@ import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-art
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
-  assertFinalNaturalnessComplete,
   defectsLine,
   type DestinationCheck,
   destinationsLine,
+  finalNaturalnessDefects,
   finalSelectionFindings,
   type PublishDefect,
   publishFixedPage,
@@ -89,7 +89,17 @@ export async function persistSettledEntry(
   // it ships as recorded evidence the reading judges, never as a refusal.
   for (const finding of finalSelectionFindings({ artifact, },))
     l.warn(`entry ${entryId}: ${finding}`,);
-  assertFinalNaturalnessComplete({ artifact, },);
+  // A BODY WITHOUT ABSOLUTE NATURALNESS APPROVAL SHIPS WITH THE SHORTFALL REPORTED (B1207), where the guard used to throw
+  // here and the entry ended with no page and no artifact.
+  /**
+   The shortfall of the naturalness review, as a defect the page ships with.
+   */
+  const naturalness = finalNaturalnessDefects({ artifact, },);
+  for (const {
+    check,
+    message,
+  } of naturalness)
+    l.warn(`publish: shipping with defect ${check}: ${message}`,);
 
   /**
    Page write and its source-destination comparison.
@@ -118,7 +128,10 @@ export async function persistSettledEntry(
   },);
   return {
     destinations: published.destinations,
-    defects: published.defects,
+    defects: [
+      ...naturalness,
+      ...published.defects,
+    ],
   };
 }
 

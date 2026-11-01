@@ -308,8 +308,6 @@ export type InterimShip = InterimCounts & {
 
  @returns Page as written, what each slice of it carries, and what it carries of the destinations
 
- @throws {@link UnparseablePageError} when the page the reading composes does not parse, with no page written
-
  @example
  ```ts
  const shipped = await publishInterimPage({ stop, slices, archiveText, sourceText, entryId, publishDir, l, },);

@@ -44,8 +44,8 @@ import type {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
- @param interimDir - directory the interim record of an entry stopped dry in the middle of its page is written into;
- beside `artifactsDir`, where the pass's runs layout puts it, when absent
+ @param interimDir - directory the interim record of an entry stopped in the middle of its page, by every provider dry or
+ by a stage that heard no voice, is written into; beside `artifactsDir`, where the pass's runs layout puts it, when absent
 
  @param sliceCacheDir - root under which this entry claims its own cache subdirectory
 

@@ -1,4 +1,5 @@
 import { introducedFootnoteFindings, } from '@monochromatic-dev/translation-repair-assembly/ts';
+import { footnoteMentions, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
 //region Page footnote integrity
 // THE PAGE IS A DOCUMENT THE LANES NEVER ASSEMBLED. Each lane guards its own
@@ -26,6 +27,26 @@ import { introducedFootnoteFindings, } from '@monochromatic-dev/translation-repa
 // archive does not hold; nothing withdraws on this check now, and the lane
 // assembly's proof of a withdrawal counts a withdrawn anchor as carrying its
 // original (`assembly-withdrawal-proof.ts`), so the two read one page.
+
+/**
+ The original of an untranslated passage as the page carries it.
+
+ @example
+ ```ts
+ const original: ShippedOriginal = { sliceIndex: 4, text: '她说[^7]\n', };
+ ```
+ */
+export type ShippedOriginal = {
+  /**
+   Slice whose original it is.
+   */
+  readonly sliceIndex: number;
+
+  /**
+   The original as written on the page.
+   */
+  readonly text: string;
+};
 
 /**
  Failure raised when the page that ships carries a footnote defect its archive did not.
@@ -85,6 +106,9 @@ export class PageFootnoteIntegrityError extends Error {
 
  @param targetText - archive text the page is weighed against
 
+ @param shippedOriginals - the original of each untranslated passage as the page carries it, with its slice, so a finding
+ about a footnote that sits in one is named by the slice (ledger B1210); none by default
+
  @throws {@link PageFootnoteIntegrityError} naming each introduced defect, which `publishFixedPage` ships as a
  reported defect
 
@@ -98,10 +122,12 @@ export function assertPageFootnotesIntact(
     entryId,
     pageText,
     targetText,
+    shippedOriginals = [],
   }: {
     readonly entryId: string;
     readonly pageText: string;
     readonly targetText: string;
+    readonly shippedOriginals?: readonly ShippedOriginal[];
   },
 ): void {
   /**
@@ -113,10 +139,50 @@ export function assertPageFootnotesIntact(
   },);
   if (introduced.length === 0)
     return;
+
+  /**
+   Each shipped original beside the footnotes it mentions, in any role.
+   */
+  const mentioning = shippedOriginals.map(function mentionsOf({
+    sliceIndex,
+    text,
+  },): {
+    readonly sliceIndex: number;
+    readonly keys: ReadonlySet<string>;
+  } {
+    return {
+      sliceIndex,
+      keys: new Set(footnoteMentions({ text, },)
+        .map(function keyOf({
+          convention,
+          identifier,
+        },): string {
+          return `${convention} ${identifier}`;
+        },),),
+    };
+  },);
   throw new PageFootnoteIntegrityError({
     entryId,
     findings: introduced.map(function spell(finding,): string {
-      return `page-footnote-${finding.kind} ${finding.convention} ${finding.identifier}`;
+      /**
+       Slices whose shipped original holds the footnote the finding is about.
+       */
+      const inside = mentioning
+        .filter(function holdsIt({ keys, },): boolean {
+          return keys.has(`${finding.convention} ${finding.identifier}`,);
+        },)
+        .map(function sliceOf({ sliceIndex, },): string {
+          return String(sliceIndex,);
+        },);
+      /**
+       Where the footnote sits, empty for one outside every shipped original.
+       */
+      const where = (inside.length === 0)
+        ? ''
+        : ` (inside the ${(inside.length === 1) ? 'original' : 'originals'} shipped at ${
+          (inside.length === 1) ? 'slice' : 'slices'
+        } ${inside.join(', ',)})`;
+      return `page-footnote-${finding.kind} ${finding.convention} ${finding.identifier}${where}`;
     },),
   },);
 }

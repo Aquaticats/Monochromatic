@@ -1,5 +1,5 @@
 /**
- Tests for a cut picture reading whose re-ask of another model fails (ledger B1200): a transport failure of one model
+ Tests for a cut picture reading whose re-ask of another model fails (ledger B1201): a transport failure of one model
  moves the order on to the next, as the provider's own re-ask does, and the claim on a model the router refused before
  any exchange is released.
 
@@ -165,7 +165,7 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'MOVES ON TO THE NEXT MODEL WHEN THE ONE ASKED FAILS IN TRANSPORT (ledger B1200), and returns the reading of '
+      name: 'MOVES ON TO THE NEXT MODEL WHEN THE ONE ASKED FAILS IN TRANSPORT (ledger B1201), and returns the reading of '
         + 'the model that took it, never asking the cut reader again',
       fn: async () => {
         const run = await cutReaderWithFailures({ failing: FIRST_STAND_IN, },);
@@ -175,7 +175,7 @@ await describe({
     },),
 
     it({
-      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE (ledger B1200) and keeps the claim of one '
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE (ledger B1201) and keeps the claim of one '
         + 'whose exchange failed, since only the second was asked',
       fn: async () => {
         const run = await cutReaderWithFailures({ refused: FIRST_STAND_IN, failing: SECOND_STAND_IN, },);

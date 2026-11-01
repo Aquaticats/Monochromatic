@@ -139,6 +139,41 @@ function keyRowOf(
 }
 
 /**
+ Reads one of the three optional keys, as unset where its provider is left off (B1209).
+
+ @param off - providers left off
+
+ @param provider - provider whose optional key is read
+
+ @param held - the environment's value, empty where unset
+
+ @returns The key, empty where the provider is left off or the variable is unset
+
+ @example
+ ```ts
+ const key = optionalKeyOf({ off, provider: 'deepseek', held: env.DEEPSEEK_KEY ?? '', },);
+ ```
+ */
+function optionalKeyOf(
+  {
+    off,
+    provider,
+    held,
+  }: {
+    readonly off: readonly ProviderOff[];
+    readonly provider: ProviderName;
+    readonly held: string;
+  },
+): string {
+  return isProviderOff({
+    off,
+    provider,
+  },)
+    ? ''
+    : held;
+}
+
+/**
  Reads every provider's key.
 
  A PROVIDER LEFT OFF IS READ AS UNSET AND NEVER REQUIRED, as the run reads it (`keyUnlessOff` in `run-providers.ts`):
@@ -251,9 +286,23 @@ export function readProviderKeys(
     hyper: hyper.key,
     bedrock: bedrock.key,
     openrouter: openrouter.key,
-    deepseek: env[DEEPSEEK_KEY_VARIABLE] ?? '',
-    xiaomi: env[XIAOMI_KEY_VARIABLE] ?? '',
-    anthropic: env[CLAUDE_KEY_VARIABLE] ?? '',
+    // THE THREE OPTIONAL KEYS ARE READ AS UNSET TOO WHEN THEIR PROVIDER IS LEFT OFF (B1209), so no provider left off is
+    // sampled whichever key the environment holds.
+    deepseek: optionalKeyOf({
+      off,
+      provider: 'deepseek',
+      held: env[DEEPSEEK_KEY_VARIABLE] ?? '',
+    },),
+    xiaomi: optionalKeyOf({
+      off,
+      provider: 'xiaomi',
+      held: env[XIAOMI_KEY_VARIABLE] ?? '',
+    },),
+    anthropic: optionalKeyOf({
+      off,
+      provider: 'anthropic',
+      held: env[CLAUDE_KEY_VARIABLE] ?? '',
+    },),
   };
 }
 

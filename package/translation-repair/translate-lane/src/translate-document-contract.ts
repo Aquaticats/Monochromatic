@@ -566,8 +566,10 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  possessive outside quotations, a revision by another model is a candidate of its own under its own id, a ballot weighs
  a text by its true author, and a picture whose cut reply was asked of another model is labelled with that model in the
  sheet. A slice stored at 36 holds candidates and ballots made under the old words and authorship. The key hashes the
- version, the shape of the run and the texts, and names a picture reading by its inputs and not by its text or its label,
- so only the number retires a record. No record is known to have been written by a build that holds these changes (the
+ version, the shape of the run and the texts, and carries the picture context as the words the translator was shown,
+ each transcription labelled with the model that read it (`slice-pictures.ts`, `translate-slice-key.ts`), so a picture
+ whose cut reply was asked of another model reaches a key of its own by its label alone, and the other changes are in no
+ key, so only the number retires a record made under them (ledger B1204). No record is known to have been written by a build that holds these changes (the
  one run since, XingZ6023, started on `bf5d1f00fa`, which does not contain `98d5b63eb`), and the audit's newest record
  follows them by time, so the exception of the rule does not apply and the number moves, beside the namespace of the
  build (`openNamespacedCache`). The consolidate (44), lane contest (19), repair slice (51) and refine (20) versions move

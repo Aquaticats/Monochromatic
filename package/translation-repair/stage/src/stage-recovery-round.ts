@@ -10,6 +10,7 @@ import {
   describeLeftOut,
   measuresModelOf,
   type ReaskSeat,
+  releaseFor,
   takenFor,
   takeFor,
 } from '@monochromatic-dev/translation-repair-provider/ts';
@@ -260,7 +261,21 @@ async function recoverRunaway<ValueT,>(
      */
     const { voice, } = asked;
     if ((!voice.heard) && voice.unreachable) {
+      // REFUSED BEFORE ANY EXCHANGE: the model was not asked, so its claim goes back for another seat (ledger B1201).
+      releaseFor({
+        seat: named,
+        modelId: alternate,
+      },);
       rl.debug(`${roundRequest.stage}: ${seat}: ${alternate} cannot take the re-ask, no provider serves it with budget`,);
+      continue;
+    }
+    // A TRANSPORT FAILURE IS THAT MODEL'S FAILURE (ledger B1201), as it is in the provider's own re-ask: its exchange
+    // never delivered an answer, the next model of the order is asked, and the seat is lost only when every model of the
+    // order has failed. The caller's abort and the refusal of every provider dry never reach here as a lost voice; both
+    // are thrown out of the round. The model stays claimed, since it was asked. An answer that arrived and could not be
+    // read ends the order, as it does there.
+    if ((!voice.heard) && (!voice.answered)) {
+      rl.warn(`${roundRequest.stage}: ${seat}: re-asking ${alternate} failed (no answer arrived); trying the next model`,);
       continue;
     }
     // THE OUTCOME STANDS UNDER THE SEAT, AND THE VOICE NAMES THE MODEL THAT WROTE IT (ledger B1142): the model asked, or

@@ -1087,7 +1087,7 @@ await describe({
           },
         },),
         it({
-          name: 'SHIPS THE ARCHIVE AT THE SLICE WHOSE DECIDED WORDING CURLS A JSX STRING LITERAL (ledger B1200), so the '
+          name: 'SHIPS THE ARCHIVE AT THE SLICE WHOSE DECIDED WORDING CURLS A JSX STRING LITERAL (ledger B1207), so the '
             + 'grammar floor sits between the would-ship reading and the disk and the entry still ships a page that '
             + 'parses (2026-09-06; owner: "no matter what, we must ship"), with the slice named as a defect',
           fn: async () => {

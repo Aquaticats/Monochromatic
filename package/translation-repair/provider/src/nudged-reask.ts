@@ -24,6 +24,7 @@ import {
 } from './reask-alternate-models.ts';
 import { measuresModelOf, } from './reask-mode.ts';
 import {
+  releaseFor,
   takenFor,
   takeFor,
 } from './reask-claims.ts';
@@ -338,6 +339,13 @@ export async function reaskElsewhereNudged<ValueT,>(
         if (aborted || (error instanceof EveryProviderDryError))
           throw error;
         if (error instanceof NoProviderForModelError) {
+          // THE ROUTER (OR THE RUN'S REFUSAL OF A WITHHELD SEAT) REFUSED BEFORE ANY EXCHANGE, so the model was not asked
+          // and is no voice of the question: its claim is given back for another seat of it (ledger B1201). A model whose
+          // exchange failed stays claimed, below.
+          releaseFor({
+            seat: reaskSeat,
+            modelId,
+          },);
           ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
           continue;
         }

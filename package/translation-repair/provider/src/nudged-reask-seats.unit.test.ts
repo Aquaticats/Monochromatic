@@ -301,7 +301,7 @@ await describe({
     },),
 
     it({
-      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE (ledger B1200) and keeps the claim of '
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE (ledger B1201) and keeps the claim of '
         + 'one whose exchange failed, since only the second was asked: another seat of the question may still take the first',
       fn: async () => {
         /**

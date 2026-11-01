@@ -649,7 +649,7 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  the texts, not the follow-up turn or the authorship (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only
  the number retires a record. No record is known to have been written by a build that holds these changes: the one run
  since, XingZ6023, started on `bf5d1f00fa`, and `git merge-base --is-ancestor 98d5b63eb bf5d1f00fa` exits 1; the audit
- (`cache-account-audit`) still prints a newest record at 08:24 UTC that follows the commits by time, so the exception of
+ (`cache-account-audit`) still prints a newest record at 10:04:22 UTC on 2026-10-31 that follows the commits by time, so the exception of
  the rule does not apply and the number moves. A build whose pipeline digest differs discards the namespace before it
  reads it (`openNamespacedCache`), and the number is the belt beside that brace. The translate slice (37), lane contest
  (19), repair slice (51) and refine (20) versions move with it; the consistency (10), pairing (3) and page title (9)

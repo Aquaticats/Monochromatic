@@ -488,6 +488,7 @@ await describe({
              Voices after the author answered its findings with a hidden break.
              */
             const repaired = await repairInvalidCandidates({
+              benchModelIds: [],
               role: 'translator',
               reaskClaims: createReaskClaims(),
               reask: 'other-model',
