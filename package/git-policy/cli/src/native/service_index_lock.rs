@@ -28,6 +28,14 @@ pub const LOCK_MARKER: &str = "cli-git-service ";
 /// How often the holder's notice is repeated while the wait lasts.
 pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
 
+/// The environment variable that sets how often the holder's line is repeated, in whole seconds.
+pub const NOTICE_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
+
+/// How often the holder's line is repeated: the variable when it holds a positive number of seconds, ten seconds otherwise.
+fn notice_every() -> Duration {
+    return std::env::var(NOTICE_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); }).filter(|seconds| { return *seconds > 0; }).map_or(NOTICE_EVERY, Duration::from_secs);
+}
+
 /// What the wait tells the clients of the batch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Announce {
@@ -197,6 +205,7 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
     let watch: Option<Watch> = Watch::on(directory);
     let began: Instant = Instant::now();
     let mut first: bool = true;
+    let mut last_notice: Instant = began;
     loop {
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
             Ok(mut file) => {
@@ -214,18 +223,23 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
             Err(error) => return Err(LockFailure { code: super::service_land_follow::storage_failure(&error) }),
         }
         let waited: Duration = began.elapsed();
-        let (line, who) = holder_notice(index, waited, limit, first);
-        if let Some(text) = line {
-            announce(Announce::Waiting(text));
-        }
-        first = false;
         let exhausted: bool = waited >= limit || watch.is_none();
+        // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
+        let due: bool = first || last_notice.elapsed() >= notice_every();
+        let (line, who) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None) };
+        if due {
+            if let Some(text) = line {
+                announce(Announce::Waiting(text));
+            }
+            first = false;
+            last_notice = Instant::now();
+        }
         if exhausted {
             announce(Announce::Holder(who.unwrap_or_else(|| { return String::from("Another program"); })));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
         if let Some(active) = watch.as_ref() {
-            active.wait(NOTICE_EVERY.min(limit.saturating_sub(waited)));
+            active.wait(notice_every().saturating_sub(last_notice.elapsed()).max(Duration::from_millis(1)).min(limit.saturating_sub(waited)));
         }
     }
 }
