@@ -605,3 +605,78 @@ fn a_switch_is_found_in_a_reftable_repository() {
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "main"]), tip, "the branch did not move");
     remove(root.as_path());
 }
+
+/// Removes the unreferenced objects the way `git gc --prune=now` does, between a request's preparation and its landing.
+fn prune_now(world: &World) {
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+}
+
+/// What a landing that found the prepared content gone leaves of the repository: the branch where it was, no index lock, and
+///  no crash report of the program that imports the objects.
+fn assert_refused_cleanly(world: &World, base: &str, what: &str) {
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "{what}: the branch did not move");
+    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+    let reports: Vec<String> = std::fs::read_dir(world.repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.starts_with("fast_import_crash"); })
+        .collect();
+    assert!(reports.is_empty(), "{what}: left {reports:?}");
+}
+
+/// A blob the request names that `git gc --prune=now` removed after the preparation is found before anything is imported, and
+///  the landing answers that it could not be done, so the client prepares the commit again.
+#[test]
+fn a_request_whose_blob_was_pruned_is_refused_before_anything_is_imported() {
+    let world: World = world("service-land-pruned-blob");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let sent: CommitRequest = request(&world, "pruned", "pruned.txt", "x\n");
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[sent]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "blob");
+    remove(world.root.as_path());
+}
+
+/// An amend whose tree was removed is refused the same way.
+#[test]
+fn an_amend_whose_tree_was_pruned_is_refused_before_anything_is_imported() {
+    let world: World = world("service-land-pruned-tree");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut amend: CommitRequest = request(&world, "amend", "amend.txt", "x\n");
+    git(world.repo.as_path(), &["add", "--", "amend.txt"]);
+    amend.tree = Some(git_text(world.repo.as_path(), &["write-tree"]));
+    git(world.repo.as_path(), &["reset", "--quiet"]);
+    amend.amend = true;
+    amend.changes = Vec::new();
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[amend]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "tree");
+    remove(world.root.as_path());
+}
+
+/// A commit Git built that was removed whole is the removal of prepared content, not a request the service refuses as unsafe.
+#[test]
+fn a_built_commit_that_was_pruned_is_unavailable_not_refused() {
+    let world: World = world("service-land-pruned-commit");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "commit");
+    remove(world.root.as_path());
+}
+
+/// A commit Git built whose commit object survived but whose blob did not (a prune that was still deleting) is never put on the
+///  branch: Git moves a branch to a commit without looking at what the commit holds.
+#[test]
+fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
+    let world: World = world("service-land-partly-pruned");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let blob: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{}:typed.txt", built.commit.clone().unwrap_or_default()).as_str()]);
+    std::fs::remove_file(world.repo.join(".git/objects").join(&blob[..2]).join(&blob[2..])).expect("the blob is loose");
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "partial");
+    remove(world.root.as_path());
+}
