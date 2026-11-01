@@ -196,6 +196,33 @@ fn layouts_that_need_git_are_declined() {
     remove(root.as_path());
 }
 
+/// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
+///  variables but Git never reads them, so a shell that exports one must not switch every in-process answer off;
+///  a name that only resembles the namespace still declines, because Git could define it.
+/// An exported tag made eight unit tests fail under every fixture root, which looked like a host layout difference
+///  (`doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`).
+#[test]
+fn the_packages_own_variables_do_not_move_discovery() {
+    let root = fixture("repo-read-own-variables");
+    let repo = repository(root.as_path(), "repo");
+    let scope = hermetic_scope(root.as_path());
+    let named = |suffix: &str| -> [(std::ffi::OsString, std::ffi::OsString); 1] {
+        return [(std::ffi::OsString::from(format!("{WRAPPER_ENVIRONMENT_PREFIX}{suffix}")), std::ffi::OsString::from("tag"))];
+    };
+    for suffix in ["NATIVE_IMAGE_TAG", "E2E_BASE_TAG"] {
+        assert!(
+            read_layout_with(repo.as_path(), &named(suffix), &scope).is_some(),
+            "{WRAPPER_ENVIRONMENT_PREFIX}{suffix} is the package's own and Git never reads it"
+        );
+    }
+    let lookalike: [(std::ffi::OsString, std::ffi::OsString); 1] = [(
+        std::ffi::OsString::from(WRAPPER_ENVIRONMENT_PREFIX.trim_end_matches('_').to_owned() + "X"),
+        std::ffi::OsString::from("tag"),
+    )];
+    assert!(read_layout_with(repo.as_path(), &lookalike, &scope).is_none(), "a name outside the namespace can be Git's");
+    remove(root.as_path());
+}
+
 /// A scope file that mentions `core.bare`, directly or through any include, makes the reader decline.
 #[test]
 fn scope_files_that_mention_discovery_keys_are_declined() {

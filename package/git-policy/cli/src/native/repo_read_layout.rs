@@ -46,6 +46,10 @@ const PLAIN_ENVIRONMENT_PREFIXES: [&str; 19] = [
     "GIT_OPTIONAL_LOCKS",
 ];
 
+/// The prefix of the variables this package owns (`GIT_POLICY_NATIVE_IMAGE_TAG` keeps the images of parallel runs apart);
+///  Git defines none of them, so they cannot move a path or a key.
+pub const WRAPPER_ENVIRONMENT_PREFIX: &str = "GIT_POLICY_";
+
 /// The longest `HEAD` or `commondir` or gitfile this reader looks at.
 const SMALL_FILE_LIMIT: u64 = 4096;
 
@@ -145,13 +149,15 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
     return true;
 }
 
-/// Whether every `GIT_` variable among `variables` is one that cannot move discovery.
+/// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
+///  a tolerated prefix, or one of this package's own.
 fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
         };
-        if text.starts_with("GIT_") && !PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); }) {
+        let tolerated: bool = text.starts_with(WRAPPER_ENVIRONMENT_PREFIX) || PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); });
+        if text.starts_with("GIT_") && !tolerated {
             return false;
         }
     }
