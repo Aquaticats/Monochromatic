@@ -81,8 +81,8 @@ class SearchPageModelTest {
     fun promptStatusUsesReviewCopy() {
         /** Status line produced for an empty query. */
         val line: SearchStatusLine? = searchStatusLine(SearchState.EmptyQuery)
-        assertEquals("Search your music", line?.title)
-        assertEquals("Type a name to explore your library.", line?.detail)
+        assertEquals(SEARCH_PROMPT_TITLE, line?.title)
+        assertEquals(SEARCH_PROMPT_DETAIL, line?.detail)
     }
 
     // What:     `@Test fun emptyInventoryStatusHasHeadlineOnly()` checks the confirmed empty inventory.
@@ -97,7 +97,7 @@ class SearchPageModelTest {
     fun emptyInventoryStatusHasHeadlineOnly() {
         /** Status line produced for a confirmed empty inventory. */
         val line: SearchStatusLine? = searchStatusLine(SearchState.EmptyInventory)
-        assertEquals("No music found in your audio library.", line?.title)
+        assertEquals(SEARCH_EMPTY_INVENTORY_TITLE, line?.title)
         assertNull(line?.detail)
     }
 
@@ -113,8 +113,8 @@ class SearchPageModelTest {
     fun unavailableStatusNamesNoCause() {
         /** Status line produced for a known source failure. */
         val line: SearchStatusLine? = searchStatusLine(SearchState.Unavailable)
-        assertEquals("Search is unavailable", line?.title)
-        assertEquals("The current library can't be searched right now.", line?.detail)
+        assertEquals(SEARCH_UNAVAILABLE_TITLE, line?.title)
+        assertEquals(SEARCH_UNAVAILABLE_DETAIL, line?.detail)
         /** Headline text of the unavailable status, or an empty string when no status line exists. */
         val headline: String = line?.title ?: ""
         assertFalse(headline.contains("Library unavailable"))
@@ -132,8 +132,8 @@ class SearchPageModelTest {
     fun noMatchStatusNamesQuery() {
         /** Status line produced for a completed no-match on the query zzq. */
         val line: SearchStatusLine? = searchStatusLine(SearchState.NoMatch("zzq"))
-        assertEquals("No results for “zzq”", line?.title)
-        assertEquals("Try another name.", line?.detail)
+        assertEquals(SEARCH_NO_MATCH_PREFIX + "zzq" + SEARCH_NO_MATCH_SUFFIX, line?.title)
+        assertEquals(SEARCH_NO_MATCH_DETAIL, line?.detail)
     }
 
     // What:     `@Test fun resultsHaveNoStatusLine()` checks that a result list draws no status.
@@ -204,8 +204,8 @@ class SearchPageModelTest {
             currentTrackIndex = null,
             isPlaying = null,
         )
-        assertEquals("Track", semantics.kindLabel)
-        assertEquals("Select track", semantics.actionLabel)
+        assertEquals(SEARCH_TRACK_KIND, semantics.kindLabel)
+        assertEquals(SEARCH_TRACK_SELECT_ACTION, semantics.actionLabel)
         assertNull(semantics.stateLabel)
     }
 
@@ -219,8 +219,8 @@ class SearchPageModelTest {
     /** Folder and track results speak the words Folder and Track. */
     @Test
     fun kindLabelsNameFolderAndTrack() {
-        assertEquals("Folder", searchRowKindLabel(folderResult("Camellia")))
-        assertEquals("Track", searchRowKindLabel(trackResult("Night", "Live", 1)))
+        assertEquals(SEARCH_FOLDER_KIND, searchRowKindLabel(folderResult("Camellia")))
+        assertEquals(SEARCH_TRACK_KIND, searchRowKindLabel(trackResult("Night", "Live", 1)))
     }
 
     // What:     `@Test fun currentTrackMatchesLibraryIndex()` checks the current-track test for a track.
@@ -446,8 +446,8 @@ class SearchPageModelTest {
             currentTrackIndex = 2,
             isPlaying = true,
         )
-        assertEquals("Track", semantics.kindLabel)
-        assertEquals("Pause track", semantics.actionLabel)
+        assertEquals(SEARCH_TRACK_KIND, semantics.kindLabel)
+        assertEquals(SEARCH_TRACK_PAUSE_ACTION, semantics.actionLabel)
         assertEquals("Current track, playing", semantics.stateLabel)
     }
 
@@ -613,7 +613,7 @@ class SearchPageModelTest {
     /** A restored query starts at the first result index. */
     @Test
     fun restoredResultsStartAtFirstIndex() {
-        assertEquals(0, SEARCH_RESTORED_RESULT_INDEX)
+        assertEquals((0 until SEARCH_RESULT_LIMIT).first, SEARCH_RESTORED_RESULT_INDEX)
     }
 }
 

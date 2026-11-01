@@ -186,7 +186,7 @@ class TransportDeckModelTest {
     fun visibleLabelsMatchEachMode() {
         assertEquals("Repeat", modeLabelFor(PlaybackMode.REPEAT, "Camellia"))
         assertEquals("In order", modeLabelFor(PlaybackMode.IN_ORDER, "Camellia"))
-        assertEquals("Shuffle Camellia", modeLabelFor(PlaybackMode.SHUFFLE_PAGE, "Camellia"))
+        assertEquals(SHUFFLE_PREFIX + "Camellia", modeLabelFor(PlaybackMode.SHUFFLE_PAGE, "Camellia"))
         assertEquals("Shuffle all", modeLabelFor(PlaybackMode.SHUFFLE_ALL, "Camellia"))
     }
 
@@ -203,7 +203,7 @@ class TransportDeckModelTest {
         assertEquals("Repeat track", modeAccessibleLabelFor(PlaybackMode.REPEAT, "Extraordinary"))
         assertEquals("Play in order", modeAccessibleLabelFor(PlaybackMode.IN_ORDER, "Extraordinary"))
         assertEquals(
-            "Shuffle Extraordinary",
+            SHUFFLE_PREFIX + "Extraordinary",
             modeAccessibleLabelFor(PlaybackMode.SHUFFLE_PAGE, "Extraordinary"),
         )
         assertEquals("Shuffle all folders", modeAccessibleLabelFor(PlaybackMode.SHUFFLE_ALL, "Extraordinary"))

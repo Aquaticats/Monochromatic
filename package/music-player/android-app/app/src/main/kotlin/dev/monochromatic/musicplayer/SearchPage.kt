@@ -753,7 +753,7 @@ import dev.monochromatic.musicplayer.core.searchRowInsets
 // const SEARCH_EDGE_INSET = 16;
 // ```
 /** Standard inset from the screen or pane edge to header and row content. */
-private val SEARCH_EDGE_INSET: Dp = 16.dp
+internal val SEARCH_EDGE_INSET: Dp = 16.dp
 
 // What:     `private val SEARCH_BROWSER_GAP: Dp = 8.dp` separates the folder browser from the crease.
 // Why:      The browser keeps a small gap beyond the crease so its text stays clear of the fold.
@@ -803,7 +803,7 @@ private val SEARCH_HEADER_HEIGHT: Dp = 72.dp
 // const SEARCH_ROW_MIN_HEIGHT = 72;
 // ```
 /** Minimum height of one result row. */
-private val SEARCH_ROW_MIN_HEIGHT: Dp = 72.dp
+internal val SEARCH_ROW_MIN_HEIGHT: Dp = 72.dp
 
 // What:     `private val SEARCH_STATUS_TOP: Dp = 72.dp` offsets the status circle from the divider.
 // Why:      Both panels start the status circle the same distance under the divider, above the keyboard (D126).
@@ -813,7 +813,7 @@ private val SEARCH_ROW_MIN_HEIGHT: Dp = 72.dp
 // const SEARCH_STATUS_TOP = 72;
 // ```
 /** Distance from the divider to the top of the status circle, on the cover and on the inner panel. */
-private val SEARCH_STATUS_TOP: Dp = 72.dp
+internal val SEARCH_STATUS_TOP: Dp = 72.dp
 
 // What:     `private val SEARCH_STATUS_DETAIL_TOP: Dp = 12.dp` separates a status headline from its detail.
 // Why:      The detail sits 12dp under its headline on the inner panel, as in the reviewed capture.
@@ -853,7 +853,7 @@ private val SEARCH_COVER_DETAIL_TOP: Dp = 8.dp
 // const SEARCH_SEAM = 1;
 // ```
 /** Thickness of the divider under the Search header. */
-private val SEARCH_SEAM: Dp = 1.dp
+internal val SEARCH_SEAM: Dp = 1.dp
 
 // What:     `private val SEARCH_TRUE_BLACK: Color = Color(0xFF000000)` is the dark canvas.
 // Why:      Dark mode paints a true-black canvas behind the page, matching the player screen.
