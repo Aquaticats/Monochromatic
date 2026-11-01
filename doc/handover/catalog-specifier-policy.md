@@ -1073,9 +1073,12 @@ The user confirmed the shared understanding and the order below, after the third
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
 - Done: `pnpm-shadow` 0.1.1 built, tested, published, released with archives, installed from the archive as a consumer, and shown
   not to loop behind a launcher (the 0.1.0 defect), on the published binary and on the test build.
-- Waiting on the toolchain owner (the earlier owner, `monochromatic-6e`, was replaced after the reboot; both current peers were
-  told, each conditionally): lock 0.1.1, put `.cache/pnpm-shadow-bin` back on PATH ahead of `.cache/toolchain-bin`, then check
-  `command -v pnpm`, and `pnpm --version`, `root` and `--help` with timeouts. The link was disabled after 0.1.0 looped.
+- Done, by `monochromatic-2a` (the toolchain session; it answered the conditional message): locked `cargo:monochromatic-pnpm-shadow`
+  0.1.1 (lock diff: that row and the digest), `toolchain:install` reported "1 installed, 64 unchanged, 0 failed", checked a throwaway PATH
+  first, then `.config/mise/conf.d/20-env.toml` put `.cache/pnpm-shadow-bin` ahead of `.cache/toolchain-bin`; its commit was in flight
+  when it reported. Checked from here in the repository's mise environment (`mise exec`, each command under `timeout 30`):
+  `command -v pnpm` is `.cache/pnpm-shadow-bin/pnpm`; `pnpm --version` exit 0 with `12.16.1` and one `pnpm-shadow 0.1.1, shadowing pnpm at
+  .cache/toolchain-bin/pnpm` line; `pnpm root` exit 0, no shadow line; `pnpm --help` exit 0 with pnpm's help then the shadow section.
 - Done by the user's answer ("Yes, bump to 0.5.1 now"): read with `git show HEAD:toolchain.lock.json | jq` after the reboot, the
   committed lock names cli-git 0.5.1 and the `cargo:monochromatic-pnpm-shadow` row at 0.1.0 (so 0.1.1 is not locked yet).
 - Push state after the reboot: the handover commit `07c02186b1` was saved locally and its auto-push failed with the git-lfs 503
@@ -1090,5 +1093,6 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for the toolchain owner's report that 0.1.1 is locked, the shadow is back on PATH as `pnpm`, and `pnpm --version`, `root` and `--help`
-behave as the README says; then check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
+Nothing is queued. The whole design is built and live: the `zod` fix, the library crate, the cli-git policy at `error`, the CI
+workflow, and the `pnpm` shadow in front of the real pnpm. Remaining are only items for the user, in Open items (the hook that no longer
+runs, branch protection, token revocation not checkable from here).
