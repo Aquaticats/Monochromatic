@@ -1346,6 +1346,40 @@ each finished branch is reviewed and merged into `main`):
   a loud start failure instead of a silent restart loop,
   limits that take effect on the scheduler in use,
   tests that cannot reach a live cgroup).
+- Playwright image verified 2026-11-01:
+  `mise run prepare:playwright` printed "pulled ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464",
+  and the local digest is the published `sha256:3e7042a80905629a59c4c48a72b0666af4f64bb2934245371df56208976427df`.
+- wg round 7 and performance (branch `worktree-agent-a6f97f5da6f22de4d`,
+  `fad3cdc216..15db705ec1`, 10 commits),
+  under separate review before the live apply:
+  the restart incident was an exit race,
+  not a state-format difference
+  (an exiting watcher shows an empty `/proc/<pid>/cmdline`;
+  4 of 6 runs with a 200 MB stand-in);
+  `down` now stops watchers before removing routing,
+  keeps the tunnel up on their failure,
+  and blocks with a separate `nft table inet wg-quicker-<iface>-blocked` on a later failure
+  (veto-open reading of "falls back to blocking":
+  the existing kill switch blocks nothing outbound);
+  measured exposure of the incident about 92 s half-removed and 177 s in total.
+  Performance:
+  exiting processes are never handed to the manager,
+  an exec-only connector filter,
+  group collection from the origin's `cgroup.procs`
+  (12,061 reads and 31.7 ms down to 292 reads and 1.95 ms per move),
+  and one delegated scope per origin following its limits.
+  Not verified:
+  whether the socket-mark BPF programs on the updates slice reach a delegated scope below it.
+  Live apply after the review:
+  build both packages,
+  `down` then `up` with the new build,
+  then clean up the old scopes with `systemctl --user reset-failed` and `systemctl --user stop` of empty ones.
+- #2576:
+  the owner asked "What is going on? Why are we writing any Python?"
+  after the dependency questions;
+  their answers so far (torchvision kept, `uv_build`, `argparse`) assume the wrapper,
+  so they wait on a no-Python research pass
+  (`doc/research/xiaomi-ocr-without-python.md`, an agent running).
 - goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
   mise's `github:aaif-goose/goose` 1.47.0,
   its alias links and shim,
