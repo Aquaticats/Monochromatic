@@ -246,10 +246,6 @@ type ResolveObjectParams = {
    on the PUT; present only for authorized uploads.
    */
   readonly authorization?: string;
-  /**
-   Logger for the per-object decision.
-   */
-  readonly l: Logger;
 };
 
 /**
@@ -266,9 +262,11 @@ type ResolveObjectParams = {
 
  @param origin - origin of the request, used to build absolute action hrefs
 
- @param authorization - `Authorization` header echoed into upload actions
+ The decision is not logged here: a log record per object is CPU spent on
+ every object of every batch, and the Workers Free plan allows 10 ms of CPU
+ per request. {@link summarizeEntries} reports the whole batch in one line.
 
- @param l - logger for the per-object decision
+ @param authorization - `Authorization` header echoed into upload actions
 
  @returns batch response entry for the object
  */
@@ -278,15 +276,7 @@ async function resolveObject({
   env,
   origin,
   authorization,
-  l,
 }: ResolveObjectParams,): Promise<Record<string, unknown>> {
-  /**
-   Logger tagged with this function's name.
-   */
-  const rl = tagged({
-    tag: resolveObject.name,
-    l,
-  },);
   /**
    Object id and size echoed into the response entry.
    */
@@ -305,13 +295,11 @@ async function resolveObject({
     .head(oid,);
   if (operation === 'upload') {
     if (head !== null) {
-      rl.debug(`${oid} already stored; no upload action`,);
       return {
         oid,
         size,
       };
     }
-    rl.debug(`${oid} absent; issuing upload action`,);
     return {
       oid,
       size,
@@ -324,7 +312,6 @@ async function resolveObject({
     };
   }
   if (head === null) {
-    rl.debug(`${oid} absent; reporting per-object 404`,);
     return {
       oid,
       size,
@@ -334,12 +321,87 @@ async function resolveObject({
       },
     };
   }
-  rl.debug(`${oid} present; issuing download action`,);
   return {
     oid,
     size,
     actions: { download: { href, }, },
   };
+}
+
+/**
+ Parameters for {@link countEntriesWithKey}.
+ */
+type CountEntriesWithKeyParams = {
+  /**
+   Response entries to inspect.
+   */
+  readonly entries: readonly Readonly<Record<string, unknown>>[];
+  /**
+   Property whose presence is counted.
+   */
+  readonly key: string;
+};
+
+/**
+ Count the response entries that carry a property.
+
+ @param entries - response entries to inspect
+
+ @param key - property whose presence is counted
+
+ @returns how many entries have the property
+ */
+function countEntriesWithKey({
+  entries,
+  key,
+}: CountEntriesWithKeyParams,): number {
+  return entries
+    .filter(function hasKey(entry: Readonly<Record<string, unknown>>,): boolean {
+      return key in entry;
+    },)
+    .length;
+}
+
+/**
+ Describe how a batch was answered in one line, so the decision log costs the
+ same for one object as for a thousand.
+
+ @param entries - response entries {@link resolveObject} built
+
+ @returns line counting entries that carry an action, carry none, or report the object absent
+
+ @example
+ ```ts
+ summarizeEntries([{ oid, size: 1, actions: { download: { href } } }, { oid, size: 1 }]);
+ // 'resolved 2 object(s): 1 with an action, 1 without an action, 0 reported absent'
+ ```
+ */
+function summarizeEntries(entries: readonly Readonly<Record<string, unknown>>[],): string {
+  /**
+   Number of entries in the batch.
+   */
+  const { length: total, } = entries;
+  /**
+   Entries reporting a per-object error.
+   */
+  const reportedAbsent = countEntriesWithKey({
+    entries,
+    key: 'error',
+  },);
+  /**
+   Entries carrying a download or upload action.
+   */
+  const withAction = countEntriesWithKey({
+    entries,
+    key: 'actions',
+  },);
+  /**
+   Entries that are neither actionable nor an error: uploads the store already holds.
+   */
+  const withoutAction = total
+    - withAction
+    - reportedAbsent;
+  return `resolved ${total} object(s): ${withAction} with an action, ${withoutAction} without an action, ${reportedAbsent} reported absent`;
 }
 
 /**
@@ -435,10 +497,10 @@ export async function handleBatch({
               ? { authorization: nonNullishOrThrow(request.headers
                 .get('Authorization',),), }
               : {},
-            l: hl,
           },);
         },),
     );
+    hl.info(summarizeEntries(results,),);
     return lfsJson({
       body: {
         transfer: 'basic',
