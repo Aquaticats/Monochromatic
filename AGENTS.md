@@ -1433,13 +1433,13 @@ WR3:
  never italics or ALL CAPS.
 
 WR4:
- Numerals only where exact count,
- order,
- version,
- ID,
- or measurement matters;
- prefer count-neutral wording;
- mention list length only when it is the claim.
+ Numerals only where the exact value is the claim
+ or the reader acts on it
+ (versions,
+ IDs,
+ a measured result being compared);
+ otherwise count-neutral words;
+ never list lengths.
 
 WR5:
  Never point by relative position ("above",
@@ -1605,6 +1605,12 @@ CPN:
  `git add F` then `git commit -- other/paths` omits `F`,
  leaving imports unresolvable at that commit;
  check `git status --short` after.
+
+XSG:
+ Tracked files:
+ commit with `git commit -- <paths>` alone;
+ a separate `git add` stays staged if the commit fails,
+ and another session's commit in the shared checkout then takes it.
 
 XCM:
  External messages report results,

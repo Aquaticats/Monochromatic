@@ -80,7 +80,7 @@ fn unacceptable_requests_are_refused() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
     let mut empty: CommitRequest = request();
     empty.changes.clear();
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_ok(), "an empty commit changes no path");
     let mut many: CommitRequest = request();
     many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: format!("f{n}"), mode: ALLOWED_MODES[0], blob: None }; }).collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());

@@ -1542,6 +1542,132 @@ each finished branch is reviewed and merged into `main`):
   sends a critical desktop notification on any failure,
   and logs to `~/temp/agent/wg-restart/restart.log`;
   the unit gets `KillMode=process`.
+  Fixes for that review (local only;
+  the branch push hit `GH006: Protected branch update failed`,
+  then the 0.5.1 LFS 503s):
+  `c9438a645b` forward replies as `ct direction reply ip saddr { hosts }`
+  (a forged source is dropped, shown with real nft),
+  `d728f5a4fe` the state-file name gets `isValidInterfaceName`,
+  `898c39ffc2` `=` and `+` refused (nft rejects them as table names).
+  Tip to merge locally:
+  `898c39ffc2`.
+  Last review:
+  nothing blocks the restart
+  (conntrack active,
+  `nft_ct` loaded,
+  the kill switch uses `ct mark`).
+  Merged into `main` as `f0589a5f42`
+  (conflicts with main's test-constant commits in two Rust test files resolved;
+  package tests run after the commit).
+  Tests on the merge:
+  `wg/cli-quicker-exempt` 4 of 251 failed (`update_entry_points_tests`:
+  "toolchain:sync is on the wg list but no mise task has that name",
+  plus the fetching-task,
+  toolchain-script and mpm-shadow-verb checks),
+  `wg/cli-quicker` failed `update-hosts.unit.test.ts`
+  (`ENOENT ... package/file-enforcer/core/src/toolchain`).
+  Both predate the merge,
+  which left those files unchanged:
+  the cutover renamed tasks and verbs and deleted that directory.
+  Policy effect (corrected after reading the code):
+  `MISE_TASKS` (`update_entry_points.rs:14-22`) already lists `toolchain:install`,
+  `toolchain:update`
+  and `toolchain:outdated` with their `:global` forms,
+  so those are matched;
+  the stale `toolchain:sync` names are harmless extras.
+  The gap is only what `every_fetching_mise_task_is_listed` and the mpm-shadow verb test name;
+  an earlier claim here that `toolchain:install` was unmatched was wrong.
+  The panic messages show the tests' detection reads deleted TypeScript sources
+  (`[]` fetching tasks,
+  "mpm-shadow has no verb install: []",
+  `package/file-enforcer/core/src/toolchain/sync.ts`),
+  so no policy gap is shown;
+  an agent is fixing the tests and dropping the stale entries,
+  and the restart no longer waits for it.
+  That agent stopped on a permission refusal (an `rg` over `${HOME}/.config/monochromatic-dev/toolchain/`),
+  editing nothing;
+  its findings:
+  `MISE_TASKS` and `MPM_SHADOW_VERBS` miss no fetcher,
+  the detection moved (`verb_grammar.rs`, `runMpmShadow([...])`),
+  all 17 `PLAN_UPDATE_HOSTS` are still named,
+  and `node package/monorepo-task/core-exec/src/mpm-shadow.ts <verb>` run outside mise would be unmatched.
+  Queued:
+  resume it without the global-plan check.
+- Before the restart,
+  the user manager stopped answering ("Transport endpoint is not connected" from `systemctl --user` and `systemd-run --user`)
+  while pid 5111 stayed in state `R`;
+  cause not established.
+  Then the owner rebooted (2026-11-01 about 10:08 local).
+  After the reboot:
+  git intact (`fsck --connectivity-only`: dangling objects only),
+  `main` 69 commits ahead of `origin/main` (0.5.1 push regression),
+  0 `wg-quicker-update-*` units,
+  no `fr-par-fr1`,
+  no watchers,
+  no policy rules (traffic direct via `wlp9s0`),
+  user manager `degraded` by `kopia-snapshot-all.service` (owner's backup, not touched),
+  and the merge's builds (14:55 to 14:56 UTC) present.
+  The restart became `up` only:
+  unit `wg-restart-fr-par-fr1`,
+  log `~/temp/agent/wg-restart/restart.log`.
+  First run stopped before changing anything:
+  its start check expected `--help` to exit 0,
+  but `wg-quicker` exits 1 and `wg-quicker-exempt` exits 2 with their usage
+  (the check now looks for the usage text).
+  Second run (2026-11-01 15:14 to 15:17 UTC):
+  "UP SUCCEEDED";
+  route watcher 86238 and application watcher 86308 (`__watch fr-par-fr1 100 1000`) in
+  `/user.slice/user-0.slice/session-c4.scope`;
+  6 `wg-quicker-update-*` units,
+  all the new per-origin kind,
+  none old-style or failed,
+  steady at +30 s and +120 s;
+  `ip route get 1.1.1.1` goes `dev fr-par-fr1 table 51820`;
+  rules `fwmark 0x64 lookup 52000 proto 201` and the update-host rules present.
+  Positive control for the marks (the reviewer's unverified item):
+  during a real `mise run toolchain:outdated`,
+  272 new processes landed in shared scopes
+  and 29 of 29 socket samples from them carried `fwmark 0x64`
+  (`~/temp/agent/wg-restart/mark-positive.ts`);
+  `toolchain:outdated` exits 1 for "2 tools would move" (`npm:pagefind` 1.5.2 to 1.6.0 among them).
+  Noise to fix:
+  a process that exits between match and move is reported loudly
+  ("move failed ... busctl ... Call failed: No such process");
+  it should count as a vanish.
+  Name quirk:
+  scopes for a terminal origin end in `.scope.scope`.
+- pnpm shadow 0.1.1 live (commit `5aea48d735`):
+  locked (row and digest only),
+  installed,
+  checked behind the real launcher in a throwaway PATH with each command bounded,
+  then `.cache/pnpm-shadow-bin` put back before `.cache/toolchain-bin`;
+  in a fresh `mise env`,
+  `pnpm --version` (12.16.1),
+  `root`
+  and `--help` exit 0 and the real pnpm is the next one on PATH.
+  `monochromatic-60` (the catalog-specifier session) was told.
+- WR4 tightened (commit `2c44873a70`;
+  owner: "Why are you even using magic numbers in prose?",
+  then "Tighten WR4 (Recommended)").
+  Lint finds semantic-line-break errors in another session's IRW rule (`AGENTS.md` lines 231 and 233),
+  left alone.
+- The wg cleanup agent resumed:
+  the test fixes,
+  the vanish-noise fix,
+  and the queued hardening (forward `iifname`,
+  route-token pinning,
+  no runtime-directory pass-through for root),
+  each in its own commit;
+  then a review and one more restart.
+  Queued after the restart (inert here:
+  `ip_forward` 0,
+  no guests,
+  `/run/wg-quicker` root:root 0700):
+  the forward reply rules also need `iifname` of the physical interfaces,
+  since two forged packets can make a "reply";
+  `BypassOwnedRoute.tokens` must be pinned to `table <state.table> proto 201` and a known route shape
+  (a leading `-` is harmless after `route delete`; any attribute is the exposure);
+  drop the `WG_QUICKER_RUNTIME_DIRECTORY` pass-through for root runs.
   Planned restart:
   merge,
   build both packages,
@@ -1624,6 +1750,24 @@ each finished branch is reviewed and merged into `main`):
   Lesson:
   test a PATH shadow through the real postinstall link and launcher, with a timeout,
   before it reaches the shared PATH.
+- git wrapper 0.5.1 regression (reported by `monochromatic-8c`):
+  most pushes fail before `git push` with "batch response: Fatal error: Server error ... from HTTP 503" from `git-lfs`,
+  because 0.5.1 runs `git-lfs push --all` (about 22 batch requests per push).
+  Its rule for everyone:
+  no `--no-verify` and no `GIT_LFS_SKIP_PUSH=1` for pushes that add LFS files
+  (pointers without objects).
+  At the report,
+  local `main` was 9 commits ahead of `origin/main`,
+  none of them this session's.
+  Queued:
+  when `monochromatic-8c` reports 0.5.2 (bounded upload,
+  retry on 5xx) published,
+  run `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`,
+  check the lock diff is that row and the digest,
+  run `toolchain:install` in a sized scope,
+  check `git --version`,
+  commit the lock crediting that session,
+  and tell it.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
   owner chose "Keep open, recheck later (Recommended)";
   tracked in #3473

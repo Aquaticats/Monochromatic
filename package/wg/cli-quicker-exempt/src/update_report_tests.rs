@@ -55,7 +55,7 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
         "any executable named mpm",
         "inside a home directory the user can write",
         "another pid namespace",
-        "keep the CPU, memory and task limits",
+        "share one scope that carries that cgroup's CPU, memory, task and I/O weight limits once",
         "whole address",
         "shared CDN address",
     ] {

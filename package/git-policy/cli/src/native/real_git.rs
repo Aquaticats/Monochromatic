@@ -457,6 +457,7 @@ pub fn process_resolution_inputs(
         reason = "identifies the wrapper so the search for the real Git skips it; nothing is started from the path"
     )]
     let own_executable: PathBuf = std::env::current_exe()?;
+    super::service_route::remember_own_executable(own_executable.as_path());
     let current_directory: PathBuf = std::env::current_dir()?;
     // `.unwrap_or_default()` substitutes an empty value when the variable is unset.
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();

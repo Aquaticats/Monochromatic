@@ -617,7 +617,7 @@
     },
     "cargo:monochromatic-pnpm-shadow": {
       "request": "cargo:monochromatic-pnpm-shadow@latest",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "route": "cargo-binstall",
       "bins": [
         "pnpm-shadow"
@@ -1502,5 +1502,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:889b12216abfd2165011a4fbe8e3823c84b39f73fa99fa3b860022bb78b4755a"
+  "digest": "sha256:6f721b6a423031f73ee6609fce1b144cd7ab7de1219da0c6c1aac5980a49b9dd"
 }

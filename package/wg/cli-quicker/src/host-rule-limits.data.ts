@@ -27,3 +27,15 @@ export const MAX_ADDRESSES_TOTAL = 384;
  starting them all together would spawn a hundred processes in a root watcher.
  */
 export const MAX_CONCURRENT_IP_COMMANDS = 8;
+
+/**
+ Seconds before the next refresh when every lookup of a refresh timed out.
+
+ The live restart of 2026-10-31 found the tunnel's DNS silent for the first minute after the tunnel was created:
+ all 21 lookups timed out at the ten-second limit,
+ and the retry 30 seconds later succeeded.
+ Five seconds after a refresh that already took ten brings the rules in as soon as the tunnel answers,
+ and a persistent outage costs one set of lookups per fifteen seconds at most,
+ while the delivery limits keep the loud report from repeating.
+ */
+export const ALL_LOOKUPS_TIMED_OUT_RETRY_SECONDS = 5;

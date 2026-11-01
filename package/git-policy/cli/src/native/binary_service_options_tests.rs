@@ -6,12 +6,12 @@
 //!  silent change of what a person's `-F`, `--author`, `--date`, `--trailer` or `--cleanup` means.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::service_commit::{query, start, through_service};
+use super::service_commit::{Running, query, start, through_service};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Output};
+use std::process::Output;
 
 /// The stored fields that must agree, with the author's date (the one date a command line can set).
 fn stored(fixture: &Fixture, repo: &Path) -> Vec<String> {
@@ -34,10 +34,11 @@ struct Case {
     name: &'static str,
     arguments: Vec<String>,
     date_set: bool,
+    edits: bool,
 }
 
 fn case(name: &'static str, arguments: &[&str], date_set: bool) -> Case {
-    return Case { name, arguments: arguments.iter().map(|argument| { return (*argument).to_string(); }).collect(), date_set };
+    return Case { name, arguments: arguments.iter().map(|argument| { return (*argument).to_string(); }).collect(), date_set, edits: true };
 }
 
 /// Every covered option gives the commit native Git gives, and the service (not the transaction) landed it.
@@ -63,12 +64,25 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
         case("trailer on a body", &["-m", "s", "-m", "body text", "--trailer=Cc: x <x@example.invalid>"], false),
         case("verbatim", &["-m", "line  \n\n\n\ntrailing  ", "--cleanup=verbatim"], false),
         case("empty message", &["-m", "", "--allow-empty-message"], false),
+        case("sign-off", &["-m", "s", "-s"], false),
+        case("sign-off with a body", &["-m", "s", "-m", "body", "--signoff"], false),
+        case("sign-off after a trailer block", &["-m", "s\n\nCo-authored-by: X <x@example.invalid>", "-s"], false),
+        case("sign-off already last", &["-m", "s\n\nSigned-off-by: Fixture <fixture@example.invalid>", "-s"], false),
+        case("sign-off of another person last", &["-m", "s\n\nSigned-off-by: Other <o@example.invalid>", "-s"], false),
+        case("sign-off and a trailer", &["-m", "s", "-s", "--trailer", "Fixes: 3"], false),
+        case("sign-off on a message with a divider", &["-m", "s\n\nbody\n---\nnot a trailer"], false),
+        case("strip", &["-m", "# comment\nsubject\n# more\n\nbody", "--cleanup=strip"], false),
+        case("fixup", &["--fixup=HEAD"], false),
+        case("reuse", &["-C", "HEAD"], true),
+        Case { edits: false, ..case("allow empty", &["-m", "nothing changed", "--allow-empty"], false) },
     ];
     let name: String = format!("options-{}", std::process::id());
-    let mut service: Child = start(&fixture, name.as_str());
+    let mut service: Running = start(&fixture, name.as_str());
     for entry in &cases {
         git(&fixture, &repo, &["reset", "--hard", "--quiet", start_commit.as_str()]);
-        std::fs::write(repo.join("a.txt"), format!("base\nchanged for {}\n", entry.name)).expect("edit");
+        if entry.edits {
+            std::fs::write(repo.join("a.txt"), format!("base\nchanged for {}\n", entry.name)).expect("edit");
+        }
         let served_before: usize = finished(&fixture);
         let mut arguments: Vec<&str> = vec!["commit"];
         arguments.extend(entry.arguments.iter().map(String::as_str));
@@ -78,7 +92,9 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
         assert_eq!(finished(&fixture), served_before + 1, "{}: the service landed it, not the transaction", entry.name);
         let through: Vec<String> = stored(&fixture, &repo);
         git(&fixture, &repo, &["reset", "--hard", "--quiet", start_commit.as_str()]);
-        std::fs::write(repo.join("a.txt"), format!("base\nchanged for {}\n", entry.name)).expect("edit again");
+        if entry.edits {
+            std::fs::write(repo.join("a.txt"), format!("base\nchanged for {}\n", entry.name)).expect("edit again");
+        }
         let mut native_arguments: Vec<&str> = vec!["commit", "--quiet"];
         native_arguments.extend(entry.arguments.iter().map(String::as_str));
         native_arguments.extend(["--", "a.txt"]);
@@ -110,7 +126,7 @@ fn a_configuration_the_service_would_ignore_keeps_the_commit_native() {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     git(&fixture, &repo, &["config", "commit.cleanup", "verbatim"]);
     let name: String = format!("options-config-{}", std::process::id());
-    let mut service: Child = start(&fixture, name.as_str());
+    let mut service: Running = start(&fixture, name.as_str());
     std::fs::write(repo.join("a.txt"), "base\nchanged\n").expect("edit");
     let before: usize = finished(&fixture);
     let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "kept   \n\n\n", "--", "a.txt"]);

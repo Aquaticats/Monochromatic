@@ -6,12 +6,12 @@
 //!  exactly as native Git does, so the next command of the person sees the same repository.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::service_commit::{query, start, through_service};
+use super::service_commit::{Running, query, start, through_service};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Output};
+use std::process::Output;
 
 fn finished(fixture: &Fixture) -> usize {
     return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
@@ -88,7 +88,7 @@ fn index_commits_and_commit_all_through_the_service_equal_the_native_commit() {
         Case { name: "nothing staged", command: &["commit", "--no-enforce-only", "-m", "s"], prepare: nothing_staged, commits: false },
     ];
     let name: String = format!("selection-{}", std::process::id());
-    let mut service: Child = start(&fixture, name.as_str());
+    let mut service: Running = start(&fixture, name.as_str());
     for entry in &cases {
         let mut outcomes: Vec<(Vec<String>, Option<i32>)> = Vec::new();
         for through in [true, false] {

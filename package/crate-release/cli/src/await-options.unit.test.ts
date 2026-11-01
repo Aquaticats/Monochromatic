@@ -14,6 +14,7 @@ import {
   defaultTagTemplate,
   defaultUserAgent,
   defaultWorkflow,
+  manifestFileName,
 } from './constants.ts';
 import { parseCrateRegistry } from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
@@ -84,6 +85,7 @@ await describe({
             expect(parse(['--crate', 'forbidden-strings', '123456789', '0.6.1'])).toEqual({
               root: '/repo',
               crateName: 'forbidden-strings',
+              manifestPath: `${registry.get('forbidden-strings')?.crateDirectory}/${manifestFileName}`,
               releaseRunId: '123456789',
               version: '0.6.1',
               workflow: defaultWorkflow,
@@ -102,6 +104,13 @@ await describe({
           fn: async () => {
             const options = parse(['--crate', 'forbidden-strings', 'https://github.com/o/r/actions/runs/987', '0.6.1']);
             expect(options.releaseRunId).toBe('987');
+          },
+        }),
+        it({
+          name: 'names the manifest of the crate that the registry lists, which holds the version a publish run must carry',
+          fn: async () => {
+            const options = parse(['--crate', 'forbidden-strings', '987', '0.6.1']);
+            expect(options.manifestPath).toBe(`${registry.get('forbidden-strings')?.crateDirectory}/${manifestFileName}`);
           },
         }),
         it({

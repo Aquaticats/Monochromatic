@@ -4,6 +4,8 @@
 
 /// Watch loop preparation and execution.
 use crate::application_watch::{prepare_application_watch, run_application_watch, ReporterIdentity};
+/// The sweep of the scopes of the earlier design.
+use crate::leftover_sweep::SweepSetup;
 /// Production target roots and app slice path.
 use crate::application_targets::{user_app_slice, ScanRoots};
 /// Generic exact process validation and shutdown.
@@ -314,7 +316,7 @@ pub fn run_application_watch_child(
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
         adopter: Box::new(BusctlAdopter::new()),
     });
-    let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid })?;
+    let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid }, Some(SweepSetup::production(uid, account.gid)))?;
     writeln!(io::stdout(), "{READY}")?;
     io::stdout().flush()?;
     let mut commit = String::new();

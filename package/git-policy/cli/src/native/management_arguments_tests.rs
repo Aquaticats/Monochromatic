@@ -14,7 +14,7 @@
 
 /// Import the grammar under test.
 use super::{
-    MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand, ServiceCommand,
+    MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
     parse_management_arguments,
 };
 use std::ffi::OsString;
@@ -300,14 +300,11 @@ fn doctor_help_states_the_exit_statuses() {
     assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
 }
 
-/// `service` takes exactly one of three words, and anything else is a usage error.
+/// `service` takes exactly the word `status`, and anything else (the retired `install` and `uninstall` included) is a usage error.
 #[test]
-fn the_service_command_takes_one_known_word() {
-    let words = [("install", ServiceCommand::Install), ("uninstall", ServiceCommand::Uninstall), ("status", ServiceCommand::Status)];
-    for (word, command) in words {
-        assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from(word)]), Ok(ManagementAction::Service(command)));
-    }
-    for bad in [vec!["service"], vec!["service", "start"], vec!["service", "install", "--now"], vec!["service", "install", "uninstall"]] {
+fn the_service_command_takes_only_status() {
+    assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from("status")]), Ok(ManagementAction::ServiceStatus));
+    for bad in [vec!["service"], vec!["service", "install"], vec!["service", "uninstall"], vec!["service", "status", "--now"]] {
         let arguments: Vec<OsString> = bad.iter().map(OsString::from).collect();
         assert_eq!(parse_management_arguments(&arguments), Err(ManagementRefusal::Usage), "{bad:?}");
     }

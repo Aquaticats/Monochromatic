@@ -142,6 +142,10 @@ fn literal(path: &str) -> String {
 
 /// Updates the index entries of `paths` to the commit `new`, trying again while another program holds the index.
 fn update_index(git: &GitContext, repository: &Path, new: &str, paths: &[String]) -> Result<(), FailureCode> {
+    if paths.is_empty() {
+        // `reset` with no path would reset the whole index; an empty commit changes no entry.
+        return Ok(());
+    }
     let specs: Vec<String> = paths.iter().map(|path| { return literal(path.as_str()); }).collect();
     let mut arguments: Vec<&str> = vec!["reset", "-q", new, "--"];
     arguments.extend(specs.iter().map(String::as_str));

@@ -66,6 +66,55 @@ function lastStage(text: string): readonly string[] {
   return lines.slice(start);
 }
 
+/**
+ Text between a path dependency's crate name and its relative path, as file-enforcer writes it.
+ */
+const pathDependencyMarker = ' = { path = "../../';
+
+/**
+ Characters a crate name may hold: ASCII letters, digits, underscores and hyphens.
+ */
+const crateNameCharacters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
+
+/**
+ Whether a character may appear in a crate name.
+
+ @param character - one character of a manifest line
+
+ @returns true when a crate name may contain it
+ */
+function isCrateNameCharacter(character: string): boolean {
+  return crateNameCharacters.includes(character);
+}
+
+/**
+ Crate a manifest line links by path, read by scanning the line instead of matching a pattern, so a hostile line
+ cannot cost more than one pass.
+ A path dependency line reads `name = { path = "../../<category>/<crate>", ... }`; a comment line starts with
+ `#`, which no crate name contains, so it never matches.
+
+ @param line - one line of a Cargo manifest
+
+ @returns the linked crate's path below the packages directory, no `linked` when the line is no path dependency
+ */
+function pathDependencyOf(line: string): { readonly linked?: string; } {
+  /**
+   Where the crate name ends.
+   */
+  const markerAt = line.indexOf(pathDependencyMarker);
+  if ((markerAt <= 0) || (!Array.from(line.slice(0, markerAt)).every(isCrateNameCharacter)))
+    return {};
+  /**
+   The text after the marker, which holds the path and then the closing quote.
+   */
+  const afterMarker = line.slice(markerAt + pathDependencyMarker.length);
+  /**
+   Where the path ends.
+   */
+  const quoteAt = afterMarker.indexOf('"');
+  return quoteAt > 0 ? { linked: afterMarker.slice(0, quoteAt) } : {};
+}
+
 await describe({
   name: touchedCargoRun.name,
   children: [
@@ -421,11 +470,6 @@ await describe({
          */
         const packageRoot = join(import.meta.dirname, '..', '..', '..');
         /**
-         Path dependency lines as file-enforcer writes them: `name = { path = "../../<category>/<crate>", ... }`.
-         Comment lines start with `#` and never match.
-         */
-        const pathDependency = /^[A-Za-z0-9_-]+ = \{ path = "\.\.\/\.\.\/([^"]+)"/u;
-        /**
          Crates reached so far, starting from the tested crate.
          */
         const reached = new Set<string>();
@@ -446,8 +490,8 @@ await describe({
             /**
              Linked crate named by this line, if it is a path dependency.
              */
-            const linked = pathDependency.exec(line)?.[1];
-            if ((linked !== undefined) && !reached.has(linked)) {
+            const { linked, } = pathDependencyOf(line);
+            if ((linked !== undefined) && (!reached.has(linked))) {
               reached.add(linked);
               pending.push(linked);
             }

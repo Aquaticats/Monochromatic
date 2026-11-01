@@ -43,7 +43,7 @@ fn death_by_signal_becomes_the_shell_convention() {
 fn run_program_returns_the_childs_code_with_the_arguments_untouched() {
     let arguments: Vec<OsString> = vec![OsString::from("-c"), OsString::from(format!("exit {DISTINCT_EXIT_CODE}"))];
 
-    let code = run_program(Path::new("/bin/sh"), &arguments).expect("sh runs");
+    let code = run_program(Path::new("/bin/sh"), &arguments, None).expect("sh runs");
 
     assert_eq!(code, DISTINCT_EXIT_CODE);
 }
@@ -52,7 +52,7 @@ fn run_program_returns_the_childs_code_with_the_arguments_untouched() {
 fn run_program_reports_a_program_that_cannot_start() {
     let missing = scratch().path().join("no-such-program");
 
-    assert!(run_program(&missing, &[]).is_err());
+    assert!(run_program(&missing, &[], None).is_err());
 }
 
 #[test]

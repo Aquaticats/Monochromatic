@@ -7,9 +7,10 @@
 //!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager.
 
 use git_policy_cli::service_land::LandContext;
-use git_policy_cli::service_server::{Bind, bind, serve};
+use git_policy_cli::service_server::{Bind, IDLE_EXIT, bind, serve};
 use git_policy_cli::transaction_git::GitContext;
 use std::path::PathBuf;
+use std::time::Duration;
 
 fn option(arguments: &[String], name: &str) -> Option<String> {
     return arguments.iter().position(|argument| { return argument == name; }).and_then(|at| { return arguments.get(at + 1).cloned(); });
@@ -43,6 +44,9 @@ fn main() {
         journal,
         on_objects_written: None,
     };
+    let idle: Duration = option(&arguments, "--idle-seconds")
+        .and_then(|text| { return text.parse::<u64>().ok(); })
+        .map_or(IDLE_EXIT, Duration::from_secs);
     eprintln!("cli-git-service: ready");
-    serve(listener, &context);
+    serve(listener, &context, idle);
 }

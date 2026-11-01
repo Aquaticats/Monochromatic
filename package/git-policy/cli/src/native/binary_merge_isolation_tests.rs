@@ -17,7 +17,7 @@
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{
     Fixture, Observed, WAIT_NOTICE_PREFIX, direct, executable, fixture, git, observe, pseudo_terminal_slave_name,
-    repository, without_wait_notices,
+    repository, without_hint_fields, without_wait_notices, TIMED_OUT_SIGNAL,
 };
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
@@ -532,34 +532,89 @@ fn a_signing_repository_gets_a_signed_merge() {
 }
 
 /// What:
+///  Run `command` to its end like `observe`, and create the file `release` as soon as a wait notice is read from its
+///  standard error.
+/// Why:
+///  A child process held until its release file exists is still running when the wrapper's watcher prints, whatever
+///  the host's load, so a control for the notice depends on no sleep and no schedule.
+fn observe_releasing_on_notice(command: &mut Command, release: &Path) -> Observed {
+    use std::io::{BufRead, Read};
+    let mut child = command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("process starts");
+    let mut standard_output = child.stdout.take().expect("piped stdout");
+    // Read concurrently, so a full pipe never blocks the child while this thread waits on its standard error.
+    let output_reader = std::thread::spawn(move || {
+        let mut bytes: Vec<u8> = Vec::new();
+        let _read = standard_output.read_to_end(&mut bytes);
+        return bytes;
+    });
+    let mut errors = std::io::BufReader::new(child.stderr.take().expect("piped stderr"));
+    let mut stderr: Vec<u8> = Vec::new();
+    loop {
+        let line_start: usize = stderr.len();
+        if errors.read_until(b'\n', &mut stderr).expect("read standard error") == 0 {
+            break;
+        }
+        if stderr[line_start..].starts_with(WAIT_NOTICE_PREFIX) {
+            std::fs::write(release, b"").expect("release the held child");
+        }
+    }
+    let status = child.wait().expect("process finishes");
+    assert_ne!(
+        status.signal(),
+        Some(TIMED_OUT_SIGNAL),
+        "the command hit its bound before it ended: {:?}",
+        command.get_args().collect::<Vec<&OsStr>>()
+    );
+    return Observed {
+        code: status.code(),
+        stdout: output_reader.join().expect("standard output reader"),
+        stderr: without_hint_fields(stderr.as_slice()),
+    };
+}
+
+/// What:
 ///  A healthy `git commit-tree` that outlasts the notice grace makes the wrapper print its wait notice, and the
 ///  controls that compare diagnostics leave that notice out.
 /// Why:
-///  A loaded host makes any step slow, so the notice is correct behaviour and its absence cannot be asserted. The
-///  signer stand-in sleeps one second longer than the notice interval, which also sets the grace, so the notice is
-///  certain on every host.
+///  A loaded host makes any step slow, so the notice is correct behaviour and its absence cannot be asserted. A signer
+///  that merely sleeps longer than the grace proves nothing about a loaded host, where the wrapper's watcher can resume
+///  after the signer has ended and find nothing to announce. The signer stand-in therefore waits for a release file,
+///  and the control writes that file only when the notice has reached the wrapper's standard error, so the step is
+///  still running when the notice is due on every host.
 #[test]
 fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
     /// The notice interval, in seconds, and so the grace of the first notice.
     const NOTICE_SECONDS: u64 = 1;
+    /// How long the signer stand-in waits for its release at most; it ends sooner as soon as the release exists, and
+    /// only a wrapper that never prints the notice makes it run out, so that the control fails instead of hanging.
+    const HOLD_LIMIT_SECONDS: u64 = 60;
+    /// The tenths of a second the signer stand-in sleeps between two looks for its release.
+    const LOOK_TENTHS: u64 = 1;
     let fixture: Fixture = fixture("merge-slow-signer");
     let repo: PathBuf = diverged(&fixture, "repo");
     let program: PathBuf = fixture.root.join("slow-gpg");
+    let release: PathBuf = fixture.root.join("slow-gpg-release");
     executable(
         program.as_path(),
         format!(
-            "#!/bin/sh\ncat > /dev/null\nsleep {}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nplaceholder\\n-----END PGP SIGNATURE-----\\n'\n",
-            NOTICE_SECONDS + 1
+            "#!/bin/sh\ncat > /dev/null\nlooks=0\nwhile [ ! -e '{}' ] && [ \"$looks\" -lt {} ]; do\n  sleep 0.{LOOK_TENTHS}\n  looks=$((looks + 1))\ndone\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nplaceholder\\n-----END PGP SIGNATURE-----\\n'\n",
+            release.display(),
+            HOLD_LIMIT_SECONDS * 10 / LOOK_TENTHS
         )
         .as_bytes(),
     );
     git(&fixture, repo.as_path(), &["config", "gpg.program", program.to_str().expect("UTF-8")]);
     git(&fixture, repo.as_path(), &["config", "commit.gpgsign", "true"]);
     stage_unrelated_work(&fixture, repo.as_path());
-    let raw: Observed = observe(
+    let raw: Observed = observe_releasing_on_notice(
         wrapped_in(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"])
             .env("CLI_GIT_WAIT_NOTICE_SECONDS", NOTICE_SECONDS.to_string()),
-        b"",
+        release.as_path(),
     );
     assert_eq!(raw.code, Some(0), "{}", text(&raw.stderr));
     assert!(

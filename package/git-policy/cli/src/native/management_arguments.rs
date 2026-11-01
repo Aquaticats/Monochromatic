@@ -53,7 +53,7 @@ Run repository policies directly.
 Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
-  service  install, uninstall or status: the commit service that lands commits (starts on demand).
+  service  status: whether the commit service answers (it sets itself up when a commit needs it).
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
 
@@ -104,17 +104,6 @@ pub enum RetiredCommand {
 /// ```ts
 /// type ManagementAction = { command: 'help' } | { command: 'retired'; ... } | { command: 'check' | 'fix'; ... };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ServiceCommand {
-    /// Put the activation in place.
-    Install,
-    /// Take it out.
-    Uninstall,
-    /// Say whether it is there.
-    Status,
-}
-
-/// What a management command asks for.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ManagementAction {
     /// `--help` or `-h`:
@@ -132,8 +121,8 @@ pub enum ManagementAction {
     /// `doctor`:
     ///  list the traditional hooks the repository holds.
     Doctor,
-    /// `service install`, `service uninstall` or `service status`: the commit service's activation.
-    Service(ServiceCommand),
+    /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
+    ServiceStatus,
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -420,9 +409,7 @@ pub fn parse_management_arguments(
     }
     if name == "service" {
         return match rest {
-            [word] if word == "install" => Ok(ManagementAction::Service(ServiceCommand::Install)),
-            [word] if word == "uninstall" => Ok(ManagementAction::Service(ServiceCommand::Uninstall)),
-            [word] if word == "status" => Ok(ManagementAction::Service(ServiceCommand::Status)),
+            [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
             _ => Err(ManagementRefusal::Usage),
         };
     }
