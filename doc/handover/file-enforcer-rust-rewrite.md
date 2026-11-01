@@ -1651,7 +1651,24 @@ each finished branch is reviewed and merged into `main`):
   then "Tighten WR4 (Recommended)").
   Lint finds semantic-line-break errors in another session's IRW rule (`AGENTS.md` lines 231 and 233),
   left alone.
-- The wg cleanup agent resumed:
+- wg cleanup done on `worktree-agent-a781620aafe09cbf0` (`0886ce63f9..8e200031a2`):
+  `a96ba909de` test detection from today's sources (the stale tests now pass;
+  no fetcher was missing),
+  `a5d4f04e42` "No such process" as a vanish,
+  `4310514072` forward `iifname`,
+  route-token pinning and no runtime-directory pass-through,
+  plus lint follow-ups.
+  Owner 2026-11-01 kept the launcher entry point:
+  "Keep it (Recommended)" for matching `package/monorepo-task/core-exec/src/mpm-shadow.ts` and its built `.mjs`
+  as update traffic.
+  Review:
+  cross-vendor `pi --model openai/gpt-6.1-sol` with the diff (`~/temp/agent/wg-cleanup/review.diff`,
+  output `~/temp/agent/wg-cleanup/sol-review.txt`),
+  and a same-vendor second pass.
+  Then merge,
+  build,
+  and one restart (`down` then `up`).
+- Earlier, the wg cleanup agent resumed:
   the test fixes,
   the vanish-noise fix,
   and the queued hardening (forward `iifname`,
