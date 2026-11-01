@@ -210,6 +210,33 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
     }
 }
 
+/// What:
+///  Runs one round of wakes: keeps each wake's review credential in memory, drains each named repository once, and
+///  forgets the credentials when the repository is done.
+/// Why:
+///   The credential is held only for the reviews of the round that brought it; a service that restarts before the round
+///  runs has none, and its reviews record the plain "no key" outcome.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [dir, key] of wakes) { remember(dir, key); await drain(dir); forget(dir) }
+/// ```
+pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: SystemTime) {
+    let mut directories: Vec<PathBuf> = Vec::new();
+    for (directory, review_key) in wakes {
+        if let Some(key) = review_key {
+            handlers.remember_review_key(directory.as_path(), key);
+        }
+        if !directories.contains(&directory) {
+            directories.push(directory);
+        }
+    }
+    for directory in directories {
+        drain(directory.as_path(), handlers, now);
+        handlers.forget_review_key(directory.as_path());
+    }
+}
+
 /// The handlers that run real Git.
 pub struct GitHandlers {
     /// The context every Git child of the service runs in.

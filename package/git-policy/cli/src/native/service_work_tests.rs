@@ -223,3 +223,23 @@ fn the_review_key_is_held_per_repository_and_forgotten() {
     handlers.forget_review_key(first.as_path());
     assert_eq!(handlers.review_key_of(first.as_path()), None);
 }
+
+/// A round keeps a wake's credential only until its repository has been drained: nothing of it is left afterwards, for the
+/// repository that brought it or any other, and a repeated directory is drained once.
+#[test]
+fn a_round_forgets_the_credentials_it_was_given() {
+    let first: Repo = repo("work-round");
+    let second: Repo = repo("work-round-other");
+    let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
+    let key: ReviewKey = ReviewKey::new("test-key-not-a-secret").expect("a key");
+    let wakes: Vec<Wake> = vec![
+        (first.common.clone(), Some(key.clone())),
+        (first.common.clone(), None),
+        (second.common.clone(), Some(key)),
+    ];
+    run_round(wakes, &handlers, SystemTime::now());
+    assert_eq!(handlers.review_key_of(first.common.as_path()), None);
+    assert_eq!(handlers.review_key_of(second.common.as_path()), None);
+    remove(first.root.as_path());
+    remove(second.root.as_path());
+}

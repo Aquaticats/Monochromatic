@@ -14,7 +14,7 @@
 
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
-use super::service_work::{GitHandlers, Wake, drain};
+use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
 };
@@ -210,20 +210,8 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
 fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
     while let Ok(first) = receiver.recv() {
         busy.fetch_add(1, Ordering::SeqCst);
-        let mut directories: Vec<std::path::PathBuf> = Vec::new();
-        for (directory, review_key) in std::iter::once(first).chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })) {
-            // The credential is held in memory for the reviews of this round only.
-            if let Some(key) = review_key {
-                handlers.remember_review_key(directory.as_path(), key);
-            }
-            if !directories.contains(&directory) {
-                directories.push(directory);
-            }
-        }
-        for directory in directories {
-            drain(directory.as_path(), handlers, std::time::SystemTime::now());
-            handlers.forget_review_key(directory.as_path());
-        }
+        let wakes: Vec<Wake> = std::iter::once(first).chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
+        run_round(wakes, handlers, std::time::SystemTime::now());
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
