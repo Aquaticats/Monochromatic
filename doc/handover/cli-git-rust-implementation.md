@@ -6157,3 +6157,76 @@ This block supersedes "State at 2026-10-29 (night, later)".
   line was added. So the push needed no new LFS object. Pushed with `GIT_LFS_SKIP_PUSH=1`:
   `987027a72a..11ad7efdf7`, 0 ahead after. This is not a general workaround: other sessions must still not skip for
   pushes that add LFS files.
+- Owner, 2026-11-01, verbatim: "Why are we invoking git lfs at all when no objects in a commit or something can be
+  relevant?" Adopted (veto open) and sent to the hotfix agent `ab7d550ba5af421b8`:
+  - The wrapper finds the LFS pointers the pushed commits introduce, in-process with the `repo_read_*` readers, by
+    diffing each new commit against its parents.
+  - No new pointer: no git-lfs process and no network request.
+  - Some new pointers: `git-lfs push --object-id <destination> --stdin` with exactly those oids. git-lfs 3.8.1
+    documents `git lfs push --object-id <remote> --stdin` (`git lfs push --help`). Bounded retry on 5xx.
+  - Untrusted destination: scan the whole history, then use the same `--object-id` upload.
+  - Readers decline: the bounded git-lfs fallback.
+  The plain push of commits touching no LFS path is now the common case: none of today's 70 unpushed commits touched
+  one. Pushed `11ad7efdf7..567cd0d70f` the same checked way.
+
+### LFS Worker Error 1102, integration branch, service handoff, 2026-11-01
+
+- Owner: "The lfs server is cf. Thought you might want to know." and "Just do whatever you need for cf. No need to ask
+  for my approval." (billing or plan changes are still reported first, not made).
+- Cause of the push 503s, measured: Cloudflare Error 1102. The JSON body reads `"title":"Error 1102: Worker exceeded
+  resource limits"`, `"detail":"A Worker script configured by the website owner exceeded its resource limits (CPU time
+  or memory) and was terminated."` The Worker is in this repo: `package/config/lfs-r2-worker`. Its `src/batch.ts`
+  `handleBatch` runs `env.BUCKET.head(oid)`, a debug log line and response building per object, all through
+  `Promise.all`; which of those costs the CPU or memory is not measured yet.
+- Threshold, read-only upload batches, two tries each: 10, 25 and 50 objects gave 200; 75 and 100 gave 503 (1102).
+  The git-lfs default batch is 100 (`git lfs help config`, `lfs.transfer.batchSize`).
+- Relief now: `git config --local lfs.transfer.batchSize 25` in the main clone (this clone's `.git/config`; shared by
+  every worktree). It cannot go in `.lfsconfig`, because git-lfs reads only a listed set of keys from that file and
+  this key is not among them.
+- Worker fix sent to agent `a7864939b58cd0166`: measure the cause, fix, deploy and verify live, then write a
+  troubleshooting doc.
+- In-process pointer detection (the owner's "why invoke git lfs at all") stays with the hotfix agent `ab7d550ba5af421b8`.
+- Merged into integration branch `integ-20261101`, worktree `.claude/worktrees/integ`, without conflicts: P provisioning
+  `5734655108`, review wiring `2f9bfbaddf`, m048d survivors and lint `7673b53530`. Head `aa047c648f`. Gate 12 runs there
+  (unit `gpc-main-gate12`, log `~/temp/agent/gate/main-gate12.log`). Main fast-forwards to it when green; then
+  `77697b39e2` (P's design-doc decisions) merges.
+- m048d dispositions:
+  - `child_watch` killed;
+  - `process_tree` timeout fixed (unbounded cleanup wait) and killed;
+  - `process_tree:109` equivalent on Linux (`cfg(not(linux))`);
+  - `real_index_lock.rs` superseded by step 4's deletion (its only callers are on the list).
+- P (provisioning) results:
+  - `$XDG_RUNTIME_DIR/systemd/user` runtime units;
+  - session-bus `StartUnit`;
+  - our old `~/.config` units removed;
+  - install, uninstall and the env switch deleted;
+  - idle exit 3 h.
+- Real-manager finding from P: a `Reload` took more than 20 s (log last written 09:59:48) and briefly broke other
+  clients ("Transport endpoint is not connected"). The reboot came later (`uptime -s` 10:08:37). No connection is claimed.
+  The wrapper now reloads only when an existing unit changed.
+- Steps 4b-2, 4c and 4d go to the new agent `af248a0e1f85cfae6`. Step 3 of its brief is a report of the still-declined
+  lines and the no-session-bus paths, with a stop before 4d's deletion.
+- Review gateway key, adopted (veto open): the wrapper passes the key from its own environment (where the old hook got
+  it, `mise.toml` `process.env.SHADOW_REVIEW_LLMGATEWAY_API_KEY`) in the in-memory work message over the user-only
+  socket; it is never stored in the on-disk work item. Rejected: the manager's `SetEnvironment` (every unit of the
+  account can read it) and `LoadCredential` (the key on disk). Queued for the next free agent slot (likely
+  `ad02e84404af49107`).
+- `package/git-policy/cli.fuzz` does not compile on main (`markdown.rs` imports the missing
+  `markdown_linter_output::interpret_linter_run`). Sent to `a0a08ba8c0924f668` with a request for a cheap compile check.
+- Batch size is not the whole story. With `lfs.transfer.batchSize=25`, a direct traced `git-lfs push --all` sent 87
+  batches of 25 and got 200 x87, exit 0 (`~/temp/agent/lfs-trace25.log`). Minutes later a wrapper `git push` got 503
+  on 56 batches of 25 ("35% (769/2169)"). Error 1102 therefore also hits small batches, intermittently. Sent to the
+  Worker agent; per-isolate memory growth across a burst is one hypothesis, not established. Until the Worker or the
+  in-process skip ships, pushes of commits that touch no LFS path go out through `~/temp/agent/push-checked.ts`, which
+  pushes with `GIT_LFS_SKIP_PUSH=1` only when no unpushed commit touches an LFS-tracked path and refuses otherwise.
+- Worker deploy blocked on auth: `wrangler whoami` reports "Not logged in. Your auth token has expired and could not
+  be refreshed" (OAuth expiry 2026-10-02T11:08Z). The auto-mode classifier denied printing the OAuth URL of
+  `wrangler login --browser=false`, so neither the agent nor I work around it. Asked the owner to run `wrangler login`
+  (runbook: "The single step that cannot be done headless is the first `wrangler login`"). The Worker agent
+  `a7864939b58cd0166` meanwhile finishes the fix, tests and docs locally. Next, once logged in: tell that agent, which
+  then deploys and verifies live.
+- Gate 12 FAILED at compile: `error[E0599]: no variant, associated function, or constant named NotInstalled found for
+  enum Activation`, at `service_handoff_tests.rs:82` in the review wiring's new test. Provisioning had removed that
+  variant, and the textual merge was clean. Fixed on `integ-20261101` as `03771b1591` (`Activation::Unsupported(
+  Platform::LinuxWithoutUserServices)`, as the sibling tests use). Gate 13 runs on it (unit `gpc-main-gate13`, log
+  `~/temp/agent/gate/main-gate13.log`). Main moves to it when green.
