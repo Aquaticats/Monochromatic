@@ -1,4 +1,5 @@
 import { BypassStateError, } from './errors.ts';
+import { isValidInterfaceName, } from './interface-name.ts';
 import type {
   BypassOwnedRoute,
   BypassState,
@@ -10,11 +11,6 @@ import type {
  and rule preference fields.
  */
 const MAX_UINT32 = 0xFF_FF_FF_FF;
-
-/**
- Linux interface-name byte limit excluding terminating null.
- */
-const MAX_INTERFACE_NAME_BYTES = 15;
 
 /**
  Checks unknown object shape.
@@ -52,29 +48,24 @@ function isUint32(value: unknown,): value is number {
 }
 
 /**
- Checks persisted interface identity against Linux naming bounds.
- 
+ Checks persisted interface identity against the rule for interface names.
+ The detached watcher trusts this name:
+ it puts it into commands that run as root, such as `resolvectl dns <name>` and `wg show <name>`,
+ and a state file can be written by whoever chose the runtime directory,
+ so the name gets the same check as a name given on the command line
+ (`isValidInterfaceName`, which also refuses a name that starts with `-`, because a command would read it as an option).
+
  @param value - Candidate interface name.
- 
- @returns Whether name is nonempty,
- slash-free,
- null-free,
- and within kernel byte limit.
- 
+
+ @returns Whether the name is acceptable.
+
  @example
  ```ts
  isInterfaceName('wg0'); // true
  ```
  */
 function isInterfaceName(value: unknown,): value is string {
-  return ((typeof value) === 'string')
-    && (value !== '')
-    && (!value.includes('/',))
-    && (!value.includes('\0',))
-    && (Buffer.byteLength(
-      value,
-      'utf8',
-    ) <= MAX_INTERFACE_NAME_BYTES);
+  return ((typeof value) === 'string') && isValidInterfaceName({ interfaceName: value, },);
 }
 
 /**

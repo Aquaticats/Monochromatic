@@ -23,6 +23,17 @@ such as one with a space,
 a quote,
 a `;` or a `$(...)`,
 is refused with an error that shows the name.
+The route watcher reads an interface name back from the state file in the runtime directory
+and puts it into commands that run as root,
+such as `resolvectl dns <name>` and `wg show <name>`.
+That directory can be chosen by the caller (`WG_QUICKER_RUNTIME_DIRECTORY` crosses `sudo`),
+so the state file is not trusted:
+the name in it must pass the same rule,
+and a state file with another name is refused.
+The other places that read a name back do not trust it either:
+the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
+and every other name comes from the config,
+which was checked.
 
 When invoked as non-root,
 `wg-quicker` relaunches exact current Node executable and CLI bundle through `sudo` before reading config.
