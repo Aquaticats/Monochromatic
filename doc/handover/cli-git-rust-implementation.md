@@ -5864,3 +5864,46 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `git cli-git check` and `fix` read the worktree files their scope selects, unstaged changes included (`management.rs`, "A direct
   command asks for the worktree files its scope selects"); only commit and push check staged or committed content. README "Commands"
   now says so. All other probe cases matched.
+- Merged to main: service slice 1 `603f4999fb` (merge done; opt-in `CLI_GIT_COMMIT_SERVICE=1` or `abstract:<name>`, plain scoped
+  `commit -m ... -- <paths>` only, everything else declines to the old path; service step 50 to 70 ms, scoped commit median 572 ms
+  against 1474 ms native under load 70 to 90; real systemd socket activation: first commit 95 ms, warm 73 ms, after SIGKILL 1.1 s;
+  `#1770` shape as a test passes; unit templates `service_units/` with IOWeight 50; `build` task now `--bins`), LFS review fixes
+  `4918fe2d59` (merge `68d51fc5e7`; findings 1 to 11 and 13 to 15 handled, `--all` on every `git-lfs push`, last-colon refspec split,
+  `:` matching, fail-closed expansion, star across `/`, mirror, one upload per push URL, path remotes as `file://` URLs, absolute
+  program path; `push_stacking.rs` self-start already gone and guarded), hooks review fixes `5575c3d51f` (alias expansion forwarded so
+  hooks-off follows the alias's own `-c`; `core.fsmonitor=false` added; `config --edit` gets the options; completeness test needs
+  the githooks docs or man page; finding 5 not reproduced, recorded in SPEC). Gate 5 on the merged head: unit `gpc-main-gate5`, tag
+  `main-gate5`, log `~/temp/agent/gate/main-gate5.log` (risk: the gate image needs git docs or `man githooks` for the new completeness test).
+- Follow-ups sent: `a6e4566588e9ec087` resumed for install and uninstall, default on, work items for push and maintenance, then the
+  declined command lines and the deletion of the old path; `a21d6fec9d0d04797` resumed to make `core.fsmonitor=false` conditional
+  (the user's `~/.gitconfig` sets `core.fsmonitor=true`, so other repositories lose Git's own daemon), without a new Git start.
+- Note: gate 5 checked out a new head in `.claude/worktrees/gate-main` while the `m048d` mutation units run from it; their Rust
+  sources come from the `main-gate4` image, so results stay valid for that snapshot.
+- OWNER DECISION (verbatim, on my summary "To stop the fsmonitor program"): "\"To stop the fsmonitor program\" - we don't need to."
+  The wrapper leaves `core.fsmonitor` as configured. The merged `core.fsmonitor=false` option, its doctor/warning reporting and its
+  tests are being removed by `a21d6fec9d0d04797` (task replaced; the conditional variant is dropped). Gate image fact (measured with
+  `podman run` on `main-gate4`): no `githooks.adoc`, no `man` program, only the distro's `/usr/share/man/man5/githooks.5.gz`, so the new
+  completeness test fails in the container gate; the same agent copies `Documentation/githooks.adoc` from the Git 2.56.0 source into the
+  image's cached layer.
+- Linter embedding review fixes READY `78831896fe` from `a19be37e1bd9ea63d`: output bounds restored (64 MiB fixed, 4 MiB findings),
+  guard documented as hang and panic boundary, not crash boundary; circuit breaker after one abandoned worker; panic text bounded to
+  400 characters; post-commit, binary and exact-bytes tests now fail when linting is skipped or the name is converted; new planted
+  control; differential cases for an error finding and a processing failure; stale comments fixed. The lockfile finding was void (the
+  reviewer's diff excluded `Cargo.lock`). Next: merge it, then the linter 0.5.0 bump plus both pins.
+- Merged the linter embedding `78831896fe` into main, then `af7e0fb33b`: linter 0.4.0 to 0.5.0, wrapper and fuzz pins `=0.5.0`,
+  lockfiles via `cargo update --offline --package monochromatic-lint` (wrapper lockfile also moved five Windows-only edges from
+  windows-sys 0.61.2 to 0.52.0: merge drift, named in the commit body). The push started cargo-publish run `41312100575` (followed
+  by `gh run watch`, log `~/temp/agent/linter-publish-watch.log`). Gate 5 stopped as superseded (it was 50 of 2889 tests in); gate 6 on
+  `af7e0fb33b`: unit `gpc-main-gate6`, tag `main-gate6`, log `~/temp/agent/gate/main-gate6.log`. Expected failure until
+  `a21d6fec9d0d04797` lands the githooks docs in the image: `every_documented_hook_event_is_listed`.
+  After linter 0.5.0 is on crates.io and the gate is green: dispatch the wrapper release (0.5.1 or 0.6.0; the embedding changes no
+  user-facing interface beyond the Markdown policy's failure texts, the service is opt-in, so 0.5.1 fits; decide at dispatch).
+- Merged the lock-free test store `5e652a6628` from `a54d6b24f9cf91c20` (finished): link the build directly, on `EXDEV` link one
+  stored copy published by `hard_link(partial, final)` (no lock), content-hash name with read-back, prune only copies idle over 24 h,
+  three link attempts if a copy vanishes; all seven review findings handled, six guards shown failing. Its second review
+  `ct-pi-review2` (output `~/temp/agent/ct/pi-review2.out`) reviews the tree before its last two merges; read it when done.
+- It also found `binary_catalog_specifiers_tests::the_repository_configuration_loads_and_leaves_the_catalog_policy_off` failing on
+  main: `monochromatic-c0` turned the policy on in `cli-git.config.jsonc` (`d0d1a8bc35`) and the test hard-coded "off". Rewritten by me
+  to read the shipped file and expect accordingly (`the_repository_configuration_loads_and_the_catalog_policy_follows_it`); host run of
+  `catalog_specifiers` in progress (log `~/temp/agent/catalog-test-run.log`). Gate 6 (on `af7e0fb33b`) predates both, so it will show
+  this test and the githooks test failing; gate 7 after `a21d6fec9d0d04797`'s READY.

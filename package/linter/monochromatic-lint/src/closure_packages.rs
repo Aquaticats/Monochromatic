@@ -20,7 +20,7 @@ use crate::{
     markdown_lfs_target::lexical_normal,
     run_paths::{Language, display_name},
     run_plan::{FilePlan, RootRules},
-    rust_workspace::discover_manifest,
+    rust_manifest::discover_manifest,
 };
 /// Import an ordered map and native paths.
 use std::{

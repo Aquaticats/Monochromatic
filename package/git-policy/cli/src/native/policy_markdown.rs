@@ -117,13 +117,13 @@ pub struct LintRequest<'a> {
 ///  like a TS
 ///       `interface`;
 ///  `&mut self` lends it for writing,
-///  because it may remember the program
-///       and its configuration across candidates.
+///  because it may remember state
+///       across candidates.
 /// Why:
-///   The executable starts the real linter;
+///   The executable runs the linked linter on a guarded thread;
 ///  tests answer from a script,
 ///  so every branch
-///       of the policy is reached without a child process.
+///       of the policy is reached without running the real linter.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -265,6 +265,26 @@ pub(crate) fn discover_with_filesystem(
 }
 
 /// What:
+///  Parse configuration text that did not come from a file,
+///  labeled with a name for diagnostics and resolved against `base`.
+/// Why:
+///  An embedding caller holds the document in memory and must get the same parsing,
+///  error wording and pattern base as `--config` gives a file,
+///  without a temporary file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function configurationFromText(label: Path, base: Path, text: string): ConfigurationSource;
+/// ```
+pub fn configuration_from_text(
+    label: PathBuf,
+    base: PathBuf,
+    text: &str,
+) -> Result<ConfigurationSource, ConfigError> {
+    return selected(label, base, text);
+}
+
+/// What:
 ///  Read the configuration file of exactly one directory,
 ///  without consulting its ancestors.
 /// Why:

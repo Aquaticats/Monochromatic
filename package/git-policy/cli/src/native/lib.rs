@@ -427,16 +427,12 @@ pub mod policy_forbidden_strings;
 ///  through files instead of pipes.
 pub mod bounded_child;
 
-/// Where the `markdown/autofix` policy finds `monochromatic-lint`:
-///  absolute PATH entries only.
-pub mod markdown_linter_lookup;
-
-/// What one linter run printed:
+/// What one in-process linter run produced:
 ///  the fixed source and the findings left,
 ///  or why it is unusable.
 pub mod markdown_linter_output;
 
-/// The one-rule linter configuration and the private temporary file it is written to.
+/// The one-rule linter configuration document.
 pub mod markdown_linter_config;
 
 /// The gitignore-syntax `exclude` patterns of `markdown/autofix`,
@@ -448,10 +444,13 @@ pub mod markdown_exclude;
 pub mod policy_markdown;
 
 /// The executable's linter for that policy:
-///  `monochromatic-lint` on PATH,
-///  bounded,
+///  `monochromatic-lint` linked in-process,
+///  guarded by a deadline,
 ///  once per candidate.
 pub mod markdown_linter;
+
+/// A job on a thread of its own with a deadline and panic containment.
+pub mod markdown_linter_guard;
 
 /// The executable's panic hook:
 ///  where an internal error happened,
@@ -665,8 +664,14 @@ pub mod lfs_pre_push;
 /// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
 pub mod lfs_upload_plan;
 
+/// The configuration the Git LFS upload plan reads, and the default remote derived from it.
+pub mod lfs_upload_settings;
+
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
+
+/// The Git LFS step before a push the caller typed: pre-check, plan and upload with the caller's streams.
+pub mod lfs_interactive;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;

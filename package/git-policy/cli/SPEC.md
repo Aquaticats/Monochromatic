@@ -77,8 +77,13 @@ The policy runs on `pre-forward`,
 An executable that predates the policy refuses a configuration that lists it,
  as for any unknown policy ID,
  so a repository lists the policy only after every checkout runs an executable that ships it.
-`markdown/autofix` runs the `monochromatic-lint` executable,
- which must be on an absolute `PATH` entry.
+`markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
+ the executable links the linter library without its semantic engine.
+A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+the abandoned thread stays until the command ends, and the command starts no second linter thread.
+A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
+panic boundary and not a crash boundary.
+A run whose fixed source passes 64 MiB, or whose findings pass 4 MiB, is refused as unchecked.
 
 ## Policy re-run after replay
 
@@ -795,19 +800,25 @@ Every such start, forwarded commands as well as the wrapper's own children (quer
 the auto-push, the reconcile and integration pushes, maintenance), carries
 `-c core.hooksPath=/dev/null/cli-git-no-hooks` after the caller's global options and before the subcommand.
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
-The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows except `pre-push`, so a hook
+The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-The wrapper injects no hook of its own, so `pre-push` is switched off like every other event.
+It also carries `-c core.fsmonitor=false`: a `core.fsmonitor` that names a program is the hook `fsmonitor-watchman`,
+Git starts it without consulting the hooks path or any event switch (measured on Git 2.56.0), and the built-in monitor
+daemon is switched off with it.
+The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
   The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
 - It follows every global option of the caller and precedes the subcommand, so no `-c core.hooksPath=<directory>`,
   `-c hook.<event>.enabled=true` or `--config-env` of the caller can bring a hook back, and the native commit repeats
   the options after the caller's (see "External hooks").
-  The push probe is the exception: its arguments carry their own hooks directory for the wrapper's recording hook.
-- `git config` starts go without it, because they report what the repository configures and the wrapper reads
-  `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
-  recognized and gets the option.
+- A command that reaches Git through an alias gets Git's own expansion from the wrapper (resolved from the alias
+  values it already reads for classification), so the options follow the `-c` options an alias value may carry;
+  put before the alias word they would lose to them (measured on Git 2.56.0).
+  A shell alias (`!...`) is run by Git's shell, and a `git` it starts through `PATH` is the wrapper again.
+- `git config` starts that only report or change configuration go without the options, because they report what the
+  repository configures and the wrapper reads `core.hooksPath` that way (the commit warning, `doctor`).
+  `git config --edit` (or `-e`) starts an editor, and a Git the editor starts inherits the options, so it gets them.
 - A child of Git inherits the settings through `GIT_CONFIG_PARAMETERS`, so a program Git starts (a filter, an editor) that
   starts `/usr/bin/git` runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
   `a_local_remotes_server_side_hook_still_runs`), so server-side hooks of such a remote still run.
@@ -861,32 +872,47 @@ The step:
   every other forwarded command is unchanged.
   When the configuration cannot be read, the upload is attempted.
 - Mechanism.
-  The wrapper runs `git-lfs push [--all] <remote> [<ref>...]` itself, as one child it owns, before it starts the
-  `git push`; the push carries no hook and no injected `-c`.
+  The wrapper runs `git-lfs push --all <destination> [<ref>...]` itself, as one child it owns per destination, before
+  it starts the `git push`; the push carries no hook and no injected `-c`.
   The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
   parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
-  Measured with git-lfs 3.8.1: `git lfs push` uploads the objects of the given refs, filters out objects the local
-  clone's remote-tracking refs already reference, reads no update lines, and needs no value advertised by the remote.
-  Objects are content addressed, so an upload that sends a superset is idempotent.
+  `--all` is always given, with the refs: `git lfs push <remote> <ref>` alone skips every object that a remote-tracking
+  ref of this clone mentions, and those refs need not describe the destination being pushed to (a fetch from one server
+  and a push to another, a changed push URL), which would publish pointers without objects. `--all` with refs uploads
+  everything reachable from exactly those refs, so it covers a superset and is idempotent, as objects are content
+  addressed. Measured with git-lfs 3.8.1 (`commands/uploader.go`, `uploadForRefUpdates`): without `--all` the scan is
+  bounded by the remote-tracking refs (`ScanMultiRangeToRemote`); with it the whole ref is scanned
+  (`ScanRefWithDeleted`). The old hook flow had the same bound for a new remote ref and a better one (the remote's own
+  value) for an existing ref; this step does at least as well for every case and costs a full scan of the pushed refs.
   The child runs with the real Git's directory first on `PATH`, so a `git` that `git-lfs` starts is the real Git and not
-  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds. It runs in the directory a `-C`
+  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds (as an absolute path, so a relative `PATH` entry and
+  `-C` cannot make the file that was checked differ from the file that runs). It runs in the directory a `-C`
   option selects and receives the global options as Git would pass them: `-c` pairs as `GIT_CONFIG_COUNT` variables
   after any pairs already set, `--git-dir`, `--work-tree` and `--namespace` as their variables. A signal sent to the
   wrapper is relayed to it.
 - What is uploaded.
-  The remote and refs come from the push's own arguments, read with the same option table as the rest of the wrapper:
-  an explicit repository (or `--repo`) and explicit refspecs name them (the source side of each refspec; a deletion
-  names nothing; `tag <name>` is `refs/tags/<name>`).
-  `--all`, `--branches`, `--tags` and a refspec with a glob upload the refs they expand to (one `git for-each-ref`),
-  never every branch; `--mirror` uploads everything (`--all`).
+  The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
+  wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries
+  (`branch.<name>.pushRemote` and `.remote`, `remote.pushDefault`, `remote.<name>.push`, `.pushurl`, `.mirror` and
+  `.url`, `push.default`) come from the snapshot taken when the invocation was planned, so a typed push costs no Git
+  start for them; the auto-push reads them with one `config --get-regexp`.
   The first positional is the repository whatever `--repo` says; `--repo` and its abbreviations fill in only when none is
-  typed. A path typed as the remote (`/`, `./` or `../`) is handed to `git-lfs` as a `file://` URL.
+  typed. Each refspec names its source: the part before the last colon (Git splits there, so a source such as
+  `:/message` survives); a deletion names nothing, `tag <name>` is `refs/tags/<name>`, and the refspec `:` (also
+  `+:` and a configured `push = :`) means every local branch.
+  A source with a `*` is matched as a refspec matches (the star crosses `/`) against the refs one `for-each-ref` lists.
+  `--all` and `--branches` upload the local branches, `--tags` the local tags, never every ref; `--mirror` and
+  `remote.<name>.mirror` upload everything.
   A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
-  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else the
-  current branch from the full ref `HEAD` names (`HEAD` when it is not a branch); with `push.default=matching` it
-  uploads everything, because narrowing needs the remote's own refs.
-  Those answers cost two short Git queries, made only for a push that needs them in a repository with LFS keys.
-  A push that only deletes uploads nothing.
+  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else every
+  local branch with `push.default=matching`, else the current branch from the full ref `HEAD` names (`HEAD` when it is
+  not a branch).
+  A remote with more than one `pushurl` is uploaded to once per URL, passing each URL, because each may keep its
+  objects in its own place. A destination typed as a path (starting with `/`, `./` or `../`, or naming an existing
+  file or directory that is not a configured remote) is passed as a percent-encoded `file://` URL, which `git-lfs`
+  accepts where it refuses a bare path.
+  A push that only deletes uploads nothing. The plan fails closed: a Git query it needs that does not finish refuses the
+  push with an explanation, it never reads as "nothing to upload".
   A push with `--recurse-submodules=on-demand` or `only` uploads only this repository's refs and prints a notice that
   a submodule's LFS objects must be uploaded from the submodule, because Git pushes the submodule itself.
 - The explanation.
@@ -1741,8 +1767,7 @@ The shadow `config` has this layout:
   (`run_auto_maintenance` in Git's `builtin/commit.c`)
   never runs in the shadow.
 - `hook.post-commit.enabled` follows the include,
-  so the native commit never runs `post-commit` in the shadow;
-  the wrapper runs it after landing.
+  so the native commit never runs `post-commit` in the shadow, and nothing runs it after landing.
   It is a file value, not a `-c` option, so no hook inherits it through `GIT_CONFIG_PARAMETERS`.
 
 Cli-git writes the file itself,
@@ -1841,6 +1866,8 @@ and the executable does not read the name it was started under.
   real config defines, and the native commit repeats the hooks-off hooks path after the caller's global options.
 - The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
   commit ...` with no `--work-tree`: the shadow's `config` names the work tree.
+  A caller's `-c core.worktree` cannot redirect it: with an explicit `--git-dir`, Git reads the work tree from the git
+  directory's own config file only (measured on Git 2.56.0), and the wrapper removes `GIT_WORK_TREE` from the environment.
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
   events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
@@ -1850,8 +1877,10 @@ and the executable does not read the name it was started under.
   A forwarded command other than a commit or a push prints no warning, because it reads no configuration snapshot.
 - `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
 
-The wrapper executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`, not the
-git directory, not the environment.
+The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
+not the git directory, not the environment.
+The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
+wrapper's, and stay; a program that is a hook (every hook event, and the program `core.fsmonitor` names) is switched off.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.
@@ -2687,7 +2716,7 @@ A wait whose holder is known when it begins prints its first notice at once and 
 A notice names what is waited for, the holder's process when it can be read,
 the time waited and the bound with the variable that changes it.
 
-- Owner locks (landing, hook, capture, registry): `still waiting for process N to release <subject> (<path>)
+- Owner locks (landing, capture, registry): `still waiting for process N to release <subject> (<path>)
   after S seconds; giving up after L seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place`;
   the first notice adds a hint.
   The line names "another cli-git process" when the record cannot be read.
@@ -2699,8 +2728,8 @@ the time waited and the bound with the variable that changes it.
   and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
   the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
 - Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
-- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
-  stopping it after 60 seconds`.
+- The Markdown linter thread: `still waiting for monochromatic-lint to check <path> after S seconds;
+  giving up on it after 60 seconds`.
 - The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
   `still waiting for <command> (process N) after S seconds; stopping it after L seconds
   (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.
@@ -3261,7 +3290,6 @@ and configuration:
   when its replay conflicts,
   when the holder is killed,
   and when the holder is a zombie;
-- two preparations serialize their hooks by default and overlap with `hooks.concurrentCommits: true`;
 - concurrency config defaults,
   each valid value,
   zero,
@@ -3654,7 +3682,6 @@ Measure these scenarios separately:
   and 8 with disjoint paths;
 - same-file non-overlapping replays;
 - conflicting pairs;
-- a slow hook with `hooks.concurrentCommits` set to `false` and to `true`;
 - a sweep of `landing.reserveAfterLostRaces` that confirms or replaces the default.
 
 The sweep decides the default by the owner's rule,
