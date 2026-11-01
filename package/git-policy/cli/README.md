@@ -222,6 +222,10 @@ the hook dispatcher that still reads `argv[0]` is the one listed exception, unti
 Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
+`check` and `fix` read the worktree files the scope selects,
+ unstaged changes included;
+ a commit or a push checks the staged or committed content instead,
+ so a violation that exists only in the worktree fails `check` but not a commit that leaves it unstaged.
 `--policy <id>` limits the run to one policy and may be repeated.
 A selected policy that is off stops the run with exit `2`,
  because it would check nothing and read as clean:
