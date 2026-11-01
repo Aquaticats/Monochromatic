@@ -62,6 +62,93 @@ Other state checks: `issues-all.jsonl` refreshed, 2541 entries (was stale at 184
 session (harness scratchpads do not persist); recreate it in this scratch directory per
 ATH before posting corrections.
 
+> Corrected 2026-11-01 (second pickup): the claim just above that `rr-central-tests3.service`
+> finished is false (the run was wedged and stayed `activating` until stopped); `fail-suites.txt`
+> is a 45-line suite-name digest, not 228 `[FAIL]` lines. The batch-3 pipeline run and filing
+> attempt the same session made (23:00 to 23:19) were also never recorded here. See the
+> second-pickup section below.
+
+## 2026-11-01 second pickup: mangled-window audit and repair
+
+User instruction for this pickup: the previous session's work was bad where the model had inference
+issues near its end (looping, tool-call mangling, technically valid but wrong calls); repeat work if
+needed; the untracked repo-root files are unacceptable and should be deleted (backup allowed).
+
+Audit results, each verified against disk or the tree:
+
+- Repo-root untracked files deleted, backed up first to `root-untracked-backup/` in the scratch
+  dir. `outer-min.qml` was the `w3-fm-variant-qt` child's QML probe copy left at the root;
+  `repo-review-2026-10-31/` was a child's misplaced staging dir whose `w2-fs-b-pending.jsonl`
+  rows 046/047 were already folded into `w2-fs-b.jsonl` (verified id-by-id).
+- The first-pickup claim "`rr-central-tests3.service` finished (inactive/dead)" is false. The run
+  wedged at 2026-11-01T00:24 UTC and stayed `activating` until stopped at 04:02 UTC. The log's 249
+  `[FAIL]` lines are the completed portion (3321 PASS). Run 2 (`test-unit-full2.log`) did complete:
+  `exit=1`, 239 FAIL, 3322 PASS, failed files listed at the end.
+- The wedge, filed as `orchestrator-central-tests-033/034`: the oxlint test's two oxlint children
+  sat in `futex_do_wait` 3h38m (unbounded `nano-spawn` at
+  `package/oxlint-plugin/test-support/src/index.ts:547`), and
+  `staleness-concurrency-regression.unit.test.ts` leaked orphaned `config-*.ts` workers in
+  `ep_poll` (spawn at test line 241 has no timeout or cleanup; reproduced twice, once under the
+  concurrent `wg-quicker-update` scope). One `logger internal error: sink verification failed`
+  line sits just before the wedge; single occurrence, not filed.
+- The tail-of-session batch-3 pipeline (dedupe 23:00, draft 23:01, decisions 23:04, intra-dupes
+  23:05, clean 23:07, suites-to-findings 23:10 to 23:18, filing 23:19) was never recorded here and
+  failed completely: `file-issues.ts` hit `spawnSync gh ENOENT` on its first two decisions (the
+  systemd-run scope lacked the toolchain PATH) and the circuit breaker aborted. `filed-log.jsonl`
+  gained two error entries (`ci-depot-41`, `ci-depot-49`); harmless, the startup skip-set ignores
+  error entries.
+- Unrecorded children: `w3-dep-catalog` (dependency-catalog/core-native, 2 rows), `w3-pi-plugin`
+  (search-fetch/pi-plugin, 4 rows), and `w3-cc-tests` also wrote 4 rows to its own file. All
+  verified against the tree; the rows that fail quote checks flow to the manual queue like any
+  other.
+- Mangled working files, do not reuse: `suites-to-findings.ts` (invalid `filter((!!!` fragment),
+  `cgw.sh` (`#!/nachos/bin/sh`, `-p CPU=`, `MemMax`, `TaskMaxx`), `BRIEF-TEMPLATE.md` (repo path
+  typo "Monomchromatic"). Wave-4 briefs were rewritten from scratch.
+- `pkg-observable.jsonl` rows 046/047 (compact relay rows): 046 duplicated canonical 045 and was
+  dropped; 047 canonicalized with tree-verified evidence. Row 048 (`queue.rs` fallback) verified
+  fine.
+- The "normalized 119 rows across 18 findings files" claim: 11 `.pre-b3.bak` backups exist on
+  disk. The normalization itself was faithful (verify counts identical before and after
+  re-verification for unchanged files), so only the count wording is off.
+- What was good and kept: the wave-3 rows verify against the tree (root-configs 142-147 all pass;
+  docs-ops 70-74 with 72/74 queued for quote repair; docs-planning-audit 178-193 except 186;
+  w2-async-b1 071-082 except 077/080; w3-fm-variant-qt 001-003 except one external cargo-registry
+  ref), the schema bridge (`normalize-fold-b3.ts` is sound, backups kept), the `issues-all.jsonl`
+  refresh (2541), the `verify-b3` run.
+
+Repairs, all applied and re-verified:
+
+- `repair-window.ts`: fixed `pkg-observable.jsonl`; regenerated
+  `orchestrator-central-tests.jsonl` from the run-3 log with honest partial-run framing,
+  tree-quoted evidence, and coverage re-derived against the current findings and tracker (32 suite
+  rows plus the two hang rows; all 34 verify clean now, was 4 of 32).
+- `findings-list-b3v2.txt`: the authoritative 48-file list (old 44 minus the stale
+  `w2-async-b1.part.jsonl`, plus `orchestrator-central-tests` and the four w3 files). An
+  id-membership check proved every other side file (part*, append*, new-round*, relay-staging,
+  logger-tests-new, planning-staging) holds only ids already in the main files.
+- Batch-3 pipeline rebuilt over the current files: fresh verify (2673 rows, 48 files), dedupe,
+  draft (plans wiped and re-drafted), classify (auto_new=923, auto_comment=826, manual=825),
+  intra-dupes (266 pairs), clean pass (dropped `w2-typeface-figma-25`, `w2-dom-a-62`; 1729
+  decisions remain).
+- `w2-throw-async-a-87` folded into 80's issue body; 87 dropped from the decisions. Rows 80/81
+  were never filed in batch 2 (the v13 "its filed 80" was wrong; no filed-log entry, no issue).
+  Row 81's long-leading-zeros rejection bound is deliberate per `boundary_tests.rs:50` and
+  `coding.rs:39`; recorded in the recreated `post-batch2-corrections.md` for the manual-queue
+  adjudication.
+- Filing relaunched as `rr-file-batch3v2` (oneshot service) with the toolchain PATH exported
+  inside the service command; gh smoke-tested inside a scope first. `ci-depot-41` filed as `#2577`
+  on the retry; the run is in progress over the 1729 decisions (919 new, 810 comment; expect
+  hours).
+- The central run's own rerun needs the two hangs addressed first; a fresh `test:unit` run
+  without them wedges the same way.
+
+Wave 4 spawned (six children; the session pool was empty): `w4-fe-core-tests`
+(file-enforcer/core tests, `root-configs` from 148), `w4-mp-design` (design `HANDOFF.md` from
+line 880, `docs-planning-audit` from 194), `w4-desktop-app` (src slice, `pkg-observable` from
+049), `w4-android-app` (app/src/main, `w2-async-b1` from 083), `w4-fm-variant-qt` (remaining 18
+files, `w3-fm-variant-qt` from 004), `w4-cc-statusline` (claude-code-plugin/statusline, new file
+from 001).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -530,29 +617,31 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
 
 ## Next actions
 
-1. Read the kill investigation and relay architecture sections above first: the
-   twenty-seven failed children are structurally unkillable and unrevivable; their work is
-   relayed to the five live children (ci-depot, pkg-figma-kiwi, w2-typeface-figma,
-   w2-th-diag-expect, w2-th-matrix-sandbox), which are the worker pool now. Never send
-   briefs to failed children: the wake 402s inside `send_message` and consumes the brief.
-   Send to idle or running children only, paced one send per program call, aligned with
-   child completions.
-2. Verify every relayed coverage claim against the owner findings files before trusting
-   it (the relay-architecture section records one caught overstatement). A relayed area
-   counts as covered only when its entries are in the OWNER's file with relayed markers.
-3. Process child returns continuously; re-brief from the Assignment queue; keep the
-   Children section current. The relay board above is the state as of the 2026-10-31
-   evening recovery; per-child progress has moved since.
-4. Re-run the pipeline for all findings grown since batch 2 (verify, dedupe, draft,
-   classify, intra-dupes) over every findings file, then file batch 3 the same way; the
-   filing script now paces and backs off on its own.
-5. Post the batch-2 correction comments on already-filed issues (scratchpad
-   `post-batch2-corrections.md` is the log; first entries: `w2-throw-async-a` filed 80
-   scope-narrowing, filed 81 deliberate-bound note).
-6. Triage the central-test failure inventory (`fail-suites.txt`, 228 `[FAIL]` lines from the
-   run killed by SIGHUP at 07:15): cross-check each suite against findings and tracker, file
-   the uncovered ones. Known already: the wg/core-allowedips red suite (#599, #600).
-7. Work the 518-entry manual queue (evidence repair first, then ambiguous adjudication).
+1. Superseded 2026-11-01: the relay pool and the failed-session kill findings describe the dead
+   2026-10-31 sessions. Fresh harness sessions spawn directly (wave 4 did). The unkillable-failed-
+   children constraint applied to that session's pool only.
+2. Verify every relayed coverage claim against the owner findings files before trusting it. A
+   relayed area counts as covered only when its entries are in the OWNER's file with relayed
+   markers.
+3. Process wave-4 child returns continuously; re-brief from the Assignment queue; keep this
+   handover current. Verify each child's claimed coverage against its findings file before
+   re-briefing.
+4. In progress (2026-11-01): batch-3 filing runs as `rr-file-batch3v2` over 1729 decisions
+   (919 new, 810 comment), log `file-batch3v2.log`. Check progress with
+   `systemctl --user show rr-file-batch3v2.service -p ActiveState` and the log tail. When it
+   completes, refresh `issues-all.jsonl` (the gh command is in the pipeline-state section) and
+   re-verify `filed-log.jsonl` has no error entries.
+5. Done differently 2026-11-01: rows 80/81 were never filed in batch 2, so there were no
+   owning issues to comment on. 87's correction is folded into 80's batch-3 issue body, and 81's
+   deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
+   manual-queue adjudication.
+6. Done for the completed portion 2026-11-01: the regenerated `orchestrator-central-tests.jsonl`
+   (34 rows, all verify-clean) carries the uncovered failing suites from run 3's completed
+   portion plus the two hang findings. A fresh complete central run should wait until the two
+   hangs are fixed, then refresh the triage.
+7. Work the manual queue: `manual-b3v2.jsonl` (825 entries, ambiguous plus 416 with evidence
+   problems) replaces the old 518-entry queue for batch 3; evidence repair first, then ambiguous
+   adjudication. The old `manual-queue.jsonl` (batch 1/2 era) still holds its own entries.
 8. Keep updating and committing this handover at every wave transition.
 
 ## Stop conditions
