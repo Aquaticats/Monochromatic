@@ -151,7 +151,9 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise][mise-home] as the task runner, `curl`, `jq` and `tar`.
+Install [Mise][mise-home] as the task runner,
+`curl`,
+`jq` and `tar`.
 The toolchain commands are the Rust program `mpm-shadow`
 (see [Provision the toolchain](#clone-and-bootstrap) for the one prebuilt archive a fresh machine needs).
 Mise runs tasks only;
@@ -209,11 +211,32 @@ tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-component
 
 Then provision the toolchain,
 converging every tool to the versions `toolchain.lock.json` records
-(that installs `file-enforcer` too):
+(that installs Node and `file-enforcer` too).
+The first run is by the binary's path,
+because the `toolchain:*` tasks need Node and this install is what provides it:
+
+```sh
+"${HOME}/.local/bin/mpm-shadow" install
+```
+
+From then on,
+and in any existing checkout,
+use the task:
 
 ```sh
 mise run toolchain:install
 ```
+
+Every `toolchain:*` task runs the `mpm-shadow` version that `toolchain.lock.json` names,
+never the one on `PATH`:
+when `.cache/toolchain-bin/mpm-shadow` is another version,
+the task downloads the lock's archive,
+checks its SHA-256 against the lock,
+keeps it under `.cache/mpm-shadow-bootstrap/<version>/`,
+and runs that copy.
+So a checkout whose `mpm-shadow` is older than the lock needs no extra step
+(an old copy would stop on `tools.mpm-shadow.options.tagPrefix is not a known field`,
+see `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`).
 
 The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:install`,
 and `mpm-shadow install` runs the same work without the task wrapper.

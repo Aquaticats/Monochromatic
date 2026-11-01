@@ -482,6 +482,26 @@ const runPlaywright = (config, extraFlags = []) => {
 }
 """
 
+# Shared runner of the toolchain:* tasks. Each of them runs `mpm-shadow` at the version toolchain.lock.json names,
+# never the one PATH offers: an older copy exits 2 on a plan field it does not know (for example
+# tools.mpm-shadow.options.tagPrefix), even after the lock names a newer one. The entry
+# package/monorepo-task/core-exec/src/mpm-shadow.ts finds the locked copy (.cache/toolchain-bin, then
+# .cache/mpm-shadow-bootstrap) or downloads the lock's archive and checks its SHA-256 against the lock, as
+# .github/actions/repo-tools-setup does in CI. Like run_playwright, the interpolating task must put
+# {{vars.dispatch_workspace_node}} and {{vars.parse_usage_args}} BEFORE {{vars.run_mpm_shadow}}; extra arguments
+# after `--` are appended to the verb. The program's own exit status becomes the task's.
+run_mpm_shadow = """
+const runMpmShadow = (verbArgs) => {
+  try {
+    runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', [...verbArgs, ...parseUsageArgs(process.env.usage_args ?? '')])
+  } catch (error) {
+    // The program printed why it failed; only a failure of the runner itself has no status to pass on.
+    if (typeof error.status !== 'number') { throw error }
+    process.exit(error.status)
+  }
+}
+"""
+
 [task_templates.build]
 shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout}}"
@@ -621,40 +641,103 @@ run = "slopo embed"
 run = "slopo analyze"
 
 [tasks."toolchain:install"]
-description = "Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI)"
-run = "mpm-shadow install"
+description = "Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI), running the mpm-shadow version the lock names"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['install'])
+"""
 
 [tasks."toolchain:list"]
-description = "Print observed versus locked tool versions and exit non-zero on drift"
-run = "mpm-shadow list"
+description = "Print observed versus locked tool versions and exit non-zero on drift (the lock's mpm-shadow)"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['list'])
+"""
 
 [tasks."toolchain:update"]
-description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model)"
-run = "mpm-shadow update"
+description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model), running the mpm-shadow version the lock names"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['update'])
+"""
 
 [tasks."toolchain:outdated"]
 description = "Report which tools toolchain:update would move, writing and installing nothing; exits non-zero when any would move"
-run = "mpm-shadow outdated"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['outdated'])
+"""
 
 [tasks."toolchain:lock:check"]
 description = "Offline gate: fail when toolchain.plan.jsonc and toolchain.lock.json disagree or the lock's digest does not match (CI, beside file-enforcer check)"
-run = "mpm-shadow install --lockfile-only --frozen-lockfile"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['install', '--lockfile-only', '--frozen-lockfile'])
+"""
 
 [tasks."toolchain:install:global"]
 description = "Converge the machine-global tools to the versions its toolchain.lock.json records (doc/planning/mpm-global-toolchain-migration.md)"
-run = "mpm-shadow install --global"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['install', '--global'])
+"""
 
 [tasks."toolchain:list:global"]
 description = "Print observed versus locked versions of the machine-global tools and exit non-zero on drift"
-run = "mpm-shadow list --global"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['list', '--global'])
+"""
 
 [tasks."toolchain:update:global"]
 description = "Re-resolve the machine-global tools into their toolchain.lock.json"
-run = "mpm-shadow update --global"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['update', '--global'])
+"""
 
 [tasks."toolchain:outdated:global"]
 description = "Report which machine-global tools toolchain:update:global would move, writing and installing nothing"
-run = "mpm-shadow outdated --global"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+{{vars.run_mpm_shadow}}
+runMpmShadow(['outdated', '--global'])
+"""
 
 #endregion Utility Tasks
 

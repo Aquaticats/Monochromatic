@@ -334,23 +334,23 @@ await runTestFiles(files, [])
 const tasks: Record<string, TaskDefinition> = {
   'toolchain:install': {
     description: 'Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI)',
-    run: 'mpm-shadow install',
+    run: { shell: 'node --input-type=module-typescript -e', run: "try { runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', ['install']) } catch (error) { if (typeof error.status !== 'number') { throw error } process.exit(error.status) }", },
   },
   'toolchain:list': {
     description: 'Print observed versus locked tool versions and exit non-zero on drift',
-    run: 'mpm-shadow list',
+    run: { shell: 'node --input-type=module-typescript -e', run: "try { runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', ['list']) } catch (error) { if (typeof error.status !== 'number') { throw error } process.exit(error.status) }", },
   },
   'toolchain:update': {
     description: 'Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model)',
-    run: 'mpm-shadow update',
+    run: { shell: 'node --input-type=module-typescript -e', run: "try { runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', ['update']) } catch (error) { if (typeof error.status !== 'number') { throw error } process.exit(error.status) }", },
   },
   'toolchain:outdated': {
     description: 'Report which tools toolchain:update would move, writing and installing nothing; exits non-zero when any would move',
-    run: 'mpm-shadow outdated',
+    run: { shell: 'node --input-type=module-typescript -e', run: "try { runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', ['outdated']) } catch (error) { if (typeof error.status !== 'number') { throw error } process.exit(error.status) }", },
   },
   'toolchain:lock:check': {
     description: 'Offline gate: fail when toolchain.plan.jsonc and toolchain.lock.json disagree or the lock\'s digest does not match (CI, beside file-enforcer check)',
-    run: 'mpm-shadow install --lockfile-only --frozen-lockfile',
+    run: { shell: 'node --input-type=module-typescript -e', run: "try { runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', ['install', '--lockfile-only', '--frozen-lockfile']) } catch (error) { if (typeof error.status !== 'number') { throw error } process.exit(error.status) }", },
   },
   'bootstrap': {
     description: 'Alias of toolchain:install: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
