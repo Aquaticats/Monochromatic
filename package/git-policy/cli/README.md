@@ -1012,10 +1012,18 @@ mise run //package/git-policy/cli:native:test:container
   - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
     does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
-  explicit-path commits, with paired direct-Git samples in disposable repositories.
+  commits (explicit-path and service, unsigned and SSH-signed),
+  with paired direct-Git samples in disposable repositories.
   It reports the median, p95 and median absolute deviation of both sides and the added delta,
-  fails when a forwarded command's added p95 reaches the 2,000 ms bound or any sample fails,
-  and `-- --output <file>` stores the raw samples (baselines live in `perf/`).
+  and for each commit the median, p95 and maximum of the paired deltas (the wrapped time minus the direct time of the
+  same round).
+  It fails when a forwarded command's added p95 reaches the 2,000 ms bound,
+  when a commit's paired delta p95 reaches the 5,000 ms bound (the owner's measure, see "Latency requirements"),
+  or when any sample fails.
+  `-- --output <file>` stores the raw samples (baselines live in `perf/`; `schemaVersion` 2 adds the paired deltas and
+  names each scenario's `kind`).
+  The judging lives in `bin/native-perf-judge.ts`, and `bin/native-perf-judge.unit.test.ts` runs it on the recorded
+  baseline, edited to break each bound.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
 

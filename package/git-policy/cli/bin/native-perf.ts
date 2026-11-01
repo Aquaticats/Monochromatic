@@ -5,7 +5,8 @@
  Why:
   `SPEC.md` ("Benchmark method") requires a paired direct-Git baseline for every scenario, the median, p95 and median
   absolute deviation of each, the wrapper-added delta, and the raw samples; the added latency of a forwarded
-  command must stay strictly under two seconds.
+  command must stay strictly under two seconds, and (owner's measure of 2026-11-01) a commit through the wrapper must
+  not take five seconds or more longer than the same commit with native Git.
 
  In TS you'd write (pseudocode):
  ```ts
@@ -37,6 +38,15 @@ import {
   makeSigningKey,
   startService,
 } from './native-perf-service.ts';
+import {
+  COMMIT_DELTA_BOUND_MILLISECONDS,
+  FORWARDED_BOUND_MILLISECONDS,
+  judge,
+} from './native-perf-judge.ts';
+import {
+  reportLine,
+  violationLine,
+} from './native-perf-lines.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import {
   measure,
@@ -44,11 +54,6 @@ import {
   type ScenarioMeasurement,
   type ScenarioReport,
 } from './native-perf-measure.ts';
-
-/**
- The strict upper bound for wrapper-added latency of a forwarded command, in milliseconds.
- */
-const BUDGET_MILLISECONDS = 2_000;
 
 /**
  The fewest samples per scenario that make a median, a p95 and a deviation meaningful.
@@ -64,11 +69,6 @@ const EXECUTABLE_MODE = 0o755;
  Permission bits of the scratch parent directory: private to the current user.
  */
 const PRIVATE_DIRECTORY_MODE = 0o700;
-
-/**
- Width of the scenario column in the printed lines, so the figures align.
- */
-const SCENARIO_COLUMN_WIDTH = 22;
 
 /**
  Parsed command line: the binary to measure, the sample count and the optional report path.
@@ -289,14 +289,14 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       command() {
         return scenario.arguments_;
       },
-      enforced: true,
+      kind: 'forwarded',
       samples,
       root,
       directRepository,
       wrappedRepository,
     });
   }
-  // A commit is reported but not held to the forwarded-command budget. Each of the four arms differs from the previous in one
+  // A commit is held to the paired-delta bound, not to the forwarded-command bound. Each of the four arms differs from the previous in one
   // thing: the route (the transaction used before the service, or the service) and whether the repository signs.
   for (const arm of [
     {
@@ -347,7 +347,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
           'file-0.txt',
         ];
       },
-      enforced: false,
+      kind: 'commit',
       samples,
       root,
       directRepository: arm.direct,
@@ -370,20 +370,20 @@ finally {
 }
 
 /**
- Enforced scenarios whose added p95 reached the budget.
+ Scenarios whose judged statistic reached its bound: the added p95 of a forwarded command, the paired delta p95 of a
+ commit.
  */
-const overBudget = report.filter(function overBudgetEntry(entry) {
-  return entry.enforced && (entry.addedP95Milliseconds >= BUDGET_MILLISECONDS);
-});
+const violations = judge(report);
 /**
  The JSON document written when `--output` is given.
  */
 const document = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   date: new Date().toISOString(),
   binary: resolve(values.binary),
   samplesPerScenario: samples,
-  budgetMilliseconds: BUDGET_MILLISECONDS,
+  forwardedBoundMilliseconds: FORWARDED_BOUND_MILLISECONDS,
+  commitDeltaBoundMilliseconds: COMMIT_DELTA_BOUND_MILLISECONDS,
   platform: process.platform,
   failures,
   report,
@@ -399,36 +399,13 @@ if (values.output !== undefined) {
   );
 }
 for (const entry of report) {
-  /**
-   One printed line of figures for a scenario.
-   */
-  const line = [
-    entry.scenario
-      .padEnd(SCENARIO_COLUMN_WIDTH),
-    `direct median ${entry.direct
-      .median
-      .toFixed(1)} ms`,
-    `wrapped median ${entry.wrapped
-      .median
-      .toFixed(1)} ms`,
-    `added median ${entry.addedMedianMilliseconds
-      .toFixed(1)} ms`,
-    `added p95 ${entry.addedP95Milliseconds
-      .toFixed(1)} ms`,
-  ].join('  ');
-  console.log(line);
+  console.log(reportLine(entry));
 }
 if (failures.length > 0) {
   console.log(`FAILED samples: ${String(failures.length)}; first: ${JSON.stringify(failures[0])}`);
   process.exitCode = 1;
 }
-if (overBudget.length > 0) {
-  /**
-   Names of the scenarios that exceeded the budget.
-   */
-  const overBudgetNames = overBudget.map(function scenarioName(entry) {
-    return entry.scenario;
-  });
-  console.log(`OVER BUDGET (added p95 >= ${String(BUDGET_MILLISECONDS)} ms): ${overBudgetNames.join(', ')}`);
+for (const violation of violations) {
+  console.log(violationLine(violation));
   process.exitCode = 1;
 }

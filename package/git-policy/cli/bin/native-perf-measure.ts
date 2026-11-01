@@ -4,9 +4,18 @@
 import { timed } from './native-perf-git.ts';
 import {
   median,
+  pairedDeltas,
+  pairedDeltaSummary,
   percentile95,
+  type RoundSample,
   summary,
 } from './native-perf-statistics.ts';
+
+/**
+ Which latency requirement a scenario is held to: a forwarded command by the wrapper-added p95, a commit by the p95 of
+ its paired deltas against native Git. See `native-perf-judge.ts`.
+ */
+export type ScenarioKind = 'forwarded' | 'commit';
 
 /**
  One sample whose Git command exited nonzero.
@@ -24,13 +33,19 @@ export type SampleFailure = {
  */
 export type ScenarioReport = {
   readonly scenario: string;
-  readonly enforced: boolean;
+  readonly kind: ScenarioKind;
   readonly direct: ReturnType<typeof summary>;
   readonly wrapped: ReturnType<typeof summary>;
   readonly addedMedianMilliseconds: number;
   readonly addedP95Milliseconds: number;
+  /**
+   Median, p95 and maximum of the wrapped sample minus the direct sample of the same round, over the rounds in which both
+   sides succeeded; the commit requirement is judged on its p95.
+   */
+  readonly pairedDelta: ReturnType<typeof pairedDeltaSummary>;
   readonly rawDirect: readonly number[];
   readonly rawWrapped: readonly number[];
+  readonly rawPairedDeltas: readonly number[];
 };
 
 /**
@@ -51,7 +66,7 @@ export type ScenarioSetting = {
     readonly sample: number;
   }) => Promise<void>;
   readonly command: (request: { readonly sample: number; }) => readonly string[];
-  readonly enforced: boolean;
+  readonly kind: ScenarioKind;
   readonly samples: number;
   readonly root: string;
   readonly directRepository: string;
@@ -161,11 +176,82 @@ async function* orderedSamples(setting: Readonly<ScenarioSetting>): AsyncGenerat
 }
 
 /**
+ Elapsed milliseconds of a sample.
+
+ @param entry - a successful sample
+
+ @returns its elapsed milliseconds
+ */
+function elapsedOf(entry: RoundSample): number {
+  return entry.elapsed;
+}
+
+/**
+ Statistics and raw samples of one scenario from its successful samples.
+
+ @param scenario - scenario name
+
+ @param kind - which latency requirement applies
+
+ @param direct - successful direct samples with their rounds
+
+ @param wrapped - successful wrapped samples with their rounds
+
+ @returns the report
+
+ @throws SampleSetError when no round has a successful sample on both sides
+
+ @example
+ ```ts
+ const entry = scenarioReport({ scenario: 'status', kind: 'forwarded', direct, wrapped });
+ ```
+ */
+export function scenarioReport({
+  scenario,
+  kind,
+  direct,
+  wrapped,
+}: {
+  readonly scenario: string;
+  readonly kind: ScenarioKind;
+  readonly direct: readonly RoundSample[];
+  readonly wrapped: readonly RoundSample[];
+}): ScenarioReport {
+  /**
+   Milliseconds of the successful direct samples.
+   */
+  const directMilliseconds = direct.map(elapsedOf);
+  /**
+   Milliseconds of the successful wrapped samples.
+   */
+  const wrappedMilliseconds = wrapped.map(elapsedOf);
+  /**
+   Wrapped minus direct for every round in which both sides succeeded.
+   */
+  const deltas = pairedDeltas({
+    direct,
+    wrapped,
+  });
+  return {
+    scenario,
+    kind,
+    direct: summary(directMilliseconds),
+    wrapped: summary(wrappedMilliseconds),
+    addedMedianMilliseconds: median(wrappedMilliseconds) - median(directMilliseconds),
+    addedP95Milliseconds: percentile95(wrappedMilliseconds) - percentile95(directMilliseconds),
+    pairedDelta: pairedDeltaSummary(deltas),
+    rawDirect: directMilliseconds,
+    rawWrapped: wrappedMilliseconds,
+    rawPairedDeltas: deltas,
+  };
+}
+
+/**
  Pair a direct and a wrapped sample, alternating which goes first so cache order cancels.
 
  @param setting -
    scenario name, the optional per-sample setup that runs before the timer starts, the Git arguments of a sample,
-   whether the forwarded-command budget applies, the sample count, the scratch root, and both repositories
+   which latency requirement applies, the sample count, the scratch root, and both repositories
 
  @returns failed samples and the scenario report
 
@@ -176,13 +262,13 @@ async function* orderedSamples(setting: Readonly<ScenarioSetting>): AsyncGenerat
  */
 export async function measure(setting: Readonly<ScenarioSetting>): Promise<ScenarioMeasurement> {
   /**
-   Milliseconds of the successful direct samples.
+   Successful direct samples with the round of each.
    */
-  const direct: number[] = [];
+  const direct: RoundSample[] = [];
   /**
-   Milliseconds of the successful wrapped samples.
+   Successful wrapped samples with the round of each.
    */
-  const wrappedSamples: number[] = [];
+  const wrappedSamples: RoundSample[] = [];
   /**
    Samples whose Git command exited nonzero.
    */
@@ -202,22 +288,29 @@ export async function measure(setting: Readonly<ScenarioSetting>): Promise<Scena
       });
       continue;
     }
-    (wrapped ? wrappedSamples : direct).push(result.elapsed);
+    (wrapped ? wrappedSamples : direct).push({
+      sample,
+      elapsed: result.elapsed,
+    });
   }
-  if ((direct.length === 0) || (wrappedSamples.length === 0)) {
+  // A scenario with no round that has both sides has nothing to judge; its failures are already reported.
+  /**
+   Wrapped minus direct for every round in which both sides succeeded.
+   */
+  const pairedRounds = pairedDeltas({
+    direct,
+    wrapped: wrappedSamples,
+  });
+  if (pairedRounds.length === 0) {
     return { failures, };
   }
   return {
     failures,
-    entry: {
+    entry: scenarioReport({
       scenario: setting.name,
-      enforced: setting.enforced,
-      direct: summary(direct),
-      wrapped: summary(wrappedSamples),
-      addedMedianMilliseconds: median(wrappedSamples) - median(direct),
-      addedP95Milliseconds: percentile95(wrappedSamples) - percentile95(direct),
-      rawDirect: direct,
-      rawWrapped: wrappedSamples,
-    },
+      kind: setting.kind,
+      direct,
+      wrapped: wrappedSamples,
+    }),
   };
 }

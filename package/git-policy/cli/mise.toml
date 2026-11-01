@@ -79,7 +79,7 @@ description = "Build the native wrapper executable `cli-git-native` in release m
 run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]
-description = "Measure the latency the release wrapper adds to forwarded Git commands and explicit-path commits against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
+description = "Measure the latency the release wrapper adds to forwarded Git commands (added p95 under 2,000 ms) and commits (paired delta p95 under 5,000 ms) against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
 depends = ["build"]
 run = "node bin/native-perf.ts --binary target/release/cli-git-native --samples 30"
 
