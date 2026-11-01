@@ -69,18 +69,20 @@ async function runPodman(args: readonly string[],): Promise<PodmanResult> {
 }
 
 if (import.meta.main) {
-  try {
-    await ensurePlaywrightImage({
-      dockerfile: await readFile(DOCKERFILE_PATH,),
-      dockerfilePath: DOCKERFILE_PATH,
-      podman: runPodman,
-      log(line,) {
-        console.log(`[prepare:playwright] ${line}`,);
-      },
-    },);
-  }
-  catch (error) {
-    console.error(`[prepare:playwright] ${caughtValueText(error,)}`,);
-    process.exitCode = 1;
-  }
+  /**
+   Arguments after the entry; the command has none, so any would be silently ignored without this check.
+   */
+  const extra = process.argv
+    .slice(2,);
+  if (extra.length > 0)
+    throw new Error(`task-playwright-image takes no arguments, but was given: ${extra.join(' ',)}`,);
+  // A failure is thrown, so node reports it and exits with its standard status 1.
+  await ensurePlaywrightImage({
+    dockerfile: await readFile(DOCKERFILE_PATH,),
+    dockerfilePath: DOCKERFILE_PATH,
+    podman: runPodman,
+    log(line,) {
+      console.log(`[prepare:playwright] ${line}`,);
+    },
+  },);
 }

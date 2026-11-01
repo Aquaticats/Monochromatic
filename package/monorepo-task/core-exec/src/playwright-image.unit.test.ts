@@ -180,7 +180,15 @@ type EntryRun = {
  ```
  */
 async function runEntry(
-  { environment, withPodman, }: { readonly environment: Readonly<Record<string, string>>; readonly withPodman: boolean; },
+  {
+    environment,
+    withPodman,
+    args = [],
+  }: {
+    readonly environment: Readonly<Record<string, string>>;
+    readonly withPodman: boolean;
+    readonly args?: readonly string[];
+  },
 ): Promise<EntryRun> {
   /**
    Fresh fixture directory, removed when this function ends.
@@ -194,7 +202,7 @@ async function runEntry(
   /**
    Result of the entry; a non-zero exit rejects.
    */
-  const done = await spawn(process.execPath, [ENTRY,], {
+  const done = await spawn(process.execPath, [ENTRY, ...args,], {
     cwd: directory,
     // The fake podman is a node script, so `node` has to be found; without podman the directory is empty.
     env: { PATH: withPodman ? `${join(directory, 'bin',)}:${dirname(process.execPath,)}` : join(directory, 'bin',), ...environment, },
@@ -620,6 +628,15 @@ await describe({
             expect(run.exitCode,).toBe(1,);
             expect(run.output,).toContain('building playwright.Dockerfile locally failed',);
             expect(run.output,).toContain('step failed in build',);
+          },
+        },),
+        it({
+          name: 'rejects extra arguments instead of ignoring them, and runs no podman command',
+          fn: async () => {
+            const run = await runEntry({ environment: {}, withPodman: true, args: ['--force',], },);
+            expect(run.exitCode,).toBe(1,);
+            expect(run.output,).toContain('takes no arguments, but was given: --force',);
+            expect(run.calls,).toEqual([],);
           },
         },),
         it({
