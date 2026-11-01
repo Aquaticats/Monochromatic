@@ -1,8 +1,8 @@
 //! What:
 //! Finds the root of the pnpm workspace that contains the current directory and checks every manifest under it.
 //! Why:
-//! The shadow warns before each pnpm run, so it needs the whole tree's findings in one pass. The rule itself lives
-//! in `monochromatic-catalog-specifier`; this file only walks and reads.
+//! The shadow warns before each pnpm run, so it needs the whole tree's findings in one pass, and that pass is on the
+//! path of every pnpm call. The rule itself lives in `monochromatic-catalog-specifier`; this file only walks and reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,14 +11,17 @@
 //! export function scanWorkspace(root: string): ScanReport { ... }
 //! ```
 
-/// Imports the walker that honors `.gitignore`, and its entry type.
-use ignore::{DirEntry, WalkBuilder};
+/// Imports the walker that honors `.gitignore`, its entry and error types, and the answer a visitor gives after each entry.
+use ignore::{DirEntry, Error as WalkError, WalkBuilder, WalkState};
 
 /// Imports the rule: one function for any manifest name, one for a name alone, and the finding type.
 use monochromatic_catalog_specifier::{Finding, check_manifest, check_manifest_path};
 
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
+
+/// Imports the lock that lets several walker threads add to one report.
+use std::sync::Mutex;
 
 /// Imports the fixed values.
 use crate::constants::{MANIFEST_NAMES, READ_MANIFEST_NAME, SKIPPED_DIRECTORIES, WORKSPACE_MARKER};
@@ -38,9 +41,9 @@ use crate::constants::{MANIFEST_NAMES, READ_MANIFEST_NAME, SKIPPED_DIRECTORIES, 
 pub struct ScanReport {
     /// How many `package.json` files were read and checked.
     pub manifests_checked: usize,
-    /// Every finding, in walk order (sorted by path).
+    /// Every finding, sorted by path; the findings of one file keep the rule's own order.
     pub findings: Vec<Finding>,
-    /// Problems that kept a file from being checked at all (an unreadable file or directory).
+    /// Problems that kept a file from being checked at all (an unreadable file or directory), sorted.
     pub notes: Vec<String>,
 }
 
@@ -115,72 +118,117 @@ fn relative_path_text(root: &Path, path: &Path) -> String {
 }
 
 /// What:
+/// `fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanReport` checks one walk result and
+/// returns what it found as a small report of its own.
+/// Why:
+/// Each walker thread calls it without touching shared state, so the lock is held only to merge the small result.
+/// A file that cannot be read becomes a note, never a failure: the shadow's job is to advise, and a scan problem
+/// must not stop pnpm.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkWalkResult(root: string, result: DirEntry | Error): ScanReport
+/// ```
+fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanReport {
+    let mut report: ScanReport = ScanReport { manifests_checked: 0, findings: Vec::new(), notes: Vec::new() };
+    let entry: DirEntry = match result {
+        Ok(found) => found,
+        Err(error) => {
+            report.notes.push(format!("could not read part of the tree: {error}"));
+            return report;
+        }
+    };
+    let is_file: bool = match entry.file_type() {
+        Some(file_type) => file_type.is_file(),
+        None => false,
+    };
+    if !is_file {
+        return report;
+    }
+    let name = entry.file_name().to_string_lossy().to_string();
+    if !MANIFEST_NAMES.contains(&name.as_str()) {
+        return report;
+    }
+
+    let relative: String = relative_path_text(root, entry.path());
+
+    // Only `package.json` is read. The three other names are refused by name alone, and their bytes are never
+    // opened (the rule's contract).
+    if name != READ_MANIFEST_NAME {
+        if let Some(finding) = check_manifest_path(&relative) {
+            report.findings.push(finding);
+        }
+        return report;
+    }
+    match std::fs::read(entry.path()) {
+        Ok(bytes) => {
+            report.manifests_checked += 1;
+            report.findings.extend(check_manifest(&relative, &bytes));
+        }
+        Err(error) => {
+            report.notes.push(format!("could not read {relative}: {error}"));
+        }
+    }
+    return report;
+}
+
+/// What:
 /// `pub fn scan_workspace(root: &Path) -> ScanReport` walks the tree under `root` and checks every manifest.
 /// Why:
-/// One pass returns everything the warning needs. A file that cannot be read becomes a note, never a failure:
-/// the shadow's job is to advise, and a scan problem must not stop pnpm.
+/// One pass returns everything the warning needs. The walk is parallel because it is the whole cost of the scan:
+/// measured on this repository (about 22,500 entries, 257 manifests), the serial walk took a median of 79 ms and the
+/// parallel walk a median of 10 ms, alternating 30 rounds each (doc/handover/catalog-specifier-policy.md).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function scanWorkspace(root: string): ScanReport {
 ///   const report = { manifestsChecked: 0, findings: [], notes: [] };
-///   for (const entry of walk(root, { honorGitignore: true, skip: ['.git', 'node_modules'] })) { ... }
+///   await Promise.all(walk(root, { honorGitignore: true, skip: ['.git', 'node_modules'] }).map(entry => merge(report, checkEntry(entry))));
+///   report.findings.sort(byPath); report.notes.sort();
 ///   return report;
 /// }
 /// ```
 pub fn scan_workspace(root: &Path) -> ScanReport {
-    let mut report: ScanReport = ScanReport { manifests_checked: 0, findings: Vec::new(), notes: Vec::new() };
+    // What:     `Mutex<ScanReport>` is a value only one thread may touch at a time (a TS value behind a lock; sibling:
+    //           `RwLock`, which lets many readers in). Walker threads add to it by locking it for the short merge.
+    // Why:      The walker calls the visitor from several threads, and they all append to one report.
+    let shared: Mutex<ScanReport> =
+        Mutex::new(ScanReport { manifests_checked: 0, findings: Vec::new(), notes: Vec::new() });
 
     // The builder starts at `root`. `hidden(false)` also visits dot-directories (a tracked `.config/package.json`
     // is still a manifest). `require_git(false)` honors `.gitignore` even when the workspace is not a git checkout.
     // `git_global(false)` ignores the user's own global ignore file, so two people see the same tree.
-    // Sorting by path makes the report order the same on every run.
     let mut builder: WalkBuilder = WalkBuilder::new(root);
     builder.hidden(false);
     builder.require_git(false);
     builder.git_global(false);
-    builder.sort_by_file_path(|left, right| { return left.cmp(right); });
     builder.filter_entry(|entry| { return !is_skipped_directory(entry); });
 
-    for result in builder.build() {
-        let entry: DirEntry = match result {
-            Ok(found) => found,
-            Err(error) => {
-                report.notes.push(format!("could not read part of the tree: {error}"));
-                continue;
-            }
-        };
-        let is_file: bool = match entry.file_type() {
-            Some(file_type) => file_type.is_file(),
-            None => false,
-        };
-        if !is_file {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !MANIFEST_NAMES.contains(&name.as_str()) {
-            continue;
-        }
+    // `run` calls the outer closure once per walker thread to make that thread's visitor. The visitor borrows
+    // `root` and `shared`, which outlive the call, so no `Arc` is needed.
+    builder.build_parallel().run(|| {
+        return Box::new(|result| {
+            let partial: ScanReport = check_walk_result(root, result);
+            // A poisoned lock means another thread panicked while holding it; the report is still the best
+            // available, so the guard is taken from the error.
+            let mut guard = match shared.lock() {
+                Ok(held) => held,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            guard.manifests_checked += partial.manifests_checked;
+            guard.findings.extend(partial.findings);
+            guard.notes.extend(partial.notes);
+            return WalkState::Continue;
+        });
+    });
 
-        let relative: String = relative_path_text(root, entry.path());
-
-        // Only `package.json` is read. The three other names are refused by name alone, and their bytes are never
-        // opened (the rule's contract).
-        if name != READ_MANIFEST_NAME {
-            if let Some(finding) = check_manifest_path(&relative) {
-                report.findings.push(finding);
-            }
-            continue;
-        }
-        match std::fs::read(entry.path()) {
-            Ok(bytes) => {
-                report.manifests_checked += 1;
-                report.findings.extend(check_manifest(&relative, &bytes));
-            }
-            Err(error) => {
-                report.notes.push(format!("could not read {relative}: {error}"));
-            }
-        }
-    }
+    let mut report: ScanReport = match shared.into_inner() {
+        Ok(inner) => inner,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    // Threads finish in any order, so the report is sorted to be the same on every run. The sort is stable, so the
+    // findings of one file keep the rule's own order.
+    report.findings.sort_by(|left, right| { return left.path.cmp(&right.path); });
+    report.notes.sort();
     return report;
 }
