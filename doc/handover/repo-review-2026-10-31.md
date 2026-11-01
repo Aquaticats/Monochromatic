@@ -1950,6 +1950,21 @@ troubleshooting, slice-cache and corpus-pass keep running):
   its remaining tests, corpus-pass on its remaining modules, cc-docs at position
   423 onward.
 
+Wave-4 fiftieth checkpoint (2026-11-01, fm follow-on turn verified and relaunched; the other four
+lanes keep running):
+
+- `w4-fm-variant-qt` (fm-decision round 7) read positions 44 to 48 and 63:
+  rows `w4-docs-decision-056` to `-062` (split dotted names and quote spans,
+  sixteen escaped quotes inside inline code, one URL repeated 3 to 7 times as an
+  autolink, the vet-slint Cargo.toml citation landing on a PipeWire comment, the
+  jsonc scan.rs pointer on the error TSDoc, the vet-react-native grep of a
+  zero-tracked package, and the device-gate pre-gate plan). My spots confirm the
+  zero-tracked react-native grep and the jsonc pointer; ledger 62 of 62. Next:
+  position 49, id w4-docs-decision-063, base rr-fmv-64.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
