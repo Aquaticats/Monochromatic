@@ -86,6 +86,10 @@ const inputs = [
   'package/catalog-specifier/core-rust/Cargo.lock',
   'package/catalog-specifier/core-rust/src',
   'package/catalog-specifier/core-rust/fixtures',
+  // The subject and this package link the Markdown linter library; a library build reads its manifest and `src`.
+  'package/linter/monochromatic-lint/Cargo.toml',
+  'package/linter/monochromatic-lint/Cargo.lock',
+  'package/linter/monochromatic-lint/src',
   // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
   'package/forbidden-strings/cli/Cargo.toml',
   'package/forbidden-strings/cli/Cargo.lock',
