@@ -319,8 +319,9 @@ await describe({
     },),
 
     it({
-      name: 'NO MODEL OF THE CHECKER ORDER EDITS OR REFINES, so a checker\'s re-ask is never answered by a model that wrote '
-        + 'the text it checks, and an answer recorded as a checker\'s voice never weighs in full for text its answerer wrote',
+      name: 'THE STATIC EDITORS AND REFINERS ARE NOT IN THE CHECKER ORDER, so no static writer is also a checker; the '
+        + 'candidates that fill a dark place of those benches are held to the contract\'s overlap rule instead (ledger '
+        + 'B1333, which records that the answerer\'s own ballot is discounted whether or not the lists overlap)',
       fn: async () => {
         for (const modelId of RUN_CHECKER_ORDER) {
           expect(RUN_MODELS.editorModelIds.includes(modelId,),).toBe(false,);

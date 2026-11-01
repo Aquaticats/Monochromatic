@@ -534,10 +534,14 @@ await describe({
         // The same signal twice with the clock unmoved, then the foreground shape (a terminal is assumed to send
         // SIGINT to the wrapper and the pass alike; that delivery was not measured), the last one the instant before
         // the interval ends.
+        /**
+         The signals that arrive after the first, each of which the pass ignores and tells the operator it ignored.
+         */
+        const repeats = ['SIGTERM', 'SIGINT',] as const;
         source.emit('SIGTERM',);
-        source.emit('SIGTERM',);
+        source.emit(repeats[0],);
         clock.advance(SECOND_SIGNAL_MIN_GAP_MS - 1,);
-        source.emit('SIGINT',);
+        source.emit(repeats[1],);
         await setImmediate();
         // The entry has not shipped, so the handler is still waiting on it.
         expect(seen.order,).toEqual(['aborted',],);
@@ -566,7 +570,7 @@ await describe({
           .filter(function namesIgnored(line,): boolean {
             return line.includes('is ignored',);
           },);
-        expect(told.length,).toBe(2,);
+        expect(told.length,).toBe(repeats.length,);
         expect(told[1],).toContain(`SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,);
         for (const line of told) {
           expect(line,).toContain(`at least ${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms after the first`,);
@@ -583,6 +587,11 @@ await describe({
           console,
           'error',
         );
+        // THE LIMIT OF THIS STUB (ledger B1351): the default clock is `performance.now()` through the monotonic reader, which
+        // no argument of the pass reaches, so the case plants the global itself. The harness reads the same global for the
+        // duration of a case (`it.ts`) and of a suite (`describe.ts`): the suite runs its cases one at a time, so no other
+        // case reads the planted value, and the stub is restored when this case ends, but the duration the harness
+        // prints for this one case may be read through it.
         /**
          The reading `performance.now()` gives, which the default clock reads through the monotonic reader.
          */

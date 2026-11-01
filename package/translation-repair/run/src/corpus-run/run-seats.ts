@@ -262,32 +262,38 @@ export function judgeSeatsFor(
     },);
   }
   /**
+   Keeps a seat unless its only wet provider would have been OpenRouter, where the seat is withheld; the half of
+   {@link seated} that no hold of a role touches, so the writing benches read it beside the hold function a re-ask reads.
+
+   A SEAT WITHHELD ON OPENROUTER READS AS UNSERVED THERE since 2026-09-09 (`reachOf`), so the router can never re-route
+   it there mid-phase; what this reader withholds is the seat whose only wet provider would have been OpenRouter, which
+   is the same seat as before.
+
+   @param modelId - seat under question
+
+   @returns Whether OpenRouter is not the one wet provider that would have served it
+   */
+  function heldOffOpenRouterOnly(modelId: RosterModelId,): boolean {
+    /**
+     Whether OpenRouter is the one wet provider that would have served it.
+     */
+    const onlyOpenRouterWould = (servedBy(modelId,) === NO_PROVIDER)
+      && OPENROUTER_WITHHELD.has(modelId,)
+      && (!dry.openrouter);
+    return !onlyOpenRouterWould;
+  }
+  /**
    Keeps a seat unless the provider that would serve it is one the seat is
    withheld on.
-
-   A SEAT WITHHELD ON OPENROUTER READS AS UNSERVED THERE since 2026-09-09
-   (`reachOf`), so the router can never re-route it there mid-phase; what
-   this reader withholds is the seat whose only wet provider would have been
-   OpenRouter, which is the same seat as before.
 
    @param modelId - seat under question
 
    @returns Whether the seat is asked this phase
    */
   function seated(modelId: RosterModelId,): boolean {
-    /**
-     Where this model's calls would go.
-     */
-    const provider = servedBy(modelId,);
-    if ((provider === 'hyper') && HYPER_SLOW_JUDGES.has(modelId,))
+    if ((servedBy(modelId,) === 'hyper') && HYPER_SLOW_JUDGES.has(modelId,))
       return false;
-    /**
-     Whether OpenRouter is the one wet provider that would have served it.
-     */
-    const onlyOpenRouterWould = (provider === NO_PROVIDER)
-      && OPENROUTER_WITHHELD.has(modelId,)
-      && (!dry.openrouter);
-    return !onlyOpenRouterWould;
+    return heldOffOpenRouterOnly(modelId,);
   }
   /**
    Keeps a select seat unless Hyper would serve it and serves its slate
@@ -363,9 +369,11 @@ export function judgeSeatsFor(
     staticCheckers.length,
   );
   /**
-   Whether the run's seating would take a model in a writing role: served by a wet provider, not withheld on the
-   provider that would serve it, and not withheld from the role in this reading by the function a re-ask leaves its
-   alternates out by, so the bench and the re-ask cannot part (ledger B1330).
+   Whether the run's seating would take a model in a writing role: served by a wet provider, not a seat withheld on
+   OpenRouter alone, and not withheld from the role in this reading by the function a re-ask leaves its alternates out
+   by, so the editor and refiner benches and the re-ask cannot part (ledger B1330, B1349). The hold of `hyper-slow` is
+   read by that one function here and not again by {@link seated}; the wide, late and select benches read their own
+   card-derived sets, which the drift case of `seat-role-pool.unit.test.ts` holds to the same truth.
 
    @param role - writing role of the bench
 
@@ -382,7 +390,7 @@ export function judgeSeatsFor(
         dry,
       },);
       return served(modelId,)
-        && seated(modelId,)
+        && heldOffOpenRouterOnly(modelId,)
         && (!withheld);
     };
   }

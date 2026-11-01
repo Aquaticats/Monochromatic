@@ -180,6 +180,9 @@ export function handlingStopSignals(
          */
         const at = now();
         if (stopping.current !== undefined) {
+          // A PLAIN ERROR (ledger B1351): the family's invariant classes are each scoped to a package's own domain
+          // (`RenderingAuditInvariantError`, `UnhandledMemberInvariantError`, `ConsistencyInvariantError`,
+          // `DeliveryInvariantError`), and corpus-pass has none; the unreachable throws of the sibling modules are plain too.
           if (firstAt.ms === undefined)
             throw new Error('unreachable: a stop is under way and the time of the first signal was not recorded',);
           /**

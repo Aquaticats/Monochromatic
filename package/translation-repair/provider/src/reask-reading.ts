@@ -1,4 +1,7 @@
-import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type { ModelClient, } from './chat-contract.ts';
 import type { RouteTimeHoldsRule, } from './reask-alternate-models.ts';
@@ -39,6 +42,13 @@ export async function rulePastReading(
     readonly l: Logger;
   },
 ): Promise<RouteTimeHoldsRule> {
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const rl = tagged({
+    tag: rulePastReading.name,
+    l,
+  },);
   if (readDry === undefined)
     return { applied: 'always', };
   try {
@@ -50,7 +60,7 @@ export async function rulePastReading(
   catch (error) {
     if (signal.aborted)
       throw error;
-    l.warn(
+    rl.warn(
       `the budget view could not be read (${exchangeFailureLogText({ error, },)}); `
         + 'leaving out every model that carries a hold the run applies at seating time',
     );

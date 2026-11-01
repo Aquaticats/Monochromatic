@@ -14,7 +14,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { MIN_PROVIDER_CALLS, } from '@monochromatic-dev/translation-repair-shared-contract';
+import {
+  MIN_PROVIDER_CALLS,
+  ROLE_STANDINGS,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import * as providerExports from '../dist/final/node/index.mjs';
 import {
   alternateModelsFor,
@@ -293,9 +296,9 @@ await describe({
         + 'third for a refiner where Synthetic serves it and Hyper is dry, and is left out of both where the reading '
         + 'is unknown',
       fn: async () => {
-        for (const [role, position, bench,] of [
-          ['editor', 0, ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],],
-          ['refiner', 2, ['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash', 'minimax-m3',],],
+        for (const [role, bench,] of [
+          ['editor', ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],],
+          ['refiner', ['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash', 'minimax-m3',],],
         ] as const) {
           /**
            The question every case asks: a GLM runaway with the static seats of the role on the bench.
@@ -317,10 +320,24 @@ await describe({
           }
           // NO RULE GIVEN IS THE SAME AS THE STATIC ONE: a caller that never learned the reading withholds.
           expect(alternateModelsFor(asked,).alternates.includes(QWEN,),).toBe(false,);
+          /**
+           Models the owner's standing order for the role puts ahead of Qwen3.8-27B that the question leaves free to ask:
+           not the runaway and not on the bench. Where Synthetic serves Qwen3.8-27B it follows exactly these.
+           */
+          const standing = ROLE_STANDINGS[role].map(function modelOf(row,): string {
+            return row.modelId;
+          },);
+          const ahead = standing
+            .slice(0, standing.indexOf(QWEN,),)
+            .filter(function free(modelId,): boolean {
+              return (modelId !== asked.modelId) && (!bench.some(function isBenched(benched,): boolean {
+                return benched === modelId;
+              },));
+            },);
           expect(alternateModelsFor({
             ...asked,
             routeTimeHolds: { applied: 'in-reading', dry: SYNTHETIC_WET_ONLY, },
-          },).alternates.indexOf(QWEN,),).toBe(position,);
+          },).alternates.indexOf(QWEN,),).toBe(ahead.length,);
           /**
            The alternates of a caller that applies the reading itself.
            */
