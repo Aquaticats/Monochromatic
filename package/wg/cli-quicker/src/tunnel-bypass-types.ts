@@ -14,6 +14,10 @@ export type BypassOwnedRoute = {
 
   /**
    Exact displayed route tokens including ownership table and protocol.
+   A state file read back must carry a default route (or the unreachable fallback default)
+   whose `table` is the state's table and whose `proto` is the private protocol,
+   in plain tokens,
+   because the watcher deletes these routes as root.
    */
   readonly tokens: readonly string[];
 };

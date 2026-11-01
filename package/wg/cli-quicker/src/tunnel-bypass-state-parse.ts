@@ -1,8 +1,9 @@
 import { BypassStateError, } from './errors.ts';
 import { isValidInterfaceName, } from './interface-name.ts';
-import type {
-  BypassOwnedRoute,
-  BypassState,
+import {
+  BYPASS_ROUTE_PROTOCOL,
+  type BypassOwnedRoute,
+  type BypassState,
 } from './tunnel-bypass-types.ts';
 
 /**
@@ -101,28 +102,102 @@ function isUnknownArray(value: unknown,): value is readonly unknown[] {
 }
 
 /**
- Parses persisted route fingerprints.
- 
- @param value - Candidate route array.
- 
- @param path - State path named in diagnostics.
- 
- @returns Validated immutable route identities.
- 
- @throws {@link BypassStateError} when route shape is invalid.
- 
+ One route token as `ip route show` prints it:
+ an address, an interface name, a keyword or a number.
+ A token never starts with a dash, so `ip` cannot read it as an option,
+ and it holds no space, quote, glob or other shell or control character.
+ */
+const ROUTE_TOKEN = /^[\w.:%@/][\w.:%@/-]*$/u;
+
+/**
+ Checks that a persisted route is a bypass-owned default route of the claimed table.
+ The detached watcher, which runs as root, deletes these routes with `ip route delete <tokens>`,
+ and a state file can be written by whoever chose the runtime directory,
+ so the tokens may name only what this owner installed:
+ a default route (or the unreachable fallback default),
+ in the claimed table,
+ with the private protocol.
+
+ @param tokens - Candidate route tokens.
+
+ @param table - Table the state claims.
+
+ @returns Whether every token is plain,
+ the route starts as a default route,
+ every `table` key is followed by the claimed table,
+ every `proto` key is followed by the private protocol,
+ and both keys are present.
+
  @example
  ```ts
- parseOwnedRoutes({ value: [], path: '/tmp/state' });
+ isOwnedRouteShape({ tokens: ['default', 'dev', 'eth0', 'table', '52000', 'proto', '201'], table: 52_000 }); // true
+ ```
+ */
+function isOwnedRouteShape(
+  {
+    tokens,
+    table,
+  }: {
+    readonly tokens: readonly string[];
+    readonly table: number;
+  },
+): boolean {
+  if (!tokens.every(function isPlainToken(token,): boolean {
+    return ROUTE_TOKEN.test(token,);
+  },))
+    return false;
+  if ((tokens[0] !== 'default') && (!((tokens[0] === 'unreachable') && (tokens[1] === 'default'))))
+    return false;
+  /**
+   Values that follow each key, per key.
+   */
+  const tableValues = tokens.flatMap(function afterTable(token, index,): readonly string[] {
+    return token === 'table' ? [tokens[index + 1] ?? '',] : [];
+  },);
+  /**
+   Values that follow the protocol key.
+   */
+  const protocolValues = tokens.flatMap(function afterProtocol(token, index,): readonly string[] {
+    return token === 'proto' ? [tokens[index + 1] ?? '',] : [];
+  },);
+  return (tableValues.length > 0)
+    && tableValues.every(function isClaimedTable(value,): boolean {
+      return value === String(table,);
+    },)
+    && (protocolValues.length > 0)
+    && protocolValues.every(function isBypassProtocol(value,): boolean {
+      return value === String(BYPASS_ROUTE_PROTOCOL,);
+    },);
+}
+
+/**
+ Parses persisted route fingerprints.
+
+ @param value - Candidate route array.
+
+ @param path - State path named in diagnostics.
+
+ @param table - Table the state claims,
+ which every route must name.
+
+ @returns Validated immutable route identities.
+
+ @throws {@link BypassStateError} when route shape is invalid.
+
+ @example
+ ```ts
+ parseOwnedRoutes({ value: [], path: '/tmp/state', table: 52_000 });
  ```
  */
 function parseOwnedRoutes(
   {
     value,
     path,
+    table,
   }: {
     readonly value: unknown;
     readonly path: string;
+    readonly table: number;
   },
 ): readonly BypassOwnedRoute[] {
   if (!isUnknownArray(value,))
@@ -141,7 +216,11 @@ function parseOwnedRoutes(
       || (!route.tokens
         .every(function stringToken(token,): token is string {
           return (typeof token) === 'string';
-        },))) {
+        },))
+      || (!isOwnedRouteShape({
+        tokens: route.tokens,
+        table,
+      },))) {
       throw new BypassStateError(`Invalid application-bypass route state: ${path}`,);
     }
     routes.push({
@@ -244,6 +323,7 @@ export function parseBypassState(
     routes: parseOwnedRoutes({
       value: value.routes,
       path,
+      table: value.table,
     },),
   };
 }

@@ -29,10 +29,15 @@ is refused with an error that shows the name.
 The route watcher reads an interface name back from the state file in the runtime directory
 and puts it into commands that run as root,
 such as `resolvectl dns <name>` and `wg show <name>`.
-That directory can be chosen by the caller (`WG_QUICKER_RUNTIME_DIRECTORY` crosses `sudo`),
-so the state file is not trusted:
+`WG_QUICKER_RUNTIME_DIRECTORY` does not cross `sudo` into the root run,
+so the caller cannot choose that directory for it;
+a disposable fixture sets the variable inside the root command.
+The state file is still not trusted, because whoever can write the directory can write the file:
 the name in it must pass the same rule,
 and a state file with another name is refused.
+The routes in it are deleted as root, so each must be a default route (or the unreachable fallback default)
+of the claimed table with the private route protocol `201`, in plain tokens with no option;
+a state file with any other route is refused.
 The other places that read a name back do not trust it either:
 the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
 and every other name comes from the config,
@@ -171,11 +176,12 @@ Without a system-firewall override,
 `wg-quicker` follows `FwOptions.ConfigPath` from the selected daemon config.
 Custom deployments can set `WG_QUICKER_OPENSNITCH_DAEMON_CONFIG`;
 `WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG` takes precedence over `FwOptions.ConfigPath` when both are set.
-System-firewall paths,
-daemon-config overrides,
-and `WG_QUICKER_RUNTIME_DIRECTORY` must be absolute so separate lifecycle invocations cannot resolve different
-files or state.
-The overrides cross the sudo boundary through the validated private caller-context file.
+System-firewall paths
+and daemon-config overrides must be absolute so separate lifecycle invocations cannot resolve different
+files,
+and so must `WG_QUICKER_RUNTIME_DIRECTORY` where it is set.
+The OpenSnitch overrides cross the sudo boundary through the validated private caller-context file;
+`WG_QUICKER_RUNTIME_DIRECTORY` does not.
 The runtime `flock` serializes wg-quicker writers only;
 avoid editing the same OpenSnitch system-firewall file concurrently through its UI.
 See
@@ -610,6 +616,13 @@ and adds no rule of its own:
   a packet a guest sends is the original direction of its flow,
   and so is a packet from an update host that starts a flow,
   so neither passes any more.
+  Two forged packets from a guest can still make a "reply" in the tracker:
+  one that opens a flow towards the update host's address, and one that carries that address as its source.
+  The reply rules therefore also match `iifname` of the physical default interfaces of their address family,
+  where a real reply arrives and a guest's packet does not.
+  The interfaces are the `dev` of the routes that the bypass table copies from the main table,
+  read from the ownership state when the block is installed.
+  A family with no physical default interface gets no reply rule.
   The rules do not match the state of the connection (`ct state established,related`),
   because that would also pass the guests' flows that were bound for the tunnel once the routing is gone.
   The rule needs the connection tracker,

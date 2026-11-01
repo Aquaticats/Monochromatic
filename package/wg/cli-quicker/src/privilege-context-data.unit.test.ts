@@ -16,7 +16,6 @@ const VALID_CONTEXT = {
     WG_ALLOWEDIPS_CACHE_DIRECTORY: '/home/caller/.cache/allowedips',
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/etc/opensnitchd/default-config.json',
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/etc/opensnitchd/system-fw.json',
-    WG_QUICKER_RUNTIME_DIRECTORY: '/run/wg-quicker',
     XDG_CACHE_HOME: '/home/caller/.cache',
   },
   uid: 1_000,
@@ -92,6 +91,17 @@ const INVALID_CONTEXTS = [
       environment: {
         ...VALID_CONTEXT.environment,
         WG_QUICKER_CALLER_PATH: '/home/caller/bin:/usr/bin',
+      },
+    },),
+    diagnostic: 'environment is invalid',
+  },
+  {
+    name: 'a runtime directory, which would let the caller choose the state directory that the root run reads and deletes routes from',
+    text: JSON.stringify({
+      ...VALID_CONTEXT,
+      environment: {
+        ...VALID_CONTEXT.environment,
+        WG_QUICKER_RUNTIME_DIRECTORY: '/home/caller/state',
       },
     },),
     diagnostic: 'environment is invalid',
