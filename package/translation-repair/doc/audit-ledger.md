@@ -882,8 +882,10 @@ named for that subject and listed here.
   the lock read the selector does run (B1311),
   the counts of the answer-schema move (B1312),
   the cases and removals that hold every name of the `package-reads` scan (B1313),
-  the pin on the listed read (B1314)
-  and the nits (B1315).
+  the pin on the listed read (B1314),
+  the nits (B1315),
+  the whole suite at the head and the cache versions (B1316)
+  and the slips with what stays open (B1317).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

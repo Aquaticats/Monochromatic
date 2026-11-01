@@ -634,6 +634,8 @@ which lists every file of this record.
 - [B1313, every name the package-reads scan holds has a case, and each was switched off](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1314, the listed lock read is pinned by its expression](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1315, the nits of the re-check](audit-ledger-tests-read-only-what-their-package-declares.md)
+- [B1316, the whole source-scan suite at the head, and the cache versions](audit-ledger-tests-read-only-what-their-package-declares.md)
+- [B1317, the slips of round w405 and what stays open](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

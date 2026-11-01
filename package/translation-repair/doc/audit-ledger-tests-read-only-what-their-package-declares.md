@@ -501,7 +501,10 @@ Open:
   on the docs commit,
   and was red on two scans;
   after the fix those two and three more passed alone,
-  and the whole suite was not run on the final head.
+  and the whole suite was not run on the final head
+  (closed by round w405,
+  which ran it at its own head:
+  B1316).
 - The hand-back lists the gates run.
 
 ## B1310: the gate runs the whole `source-scan` suite, and the `source-scans` task lists every scan
@@ -779,3 +782,110 @@ and a rewrite of it into a constant changes the expression and so fails.
   `doc/decision/translation-repair-direct-providers.md` names the same test for the cases that stayed
   (the schemas read through the Claude body),
   so it needs no note.
+
+## B1316: the whole `source-scan` suite at the head, and the cache versions
+
+The whole `test:unit` of `source-scan` ran once on `cf5718e687`,
+the head of the code and the docs of the round:
+78 `[PASS]` lines from the 68 test files,
+no `[FAIL]` or `[error]` line,
+and a zero exit
+(`whole-source-scan-cf5718e687.txt` in the agent folder).
+The log holds the suites this round touches or reads by name:
+`tests read no package they do not declare`,
+`scan comparisons that cut what they found`,
+`COMMAND_LINES`,
+`Markdown docs past the line limit`,
+`the imports of the five prompt-keyed cache keys`,
+`headers of the shown-text word test`,
+`Audit ledger entry ids`,
+`the Markdown linter over the family's living docs`
+and `the search of the family's source for answer schemas`.
+The open item of B1272 (the suite not run on the final head of round w402) is closed;
+the head run here contains `1c812977a9`.
+
+The commit that records this entry changes the ledger and its two indexes only.
+The scans that read the docs ran alone after it
+(`markdown-lint-clean`,
+`ledger-ids-unique`,
+`doc-line-limit`,
+`position-references`,
+`living-doc-links`,
+`trailing-whitespace`,
+`task-list-numbers` and `clock-time-zones`),
+and passed.
+
+Cache versions (step 4 of `mistake-prevention.md`; M25 and M28):
+none moves.
+`git diff --name-only 1c812977a9 HEAD` at `cf5718e687` lists 15 files,
+all of them one of:
+a Markdown doc or README,
+the task file of `source-scan`,
+or a test of `source-scan`.
+`source-scan` holds no production code and no stage,
+and no `*-cache-version.ts`,
+sheet,
+floor,
+house rule or prose range changed,
+so no key can read a different value.
+
+## B1317: the slips of round w405 and what stays open
+
+Slips:
+
+- The first commands of the round ran without the keyless wrapper
+  (reads of the tree with `git`,
+  `rg`,
+  `sed`,
+  `ls`,
+  `cat`,
+  `nproc` and `free`,
+  none of which reads a key);
+  the wrapper was used from the build on.
+- One command joined `cat` and `ls` with `;` and named a path under `/tmp/claude-1000/`,
+  which the brief forbids reading;
+  the harness refused it and nothing was read.
+- One `rg` of two paths,
+  one of which did not exist,
+  ended in `|| true`,
+  which hid its exit code.
+- The first build was started with `&` inside a command that was already run in the background,
+  and its PID was not kept;
+  it was not waited for with `tail --pid` but found finished when its log was read (24.77 s).
+- Several `rg` calls cut long lines with `--max-columns`,
+  a cap on columns and not on matches;
+  the lines that mattered were read again whole.
+- A `sed --quiet '1,12p'` named three files
+  and printed the first lines of the first only;
+  the others were read with the Read tool.
+- A `git checkout -- <file>` of the typography test was refused by the git guard,
+  since the tree held other uncommitted edits;
+  the file was edited back and `git status --short` showed it unmodified.
+- The red evidence for the detectors is 81 scratch copies of the scan run alone,
+  and 2 of them run again after two new cases,
+  in 12 calls of up to 8 files each,
+  every copy deleted after its call.
+  They are not full-suite runs and add no synthetic load,
+  but they are many.
+- `tsdoc-leading-articles` found one `@param` description of the new helper that opened with an article,
+  when run alone before the whole run;
+  the fix is `cf5718e687`.
+  The first Markdown of the round also had four commas followed by more text on the same line,
+  which `markdown-lint-clean` found;
+  they were fixed before the docs commit.
+- Two `Edit` calls named a file the session had not read and were refused; nothing changed.
+- The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites
+  `doc/audit/standards-review-gate-shadow.md`;
+  that file shows as modified in the tree and was neither edited nor committed by this round.
+
+Open:
+
+- The lock read of B1270 (a decision for the owner, B1311).
+- The built-output reads of B1270.
+- `slice-cache:cache-account-audit` was not run (B1271); no file it reads changed in this round.
+- The gate selector the docs describe (B1310, B1311) is a file of the lead outside this repository.
+  The entries state its rule as read on this date,
+  and a change to it makes them stale.
+- The five test files left off the `source-scans` task (B1310) are tests of a helper or a tool;
+  a scan added in the future that reads the family belongs on the list,
+  and `scan-direct-comparisons` fails the list if a file on it reads nothing.
