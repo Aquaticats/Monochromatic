@@ -1087,6 +1087,22 @@ each finished branch is reviewed and merged into `main`):
   NotFound as done,
   prune and the global forward,
   a stale `current` in the winning root.
+  Fixed 2026-11-01,
+  tip `39be20e06b` (473 tests passed;
+  lint exit 0;
+  clippy clean;
+  10 guard removals each failed a named test;
+  the reviewer's sibling-link probe replayed with real cargo and git,
+  nothing dangled):
+  `$CARGO_HOME/bin` searched for links;
+  the forward made before removal and recomputed at apply time;
+  `cargo uninstall --root R --bin B -- <crate>` with the prefix gate at apply time;
+  another run's removal counted as done;
+  `prune --toolchain` never prunes a version another root's `current` forwards into;
+  every install repairs the winning root's `current`;
+  the owner's "Delete it" recorded in the README and the decision record.
+  Final re-check of `313a81668e..39be20e06b` running;
+  a clean result releases it under the 0.2.1 rule.
 - Switch fixes reported 2026-11-01,
   tip `3adda252e7` (`5adc06997f` code and tests,
   `3adda252e7` docs):
