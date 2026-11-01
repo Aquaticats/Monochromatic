@@ -843,6 +843,12 @@ alternating runs on a 400-row transcript),
 so the async flag saves little on Claude
 (where the sync stop-reminder waits on the event anyway),
 and saves the scan at every codex turn end.
+The teardown risk is measured, not hypothetical:
+after the flip,
+a one-shot `codex exec` recorded only its `PreToolUse` and `PostToolUse`
+legs and dropped the `Stop` record,
+while a `claude -p` run recorded all five legs including `Stop`
+(both with disposable logs under `~/temp/agent/hook-async-verify/`).
 Async hook invocations overlap,
 so the shadow log's read,
 deduplicate,
