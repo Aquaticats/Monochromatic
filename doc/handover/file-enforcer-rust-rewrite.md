@@ -1232,6 +1232,52 @@ each finished branch is reviewed and merged into `main`):
   then the Docker removal (#35) and the Depot removal (#36),
   the global plan conversion,
   and a real `prepare:playwright` pull.
+- After the cutover merge (2026-11-01):
+  - `mise run toolchain:install` in `main` ran as the unit `cutover-toolchain-install`
+    (log `${HOME}/temp/agent/cutover-backup/install.log`;
+    backups of `cli-git-native`,
+    `mpm-shadow`,
+    `.crates.toml` and `.crates2.json` beside it):
+    "18 installed, 46 unchanged, 0 failed".
+    The bootstrap found only 0.2.1 and fetched and checked the lock's 0.2.2.
+    146 links re-pointed across every checkout,
+    then five old copies removed from `~/.cargo/bin`
+    (`cli-git-native`,
+    `monochromatic-lint`,
+    `monochromatic-nested-wayland-session`,
+    `mpm-shadow`,
+    `search-shadow`).
+    `git --version` works;
+    `~/.local/bin/git` points to `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/current/bin/cli-git-native`;
+    `.cache/toolchain-bin/mpm-shadow` prints `mpm-shadow 0.2.2`.
+    `inspect:language-toolchain` no longer exists;
+    `toolchain:list` replaces it.
+  - CI on `d2036021e2`:
+    `advisory-core`,
+    `npm-release`,
+    Scorecard and the readonly semantic bridge passed.
+    `pnpr-publish` (zip-writer-core build),
+    `forbidden-strings` (changed-file scan hits the package's own rule data)
+    and `env-local-json` (reader container matrix) failed,
+    and each also failed before the cutover
+    (`pnpr-publish` and `env-local-json` on 2026-10-31,
+    `forbidden-strings` on every push since at least `8fe3c6c96f`).
+    Sent to a CI-fix agent (#37) under the owner's "Fix even pre-existing issues."
+  - Global plan conversion sent to an agent under the owner's 2026-10-31 delegation.
+    Owner 2026-11-01 on the global `depot` CLI:
+    "Drop it, and drop the depot skills for agents too."
+    The four skills (`depot-ci`,
+    `depot-container-builds`,
+    `depot-general`,
+    `depot-github-runners`,
+    installed from `depot/skills` on 2026-10-15)
+    were removed with `pnpm dlx skills@latest remove --global ... --yes`:
+    `~/.agents/skills/` folders and `~/.claude/skills/` links gone,
+    `~/.agents/.skill-lock.json` 38 to 34 entries
+    (backup `${HOME}/temp/agent/skills-remove/skill-lock.before.json`).
+  - Owner 2026-11-01 on the two Depot-only workflows:
+    "Delete both" (`current-baseline.yml`, `admission-gate.yml` and their lint-config entries);
+    sent to the Docker and Depot removal agent.
 - Owner 2026-11-01:
   "If nothing can be proven to depend on anything docker, remove it."
   Measured keeps:
