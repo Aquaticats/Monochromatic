@@ -703,7 +703,10 @@ The user confirmed the shared understanding and the order below, after the third
   Trusted Publishing was created through the crates.io API with the token's `trusted-publishing` scope, printing statuses only:
   config `30143`, owner `Aquaticats` (id 343218767), repository `Monochromatic`, workflow `cargo-publish.yml`, no environment; the
   listing shows exactly one row.
-  Not exercised: a Trusted Publishing run from CI (a dispatch with dry-run off would authenticate and skip the upload).
+  Trusted Publishing exercised: the dispatch `gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-catalog-specifier
+  -f dry-run=false` (run `41274797417`) concluded `success`; `cs-detect` and `cs-publish-crate` succeeded, including
+  `Authenticate with crates.io (Trusted Publishing)` and `Publish (skips if this version is already on crates.io)`, with
+  `Publish (dry run)` skipped. The step log text of the skip notice was not read; the step conclusions are the evidence.
   Owner action remaining: revoke the token `monochromatic-catalog-specifier-bootstrap` at https://crates.io/settings/tokens; the
   agent then runs `cargo logout`.
   `monochromatic-7a` was told the crate is published and given the API, the pin form and the remaining policy work.
