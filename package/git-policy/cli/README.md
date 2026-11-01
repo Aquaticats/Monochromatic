@@ -649,7 +649,7 @@ fractional or non-numeric value is ignored.
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints").
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
-   default `600`.
+   default `30`.
   How long the push after a landed commit may run before it is stopped.
   The commit stays saved,
    the failure is reported,

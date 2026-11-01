@@ -655,7 +655,7 @@ and distinct on case-insensitive filesystems.
 - No step of auto-push waits without a bound.
   The push runs under a deadline,
   `CLI_GIT_PUSH_DEADLINE_SECONDS` whole seconds,
-  600 by default;
+  30 by default;
   a zero,
   negative,
   fractional or non-numeric value is ignored.
