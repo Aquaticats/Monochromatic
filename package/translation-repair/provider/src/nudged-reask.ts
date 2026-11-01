@@ -16,6 +16,7 @@ import type {
   ChatJsonRequest,
   ChatTextReply,
   ChatTextRequest,
+  ModelClient,
 } from './chat-contract.ts';
 import {
   readJsonOutcome,
@@ -26,6 +27,7 @@ import {
   describeLeftOut,
 } from './reask-alternate-models.ts';
 import { measuresModelOf, } from './reask-mode.ts';
+import { rulePastReading, } from './reask-reading.ts';
 import {
   releaseFor,
   takenFor,
@@ -190,6 +192,10 @@ export function isReasoningRunaway<ValueT,>(
  @param ask - performs the nudged exchange, through whatever claims and
  stores the caller keeps
 
+ @param readDry - reads which providers are dry now, so that the models the run withholds from the seat's role in this
+ reading are left out of the alternates and a model Synthetic serves is not (ledger B1330); absent where the caller
+ knows no reading, which leaves out every model with a hold applied at seating time
+
  @returns Re-ask's outcome when it is usable, else the first outcome
 
  @throws the re-ask's error when the caller's own signal aborted it
@@ -207,10 +213,12 @@ export async function reaskElsewhereNudged<ValueT,>(
     request,
     first,
     ask,
+    readDry,
   }: {
     readonly request: ForeignBorrowed<ChatJsonRequest<ValueT>>;
     readonly first: FirstAnswer<ValueT>;
     readonly ask: (nudged: ForeignBorrowed<ChatTextRequest>,) => Promise<ChatTextReply>;
+    readonly readDry?: ModelClient['providerDryness'];
   },
 ): Promise<ChatJsonOutcome<ValueT>> {
   /**
@@ -302,6 +310,11 @@ export async function reaskElsewhereNudged<ValueT,>(
       role: reaskSeat.role,
       bench: reaskSeat.bench,
       askedForOtherSeats: takenFor({ seat: reaskSeat, },),
+      routeTimeHolds: await rulePastReading({
+        readDry,
+        signal: request.signal,
+        l: ol,
+      },),
     },);
     // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines
     // of the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).

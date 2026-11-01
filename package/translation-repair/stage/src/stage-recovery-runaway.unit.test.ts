@@ -41,6 +41,7 @@ import {
   SEAT_HYPER_TEXT_BEDROCK,
   SEAT_HYPER_VISION,
   SEAT_OPENROUTER_ONLY,
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import {
@@ -49,6 +50,11 @@ import {
   type MeowReply,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import {
+  type DrynessReading,
+  HYPER_WET_ONLY,
+  SYNTHETIC_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 
 //region Recovery runaway tests
 
@@ -108,14 +114,18 @@ function scriptedClient(
     noProvider,
     transportFails,
     cutAfterExchange,
+    dryness,
   }: {
     readonly seen: SeenAsk[];
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails: readonly RosterModelId[];
     readonly cutAfterExchange: readonly RosterModelId[];
+    readonly dryness?: DrynessReading;
   },
 ): ModelClient {
   return {
+    // A client that carries the run's dryness view, as the run's own client does (ledger B1330).
+    ...((dryness === undefined) ? {} : { providerDryness: async () => dryness, }),
     chatText: async () => {
       throw new Error('chatText unused',);
     },
@@ -203,6 +213,8 @@ type RunawayRun = {
 
  @param askedInstead - model an earlier re-ask for the seat already went to
 
+ @param dryness - reading of the meters the client reports, when it reports one
+
  @returns What the round asked, returned and logged
 
  @example
@@ -219,12 +231,14 @@ async function recoverRunaway(
     // neither the role nor the bench were written under.
     reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
     askedInstead,
+    dryness,
   }: {
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails?: readonly RosterModelId[];
     readonly cutAfterExchange?: readonly RosterModelId[];
     readonly reaskSeat?: ReaskSeat;
     readonly askedInstead?: RosterModelId;
+    readonly dryness?: DrynessReading;
   },
 ): Promise<RunawayRun> {
   /**
@@ -247,6 +261,7 @@ async function recoverRunaway(
         noProvider,
         transportFails,
         cutAfterExchange,
+        ...((dryness === undefined) ? {} : { dryness, }),
       },),
       messages: [{ role: 'user', content: STAGE_PROMPT, },],
       signal: new AbortController().signal,
@@ -400,6 +415,42 @@ await describe({
         expect(run.seen.map(function modelOf(seen,) {
           return seen.modelId;
         },),).toEqual([SEAT_BEDROCK_ONLY_TEXT,],);
+      },
+    },),
+
+    it({
+      name: 'ASKS QWEN3.8-27B FOR A RUNAWAY EDITOR ONLY WHERE THE CLIENT\'S READING HAS SYNTHETIC SERVING IT (ledger B1330): '
+        + 'it is first where Synthetic serves it, never asked where Hyper would, and left out with hyper-slow named where '
+        + 'the client reports no reading',
+      fn: async () => {
+        /**
+         The first model asked for a runaway editor seat, and the log's account of the models left out.
+         */
+        async function firstOf(
+          dryness: DrynessReading | undefined,
+        ): Promise<{ readonly first: RosterModelId | undefined; readonly leftOut: string; }> {
+          const run = await recoverRunaway({
+            noProvider: [],
+            reaskSeat: {
+              role: 'editor',
+              reask: 'other-model',
+              bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', RUNAWAY_SEAT,],
+            },
+            ...((dryness === undefined) ? {} : { dryness, }),
+          },);
+          return {
+            first: run.seen[0]?.modelId,
+            leftOut: run.lines.find(function isLeftOut(line,): boolean {
+              return line.includes('left out:',);
+            },) ?? '',
+          };
+        }
+        expect((await firstOf(SYNTHETIC_WET_ONLY,)).first,).toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+        for (const dryness of [HYPER_WET_ONLY, undefined,] as const) {
+          const { first, leftOut, } = await firstOf(dryness,);
+          expect(first,).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+          expect(leftOut,).toContain(`${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} (held out of the editor role by hyper-slow)`,);
+        }
       },
     },),
 

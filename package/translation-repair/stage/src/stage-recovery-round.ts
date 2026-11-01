@@ -11,6 +11,7 @@ import {
   measuresModelOf,
   type ReaskSeat,
   releaseFor,
+  rulePastReading,
   takenFor,
   takeFor,
 } from '@monochromatic-dev/translation-repair-provider/ts';
@@ -214,6 +215,14 @@ async function recoverRunaway<ValueT,>(
     bench,
     askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
     askedForOtherSeats: takenFor({ seat: named, },),
+    // A MODEL THE RUN WITHHOLDS FROM THE SEAT'S ROLE IN THE READING IS NOT AN ALTERNATE (ledger B1330): the client's
+    // dryness view says where Hyper would serve a model, so Qwen3.8-27B is left out of an editor's alternates then and
+    // not where Synthetic serves it; a client with no view leaves out every model with such a hold.
+    routeTimeHolds: await rulePastReading({
+      readDry: roundRequest.client.providerDryness,
+      signal: roundRequest.signal,
+      l: rl,
+    },),
   },);
   // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines of
   // the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).

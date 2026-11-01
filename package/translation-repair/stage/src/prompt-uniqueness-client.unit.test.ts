@@ -35,6 +35,10 @@ import {
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import {
+  HYPER_WET_ONLY,
+  SYNTHETIC_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 
 /**
  Guard accepting any string, so a quoted JSON string is a usable answer and
@@ -431,6 +435,28 @@ await describe({
           return request.modelId;
         },),).toEqual([REQUEST.modelId, next,],);
         expect(outcome.kind === 'ok' ? outcome.answeredBy : 'not ok',).toBe(next,);
+      },
+    },),
+
+    it({
+      name: 'RE-ASKS A RUNAWAY EDITOR OF QWEN3.8-27B ONLY WHERE THE DRYNESS READ HANDED IN HAS SYNTHETIC SERVING IT (ledger '
+        + 'B1330), and never where it has Hyper serving it',
+      fn: async () => {
+        for (const [dry, asksQwen,] of [[SYNTHETIC_WET_ONLY, true,], [HYPER_WET_ONLY, false,],] as const) {
+          /** Every request that crossed the wrapper, in order. */
+          const asked: ChatTextRequest[] = [];
+          const client = promptUniqueClient({ inner: runawayThenAnswer({ asked, },), readDry: async () => dry, },);
+          await client.chatJson({
+            ...REQUEST,
+            validate: isStringAnswer,
+            reaskSeat: {
+              role: 'editor',
+              reask: 'other-model',
+              bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', REQUEST.modelId,],
+            },
+          },);
+          expect(asked[1]?.modelId === 'hf:Qwen/Qwen3.8-27B',).toBe(asksQwen,);
+        }
       },
     },),
 

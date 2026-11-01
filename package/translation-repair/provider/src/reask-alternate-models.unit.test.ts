@@ -22,6 +22,10 @@ import {
   RUNAWAY_READINGS,
 } from '../dist/final/node/index.mjs';
 import {
+  HYPER_WET_ONLY,
+  SYNTHETIC_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
+import {
   SEAT_BEDROCK_ONLY_TEXT,
   SEAT_BEDROCK_ONLY_VISION_UNSEATED,
   SEAT_HYPER_ONLY,
@@ -38,6 +42,11 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 
 //region Re-ask alternate model tests
+
+/**
+ Qwen3.8-27B, the one model whose card holds `hyper-slow`.
+ */
+const QWEN = SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
 
 /**
  The order the census of 2026-10-30 gives every chat model other than `deepseek-v4.1-flash`, before any hold or bench
@@ -253,6 +262,7 @@ await describe({
           modelId: 'hf:zai-org/GLM-5.3-Flash',
           role: 'editor',
           bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],
+          routeTimeHolds: { applied: 'in-reading', dry: SYNTHETIC_WET_ONLY, },
         },).alternates,).toEqual([
           'hf:Qwen/Qwen3.8-27B',
           'hf:moonshotai/Kimi-K3',
@@ -265,6 +275,7 @@ await describe({
           modelId: 'hf:zai-org/GLM-5.3-Flash',
           role: 'refiner',
           bench: ['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash', 'minimax-m3',],
+          routeTimeHolds: { applied: 'in-reading', dry: SYNTHETIC_WET_ONLY, },
         },).alternates,).toEqual([
           'glm-5.3',
           'hf:moonshotai/Kimi-K3',
@@ -273,6 +284,45 @@ await describe({
           'google.gemma-4-e2b',
           'inception/mercury-2.5',
         ],);
+      },
+    },),
+
+    it({
+      name: 'NEVER ASKS A MODEL THE RUN WITHHOLDS FROM AN EDITOR OR REFINER SEAT (ledger B1330): Qwen3.8-27B is left out of both '
+        + 'roles with hyper-slow named where the reading has Hyper serving it, is first for an editor and third for a '
+        + 'refiner where Synthetic serves it and Hyper is dry, and is left out of both where the reading is unknown',
+      fn: async () => {
+        for (const [role, position, bench,] of [
+          ['editor', 0, ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],],
+          ['refiner', 2, ['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash', 'minimax-m3',],],
+        ] as const) {
+          /**
+           The question every case asks: a GLM runaway with the static seats of the role on the bench.
+           */
+          const asked = {
+            modelId: 'hf:zai-org/GLM-5.3-Flash',
+            role,
+            bench,
+          } as const;
+          for (const routeTimeHolds of [
+            { applied: 'always', },
+            { applied: 'in-reading', dry: HYPER_WET_ONLY, },
+          ] as const) {
+            const withheld = alternateModelsFor({ ...asked, routeTimeHolds, },);
+            expect(withheld.alternates.includes(QWEN,),).toBe(false,);
+            expect(withheld.leftOut.find(function isQwen(left,): boolean {
+              return left.modelId === QWEN;
+            },)?.why,).toBe(`held out of the ${role} role by hyper-slow`,);
+          }
+          // NO RULE GIVEN IS THE SAME AS THE STATIC ONE: a caller that never learned the reading withholds.
+          expect(alternateModelsFor(asked,).alternates.includes(QWEN,),).toBe(false,);
+          expect(alternateModelsFor({
+            ...asked,
+            routeTimeHolds: { applied: 'in-reading', dry: SYNTHETIC_WET_ONLY, },
+          },).alternates.indexOf(QWEN,),).toBe(position,);
+          expect(alternateModelsFor({ ...asked, routeTimeHolds: { applied: 'by-the-caller', }, },).alternates.includes(QWEN,),)
+            .toBe(true,);
+        }
       },
     },),
 

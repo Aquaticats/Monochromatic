@@ -27,8 +27,11 @@ import {
   type RosterModelId,
   type SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
+  alternateModelsFor,
   type BudgetView,
+  isWithheldFromRole,
   NO_PROVIDER,
   providerServing,
   reachOf,
@@ -229,6 +232,11 @@ await describe({
           // order that one serves and the run does not withhold, so the bench changes with the reading. What stays true
           // is the pool: every seat of a derived bench is a static seat or a model of the role's pool (no hold of a
           // card keeps it out), and a static seat is only ever moved behind the backfill, never dropped while served.
+          //
+          // AND THE RE-ASK (ledger B1330): a model the reading withholds from the role is on no derived bench and is no
+          // alternate of the role in that reading, a model it does not withhold and that is on no bench is an alternate
+          // (so Qwen3.8-27B is not dropped from every re-ask), and the function that says which is the one the roster
+          // bench of the same reading agrees with.
           for (const [role, listed, derived,] of [
             ['editor', RUN_MODELS.editorModelIds, seats.repairModels.editorModelIds,],
             ['refiner', RUN_MODELS.refinerModelIds, seats.repairModels.refinerModelIds,],
@@ -239,6 +247,46 @@ await describe({
               return providerServing({ reach: reachOf({ modelId: listedId, },), dry, },) !== NO_PROVIDER;
             },))
               expect(derived,).toContain(modelId,);
+            /**
+             Models a re-ask of a seat of the role may ask in this reading.
+             */
+            const { alternates, } = alternateModelsFor({
+              modelId: nonNullishOrThrow(listed[0],),
+              role,
+              bench: derived,
+              routeTimeHolds: { applied: 'in-reading', dry, },
+            },);
+            for (const modelId of rolePoolOf({ role, },).filter(function offBench(poolModel,): boolean {
+              return (!derived.includes(poolModel,)) && (poolModel !== listed[0]) && (MODEL_CARDS[poolModel].anthropic === undefined)
+                && (!isDecisionSeat({ modelId: poolModel, },));
+            },)) {
+              /**
+               Whether the reading withholds the model from the role.
+               */
+              const withheld = isWithheldFromRole({
+                modelId,
+                role,
+                dry,
+              },);
+              if (withheld && alternates.includes(modelId,))
+                findings.push(`${role}: ${modelId} is withheld by the reading but a re-ask may ask it (dry ${JSON.stringify(dry,)})`,);
+              if ((!withheld) && (!alternates.includes(modelId,)))
+                findings.push(`${role}: ${modelId} is not withheld by the reading but no re-ask asks it (dry ${JSON.stringify(dry,)})`,);
+              if (withheld && derived.includes(modelId,))
+                findings.push(`${role}: ${modelId} is withheld by the reading but the bench seats it (dry ${JSON.stringify(dry,)})`,);
+            }
+            // NOT KNOWING THE READING WITHHOLDS EVERY MODEL THAT CARRIES A HOLD APPLIED AT SEATING TIME.
+            for (const modelId of reaskPoolOf({ role, },))
+              expect(MODEL_CARDS[modelId].holds.includes('hyper-slow',),).toBe(false,);
+          }
+          // THE ONE FUNCTION AGREES WITH THE ROSTER BENCH: a model a wet provider serves is on the roster bench of the
+          // reading exactly when the function does not withhold it from the roster role.
+          for (const modelId of rolePoolOf({ role: 'roster', },).filter(function served(poolModel,): boolean {
+            return (providerServing({ reach: reachOf({ modelId: poolModel, },), dry, },) !== NO_PROVIDER)
+              && (!isDecisionSeat({ modelId: poolModel, },));
+          },)) {
+            if (seats.roster.includes(modelId,) === isWithheldFromRole({ modelId, role: 'roster', dry, },))
+              findings.push(`roster: ${modelId} is on the bench exactly when the function withholds it (dry ${JSON.stringify(dry,)})`,);
           }
           for (const [role, listed, derived,] of benches) {
             for (const modelId of listed.filter(function withheld(listedId,): boolean {

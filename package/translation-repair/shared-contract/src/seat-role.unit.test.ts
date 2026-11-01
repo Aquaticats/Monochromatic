@@ -22,6 +22,7 @@ import {
   reaskPoolOf,
   rolePoolOf,
   ROSTER_MODEL_IDS,
+  routeTimeHoldsOf,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
   type SeatRole,
@@ -195,11 +196,15 @@ await describe({
     },),
 
     it({
-      name: 'THE RE-ASK POOL LEAVES OUT THE MODELS THE RUN WITHHOLDS AT SEATING TIME, Qwen3.8-27B from every role but the '
-        + 'editors and refiners and Kimi-K3 from the select and slate seats only (ledger B1143)',
+      name: 'THE RE-ASK POOL LEAVES OUT THE MODELS THE RUN WITHHOLDS AT SEATING TIME, Qwen3.8-27B from every role, the '
+        + 'editors and refiners included, and Kimi-K3 from the select and slate seats only (ledger B1143, B1330)',
       fn: async () => {
         for (const role of SEAT_ROLES) {
-          expect(reaskPoolOf({ role, },).includes('hf:Qwen/Qwen3.8-27B',),).toBe((role === 'editor') || (role === 'refiner'),);
+          expect(reaskPoolOf({ role, },).includes('hf:Qwen/Qwen3.8-27B',),).toBe(false,);
+        }
+        for (const role of ['editor', 'refiner',] as const) {
+          expect(rolePoolOf({ role, },).includes('hf:Qwen/Qwen3.8-27B',),).toBe(true,);
+          expect(routeTimeHoldsOf({ role, },),).toEqual(['hyper-slow',],);
         }
         expect(reaskPoolOf({ role: 'select-judge', },).includes('hf:moonshotai/Kimi-K3',),).toBe(false,);
         expect(reaskPoolOf({ role: 'slate-judge', },).includes('hf:moonshotai/Kimi-K3',),).toBe(false,);

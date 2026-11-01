@@ -33,6 +33,10 @@ import {
   infoLinesDuring,
   warnLinesDuring,
 } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
+import {
+  HYPER_WET_ONLY,
+  SYNTHETIC_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 import { quotingFailure, } from '@monochromatic-dev/translation-repair-test-fixture/ts/quoting-failure.test-fixture.ts';
 import {
   SEAT_BEDROCK_ONLY_TEXT,
@@ -823,6 +827,48 @@ await describe({
             throw new EveryProviderDryError({ measured: 'fixture', },);
           },
         },),).rejects.toThrow(EveryProviderDryError,);
+      },
+    },),
+
+    it({
+      name: 'LEAVES QWEN3.8-27B OUT OF AN EDITOR\'S ALTERNATES WHILE THE READING HAS HYPER SERVING IT, asks it first where '
+        + 'Synthetic serves it, and leaves it out where the client reads no dryness (ledger B1330)',
+      fn: async () => {
+        /**
+         The first model each reading asks for a runaway editor seat.
+         */
+        const firstAsked: Record<string, RosterModelId | undefined> = {};
+        for (const [reading, readDry,] of [
+          ['hyper wet', async () => HYPER_WET_ONLY,],
+          ['synthetic wet', async () => SYNTHETIC_WET_ONLY,],
+          ['no view', undefined,],
+        ] as const) {
+          /**
+           Models the re-ask asked, in order.
+           */
+          const asked: RosterModelId[] = [];
+          await reaskElsewhereNudged({
+            request: {
+              ...RUNAWAY_REQUEST,
+              reaskSeat: {
+                role: 'editor',
+                reask: 'other-model',
+                bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', SEAT_HYPER_OPENROUTER_UNMEASURED,],
+              },
+            },
+            first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+            ask: async (nudged,) => {
+              asked.push(nudged.modelId,);
+              return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+            },
+            ...((readDry === undefined) ? {} : { readDry, }),
+          },);
+          firstAsked[reading] = asked[0];
+        }
+        expect(firstAsked['synthetic wet'],).toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+        expect(firstAsked['hyper wet'],).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+        expect(firstAsked['no view'],).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+        expect(firstAsked['hyper wet'],).toBeDefined();
       },
     },),
   ],

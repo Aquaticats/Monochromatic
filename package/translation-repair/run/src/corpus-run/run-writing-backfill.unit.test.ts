@@ -22,6 +22,7 @@ import {
   isDecisionSeat,
   MEASURED_CHECKER_ORDER,
   MODEL_CARDS,
+  reaskPoolOf,
   rolePoolOf,
   type RosterModelId,
   standingOrderOf,
@@ -124,6 +125,17 @@ await describe({
           },
         },),
         it({
+          name: 'KEEPS QWEN3.8-27B AS A CANDIDATE, first for an editor and in the order of the owner for a refiner, '
+            + 'although the run withholds it while Hyper serves it: the reading decides whether the bench seats it '
+            + '(ledger B1330), where a re-ask that knows no reading leaves it out',
+          fn: async () => {
+            expect(EDITOR_BACKFILL_ORDER[0],).toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+            expect(REFINER_BACKFILL_ORDER,).toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+            expect(reaskPoolOf({ role: 'editor', },),).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+            expect(reaskPoolOf({ role: 'refiner', },),).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+          },
+        },),
+        it({
           name: 'LEAVES OUT EVERY STATIC SEAT, so a seat is never both on the bench and a stand-in for itself',
           fn: async () => {
             for (const modelId of RUN_MODELS.editorModelIds)
@@ -173,6 +185,28 @@ await describe({
             expect(bench[0],).toBe(keptSeat,);
             expect(backfilled,).toEqual(REFINER_BACKFILL_ORDER.slice(0, STATIC_REFINERS.length - 1,),);
             expect(bench.slice(1,),).toEqual(backfilled,);
+          },
+        },),
+        it({
+          name: 'DROPS A STATIC SEAT THE READING WITHHOLDS AND FILLS ITS PLACE FROM THE ROLE ORDER (ledger B1330): a hold is '
+            + 'honoured for a hand-picked seat as for a candidate, so a served static seat that is not seatable is not '
+            + 'on the bench and is not put last either',
+          fn: async () => {
+            const [withheldSeat,] = STATIC_REFINERS;
+            expect(withheldSeat,).toBeDefined();
+            const { bench, backfilled, } = writingBenchFor({
+              staticSeats: STATIC_REFINERS,
+              backfillOrder: REFINER_BACKFILL_ORDER,
+              served: () => true,
+              seatable: function notTheFirstStatic(modelId: RosterModelId,): boolean {
+                return modelId !== withheldSeat;
+              },
+              checkers: MEASURED_CHECKER_ORDER,
+              selfCertificationPermitted: true,
+            },);
+            expect(bench,).not.toContain(withheldSeat,);
+            expect(bench.length,).toBe(STATIC_REFINERS.length,);
+            expect(backfilled,).toEqual(REFINER_BACKFILL_ORDER.slice(0, 1,),);
           },
         },),
         it({

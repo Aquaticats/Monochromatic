@@ -6,6 +6,7 @@ import type {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { Decider, } from './decision-contract.ts';
+import type { BudgetView, } from './provider-budget.ts';
 import type { ReaskClaims, } from './reask-claims.ts';
 import type {
   ProviderName,
@@ -596,6 +597,16 @@ export type ModelClient = ModelCaller & {
    Current quota snapshot; free per provider docs.
    */
   readonly quotas: (args: { readonly signal: AbortSignal; },) => Promise<QuotaSnapshot>;
+
+  /**
+   Which providers are out of budget right now, holds folded in, as the router itself sees them. Present on the run's
+   client (`RunClient` in the run package declares it required), absent on a provider's own client and on a test double.
+
+   READ BY THE RE-ASK OF A REASONING RUNAWAY, which leaves out of the alternates the models the run withholds from the
+   seat's role in this reading (ledger B1330); a client that carries none gets the pool that leaves out every model with
+   a hold applied at seating time.
+   */
+  readonly providerDryness?: (args: { readonly signal: AbortSignal; },) => Promise<BudgetView>;
 };
 
 //endregion Chat contract

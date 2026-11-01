@@ -1,13 +1,18 @@
 import {
-  reaskHoldsKeepingOutOf,
+  holdsKeepingOutOf,
   isDecisionSeat,
   MODEL_CARDS,
+  reaskHoldsKeepingOutOf,
   reaskPoolOf,
+  rolePoolOf,
   ROSTER_MODEL_IDS,
   type RosterModelId,
+  type SeatHold,
   type SeatRole,
   standingOrderOf,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { BudgetView, } from './provider-budget.ts';
+import { routeTimeHoldsInReading, } from './reask-withheld.ts';
 import {
   RUNAWAY_READINGS,
   type RunawayReading,
@@ -34,6 +39,13 @@ import {
 // keep out, and for the checker role only the models the checker benchmark measured in, the list the run seats its
 // checkers from (ledger B1100, the lead's ruling of 2026-10-31). A model the measurements put out of a role is never its
 // alternate.
+//
+// A MODEL THE RUN WITHHOLDS FROM A ROLE IN A READING IS NEVER ITS ALTERNATE EITHER (ledger B1330), the editors and
+// refiners included. The holds applied at seating time (`hyper-slow`, `hyper-slow-select`) keep a model out of a bench
+// only while Hyper would serve it, so a caller that knows the reading hands it over (`routeTimeHolds`) and the pool
+// leaves out only the models that reading withholds, by the one function the backfill reads too
+// (`routeTimeHoldsInReading` in `reask-withheld.ts`). A caller that does not know it gets the pool that leaves out every
+// such model, so a withheld model is never asked on a guess.
 //
 // BENCH: A MODEL SEATED ON THE QUESTION IS NOT ASKED (the lead's adoption of 2026-10-30 from "one judge alone never
 // decides", 2026-10-25, "Two judges must name it", 2026-10-25, and `roster-id.ts` on one model in two seats). The
@@ -96,6 +108,83 @@ export type AlternateModels = {
 };
 
 /**
+ How the holds a run applies at seating time (`hyper-slow`, `hyper-slow-select`) reach the pool of a re-ask.
+
+ - `always`: the pool leaves out every model that carries such a hold the role honours, whatever the reading. This is
+   the rule of a caller that does not know the reading, and it is the default: a withheld model is never asked.
+ - `in-reading`: the pool leaves out only the models the reading withholds, which is the models that carry the hold while
+   Hyper is the provider that would serve them, so a model Synthetic serves stays in the pool.
+ - `by-the-caller`: the pool leaves out none, for a caller that applies the reading itself to each candidate (the
+   backfill of the writing benches asks the run's seating).
+
+ @example
+ ```ts
+ const rule: RouteTimeHoldsRule = { applied: 'in-reading', dry, };
+ ```
+ */
+export type RouteTimeHoldsRule =
+  | { readonly applied: 'always'; }
+  | { readonly applied: 'in-reading'; readonly dry: BudgetView; }
+  | { readonly applied: 'by-the-caller'; };
+
+/**
+ The rule of a caller that does not know the reading: every hold applied at seating time keeps its model out.
+ */
+const ALWAYS_HOLDS: RouteTimeHoldsRule = { applied: 'always', };
+
+/**
+ The holds of a candidate's card that keep it out of a role under a rule.
+
+ @param candidate - model under question
+
+ @param role - role of the seat that ran away
+
+ @param rule - how the holds applied at seating time are read
+
+ @returns Holds the role honours, bench holds first
+
+ @example
+ ```ts
+ const holds = holdsUnder({ candidate: 'hf:Qwen/Qwen3.8-27B', role: 'editor', rule: { applied: 'always', }, },);
+ ```
+ */
+function holdsUnder(
+  {
+    candidate,
+    role,
+    rule,
+  }: {
+    readonly candidate: RosterModelId;
+    readonly role: SeatRole;
+    readonly rule: RouteTimeHoldsRule;
+  },
+): readonly SeatHold[] {
+  if (rule.applied === 'always') {
+    return reaskHoldsKeepingOutOf({
+      modelId: candidate,
+      role,
+    },);
+  }
+  /**
+   Holds of the role's bench that the candidate's card carries.
+   */
+  const benchHolds = holdsKeepingOutOf({
+    modelId: candidate,
+    role,
+  },);
+  if (rule.applied === 'by-the-caller')
+    return benchHolds;
+  return [
+    ...benchHolds,
+    ...routeTimeHoldsInReading({
+      modelId: candidate,
+      role,
+      dry: rule.dry,
+    },),
+  ];
+}
+
+/**
  Reasons a chat model that is not the runaway cannot take its re-ask.
 
  @param candidate - model to check
@@ -110,11 +199,13 @@ export type AlternateModels = {
 
  @param askedForOtherSeats - models already asked for other seats of the question
 
+ @param rule - how the holds applied at seating time are read
+
  @returns Reasons, in the order bench, earlier ask, ask for another seat, pool; empty where the model may be asked
 
  @example
  ```ts
- const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', pool: [], bench: [], askedAlready: [], askedForOtherSeats: [], },);
+ const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', pool: [], bench: [], askedAlready: [], askedForOtherSeats: [], rule: { applied: 'always', }, },);
  ```
  */
 function reasonsToLeaveOut(
@@ -125,6 +216,7 @@ function reasonsToLeaveOut(
     bench,
     askedAlready,
     askedForOtherSeats,
+    rule,
   }: {
     readonly candidate: RosterModelId;
     readonly role: SeatRole;
@@ -132,14 +224,16 @@ function reasonsToLeaveOut(
     readonly bench: readonly RosterModelId[];
     readonly askedAlready: readonly RosterModelId[];
     readonly askedForOtherSeats: readonly RosterModelId[];
+    readonly rule: RouteTimeHoldsRule;
   },
 ): readonly string[] {
   /**
    Holds of the candidate's card that the role honours.
    */
-  const holds = reaskHoldsKeepingOutOf({
-    modelId: candidate,
+  const holds = holdsUnder({
+    candidate,
     role,
+    rule,
   },);
   return [
     ...(bench.includes(candidate,) ? ['seated on the bench of this question',] : []),
@@ -305,6 +399,10 @@ function alternateOrderOf(
 
  @param readings - census table the order is read from
 
+ @param routeTimeHolds - how the holds applied at seating time reach the pool: every such hold, whatever the reading (the
+ default, for a caller that does not know it), only the holds the reading applies, or none because the caller applies the
+ reading itself (ledger B1330)
+
  @returns Chat models other than it that its seat's role may take, that are not on the metered Claude route and not on
  the bench, ordered by share of runaways; empty only where the pool, the bench and the earlier asks leave no model
 
@@ -321,6 +419,7 @@ export function alternateModelsFor(
     askedAlready = [],
     askedForOtherSeats = [],
     readings = RUNAWAY_READINGS,
+    routeTimeHolds = ALWAYS_HOLDS,
   }: {
     readonly modelId: RosterModelId;
     readonly role: SeatRole;
@@ -328,6 +427,7 @@ export function alternateModelsFor(
     readonly askedAlready?: readonly RosterModelId[];
     readonly askedForOtherSeats?: readonly RosterModelId[];
     readonly readings?: readonly RunawayReading[];
+    readonly routeTimeHolds?: RouteTimeHoldsRule;
   },
 ): AlternateModels {
   /**
@@ -342,9 +442,21 @@ export function alternateModelsFor(
   },);
 
   /**
-   Models the role may take, which the candidates must be among.
+   Models the role may take, which the candidates must be among: the pool of the role less the models the rule keeps out
+   of it.
    */
-  const pool = reaskPoolOf({ role, },);
+  const pool = (routeTimeHolds.applied === 'always')
+    ? reaskPoolOf({ role, },)
+    : rolePoolOf({ role, },)
+      .filter(function notHeld(poolModel,): boolean {
+        return holdsUnder({
+          candidate: poolModel,
+          role,
+          rule: routeTimeHolds,
+        },)
+          .length
+          === 0;
+      },);
 
   /**
    Each candidate beside the reasons it cannot be asked.
@@ -360,6 +472,7 @@ export function alternateModelsFor(
       bench,
       askedAlready,
       askedForOtherSeats,
+      rule: routeTimeHolds,
     },);
     return {
       modelId: candidate,

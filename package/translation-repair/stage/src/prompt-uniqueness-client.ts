@@ -167,6 +167,10 @@ export function modelPromptDigest(
  asks of every other model it names, since that re-ask is made here, beneath that client (ledger B1162); it throws
  `NoProviderForModelError` for a model the run withheld, and the re-ask goes on to the next model
 
+ @param readDry - reads which providers are dry now, which the re-ask of a reasoning runaway leaves the models the run
+ withholds from the seat's role in this reading out by (ledger B1330); absent, it leaves out every model with a hold the
+ run applies at seating time
+
  @returns Client enforcing model-prompt uniqueness by reuse
 
  @example
@@ -179,10 +183,12 @@ export function promptUniqueClient(
     inner,
     store,
     refuseSeat,
+    readDry,
   }: ForeignBorrowed<{
     readonly inner: ModelClient;
     readonly store?: PromptPayloadStore;
     readonly refuseSeat?: (refusing: { readonly modelId: RosterModelId; },) => void;
+    readonly readDry?: ModelClient['providerDryness'];
   }>,
 ): ModelClient {
   /**
@@ -278,6 +284,7 @@ export function promptUniqueClient(
       // like the first ask and a resumed run replays both.
       return await reaskElsewhereNudged({
         request,
+        ...((readDry === undefined) ? {} : { readDry, }),
         first: {
           reply,
           outcome: readJsonOutcome({

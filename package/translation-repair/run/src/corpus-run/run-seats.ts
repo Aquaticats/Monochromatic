@@ -1,5 +1,6 @@
 import {
   type BudgetView,
+  isWithheldFromRole,
   NO_PROVIDER,
   OPENROUTER_WITHHELD,
   providerServing,
@@ -20,6 +21,7 @@ import {
   EDITOR_BACKFILL_ORDER,
   REFINER_BACKFILL_ORDER,
   type WritingBackfill,
+  type WritingRole,
   writingBenchFor,
 } from './run-writing-backfill.ts';
 import {
@@ -361,15 +363,22 @@ export function judgeSeatsFor(
     staticCheckers.length,
   );
   /**
-   Whether the run's seating would take a model: served by a wet provider, and not withheld on the provider that would
-   serve it.
+   Whether the run's seating would take a model in a writing role: served by a wet provider, not withheld on the provider
+   that would serve it, and not withheld from the role in this reading by the function a re-ask leaves its alternates
+   out by, so the bench and the re-ask cannot part (ledger B1330).
 
-   @param modelId - candidate under question
+   @param role - writing role of the bench
 
-   @returns True when the reading seats it
+   @returns Predicate that is true when the reading seats a candidate in the role
    */
-  function writable(modelId: RosterModelId,): boolean {
-    return served(modelId,) && seated(modelId,);
+  function writableIn(role: WritingRole,): (modelId: RosterModelId,) => boolean {
+    return function writable(modelId: RosterModelId,): boolean {
+      return served(modelId,) && seated(modelId,) && (!isWithheldFromRole({
+        modelId,
+        role,
+        dry,
+      },));
+    };
   }
   /**
    The editor bench: the static editors a wet provider serves, then the next models of the owner's role order that
@@ -380,7 +389,7 @@ export function judgeSeatsFor(
     staticSeats: RUN_MODELS.editorModelIds,
     backfillOrder: EDITOR_BACKFILL_ORDER,
     served,
-    seatable: writable,
+    seatable: writableIn('editor',),
     checkers,
     selfCertificationPermitted: RUN_MODELS.checkerSelfCertificationPermitted,
   },);
@@ -391,7 +400,7 @@ export function judgeSeatsFor(
     staticSeats: RUN_MODELS.refinerModelIds,
     backfillOrder: REFINER_BACKFILL_ORDER,
     served,
-    seatable: writable,
+    seatable: writableIn('refiner',),
     checkers,
     selfCertificationPermitted: RUN_MODELS.checkerSelfCertificationPermitted,
   },);

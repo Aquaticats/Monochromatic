@@ -33,12 +33,15 @@ import {
 // here ({@link MEASURED_CHECKER_ORDER}) and which `run-config.ts` takes its `RUN_CHECKER_ORDER` from, so the bench
 // and the re-ask read one list. Every other role's pool is the roster less the models its holds keep out.
 //
-// HOLDS OF A ROUTE ARE NOT IN THE BENCH TABLE: `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld` keep a
-// model off a provider, which the router reads at the call; a re-ask is routed like a first ask, so the router refuses
-// them for it too. `hyper-slow` and `hyper-slow-select` are different: only `run-seats.ts` reads them, as a filter of the
-// benches it derives at each phase, and the router does not. They are therefore written as the holds a re-ask
-// honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`), and the pool a re-ask draws from leaves those models out (ledger
-// B1143); a drift test in the run package fails when the pool and a derived bench part in any reading of the meters.
+// HOLDS OF A ROUTE ARE NOT IN THE BENCH TABLE: `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld`
+// keep a model off a provider, which the router reads at the call; a re-ask is routed like a first ask, so the router
+// refuses them for it too. `hyper-slow` and `hyper-slow-select` are different: only the run reads them, as a filter of
+// the benches it derives at each phase, and the router does not. They are therefore written as the holds a re-ask
+// honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`) for EVERY role, the editors and refiners included (ledger
+// B1330: a withheld model is never a role's alternate). The pool a re-ask draws from leaves those models out when it
+// does not know the reading, and `alternateModelsFor` in the provider package applies them in a reading it is given,
+// where a model is withheld only while Hyper would serve it. A drift test in the run package fails when the pool and
+// a derived bench part in any reading of the meters.
 
 /**
  Every role a re-ask can be asked in, widest first.
@@ -237,16 +240,17 @@ export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly R
  The holds the run applies when it seats a role that depend on which provider would serve the model, which a re-ask of
  that role honours as well (ledger B1143), written once per role.
 
- `hyper-slow` is applied by `run-seats.ts` to every seat it derives from the roster, and since 2026-11-01 to the candidates
- that fill the dark places of the editor and refiner benches too (`run-writing-backfill.ts`, ledger B1283); it does not
- filter the static editors and refiners, none of which holds it. The entries of the editor and refiner roles stay empty here
- because this record also decides the re-ask pool, whose order the owner chose on 2026-10-31 with Qwen3.8-27B first for
- an editor, so the backfill withholds a model that a re-ask may still ask, which is the owner's to settle (ledger B1283);
- `hyper-slow-select` only to the select and slate seats. The run withholds such a
- model from a bench while Hyper would serve it and seats it otherwise, so it is either on the bench (and a re-ask leaves
- the bench out) or withheld (and must not be asked): out of the re-ask pool in both readings. `openrouter-dropped`,
- `openrouter-withheld` and `synthetic-withheld` need no entry: the router refuses a call to a model on a route those holds
- close, with `NoProviderForModelError`, and a re-ask moves on to the next model.
+ `hyper-slow` is applied by `run-seats.ts` to every seat it derives from the roster, and since 2026-11-01 to the
+ candidates that fill the dark places of the editor and refiner benches too (`run-writing-backfill.ts`, ledger B1283);
+ `hyper-slow-select` only to the select and slate seats. The editor and refiner roles carry `hyper-slow` here since
+ round w406 (ledger B1330): the owner's answer "Honour holds (Recommended)" makes a withheld model never a role's
+ alternate, and the entries had been left empty because this record also decides the re-ask pool, whose order the owner
+ chose on 2026-10-31 with Qwen3.8-27B first for an editor. The order stays: where the reading is known the model is
+ left out only in a reading that withholds it. The run withholds such a model from a bench while Hyper would serve it
+ and seats it otherwise, so it is either on the bench (and a re-ask leaves the bench out) or withheld (and must not be
+ asked): out of the re-ask pool in both readings. `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld`
+ need no entry: the router refuses a call to a model on a route those holds close, with `NoProviderForModelError`,
+ and a re-ask moves on to the next model.
  */
 const ROUTE_TIME_HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
   roster: ['hyper-slow',],
@@ -264,9 +268,26 @@ const ROUTE_TIME_HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> 
   ],
   reader: ['hyper-slow',],
   checker: ['hyper-slow',],
-  editor: [],
-  refiner: [],
+  editor: ['hyper-slow',],
+  refiner: ['hyper-slow',],
 };
+
+/**
+ The holds a role honours at seating time, which depend on the provider that would serve the model, in the order a model
+ is checked against them.
+
+ @param role - role of the seat
+
+ @returns `hyper-slow` for every role, and `hyper-slow-select` too for the select and slate seats
+
+ @example
+ ```ts
+ const holds = routeTimeHoldsOf({ role: 'select-judge', },); // ['hyper-slow', 'hyper-slow-select']
+ ```
+ */
+export function routeTimeHoldsOf({ role, }: { readonly role: SeatRole; },): readonly SeatHold[] {
+  return ROUTE_TIME_HOLDS_OF_ROLE[role];
+}
 
 /**
  The holds of a model's card that keep a re-ask from asking it in a role: those that keep it off the role's bench, then

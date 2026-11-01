@@ -155,6 +155,7 @@ export {
   MEASURED_CHECKER_ORDER,
   reaskPoolOf,
   rolePoolOf,
+  routeTimeHoldsOf,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
   type SeatRole,

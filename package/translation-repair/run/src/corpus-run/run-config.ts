@@ -1225,6 +1225,20 @@ export function runClientWithFloors(
     }`,
   );
 
+  /**
+   Which providers are dry now, holds folded in, as the router sees them.
+
+   @param args - the caller's abort signal
+
+   @returns Dryness per provider
+   */
+  async function readDryness({ signal, }: { readonly signal: AbortSignal; },): Promise<BudgetView> {
+    return foldCredentialHolds({
+      dry: await budgets.read({ signal, },),
+      holds: credentialHolds,
+    },);
+  }
+
   return {
     // THE TALLY SITS OUTSIDE THE UNIQUENESS WRAPPER (ledger P6), where a JSON
     // call settles as the outcome its caller gets. Inside it, the tally saw
@@ -1250,6 +1264,9 @@ export function runClientWithFloors(
           tally: RUN_SEATS,
           minAsks: SEAT_WITHHOLD_ASKS,
         },),
+        // THE READING THE ALTERNATES ARE LEFT OUT BY (ledger B1330): a model the run withholds from the seat's role while
+        // Hyper would serve it is not an alternate, and one Synthetic serves is.
+        readDry: readDryness,
       },),
       tally: RUN_SEATS,
       // A SEAT THAT THREW ON EVERY ASK IS WITHHELD: refused at this door, and
@@ -1260,12 +1277,7 @@ export function runClientWithFloors(
     // THE VIEW THE SEAT READERS AND BENCHES ARE DERIVED FROM READS A PROVIDER
     // WHOSE CREDENTIAL WAS REFUSED AS DRY: its meter reads money left and says
     // nothing of whether the key is accepted (zheermao19).
-    providerDryness: async function providerDryness({ signal, },): Promise<BudgetView> {
-      return foldCredentialHolds({
-        dry: await budgets.read({ signal, },),
-        holds: credentialHolds,
-      },);
-    },
+    providerDryness: readDryness,
     providerMeterStates: budgets.readStates,
     providerHolds: budgets.holds,
     futileReturns: budgets.futileReturns,

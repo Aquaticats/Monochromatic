@@ -22,7 +22,13 @@ export {
   alternateModelsFor,
   describeLeftOut,
   type LeftOutModel,
+  type RouteTimeHoldsRule,
 } from './reask-alternate-models.ts';
+export { rulePastReading, } from './reask-reading.ts';
+export {
+  isWithheldFromRole,
+  routeTimeHoldsInReading,
+} from './reask-withheld.ts';
 export {
   createReaskClaims,
   type ReaskClaims,

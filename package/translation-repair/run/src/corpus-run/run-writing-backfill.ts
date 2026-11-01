@@ -126,6 +126,10 @@ export function backfillOrderOf(
     modelId: standingIn,
     role,
     bench: staticSeats,
+    // THE READING DECIDES, NOT THE ORDER: a model withheld while Hyper would serve it (Qwen3.8-27B) stays a candidate,
+    // and `writingBenchFor` asks the run's seating, with the same function a re-ask leaves its alternates out by
+    // (`routeTimeHoldsInReading`), whether the reading seats it (ledger B1330).
+    routeTimeHolds: { applied: 'by-the-caller', },
   },)
     .alternates;
 }
@@ -149,8 +153,9 @@ export const REFINER_BACKFILL_ORDER: readonly RosterModelId[] = backfillOrderOf(
 /**
  Derives one writing bench for one reading.
 
- THE STATIC SEATS ARE NOT FILTERED BY `seatable`: they are the owner's hand-picked first choice, and none of them is
- withheld by a reading today. Only the candidates from the role order are asked whether the run seats them.
+ THE STATIC SEATS ARE FILTERED BY `seatable` TOO (ledger B1330): a hold is honoured for every model of a bench, the
+ owner's hand-picked first choice included, although no static seat is withheld by a reading today. A static seat a wet
+ provider serves and the reading withholds leaves its place open for the role order, as one no provider serves does.
 
  @param staticSeats - static bench of the role, whose size is the width
 
@@ -190,9 +195,11 @@ export function writingBenchFor(
   },
 ): WritingBench {
   /**
-   Static seats a wet provider serves, in the static order.
+   Static seats a wet provider serves and the reading seats, in the static order.
    */
-  const servedSeats = staticSeats.filter(served,);
+  const servedSeats = staticSeats.filter(function isSeated(modelId,): boolean {
+    return served(modelId,) && seatable(modelId,);
+  },);
   /**
    Places the served static seats leave open.
    */
