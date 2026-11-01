@@ -673,6 +673,26 @@ The user confirmed the shared understanding and the order below, after the third
   naming the config key (this lands with the policy work); lifecycle runs keep skipping `off` policies.
   This answers the third review's vacuous-pass finding for the planned CI step once that change lands.
 
+- 2026-11-01, step 2 built: crate `monochromatic-catalog-specifier` 0.1.0 at `package/catalog-specifier/core-rust`
+  (commits `d3a44a3f6a`, `9cb8b4b9a3`): `finding.rs`, `grammar.rs`, `check.rs`, README contract, `fixtures/vectors.json`.
+  24 nextest tests passed in debug mode; clippy with warnings denied initially failed on `implicit_return` for closures
+  (fixed by replacing closures with loops) and then passed.
+  The user said mutation runs do not block publish and release, so publication is not held for them.
+  Mutation guard check (`~/temp/agent/catalog-specifier-mutations.ts`, 13 intended mutations against the committed sources, each
+  restored from its original bytes; the tree was clean afterwards):
+  8 were killed by failing tests (peer star, widened `workspace:*`, duplicate names, duplicate sections, byte order mark, peer
+  section dropped, lone surrogate accepted, unsupported bytes still read); 1 survived (a non-string finding whose path was blanked,
+  because no test asserted that path); 1 counted as killed only by a compile error (removing `package.yml` from a fixed-size array
+  changed its type), so it did not exercise the test; 3 were skipped because their pattern matched twice.
+  I added a test asserting the path, section and name of a non-string finding, which covers the survivor; the compile-error mutation
+  and the three skipped ones were not re-run.
+  Publication steps prepared, not run: `publish` and `publish:dry-run` mise tasks, and jobs `cs-detect` and `cs-publish-crate`
+  (plus the dispatch choice and the push path) in `.github/workflows/cargo-publish.yml`, copied from the `xe-*` jobs; they are not
+  chained to other crates because the only dependency, `monochromatic-jsonc-edit` 0.1.2, is already on crates.io (measured today).
+  The first publish of a new crate needs the owner's personal crates.io token (`doc/runbook/publish-crate-first-time.md`: the
+  agent cannot create one, and a stored token answered 403 in earlier sessions), then Trusted Publishing is created by API as for the
+  other crates. That is the current blocker for step 2's publication.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
