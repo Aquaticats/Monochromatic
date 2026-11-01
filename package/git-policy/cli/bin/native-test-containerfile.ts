@@ -1,11 +1,7 @@
 /**
- Containerfile text of the gate's test image: the linter and `strace` stages, then the source snapshot, the vendored
+ Containerfile text of the gate's test image: the `strace` stage, then the source snapshot, the vendored
  crates, and a first offline compile so later runs rebuild only what changed.
  */
-import {
-  linterCopyLines,
-  linterStageLines,
-} from './native-linter-snapshot.ts';
 import { nextestCopyLines, } from './native-nextest-snapshot.ts';
 import {
   straceCopyLines,
@@ -34,8 +30,6 @@ export function testContainerfile({
   readonly jobs: number;
 },): string {
   return [
-    // The Markdown policy's linter is built from this snapshot in its own stage; only its executable is kept.
-    ...linterStageLines({ base }),
     // The fault-injection controls run the wrapper under `strace`; without it they report and check nothing.
     ...straceStageLines({
       base,
@@ -44,7 +38,6 @@ export function testContainerfile({
     `FROM ${base}`,
     ...nextestCopyLines(),
     ...straceCopyLines(),
-    ...linterCopyLines(),
     'COPY package /work/package',
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.
     'COPY --chown=1000:1000 vendor /work/vendor',

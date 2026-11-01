@@ -22,7 +22,6 @@ import {
 } from './container-limits.ts';
 import {
   linterSnapshotEntries,
-  vendorLinterDependencies,
 } from './native-linter-snapshot.ts';
 import { copyNextest, } from './native-nextest-snapshot.ts';
 import {
@@ -213,7 +212,6 @@ const evidence = await mkdtemp(join(
 const base = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a';
 await copySourceSnapshot({ context: context.path });
 await vendorLockedDependencies({ context: context.path });
-await vendorLinterDependencies({ context: context.path });
 await copyNextest({ context: context.path });
 await copyStraceSource({ context: context.path });
 await writeFile(

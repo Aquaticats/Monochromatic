@@ -56,8 +56,9 @@ The optional policies (`markdown/autofix`,
 A no-config invocation therefore runs the built-ins only.
 
 The forbidden-strings scanner is linked into the executable and needs no separate installation.
-`markdown/autofix` runs the `monochromatic-lint` executable,
- which must be on an absolute `PATH` entry.
+`markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
+ the executable links the linter library without its semantic engine.
+A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command.
 
 ## Policy re-run after replay
 
@@ -2750,8 +2751,8 @@ the time waited and the bound with the variable that changes it.
   and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
   the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
 - Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
-- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
-  stopping it after 60 seconds`.
+- The Markdown linter thread: `still waiting for monochromatic-lint to check <path> after S seconds;
+  giving up on it after 60 seconds`.
 - The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
   `still waiting for <command> (process N) after S seconds; stopping it after L seconds
   (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.
