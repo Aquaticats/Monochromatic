@@ -801,6 +801,37 @@ Wave-4 twenty-second checkpoint (2026-11-01, all rows verified against the tree 
   `w4-git-policy-b-001` onward), serial prefix rr-gpb; both sides check the other's
   findings file plus docs-decisions rows 53 to 62 for dedupe.
 
+Wave-4 twenty-third checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Adjudication slices 1 to 3 complete: 178 of 409 ambiguous entries decided
+  (slice 1: 23 duplicate / 37 distinct; slice 2: 9 / 50; slice 3: 20 / 39; running
+  total 52 duplicate with verified owners, 126 distinct, zero undecidable). Slice 3
+  introduced the census-subsumption check with git-age probes (rows predating the
+  censuses) and a legacy-format schema conversion (pkg-dom-040). Slice 4 in flight
+  from index 180.
+- Corpus BAD enumeration supersedes the stale count: a fresh verify over all 100
+  findings files finds 259 BAD rows across 45 files (root-configs 129, mostly the
+  slice-4/5 deleted-subject set; ci-depot 18; docs families 28; w2 part files 24;
+  figma-kiwi frag 15; remainder scattered). Full id list: scratch
+  `mq10-bad-enumeration.txt`. Repair of this set is `w4-fm-variant-qt`'s next campaign
+  after the adjudication slices; until then the batch-4 verify pass will funnel them
+  to the manual queue.
+- git-policy/cli split executing: `w4-cc-statusline` (head, positions 1 to 299) rows
+  `w4-git-policy-010` to `-014` verified 14 of 14 clean; the two warnings are the
+  campaign's strongest bug rows so far (013: normalise_inline_short splits OPTARG
+  attached values, so -S6ABCDEF rewrites to -S -6 -A -B -C DEF and reaches the real
+  commit; 014: to_string_lossy corrupts byte-preserving non-UTF-8 commit argv).
+  `w4-android-app` (tail, positions 300 to 585) rows `w4-git-policy-b-001` to `-004`
+  verified 4 of 4 clean (landing lock held for check against its fix-only docs; two
+  stale citations; pushed_scope quadratic dedup, family of w4-git-policy-002).
+- ide/app src/native: rows `w4-ide-app-015` and `-016` verified 16 of 16 clean
+  (TileWorker's Drop detaches the thread while the field doc promises join-on-shutdown;
+  my control: no .join( in tile_build.rs, the "source tile worker detached" log at
+  :334). Position 133, 21 files remain.
+- translation-repair/archive at 69 of 92 files (rows 001 to 004; the coverage-candidates
+  mirror against slice-reading verified branch-by-branch, one roster-pairing residual
+  logged for a future caller).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
