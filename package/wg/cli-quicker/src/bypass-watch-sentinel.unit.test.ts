@@ -20,6 +20,7 @@ import {
   runWatcherSentinel,
   watcherIsAlive,
 } from '../dist/final/node/bypass-watch-sentinel-core.mjs';
+import { readSentinelMarker, } from '../dist/final/node/bypass-watch-sentinel-marker.mjs';
 import {
   PROCESS_ABSENT,
   readLinuxProcessIdentity,
@@ -36,19 +37,6 @@ type ProcessRead = Awaited<ReturnType<NonNullable<Parameters<typeof watcherIsAli
  as the sentinel core declares it.
  */
 type RecordRead = Awaited<ReturnType<NonNullable<Parameters<typeof judgeWatcherEnd>[0]['read']>>>;
-
-/**
- The absent marker for a process read.
- The built declaration files declare the marker once per module,
- and TypeScript treats two unique symbols as different types,
- while at run time it is the same symbol.
- */
-const ABSENT_PROCESS = PROCESS_ABSENT as unknown as ProcessRead;
-
-/**
- The absent marker for a record read.
- */
-const ABSENT_RECORD = PROCESS_ABSENT as unknown as RecordRead;
 
 /**
  Identity of the watcher the fake records name.
@@ -122,7 +110,13 @@ await describe({
         const live = (startTime: string,) => ({ commandLine: [], startTime, state: 'S', });
         expect(await watcherIsAlive({ identity: IDENTITY, read: () => Promise.resolve<ProcessRead>(live('9001',),), },),).toBe(true,);
         expect(await watcherIsAlive({ identity: IDENTITY, read: () => Promise.resolve<ProcessRead>(live('9002',),), },),).toBe(false,);
-        expect(await watcherIsAlive({ identity: IDENTITY, read: () => Promise.resolve<ProcessRead>(ABSENT_PROCESS,), },),).toBe(false,);
+        /**
+         A pid no process can have,
+         read through the real reader,
+         because an absence injected from this module would not be the symbol of the bundle under test.
+         */
+        const impossible = { ...IDENTITY, pid: 2_147_483_647, };
+        expect(await watcherIsAlive({ identity: impossible, },),).toBe(false,);
       },
     },),
   ],
@@ -142,7 +136,11 @@ await describe({
           identity: IDENTITY,
           read: () => (Error.isError(record,) ? Promise.reject(record,) : Promise.resolve<RecordRead>(record,)),
         },);
-        expect(await judge(ABSENT_RECORD,),).toEqual({ kind: 'expected', },);
+        /**
+         A state path with no identity record,
+         read through the real reader.
+         */
+        expect(await judgeWatcherEnd({ statePath: '/nonexistent-directory/wgtest.json', identity: IDENTITY, },),).toEqual({ kind: 'expected', },);
         expect(await judge({ ...IDENTITY, },),).toEqual({ kind: 'unexpected', },);
         expect(await judge({ ...IDENTITY, pid: 4_243, },),).toEqual({ kind: 'expected', },);
         expect(await judge({ ...IDENTITY, startTime: '9002', },),).toEqual({ kind: 'expected', },);
@@ -336,6 +334,14 @@ await describe({
         expect(exitArguments[0],).toBe(0,);
         expect(performance.now() - started,).toBeGreaterThan(400,);
         expect(performance.now() - started,).toBeLessThan(15_000,);
+        /**
+         The marker the real entry left when it started,
+         which is how a launcher confirms the sentinel got as far as running.
+         */
+        const marker = await readSentinelMarker({ statePath, },);
+        expect(marker.found,).toBe(true,);
+        expect(marker.found ? marker.marker.watcherPid : -1,).toBe(pid,);
+        expect(marker.found ? marker.marker.pid : -1,).toBe(sentinel.pid,);
       },
     },),
   ],

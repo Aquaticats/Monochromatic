@@ -839,6 +839,20 @@ and the update-host rules are no longer refreshed.
 A second small process,
 the sentinel (`bypass-watch-sentinel`),
 is started once the watcher has registered its identity record.
+It is started outside the cgroup of the watcher:
+as its own transient service of the system manager,
+`wg-quicker-sentinel-<watcher pid>-<start time>`,
+through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+and with the sudo identity passed as `--setenv` because a service does not inherit it.
+The watcher runs in the cgroup of the terminal or session that ran `wg-quicker up`,
+and a kill of that whole cgroup,
+for example by `systemd-oomd`,
+would take a sentinel in the same cgroup with it and leave nothing to report.
+A service in its own root-owned cgroup survives that,
+and `systemd-oomd` is asked not to choose the service itself.
+If the manager refuses the unit or `systemd-run` is missing,
+the sentinel starts detached beside the watcher instead,
+and `up` says loudly that a kill of the watcher's whole cgroup then ends both without a report.
 It checks every half second that the process with the watcher's pid and start time still exists,
 so a reused pid is not mistaken for the watcher.
 When the watcher is gone it waits one and a half seconds and reads the identity record:
@@ -851,15 +865,28 @@ an unreadable record is reported as unknown.
 A watcher that stops with an error already delivers its own report,
 and its record is removed on the way out,
 so that case is not reported twice.
-The sentinel is started detached with the same environment,
-so the report reaches the same user.
-If it cannot be started,
-`up` says so loudly and continues.
+A sentinel that was started is not taken for running because its process was created.
+When it has loaded it writes a marker beside the state (`<state>.sentinel.json`)
+with the watcher's pid,
+its own pid and its own start time,
+and `up` waits up to two seconds for a marker that names this watcher
+while the sentinel's process still exists with that start time.
+If none appears,
+or if the sentinel cannot be started at all,
+`up` says so loudly,
+with `systemctl status wg-quicker-sentinel-<pid>-<start time>` as the place to look,
+and goes on with the tunnel.
+The service is created by `systemd-run` as root,
+so the real service start cannot be exercised without root;
+the arguments are checked in tests,
+and their option grammar was checked on a throwaway transient unit of the user manager.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,
 nothing reports it,
-and a clean system shutdown ends both without a report.
+and a clean system shutdown ends both without a report;
+with the service,
+a kill of the watcher's whole cgroup no longer takes the sentinel with it.
 `wg-quicker-exempt` has its own sentinel for its watcher.
 
 ### Boundaries
