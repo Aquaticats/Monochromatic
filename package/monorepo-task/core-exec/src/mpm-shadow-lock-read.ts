@@ -8,8 +8,9 @@
  */
 
 import { readdir, } from 'node:fs/promises';
+import { join, } from 'node:path';
 
-//region Names: the tool, the cache and the failure
+//region Names: the tool, its install folder and the failure
 
 /**
  Tool id of the `mpm-shadow` archive entry in `toolchain.plan.jsonc` and `toolchain.lock.json`.
@@ -22,14 +23,49 @@ import { readdir, } from 'node:fs/promises';
 export const MPM_SHADOW_TOOL_ID = 'mpm-shadow';
 
 /**
- Gitignored directory, relative to the repository root, that holds the copies the bootstrap fetched, one folder per version.
+ Name of the directory that holds every installed version of the `mpm-shadow` tool, below the toolchain root.
+
+ It is the install directory name `mpm-shadow` gives the tool id (`mpm-shadow`): the versions sit in
+ `<toolchain root>/mpm-shadow/<version>/`, as `mpm-shadow install` puts them (`archive_staging.rs`, `layout.rs`).
 
  @example
  ```ts
- const directory = join(root, BOOTSTRAP_CACHE_DIRECTORY, version);
+ const toolDirectory = join(toolchainRoot, TOOL_DIRECTORY_NAME);
  ```
  */
-export const BOOTSTRAP_CACHE_DIRECTORY = '.cache/mpm-shadow-bootstrap';
+export const TOOL_DIRECTORY_NAME = 'mpm-shadow';
+
+/**
+ File whose presence shows that an install of a version finished; `mpm-shadow install` writes it last
+ (`archive_staging.rs`, `COMPLETE_MARKER`), and its content is `<tool id> <version>` and a line break.
+
+ @example
+ ```ts
+ await writeFile(join(staging, COMPLETE_MARKER), `${MPM_SHADOW_TOOL_ID} ${version}\n`);
+ ```
+ */
+export const COMPLETE_MARKER = '.mpm-shadow-installed';
+
+/**
+ Name of the link, inside the tool directory, that names the newest finished version (`published_archive.rs`).
+
+ @example
+ ```ts
+ const link = join(toolDirectory, CURRENT_LINK_NAME);
+ ```
+ */
+export const CURRENT_LINK_NAME = 'current';
+
+/**
+ The command that moves the lock to the newest `mpm-shadow` release, named in the note printed when a newer copy runs.
+ It is the root task `toolchain:update` with the tool id appended, which runs `mpm-shadow update mpm-shadow`.
+
+ @example
+ ```ts
+ log(`upgrade with: ${UPGRADE_COMMAND}`,);
+ ```
+ */
+export const UPGRADE_COMMAND = 'mise run toolchain:update mpm-shadow';
 
 /**
  The exposure link that `mpm-shadow install` maintains, relative to the repository root.
@@ -56,7 +92,7 @@ export class MpmShadowLockError extends Error {
   override readonly name = 'MpmShadowLockError';
 }
 
-//endregion Names: the tool, the cache and the failure
+//endregion Names: the tool, its install folder and the failure
 
 //region The lock: version and archive row
 
@@ -335,3 +371,194 @@ export function parseVersionOutput(output: string,): string {
 }
 
 //endregion The program's own answer
+
+//region Versions and the toolchain root
+
+/**
+ How many numeric parts of a version order it (`major.minor.patch`).
+ */
+const CORE_PARTS = 3;
+
+/**
+ The first three numeric parts of a version, missing or non-numeric parts counting as 0 (`0.2.1-rc.1` is `[0, 2, 1]`).
+
+ @param version - Version text
+
+ @returns Three numbers
+
+ @example
+ ```ts
+ numericCore('0.2.10',); // [0, 2, 10]
+ ```
+ */
+function numericCore(version: string,): readonly number[] {
+  /**
+   The text before the first `-` or `+`.
+   */
+  const core = version.split('+',)[0]
+    ?.split('-',)[0]
+    ?? '';
+  /**
+   The parts as whole numbers, a part that is not a number counting as 0.
+   */
+  const parts = core.split('.',)
+    .map(function toNumber(piece,) {
+      return Math.trunc(Number(piece,),) || 0;
+    },);
+  return Array.from(
+    { length: CORE_PARTS, },
+    function partAt(
+      _unused,
+      index,
+    ) {
+      return parts[index] ?? 0;
+    },
+  );
+}
+
+/**
+ The pre-release text of a version: after the first `-` and before any `+`.
+
+ @param version - Version text
+
+ @returns An empty list for a release, else a list holding the text (empty for `1.0.0-`)
+
+ @example
+ ```ts
+ preReleaseOf('0.2.2-rc.1+build',); // ['rc.1']
+ ```
+ */
+function preReleaseOf(version: string,): readonly string[] {
+  return version.includes('-',) ? [version.slice(version.indexOf('-',) + 1,)
+    .split('+',)[0]
+    ?? '',] : [];
+}
+
+/**
+ Orders two versions as `mpm-shadow` does (`version.rs`, `compare_versions`): by the numeric core as numbers
+ (`0.2.10` is newer than `0.2.9`), then a release before its own pre-release, then pre-releases as text.
+
+ @param left - First version
+
+ @param right - Second version
+
+ @returns A negative number when `left` is older, 0 when equal, a positive number when newer
+
+ @example
+ ```ts
+ compareVersions({ left: '0.2.10', right: '0.2.9', },); // 1
+ ```
+ */
+export function compareVersions(
+  {
+    left,
+    right,
+  }: {
+    readonly left: string;
+    readonly right: string;
+  },
+): number {
+  /**
+   The first numeric difference, if any.
+   */
+  const byCore = numericCore(left,)
+    .map(function difference(
+      part,
+      index,
+    ) {
+      return part - (numericCore(right,)[index] ?? 0);
+    },)
+    .find(function isDifferent(delta,) {
+      return delta !== 0;
+    },);
+  if (byCore !== undefined)
+    return byCore;
+  /**
+   The pre-release text of the left version, none for a release.
+   */
+  const [leftPre,] = preReleaseOf(left,);
+  /**
+   The pre-release text of the right version, none for a release.
+   */
+  const [rightPre,] = preReleaseOf(right,);
+  if ((leftPre === undefined) && (rightPre === undefined))
+    return 0;
+  if (leftPre === undefined)
+    return 1;
+  if (rightPre === undefined)
+    return -1;
+  return leftPre.localeCompare(rightPre,);
+}
+
+/**
+ Refuses a version that is not one plain directory name, because it is joined onto the toolchain root and a crafted lock must
+ not reach outside the tool's directory (`segment.rs`, `check_version`): empty, `.`, `..`, a separator, NUL, a leading dot,
+ and `current`.
+
+ @param version - Version text from the lock
+
+ @throws MpmShadowLockError when the version could not be a directory name
+
+ @example
+ ```ts
+ checkVersionName('0.2.1',);
+ ```
+ */
+export function checkVersionName(version: string,): void {
+  if (
+    (version === '') || (version === '.')
+      || (version === '..')
+      || version.includes('/',)
+      || version.includes('\\',)
+      || version.includes('\0',)
+      || version.startsWith('.',)
+      || (version === CURRENT_LINK_NAME)
+  ) {
+    throw new MpmShadowLockError(
+      `the version "${version}" that toolchain.lock.json names for ${MPM_SHADOW_TOOL_ID} is not one plain directory name, so nothing is installed under it`,
+    );
+  }
+}
+
+/**
+ The toolchain root `mpm-shadow` installs into for a worktree: `<data home>/monochromatic-dev/toolchain`, where the data home is
+ `$XDG_DATA_HOME`, else `$HOME/.local/share` (`$USERPROFILE` when there is no `$HOME`) (`scope.rs`, `repo_scope`).
+
+ @param environment - Environment variables
+
+ @returns Absolute path of the toolchain root
+
+ @throws MpmShadowLockError when neither the data home nor a home directory can be found
+
+ @example
+ ```ts
+ const root = toolchainRootOf(process.env,);
+ ```
+ */
+export function toolchainRootOf(environment: Readonly<NodeJS.ProcessEnv>,): string {
+  /**
+   The explicit data home, if the variable is set and not empty.
+   */
+  const explicit = environment.XDG_DATA_HOME;
+  if ((explicit !== undefined) && (explicit !== ''))
+    return join(
+      explicit,
+      'monochromatic-dev',
+      'toolchain',
+    );
+  /**
+   The home directory.
+   */
+  const home = environment.HOME ?? environment.USERPROFILE;
+  if ((home === undefined) || (home === ''))
+    throw new MpmShadowLockError('neither HOME nor USERPROFILE nor XDG_DATA_HOME is set, so the toolchain root cannot be found',);
+  return join(
+    home,
+    '.local',
+    'share',
+    'monochromatic-dev',
+    'toolchain',
+  );
+}
+
+//endregion Versions and the toolchain root

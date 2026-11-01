@@ -4,28 +4,39 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import spawn, { type SubprocessError, } from 'nano-spawn';
-import { spawnSync, } from 'node:child_process';
-import { createServer, } from 'node:http';
+import {
+  spawnSync,
+} from 'node:child_process';
 import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer, } from 'node:http';
 import { join, } from 'node:path';
 
 import {
-  BOOTSTRAP_CACHE_DIRECTORY,
+  checkVersionName,
+  COMPLETE_MARKER,
+  compareVersions,
+  CURRENT_LINK_NAME,
   hostLockPlatformId,
   lockPlatformId,
   MpmShadowLockError,
   parseVersionOutput,
   readLockedMpmShadow,
   sha256Hex,
+  TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
+  toolchainRootOf,
+  UPGRADE_COMMAND,
+  versionOf,
 } from '../dist/final/node/testing.mjs';
 
 //region Fixtures: stand-in programs, a release archive, a registry that serves it
@@ -82,17 +93,43 @@ const STALE_STUB = `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "mpm-shadow 
 const PATH_STUB = '#!/bin/sh\necho "ran from PATH: $*"\nexit 99\n';
 
 /**
+ Writes an executable file, making its folder first.
+
+ @param path - File to write
+
+ @param content - Its content
+
+ @example
+ ```ts
+ writeExecutable({ path: '/x/y/mpm-shadow', content: lockedStub('0.2.2',), },);
+ ```
+ */
+function writeExecutable(
+  {
+    path,
+    content,
+  }: {
+    readonly path: string;
+    readonly content: string;
+  },
+): void {
+  mkdirSync(join(path, '..',), { recursive: true, },);
+  writeFileSync(path, content,);
+  chmodSync(path, 0o755,);
+}
+
+/**
  A release archive of the stand-in, built with `tar` the way releases are: one top folder holding `mpm-shadow`.
 
  @param directory - Scratch folder to build in
 
  @param version - Version the stand-in inside reports
 
- @returns Path of the `.tar.gz`
+ @returns The archive's bytes
 
  @example
  ```ts
- const archive = buildArchive({ directory, version: '0.2.2', },);
+ const bytes = buildArchive({ directory, version: '0.2.2', },);
  ```
  */
 function buildArchive(
@@ -103,14 +140,12 @@ function buildArchive(
     readonly directory: string;
     readonly version: string;
   },
-): string {
+): Uint8Array {
   /**
    Name of the top folder, as in `monochromatic-mpm-shadow-<version>-<target>.tar.gz`.
    */
   const top = `monochromatic-mpm-shadow-${version}-test`;
-  mkdirSync(join(directory, 'pkg', top,), { recursive: true, },);
-  writeFileSync(join(directory, 'pkg', top, 'mpm-shadow',), lockedStub(version,),);
-  chmodSync(join(directory, 'pkg', top, 'mpm-shadow',), 0o755,);
+  writeExecutable({ path: join(directory, 'pkg', top, 'mpm-shadow',), content: lockedStub(version,), },);
   /**
    Where the archive goes.
    */
@@ -120,7 +155,7 @@ function buildArchive(
    */
   const made = spawnSync('tar', ['--create', '--gzip', '--file', archive, '--directory', join(directory, 'pkg',), top,],);
   expect(made.status,).toBe(0,);
-  return archive;
+  return new Uint8Array(readFileSync(archive,),);
 }
 
 /**
@@ -256,18 +291,18 @@ type RepositoryOptions = {
 };
 
 /**
- Makes a repository root with a lock that names `LOCKED_VERSION`, optionally a stale exposure link, and a `PATH` folder
- whose `mpm-shadow` must never run.
+ Makes a repository root with a lock that names `LOCKED_VERSION`, optionally a stale exposure link, a data home that holds the
+ toolchain root, and a `PATH` folder whose `mpm-shadow` must never run.
 
  @param directory - Scratch folder to build in
 
  @param options - What the lock records and whether the stale link exists
 
- @returns The root and the `PATH` folder
+ @returns The root, the `PATH` folder, the data home and the folder of the tool inside the toolchain root
 
  @example
  ```ts
- const { root, pathDirectory, } = makeRepository({ directory, options, },);
+ const { root, pathDirectory, dataHome, toolDirectory, } = makeRepository({ directory, options, },);
  ```
  */
 function makeRepository(
@@ -294,19 +329,55 @@ function makeRepository(
   );
   if (options.staleLink) {
     mkdirSync(join(root, '.cache', 'toolchain-bin',), { recursive: true, },);
-    mkdirSync(join(directory, 'cargo-bin',), { recursive: true, },);
-    writeFileSync(join(directory, 'cargo-bin', 'mpm-shadow',), STALE_STUB,);
-    chmodSync(join(directory, 'cargo-bin', 'mpm-shadow',), 0o755,);
+    writeExecutable({ path: join(directory, 'cargo-bin', 'mpm-shadow',), content: STALE_STUB, },);
     symlinkSync(join(directory, 'cargo-bin', 'mpm-shadow',), join(root, TOOLCHAIN_BIN_LINK,),);
   }
   /**
    The folder `PATH` starts with.
    */
   const pathDirectory = join(directory, 'path-bin',);
-  mkdirSync(pathDirectory, { recursive: true, },);
-  writeFileSync(join(pathDirectory, 'mpm-shadow',), PATH_STUB,);
-  chmodSync(join(pathDirectory, 'mpm-shadow',), 0o755,);
-  return { root, pathDirectory, };
+  writeExecutable({ path: join(pathDirectory, 'mpm-shadow',), content: PATH_STUB, },);
+  /**
+   The data home, whose `monochromatic-dev/toolchain` is the toolchain root the entry installs into.
+   */
+  const dataHome = join(directory, 'data',);
+  const toolDirectory = join(toolchainRootOf({ XDG_DATA_HOME: dataHome, },), TOOL_DIRECTORY_NAME,);
+  return { root, pathDirectory, dataHome, toolDirectory, };
+}
+
+/**
+ Puts a version folder of the tool into the toolchain root: the stand-in program inside a top folder, and the completion
+ marker when the install counts as finished.
+
+ @param toolDirectory - `<toolchain root>/mpm-shadow`
+
+ @param name - Name of the version folder
+
+ @param prints - Version the program inside reports
+
+ @param finished - Whether the completion marker is written
+
+ @example
+ ```ts
+ installFolder({ toolDirectory, name: '0.3.0', prints: '0.3.0', finished: true, },);
+ ```
+ */
+function installFolder(
+  {
+    toolDirectory,
+    name,
+    prints,
+    finished,
+  }: {
+    readonly toolDirectory: string;
+    readonly name: string;
+    readonly prints: string;
+    readonly finished: boolean;
+  },
+): void {
+  writeExecutable({ path: join(toolDirectory, name, 'pkg', 'mpm-shadow',), content: lockedStub(prints,), },);
+  if (finished)
+    writeFileSync(join(toolDirectory, name, COMPLETE_MARKER,), `mpm-shadow ${name}\n`,);
 }
 
 /**
@@ -330,6 +401,8 @@ type EntryRun = {
 
  @param pathDirectory - Folder placed first on `PATH`
 
+ @param dataHome - Folder used as `XDG_DATA_HOME`
+
  @param args - Arguments after the entry
 
  @param environment - Extra environment variables
@@ -338,25 +411,27 @@ type EntryRun = {
 
  @example
  ```ts
- const run = await runEntry({ root, pathDirectory, args: ['install',], environment: {}, },);
+ const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
  ```
  */
 async function runEntry(
   {
     root,
     pathDirectory,
+    dataHome,
     args,
     environment,
   }: {
     readonly root: string;
     readonly pathDirectory: string;
+    readonly dataHome: string;
     readonly args: readonly string[];
     readonly environment: Readonly<Record<string, string>>;
   },
 ): Promise<EntryRun> {
   return await spawn(process.execPath, [ENTRY, ...args,], {
     cwd: root,
-    env: { PATH: `${pathDirectory}:/usr/bin:/bin`, ...environment, },
+    env: { PATH: `${pathDirectory}:/usr/bin:/bin`, XDG_DATA_HOME: dataHome, ...environment, },
   },).then(
     function ok(result,) {
       return { exitCode: 0, stdout: result.stdout, stderr: result.stderr, };
@@ -365,6 +440,41 @@ async function runEntry(
       return { exitCode: error.exitCode ?? (-1), stdout: error.stdout, stderr: error.stderr, };
     },
   );
+}
+
+/**
+ What a fetching run needs: the archive of the locked version served locally, and a repository whose lock records it.
+
+ @param directory - Scratch folder
+
+ @param staleLink - Whether the exposure link is the stale 0.2.0 stand-in
+
+ @returns The server, the repository pieces and the archive's digest
+
+ @example
+ ```ts
+ const world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+ ```
+ */
+async function fetchingWorld(
+  {
+    directory,
+    staleLink,
+  }: {
+    readonly directory: string;
+    readonly staleLink: boolean;
+  },
+) {
+  const bytes = buildArchive({ directory, version: LOCKED_VERSION, },);
+  const served = await serve(bytes,);
+  return {
+    served,
+    bytes,
+    async [Symbol.asyncDispose]() {
+      await served[Symbol.asyncDispose]();
+    },
+    ...makeRepository({ directory, options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink, }, },),
+  };
 }
 
 //endregion Fixtures: stand-in programs, a release archive, a registry that serves it
@@ -405,6 +515,63 @@ await describe({
             expect(parseVersionOutput('mpm-shadow',),).toBe('',);
             expect(parseVersionOutput('mpm-shadow 0.2.1 beta',),).toBe('',);
             expect(parseVersionOutput('',),).toBe('',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: compareVersions.name,
+      children: [
+        it({
+          name: 'orders by the numeric core as numbers, a release before its pre-release, and ignores build metadata',
+          fn: async () => {
+            expect(compareVersions({ left: '0.2.10', right: '0.2.9', },),).toBeGreaterThan(0,);
+            expect(compareVersions({ left: '0.2.2', right: '0.2.2', },),).toBe(0,);
+            expect(compareVersions({ left: '0.2.1', right: '0.2.2', },),).toBeLessThan(0,);
+            expect(compareVersions({ left: '1.0.0', right: '0.99.99', },),).toBeGreaterThan(0,);
+            expect(compareVersions({ left: '0.2.2', right: '0.2.2-rc.1', },),).toBeGreaterThan(0,);
+            expect(compareVersions({ left: '0.2.2-rc.1', right: '0.2.2-rc.2', },),).toBeLessThan(0,);
+            expect(compareVersions({ left: '0.2.2+build5', right: '0.2.2', },),).toBe(0,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: toolchainRootOf.name,
+      children: [
+        it({
+          name: 'is monochromatic-dev/toolchain below XDG_DATA_HOME, else below HOME/.local/share, else USERPROFILE',
+          fn: async () => {
+            expect(toolchainRootOf({ XDG_DATA_HOME: '/data', HOME: '/home/x', },),).toBe('/data/monochromatic-dev/toolchain',);
+            expect(toolchainRootOf({ HOME: '/home/x', },),).toBe('/home/x/.local/share/monochromatic-dev/toolchain',);
+            expect(toolchainRootOf({ XDG_DATA_HOME: '', HOME: '/home/x', },),).toBe('/home/x/.local/share/monochromatic-dev/toolchain',);
+            expect(toolchainRootOf({ USERPROFILE: '/users/x', },),).toBe('/users/x/.local/share/monochromatic-dev/toolchain',);
+          },
+        },),
+        it({
+          name: 'throws MpmShadowLockError when no directory can be found',
+          fn: async () => {
+            expect(function noDirectory() {
+              toolchainRootOf({},);
+            },).toThrow(MpmShadowLockError,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: checkVersionName.name,
+      children: [
+        it({
+          name: 'accepts a plain version and refuses names that could leave the tool folder',
+          fn: async () => {
+            expect(function plain() {
+              checkVersionName('0.2.2',);
+            },).not.toThrow();
+            for (const bad of ['', '.', '..', '../x', 'a/b', '.hidden', CURRENT_LINK_NAME,]) {
+              expect(function crafted() {
+                checkVersionName(bad,);
+              },).toThrow(MpmShadowLockError,);
+            }
           },
         },),
       ],
@@ -459,48 +626,68 @@ await describe({
       ],
     },),
     describe({
-      name: 'command-line entry',
+      name: versionOf.name,
       children: [
         it({
-          name: 'ignores a stale link and the PATH copy, fetches the locked archive, checks it, and runs it with the arguments',
+          name: 'ends a candidate that gives no answer within the timeout and says so',
           fn: async () => {
             using directory = makeDirectory();
-            const archive = buildArchive({ directory: directory.path, version: LOCKED_VERSION, },);
-            const bytes = new Uint8Array(readFileSync(archive,),);
-            await using served = await serve(bytes,);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink: true, },
-            },);
+            const hanging = join(directory.path, 'hanging',);
+            writeExecutable({ path: hanging, content: '#!/bin/sh\nexec sleep 30\n', },);
+            const answer = await versionOf({ binary: hanging, timeoutMs: 300, },);
+            expect(answer.usable,).toBe(false,);
+            expect(answer.usable ? '' : answer.reason,).toContain('gave no answer within 0.3 seconds',);
+          },
+        },),
+        it({
+          name: 'says why a missing file is not usable',
+          fn: async () => {
+            const answer = await versionOf({ binary: '/nonexistent/mpm-shadow', timeoutMs: 1_000, },);
+            expect(answer.usable,).toBe(false,);
+            expect(answer.usable ? '' : answer.reason,).toContain('ENOENT',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'command-line entry: which copy runs',
+      children: [
+        it({
+          name: 'ignores a stale link and the PATH copy, fetches the lock\'s archive once, checks it, installs it where mpm-shadow install does, and runs it',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, toolDirectory, served, bytes, } = world;
 
-            const run = await runEntry({ root, pathDirectory, args: ['install', '--frozen-lockfile',], environment: {}, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install', '--frozen-lockfile',], environment: {}, },);
 
             expect(run.exitCode,).toBe(0,);
             // Standard output is the locked program's alone.
             expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: install --frozen-lockfile`,);
-            expect(run.stderr,).toContain(`names mpm-shadow ${LOCKED_VERSION}`,);
-            expect(run.stderr,).toContain(`${TOOLCHAIN_BIN_LINK} is mpm-shadow ${STALE_VERSION}`,);
-            expect(run.stderr,).toContain(`fetched and verified mpm-shadow ${LOCKED_VERSION}`,);
+            expect(run.stderr,).toContain(`names mpm-shadow ${LOCKED_VERSION} and no installed copy is at that version or above`,);
+            expect(run.stderr,).toContain(`is mpm-shadow ${STALE_VERSION}, older than the lock's ${LOCKED_VERSION}, and never runs`,);
+            expect(run.stderr,).toContain(`fetched and verified mpm-shadow ${LOCKED_VERSION} (SHA-256 ${sha256Hex(bytes,)})`,);
+            // The layout of mpm-shadow's own archive route: version folder with the marker, and the current link.
+            expect(readFileSync(join(toolDirectory, LOCKED_VERSION, COMPLETE_MARKER,), 'utf8',),).toBe(`mpm-shadow ${LOCKED_VERSION}\n`,);
             expect(
-              existsSync(join(root, BOOTSTRAP_CACHE_DIRECTORY, LOCKED_VERSION, 'mpm-shadow',),),
+              existsSync(join(toolDirectory, LOCKED_VERSION, `monochromatic-mpm-shadow-${LOCKED_VERSION}-test`, 'mpm-shadow',),),
             ).toBe(true,);
+            expect(
+              readlinkSync(join(toolDirectory, CURRENT_LINK_NAME,),),
+            ).toBe(LOCKED_VERSION,);
+            expect(readdirSync(toolDirectory,).toSorted(),).toEqual([LOCKED_VERSION, CURRENT_LINK_NAME,],);
             expect(served.requests.length,).toBe(1,);
           },
         },),
         it({
-          name: 'finds the fetched copy on the next run and downloads nothing again',
+          name: 'finds the installed copy on the next run and downloads nothing again',
           fn: async () => {
             using directory = makeDirectory();
-            const archive = buildArchive({ directory: directory.path, version: LOCKED_VERSION, },);
-            const bytes = new Uint8Array(readFileSync(archive,),);
-            await using served = await serve(bytes,);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink: true, },
-            },);
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, served, } = world;
 
-            await runEntry({ root, pathDirectory, args: ['list',], environment: {}, },);
-            const second = await runEntry({ root, pathDirectory, args: ['list', '--global',], environment: {}, },);
+            await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+            const second = await runEntry({ root, pathDirectory, dataHome, args: ['list', '--global',], environment: {}, },);
 
             expect(second.exitCode,).toBe(0,);
             expect(second.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: list --global`,);
@@ -509,19 +696,14 @@ await describe({
           },
         },),
         it({
-          name: 'runs the exposure link without any download when it is already at the locked version',
+          name: 'runs the exposure link without any download when it is at the locked version',
           fn: async () => {
             using directory = makeDirectory();
-            await using served = await serve(new Uint8Array(),);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: 'unused', row: true, staleLink: false, },
-            },);
-            mkdirSync(join(root, '.cache', 'toolchain-bin',), { recursive: true, },);
-            writeFileSync(join(root, TOOLCHAIN_BIN_LINK,), lockedStub(LOCKED_VERSION,),);
-            chmodSync(join(root, TOOLCHAIN_BIN_LINK,), 0o755,);
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, served, } = world;
+            writeExecutable({ path: join(root, TOOLCHAIN_BIN_LINK,), content: lockedStub(LOCKED_VERSION,), },);
 
-            const run = await runEntry({ root, pathDirectory, args: ['bin', '--json',], environment: {}, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['bin', '--json',], environment: {}, },);
 
             expect(run.exitCode,).toBe(0,);
             expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: bin --json`,);
@@ -530,94 +712,208 @@ await describe({
           },
         },),
         it({
+          name: 'runs a newer exposure link than the lock, with the note that names the upgrade command, and downloads nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, served, } = world;
+            writeExecutable({ path: join(root, TOOLCHAIN_BIN_LINK,), content: lockedStub('0.2.3',), },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe('locked 0.2.3 ran: list',);
+            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.3 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(UPGRADE_COMMAND,).toBe('mise run toolchain:update mpm-shadow',);
+            expect(served.requests.length,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'runs the newest finished version folder of the toolchain root over a stale link, with the note, and downloads nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, toolDirectory, served, } = world;
+            installFolder({ toolDirectory, name: '0.2.3', prints: '0.2.3', finished: true, },);
+            installFolder({ toolDirectory, name: '0.10.0', prints: '0.10.0', finished: true, },);
+            installFolder({ toolDirectory, name: '0.9.0', prints: '0.9.0', finished: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['outdated',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe('locked 0.10.0 ran: outdated',);
+            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.10.0 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(served.requests.length,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'never runs a copy older than the lock: fetches the lock\'s archive, then keeps only the newest version folder',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, toolDirectory, served, } = world;
+            installFolder({ toolDirectory, name: '0.2.1', prints: '0.2.1', finished: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: install`,);
+            expect(served.requests.length,).toBe(1,);
+            expect(readdirSync(toolDirectory,).toSorted(),).toEqual([LOCKED_VERSION, CURRENT_LINK_NAME,],);
+            expect(run.stderr,).toContain('removed the older mpm-shadow 0.2.1; only the newest is kept',);
+          },
+        },),
+        it({
           name: 'passes the program exit status on unchanged',
           fn: async () => {
             using directory = makeDirectory();
-            const archive = buildArchive({ directory: directory.path, version: LOCKED_VERSION, },);
-            const bytes = new Uint8Array(readFileSync(archive,),);
-            await using served = await serve(bytes,);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink: false, },
-            },);
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, } = world;
 
-            const run = await runEntry({ root, pathDirectory, args: ['outdated',], environment: { STUB_EXIT: '7', }, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['outdated',], environment: { STUB_EXIT: '7', }, },);
 
             expect(run.exitCode,).toBe(7,);
             expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: outdated`,);
           },
         },),
         it({
-          name: 'refuses an archive whose SHA-256 differs from the lock, installs nothing and runs nothing',
+          name: 'uses the mpm-shadow on PATH with a note when the lock has no archive row for this platform and no copy is installed',
           fn: async () => {
             using directory = makeDirectory();
-            const archive = buildArchive({ directory: directory.path, version: LOCKED_VERSION, },);
-            const bytes = new Uint8Array(readFileSync(archive,),);
-            await using served = await serve(bytes,);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: sha256Hex(new Uint8Array([1, 2, 3,],),), row: true, staleLink: true, },
-            },);
-
-            const run = await runEntry({ root, pathDirectory, args: ['install',], environment: {}, },);
-
-            expect(run.exitCode,).not.toBe(0,);
-            expect(run.stdout,).toBe('',);
-            expect(run.stderr,).toContain(`has SHA-256 ${sha256Hex(bytes,)}, but toolchain.lock.json records ${sha256Hex(new Uint8Array([1, 2, 3,],),)}`,);
-            expect(
-              existsSync(join(root, BOOTSTRAP_CACHE_DIRECTORY,),),
-            ).toBe(false,);
-          },
-        },),
-        it({
-          name: 'refuses an archive whose program prints another version than the lock names',
-          fn: async () => {
-            using directory = makeDirectory();
-            const archive = buildArchive({ directory: directory.path, version: '0.2.1', },);
-            const bytes = new Uint8Array(readFileSync(archive,),);
-            await using served = await serve(bytes,);
-            const { root, pathDirectory, } = makeRepository({
-              directory: directory.path,
-              options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink: false, },
-            },);
-
-            const run = await runEntry({ root, pathDirectory, args: ['install',], environment: {}, },);
-
-            expect(run.exitCode,).not.toBe(0,);
-            expect(run.stderr,).toContain(`prints version 0.2.1, but toolchain.lock.json names ${LOCKED_VERSION}`,);
-            expect(
-              existsSync(join(root, BOOTSTRAP_CACHE_DIRECTORY, LOCKED_VERSION,),),
-            ).toBe(false,);
-          },
-        },),
-        it({
-          name: 'uses the mpm-shadow on PATH with a note when the lock has no archive row for this platform',
-          fn: async () => {
-            using directory = makeDirectory();
-            const { root, pathDirectory, } = makeRepository({
+            const { root, pathDirectory, dataHome, } = makeRepository({
               directory: directory.path,
               options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: false, },
             },);
 
-            const run = await runEntry({ root, pathDirectory, args: ['list',], environment: {}, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
 
             expect(run.exitCode,).toBe(99,);
             expect(run.stdout.trim(),).toBe('ran from PATH: list',);
             expect(run.stderr,).toContain(`has no mpm-shadow archive for ${PLATFORM_ID}`,);
           },
         },),
+      ],
+    },),
+    describe({
+      name: 'command-line entry: what is refused',
+      children: [
         it({
-          name: 'fails with a message when the lock has no mpm-shadow tool',
+          name: 'refuses an archive whose SHA-256 differs from the lock, installs nothing, runs nothing, and prints one line',
           fn: async () => {
             using directory = makeDirectory();
-            const { root, pathDirectory, } = makeRepository({
+            const bytes = buildArchive({ directory: directory.path, version: LOCKED_VERSION, },);
+            await using served = await serve(bytes,);
+            const { root, pathDirectory, dataHome, toolDirectory, } = makeRepository({
+              directory: directory.path,
+              options: { url: served.url, sha256: sha256Hex(new Uint8Array([1, 2, 3,],),), row: true, staleLink: true, },
+            },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(1,);
+            expect(run.stdout,).toBe('',);
+            expect(run.stderr,).toContain(`has SHA-256 ${sha256Hex(bytes,)}, but toolchain.lock.json records ${sha256Hex(new Uint8Array([1, 2, 3,],),)}`,);
+            // A reported failure is one line, not a stack trace.
+            expect(run.stderr,).not.toContain('\n    at ',);
+            expect(existsSync(toolDirectory,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'refuses an archive whose program prints another version than the lock names, and leaves nothing at the version\'s name',
+          fn: async () => {
+            using directory = makeDirectory();
+            const bytes = buildArchive({ directory: directory.path, version: '0.2.1', },);
+            await using served = await serve(bytes,);
+            const { root, pathDirectory, dataHome, toolDirectory, } = makeRepository({
+              directory: directory.path,
+              options: { url: served.url, sha256: sha256Hex(bytes,), row: true, staleLink: false, },
+            },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(1,);
+            expect(run.stderr,).toContain(`prints version 0.2.1, but toolchain.lock.json names ${LOCKED_VERSION}`,);
+            expect(readdirSync(toolDirectory,),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'does not run a finished-looking copy at the locked version\'s name that prints another version: replaces it with the verified archive',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, toolDirectory, served, } = world;
+            installFolder({ toolDirectory, name: LOCKED_VERSION, prints: STALE_VERSION, finished: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: install`,);
+            expect(served.requests.length,).toBe(1,);
+            expect(
+              existsSync(join(toolDirectory, LOCKED_VERSION, 'pkg',),),
+            ).toBe(false,);
+            expect(readdirSync(toolDirectory,).toSorted(),).toEqual([LOCKED_VERSION, CURRENT_LINK_NAME,],);
+          },
+        },),
+        it({
+          name: 'replaces an unfinished folder at the locked version\'s name (no marker) with the verified archive',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, toolDirectory, } = world;
+            installFolder({ toolDirectory, name: LOCKED_VERSION, prints: STALE_VERSION, finished: false, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe(`locked ${LOCKED_VERSION} ran: install`,);
+            expect(
+              existsSync(join(toolDirectory, LOCKED_VERSION, COMPLETE_MARKER,),),
+            ).toBe(true,);
+            expect(
+              existsSync(join(toolDirectory, LOCKED_VERSION, 'pkg',),),
+            ).toBe(false,);
+          },
+        },),
+        it({
+          name: 'removes the hidden staging folder a killed task left, and says so',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, toolDirectory, } = world;
+            // A process id that is certainly gone: a child that has already exited.
+            const gone = spawnSync('true',).pid;
+            mkdirSync(join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`, 'half',), { recursive: true, },);
+            // And one that is alive: this test process.
+            mkdirSync(join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,), { recursive: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(
+              existsSync(join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,),),
+            ).toBe(false,);
+            expect(
+              existsSync(join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,),),
+            ).toBe(true,);
+            expect(run.stderr,).toContain('left by a task that was killed',);
+          },
+        },),
+        it({
+          name: 'fails with one line when the lock has no mpm-shadow tool',
+          fn: async () => {
+            using directory = makeDirectory();
+            const { root, pathDirectory, dataHome, } = makeRepository({
               directory: directory.path,
               options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: false, },
             },);
             writeFileSync(join(root, 'toolchain.lock.json',), '{"tools":{}}',);
-            const noTool = await runEntry({ root, pathDirectory, args: ['list',], environment: {}, },);
-            expect(noTool.exitCode,).not.toBe(0,);
-            expect(noTool.stderr,).toContain('has no "mpm-shadow" tool',);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(1,);
+            expect(run.stderr,).toContain('has no "mpm-shadow" tool',);
+            expect(run.stderr,).not.toContain('\n    at ',);
           },
         },),
       ],

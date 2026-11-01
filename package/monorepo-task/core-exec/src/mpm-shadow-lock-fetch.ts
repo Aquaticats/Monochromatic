@@ -1,5 +1,5 @@
 /**
- Running a candidate `mpm-shadow`, downloading the lock's archive, checking it and unpacking it.
+ Running a candidate `mpm-shadow` for its version, downloading an archive, checking its SHA-256 and unpacking it.
 
  Imports only `node:` modules, like the rest of the `mpm-shadow` bootstrap, so that it runs from source on a checkout that
  has no `node_modules` yet (see `mpm-shadow-lock-logic.ts`).
@@ -10,27 +10,26 @@
 import { spawn, } from 'node:child_process';
 import { createHash, } from 'node:crypto';
 import { once, } from 'node:events';
-import {
-  chmod,
-  mkdir,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { stat, } from 'node:fs/promises';
 
 import {
-  type ArchiveRow,
-  BOOTSTRAP_CACHE_DIRECTORY,
   MpmShadowLockError,
   parseVersionOutput,
 } from './mpm-shadow-lock-read.ts';
 
 //region Running a candidate: which version is it
+
+/**
+ How long `<binary> --version` may take before the candidate counts as not working, in milliseconds. A program that prints its
+ version at once needs a few milliseconds; a link to a file on a stalled mount or a program waiting on input needs more than
+ this and would otherwise stop every `toolchain:*` task.
+ */
+export const VERSION_TIMEOUT_MS = 10_000;
+
+/**
+ Milliseconds in a second, for the note that names a timeout.
+ */
+const MS_PER_SECOND = 1_000;
 
 /**
  What `<binary> --version` told.
@@ -42,7 +41,7 @@ import {
  */
 export type VersionAnswer = {
   readonly usable: true;
-  readonly version: string
+  readonly version: string;
 } | {
   readonly usable: false;
   readonly reason: string;
@@ -53,25 +52,38 @@ export type VersionAnswer = {
 
  @param binary - Path of the candidate, followed through links
 
- @returns The version it prints, or the reason it printed none (a missing file, a broken link, a non-zero exit)
+ @param timeoutMs - How long to wait for the answer before ending the candidate
+
+ @returns The version it prints, or the reason it printed none (a missing file, a broken link, a non-zero exit, no answer in time)
 
  @example
  ```ts
- const answer = await versionOf(join(root, TOOLCHAIN_BIN_LINK,),);
+ const answer = await versionOf({ binary: join(root, TOOLCHAIN_BIN_LINK,), timeoutMs: VERSION_TIMEOUT_MS, },);
  ```
  */
-export async function versionOf(binary: string,): Promise<VersionAnswer> {
+export async function versionOf(
+  {
+    binary,
+    timeoutMs,
+  }: {
+    readonly binary: string;
+    readonly timeoutMs: number;
+  },
+): Promise<VersionAnswer> {
   /**
-   The candidate, started with its output piped.
+   The candidate, started with its output piped and ended after the timeout.
    */
   const child = spawn(
     binary,
     ['--version',],
-    { stdio: [
-      'ignore',
-      'pipe',
-      'pipe',
-    ], },
+    {
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+      ],
+      timeout: timeoutMs,
+    },
   );
   /**
    Pieces of standard output.
@@ -108,6 +120,11 @@ export async function versionOf(binary: string,): Promise<VersionAnswer> {
       reason: String(error,),
     };
   }
+  if (child.signalCode === 'SIGTERM')
+    return {
+      usable: false,
+      reason: `\`--version\` gave no answer within ${String(timeoutMs / MS_PER_SECOND,)} seconds`,
+    };
   /**
    The version in the output, when there is one.
    */
@@ -135,12 +152,11 @@ export async function versionOf(binary: string,): Promise<VersionAnswer> {
 const DOWNLOAD_TIMEOUT_MS = 300_000;
 
 /**
- File mode of an unpacked program: read, write and execute for the owner, read and execute for others.
- */
-const EXECUTABLE_MODE = 0o755;
-
-/**
  Downloads a URL into memory.
+
+ `fetch` in Node does not read `HTTP_PROXY` and `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is set (measured with Node
+ 26.13.0: with it a request goes to the proxy address, without it straight to the host), so a machine behind a proxy sets
+ that variable for the task.
 
  @param url - Address of the archive
 
@@ -180,20 +196,21 @@ export async function downloadBytes(url: string,): Promise<Uint8Array> {
 }
 
 /**
- Unpacks the `mpm-shadow` member of a release archive (one top folder, then `mpm-shadow`) into a directory.
+ Unpacks a release archive into a directory with `tar`, whole and without stripping a folder, as `mpm-shadow install` does
+ for an archive-route tool (`install_support.rs`, `extract_archive`).
 
  @param archive - Path of the `.tar.gz`
 
- @param directory - Existing directory that receives `mpm-shadow`
+ @param directory - Existing directory that receives the contents
 
  @throws MpmShadowLockError when `tar` cannot start or exits non-zero
 
  @example
  ```ts
- await extractMpmShadow({ archive: '/x/a.tar.gz', directory: '/x/out', },);
+ await extractArchive({ archive: '/x/a.tar.gz', directory: '/x/out', },);
  ```
  */
-export async function extractMpmShadow(
+export async function extractArchive(
   {
     archive,
     directory,
@@ -203,20 +220,16 @@ export async function extractMpmShadow(
   },
 ): Promise<void> {
   /**
-   The same `tar` call as the repository `Dockerfile` and the README bootstrap use.
+   The `tar` run.
    */
   const child = spawn(
     'tar',
     [
       '--extract',
-      '--gzip',
       '--file',
       archive,
-      '--wildcards',
-      '--strip-components=1',
       '--directory',
       directory,
-      '*/mpm-shadow',
     ],
     { stdio: [
       'ignore',
@@ -273,6 +286,27 @@ export function sha256Hex(bytes: Uint8Array,): string {
     .digest('hex',);
 }
 
+//endregion Fetching: download, check, unpack
+
+//region Paths: whether something is there
+
+/**
+ Whether an error says a path does not exist.
+
+ @param error - A caught value
+
+ @returns True for an error whose code is `ENOENT` (nothing there) or `ENOTDIR` (a parent is not a folder)
+
+ @example
+ ```ts
+ isNotFound(error,);
+ ```
+ */
+export function isNotFound(error: unknown,): boolean {
+  return Error.isError(error,) && ('code' in error)
+    && ((error.code === 'ENOENT') || (error.code === 'ENOTDIR'));
+}
+
 /**
  Whether a path exists, following links.
 
@@ -294,170 +328,10 @@ export async function pathExists(path: string,): Promise<boolean> {
   }
   catch (error) {
     // Only "nothing there" means false; a permission problem is a real failure.
-    if ((Error.isError(error,)) && ('code' in error)
-      && (error.code === 'ENOENT'))
+    if (isNotFound(error,))
       return false;
     throw error;
   }
 }
 
-/**
- Fetches the lock's archive into the bootstrap cache.
-
- The archive is unpacked into a folder of its own and moved into place with one rename, so a task that runs at the same
- time never sees a half-written copy; the copy must print the locked version before it is kept.
-
- @param root - Repository root
-
- @param version - The version the lock names, which the unpacked program must print
-
- @param row - The archive row to fetch
-
- @param download - Fetches an archive's bytes
-
- @param log - Prints one note for the person running the task
-
- @returns Absolute path of the new copy
-
- @throws MpmShadowLockError when the download fails, the SHA-256 differs from the lock's, or the copy prints another version
-
- @example
- ```ts
- const binary = await fetchLockedMpmShadow({ root, version: '0.2.1', row, download, log, },);
- ```
- */
-export async function fetchLockedMpmShadow(
-  {
-    root,
-    version,
-    row,
-    download,
-    log,
-  }: {
-    readonly root: string;
-    readonly version: string;
-    readonly row: ArchiveRow;
-    readonly download: (url: string,) => Promise<Uint8Array>;
-    readonly log: (line: string,) => void;
-  },
-): Promise<string> {
-  /**
-   The final folder of this version.
-   */
-  const final = join(
-    root,
-    BOOTSTRAP_CACHE_DIRECTORY,
-    version,
-  );
-  /**
-   A folder of this process alone, renamed to the final one when the copy is checked.
-   */
-  const partial = `${final}.partial-${String(process.pid,)}`;
-  /**
-   The downloaded bytes.
-   */
-  const bytes = await download(row.url,);
-  /**
-   Their digest.
-   */
-  const actual = sha256Hex(bytes,);
-  if (actual !== row.sha256) {
-    throw new MpmShadowLockError(
-      `the archive ${row.url} has SHA-256 ${actual}, but toolchain.lock.json records ${row.sha256}; nothing was installed. `
-        + 'A changed archive under the same version is refused; run `mpm-shadow update mpm-shadow` to record the new one after checking where it came from.',
-    );
-  }
-  await rm(
-    partial,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-  await mkdir(
-    partial,
-    { recursive: true, },
-  );
-  await writeFile(
-    join(
-      partial,
-      'archive.tar.gz',
-    ),
-    bytes,
-  );
-  await extractMpmShadow({
-    archive: join(
-      partial,
-      'archive.tar.gz',
-    ),
-    directory: partial,
-  },);
-  await rm(
-    join(
-      partial,
-      'archive.tar.gz',
-    ),
-    { force: true, },
-  );
-  /**
-   The unpacked program inside the partial folder.
-   */
-  const candidate = join(
-    partial,
-    'mpm-shadow',
-  );
-  await chmod(
-    candidate,
-    EXECUTABLE_MODE,
-  );
-  /**
-   What the unpacked program says it is.
-   */
-  const answer = await versionOf(candidate,);
-  if ((!answer.usable) || (answer.version !== version)) {
-    await rm(
-      partial,
-      {
-        recursive: true,
-        force: true,
-      },
-    );
-    throw new MpmShadowLockError(
-      `the archive ${row.url} unpacked to a program that ${
-        answer.usable ? `prints version ${answer.version}` : `does not run (${answer.reason})`
-      }, but toolchain.lock.json names ${version}`,
-    );
-  }
-  await mkdir(
-    dirname(final,),
-    { recursive: true, },
-  );
-  try {
-    await rename(
-      partial,
-      final,
-    );
-  }
-  catch (error) {
-    // Another task finished first and its folder is now `final`; that copy was checked by the task that put it there.
-    await rm(
-      partial,
-      {
-        recursive: true,
-        force: true,
-      },
-    );
-    if (!(await pathExists(join(
-      final,
-      'mpm-shadow',
-    ),)))
-      throw error;
-    log(`another task installed mpm-shadow ${version} first (${String(error,)}); using its copy`,);
-  }
-  return join(
-    final,
-    'mpm-shadow',
-  );
-}
-
-//endregion Fetching: download, check, unpack
+//endregion Paths: whether something is there

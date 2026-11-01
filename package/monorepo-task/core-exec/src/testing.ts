@@ -28,9 +28,20 @@ export { RULE_GUIDANCE, } from './oxlint-guidance.ts';
 export {
   downloadBytes,
   sha256Hex,
+  VERSION_TIMEOUT_MS,
   type VersionAnswer,
   versionOf,
 } from './mpm-shadow-lock-fetch.ts';
+export {
+  findProgramUnder,
+  isFinishedVersion,
+  listVersionNames,
+} from './mpm-shadow-lock-folder.ts';
+export { installLockedArchive, } from './mpm-shadow-lock-install.ts';
+export {
+  finishLayout,
+  publishStaged,
+} from './mpm-shadow-lock-publish.ts';
 export {
   type MpmShadowSource,
   resolveLockedMpmShadow,
@@ -38,7 +49,10 @@ export {
 } from './mpm-shadow-lock-logic.ts';
 export {
   type ArchiveRow,
-  BOOTSTRAP_CACHE_DIRECTORY,
+  checkVersionName,
+  COMPLETE_MARKER,
+  compareVersions,
+  CURRENT_LINK_NAME,
   hostLockPlatformId,
   type LockedMpmShadow,
   lockPlatformId,
@@ -46,7 +60,10 @@ export {
   MpmShadowLockError,
   parseVersionOutput,
   readLockedMpmShadow,
+  TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
+  toolchainRootOf,
+  UPGRADE_COMMAND,
 } from './mpm-shadow-lock-read.ts';
 export {
   ensurePlaywrightImage,

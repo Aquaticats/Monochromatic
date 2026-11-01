@@ -3,15 +3,19 @@
 
  The root `toolchain:*` tasks run `mpm-shadow`, and the copy on a developer's `PATH` can be older than the lock: a plan
  field that a newer `mpm-shadow` writes (for example `tools.mpm-shadow.options.tagPrefix`) is "not a known field" to an
- older one, which exits 2 before doing anything. So these tasks do not run whatever `PATH` offers. They run the copy
- whose `--version` equals the version the lock records for the `mpm-shadow` tool, looked for in this order:
+ older one, which exits 2 before doing anything. So these tasks do not run whatever `PATH` offers. The owner's rule
+ ("At least the lock's version"):
 
- 1. `.cache/toolchain-bin/mpm-shadow`, the link `mpm-shadow install` itself maintains;
- 2. `.cache/mpm-shadow-bootstrap/<version>/mpm-shadow`, the copy fetched earlier;
- 3. the lock's archive for this platform, downloaded, checked against the SHA-256 beside it, and unpacked into 2.
+ - Run the newest installed copy of this repository's `mpm-shadow` whose version is at or above the lock's. Copies are looked
+   for in `.cache/toolchain-bin/mpm-shadow`, the link `mpm-shadow install` maintains, and in the finished version folders of
+   `<toolchain root>/mpm-shadow/`. When the copy that runs is newer than the lock, a note says so and names the upgrade
+   command.
+ - Only when no such copy exists, fetch the lock's archive for this platform, check it against the SHA-256 beside it, and
+   install it into the toolchain root as `mpm-shadow install` does (`mpm-shadow-lock-install.ts`).
+ - A copy older than the lock never runs.
 
- The same steps are in `.github/actions/repo-tools-setup/action.yml` for CI (plain shell there, because it runs before
- any Node exists); this module is the developer-machine counterpart. It and its two sibling modules import only `node:`
+ The same fetch-and-check steps are in `.github/actions/repo-tools-setup/action.yml` for CI (plain shell there, because it
+ runs before any Node exists); this module is the developer-machine counterpart. It and its sibling modules import only `node:`
  modules, so that they run from source on a checkout that has no `node_modules` yet.
 
  A platform the lock has no archive row for (the plan's `mpm-shadow` entry is Linux-only) cannot be fetched, so there the
@@ -24,29 +28,39 @@ import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
-  fetchLockedMpmShadow,
   pathExists,
+  VERSION_TIMEOUT_MS,
   versionOf,
 } from './mpm-shadow-lock-fetch.ts';
 import {
-  BOOTSTRAP_CACHE_DIRECTORY,
+  findProgramUnder,
+  isFinishedVersion,
+  listVersionNames,
+  SEARCH_DEPTH,
+} from './mpm-shadow-lock-folder.ts';
+import { installLockedArchive, } from './mpm-shadow-lock-install.ts';
+import {
+  compareVersions,
   MpmShadowLockError,
   readLockedMpmShadow,
+  TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
+  UPGRADE_COMMAND,
 } from './mpm-shadow-lock-read.ts';
 
 /**
  Where the copy to run came from.
 
- `toolchain-bin` and `bootstrap-cache` were already there with the locked version, `downloaded` was fetched and checked now,
- and `path` is the `mpm-shadow` from `PATH` because the lock has no archive row for this platform.
+ `toolchain-bin` is the link `mpm-shadow install` maintains in the worktree, `toolchain-root` a finished version folder of the
+ toolchain root, `downloaded` the lock's archive fetched, checked and installed now, and `path` the `mpm-shadow` from `PATH`
+ because the lock has no archive row for this platform.
 
  @example
  ```ts
  const source: MpmShadowSource = 'downloaded';
  ```
  */
-export type MpmShadowSource = 'toolchain-bin' | 'bootstrap-cache' | 'downloaded' | 'path';
+export type MpmShadowSource = 'toolchain-bin' | 'toolchain-root' | 'downloaded' | 'path';
 
 /**
  The copy to run and where it came from.
@@ -66,7 +80,8 @@ export type ResolvedMpmShadow = {
    */
   readonly source: MpmShadowSource;
   /**
-   The version the lock names
+   The version of the copy that runs: the lock's version or a newer one; for `path`, the version the lock names, which is not
+   checked
    */
   readonly version: string;
 };
@@ -76,7 +91,7 @@ export type ResolvedMpmShadow = {
 
  @example
  ```ts
- const options: ResolveOptions = { root: '/repo', platformId: 'linux-x64', download: downloadBytes, log: console.error, };
+ const options: ResolveOptions = { root: '/repo', toolchainRoot, platformId: 'linux-x64', download: downloadBytes, log: console.error, };
  ```
  */
 export type ResolveOptions = {
@@ -84,6 +99,10 @@ export type ResolveOptions = {
    Repository root, where `toolchain.lock.json` and `.cache` are
    */
   readonly root: string;
+  /**
+   The toolchain root `mpm-shadow install` installs into
+   */
+  readonly toolchainRoot: string;
   /**
    The lock's platform id of this machine
    */
@@ -96,6 +115,39 @@ export type ResolveOptions = {
    Prints one note for the person running the task (standard error, so that standard output stays the program's)
    */
   readonly log: (line: string,) => void;
+};
+
+/**
+ An installed copy of `mpm-shadow` that printed its version.
+
+ @example
+ ```ts
+ const candidate: Candidate = { binary: '/x/mpm-shadow', version: '0.2.2', source: 'toolchain-root', };
+ ```
+ */
+type Candidate = {
+  readonly binary: string;
+  readonly version: string;
+  readonly source: 'toolchain-bin' | 'toolchain-root';
+};
+
+/**
+ What a look at the installed copies found.
+
+ @example
+ ```ts
+ const found: Candidates = { candidates: [], notes: [], };
+ ```
+ */
+type Candidates = {
+  /**
+   Copies that print a version, the exposure link first, then the toolchain root's newest first
+   */
+  readonly candidates: readonly Candidate[];
+  /**
+   Why other copies were passed over
+   */
+  readonly notes: readonly string[];
 };
 
 /**
@@ -134,51 +186,150 @@ async function readLockText(root: string,): Promise<string> {
 }
 
 /**
- Looks at one existing candidate: whether it is the locked version, and if not, a note on why it was passed over.
+ Asks one existing program for its version.
 
- @param path - Absolute path of the candidate
+ @param binary - Path of the program
 
  @param label - How the notes name it
 
- @param version - The version the lock names
+ @param source - Where it was found
 
- @returns `{ match: true }` when it prints the locked version, else the note
+ @returns The candidate when it printed a version, else the note on why it was passed over
 
  @example
  ```ts
- const verdict = await judgeCandidate({ path, label: '.cache/toolchain-bin/mpm-shadow', version: '0.2.1', },);
+ const asked = await askVersion({ binary, label: '.cache/toolchain-bin/mpm-shadow', source: 'toolchain-bin', },);
  ```
  */
-async function judgeCandidate(
+async function askVersion(
   {
-    path,
+    binary,
     label,
-    version,
+    source,
   }: {
-    readonly path: string;
+    readonly binary: string;
     readonly label: string;
-    readonly version: string;
+    readonly source: 'toolchain-bin' | 'toolchain-root';
   },
-): Promise<{ readonly match: true; } | {
-  readonly match: false;
-  readonly note: string
-}> {
+): Promise<{ readonly candidate: Candidate; } | { readonly note: string; }> {
   /**
-   What the candidate says it is.
+   What the program says it is.
    */
-  const answer = await versionOf(path,);
-  if (answer.usable && (answer.version === version))
-    return { match: true, };
+  const answer = await versionOf({
+    binary,
+    timeoutMs: VERSION_TIMEOUT_MS,
+  },);
+  if (answer.usable)
+    return { candidate: {
+      binary,
+      version: answer.version,
+      source,
+    }, };
+  return { note: `${label} does not run (${answer.reason})`, };
+}
+
+/**
+ Looks at the copies installed for this repository: the exposure link in the worktree, and every finished version folder in
+ the toolchain root.
+
+ @param root - Repository root
+
+ @param toolchainRoot - The toolchain root
+
+ @returns The copies that print a version and the reasons the others were passed over
+
+ @example
+ ```ts
+ const { candidates, notes, } = await gatherCandidates({ root, toolchainRoot, },);
+ ```
+ */
+async function gatherCandidates(
+  {
+    root,
+    toolchainRoot,
+  }: {
+    readonly root: string;
+    readonly toolchainRoot: string;
+  },
+): Promise<Candidates> {
+  /**
+   The exposure link, when there is one.
+   */
+  const link = join(
+    root,
+    TOOLCHAIN_BIN_LINK,
+  );
+  /**
+   What the exposure link says, as a candidate or as the reason it was passed over; none when there is no link.
+   */
+  const linkAsked = (await pathExists(link,))
+    ? [await askVersion({
+      binary: link,
+      label: TOOLCHAIN_BIN_LINK,
+      source: 'toolchain-bin',
+    },),]
+    : [];
+  /**
+   The finished version folders of the toolchain root.
+   */
+  const toolDirectory = join(
+    toolchainRoot,
+    TOOL_DIRECTORY_NAME,
+  );
+  /**
+   Names of the version folders, newest first.
+   */
+  const names = await listVersionNames(toolDirectory,);
+  /**
+   What each version folder says, as a candidate or as the reason it was passed over.
+   */
+  const rootAsked = await Promise.all(names.map(async function askFolder(name,) {
+    /**
+     The folder's program, when its install finished.
+     */
+    const folder = join(
+      toolDirectory,
+      name,
+    );
+    /**
+     Path of the program, empty when the install did not finish.
+     */
+    const binary = (await isFinishedVersion(folder,)) ? await findProgramUnder({
+      directory: folder,
+      depth: SEARCH_DEPTH,
+    },) : '';
+    if (binary === '')
+      return { note: `${folder} is not a finished install`, };
+    return await askVersion({
+      binary,
+      label: folder,
+      source: 'toolchain-root',
+    },);
+  },),);
+  /**
+   Everything that was asked, the link first.
+   */
+  const asked = [
+    ...linkAsked,
+    ...rootAsked,
+  ];
   return {
-    match: false,
-    note: answer.usable ? `${label} is mpm-shadow ${answer.version}` : `${label} does not run (${answer.reason})`,
+    candidates: asked.flatMap(function candidatesOf(entry,) {
+      return 'candidate' in entry ? [entry.candidate,] : [];
+    },),
+    notes: asked.flatMap(function notesOf(entry,) {
+      return 'note' in entry ? [entry.note,] : [];
+    },),
   };
 }
 
 /**
- Finds the `mpm-shadow` copy to run: the one at the version `toolchain.lock.json` names.
+ Finds the `mpm-shadow` copy to run: the newest installed one at or above the version `toolchain.lock.json` names, else the
+ lock's archive fetched, checked and installed.
 
  @param root - Repository root
+
+ @param toolchainRoot - The toolchain root `mpm-shadow install` installs into
 
  @param platformId - The lock's platform id of this machine
 
@@ -192,12 +343,13 @@ async function judgeCandidate(
 
  @example
  ```ts
- const copy = await resolveLockedMpmShadow({ root, platformId: 'linux-x64', download: downloadBytes, log: console.error, },);
+ const copy = await resolveLockedMpmShadow({ root, toolchainRoot, platformId: 'linux-x64', download: downloadBytes, log: console.error, },);
  ```
  */
 export async function resolveLockedMpmShadow(
   {
     root,
+    toolchainRoot,
     platformId,
     download,
     log,
@@ -211,59 +363,62 @@ export async function resolveLockedMpmShadow(
     platformId,
   },);
   /**
-   The exposure link that `mpm-shadow install` maintains.
+   The installed copies that print a version, and the reasons the others were passed over.
    */
-  const link = join(
+  const {
+    candidates,
+    notes,
+  } = await gatherCandidates({
     root,
-    TOOLCHAIN_BIN_LINK,
-  );
+    toolchainRoot,
+  },);
   /**
-   The copy fetched earlier.
+   The copies that are at or above the lock's version, the newest first; the exposure link wins a tie because it comes first.
    */
-  const cached = join(
-    root,
-    BOOTSTRAP_CACHE_DIRECTORY,
-    locked.version,
-    'mpm-shadow',
-  );
+  const eligible = candidates.filter(function isAtOrAboveLock(candidate,) {
+    return compareVersions({
+      left: candidate.version,
+      right: locked.version,
+    },) >= 0;
+  },)
+    .toSorted(function newestFirst(
+      left,
+      right,
+    ) {
+      return compareVersions({
+        left: right.version,
+        right: left.version,
+      },);
+    },);
   /**
-   Notes on candidates that were passed over, printed only when the run goes on to fetch.
+   The copy that runs, when there is one.
    */
-  const passedOver: string[] = [];
-  if (await pathExists(link,)) {
-    /**
-     Whether the link is the locked version.
-     */
-    const verdict = await judgeCandidate({
-      path: link,
-      label: TOOLCHAIN_BIN_LINK,
-      version: locked.version,
-    },);
-    if (verdict.match)
-      return {
-        binary: link,
-        source: 'toolchain-bin',
-        version: locked.version,
-      };
-    passedOver.push(verdict.note,);
+  const [best,] = eligible;
+  if (best !== undefined) {
+    if (compareVersions({
+      left: best.version,
+      right: locked.version,
+    },) > 0)
+      log(`locked at ${locked.version}, ${best.version} runs; upgrade with: ${UPGRADE_COMMAND}`,);
+    return {
+      binary: best.binary,
+      source: best.source,
+      version: best.version,
+    };
   }
-  if (await pathExists(cached,)) {
-    /**
-     Whether the cached copy is the locked version.
-     */
-    const verdict = await judgeCandidate({
-      path: cached,
-      label: `${BOOTSTRAP_CACHE_DIRECTORY}/${locked.version}`,
-      version: locked.version,
-    },);
-    if (verdict.match)
-      return {
-        binary: cached,
-        source: 'bootstrap-cache',
-        version: locked.version,
-      };
-    passedOver.push(verdict.note,);
-  }
+  /**
+   Why no installed copy runs: those that print a version are older than the lock.
+   */
+  const older = candidates.map(function describeOlder(candidate,) {
+    return `${candidate.binary} is mpm-shadow ${candidate.version}, older than the lock's ${locked.version}, and never runs`;
+  },);
+  /**
+   Every reason a copy was passed over.
+   */
+  const passedOver = [
+    ...older,
+    ...notes,
+  ];
   if (!locked.archive
     .found) {
     log(
@@ -277,15 +432,15 @@ export async function resolveLockedMpmShadow(
     };
   }
   /**
-   The passed-over candidates as one clause, empty when there were none.
+   The passed-over copies as one clause, empty when there were none.
    */
-  const clause = passedOver.length === 0 ? '' : ` (${passedOver.join('; ',)}; not used)`;
-  log(`toolchain.lock.json names mpm-shadow ${locked.version}${clause}; fetching its archive for ${platformId}`,);
+  const clause = passedOver.length === 0 ? '' : ` (${passedOver.join('; ',)})`;
+  log(`toolchain.lock.json names mpm-shadow ${locked.version} and no installed copy is at that version or above${clause}; fetching its archive for ${platformId}`,);
   /**
-   The new copy.
+   The new copy, installed into the toolchain root.
    */
-  const binary = await fetchLockedMpmShadow({
-    root,
+  const binary = await installLockedArchive({
+    toolchainRoot,
     version: locked.version,
     row: locked.archive
       .row,
