@@ -35,7 +35,7 @@ pub(super) fn store_with(program: &Path, directory: &Path) -> CandidateStore {
     return CandidateStore::new(
         program,
         &[OsString::from("-C"), directory.as_os_str().to_os_string()],
-        &[],
+        &crate::repo_read_hook::switch_off(),
     );
 }
 

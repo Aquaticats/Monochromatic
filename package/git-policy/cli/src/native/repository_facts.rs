@@ -36,6 +36,8 @@ use super::candidate_error::CandidateError;
 use super::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// The captured-query runner and its byte helpers.
 use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+use super::repo_read_adapter::{location_of, sequencer_of};
+use super::repo_read_layout::{RepoLayout, read_layout};
 use super::repository_location::{
     RepositoryLocation, location_query_arguments, parse_location_output,
 };
@@ -148,6 +150,8 @@ pub struct GitFacts {
     /// The remembered location answer,
     ///  once asked.
     location: Option<Result<RepositoryLocation, String>>,
+    /// The in-process layout, read once: `Some(None)` means the reader declined and Git answers.
+    layout: Option<Option<RepoLayout>>,
     /// How many Git processes this provider started.
     pub queries: usize,
 }
@@ -177,6 +181,7 @@ pub fn git_facts(
         overlay: overlay.to_vec(),
         // `None` is the "absent" case of `Option`: nothing has been asked.
         location: None,
+        layout: None,
         queries: 0,
     };
 }
@@ -230,6 +235,23 @@ impl GitFacts {
             Err(error) => return Err(not_started(self.real_git.as_path(), fact, &error)),
         }
     }
+
+    /// What:
+    ///  The repository layout read from the file system, once per provider;
+    ///  `None` when the reader declined and Git must answer.
+    /// Why:
+    ///   Location and sequencer questions share one read and start no Git process when the layout is plain.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// layout(): RepoLayout | undefined; // memoized
+    /// ```
+    fn layout(&mut self) -> Option<&RepoLayout> {
+        if self.layout.is_none() {
+            self.layout = Some(read_layout(self.global_prefix.as_slice(), self.overlay.as_slice()));
+        }
+        return self.layout.as_ref().and_then(Option::as_ref);
+    }
 }
 
 /// What:
@@ -248,6 +270,12 @@ impl RepositoryFacts for GitFacts {
         if let Some(known) = &self.location {
             // `.clone()` copies the remembered answer for the caller.
             return known.clone();
+        }
+        // A plain layout is read from the file system; only a layout the reader declines costs a Git process.
+        let read: Option<RepositoryLocation> = self.layout().map(location_of);
+        if let Some(found) = read {
+            self.location = Some(Ok(found.clone()));
+            return Ok(found);
         }
         let arguments: Vec<OsString> = location_query_arguments(self.global_prefix.as_slice());
         let answer: Result<RepositoryLocation, String> =
@@ -274,6 +302,9 @@ impl RepositoryFacts for GitFacts {
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
+        if let Some(state) = self.layout().and_then(sequencer_of) {
+            return Ok(state);
+        }
         let arguments: Vec<OsString> = sequencer_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the Git directory")?;
         if !output.success {

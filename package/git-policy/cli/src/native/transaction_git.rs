@@ -21,6 +21,7 @@
 
 /// Building a Git child from an argument array and an overlay.
 use super::forwarding::git_command;
+use super::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use super::child_class::class_of;
 use super::child_watch::{WatchTerms, output_watched};
@@ -326,6 +327,10 @@ fn build_command(context: &GitContext, request: &GitRequest) -> Command {
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
 pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+    // An exact read-only command line the in-process readers know costs no Git process.
+    if let Some(answered) = try_request(context, request) {
+        return Ok(answered);
+    }
     return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); });
 }
 
