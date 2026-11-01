@@ -306,6 +306,33 @@ or the main process of a service,
 is not moved,
 and the report says so by name.
 
+### Leftover scopes of the earlier design
+
+The first design made a scope per moved process,
+named `wg-quicker-update-<pid>-<start time>.scope`.
+Scopes that adopted only exiting processes stayed running with no process,
+or failed with no cgroup,
+and nothing removes them:
+the manager stops a scope when its last process exits,
+and a scope that never held one gets no such event.
+When the watcher starts it sweeps them once,
+on a thread of its own,
+so the policy is enforced while the manager works.
+It lists the manager's units that match the earlier design's names (two runs of digits,
+not a path),
+resets the failed ones,
+and stops the running ones whose `cgroup.events` says `populated 0`,
+25 at a time,
+reading each one again right before its batch is sent.
+It never touches a scope that holds a process,
+which ends with its processes,
+a scope whose state cannot be read,
+or a scope of the current design,
+whose name is a path.
+Its counts are logged once.
+Nothing can put a process into an empty scope of the earlier design afterwards,
+so a scope that reads empty stays empty.
+
 ### One scope per origin
 
 The owner's decision,

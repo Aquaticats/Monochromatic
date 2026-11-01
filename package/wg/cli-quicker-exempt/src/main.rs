@@ -29,6 +29,8 @@ mod scope_adoption;
 mod scope_calls;
 /// Names the scope of each origin cgroup.
 mod scope_naming;
+/// Sweeps the scopes the earlier design left behind.
+mod leftover_sweep;
 /// Keeps the limits of each scope equal to its origin's.
 mod scope_registry;
 /// Recognizes update entry points and toolchain install roots.
@@ -151,6 +153,9 @@ mod scope_adoption_tests;
 /// Unit tests for scope names.
 #[cfg(test)]
 mod scope_naming_tests;
+/// Unit tests for the sweep of leftover scopes.
+#[cfg(test)]
+mod leftover_sweep_tests;
 /// Unit tests for following the limits of origins.
 #[cfg(test)]
 mod scope_registry_tests;

@@ -96,7 +96,7 @@ fn every_thread_the_setup_creates_starts_with_the_shutdown_signals_blocked() {
         cgroup_root: &cgroup_root,
     };
     let before = thread_ids();
-    let watch = prepare_application_watch(roots, 8888, routing, ReporterIdentity { uid: 1000, gid: 1000 }).expect("prepare the watch");
+    let watch = prepare_application_watch(roots, 8888, routing, ReporterIdentity { uid: 1000, gid: 1000 }, None).expect("prepare the watch");
     let created: Vec<String> = thread_ids().difference(&before).cloned().collect();
     assert!(!created.is_empty(), "the setup started no thread, so this check would pass without checking anything");
     for thread_id in &created {

@@ -115,3 +115,36 @@ fn the_output_of_the_client_is_returned() {
     let (uid, gid) = own_ids();
     assert_eq!(client.run(uid, gid, &[]).expect("the client succeeds"), "u 42\n");
 }
+
+/// A client that writes more than a pipe holds is read while it runs.
+/// Reading after the exit left it blocked on the full pipe until the timeout killed it:
+/// the unit list of a manager with thousands of scopes is hundreds of kilobytes.
+/// The default keeps the first 64 KiB,
+/// and a larger limit keeps everything.
+#[test]
+fn output_larger_than_a_pipe_is_read_while_the_client_runs() {
+    let directory = scratch("large-output");
+    let fake = script(&directory, "head -c 300000 /dev/zero | tr '\\0' 'a'");
+    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(10) };
+    let (uid, gid) = own_ids();
+    let started = Instant::now();
+    let default = client.run(uid, gid, &[]).expect("a large output is not a failure");
+    assert_eq!(default.len(), 65_536);
+    let whole = client.run_limited(uid, gid, &[], 1_000_000).expect("the larger limit keeps everything");
+    assert_eq!(whole.len(), 300_000);
+    assert!(started.elapsed() < Duration::from_secs(8), "the client waited for its timeout");
+}
+
+/// A failing client that writes a large message on standard error does not hang either,
+/// and the message is cut.
+#[test]
+fn a_failing_client_with_a_large_error_message_is_not_left_blocked() {
+    let directory = scratch("large-error");
+    let fake = script(&directory, "head -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexit 3");
+    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(10) };
+    let (uid, gid) = own_ids();
+    let started = Instant::now();
+    let error = client.run(uid, gid, &[]).expect_err("the client fails");
+    assert!(matches!(&error, ClientError::Failed(text) if text.contains("exited with") && text.len() < 70_000), "{} bytes", error.to_string().len());
+    assert!(started.elapsed() < Duration::from_secs(8));
+}

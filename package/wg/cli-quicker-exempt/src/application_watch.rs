@@ -6,6 +6,8 @@ use crate::application_targets::{scan_application_targets, ScanRoots};
 use crate::process_events::{drain_exec_events, subscribe};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
+/// The one-time sweep of the scopes of the earlier design.
+use crate::leftover_sweep::{spawn_sweep, SweepSetup};
 /// Non-panicking bounded log.
 use crate::log_line::{log_line, sanitize};
 /// Shutdown signal descriptors.
@@ -73,6 +75,9 @@ pub struct ApplicationWatch<'a> {
     rescan_pending: bool,
     /// Delivers failures after startup to a person.
     reporter: RuntimeReporter,
+    /// The sweep of the scopes of the earlier design,
+    /// started once when the watcher runs and absent in tests.
+    sweep: Option<SweepSetup>,
 }
 
 /// Time between full process scans,
@@ -201,6 +206,7 @@ pub fn prepare_application_watch(
     mark: u32,
     routing: UpdateRouting,
     identity: ReporterIdentity,
+    sweep: Option<SweepSetup>,
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
@@ -234,6 +240,7 @@ pub fn prepare_application_watch(
         last_full_scan: Instant::now(),
         rescan_pending: false,
         reporter,
+        sweep,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
@@ -311,6 +318,10 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
 /// because the watcher then stops enforcing every policy it owns.
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     watch.reporter.end_startup();
+    // The sweep starts once the watcher is committed to run, so an abandoned start sweeps nothing.
+    if let Some(setup) = watch.sweep.take() {
+        spawn_sweep(setup);
+    }
     let result = poll_until_stopped(watch);
     if let Err(error) = &result {
         watch.reporter.report_failure(
