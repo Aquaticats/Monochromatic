@@ -60,17 +60,26 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR_NAME: ${{ github.actor }}
           TAG: ${{ steps.tag.outputs.value }}
         run: |
           set -euo pipefail
           repository="${IMAGE#ghcr.io/}"
           accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
-          bearer="$(printf '%s' "$GITHUB_TOKEN" | base64 --wrap=0)"
-          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
-            --header "Authorization: Bearer $bearer" --header "Accept: $accept" \
-            "https://ghcr.io/v2/$repository/manifests/$TAG")"
-          # Only a 200 means the tag exists; a 404 is a tag or a package that does not exist yet, and anything else
-          # goes on to the build, where a real authentication or network fault fails the push with its own message.
+          # The registry's own token flow, the one `podman login` and `podman pull` use: the workflow's token is the
+          # password of a basic-auth request and the answer is a bearer token for this repository. The credentials go
+          # through stdin (`--config -`) and not the command line.
+          token="$(printf 'user = "%s:%s"\n' "$GITHUB_ACTOR_NAME" "$GITHUB_TOKEN" \
+            | curl --silent --config - "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull" \
+            | jq --raw-output '.token // empty')"
+          status=000
+          if [ -n "$token" ]; then
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
+              --header "Authorization: Bearer $token" --header "Accept: $accept" \
+              "https://ghcr.io/v2/$repository/manifests/$TAG")"
+          fi
+          # Only a 200 means the tag exists. Anything else (no package yet, no tag yet, or a fault) goes on to the
+          # build, where a real authentication or network fault fails the push with its own message.
           if [ "$status" = 200 ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
             echo "$IMAGE:$TAG exists (HTTP $status); nothing to build"
