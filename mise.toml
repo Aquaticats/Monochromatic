@@ -868,9 +868,6 @@ description = "Run all tests in watch mode"
 extends = "watch:test"
 alias = "tW"
 
-[tasks."testDockerImage"]
-run = "docker build --progress=plain ."
-
 [tasks.buildAndTest]
 description = "Build then test, retaining failures from either phase; with args, builds only the containing package"
 alias = "bt"

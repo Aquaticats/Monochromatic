@@ -177,8 +177,9 @@ jobs:
           save_cache=true
         fi
 
-        # The Gradle cache stays restore-only until cache-off, invalidation and stale-output
-        # controls pass; doc/planning/depot-cache-admission.md records the admission state.
+        # The Gradle cache stays restore-only until three controls have been shown for the Gradle command boundary:
+        # a cache-off run that builds the same inputs, a check that a changed Gradle, Android Gradle plugin or wrapper
+        # input moves the key, and a check that an old cache cannot make a later build skip a changed input.
         save_gradle_cache=false
 
         # A push builds only when the version changed; a dispatch always builds, and a real

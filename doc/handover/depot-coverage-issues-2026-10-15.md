@@ -1,5 +1,12 @@
 # Depot coverage issue follow-up
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This handover stays as the record of the Depot work;
+> its next steps are void.
+
 The user requested a GitHub issue for every observed problem.
 This follow-up owns the coverage and cost gaps identified during the authorized Depot trial.
 It does not authorize production migration.

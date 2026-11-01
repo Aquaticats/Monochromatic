@@ -87,6 +87,9 @@ Reference hazards measured, not assumed:
      corrupts these.
 -  `.github/workflows/admission-gate.yml` reads
      `doc/planning/depot-admission-ledger.json` at run time.
+     (Deleted on 2026-11-01 with the Depot removal:
+     the steps of this plan that name this workflow no longer apply,
+     and the ledger JSON has no run-time reader.)
 -  `package/translation-repair/source-scan/src/doc-line-limit.unit.test.ts`
      (`readGuardedDocs`) does `readdir('doc', family)` and matches stems on
      bare filenames; nested topics make it silently read nothing.

@@ -1,5 +1,12 @@
 # Expanded Depot CI cost and critical-path model
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 The permanent allocation must retain heavy use of GitHub-hosted runners themselves.
 GitHub orchestration of Depot-managed workers does not count as GitHub-hosted execution.
 The model must compare workload assignments within that accepted hybrid,

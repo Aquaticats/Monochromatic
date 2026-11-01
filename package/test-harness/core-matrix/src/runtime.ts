@@ -12,11 +12,11 @@ import type { Runtime, } from './types.ts';
 /**
  Shell command installing the Node release `toolchain.lock.json` pins.
 
- Mirrors the root Dockerfile's verified pattern: `jq` reads the current
- platform's `linux-<arch>` artifact row from the mounted
- `/workspace/toolchain.lock.json`, the archive is fetched and its SHA-256
- checked against the lock before extraction into `$HOME/node`. Nothing here
- resolves a version ad hoc: the lock is the only version source.
+ Follows the pattern `.github/actions/repo-tools-setup/action.yml` uses for the
+ `mpm-shadow` row: `jq` reads the current platform's `linux-<arch>` artifact
+ row from the mounted `/workspace/toolchain.lock.json`, the archive is fetched
+ and its SHA-256 checked against the lock before extraction into `$HOME/node`.
+ Nothing here resolves a version ad hoc: the lock is the only version source.
  */
 const NODE_LOCKED_INSTALL = [
   'cd /workspace',

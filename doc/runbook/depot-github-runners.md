@@ -1,5 +1,12 @@
 # Connect Depot GitHub Actions runners for the trial
 
+> Depot is not adopted (status of 2026-11-01),
+> so do not follow this runbook.
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> It stays as the record of how the Depot trial was set up.
+
 This enables the runner comparison for the public repository `Aquaticats/Monochromatic`.
 The Depot Code Access app is already verified by a successful Depot CI checkout.
 The separate runner app is absent from the GitHub organization installation listing.
