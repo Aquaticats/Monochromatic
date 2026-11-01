@@ -13,8 +13,9 @@
 ///  the declared long option surface,
 ///  the severity an unused-directive finding carries,
 ///  and the parser's fallible entry point.
-use super::{CliOptions, long_options};
+use super::{ABOUT, CliOptions, long_options};
 use crate::diagnostic::Severity;
+use crate::run_finish::PROGRAM;
 use clap::Parser;
 /// Import native argv/path storage.
 use std::ffi::OsString;
@@ -22,7 +23,7 @@ use std::path::PathBuf;
 
 /// Parse a UTF-8 fixture while retaining the actual operating-system argument interface.
 fn parse(arguments: &[&str]) -> Result<CliOptions, clap::Error> {
-    let mut values: Vec<OsString> = vec![OsString::from("monochromatic-lint")];
+    let mut values: Vec<OsString> = vec![OsString::from(PROGRAM)];
     for argument in arguments {
         values.push(OsString::from(*argument));
     }
@@ -132,8 +133,9 @@ fn help_and_version_remain_available_without_setup() {
     }
     // Help is written for the person running the command, not copied from source documentation.
     assert!(
-        rendered
-            .starts_with("Lint Rust, Markdown and MDX with repository-owned policies.\n\nUsage: monochromatic-lint [OPTIONS] [PATH]...")
+        rendered.starts_with(
+            format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()
+        )
     );
     assert!(!rendered.contains("In TS you'd write"));
     assert!(!rendered.contains("What:"));
@@ -147,7 +149,7 @@ fn help_and_version_remain_available_without_setup() {
 fn native_non_utf8_path_arguments_are_preserved() {
     use std::os::unix::ffi::OsStringExt;
     let raw: OsString = OsString::from_vec(vec![b'n', 255, b'.', b'r', b's']);
-    let arguments: Vec<OsString> = vec![OsString::from("monochromatic-lint"), raw.clone()];
+    let arguments: Vec<OsString> = vec![OsString::from(PROGRAM), raw.clone()];
     let parsed: CliOptions =
         CliOptions::try_parse_from::<Vec<OsString>, OsString>(arguments).expect("native path");
     assert_eq!(parsed.paths, [PathBuf::from(raw)]);

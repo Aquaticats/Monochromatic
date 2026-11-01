@@ -27,7 +27,7 @@ use std::path::Path;
 /// ```ts
 /// const LOCK_NAME = 'mise.lock';
 /// ```
-pub(crate) const LOCK_NAME: &str = "mise.lock";
+pub const LOCK_NAME: &str = "mise.lock";
 
 /// What:
 ///  The lockfile table header that owns this tool's resolved version.
@@ -40,7 +40,7 @@ pub(crate) const LOCK_NAME: &str = "mise.lock";
 /// ```ts
 /// const TOOL_TABLE = '[[tools."cargo:monochromatic-lint"]]';
 /// ```
-pub(crate) const TOOL_TABLE: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
+pub const TOOL_TABLE: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 
 /// What:
 ///  The running binary's stale-binary hint for one rejected configuration directory.
