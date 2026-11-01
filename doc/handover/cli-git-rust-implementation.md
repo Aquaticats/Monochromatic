@@ -6385,3 +6385,36 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Residual: a cold isolate costs 5 to 9 ms. Workers Paid is the documented fallback, which is a billing change and
     only reported, never made. Doc: `doc/troubleshooting/lfs-r2-worker-error-1102.md`.
   - The local `lfs.transfer.batchSize=25` relief is removed (unset), since batches of 100 pass now.
+- 0.5.3 PUBLISHED (crates.io 2026-11-01T16:42:45Z, both assets). The lock was bumped by this session (`abed43149b`):
+  "1 installed, 64 unchanged, 0 failed", and `git --version` prints 0.5.3. Its first real commit took 3777 ms including
+  the push.
+- Service pre-4d work READY from `af248a0e1f85cfae6`:
+  - `dd73229ae2` rebuild on a moved tip: `REBUILD_ATTEMPTS = 5`, re-signed by Git; amend never rebuilt; editor message
+    saved to `<git dir>/cli-git-saved-message-<id>` for `-F`.
+  - `4f6ba9db72` `recover` before every batch, and `Drop` for the test `Service`.
+  - `0a2cb398d9` no `git var` before the cheap declines.
+  - `98724c2af4` and `caecdda4ae` harnesses: `CLI_GIT_TEST_SERVICE` opt-in fixture service; `native:perf` has its own
+    service and service and signed arms; the e2e container service (unverified).
+  - `native:perf` medians, added over direct Git: transaction 64.8 ms, service 26.4 ms, signed transaction 64.8 ms,
+    signed service 33.0 ms.
+- 4d condition not met: none of the still-declined lines has a service landing. 4d is split. Part 1 (landings, each
+  compared with native Git, plus the 15 push-in-command tests restated for the service push and its LFS step) goes to
+  the new agent `abebb58839c985773`. Part 2 (deletions) comes after, with its own go-ahead.
+- Review key in memory: sent to `ad02e84404af49107` (resumed).
+- `caecdda4ae` is on `integ-20261101` with main. `lint:types` passes after linking all 215 package `node_modules` into
+  the worktree (`~/temp/agent/mirror-package-node-modules.ts`; the earlier mirror covered only 3). Gate 17 runs (unit
+  `gpc-main-gate17`). When green: merge, release 0.5.4, bump the lock, then measure a real signed commit through the
+  service.
+- Gate 17 GREEN on `caecdda4ae` plus main (the service pre-4d work): 3132 of 3132 passed, 8 skipped. Merged into main
+  and released as 0.5.4 (logs `~/temp/agent/release-054.log` and `-wait.log`). HOLD wrapper merges until its bump lands.
+  - The service's push uploads LFS first, verified from the code only:
+    `GitHandlers::push` -> `push_once` -> `run_push_command` -> `lfs_bounded_push::run_push`, which narrows the plan
+    with the in-process pointer scan when `PushGit.lfs` is set. No binary test covers it through the service yet; that
+    is part of the landings agent's brief (restating the 15 push-in-command tests).
+- Review key in memory READY `54a8610195` from `ad02e84404af49107`:
+  - new `service_review_key.rs` (redacted `Debug`);
+  - optional `reviewKey` in the work message, held per repository for one round and then forgotten;
+  - the review reads both credential names only from the message.
+  It fast-forwarded `integ-20261101`. Gate 18 runs there (unit `gpc-main-gate18`), and so does the e2e container suite
+  with the service (unit `gpc-e2e-service`, log `~/temp/agent/gate/e2e-service.log`), which the service agent could not
+  run. Not covered: an end-to-end review through a real socket, because the review uses the real gateway endpoint.

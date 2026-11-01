@@ -48,6 +48,7 @@ import {
   realGit,
   type ScenarioRepository,
 } from './repository-fixture.ts';
+import { settleServiceWork, } from './service-fixture.ts';
 import { readWorktree, } from './worker-fixture.ts';
 
 //region Repository state
@@ -293,6 +294,8 @@ export async function observeRun({
   checks: HookChecks;
   expectations: RunObservation['expectations'];
 }>,): Promise<RunObservation> {
+  // The remote reaches a commit the service landed only after the commit returned, so the run is observed afterwards.
+  await settleServiceWork(repository.commonDir,);
   /**
    Ledger contents.
    */
