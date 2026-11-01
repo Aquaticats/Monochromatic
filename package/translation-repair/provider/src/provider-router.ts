@@ -319,7 +319,7 @@ export function createRoutingClient(
     },);
 
     // A LOST SEAT, NOT THE RUN'S END, whether this model alone has no provider or its card holds it off the provider
-    // chosen (ledger B1365): refused before the slot below is taken, in the same synchronous step as the choice.
+    // chosen (ledger B1365): refused before `ledger.take` takes the slot, in the same synchronous step as the choice.
     /**
      Provider the policy chose, which the model's card allows.
      */

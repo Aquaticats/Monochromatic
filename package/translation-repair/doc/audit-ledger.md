@@ -844,6 +844,14 @@ and this one lists that index in their place
   the nits and the measured claims (B1351 to B1355),
   the restored originals and the other docs points (B1356 to B1362)
   and the slips (B1363).
+- [Audit ledger: a held model is refused at its first ask](audit-ledger-a-held-model-is-refused-at-its-first-ask.md):
+  The fixes of round w408 to the broader reading of B1350:
+  what the first ask of a held model did (B1364),
+  the router's refusal of it for a seat that honours the hold (B1365),
+  the windows that remain (B1366),
+  the cache versions and keys (B1367),
+  the split of this index by subject (B1368)
+  and the gates and slips of the round (B1369).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

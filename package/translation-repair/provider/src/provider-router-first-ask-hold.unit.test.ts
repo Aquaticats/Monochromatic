@@ -188,7 +188,7 @@ await describe({
         const honouring = SEAT_ROLES.filter(function honours(role,): boolean {
           return routeTimeHoldsOf({ role, },).includes(HELD_OFF_HYPER,);
         },);
-        // EVERY ROLE HONOURS THIS HOLD, so the loop below tries each role and the case cannot pass on an empty list.
+        // EVERY ROLE HONOURS THIS HOLD, so the asks of `honouring` try each role and the case cannot pass on an empty list.
         expect(honouring,).toEqual(SEAT_ROLES,);
         /**
          What the first ask of each role's seat came to.

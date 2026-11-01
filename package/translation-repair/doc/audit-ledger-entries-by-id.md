@@ -723,9 +723,16 @@ which lists every file of this record.
 - [B1361, the smaller points of the ledger][w407]
 - [B1362, the by-id index is split by id range][w407]
 - [B1363, the slips of the round and what stays open][w407]
+- [B1364, what the first ask of a held model did before B1365][w408]
+- [B1365, the router refuses the first ask of a held model for a seat that honours the hold][w408]
+- [B1366, the windows that remain][w408]
+- [B1367, the cache versions and the keys][w408]
+- [B1368, the ledger index is split by subject][w408]
+- [B1369, the gates, the slips of the round and what stays open][w408]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md
+[w408]: audit-ledger-a-held-model-is-refused-at-its-first-ask.md
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
 [b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md

@@ -254,6 +254,13 @@ That changes what a first ask does when Synthetic runs dry in a seat's window,
 which the brief did not ask for,
 so it is not done.
 
+Note of 2026-11-01 (round w408):
+the lead adopted the broader reading as following from the owner's "Honour holds (Recommended)",
+and B1365 does it:
+the router refuses the first ask of a held model for a seat whose role honours the hold,
+and B1364 traces what that ask did before.
+A request that names no seat and a measurement are not refused on the first ask.
+
 Red:
 `provider-router-reask-hold.unit.test.ts` fails on the unfixed router in its three first cases
 (`red-a5-router-hold.txt`),
@@ -689,6 +696,9 @@ Slips:
 Open:
 - Holding a measurement on the same-model paths (B1350) and the router-wide refusal of a held model on a held
   provider for a first ask are the owner's to say.
+  Note of 2026-11-01 (round w408):
+  the second was adopted by the lead and is done (B1365);
+  whether a measurement is held stays the owner's to say.
 - The built-output reads and the lock read of B1270 stay as B1342 left them.
 - The foreground Ctrl-C delivery,
   and what the tools the pass starts do under `KillMode=mixed`,

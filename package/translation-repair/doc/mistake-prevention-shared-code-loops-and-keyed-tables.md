@@ -489,15 +489,34 @@ the hand-picked static seats included.
 The hold is honoured on every path that can send the model to the provider it names,
 and not only where the pool of
 alternates is drawn.
-A re-ask of the same model on another provider (`routedTextElsewhere`) leaves out a provider the hold names for the
-model and the role of the request's seat,
-and the recovery round's fall back to the seat's own model reads the meters at the ask and loses the seat as
-unreachable where Hyper would serve a model its role withholds (ledger B1350).
+Round w407 applied the ruling to the paths its finding named,
+the re-ask of the same model on another provider and the recovery round's fall back,
+and left the first ask,
+whose choice of a provider read no hold at all (ledger B1364):
+a model seated while Synthetic was wet and asked after it ran dry went to Hyper.
+A ruling about where a model is asked is applied at the functions that reach a provider,
+so the census is the check:
+`rg 'routeProviderFor\(|callOn\(|routedTextElsewhere\(' package/translation-repair/provider/src`
+over production source lists them,
+and each is read for the hold.
+There are two:
+`chooseProvider` (the first ask and the re-route of a refused call) refuses a choice the model's card holds off for the
+request's seat before it takes the slot,
+and `routedTextElsewhere` (the hinted re-ask) leaves out a provider the hold names.
+The recovery round's fall back to the seat's own model still reads the meters at the ask and loses the seat as
+unreachable where Hyper would serve a model its role withholds,
+which is a courtesy to a client that is no router once the router refuses the ask itself (ledger B1350, B1365).
+`holdsKeepingRequestOff` is the one question both router paths ask,
 `routeTimeHoldsOnProvider` is the one place a hold is tied to a provider,
-and the reading of the run calls it.
-A measurement is not held on those paths (it scores the model where it runs);
-the owner may rule otherwise.
-The seconds between the run's reading and the ask are inherent and are named when the reading is used.
+and the reading of the run calls the second.
+A refused choice is a lost seat of the kind a model with no provider is,
+which every layer of the stage already reads as one unreachable seat that the quorum does not count,
+the tally does not count as an ask and the run does not stop on (ledger B1364).
+A measurement is not held on any path (it scores the model where it runs),
+and a first ask that names no seat is not held;
+the owner may rule otherwise on either.
+The seconds between the run's reading and the ask are closed for the ask by the router's choice
+and remain between seating and asking (ledger B1366).
 
 What enforces it:
 the drift case of `seat-role-pool.unit.test.ts` walks the 8 readings of the three meters a hold reads
@@ -508,9 +527,13 @@ and fails for a model the reading withholds that a re-ask may ask or a bench sea
 and for a model it does not withhold that no re-ask asks;
 it is no guard of the other readings of the eight providers (ledger B1349);
 `provider-router-reask-hold.unit.test.ts` holds the same-model re-ask,
+`provider-router-first-ask-hold.unit.test.ts` and the forwarded refusal of `provider-router.unit.test.ts` hold the
+first ask,
+`stage-first-ask-hold.unit.test.ts` holds what the stage makes of the refusal over the real router,
 `stage-recovery-runaway.unit.test.ts` the fall back,
 and `reask-alternate-models.unit.test.ts`,
 `nudged-reask.unit.test.ts` and `prompt-uniqueness-client.unit.test.ts` hold each way a pool is drawn.
+The census of the paths that reach a provider is by habit.
 
 ## A snapshot read before an await
 

@@ -295,6 +295,17 @@ the split's handover edits took one file to 1,076 lines,
 and the guard that reads the limit runs in `source-scan:test:unit` and not in the `source-scans` task (ledger M250).
 The caps round placed two ledger entries in a file that then held 1,042 lines,
 and `e8fb13c2a3` moved them to a file of their own (ledger M312).
+An index is a doc that grows too:
+the main ledger index stood at 993 lines when the entries of round w408 needed a bullet of their own.
+The two largest subjects of its contents,
+the census of code no unit test runs and the follow-ups of the page grammar,
+moved into indexes of their own,
+named for the subject and opening with the stem of the files they list
+(`audit-ledger-test-suite-unrun-code.md`, `audit-ledger-source-text.md`),
+so `withFiles` reads the files under them,
+and the `Part of` line of each file points at the index that lists it (ledger B1368).
+`wc --lines` is read on the index too before a bullet is added to it,
+and a subject is moved out before the index is within a round's entries of the limit.
 
 What enforces it:
 `doc-line-limit.unit.test.ts` reads the package's docs,
