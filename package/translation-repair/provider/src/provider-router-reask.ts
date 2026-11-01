@@ -345,9 +345,13 @@ export async function routedTextElsewhere(
   },);
 
   if (asked.kind === 'budget-refused') {
+    // THE CALL WAS MADE (ledger B1380): `replyOrBudgetRefusal` reaches this only after the provider was asked and refused,
+    // so the refusal is one raised after an exchange. A reader that gives a claim back for a refusal before any exchange
+    // (`refusedBeforeAnyExchange`) keeps it, as the model was asked.
     throw new NoProviderForModelError({
       modelId: request.modelId,
       reason: `${elsewhere} refused the re-ask on budget`,
+      afterExchange: true,
     },);
   }
   return {
@@ -384,13 +388,22 @@ export async function routedJson<ValueT,>(
     readonly request: ForeignBorrowed<ChatJsonRequest<ValueT>>;
   },
 ): Promise<ChatJsonOutcome<ValueT>> {
+  // THE HINT OF A JSON EXCHANGE IS HONOURED AS THAT OF A TEXT EXCHANGE (ledger B1379): a request that rules a provider out
+  // is served elsewhere, held to the holds of its seat, or refused, and is not routed as a first ask on the provider it
+  // ruled out.
   /**
    Raw text reply of the routed exchange, and who answered it.
    */
   const {
     provider,
     reply,
-  } = await core.routedText(request,);
+  } = (request.otherThan === undefined)
+    ? await core.routedText(request,)
+    : await routedTextElsewhere({
+      core,
+      request,
+      otherThan: request.otherThan,
+    },);
 
   return await reaskElsewhereNudged({
     request,
