@@ -1806,6 +1806,23 @@ doc/agent slice opened and troubleshooting still running):
 - Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
   position 26, troubleshooting at worklist line 67, doc/agent on its six files.
 
+Wave-4 forty-third checkpoint (2026-11-01, doc/agent complete and the slot moved to a
+translation-repair package; cc, desktop, fm and troubleshooting still running):
+
+- Lane milestone: doc/agent COMPLETE. All six tracked files read (431 lines); rows
+  `w5-docs-agent-001` to `-006`, w5-docs-agent.jsonl 6 of 6 by my run. My spots:
+  all six issue-tracker convention bullets are bold-label bullets; the three
+  exactly-120-character lines are regression-suite 4 and 29 and self-review 21;
+  regression-suite still records three `/tmp` scratch paths (XTD/ATH forbid
+  them); the five-triage-roles premise and the "stale" verb are quoted live. The
+  lane is released.
+- Freed slot: package/translation-repair/slice-cache opened as a single-package
+  slice (121 tracked files), findings to w5-tr-slice-cache.jsonl from id
+  `w5-tr-slice-cache-001`, base rr-tsc-001, deduping the earlier pkg-dom,
+  pkg-array-at and new-round4 mentions.
+- Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
+  position 26, troubleshooting at worklist line 67, slice-cache on its package.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
