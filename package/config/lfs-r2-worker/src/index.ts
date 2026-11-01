@@ -54,6 +54,22 @@ export {
   createMemoryObjectStore,
   type MemoryObjectStore,
 } from './memory-object-store.ts';
+/**
+ @internal
+ */
+export {
+  createMemoryPresenceIndex,
+  type MemoryPresenceIndex,
+} from './memory-presence-index.ts';
+export {
+  DOWNLOAD_MISS_CHECK_LIMIT,
+  type Presence,
+} from './batch-presence.ts';
+export {
+  INDEX_CHUNK_SIZE,
+  INSERT_PRESENT_SQL,
+  SELECT_PRESENT_SQL,
+} from './presence-index.ts';
 export {
   IMAGE_MEDIA_TYPES,
   mediaTypeForPath,
@@ -79,6 +95,8 @@ export {
 export type {
   ExecutionContextLike,
   ObjectStore,
+  PresenceIndexDatabase,
+  PresenceIndexStatement,
   StoredObject,
   StoredObjectHead,
   WorkerEnv,

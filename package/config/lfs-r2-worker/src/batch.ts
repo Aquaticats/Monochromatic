@@ -13,6 +13,11 @@ import {
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { authorized, } from './authorize.ts';
+import {
+  classifyPresence,
+  healIndex,
+  type Presence,
+} from './batch-presence.ts';
 import { lfsJson, } from './lfs-json.ts';
 import { isOid, } from './oid.ts';
 import type { WorkerEnv, } from './store.ts';
@@ -246,6 +251,29 @@ type ResolveObjectParams = {
    on the PUT; present only for authorized uploads.
    */
   readonly authorization?: string;
+  /**
+   What the presence index already established, so the bucket is asked only
+   for `check-store`.
+   */
+  readonly presence: Presence;
+};
+
+/**
+ One object's response entry and whether the bucket was asked and holds it.
+ */
+type ResolvedObject = {
+  /**
+   Entry for the batch response.
+   */
+  readonly entry: Readonly<Record<string, unknown>>;
+  /**
+   Object id the entry answers.
+   */
+  readonly oid: string;
+  /**
+   `true` when a bucket lookup found the object, so the index can learn it.
+   */
+  readonly confirmedByBucket: boolean;
 };
 
 /**
@@ -253,6 +281,10 @@ type ResolveObjectParams = {
 
  Downloads of absent objects return a per-object 404 error; uploads of present
  objects return no action so git-lfs skips re-uploading them.
+
+ The decision is not logged here: a log record per object is CPU spent on
+ every object of every batch, and the Workers Free plan allows 10 ms of CPU
+ per request. {@link summarizeEntries} reports the whole batch in one line.
 
  @param object - object to resolve
 
@@ -262,11 +294,9 @@ type ResolveObjectParams = {
 
  @param origin - origin of the request, used to build absolute action hrefs
 
- The decision is not logged here: a log record per object is CPU spent on
- every object of every batch, and the Workers Free plan allows 10 ms of CPU
- per request. {@link summarizeEntries} reports the whole batch in one line.
-
  @param authorization - `Authorization` header echoed into upload actions
+
+ @param presence - what the presence index already established
 
  @returns batch response entry for the object
  */
@@ -276,7 +306,8 @@ async function resolveObject({
   env,
   origin,
   authorization,
-}: ResolveObjectParams,): Promise<Record<string, unknown>> {
+  presence,
+}: ResolveObjectParams,): Promise<ResolvedObject> {
   /**
    Object id and size echoed into the response entry.
    */
@@ -289,12 +320,86 @@ async function resolveObject({
    */
   const href = `${origin}/${oid}`;
   /**
-   Store metadata; `null` when the object is absent.
+   Whether the bucket holds the object: the index's word, or a `head` lookup.
    */
-  const head = await env.BUCKET
-    .head(oid,);
+  const stored = presence === 'check-store'
+    ? await env.BUCKET
+      .head(oid,) !== null
+    : presence === 'present';
+  /**
+   Whether this answer rests on a bucket lookup that found the object.
+   */
+  const confirmedByBucket = (presence === 'check-store') && stored;
+  return {
+    entry: describeObject({
+      object,
+      operation,
+      stored,
+      href,
+      ...authorization === undefined ? {} : { authorization, },
+    },),
+    oid,
+    confirmedByBucket,
+  };
+}
+
+/**
+ Parameters for {@link describeObject}.
+ */
+type DescribeObjectParams = {
+  /**
+   Object to describe.
+   */
+  readonly object: BatchObject;
+  /**
+   Operation the client asked for.
+   */
+  readonly operation: BatchOperation;
+  /**
+   Whether the bucket holds the object.
+   */
+  readonly stored: boolean;
+  /**
+   Absolute URL git-lfs will GET or PUT.
+   */
+  readonly href: string;
+  /**
+   `Authorization` header echoed into upload actions.
+   */
+  readonly authorization?: string;
+};
+
+/**
+ Build the batch response entry for one object whose presence is known.
+
+ @param object - object to describe
+
+ @param operation - operation the client asked for
+
+ @param stored - whether the bucket holds the object
+
+ @param href - absolute URL git-lfs will GET or PUT
+
+ @param authorization - `Authorization` header echoed into upload actions
+
+ @returns batch response entry
+ */
+function describeObject({
+  object,
+  operation,
+  stored,
+  href,
+  authorization,
+}: DescribeObjectParams,): Record<string, unknown> {
+  /**
+   Object id and size echoed into the response entry.
+   */
+  const {
+    oid,
+    size,
+  } = object;
   if (operation === 'upload') {
-    if (head !== null) {
+    if (stored) {
       return {
         oid,
         size,
@@ -311,7 +416,7 @@ async function resolveObject({
       },
     };
   }
-  if (head === null) {
+  if (!stored) {
     return {
       oid,
       size,
@@ -483,11 +588,23 @@ export async function handleBatch({
       );
     }
     /**
-     Per-object entries resolved concurrently against the store.
+     What the presence index established for each object, in request order.
+     */
+    const presence = await classifyPresence({
+      objects: batch.objects,
+      operation: batch.operation,
+      env,
+      l: hl,
+    },);
+    /**
+     Per-object entries; only objects the index could not settle reach the bucket.
      */
     const results = await Promise.all(
       batch.objects
-        .map(function resolve(object: BatchObject,): Promise<Record<string, unknown>> {
+        .map(function resolve(
+          object: BatchObject,
+          position: number,
+        ): Promise<ResolvedObject> {
           return resolveObject({
             object,
             operation: batch.operation,
@@ -497,14 +614,39 @@ export async function handleBatch({
               ? { authorization: nonNullishOrThrow(request.headers
                 .get('Authorization',),), }
               : {},
+            presence: presence[position] ?? 'check-store',
           },);
         },),
     );
-    hl.info(summarizeEntries(results,),);
+    /**
+     Response entries without their bookkeeping.
+     */
+    const entries = results.map(function toEntry(result: ResolvedObject,): Readonly<Record<string, unknown>> {
+      return result.entry;
+    },);
+    hl.info(summarizeEntries(entries,),);
+    /**
+     Objects only the bucket vouched for, which the index should learn.
+     */
+    const confirmed = results
+      .filter(function wasConfirmed(result: ResolvedObject,): boolean {
+        return result.confirmedByBucket;
+      },);
+    /**
+     Oids of those objects.
+     */
+    const confirmedOids = confirmed.map(function toOid(result: ResolvedObject,): string {
+      return result.oid;
+    },);
+    await healIndex({
+      env,
+      oids: confirmedOids,
+      l: hl,
+    },);
     return lfsJson({
       body: {
         transfer: 'basic',
-        objects: results,
+        objects: entries,
       },
       status: 200,
     },);

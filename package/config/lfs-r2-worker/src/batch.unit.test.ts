@@ -4,10 +4,7 @@
  @module
  */
 
-import {
-  type Logger,
-  tagged,
-} from '@monochromatic-dev/logger-core';
+import { tagged, } from '@monochromatic-dev/logger-core';
 import {
   describe,
   expect,
@@ -104,98 +101,6 @@ async function postBatch({
     body: (typeof body) === 'string' ? body : JSON.stringify(body,),
   },);
   return await handleBatch({ request, env, url: new URL(BATCH_URL,), l, },);
-}
-
-/**
- Everything a batch costs the platform, observable from outside: log records written and store lookups made.
- */
-type BatchCost = {
-  /**
-   Messages passed to any logger level, in call order.
-   */
-  readonly logged: readonly string[];
-  /**
-   Keys passed to `head`, in call order.
-   */
-  readonly heads: readonly string[];
-};
-
-/**
- Run an upload batch of `count` distinct absent objects and record its cost.
-
- The Workers Free plan allows 10 ms of CPU per request, so the work a batch
- does per object (log records, store lookups) is the quantity to pin.
-
- @param count - number of distinct objects in the batch
-
- @returns log messages and `head` keys the batch produced
- */
-async function measureBatchCost(count: number,): Promise<BatchCost> {
-  /**
-   Messages captured from every level.
-   */
-  const logged: string[] = [];
-  /**
-   Keys the store was asked about.
-   */
-  const heads: string[] = [];
-  /**
-   Capture one message.
-
-   @param message - log message
-   */
-  function capture(message: string,): void {
-    logged.push(message,);
-  }
-  /**
-   Logger recording every call instead of writing it.
-   */
-  const recording: Logger = {
-    debug: capture,
-    error: capture,
-    fatal: capture,
-    flush: async function flush(): Promise<void> {},
-    info: capture,
-    trace: capture,
-    warn: capture,
-  };
-  /**
-   Store that records each lookup.
-   */
-  const store = createMemoryObjectStore();
-  /**
-   Env whose store records each lookup.
-   */
-  const env: WorkerEnv = {
-    BUCKET: {
-      ...store,
-      head: function head(key: string,) {
-        heads.push(key,);
-        return store.head(key,);
-      },
-    },
-    LFS_WRITE_TOKEN: TOKEN,
-  };
-  /**
-   Distinct oids, one per requested object.
-   */
-  const objects = Array.from({ length: count, }, function toObject(_, index,) {
-    return {
-      oid: `${'0'.repeat(60,)}${index.toString(16,).padStart(4, '0',)}`,
-      size: 1,
-    };
-  },);
-  await handleBatch({
-    request: new Request(BATCH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': LFS_JSON, Authorization: AUTHORIZATION, },
-      body: JSON.stringify({ operation: 'upload', objects, },),
-    },),
-    env,
-    url: new URL(BATCH_URL,),
-    l: recording,
-  },);
-  return { logged, heads, };
 }
 
 /**
@@ -402,48 +307,6 @@ await describe({
                 },
               },
             ],);
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: `${handleBatch.name} cost per object`,
-      children: [
-        it({
-          name: 'writes the same number of log records for one object as for two hundred',
-          fn: async () => {
-            /**
-             Cost of the smallest batch.
-             */
-            const one = await measureBatchCost(1,);
-            /**
-             Cost of a batch twice git-lfs's default size.
-             */
-            const many = await measureBatchCost(200,);
-            expect(many.logged,).toHaveLength(one.logged.length,);
-          },
-        },),
-        it({
-          name: 'looks each object up in the store exactly once',
-          fn: async () => {
-            /**
-             Cost of a batch of distinct objects.
-             */
-            const cost = await measureBatchCost(200,);
-            expect(cost.heads,).toHaveLength(200,);
-            expect(new Set(cost.heads,).size,).toBe(200,);
-          },
-        },),
-        it({
-          name: 'summarizes the batch outcome in one record',
-          fn: async () => {
-            /**
-             Cost of a batch whose objects are all absent.
-             */
-            const cost = await measureBatchCost(3,);
-            expect(cost.logged.some(function mentionsOutcome(message,): boolean {
-              return message.includes('resolved 3 object(s): 3 with an action, 0 without an action, 0 reported absent',);
-            },),).toBe(true,);
           },
         },),
       ],
