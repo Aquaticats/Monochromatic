@@ -52,7 +52,7 @@ Prerequisites for a fresh machine and a fresh checkout:
     which the typed tool plan declares as `npm:wrangler` and `toolchain.lock.json` records.
 
    ```sh
-   mise run toolchain:sync
+   mise run toolchain:install
    ```
 
    Expected:

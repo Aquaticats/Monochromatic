@@ -25,7 +25,7 @@ In order,
 `rust` (a `rustup toolchain install` with five components,
 about 30 seconds),
 `age` (an archive download from github.com):
-`age` fails with the message above on `mpm-shadow` 0.2.0.
+`age` fails with the `client error (SendRequest)` message of the Symptom section on `mpm-shadow` 0.2.0.
 The same plan with a bare `rust` entry (a gap of about 20 seconds) installs all three.
 
 `HyperClient` (`package/mpm-shadow/cli/src/toolchain/http.rs`) owns a current-thread `tokio` runtime that runs only
@@ -49,7 +49,7 @@ The dev build ran the same three-tool plan in the same image:
 0 failed.
 The unit tests cannot cover it,
 because the client is HTTPS-only and no loopback TLS server exists in the tests;
-the container reproduction above is the check.
+the container reproduction in the Cause section is the check.
 Released builds up to 0.2.0 have the defect,
 and a lock that names one of them as its `mpm-shadow` bootstrap runs it
 until a release with the fix is locked.

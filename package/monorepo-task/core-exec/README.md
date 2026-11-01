@@ -5,7 +5,9 @@ CLI utilities for mise task orchestration:
 a file append helper,
  a make-style dependency checker,
 a `tsc` wrapper that filters `node_modules` diagnostics,
-and an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status.
+an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status,
+the pull-or-build step for the Playwright container image,
+and the runner of the lock's `mpm-shadow`.
 
 ## Orchestration regression tests
 
@@ -15,7 +17,7 @@ It checks that tests still run after build failure,
 that either phase failing makes the aggregate fail,
 and that explicitly tolerant tasks remain tolerant.
 
-This suite consumes generated `mise.toml` rather than a bundled TypeScript function:
+This suite consumes the hand-written root `mise.toml` rather than a bundled TypeScript function:
 the configuration is the artifact under test.
 Relative imports supply test-only fixture helpers.
 
@@ -180,6 +182,103 @@ and `off` opt out.
 See `TROUBLESHOOTING.typescript.md` section
 "JSR packages ship `.ts` source files that `skipLibCheck` cannot skip"
 for the full root cause analysis.
+
+### task-playwright-image
+
+Makes the Playwright container image available locally;
+it is what `mise run prepare:playwright` runs.
+CI publishes `playwright.Dockerfile` as `ghcr.io/aquaticats/monochromatic-playwright:<tag>`,
+where `<tag>` is the first 16 hex digits of the SHA-256 of the file
+(`.github/workflows/playwright-image.yml`,
+`doc/runbook/publish-playwright-image.md`).
+The command,
+run from the repository root,
+computes the same tag and then:
+
+- keeps a local `monochromatic-playwright:<tag>` as it is,
+- otherwise pulls the registry image and names it `monochromatic-playwright:<tag>` and `monochromatic-playwright`
+  (the name the Playwright tasks run),
+  but only when `podman info` reports `linux/amd64`,
+  the platform CI publishes,
+  because podman pulls a single-platform image of another platform with exit 0 and only a warning,
+- and when the pull fails,
+  or the machine reports another platform or none,
+  prints why on one line and builds `playwright.Dockerfile` locally with the same two names.
+
+Podman's own output stays hidden;
+a failure prints the reason,
+and the local build's output when that fails too,
+and exits 1.
+Any edit of `playwright.Dockerfile`,
+comments included,
+changes the tag.
+
+```sh
+# Repository root
+task-playwright-image
+```
+
+### task-mpm-shadow
+
+Runs `mpm-shadow` at least at the version `toolchain.lock.json` names;
+it is what the root `toolchain:*` tasks run.
+The command finds the repository root (the folder with the lock,
+searched upward from the current directory)
+and runs the newest installed copy of this repository's `mpm-shadow` whose `--version` is at or above the lock's version
+for the `mpm-shadow` tool,
+looking at `.cache/toolchain-bin/mpm-shadow` and at every finished version folder of
+`<data home>/monochromatic-dev/toolchain/mpm-shadow/` and `<data home>/monochromatic-dev/toolchain-global/mpm-shadow/`
+(a folder with the `.mpm-shadow-installed` marker and the program;
+this repository's tools are one set across both roots,
+and the newest copy wins wherever it is),
+and saying `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` on standard error when that copy is newer.
+A copy older than the lock never runs.
+Only when no copy is at or above the lock's version does it download the lock's archive for the platform,
+check the SHA-256 recorded beside it,
+unpack it into a hidden staging folder,
+require a program that prints the locked version,
+write the marker last,
+rename the folder to `<version>`,
+point `current` at the newest finished version and remove the older version folders,
+which is how `mpm-shadow install` lays out an archive-route tool that this repository publishes
+(a folder at the version's name that is not finished,
+or whose program prints another version,
+is replaced,
+and one that another task finished meanwhile is used;
+staging folders and downloads that a killed task left are removed once their process is gone and they are ten minutes old:
+a process id unknown here can belong to a live task in another process id namespace that shares the data home,
+so the age is checked as well).
+It then runs that copy with the arguments given and exits with its status;
+the `mpm-shadow` on `PATH` is never run,
+except on a platform for which the lock has no archive row and no installed copy,
+where it is asked for its version first and runs only when that is at or above the lock's
+(a note on standard error says so,
+and an older one is refused in one line).
+Versions are ordered by numeric core,
+then a release above its pre-release,
+then pre-releases by SemVer 2.0.0 precedence
+(`rc.2` below `rc.10`).
+A failure the command reports itself (an unreadable lock,
+a failed download or checksum,
+a copy that does not run)
+prints one line and exits 1,
+and asking a copy for its version gives up after 10 seconds.
+The command needs Node 24 or newer
+(`import.meta.main` and `Error.isError`;
+type stripping must be on by default,
+which it is from Node 22.18 and 24.3);
+`fetch` in Node ignores `HTTP_PROXY` and `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is set
+(measured with Node 26.13.0),
+so a machine behind a proxy sets that variable for the task.
+Notes go to standard error so that standard output stays the program's (`bin --json` is read by other programs).
+The modules behind it import only `node:` modules,
+so the command runs from source on a checkout without `node_modules`;
+`.github/actions/repo-tools-setup/action.yml` does the same in shell for CI.
+
+```sh
+# Repository root
+task-mpm-shadow install --lockfile-only --frozen-lockfile
+```
 
 ### task-oxlint
 
@@ -373,6 +472,16 @@ Strategies:
 No flags of its own.
  All arguments are forwarded directly to `tsc`.
 Defaults to `--build` when no arguments are provided.
+
+### task-playwright-image
+
+No flags and no arguments;
+it reads `playwright.Dockerfile` in the current directory and needs `podman` on `PATH`.
+
+### task-mpm-shadow
+
+No flags of its own;
+every argument is passed to `mpm-shadow`.
 
 ### task-oxlint
 

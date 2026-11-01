@@ -27,14 +27,14 @@ paths) lives in the engine's own sidecar at
    and its default AddressSanitizer path emits nightly-only `-Zsanitizer`
   (see [`doc/troubleshooting/cargo-fuzz-nightly-rust.md`](../../../doc/troubleshooting/cargo-fuzz-nightly-rust.md)).
    The toolchain is managed repo-wide in the root
-  [`mise.no-env.toml`](../../../mise.no-env.toml) `[tools]` entry
+  [`mise.toml`](../../../mise.toml) `[tools]` entry
   (`rust = { version = "nightly", components = "rust-src,llvm-tools-preview" }`),
    so `mise install` provisions nightly (with std sources and the llvm coverage
   tools) for every crate,
    and tasks run here inherit it.
 - `cargo-fuzz`.
    Installed automatically by `mise install` from the root
-  [`mise.no-env.toml`](../../../mise.no-env.toml) `[tools]` entry.
+  [`mise.toml`](../../../mise.toml) `[tools]` entry.
 - A C++ toolchain (clang or gcc).
    `libfuzzer-sys` builds a small C++ runtime that the targets link against.
 - `podman` (or `docker`) for the bounded-container wrapper described below.

@@ -5,7 +5,7 @@
 >  Mise `[tools]` and `mise.lock`,
 >  so the `mise install node pnpm` exposure story in the `Symptom` and `Root cause`
 >  sections is historical.
->  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`,
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`,
 >  which exposes binaries through `.cache/toolchain-bin`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`);
 >  Windows provisioning parity is unverified

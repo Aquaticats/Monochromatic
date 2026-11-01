@@ -53,7 +53,13 @@
                   <Item>
                     <option
                       name='path'
-                      value='mise.no-env.toml'
+                      value='.config/mise/conf.d/20-env.toml'
+                    />
+                  </Item>
+                  <Item>
+                    <option
+                      name='path'
+                      value='.config/mise/conf.d/10-bin.local.toml'
                     />
                   </Item>
                   <Item>

@@ -74,9 +74,9 @@ each verifiable on a clean machine:
    Check with `git -C <repo> log --oneline -1` and
    `grep '^version' <repo>/package/jsonc-edit/core-rust/Cargo.toml`.
 2. The Rust toolchain this repository pins,
-   installed by running `mise run toolchain:sync` from the repository root
+   installed by running `mise run toolchain:install` from the repository root
    (`toolchain.lock.json` records the version).
-   Check with `mise run toolchain:status`,
+   Check with `mise run toolchain:list`,
    which prints observed versus locked versions and exits non-zero on drift,
    and `cargo --version`,
    which must print a version rather than an error.
@@ -464,6 +464,10 @@ as measured:
   in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary, so binstall used the release
   and did not compile. That command needs `cargo-binstall` on PATH; the repository provisions it into
   `.cache/toolchain-bin`, and without it cargo answers `no such command: binstall`.
+  Moved at the Rust file-enforcer cutover (2026-10-31): `mpm.managers.toml` is deleted, so that command no longer
+  exists. The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
+  which `mpm-shadow install` runs for every cargo-binstall tool (`package/mpm-shadow/cli/README.md`,
+  "Cargo tool installs"); a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
 
 ## The five file-enforcer crates 0.1.0
 

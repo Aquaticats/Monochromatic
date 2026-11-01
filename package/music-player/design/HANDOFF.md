@@ -215,7 +215,7 @@ so long runs now go in their own user unit:
 with `wait-for-unit.ts <unit> <pattern>` to wait for it.
 
 The human approved the declined state as built (D101) and added the rule on long runs to the `CLAUDE.md` preamble in
-`file-enforcer.config.ts`.
+`.config/file-enforcer/claude-preamble.md`.
 The first-run page shows the declined state as approved.
 The human then accepted the whole keyboard map as built (D102) and closed the Search catch-all as a design item (D103).
 The D46 cover-picker revisit is built: `questions/cover-picker-revisit.html` shows P4 beside the agent's P5

@@ -36,7 +36,7 @@ Prerequisites:
 - An npm account that owns the `@monochromatic-dev` scope,
    with two-factor authentication enabled and the authenticator app at hand.
 - A clone of `https://github.com/Aquaticats/Monochromatic` with `mise` installed and activated
-   and the toolchain provisioned (`mise run toolchain:sync`),
+   and the toolchain provisioned (`mise run toolchain:install`),
    so `mise exec -- npm --version` prints `11.19.0` or newer (`npm trust` needs 11.15.0 or newer)
    and `pnpm --version` prints `11.21.0` or newer.
 - `gh` signed in to GitHub with access to the repository:

@@ -348,7 +348,7 @@ fn advisory() -> Vec<String> {
     return vec![
         "The toolchain lookup for /work/project could not be used, so language servers are looked up on PATH only."
             .to_string(),
-        "Fix what the lookup reports (run `node package/file-enforcer/core/src/toolchain/bin-paths.ts` at the worktree root in a terminal to see it yourself), then display a file again."
+        "Fix what the lookup reports (run `mpm-shadow bin --json` at the worktree root in a terminal to see it yourself; a worktree whose toolchain is not installed needs `mise run toolchain:install` first), then display a file again."
             .to_string(),
         "the toolchain lookup said: Error: toolchain.lock.json is unreadable".to_string(),
     ];
@@ -382,7 +382,7 @@ fn the_toolchain_failure_comes_before_the_reasons_of_the_servers_that_do_not_wor
         .expect("the lookup's words");
     assert!(lookup < reason, "{message}");
     assert!(
-        message.contains("node package/file-enforcer/core/src/toolchain/bin-paths.ts"),
+        message.contains("mpm-shadow bin --json"),
         "{message}"
     );
 }

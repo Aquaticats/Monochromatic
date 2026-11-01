@@ -1059,7 +1059,7 @@ jobs:
         "$install_dir/bin/java" -version
     # Everything this step used to install by hand (the floating `nightly` channel, the Android targets,
     # cargo-binstall, cargo-ndk and cargo-about) is converged at pinned versions by the next step, which is
-    # `toolchain:sync`; this step only installs and selects the Rust toolchain the builds compile with.
+    # `toolchain:install`; this step only installs and selects the Rust toolchain the builds compile with.
     - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
@@ -1073,11 +1073,15 @@ jobs:
         echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
         rustc -Vv
 
-    # `prepare:android` is a thin alias of `toolchain:sync`, which converges the toolchain to
+    # `prepare:android` is a thin alias of `toolchain:install`, which converges the toolchain to
     # toolchain.lock.json and installs the SDK components the app builds against (the `android-sdk` tool's
     # `options.androidPackages` row: platform 37.0, build-tools 37.0.0, NDK 29.0.13846066, platform-tools).
     # Not cached: the components download in about 25 seconds, and restoring a cache of them (1.0 GB compressed)
     # took 17 seconds (dry runs 2026-10-15), so it saved 8 seconds for a fifth of the repository's cache budget.
+    - name: Install the repository tools
+      uses: ./.github/actions/repo-tools-setup
+      with:
+        tools: mpm-shadow
     - name: Provision the toolchain and the Android SDK components
       run: task-run prepare:android
 

@@ -183,7 +183,7 @@ not in a hand edit.
 ### Toolchain
 
 The package uses the repository's shared floating nightly,
-declared in the root `mise.no-env.toml` with the `rustc-dev` component
+declared in the root `mise.toml` with the `rustc-dev` component
 (a Dylint library links rustc's own crates)
 and the tools `cargo-dylint` and `dylint-link` (the owner approved this on 2026-10-18).
 `mise install` provisions all three;

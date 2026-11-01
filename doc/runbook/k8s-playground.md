@@ -98,7 +98,7 @@ KIND_EXPERIMENTAL_PROVIDER = "podman"
 
 [hooks]
 # On `cd` into this dir, ensure the tools are installed so kind/kubectl/k9s/helm are directly
-# runnable. Mirrors the monorepo's enter-hook pattern (mise.no-env.toml): a hook needs a string
+# runnable. Mirrors the monorepo's enter-hook pattern (mise.toml): a hook needs a string
 # body and must be cross-OS depending only on mise itself (no tool is installed yet on first
 # entry), so it delegates to a task whose array `run` mise sequences cross-platform, rather than
 # an inline `mise install && echo ...` (the `&&`/`echo` are sh-only and break on Windows cmd).

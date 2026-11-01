@@ -112,7 +112,7 @@ run = """
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 // No --rules flag: the root mise [env] exports FORBIDDEN_STRINGS_RULES
-// pointing at the file-enforcer composed .cache rules file (the retired
+// pointing at the two appendixes (.config/mise/conf.d/20-env.toml; the retired
 // root forbidden-strings.local.txt no longer exists). --builtin-rules
 // mirrors how the commit gate and CI invoke the scanner.
 const child = spawn(

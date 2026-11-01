@@ -98,7 +98,7 @@ See [`package/dependency-catalog/cli-rust-update/README.md`](../../package/depen
 
 ## Check before pushing
 
-`node package/file-enforcer/core/src/cli.ts --check` exits 1 and lists every generated file,
+`mise run check:files` (`file-enforcer check`) exits 1 and lists every generated file,
  manifests included,
  that differs from what the sync would write.
 A file edited by hand in a generated section is overwritten by the next sync:

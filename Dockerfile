@@ -4,15 +4,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update \
- && apt-get install -y --no-install-recommends podman git unzip curl bash build-essential jq tar
+ && apt-get install -y --no-install-recommends git unzip curl bash build-essential jq tar zstd python3
 RUN curl https://mise.run/bash | sh
 ENV PATH="/root/.local/bin:$PATH"
-# vfs driver: avoids overlay mount issues inside Docker volumes.
-# Performance is acceptable: the canary pulls one small image infrequently.
-RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' \
-      > /etc/containers/storage.conf
-RUN echo 'root:100000:65536' > /etc/subuid \
- && echo 'root:100000:65536' > /etc/subgid
+# The plan's tools need two more programs from the image: `tar --zstd` unpacks the `.conda` package of bubblewrap
+# (zstd), and `uv tool install` builds the Python tools (slopo) with the image's own Python (python3), because the
+# newest Python uv would download is one that some of their dependencies (fastuuid, through PyO3) do not support yet.
+ENV UV_PYTHON_PREFERENCE=only-system
 
 WORKDIR /app
 COPY . .
@@ -41,11 +39,46 @@ RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolcha
  && tar --extract --file /tmp/pnpm.tar.gz --directory /opt/pnpm \
  && ln --symbolic /opt/pnpm/pnpm /usr/local/bin/pnpm
 
-# The workspace dependencies the sync entry point imports.
+# The workspace dependencies the tasks import (`mise run prepare:pnpm` below needs `node_modules`).
 RUN pnpm install --frozen-lockfile
 
-# Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards
-# (`mise run toolchain:sync` is the same entry once its task is wired).
-RUN export $(cat .env.local | xargs) && node package/file-enforcer/core/src/toolchain/sync.ts
+# `mpm-shadow` is the one prebuilt binary a fresh machine needs: the archive row of the `mpm-shadow` tool in
+# `toolchain.lock.json` (URL and SHA-256, the same pattern as Node and pnpm above) is fetched and checked before it is
+# unpacked. It then installs every other tool, `file-enforcer` among them.
+RUN ms_url="$(jq --raw-output '.tools["mpm-shadow"].artifacts["linux-x64"].url' toolchain.lock.json)" \
+ && ms_sum="$(jq --raw-output '.tools["mpm-shadow"].artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+ && curl --fail --silent --show-error --location --output /tmp/mpm-shadow.tar.gz "$ms_url" \
+ && echo "$ms_sum  /tmp/mpm-shadow.tar.gz" | sha256sum --check \
+ && tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-components=1 --directory /usr/local/bin '*/mpm-shadow' \
+ && mpm-shadow --version
 
-RUN mise run prepare
+# The plan's `rust` entry runs `rustup toolchain install`, and every cargo-binstall tool runs `cargo binstall`, a cargo
+# subcommand, so a machine needs rustup before `mpm-shadow install` (the plan does not provision rustup itself; the
+# retired TypeScript sync needed it the same way). rustup-init is checked against the checksum rust-lang publishes
+# beside it, and installs no toolchain (`rustup toolchain install` of the plan does) but the `cargo` and `rustc`
+# proxies that need one. The `rust` entry's RUSTUP_TOOLCHAIN then selects the locked nightly for them.
+RUN rustup_url=https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu \
+ && curl --fail --silent --show-error --location --output /tmp/rustup-init "${rustup_url}/rustup-init" \
+ && curl --fail --silent --show-error --location --output /tmp/rustup-init.sha256 "${rustup_url}/rustup-init.sha256" \
+ && echo "$(cut --delimiter=' ' --fields=1 /tmp/rustup-init.sha256)  /tmp/rustup-init" | sha256sum --check \
+ && chmod +x /tmp/rustup-init \
+ && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none \
+ && rm /tmp/rustup-init /tmp/rustup-init.sha256
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards
+# (`mise run toolchain:install` is the same entry).
+RUN export $(cat .env.local | xargs) && mpm-shadow install --frozen-lockfile
+
+# The file-enforcer CLI README asks containers to set the idle time of the server a command starts low, for a
+# deterministic shutdown; 2 seconds is what the crate's own tests use.
+ENV FILE_ENFORCER_IDLE_SECONDS=2
+
+# `prepare:pnpm` is the part of `prepare` this image needs: `pnpm install`, `pnpm approve-builds sharp`, and
+# `file-enforcer write`. The full `prepare` also fans out to two children that the image skips on purpose:
+# - `prepare:playwright` pulls (or builds) the Playwright container image. The services built from this image start
+#   Caddy and the AI proxy, not browser tests, and pulling inside this build put an 8.4 GB layer of root-owned files in
+#   it (doc/troubleshooting/podman-pulls-but-cannot-run-containers-inside-podman-build.md). Developers and CI pull the
+#   image from ghcr.io/aquaticats/monochromatic-playwright instead (.github/workflows/playwright-image.yml).
+# - `prepare:android` is an alias of `toolchain:install`, which is `mpm-shadow install`; that ran above.
+RUN mise run prepare:pnpm

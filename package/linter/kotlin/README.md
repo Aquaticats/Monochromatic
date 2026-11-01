@@ -51,7 +51,7 @@ which is what reaches local and nested declarations.
 
 ## How it runs monorepo-wide
 
-The root `lint:detekt` task (in `mise.no-env.toml`,
+The root `lint:detekt` task (in `mise.toml`,
 part of the `lint` aggregate) invokes the detekt CLI over `package/`
 with this module's jar on `--plugins`.
 Detekt's default config stays active,

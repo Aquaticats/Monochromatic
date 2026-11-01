@@ -4,7 +4,7 @@
 >  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
 >  Mise `[tools]` and `mise.lock`,
 >  so this record is historical for the Mise-era toolchain it investigated.
->  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 Declaring `rust = { version = "...", components = "rust-src" }` in a mise config
@@ -244,7 +244,7 @@ rust-src (installed)
 ## Verified workarounds
 
 Current toolchain:
- `mise run toolchain:sync` runs the tool plan's `rustup component add` list
+ `mise run toolchain:install` runs the tool plan's `rustup component add` list
  after the Rust toolchain install
  (`doc/planning/mpm-toolchain-migration.md`,
  section `Provider rules`),

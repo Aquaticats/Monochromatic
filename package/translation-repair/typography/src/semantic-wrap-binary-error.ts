@@ -11,7 +11,7 @@ import {
 /**
  What to do about a program that is missing or is another version.
  */
-const INSTALL_ADVICE = `Install version ${PINNED_LINT_BINARY_VERSION} with "mise run toolchain:sync" (the tool is `
+const INSTALL_ADVICE = `Install version ${PINNED_LINT_BINARY_VERSION} with "mise run toolchain:install" (the tool is `
   + `"cargo:${LINT_BINARY_NAME}" in toolchain.lock.json) or with "cargo binstall `
   + `${LINT_BINARY_NAME}@${PINNED_LINT_BINARY_VERSION}", and start this program under "mise run" or with `
   + `the tree's ".cache/toolchain-bin" directory first on the PATH, so that the pinned tool is the one found.`;

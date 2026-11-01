@@ -45,7 +45,7 @@ import {
 // FOUND BY NAME. The program is started as `monochromatic-lint`, and the
 // operating system's lookup of the PATH finds it, which is why a run started
 // by `mise run` finds the pinned one: the root `mise.toml` puts the tree's
-// `.cache/toolchain-bin`, which `mise run toolchain:sync` fills from
+// `.cache/toolchain-bin`, which `mise run toolchain:install` fills from
 // `toolchain.lock.json`, on the PATH ahead of any ambient or global tool. No
 // path and no user name is written here.
 //

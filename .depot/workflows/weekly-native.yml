@@ -7,6 +7,9 @@ jobs:
   matrix:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
+    env:
+      # The file-enforcer CLI README asks CI to set the server's idle time low, for a deterministic shutdown.
+      FILE_ENFORCER_IDLE_SECONDS: '2'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -64,6 +67,10 @@ jobs:
         with:
           node-version: '26.12.0'
           pnpm-version: '12.14.0'
+      - name: Install the repository tools
+        uses: ./.github/actions/repo-tools-setup
+        with:
+          tools: file-enforcer mpm-shadow
       - name: Prepare dependencies
         run: task-run prepare:pnpm
       - name: Static checks

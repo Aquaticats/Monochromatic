@@ -151,8 +151,24 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise][mise-home] as the task runner and a system Node,
-which executes the toolchain sync entry.
+Install [Mise][mise-home] as the task runner,
+`curl`,
+`jq` and `tar`.
+Install [rustup](https://rustup.rs/) as well,
+with the minimal profile and no default toolchain,
+and put `~/.cargo/bin` on `PATH`
+(the `Dockerfile` runs `rustup-init -y --no-modify-path --profile minimal --default-toolchain none`
+after checking `rustup-init` against the checksum that rust-lang publishes beside it).
+The plan's `rust` entry runs `rustup toolchain install`,
+and every `cargo-binstall` tool runs `cargo binstall`,
+a cargo subcommand,
+so `mpm-shadow install` needs rustup before its first run;
+`mpm-shadow` does not provision rustup itself.
+rustup installs no toolchain at this step:
+the locked nightly arrives with the `rust` entry,
+and that entry's `RUSTUP_TOOLCHAIN` selects it for the `cargo` and `rustc` proxies.
+The toolchain commands are the Rust program `mpm-shadow`
+(see [Provision the toolchain](#clone-and-bootstrap) for the one prebuilt archive a fresh machine needs).
 Mise runs tasks only;
 every tool this repository runs (Node,
 pnpm,
@@ -164,9 +180,9 @@ and the rest) is provisioned from `toolchain.lock.json` by the repository
 toolchain,
 recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
 The `bin`-sourced tools resolve their releases through the GitHub API,
-so the sync reads `GITHUB_TOKEN` from the environment or the machine's
+so `mpm-shadow install` reads `GITHUB_TOKEN` from the environment or the machine's
 `gh` login;
-an unauthenticated machine can exhaust the API quota mid-sync.
+an unauthenticated machine can exhaust the API quota mid-install.
 
 ### Clone and bootstrap
 
@@ -188,17 +204,70 @@ under `package/`.
 See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
-Provision the toolchain,
-converging every tool to the versions `toolchain.lock.json` records:
+A fresh machine has neither `mpm-shadow` nor `file-enforcer`.
+Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platform into a throwaway directory,
+check it against the SHA-256 recorded beside it,
+run its `install` from the repository root,
+and remove the throwaway copy
+(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
 
 ```sh
-mise run toolchain:sync
+# Run from the repository root; platform is linux-x64 or linux-arm64.
+platform=linux-x64
+work="$(mktemp --directory)"
+url="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].url' toolchain.lock.json)"
+sum="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].sha256' toolchain.lock.json)"
+curl --fail --silent --show-error --location --output "${work}/mpm-shadow.tar.gz" "${url}"
+echo "${sum}  ${work}/mpm-shadow.tar.gz" | sha256sum --check
+tar --extract --gzip --file "${work}/mpm-shadow.tar.gz" --wildcards --strip-components=1 \
+  --directory "${work}" '*/mpm-shadow'
+"${work}/mpm-shadow" install
+rm --recursive --force "${work}"
 ```
 
-The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
-and `node package/file-enforcer/core/src/toolchain/sync.ts`
-runs the same work without the task wrapper.
-The sync entry stages its own bootstrap tools first:
+That `install` converges every tool to the versions `toolchain.lock.json` records,
+Node and `file-enforcer` among them,
+and installs the managed `mpm-shadow` into the toolchain root
+(`<data home>/monochromatic-dev/toolchain/mpm-shadow/<version>/`) and links it into `.cache/toolchain-bin`.
+The first run is by this binary and not by a task,
+because the `toolchain:*` tasks need Node 24 or newer
+(the entry uses `import.meta.main` and `Error.isError`),
+and this install is what provides it (the Node that the lock names is newer than that).
+The downloaded copy is not kept:
+nothing scans or updates a copy left in `~/.local/bin`,
+so one placed there would become an older repository copy after the next lock bump,
+and no older copy of this repository's tools stays when a newer one is present.
+
+From then on,
+and in any existing checkout,
+use the task:
+
+```sh
+mise run toolchain:install
+```
+
+Every `toolchain:*` task runs an `mpm-shadow` at least at the version that `toolchain.lock.json` names,
+and never the one on `PATH`:
+it runs the newest installed copy
+(`.cache/toolchain-bin/mpm-shadow`,
+or a finished version folder under the `mpm-shadow` folder of either toolchain root,
+`toolchain` or `toolchain-global`:
+the newest copy wins wherever it is)
+whose version is at or above the lock's,
+and says `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` when that copy is newer.
+Only when there is none does the task download the lock's archive,
+check its SHA-256 against the lock,
+and install it into the toolchain root as `mpm-shadow install` would.
+A copy older than the lock never runs;
+on a platform for which the lock has no archive row,
+the `mpm-shadow` on `PATH` is used only when it is at or above the lock's version.
+So a checkout whose `mpm-shadow` is older than the lock needs no extra step
+(an old copy would stop on `tools.mpm-shadow.options.tagPrefix is not a known field`,
+see `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`).
+
+The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:install`,
+and `mpm-shadow install` runs the same work without the task wrapper.
+The install stages its own bootstrap tools first:
 `bin` as a standalone release binary
 (SHA-256 checked against the release `checksums.txt` values),
 then `uv`,
@@ -206,8 +275,8 @@ then [mpm][mpm-home] as the PyPI wheel `meta-package-manager` 8.2.0
 (SHA-256 checked against PyPI's published digest,
 installed with `uv tool install`).
 Then it installs the remaining tools
-and rebuilds the gitignored `.cache/toolchain-bin` directory that the
-generated `mise.toml` `[env]` puts first on `PATH`.
+and rebuilds the gitignored `.cache/toolchain-bin` directory that
+`.config/mise/conf.d/20-env.toml` puts first on `PATH`.
 Then install dependencies and build all packages:
 
 ```sh
@@ -219,17 +288,18 @@ mise run prepareAndBuild
 - `mise run toolchain:update` re-resolves the floating requests and the
   channel stamps to their current upstream versions and rewrites
   `toolchain.lock.json` as a reviewable diff
-  (`node package/file-enforcer/core/src/toolchain/update.ts`,
-  `--check` reports without writing);
+  (`mpm-shadow update`);
+  `mise run toolchain:outdated` reports what it would move without writing;
   explicit pins never move without a plan edit.
-- `mise run toolchain:status` prints observed versus locked versions and exits
+- `mise run toolchain:list` prints observed versus locked versions and exits
   non-zero on drift
-  (`node package/file-enforcer/core/src/toolchain/status.ts` runs the
-  same check).
+  (`mpm-shadow list` runs the same check),
+  and `mise run toolchain:lock:check` is the offline gate that fails when
+  `toolchain.plan.jsonc` and `toolchain.lock.json` disagree.
 - `mpm installed` lists what every package manager on the machine holds,
   `mpm outdated` lists available upgrades,
   and `mpm sbom` exports the inventory as SPDX or CycloneDX.
-- `node package/file-enforcer/core/src/toolchain/bin-paths.ts` prints the
+- `mpm-shadow bin --json` prints the
   exposure directory,
   PATH directories,
   and one absolute path per linked binary as JSON
@@ -242,14 +312,13 @@ Declarations carry no `@version` pin syntax and keep floating requests;
 `toolchain.lock.json` fixes what the sync installs
 (the semantics `mise install` had against `mise.lock`),
 so the explicit pins still install exactly.
-The sync installs the locked versions the way `pnpm install` honors
+The install installs the locked versions the way `pnpm install` honors
 `pnpm-lock.yaml`;
 re-resolving versions is a separate update action,
 the `pnpm update` analogue.
 
-Version bumps change the typed tool plan in
-`package/file-enforcer/core/src/toolchain/` and the generated
-`toolchain.lock.json`,
+Version bumps change the plan in `toolchain.plan.jsonc` and the lock
+`mpm-shadow` writes from it (`toolchain.lock.json`),
 never a hand-edited lock.
 Upgrades of a single machine package name their tool
 (`mpm upgrade <package>`);
@@ -366,7 +435,7 @@ package-deprecated/         Deprecated packages retained for reference
   upgrade coordination,
   release-age cooldown,
   and SBOM export,
-  plus file-enforcer's typed tool plan and the confirmed per-family install
+  plus the toolchain plan (`toolchain.plan.jsonc`) and the confirmed per-family install
   routes (`bin`,
   `cargo-binstall`,
   `rustup`,

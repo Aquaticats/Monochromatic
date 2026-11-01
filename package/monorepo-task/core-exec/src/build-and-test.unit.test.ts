@@ -1,4 +1,4 @@
-/** Exercise generated mise orchestration through its real process boundary. @module */
+/** Exercise root mise orchestration through its real process boundary. @module */
 
 import {
   describe,
@@ -6,10 +6,6 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import {
-  canonicalConfig,
-  generatedConfig,
-} from './build-and-test-fixture-config.ts';
 import { runBuildAndTestFixture, } from './build-and-test-fixture.ts';
 
 /** Invocation shapes choose root builds, package builds, and usage-parser quoting. */
@@ -30,18 +26,10 @@ const OUTCOMES = [
 ] as const;
 
 await describe({
-  name: 'generated buildAndTest task',
+  name: 'root buildAndTest task',
   concurrency: 1,
   timeout: 60_000,
   children: [
-    it({
-      name: 'generated mise configuration contains the current canonical source',
-      fn: async (): Promise<void> => {
-        expect(generatedConfig.startsWith(
-          `# Generated from mise.no-env.toml by file-enforcer.\n${canonicalConfig}\n`,
-        ),).toBe(true,);
-      },
-    },),
     ...INVOCATIONS.flatMap(function invocationTests(invocation,): ReturnType<typeof it>[] {
       return OUTCOMES.map(function outcomeTest(outcome,): ReturnType<typeof it> {
         return it({

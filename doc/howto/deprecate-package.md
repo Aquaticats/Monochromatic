@@ -49,7 +49,7 @@ giving users an unambiguous signal.
 The `package-deprecated/<category>/<name>/` directory mirrors `package/<category>/<name>/`.
 Both globs (`package-deprecated/*/*` and `package/*/*`) appear in
 `pnpm-workspace.yaml` (so workspace dep resolution still works) and in
-`mise.no-env.toml#config_roots` (so the package's mise tasks are still discoverable
+`mise.toml#monorepo.config_roots` (so the package's mise tasks are still discoverable
 for a one-time rebuild).
 The deprecation signal is the directory name plus the npm-registry deprecation
 marker.
@@ -229,7 +229,7 @@ packages:
 - 'package-deprecated/*/*'
 ```
 
-`mise.no-env.toml#monorepo.config_roots`:
+`mise.toml#monorepo.config_roots`:
 
 ```toml
 [monorepo]
@@ -239,11 +239,9 @@ config_roots = [
 ]
 ```
 
-Then regenerate `mise.toml`:
-
-```sh
-mise run file-enforcer
-```
+`mise.toml` is hand-written and committed,
+so the edit above is the whole change;
+nothing regenerates it.
 
 ### 4. Mark the package for publish
 

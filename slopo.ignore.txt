@@ -328,7 +328,7 @@ c323905b9f2c
 # From impls, and cleanup fragments where extraction costs more than it saves.
 # Accepted 2026-10-09 from #656, #659.
 # Three units build the same all-permissive property descriptor: setOwnJsonValue
-# (file-enforcer/core/src/pipeline/json.ts) and defineData
+# (file-enforcer/core/src/pipeline/json.ts, retired with the TypeScript file-enforcer) and defineData
 # (upstream-fork/deepmerge-ts.fuzz/src/model.ts) both call Object.defineProperty with {value,
 # writable: true, enumerable: true, configurable: true} in different key orders,
 # and toDescriptor (upstream-fork/deepmerge-ts.fuzz/src/type-case-generate.ts) returns the same
