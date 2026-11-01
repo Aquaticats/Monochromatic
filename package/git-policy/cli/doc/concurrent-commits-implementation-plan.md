@@ -10,6 +10,12 @@ This document stays as the record of where each change was planned to go;
 `SPEC.md` describes the implemented behavior,
 and "Final behavior versus this plan" lists every place where the implementation departed from the plan.
 
+Later change (2026-11-01): the worktree-copy settlement lock and its `CLI_GIT_WORKTREE_COPY_LEASE` variable that this plan
+names were removed.
+Each new worktree is copied under its own claim instead, and nothing waits for a copy;
+`worktree-copy-claim.md` records what the lock protected and why the replacement holds.
+The mentions of the settlement lock below describe the plan as it was written.
+
 - Accepted design:
   [`doc/decision/cli-git-concurrent-commits.md`](../../../../doc/decision/cli-git-concurrent-commits.md).
 - Evidence and rejected options:

@@ -3594,20 +3594,22 @@ Native state is absent for every entry.
   worktree copy;
   hooks that call the wrapper during `git worktree add`.
 - Status:
-  retained
-  (implementation plan lines 248 to 249).
+  replaced on 2026-11-01 (the owner banned locks, polling and owner records):
+  no settlement lock, no lease variable and no wait;
+  each new worktree is copied under its own claim file that the copying process keeps open,
+  and a process that finds a claim asks the process table whether anything holds it
+  (`package/git-policy/cli/doc/worktree-copy-claim.md`).
 - Rust owner:
-  `worktree_copy_lock.rs` (proposed),
-  or the shared `owner_lock.rs`.
+  `worktree_copy_claim.rs`,
+  with the recovery pass in `worktree_copy_recovery.rs`.
 - Consumer-level test:
-  in the standard fixture,
-  start two `git worktree add` commands together from one linked worktree,
-  and run concurrent commits in that worktree meanwhile;
-  observe both copies complete,
-  one waiter line,
-  and no commit waiting on the settlement lock.
+  `binary_worktree_copy_tests::overlapping_creations_each_copy_their_own_worktree_once`
+  starts two `git worktree add` commands that overlap inside their checkouts:
+  the first to finish leaves the other's unfinished worktree alone,
+  both copies complete,
+  and no commit waits on either.
 - Native state:
-  absent.
+  implemented.
 
 ### Crash recovery
 

@@ -385,11 +385,13 @@ An applicable source is a forwarded invocation whose shared identity selects a l
 and whose subcommand,
 after ordinary Git alias resolution,
 creates or moves worktrees.
-Only applicable sources hold the common-directory settlement lock across real Git and its hooks.
+No forwarded command holds a repository-wide lock for the copy:
+an applicable source recovers what no running copy holds, runs real Git and its hooks, and then copies into each new worktree
+under that worktree's own claim.
 Every other forwarded command,
 including every commit preparation,
-runs without that lock,
-so concurrent commits in linked worktrees never contend on it.
+never waits for a copy,
+so concurrent commits in linked worktrees never contend on one.
 A worktree created by Git invoked through an absolute path from a hook bypasses the wrapper
 and therefore gets no ignored-state copy,
 matching the documented bypass of everything else.
@@ -399,12 +401,12 @@ Before forwarding an applicable source,
 cli-git captures the common Git directory and linked-worktree administrative identity set.
 An invocation targeting the main worktree bypasses administrative observation,
 journal recovery,
-settlement locking,
+claims,
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
 a command that creates or moves a worktree copies the configured `rulesFile` files of the `security/forbidden-strings`
-policy (each entry of an array) from the main checkout into the new worktree, under the settlement lock and the journal.
+policy (each entry of an array) from the main checkout into the new worktree, under the claim and the journal.
 After real Git and its hooks return for an applicable source,
 cli-git compares the administrative set again.
 Every new identity is a synchronization destination,
@@ -492,35 +494,57 @@ A trailing log fragment without a line terminator is an unfinished append;
 recovery ignores it and truncates it before appending.
 A completion phase makes stage removal and journal removal recoverable in either crash order.
 Staging takes minutes and gigabytes, and the journal is written only after it,
-so the stage's name is recorded first:
-a claim file `<id>.stage` beside the journals names the stage container before the container is created,
-with the same temporary file, synchronization and rename as a journal write.
-The claim is removed once a journal names the stage, or once a failed copy has removed the stage.
-A process-birth-identity lock serializes installation and recovery.
-An applicable source waits for an owner proven alive for at most `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
-after writing a stderr line naming the owner's PID, the lock and the limit, and repeating it with the time waited
-(see "Wait notices"),
-and then fails naming the owner, leaving the lock in place;
-while that owner lives the waiter only reads the owner record,
-and it attempts publication again once the owner releases,
-replaces,
-or no longer runs.
-A dead owner's lock,
-including PID reuse or an exited but unreaped process,
-is retired after re-reading that it still names that owner.
-An owner record that is unreadable or invalid proves nothing,
-so the waiter uses Git's jittered quadratic backoff for up to 1000 ms without a proven owner,
-then fails with a diagnostic listing that evidence and leaves the lock in place.
-The lock is released and retired by renaming it to a unique name before deleting it,
-so a concurrent publication is never emptied in place.
+so a claim names the stage first and is held for the whole copy of that destination.
+The claim is the file `<administrative name>.claim` beside the journals.
+It names the destination root and the stage container (not created yet),
+the PID namespace it was made in,
+and whether other processes of the account can read its creator's descriptors in the process table
+(a process that changed its credentials cannot).
+It records no process identifier and no owner.
+The creator writes the content to a private temporary file,
+synchronizes it,
+keeps that file open,
+and hard-links it to the claim name,
+so the name never exists without an open holder and never shows partial content.
+A link never replaces an existing name,
+so exactly one creator wins and the others do not wait.
+The winner keeps the file open until the copy ends and removes the claim last,
+after the journal and the stage,
+then marks the registration copied with `worktrees/<administrative name>/cli-git-copied`
+(Git deletes the marker with the registration),
+so a command that sees the worktree later does not copy it again.
+Nothing waits and nothing polls.
+A command that finds a published claim asks the process table whether any process has that file open
+(`/proc/<pid>/fd`, compared by device and inode):
 
-Every later linked-worktree or bare-repository invocation checks for pending journals and stage claims before forwarding
-without taking the settlement lock,
-and takes it only to recover when one exists.
-An invocation that neither creates nor moves worktrees does not wait for the lock:
-while another live process owns it,
-that owner is still writing its own journal or already recovering,
-so the invocation forwards without recovery.
+- A holder means the copy is live.
+  A creating command leaves that worktree to it and writes one notice line naming the reason;
+  a recovery pass skips the claim.
+- No holder means the creator died, however it died.
+  The command opens the claim and scans again,
+  and only a process that finds no descriptor other than its own acts;
+  two processes that open together each see the other and neither acts,
+  and the next pass settles the claim.
+  A process that hides its own descriptors from other processes does not adopt claims.
+- A claim made in another PID namespace, or by a creator that hides its descriptors,
+  cannot be judged by the process table,
+  so it counts as held until its file is older than `FOREIGN_OWNER_PATIENCE` (one hour).
+- A process table that cannot be listed is no evidence, and the claim is left alone.
+
+A creating command recovers before real Git, and takes no lock:
+its pass settles every abandoned claim,
+adopts every pending journal that no claim names (an older release wrote those) with a claim of its own,
+and skips every claim a live process holds.
+It then reads the administrative set, runs real Git, and compares the set again.
+A new worktree that Git still marks locked with the text `initializing` belongs to the command creating it
+and is skipped, and so is one whose registration carries the copied marker.
+A creating command whose own linked source is still marked `initializing`
+(a filter or hook of an enclosing `git worktree add` that creates another worktree)
+forwards without observing, recovering or copying; the enclosing command copies.
+Every later linked-worktree or bare-repository invocation checks for pending journals and claims before forwarding;
+with nothing pending that costs two directory reads.
+An invocation that neither creates nor moves worktrees never waits for a copy:
+a claim a live process holds is skipped, and the invocation forwards without recovering that copy.
 Recovery validates that journal paths remain canonical,
 the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
@@ -545,19 +569,24 @@ Every pending transaction then reaches an end:
   and the recovering invocation writes the failure as a notice and continues.
 - Completed cleanup is resumed without reinstalling entries.
 
-After the journals, recovery removes every stage container that a claim names and no pending journal names:
-the lock proves that no live copy is between claiming and journaling,
-so a copy that died while staging (a signal, the out-of-memory killer, a power loss) left it.
+Recovery of an abandoned claim removes the stage container the claim names when no pending journal names it:
+the claim is abandoned, so no live copy is between claiming and journaling,
+and a copy that died while staging (a signal, the out-of-memory killer, a power loss) left it.
 Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix, and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
 writes one notice line naming it,
 and removes the claim.
 A claim whose container was never created is removed without a notice.
+A claim that does not parse, or names anything else, is refused and kept for inspection.
+A worktree that was removed while its copy was staged is not filled:
+the copy checks the registration after the claim and again after the stage is journaled,
+discards the stage and journal with one notice line when the worktree is gone,
+and never creates the destination root itself.
 
 Malformed or unsafe journal,
 install-log,
-stage claim,
+claim,
 or stage state fails closed without deleting the journal or a path outside the validated private stage.
 
 After all newly registered destinations settle successfully,
@@ -2695,8 +2724,8 @@ whose owner record also names the transaction ID.
 
 ### Locks
 
-Cli-git's own locks are rename-published owner-lock directories carrying process-birth identity,
-the mechanism the worktree-copy settlement lock already uses.
+Cli-git's own locks are rename-published owner-lock directories carrying process-birth identity.
+The worktree copy takes none: it is claimed per destination (see "Linked-worktree ignored-state synchronization").
 A lock whose owner is dead,
 including PID reuse,
 is retired by the next acquirer.
@@ -2716,11 +2745,6 @@ is retired by the next acquirer.
   `<git-common-dir>/cli-git/push/<encoded-ref>.lock`:
   a wait while their owner lives, bounded by the push deadline plus the grace plus 60 seconds
   or by `CLI_GIT_PUSH_LOCK_WAIT_SECONDS` when that is set.
-- Worktree-copy settlement lock:
-  a wait while its owner lives, bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
-  bounded wait for an owner record without evidence,
-  held only by applicable sources
-  (see "Linked-worktree ignored-state synchronization").
 
 An owner is alive only while its PID names a running process with the recorded birth identity.
 On Linux a process in state `Z`
@@ -2764,7 +2788,7 @@ the time waited and the bound with the variable that changes it.
 - Foreign `index.lock`: with a proven-alive owner the first line (at once) and the repeats name the PID, its command
   and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
   the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
-- Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
+- The push lock: the first line at once, the repeats with the time waited.
 - The Markdown linter thread: `still waiting for monochromatic-lint to check <path> after S seconds;
   giving up on it after 60 seconds`.
 - The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
@@ -3347,8 +3371,10 @@ and configuration:
   and a leftover lock from a killed Git producing `index-lock-unproven-owner` after the timeout with the lock retained;
 - a concurrent `git add` during a landing waits and then succeeds;
 - `git cli-git fix` concurrent with a landing keeps its real index check valid;
-- concurrent commits in a linked worktree never contend on the settlement lock,
-  and `git worktree add` through the wrapper from a hook still synchronizes ignored state.
+- concurrent commits in a linked worktree never wait for a worktree copy,
+  overlapping `git worktree add` runs each copy their own worktree once and none leaves another's unfinished worktree filled,
+  and `git worktree add` through the wrapper from a filter or hook still synchronizes ignored state
+  (the enclosing command copies it from the real source).
 
 Recovery:
 

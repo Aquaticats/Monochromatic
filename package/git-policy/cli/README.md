@@ -147,8 +147,13 @@ Read-only commands,
    and a failure that is not a divergence (authentication, offline, a refusing hook) keeps Git's own report.
 - Linked worktrees.
   When a Git command creates a linked worktree,
-   the wrapper copies the ignored state of the source worktree into it
-  under one settlement lock per repository.
+   the wrapper copies the ignored state of the source worktree into it.
+  Each new worktree is copied under its own claim, a file that the copying process keeps open,
+   so two commands never copy into one worktree and no command waits for a copy:
+   a command that meets a running copy leaves that worktree to it and says so,
+   and a copy that was killed is settled by the next command that finds its claim without a holder.
+  Overlapping `git worktree add` runs are told apart by the claims and by Git's own mark on a worktree it still creates;
+   `doc/worktree-copy-claim.md` has the design and its limits.
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,
@@ -708,8 +713,8 @@ fractional or non-numeric value is ignored.
    the capture,
    landing
    and registry locks,
-   the landing reservation,
-   the worktree-copy settlement and a live `index.lock` holder.
+   the landing reservation
+   and a live `index.lock` holder.
   At the limit it stops with a message that names the holder and every way forward:
    let the holder finish and run the command again,
    check with `ps` whether it is stuck,
@@ -762,7 +767,6 @@ because healthy commits queue behind each other briefly all the time.
 After that the first line comes,
 and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
 A wait whose holder is already known when it begins (a live `index.lock`,
- the worktree-copy settlement,
  another process's push) prints its first line at once.
 Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
@@ -780,7 +784,7 @@ Each line names what the command waits for,
    with the proof named,
    and an `index.lock` that nothing proves held,
    which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
-- The worktree-copy settlement lock and another process's push of the same branch.
+- Another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
    leaving its thread to end with the command.

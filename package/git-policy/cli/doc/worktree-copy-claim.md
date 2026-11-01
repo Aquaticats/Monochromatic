@@ -17,7 +17,7 @@ only, and briefly by every other forwarded command that found a pending journal 
 Reading `worktree_copy.rs`, `worktree_copy_recovery.rs` and `worktree_copy_stage_claim.rs`, it protected five things.
 
 - Attribution of new worktrees.
-  The commands registered by one Git run are found by comparing the administrative directory names under
+  The worktrees registered by one Git run are found by comparing the administrative directory names under
   `<common>/worktrees` before and after Git.
   With the lock held across Git, no other creating command could register a worktree inside that window, so the
   difference was exactly this command's worktrees.
@@ -49,7 +49,8 @@ Exclusion has two parts, a one-time claim and the kernel's own record of who hol
 
 A claim is one file per destination under the journal root, `<journal root>/<admin id>.claim` (the administrative
 directory name is unique among registered worktrees of a repository).
-It names the destination and the stage container the copy will use, and the PID namespace it was made in.
+It names the destination and the stage container the copy will use, the PID namespace it was made in, and whether its
+creator can be seen in the process table.
 It carries no process identifier.
 
 - Publication.
@@ -60,7 +61,7 @@ It carries no process identifier.
 - The claim lives until the copy ends, not until the journal exists, and it is removed after the journal and the stage.
   Every durable state of a copy (stage, journal, install log) therefore has a claim that names it.
 - Another process that finds the claim asks the kernel whether any process still has that file open (`/proc/*/fd`,
-  compared by device and inode, the evidence `process_use.rs` already uses).
+  compared by device and inode, the evidence `process_use.rs` already uses, plus this process's own descriptors).
   A holder means the copy is live and the asker yields at once.
   No holder means the creator died; the asker may adopt the claim.
 - Adoption is open-then-scan.
@@ -70,29 +71,66 @@ It carries no process identifier.
   So at most one asker acts, with no rename race on the shared name, and the next run settles whatever both skipped.
 - Settlement of an adopted claim is what recovery always did for the state it names: resume or discard the journal, or
   remove a stage no journal names, with the same notices.
-  Then the claim is removed.
-- Unprovable cases fail closed.
-  A claim made in another PID namespace is judged by the age rule `pid_namespace.rs` already has; an unreadable process
-  table, or an unreadable descriptor directory of the same account, means the claim is left alone.
+  Then the claim is removed, last, so a crash inside the settlement leaves the claim for the next pass.
+- What the process table cannot show fails safe.
+  A creator in another PID namespace, or one that hides its descriptors from its own account (a sandbox that entered a
+  user namespace, a program that cleared its dump flag), cannot be found holding anything, so its claim is judged by the
+  age rule `pid_namespace.rs` already has (`FOREIGN_OWNER_PATIENCE`).
+  Such a creator says so in the claim (`observable: false`), and such a process never adopts a claim itself, so every
+  holder the scan has to find was observable when it took the claim; processes of the account whose descriptors cannot
+  be read (a desktop session has several) are therefore no evidence against a claim.
+  A process table that cannot be listed leaves the claim alone.
 
 ### Everything else follows from the claim
 
 - Attribution.
   Overlapping creating commands may both see a new worktree.
-  Whoever wins its claim copies it, from its own source worktree; the other yields.
+  Whoever wins its claim copies it, from its own source worktree; the other yields with one notice line.
   A worktree whose `locked` file still says `initializing` is left to its creator.
-  A marker `worktrees/<id>/cli-git-copied`, written when the claim holder finishes, makes later arrivals skip a
-  destination that is already done, and Git deletes it with the registration.
+  A marker `worktrees/<id>/cli-git-copied`, written when the claim holder finishes (installed or failed), makes later
+  arrivals skip a destination that is already done; Git deletes it with the registration.
 - Recovery against a live copy.
   A recovery pass only acts on a claim that has no holder, and on a journal that no claim names (journals an older
   release wrote), which it first adopts with a claim of its own.
+  Journals are listed before claims, and a journal is only ever written after its claim and removed before it, so a
+  journal seen with no claim has no running copy.
 - The nested-wrapper lease is gone.
   A wrapper run by a hook inside `git worktree add` no longer has a lock to deadlock on, so `CLI_GIT_WORKTREE_COPY_LEASE`
   is neither set nor read.
+  A creating command whose own source is a linked worktree that Git still marks `initializing` (a filter or hook of an
+  enclosing `git worktree add` that creates another worktree) only forwards, because that source holds nothing yet; the
+  enclosing command, whose list of new worktrees includes the nested one, copies it from the real source.
 - Removal.
-  The holder checks that the destination is still a registered worktree of the repository after staging and before
-  installing; if it is not, the stage and journal are discarded with a notice and nothing is created.
+  The holder checks that the destination is still a registered worktree of the repository after the claim and again after
+  staging; if it is not, the stage and journal are discarded with a notice and nothing is created.
   Installation never creates the destination root itself, so a removed destination is not brought back.
+- No second query for the repository's identity.
+  The wait it guarded is gone.
+  The before-set of administrative names is read after recovery, as close to real Git as possible.
+- Journal listing tolerates a journal removed by its finished copy while another process lists, because copies run
+  at the same time now.
+
+## Why it is correct
+
+Each claim below is a case of the one rule: a process acts on a destination's state only while it is the only process
+that has the destination's claim open.
+
+- Two copies into one destination.
+  The link is the single decision point; the loser holds no claim and does nothing to the destination.
+  After the winner finishes, the marker is written before the claim is removed, and a latecomer checks the marker both
+  before and after winning a claim, so it cannot start a second copy.
+- Copies into different destinations touch disjoint files: their claims, journals and stages have distinct names, and the
+  only shared reads (listing the journal root) tolerate concurrent change.
+- A copy killed at any instruction leaves a claim whose file nobody holds open, because the kernel closes a dead
+  process's descriptors however it dies, plus whatever durable state it had reached; the claim names that state, and
+  recovery settles it without anyone's help.
+  A kill between the temporary file and the link leaves a temporary nobody holds, which a pass removes.
+- A pass never touches a live copy: it finds the live copy's descriptor in the process table, or it does not open the
+  claim at all.
+- What a wrong guess costs, were the process table ever to hide a holder (a security module that denies the read):
+  the intruder settles a live copy's state, the live copy's next step fails on a missing stage or journal, and the copy
+  ends with a notice and exit status 2 with its rollback of paths it can prove; the destination is never overwritten
+  because installation only creates absent paths and rollback only removes paths it can prove.
 
 ## Known limits
 
@@ -101,6 +139,20 @@ It carries no process identifier.
   From one source (the common case, the main checkout) the result is identical.
 - A destination created with `--lock` keeps a reason in `locked` instead of `initializing`, and a localized Git writes
   a translated `initializing`; an overlapping peer cannot tell such a worktree is still being checked out.
-- Another PID namespace's claim is judged by age (`FOREIGN_OWNER_PATIENCE`), not by process.
+- A claim whose creator the process table cannot show is judged by age (one hour).
+- Without `/proc` (macOS) no process is observable, so claims are never adopted before they are old.
+- A worktree created by a hook through a wrapper whose enclosing source is already complete (a `post-checkout` hook)
+  is copied from that source, not from the enclosing command's.
 - Release builds of a version that still uses the settlement lock must not run copies at the same time as this version;
   a leftover `settlement.lock` directory and `*.stage` files from that version are not read and may be deleted.
+- `CopyFacts.global_prefix` and `CopyFacts.environment` are no longer read; removing them touches callers outside the
+  copy.
+
+## Verification
+
+The tests that pin the design are in `worktree_copy_claim_tests.rs` (publication, holder evidence from this process and
+from another process that is killed, the second scan, the age rule), `worktree_copy_race_tests.rs` (two copies into one
+destination, a copy against a removal, a copy killed at each durable state) and `binary_worktree_copy_tests.rs` (two real
+wrappers overlapping inside their checkouts).
+Each guard is a planted control in `bin/native-planted-controls-landing.ts`, and each control fails its test when the
+guard is removed.

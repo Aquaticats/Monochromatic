@@ -1,5 +1,10 @@
 # cli-git 0.0.1: linked-worktree copy stalls, blocks other worktrees, and leaves an unrecoverable journal
 
+Status (2026-11-01): the worktree-copy settlement lock that this record describes was removed.
+Each new worktree is now copied under its own claim and no command waits for a copy; the record below describes the
+behavior of the release it was written against, and `package/git-policy/cli/doc/worktree-copy-claim.md` describes the
+replacement.
+
 ## Symptom
 
 On 2026-09-26,
