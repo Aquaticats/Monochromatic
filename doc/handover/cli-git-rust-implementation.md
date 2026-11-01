@@ -4668,3 +4668,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Container gate on the merged tree: 2677 run, 2677 passed, 7 skipped, 211.8 s.
 - Not exercised: the worker-thread panic path (a `case N:` message from a failed write inside a worker).
 - Tests only; no release needed. Fold into the next wrapper change.
+
+## Mutation campaign m045 started (2026-10-31)
+
+- Seven units, `cli-git-mutpar-m045-<file>`: `announced_query`, `filesystem_identity_fsid`, `filesystem_identity`,
+  `owner_lock`, `private_storage`, `process_tree`, `real_index_lock`. Tree = main after the replay-test merge and the 0.4.5
+  release. Launcher log: `~/temp/agent/gate/mutpar-m045.log`. Per-file logs follow the earlier `mutpar-<file>.log.N`
+  pattern under `~/temp/agent`. Read the results from the logs or `mutants.out/outcomes.json` in each unit's output
+  directory, never from the unit's reported `Result=` (a `--collect` unit reports defaults after it ends).
+- Expect survivors to need new tests, not code changes, unless a survivor shows dead logic. Kill each survivor and
+  timeout, as in earlier waves; commit tests with the mutant name in the message.
+- Check with `systemctl --user is-active cli-git-mutpar-m045-*` before reading logs.
