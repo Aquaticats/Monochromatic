@@ -14,6 +14,12 @@ run = "cargo nextest run --lib"
 description = "Plant each listed defect in a disposable copy of the subject and require the generator controls to fail"
 run = "node bin/planted-controls.ts"
 
+# The root `lint` fans out to the task named exactly `lint` in each package; without this entry the sidecar's checks
+# were never reached, and a change to the subject that broke a fuzz target went unnoticed.
+[tasks.lint]
+description = "Check every fuzz target compiles against the subject (cargo check, Clippy) and lint the TypeScript"
+run = [{ tasks = ["lint:types", "lint:oxlint"] }]
+
 [tasks."lint:types"]
 description = "Check the fuzz helper library, every fuzz target and the generator controls compile against the subject, with denied Clippy warnings"
 run = ["cargo check --all-targets --locked --offline", "cargo clippy --all-targets --locked --offline -- -D warnings"]
