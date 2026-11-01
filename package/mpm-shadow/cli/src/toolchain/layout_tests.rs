@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::cargo_installs::{current_link, version_directory};
+use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME};
 use super::fixtures::sample_lock;
 use super::layout::{
     applies_to_family, bin_search_dirs, find_bin_under, find_tool_bin, install_dir_name, is_executable,
@@ -164,12 +164,12 @@ fn each_route_searches_its_own_directories() {
     let root = scope.toolchain_root.clone();
     assert_eq!(
         bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[]),
-        vec![version_directory(&root, "fd-find", "1.2.3").join("bin")],
+        vec![root.join(CARGO_NAMESPACE).join("fd-find").join("1.2.3").join("bin")],
         "a third-party crate is searched in its locked version's own root, never in $CARGO_HOME/bin"
     );
     assert_eq!(
         bin_search_dirs(&sample_tool("cargo:monochromatic-mpm-shadow"), &scope, &env, &[]),
-        vec![current_link(&root, "monochromatic-mpm-shadow").join("bin")],
+        vec![root.join(CARGO_NAMESPACE).join("monochromatic-mpm-shadow").join(CURRENT_LINK_NAME).join("bin")],
         "a repository-published crate is searched through its current link"
     );
     assert_eq!(bin_search_dirs(&sample_tool("node"), &scope, &env, &[]), vec![root.join("node").join("1.2.3")]);
@@ -242,7 +242,7 @@ fn find_tool_bin_looks_in_the_route_directories_of_the_scope() {
         None,
         "the shared cargo home is not searched for a cargo-binstall tool"
     );
-    let own_root = version_directory(&scope.toolchain_root, "fd-find", "1.2.3").join("bin").join("fd");
+    let own_root = scope.toolchain_root.join(CARGO_NAMESPACE).join("fd-find").join("1.2.3").join("bin").join("fd");
     write_executable(&own_root);
     assert_eq!(find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]), Some(own_root));
 }
