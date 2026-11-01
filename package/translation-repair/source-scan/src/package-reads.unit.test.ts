@@ -1854,6 +1854,12 @@ const OFFENDER_CASES: readonly ReadCase[] = [
     kinds: ['climb',],
   },
   {
+    label: 'the pathname of a URL that climbs past the package, a member as the outermost expression of the chain',
+    path: SHALLOW,
+    text: 'export const dogs = new URL(\'../../dog/src/bark.ts\', import.meta.url,).pathname;\n',
+    kinds: ['climb',],
+  },
+  {
     label: 'a re-export of everything from a file past the package folder',
     path: SHALLOW,
     text: 'export * from \'../../dog/src/bark.ts\';\n',
@@ -1998,6 +2004,12 @@ const CONTROL_CASES: readonly ReadCase[] = [
       '  createReadStream(join(scratch.path, \'..\', \'dog\',),),',
       '];',
     ].join('\n',),
+    kinds: [],
+  },
+  {
+    label: 'a glob whose pattern climbs from a folder deep in the package and stays inside it',
+    path: DEEP,
+    text: 'export const dogs = glob(\'../*/src/**/*.ts\', { cwd: import.meta.dirname, },);\n',
     kinds: [],
   },
   {
