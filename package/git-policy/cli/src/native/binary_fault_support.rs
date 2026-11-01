@@ -199,8 +199,20 @@ pub(super) fn count_calls(fixture: &Fixture, label: &str, syscall: &str, follow_
 
 /// Run one explicit-path commit with the fault injected.
 pub(super) fn run_injected(fixture: &Fixture, repo: &Path, label: &str, fault: &Injection) -> Ran {
+    return run_injected_with_environment(fixture, repo, label, fault, &[]);
+}
+
+/// Run one explicit-path commit with the fault injected and `environment` added to the wrapper's own, for a control
+///  that sets a bound shorter than the fault's delay.
+pub(super) fn run_injected_with_environment(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    fault: &Injection,
+    environment: &[(&str, &str)],
+) -> Ran {
     let trace: PathBuf = fixture.root.join(format!("trace-{label}.txt"));
-    let output: Output = run_to_end(&mut traced(
+    let mut command: Command = traced(
         fixture,
         repo,
         &COMMIT_ARGUMENTS,
@@ -208,7 +220,11 @@ pub(super) fn run_injected(fixture: &Fixture, repo: &Path, label: &str, fault: &
         Some(fault),
         fault.follow_forks,
         trace.as_path(),
-    ));
+    );
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    let output: Output = run_to_end(&mut command);
     let log: String = std::fs::read_to_string(&trace).unwrap_or_default();
     return Ran { output, trace: log };
 }

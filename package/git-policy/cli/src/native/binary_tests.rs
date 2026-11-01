@@ -194,3 +194,7 @@ mod fault_remote;
 /// Slow flushes and filesystems that refuse links or renames.
 #[path = "binary_fault_filesystem_tests.rs"]
 mod fault_filesystem;
+
+/// A Git step past its class bound is stopped, named with its class, and the repository recovers.
+#[path = "binary_child_bound_tests.rs"]
+mod child_bound;

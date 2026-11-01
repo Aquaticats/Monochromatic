@@ -639,12 +639,20 @@ fractional or non-numeric value is ignored.
   The command leaves the lock in place and changes nothing else,
    so it can simply be run again.
 - `CLI_GIT_CHILD_WAIT_SECONDS`,
-   default `1800`.
-  How long one Git process that the wrapper starts for itself may run before it is stopped:
-   the object reader (`git cat-file --batch`) that the policy checks read candidate files through,
-   and the Git steps of a commit in the shadow repository.
-  A process that crosses the limit is stopped,
-   and the command reports which one and how to go on.
+   default `60` for a plumbing step and `300` for an object-writing step.
+  How long one Git process that the wrapper starts for itself may run before it is stopped.
+  A plumbing step is a query or an edit of a ref or an index (`rev-parse`, `ls-files`, `diff-index`, `read-tree`,
+   `write-tree`, `reset`, `update-ref` and the like);
+   the measured worst case is a fraction of a second.
+  An object-writing step moves bytes (`pack-objects`, `index-pack`, `add`) and so does anything the wrapper has not
+   classed, such as `maintenance run` and the object reader (`git cat-file --batch`);
+   its time grows with the size of what is committed.
+  Setting the variable gives every class the same bound.
+  A process that crosses its bound is stopped,
+   and the command reports which one, its class, the bound and how to go on:
+   run the command again (the next command of the wrapper finishes or undoes an unfinished commit),
+   or raise the bound when the step was only slow.
+  The user's own commit with its hooks is never bounded.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints").
@@ -696,7 +704,9 @@ Each line names what the command waits for,
    which names the file and stops the linter after 60 seconds.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
-   and stop it after `CLI_GIT_CHILD_WAIT_SECONDS`.
+   and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
+  The first notice of a plumbing step comes after 5 seconds and that of an object-writing step after 10 seconds,
+   so a step that only needed a moment prints nothing.
 
 ```text
 // standard error of a commit that waits for the landing lock

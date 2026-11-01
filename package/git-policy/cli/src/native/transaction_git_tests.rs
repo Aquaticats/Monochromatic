@@ -338,7 +338,10 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "slow\n");
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
-    assert!(text.starts_with("cli-git: still waiting for git add -- a.md (process "), "{text}");
+    assert!(
+        text.starts_with(format!("cli-git: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
+        "{text}"
+    );
     remove(root.as_path());
 }
 
@@ -355,7 +358,10 @@ fn a_git_step_past_its_bound_is_stopped_and_reported_as_such() {
     })
     .expect_err("stopped at the bound");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
-    assert!(failure.to_string().starts_with("git add -- a.md did not finish within 0 seconds and was stopped"), "{failure}");
+    assert!(
+        failure.to_string().starts_with(format!("git add -- a.md, {} did not finish within 0 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
+        "{failure}"
+    );
     // The notice that is due goes out before the bound is checked, so a stopped step was announced at least once.
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
     remove(root.as_path());
