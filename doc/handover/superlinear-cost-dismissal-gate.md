@@ -831,14 +831,18 @@ everything else runs async
 terminal-title's seven events,
 claude-spawn `SessionStart` and `SessionEnd`,
 cost-dismissal's codex legs).
-One leg was reverted mid-change after measurement:
-cost-dismissal `Stop` stays synchronous,
-because only it sees turn-ending thinking,
-both hosts abort pending async hooks at session teardown,
-and on one event it costs what the sync stop-reminder already costs
+One leg was measured and then decided by the owner:
+cost-dismissal `Stop` runs async too,
+chosen 2026-11-01 at the flagged question
+over the counter-recommendation,
+accepting that both hosts abort pending async hooks at session teardown
+so a headless run's final Stop record can be dropped.
+On one event the leg costs what the sync stop-reminder already costs
 (97 to 155 ms against 82 to 159 ms,
 alternating runs on a 400-row transcript),
-so async there bought no latency and risked the record.
+so the async flag saves little on Claude
+(where the sync stop-reminder waits on the event anyway),
+and saves the scan at every codex turn end.
 Async hook invocations overlap,
 so the shadow log's read,
 deduplicate,

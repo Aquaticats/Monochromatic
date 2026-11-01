@@ -89,7 +89,10 @@ Relevant for hook authors:
 `schedule_async_hook`;
  `hooks/src/registry.rs`,
 `shutdown`).
- A hook that records a final observation at `Stop` therefore wants to
- stay synchronous;
+ A hook that records a final observation at `Stop` can therefore lose it
+ to teardown;
+ this repository's cost-dismissal `Stop` leg runs async anyway,
+ by the owner's 2026-11-01 decision,
+ accepting that risk for the turn-end latency;
  see `doc/research/claude-code-hooks-sync-vs-async.md` for the
  Claude Code side and its measured delivery timing.
