@@ -330,6 +330,64 @@ await describe({
         },),
 
         it({
+          name: 'RECORDS A READING UNDER THE MODEL THAT GAVE IT (ledger B1100, B1164): a reader whose reply the completion '
+            + 'limit cut and whose picture was asked of another model is not credited with that model\'s reading',
+          fn: async () => {
+            /**
+             Models asked, in order.
+             */
+            const asked: RosterModelId[] = [];
+            /**
+             Client that cuts the first reader on its first ask and has every other model transcribe the picture.
+             */
+            const client: ModelClient = {
+              chatText: async (request,) => {
+                /**
+                 Request as this package's own contract describes it.
+                 */
+                const { modelId, } = request as ChatTextRequest;
+                asked.push(modelId,);
+                return (modelId === LARGER_READER) && (asked.filter(function sameModel(model,): boolean {
+                  return model === modelId;
+                },).length === 1)
+                  ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
+                  : { text: (modelId === SEAT_SYNTHETIC_VISION_NO_OPENROUTER) ? AGREEING_READING : READING, servedBy: 'hyper', };
+              },
+              chatJson: async () => {
+                throw new Error('chatJson unused by the reading stage',);
+              },
+              quotas: async () => {
+                throw new Error('quotas unused by the reading stage',);
+              },
+            };
+            const paired = await readImagePair({
+              reask: 'other-model',
+              client,
+              readOcr: found,
+              readerModelIds: READERS,
+              bytes: bytesOf({ length: 64, },),
+              assetName: 'noticeboard.webp',
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              perCallTimeoutMs: HANG_STOP_MS,
+              l,
+            },);
+            if (paired.kind !== 'corroborated')
+              throw new Error('corroborated by construction',);
+            /**
+             Model the cut reader's picture was asked of.
+             */
+            const answerer = asked.find(function isOther(model,): boolean {
+              return !READERS.includes(model,);
+            },);
+            expect(answerer === undefined,).toBe(false,);
+            expect(paired.readings
+              .map(function toModel(reading,): RosterModelId | undefined {
+                return reading.modelId;
+              },),).toEqual([answerer, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+          },
+        },),
+
+        it({
           name: 'REFUSES TWO READINGS THAT DESCRIBE DIFFERENT PICTURES, and records how far apart they '
             + 'were. Used, a reading of the wrong picture would licence replacing a careful '
             + 'transcription with something derived from a misreading, and no judge downstream could '
