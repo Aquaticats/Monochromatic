@@ -1234,6 +1234,9 @@ pub mod service_client;
 /// Which commit command lines the commit service covers, and the message they stand for.
 pub mod service_commit_args;
 
+/// The one summary line a landed commit prints, with the abbreviated name Git would print.
+pub mod landed_summary;
+
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
