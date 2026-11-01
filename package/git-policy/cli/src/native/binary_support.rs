@@ -730,9 +730,25 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
 
 /// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native
 ///  `git commit` until a signal arrives. Hooks are unsupported, so controls that need the commit to stand still use this.
+///
+/// The editor catches the signals the controls send and ends with the signal's status, so no timing decides the
+///  verdict. A shell that waits for a foreground child ignores `SIGINT` and `SIGQUIT` unless that child dies of the
+///  same signal, and a shell that is about to `exec` can lose one too (measured: the editor with `touch` then
+///  `sleep` lost an interrupt, and with `exec sleep` it lost a quit, at the instant after it announced itself).
+///  The editor then slept its full minute and ended the commit with status 1 and "Aborting commit due to empty
+///  commit message." instead of the signal's status. The handlers are set before the announcement, so every signal
+///  that can follow the announcement is caught; `wait` returns at once on a caught signal; the sleep has no
+///  terminal and no pipe of the test, so a sleep left behind cannot hold the commit's standard error open.
 pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
     let path: PathBuf = fixture.root.join("stalling-editor");
-    executable(path.as_path(), format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes());
+    executable(
+        path.as_path(),
+        format!(
+            "#!/bin/sh\nstall=\ntrap 'kill $stall 2>/dev/null; exit 130' INT\ntrap 'kill $stall 2>/dev/null; exit 131' QUIT\nprintf started > '{}'\nsleep 60 </dev/null >/dev/null 2>&1 &\nstall=$!\nwait $stall\n",
+            started.display()
+        )
+        .as_bytes(),
+    );
     return path;
 }
 
