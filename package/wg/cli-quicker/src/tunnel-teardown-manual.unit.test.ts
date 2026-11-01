@@ -1,14 +1,23 @@
 import {
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import { runAllowingFailure, } from '../dist/final/node/runner.mjs';
 import { shellQuote, } from '../dist/final/node/shell-quote.mjs';
 import {
   blockStatements,
   manualFinishSteps,
+  readManualFacts,
 } from '../dist/final/node/tunnel-teardown-manual.mjs';
 import {
   trafficBlockScript,
@@ -61,6 +70,24 @@ const CLEARNET = {
 const BLOCK_LINE = `  sudo nft ${shellQuote({ value: blockStatements({ interfaceName: INTERFACE_NAME, },), },)}`;
 
 /**
+ Process ID the record of the route watcher names.
+ */
+const WATCHER_PID = 4_242;
+
+/**
+ Lines of the steps when the record of the route watcher gave its process ID.
+ */
+const WITH_PID = manualFinishSteps({
+  interfaceName: INTERFACE_NAME,
+  facts: {
+    statePath: STATE_PATH,
+    companionPath: COMPANION_PATH,
+    policyTable: POLICY_TABLE,
+    routeWatcherPid: WATCHER_PID,
+  },
+},);
+
+/**
  Lines of the steps when the policy table is known.
  */
 const KNOWN = manualFinishSteps({
@@ -98,7 +125,7 @@ const HOSTILE = manualFinishSteps({
  ```
  */
 function commandsOf({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
-  return lines.filter((line,) => line.startsWith('  sudo ',),);
+  return lines.filter((line,) => line.startsWith('  sudo ',) || line.startsWith('  ps ',),);
 }
 
 /**
@@ -121,10 +148,84 @@ async function wordsOf({ line, }: { readonly line: string; },): Promise<string> 
    */
   const result = await runAllowingFailure({
     command: 'bash',
-    args: ['-c', `sudo() { printf '<%s>' "$@"; printf '\\n'; }\n${line}`,],
+    args: ['-c', `sudo() { printf '<%s>' "$@"; printf '\\n'; }\nps() { printf '<%s>' "$@"; printf '\\n'; }\n${line}`,],
   },);
   return result.exitCode === 0 ? result.stdout : `shell failed with ${String(result.exitCode,)}: ${result.stderr}`;
 }
+
+/**
+ A runtime directory of the ownership state that is empty,
+ which stays set for the interface name of the scope.
+ */
+type RuntimeDirectory = {
+  /**
+   Path of the directory.
+   */
+  readonly path: string;
+
+  /**
+   Puts the environment back and removes the directory.
+   */
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Points the runtime directory of the ownership state at a new empty directory until the scope ends.
+
+ @returns The directory,
+ disposed by `await using`.
+
+ @example
+ ```ts
+ await using runtime = await emptyRuntimeDirectory();
+ ```
+ */
+async function emptyRuntimeDirectory(): Promise<RuntimeDirectory> {
+  /**
+   Empty directory standing for the runtime directory.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'wg-quicker-manual-',),);
+  /**
+   Value to put back.
+   */
+  const previous = process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+  process.env.WG_QUICKER_RUNTIME_DIRECTORY = path;
+  return {
+    path,
+    [Symbol.asyncDispose]: async function restore(): Promise<void> {
+      if (previous === undefined)
+        delete process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+      else
+        process.env.WG_QUICKER_RUNTIME_DIRECTORY = previous;
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+await describe({
+  name: readManualFacts.name,
+  children: [
+    it({
+      name: 'reads the process ID from the record of the route watcher next to the state file, and leaves it out, without throwing, when the record is absent or damaged',
+      fn: async () => {
+        // One scope for all cases: the runtime directory is a variable of the whole process, so cases must not overlap.
+        await using runtime = await emptyRuntimeDirectory();
+        expect((await readManualFacts({ interfaceName: 'wgtest', },)).routeWatcherPid,).toBe(undefined,);
+        const { statePath, } = await readManualFacts({ interfaceName: 'wgtest', },);
+        // Nothing is written unless the path is inside the scratch directory.
+        expect(statePath.startsWith(`${runtime.path}/`,),).toBe(true,);
+        await writeFile(`${statePath}.watcher.json`, JSON.stringify({ ownerId: 'owner', pid: WATCHER_PID, startTime: '12345', },),);
+        expect((await readManualFacts({ interfaceName: 'wgtest', },)).routeWatcherPid,).toBe(WATCHER_PID,);
+        for (const text of ['not json', '{}', '{"ownerId":"o","pid":-1,"startTime":"s"}', '{"ownerId":"o","pid":"4242","startTime":"s"}',]) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case writes and reads its own record.
+          await writeFile(`${statePath}.watcher.json`, text,);
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case writes and reads its own record.
+          expect((await readManualFacts({ interfaceName: 'wgtest', },)).routeWatcherPid,).toBe(undefined,);
+        }
+      },
+    },),
+  ],
+},);
 
 await describe({
   name: manualFinishSteps.name,
@@ -220,6 +321,45 @@ await describe({
         // The record is shown once: the by-hand list does not repeat it.
         expect(KNOWN.filter((line,) => line === `  sudo cat ${STATE_PATH}.watcher.json`,).length,).toBe(1,);
         expect(KNOWN.some((line,) => line.startsWith('first stop the route watcher, whichever way you go on',) && line.includes('adds rules again',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'checks that the process ID is still the route watcher before it kills it: it prints the process list line first, says what it must show, and kills only after',
+      fn: async () => {
+        /**
+         Position of a line that starts with the given text.
+         */
+        const at = (text: string,): number => WITH_PID.findIndex((line,) => line.startsWith(text,),);
+        /**
+         Where the check and the kill stand.
+         */
+        const record = at(`  sudo cat ${STATE_PATH}.watcher.json`,);
+        const check = at(`  ps -o args= -p ${String(WATCHER_PID,)}`,);
+        const kill = at(`  sudo kill ${String(WATCHER_PID,)}`,);
+        expect(record,).toBeGreaterThan(-1,);
+        expect(check,).toBeGreaterThan(record,);
+        expect(kill,).toBe(check + 1,);
+        expect(kill,).toBeLessThan(at(`  sudo mv ${STATE_PATH} `,),);
+        // The remark between the record and the check says what the check must show and what to do otherwise.
+        /**
+         The remark above the check.
+         */
+        const remark = WITH_PID[check - 1] ?? '';
+        expect(remark.startsWith('  # ',),).toBe(true,);
+        expect(remark,).toContain(`ends with ${STATE_PATH}`,);
+        expect(remark,).toContain('do not run the kill after it',);
+        // No kill stands without the check before it.
+        for (const [index, line,] of WITH_PID.entries()) {
+          if (line.includes('kill',) && line.startsWith('  sudo ',))
+            expect(WITH_PID.slice(0, index,).some((earlier,) => earlier.startsWith('  ps -o args= -p ',),),).toBe(true,);
+        }
+      },
+    },),
+    it({
+      name: 'prints no command with a placeholder for the process ID: when the record gave none, the check and the kill are in a remark',
+      fn: async () => {
+        expect(KNOWN.some((line,) => line.startsWith('  ps ',) || line.startsWith('  sudo kill',),),).toBe(false,);
+        expect(KNOWN.some((line,) => line.startsWith('  # ',) && line.includes('ps -o args= -p <pid>',) && line.includes('sudo kill <pid>',) && line.includes('do not kill it',),),).toBe(true,);
       },
     },),
     it({

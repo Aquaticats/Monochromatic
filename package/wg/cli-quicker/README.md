@@ -643,8 +643,10 @@ to look at what could not be read:
   sudo ip -4 rule show
   sudo ip -6 rule show
 first stop the route watcher, whichever way you go on: without the state file wg-quicker no longer looks for it, and a watcher left running adds rules again:
-  # the `pid` field of the next record is the route watcher; stop it with `sudo kill` and that number
   sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
+  # the pid is 2285916; the next command must print a line that ends with /run/wg-quicker/interface-<key>.json; any other output, or none, means 2285916 is not the watcher any more, so do not run the kill after it
+  ps -o args= -p 2285916
+  sudo kill 2285916
 then, if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
   sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
 or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
@@ -672,6 +674,17 @@ a `down` that is run after the damaged state file was moved away does not find t
 which keeps running and adds its rules again.
 The watcher is told apart from other processes by the record next to the state file,
 so the record is shown first and the process is stopped before the state file is touched.
+The process ID is read from that record when it can be read,
+and put into the commands.
+A bare number can be reused by another program after the watcher has died,
+so the kill is preceded by `ps -o args= -p <pid>`,
+which shows what runs under the number now,
+and a remark says what it must show (a command that ends with the state file path,
+which is the last word of the watcher's command line)
+and not to kill otherwise.
+When the record cannot be read,
+the check and the kill stand in a remark with `<pid>` instead of as command lines,
+because a command with a placeholder cannot be pasted whole.
 
 The by-hand list removes routing,
 so it opens with the traffic block and ends by lifting it.

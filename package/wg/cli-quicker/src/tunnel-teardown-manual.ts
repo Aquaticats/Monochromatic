@@ -3,6 +3,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { shellQuote, } from './shell-quote.ts';
 import { bypassStatePath, } from './tunnel-bypass-path.ts';
+import { readWatcherIdentity, } from './tunnel-bypass-watcher-sidecar.ts';
 import {
   readClearnet,
   type Clearnet,
@@ -50,6 +51,12 @@ export type ManualFacts = {
    absent when it could not be read or the interface has no application bypass.
    */
   readonly clearnet?: Clearnet;
+
+  /**
+   Process ID that the record of the route watcher names,
+   absent when the record could not be read.
+   */
+  readonly routeWatcherPid?: number;
 };
 
 /**
@@ -89,6 +96,38 @@ export function blockStatements(
       return line !== '';
     },)
     .join('; ',);
+}
+
+/**
+ Reads the process ID that the record of the route watcher names,
+ for the check before the process is stopped.
+ The record is a different file from the state file, so it is often readable when the state file is not.
+
+ @param statePath - Path of the state file, next to which the record stands.
+
+ @returns The process ID under `routeWatcherPid`,
+ or nothing when there is no readable record.
+
+ @example
+ ```ts
+ await readableWatcherPid({ statePath: '/run/wg-quicker/interface-x.json' });
+ ```
+ */
+async function readableWatcherPid(
+  { statePath, }: { readonly statePath: string; },
+): Promise<{ readonly routeWatcherPid?: number; }> {
+  try {
+    /**
+     Identity the record holds,
+     or the sentinel for no record.
+     */
+    const identity = await readWatcherIdentity({ statePath, },);
+    return (typeof identity) === 'object' ? { routeWatcherPid: identity.pid, } : {};
+  }
+  catch (error) {
+    l.error(`the record of the route watcher could not be read for the by-hand steps: ${String(error,)}`,);
+    return {};
+  }
 }
 
 /**
@@ -175,11 +214,16 @@ export async function readManualFacts({ interfaceName, }: { readonly interfaceNa
    The program that stops the application watcher.
    */
   const companion = await resolveApplicationExemptionCommand();
+  /**
+   Path of the state file.
+   */
+  const statePath = statePathOf({ interfaceName, },);
   return {
-    statePath: statePathOf({ interfaceName, },),
+    statePath,
     companionPath: companion.found ? companion.path : COMPANION_COMMAND,
     ...(fwmark.found ? { policyTable: fwmark.table, } : {}),
     ...(await readableClearnet({ interfaceName, },)),
+    ...(await readableWatcherPid({ statePath, },)),
   };
 }
 
@@ -240,6 +284,7 @@ export function manualFinishSteps(
     companionPath,
     policyTable,
     clearnet,
+    routeWatcherPid,
   } = facts;
   /**
    The traffic block table as a word of a command.
@@ -267,6 +312,27 @@ export function manualFinishSteps(
    */
   const watcherRecord = shellQuote({ value: `${statePath}.watcher.json`, },);
   /**
+   The process ID in the words and commands of the check,
+   or the placeholder when the record gave none.
+   */
+  const pid = routeWatcherPid === undefined ? '<pid>' : String(routeWatcherPid,);
+  /**
+   The record of the route watcher, the check that the process is the watcher, and the stop.
+   The process ID is read from the record, so a number that was reused by another program is not taken for it:
+   the check shows what the number runs now.
+   */
+  const stopWatcher = routeWatcherPid === undefined
+    ? [
+      `  sudo cat ${watcherRecord}`,
+      `  # the \`pid\` field is the route watcher's; check it with \`ps -o args= -p ${pid}\`, which must print a line that ends with ${state}, and only then stop it with \`sudo kill ${pid}\`; any other output means the number is not the watcher any more, so do not kill it`,
+    ]
+    : [
+      `  sudo cat ${watcherRecord}`,
+      `  # the pid is ${pid}; the next command must print a line that ends with ${state}; any other output, or none, means ${pid} is not the watcher any more, so do not run the kill after it`,
+      `  ps -o args= -p ${pid}`,
+      `  sudo kill ${pid}`,
+    ];
+  /**
    Commands that remove the policy rules of the tunnel.
    */
   const policyRules = policyTable === undefined
@@ -284,8 +350,7 @@ export function manualFinishSteps(
     '  sudo ip -4 rule show',
     '  sudo ip -6 rule show',
     'first stop the route watcher, whichever way you go on: without the state file wg-quicker no longer looks for it, and a watcher left running adds rules again:',
-    '  # the `pid` field of the next record is the route watcher; stop it with `sudo kill` and that number',
-    `  sudo cat ${watcherRecord}`,
+    ...stopWatcher,
     `then, if the state file is damaged, move it away and run \`wg-quicker down ${interfaceName}\` again; wg-quicker then forgets the bypass rules and routes the file owned, and the block lets nothing through because no exceptions are known:`,
     `  sudo mv ${state} ${shellQuote({ value: `${statePath}.damaged`, },)}`,
     'or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file).'
