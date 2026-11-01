@@ -601,6 +601,27 @@ Wave-4 fourteenth checkpoint (2026-11-01, all rows verified against the tree bef
   (53 files; then goal 51, bash-poke 48, advisor 23, current-time-context 12,
   cost-dismissal 8).
 
+Wave-4 fifteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Manual queue slice 6 verified and accepted: 67 repaired, 3 external-by-design
+  (`w2-fs-a-41` relocation sheets, `w2-fs-b-038` toolchain plan, `w2-async-b1-083`),
+  2 needs-refutation (`w2-async-b1-027` deleted-subject flagged as expected;
+  `w2-i18n-22`'s staleness claim needs re-adjudication because the concurrent cutover
+  rewrote its runbook, FORBIDDEN_STRINGS_RULES now via tracked
+  `.config/mise/conf.d/20-env.toml`). My own run over the nine touched files confirms
+  71 of 72 ids clean with only `-027` flagged; the queue cross-check found 32 further
+  BAD rows absent from every queue (w2-fs-a-36, the w2-fs-b and w2-i18n blocks, the
+  w2-logger-fuzz tail, w2-logger-src-67); all 32 are folded into slice 7 as orphans.
+  Slice 7, the FINAL problems slice, is in flight: problems-subset indexes 360 to 415
+  (56 entries, first id w2-logger-src-9) plus those 32 orphans, 88 ids total. After it
+  the manual queue holds only the 409 ambiguous entries for adjudication.
+- rgffplay/cli complete: 9 of 9 files (rows `w4-rgffplay-001` to `-003` verified, 3 of 3
+  clean; headline row 003: unbalanced query brackets make rg abort with an unclosed
+  character class that only the exit-1 path maps to a friendly error; row 001: the
+  README attributes the missing progress line to Bun's child_process.spawn while the
+  CLI runs on node via nano-spawn). `w4-android-app` now on page-weight/cli (17 files;
+  then terminal-exec 27, watch-restart 43, kwin/key-helper 25).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
