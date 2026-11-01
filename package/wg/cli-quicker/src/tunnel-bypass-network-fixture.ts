@@ -267,6 +267,11 @@ export async function setupNamespaceLinks(
       '198.51.100.1',
       'dev',
       fixture.peerPrimary,
+      // Like a DHCP default of a real host: the protocol and the preferred source address, which the bypass table must not copy.
+      'proto',
+      'dhcp',
+      'src',
+      '198.51.100.2',
       'metric',
       '100',
     ],
@@ -282,6 +287,9 @@ export async function setupNamespaceLinks(
       '2001:db8:1::1',
       'dev',
       fixture.peerPrimary,
+      // Like a router-advertised default: the kernel prints "pref medium" for it, which the bypass table must not copy.
+      'proto',
+      'ra',
       'metric',
       '100',
     ],
