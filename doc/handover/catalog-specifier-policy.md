@@ -1056,14 +1056,28 @@ The user confirmed the shared understanding and the order below, after the third
   `monochromatic-2a` and `monochromatic-6c`, and which of them owns the toolchain was not known, so no status was sent; a message to
   the stale socket of 6e failed with ENOENT. Ask the user, or read `ListAgents` again, for the current owner before sending.
 
+- 2026-11-01, `monochromatic-pnpm-shadow` 0.1.1 released (the waiter ended with the full result): `6751b15dbc` reached `origin/main`
+  after the git-lfs 503 cleared, crates.io lists 0.1.1, and the release `monochromatic-pnpm-shadow-v0.1.1` has the x86_64 and
+  aarch64 Linux archives and a sha256sums file; the latest push-triggered `cargo-publish.yml` run (41320323471, headed by
+  `11ad7efdf7`) succeeded.
+  - Consumer check on the published archive: `cargo-binstall --no-confirm --disable-strategies compile --version 0.1.1` installed
+    `pnpm-shadow 0.1.1` in 3.96 s. Behind a launcher with a fake pnpm after it (`~/temp/agent/ps-published-launcher-check.ts`, each
+    run under `timeout 30`): `install` exit 0 with one warning block; `--version` exit 0 with pnpm's line and one notice naming the
+    fake pnpm; `root` exit 0 with no warning; `nested` (a pnpm that runs `pnpm` again) reached the real pnpm. No loop.
+  - Told the two peers listed after the reboot (`monochromatic-2a`, `monochromatic-6c`), each message addressed to whichever of them
+    owns the toolchain, because which one does was not known. Still the toolchain owner's: lock 0.1.1, put `.cache/pnpm-shadow-bin`
+    back ahead of `.cache/toolchain-bin`, and check `command -v pnpm`, `pnpm --version`, `root` and `--help` with timeouts.
+
 ## Open items
 
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
-- Done: `pnpm-shadow` built, tested, published, released with archives and installed from the archive as a consumer.
-- Waiting on `monochromatic-6e`: it staged the plan row and the link (uncommitted), holds the install and the commit until 8c
-  commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports.
-- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump is in the working-tree lock; its commit is 6e's, together
-  with the shadow row, because both rows share one generated lock.
+- Done: `pnpm-shadow` 0.1.1 built, tested, published, released with archives, installed from the archive as a consumer, and shown
+  not to loop behind a launcher (the 0.1.0 defect), on the published binary and on the test build.
+- Waiting on the toolchain owner (the earlier owner, `monochromatic-6e`, was replaced after the reboot; both current peers were
+  told, each conditionally): lock 0.1.1, put `.cache/pnpm-shadow-bin` back on PATH ahead of `.cache/toolchain-bin`, then check
+  `command -v pnpm`, and `pnpm --version`, `root` and `--help` with timeouts. The link was disabled after 0.1.0 looped.
+- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump was in the working-tree lock with the shadow row
+  before the reboot; whether it was committed after the reboot was not checked from here.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
 - For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
 - Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
@@ -1074,5 +1088,5 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for `monochromatic-6e`'s report that the shadow is installed and linked as `pnpm` and that `pnpm --version` and `pnpm root` behave as the
-README says; check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
+Wait for the toolchain owner's report that 0.1.1 is locked, the shadow is back on PATH as `pnpm`, and `pnpm --version`, `root` and `--help`
+behave as the README says; then check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
