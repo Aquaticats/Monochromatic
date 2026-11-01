@@ -25,6 +25,7 @@ import {
   objectivePreview,
   parseGoalCommand,
   reduceGoalEvent,
+  REMOVED_COMMAND_PREFIXES,
   reduceGoalEvents,
   restoreGoalController,
   rotateGoalGeneration,
@@ -99,15 +100,12 @@ await describe({
           kind: 'rejected',
           diagnostic: GOAL_USAGE,
         },);
-        for (const command of [
-          'status',
-          'status now',
-          'edit objective',
-          'pause',
-          'resume',
-          '--tokens 100k objective',
-        ]) {
-          expect(parseGoalCommand(command,),).toEqual({
+        for (const prefix of REMOVED_COMMAND_PREFIXES) {
+          expect(parseGoalCommand(prefix,),).toEqual({
+            kind: 'rejected',
+            diagnostic: GOAL_USAGE,
+          },);
+          expect(parseGoalCommand(`${prefix} with trailing words`,),).toEqual({
             kind: 'rejected',
             diagnostic: GOAL_USAGE,
           },);
