@@ -5890,3 +5890,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   400 characters; post-commit, binary and exact-bytes tests now fail when linting is skipped or the name is converted; new planted
   control; differential cases for an error finding and a processing failure; stale comments fixed. The lockfile finding was void (the
   reviewer's diff excluded `Cargo.lock`). Next: merge it, then the linter 0.5.0 bump plus both pins.
+- Merged the linter embedding `78831896fe` into main, then `af7e0fb33b`: linter 0.4.0 to 0.5.0, wrapper and fuzz pins `=0.5.0`,
+  lockfiles via `cargo update --offline --package monochromatic-lint` (wrapper lockfile also moved five Windows-only edges from
+  windows-sys 0.61.2 to 0.52.0: merge drift, named in the commit body). The push started cargo-publish run `41312100575` (followed
+  by `gh run watch`, log `~/temp/agent/linter-publish-watch.log`). Gate 5 stopped as superseded (it was 50 of 2889 tests in); gate 6 on
+  `af7e0fb33b`: unit `gpc-main-gate6`, tag `main-gate6`, log `~/temp/agent/gate/main-gate6.log`. Expected failure until
+  `a21d6fec9d0d04797` lands the githooks docs in the image: `every_documented_hook_event_is_listed`.
+  After linter 0.5.0 is on crates.io and the gate is green: dispatch the wrapper release (0.5.1 or 0.6.0; the embedding changes no
+  user-facing interface beyond the Markdown policy's failure texts, the service is opt-in, so 0.5.1 fits; decide at dispatch).
