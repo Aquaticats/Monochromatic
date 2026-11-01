@@ -901,6 +901,50 @@ The user confirmed the shared understanding and the order below, after the third
   - Not done, by design of the agreed scope: the crate is not published, not in the crate-release registry, not linked as
     `pnpm` by the toolchain plan, and no mutation run was made (the user said mutation runs do not block publish and release).
 
+- 2026-11-01, user answers on the two `pnpm-shadow` follow-ups (asked with the question tool; the recommended option was "not yet"
+  for both and the user chose against it): "Publish it now", and "Yes, ask the toolchain session to link it".
+  So: publish `monochromatic-pnpm-shadow` 0.1.0 (the first publication needs the owner's personal token, which the user logs in
+  themselves and never sends in chat; then Trusted Publishing is created by API and CI takes over, as for
+  `monochromatic-catalog-specifier`), register it for CI releases, and ask the toolchain session (the verbs' owner) to link
+  the binary as `pnpm` through the toolchain plan once it is published.
+
+- 2026-11-01, user directions on `pnpm-shadow`, three messages in order, each a direct user instruction:
+  1. "only say it's the wrapper on version and help commands." Done: the warning lines carry the prefix `warning: ` and never name
+     the wrapper; the wrapper names itself only after a lone `--version`/`-v` (one line on standard output) and a lone
+     `--help`/`-h`/`help` (a section), as `mpm-shadow` does; its two own failures (no real pnpm, could not start it) keep the
+     `pnpm-shadow:` prefix because they report the wrapper's own fault. That exception is mine, not the user's: veto open.
+  2. "The wrapper also shouldn't take 12ms for trival pnpm commands where the wrapper doesn't even do work, because pnpm itself is
+     rust tool. Profile and optimize until we don't add more than what pnpm itself adds for them. If you think clap is the problem,
+     provide evidence and tell me what to use instead."
+  3. "still scans" - didn't we already determine to only do scans on install-class commands?, then "for wrapper warning scope" -
+     only when the warning would make sense.
+  The record before these: the user chose "Warn only, never block" against my ranking of install-class first, line "Whether the
+  warning appears on every invocation or only on install-class verbs is not decided", then in the last design round "every
+  invocation, except arguments that are only `--version`, `-v`, `--help` or `-h`". My build had omitted that exception, so it
+  scanned on `--version` (my defect, reported to the user). The user's third message supersedes the recorded scope: the scan and
+  warning happen only for install-class commands, and the user's own rule for the rest is that the wrapper does no work.
+  - Implemented in `package/pnpm-shadow/cli/src/verb.rs`: the command word is the first word that is not an option or an option's
+    value (value options read from `pnpm --help` of pnpm 12.16.1), looking through one `recursive` word. Warning commands, with
+    aliases: `add`, `install`/`i`, `install-test`/`it`, `update`/`up`/`upgrade`, `remove`/`rm`/`uninstall`/`un`/`uni`, `dedupe`,
+    `import`, `link`/`ln`, `unlink`/`dislink`, `ci`/`clean-install`/`ic`/`install-clean`. The list is my reading of "makes sense"
+    (commands that resolve or change dependencies from `package.json`): `fetch`, `prune`, `deploy` and read-only commands are
+    outside it; veto open. A help or version word before `--` cancels the warning; an unrecognised command line gives no warning.
+  - For every command line except a lone version or help word the shadow now `exec`s pnpm (no resident wrapper; exit status and
+    signals are pnpm's own). A test pins that a SIGTERM that kills the fake pnpm reaches the caller as that signal.
+  - Evidence on clap (profile, `~/temp/agent/pnpm-shadow-profile.ts`, 60 runs per arm, hyperfine): `pnpm-shadow --version` under its
+    own name (the only path that runs clap) took 1.8 ms to 1.9 ms against 0.5 ms for `/usr/bin/true`, so clap costs about 1.3 ms
+    there. In shadow mode `main.rs` returns before clap runs, and the shadow outside any workspace (no scan) took 8.5 ms against
+    7.5 ms for the real `pnpm --version` in the quiet round, a difference inside that round's 1.5 ms to 1.7 ms spread. The 12 ms
+    was the scan of 22,508 entries, not clap; no replacement for clap is proposed.
+  - Result after the change, interleaved pairs (`~/temp/agent/pnpm-shadow-pairs.ts`, 100 pairs per command, real pnpm and shadow back to
+    back, order alternating, paired-difference median): `pnpm --version` +0.85 ms over 6.6 ms; `pnpm root` +0.59 ms over 11.8 ms;
+    `pnpm install --help` +0.78 ms over 6.6 ms; `pnpm list` +1.32 ms over 143.6 ms with a p10 to p90 of -14.0 to +22.8 ms, so
+    noise. The first profile's sequential arms were noisy (sigma up to 27 ms) because other sessions load the host; the paired
+    method was chosen because that load moves both members of a pair together. Not measured: the wrapper in front of
+    `pnpm install` itself (it would change real state); an install-class command pays the walk, about 10 ms.
+  - Checks: clippy clean; 54 tests pass, among them the verb rules (every listed verb, every value option, `--`, help anywhere),
+    which commands warn and which stay silent in a workspace with a violation, and the signal pass-through.
+
 ## Open items
 
 - Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).

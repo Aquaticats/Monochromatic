@@ -48,8 +48,14 @@ pub mod report;
 /// The workspace root lookup and the manifest walk.
 pub mod scan;
 
+/// The line and the section the shadow adds after pnpm's `--version` and `--help`, the only places it names itself.
+pub mod shadow_notice;
+
 /// The shadow mode: warn, look up, launch, wait.
 pub mod shim;
+
+/// The command-word rules: whether the manifest warning makes sense for a pnpm command line.
+pub mod verb;
 
 /// Scratch directories for the unit tests, placed beside the build output.
 #[cfg(test)]
@@ -67,6 +73,14 @@ mod report_tests;
 #[cfg(test)]
 mod scan_tests;
 
+/// The unit tests of the notice.
+#[cfg(test)]
+mod shadow_notice_tests;
+
 /// The unit tests of the child launch and exit-status mapping.
 #[cfg(test)]
 mod shim_tests;
+
+/// The unit tests of the command-word rules.
+#[cfg(test)]
+mod verb_tests;

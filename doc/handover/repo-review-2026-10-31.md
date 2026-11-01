@@ -1806,6 +1806,72 @@ doc/agent slice opened and troubleshooting still running):
 - Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
   position 26, troubleshooting at worklist line 67, doc/agent on its six files.
 
+Wave-4 forty-third checkpoint (2026-11-01, doc/agent complete and the slot moved to a
+translation-repair package; cc, desktop, fm and troubleshooting still running):
+
+- Lane milestone: doc/agent COMPLETE. All six tracked files read (431 lines); rows
+  `w5-docs-agent-001` to `-006`, w5-docs-agent.jsonl 6 of 6 by my run. My spots:
+  all six issue-tracker convention bullets are bold-label bullets; the three
+  exactly-120-character lines are regression-suite 4 and 29 and self-review 21;
+  regression-suite still records three `/tmp` scratch paths (XTD/ATH forbid
+  them); the five-triage-roles premise and the "stale" verb are quoted live. The
+  lane is released.
+- Freed slot: package/translation-repair/slice-cache opened as a single-package
+  slice (121 tracked files), findings to w5-tr-slice-cache.jsonl from id
+  `w5-tr-slice-cache-001`, base rr-tsc-001, deduping the earlier pkg-dom,
+  pkg-array-at and new-round4 mentions.
+- Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
+  position 26, troubleshooting at worklist line 67, slice-cache on its package.
+
+Wave-4 forty-fourth checkpoint (2026-11-01, four lane returns verified and relaunched;
+slice-cache is still running):
+
+- doc/troubleshooting round 2: worklist lines 67 to 70, rows
+  `w2-logger-src-077` to `-085`; my spots confirm the Containerfile and lockfile
+  drift, the depth-1 `du` recipe, the reformatted task output and the deleted
+  linter lockfile. The ledger is 84 of 85: row 35 remains quote-bad because the
+  concurrent session keeps reflowing package/git-policy/cli/README.md; it is
+  marked concurrent and must be re-verified before filing. Next: worklist line
+  71, id w2-logger-src-086, base rr-ts-379.
+- `w4-cc-statusline` (cc-docs round 5) closed positions 405 to 412 and read nine
+  419 to 520 middles: rows `w4-docs-035` (anchor_denot region markers and the
+  unmarked 382 to 601 tail), `-036` (the Laya vet's evaluate/judge paths against
+  the one-file auto-mode src), `-037` (137 and 11 bold-label bullets in the
+  rolling-desktop vets) and `-038` (three ALL CAPS conclusions in the
+  translation-repair debt-layers record). Row 034 was retracted as a duplicate of
+  pkg-shell-argument-28. Ledger 37 of 37. Next: the remaining 419 to 520
+  middles, id w4-docs-039, base rr-gp-335.
+- `w4-desktop-app` (desktop-fork round 5) read 54 more deepmerge files: rows
+  `w4-upstream-fork-066` to `-071` (duplicated ActionUtils owners, copied esbuild
+  loader, three copied worker pools, unguarded RECALL_NPM_DIR, unvalidated
+  recall seed/size, and the bare --skipLibCheck override). Ledger 71 of 71; 110
+  of 124 files. Next: the 14 remaining type files and tsconfig, id
+  w4-upstream-fork-072, base rr-desktop-089.
+- `w4-fm-variant-qt` (fm-decision round 5) read positions 26, 29, 30, 35, 40 and
+  42: rows `w4-docs-decision-046` to `-051` (six-vs-two gitignore negations,
+  seeds/seeder drift, 51-vs-1344 seeds, three split bold spans, the serde_json
+  catalog line, and the commands.rs pointer). The pre-existing row 034 had moved
+  with toolchain.plan.jsonc; I repaired it to lines 369/378. Ledger 51 of 51.
+  Next: position 41, id w4-docs-decision-052, base rr-fmv-62.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  package.
+
+Wave-4 forty-fifth checkpoint (2026-11-01, slice-cache first turn verified and relaunched;
+the other four lanes are still running):
+
+- package/translation-repair/slice-cache round 1: 83 of 119 reviewable files read;
+  rows `w5-tr-slice-cache-001` (build-entries example key the map never holds),
+  `-002` (two @internal helpers published by src/index.ts), `-003`
+  (openRefineSliceCache is the only store opener with no test) and `-004` (the
+  INCOMPLETE case table omits the ArchiveOriginalCompletenessError arm while 14
+  siblings have rows). My spots reproduce all four; the ledger is 4 of 4.
+  Next: cache-account-repo.test-fixture.ts and the 34 unread unit tests, id
+  w5-tr-slice-cache-005, base rr-tsc-002.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  unread tests.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

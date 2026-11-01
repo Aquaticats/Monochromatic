@@ -1,0 +1,105 @@
+diff --git a/src/main.rs b/src/main.rs
+index efe6f55..ee2829e 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -25,15 +25,16 @@ struct Args {
+     #[arg(short = 'v', long = "verbose", help = "Print debug information")]
+     verbose: bool,
+ 
+-    #[arg(help = "Command to execute", required = true)]
+-    command: String,
+-
++    // One trailing positional holds the command and its arguments, so the command's own flags
++    // (such as `--version` or `-v`) are never matched against timeout's flags.
+     #[arg(
+-        help = "Arguments for the command",
++        value_name = "COMMAND",
++        help = "Command to execute, followed by its arguments",
++        required = true,
+         trailing_var_arg = true,
+         allow_hyphen_values = true
+     )]
+-    args: Vec<String>,
++    command_and_args: Vec<String>,
+ }
+ 
+ // Exit codes following GNU timeout convention
+@@ -68,12 +69,19 @@ fn main() -> ExitCode {
+     let kill_after_duration = args.kill_after.map(Duration::from_secs);
+     let verbose = args.verbose;
+ 
++    // `required = true` guarantees at least one value, so the first one is the command.
++    let mut command_and_args = args.command_and_args.into_iter();
++    let command = command_and_args
++        .next()
++        .expect("clap requires a command to execute");
++    let command_args: Vec<String> = command_and_args.collect();
++
+     debug_print!(
+         verbose,
+         "Starting timeout: {}s, kill-after: {:?}s, command: {}",
+         args.seconds,
+         args.kill_after,
+-        args.command
++        command
+     );
+ 
+     let should_terminate = Arc::new(AtomicBool::new(false));
+@@ -84,18 +92,13 @@ fn main() -> ExitCode {
+     // Spawn the command
+     let should_terminate_clone = should_terminate.clone();
+     let should_kill_clone = should_kill.clone();
+-    let command_name = args.command.clone();
++    let command_name = command.clone();
+ 
+     let command_thread = thread::spawn(move || {
+-        let mut cmd = Command::new(&args.command);
+-        cmd.args(&args.args);
++        let mut cmd = Command::new(&command);
++        cmd.args(&command_args);
+ 
+-        debug_print!(
+-            verbose,
+-            "Spawning command: {} {:?}",
+-            args.command,
+-            args.args
+-        );
++        debug_print!(verbose, "Spawning command: {} {:?}", command, command_args);
+ 
+         let mut child = match cmd.spawn() {
+             Ok(child) => {
+diff --git a/tests/integration_tests.rs b/tests/integration_tests.rs
+index fd3cc52..13e290c 100644
+--- a/tests/integration_tests.rs
++++ b/tests/integration_tests.rs
+@@ -339,3 +339,30 @@ fn test_normal_timeout_without_kill_after() {
+         elapsed
+     );
+ }
++
++#[test]
++fn test_timeout_flags_right_after_the_command_belong_to_the_command() {
++    // Each case starts with a flag that timeout itself defines, placed directly after the command.
++    // `echo` prints whatever it receives, so the output shows what the command was given.
++    // Two or more arguments keep GNU echo from treating a lone `--help` or `--version` as its own request.
++    let cases: [&[&str]; 8] = [
++        &["-V", "x"],
++        &["--version", "x"],
++        &["-h", "x"],
++        &["--help", "x"],
++        &["-v", "x"],
++        &["--verbose", "x"],
++        &["-k", "3", "x"],
++        &["--kill-after", "3", "x"],
++    ];
++
++    for command_arguments in cases {
++        let mut cmd = Command::cargo_bin("timeout").unwrap();
++        cmd.args(["5", "echo"]).args(command_arguments);
++
++        cmd.assert()
++            .success()
++            .stdout(format!("{}\n", command_arguments.join(" ")))
++            .stderr("");
++    }
++}

@@ -16,7 +16,7 @@ keywords = ["pnpm", "catalog", "shim", "package-json", "lint"]
 license = "LGPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/Aquaticats/Monochromatic.git"
-description = "Shadows pnpm: before every run it checks the workspace's package.json files for dependency versions that are not catalog: or workspace:*, warns on standard error, then runs the real pnpm unchanged. Never blocks."
+description = "Shadows pnpm: before a command that resolves or changes dependencies it checks the workspace's package.json files for dependency versions that are not catalog: or workspace:*, warns on standard error, then runs the real pnpm unchanged. Never blocks."
 
 # The artifact is deliberately not named `pnpm`: a `target/*/pnpm` or a tool `bin/pnpm` on PATH would shadow pnpm by accident.
 # The repository's toolchain plan would link it as `pnpm` in a per-worktree directory, the way it links `cli-git-native` as `git`.

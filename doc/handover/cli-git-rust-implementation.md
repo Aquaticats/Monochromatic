@@ -5921,3 +5921,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
   eight release binaries built when recorded, `x86_64-pc-windows-msvc` still building. After the run completes: move the repository's
   own linter through `mise run toolchain:update -- cargo:monochromatic-lint`, then `toolchain:install`, committing only
   `toolchain.lock.json` (rule UPN; inspect the lock diff).
+- Done: the publish run finished (all eight binaries). `toolchain:update -- cargo:monochromatic-lint` moved one row 0.4.0 to 0.5.0
+  plus the digest; `toolchain:install` 1 installed, 63 unchanged, 0 failed; `monochromatic-lint --version` prints 0.5.0; committed.
+- /tmp incident: a 13.3 GB finished task output of the translation session (its `rg` read its own output file) filled /tmp to 80
+  percent and broke Bash output with EDQUOT for `abdf738d7cb09a5e6`; not ours, so I asked the owning session, which deleted it (397M
+  used after).
+- Service step 2 READY `a9ac4982a7` (default on once the socket unit or the runtime socket exists, decided by reading files only;
+  `CLI_GIT_COMMIT_SERVICE=0` keeps native; `=1` on an uninstalled machine stops with the install text; an installed machine never falls
+  back; an uninstalled machine keeps the present writer until step 4 deletes it; reasoning in the design doc section "Install command,
+  default and the uninstalled machine"). HELD, not merged: gate 7 covers the exact Rust code 0.5.1 ships; merge it right after the
+  0.5.1 dispatch, then gate again. Agent continues with step 3 (push and maintenance as work items).
+- Gate 7 GREEN on `e0396d510e`: 2901 of 2901 passed, 7 skipped, exit 0. Crate sources unchanged on main up to `3a39013deb`. Wrapper
+  0.5.1 dispatched (run `41313664759`, built from `3a39013deb`; note "Markdown linter embedded in-process, LFS uploads cover every
+  pushed ref, aliases cannot re-enable hooks, opt-in commit service."), followed by `native:release:wait` (log
+  `~/temp/agent/release-051-wait.log`). After it publishes: message `monochromatic-c0` for the lock bump (their delegated job).
+- Service step 2 merged after the dispatch (`54bc241fab`); gate 8 on it: unit `gpc-main-gate8`, tag `main-gate8`, log
+  `~/temp/agent/gate/main-gate8.log`.
+- 0.5.1 run `41313664759` FAILED at "Push the bump to main as a signed commit", nothing published: `push-release.ts` refuses when paths
+  the release depends on changed on main after its checkout (`PUSH REFUSED: Paths the release depends on changed on main since
+  3a39013deb...`), and my merge of service step 2 right after the dispatch changed `package/git-policy/cli/src`. My error: a release
+  holds main's crate paths from dispatch until its bump commit is pushed, not only until checkout. Rule for me: no merge touching the
+  released crate or its path crates while a release run is before its push step. Recovery: wait for gate 8 (on `54bc241fab`, which
+  includes step 2), then dispatch 0.5.1 again from main.
+- Gate 8 GREEN on `54bc241fab` (service step 2 merged): 2907 of 2907 passed, 7 skipped. No release-dependent path changed up to
+  `1557f55215`. 0.5.1 dispatched again: run `41314873015`, followed by `native:release:wait` (log
+  `~/temp/agent/release-051b-wait.log`). HOLD all merges touching the wrapper or its path crates until its bump commit is on main.
+- Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
+  `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.

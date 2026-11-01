@@ -47,6 +47,15 @@ fn every_line_carries_the_prefix_and_names_each_finding_and_note() {
 }
 
 #[test]
+fn the_report_never_names_the_wrapper() {
+    let report: ScanReport = report_with(&["a/package.json"], &["could not read b/package.json: denied"]);
+
+    let text: String = render_report(Path::new("/work"), &report).expect("a report").to_lowercase();
+
+    assert!(!text.contains("shadow"));
+}
+
+#[test]
 fn the_report_ends_with_the_rule_and_says_pnpm_still_runs() {
     let text: String = render_report(Path::new("/work"), &report_with(&["a/package.json"], &[])).expect("a report");
 

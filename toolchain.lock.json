@@ -526,9 +526,9 @@
         }
       }
     },
-    "cargo:timeout-cli": {
-      "request": "cargo:timeout-cli@latest",
-      "version": "0.1.0",
+    "cargo:uu_timeout": {
+      "request": "cargo:uu_timeout@latest",
+      "version": "0.12.0",
       "route": "cargo-binstall",
       "bins": [
         "timeout"
@@ -1479,5 +1479,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:e01dbefa5fcf2d86cc0c38770a7e7e7271e7dd74458c94376845df502438b5e3"
+  "digest": "sha256:5446c1ad9c045f63a31e1a438dd212a5a7a61f8c261a90bd4bef6caa7fe8648e"
 }
