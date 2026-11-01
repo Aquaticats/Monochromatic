@@ -107,7 +107,7 @@ await describe({
     ...OWNED.map(function ownedCase([label, line,],): ReturnType<typeof it> {
       return it({
         name: `accepts ${label}`,
-        fn: () => {
+        fn: async () => {
           expect(isOwnedRoute({ tokens: words(line,), table: TABLE, },),).toBe(true,);
         },
       },);
@@ -115,14 +115,14 @@ await describe({
     ...REFUSED.map(function refusedCase([label, line,],): ReturnType<typeof it> {
       return it({
         name: `refuses ${label}`,
-        fn: () => {
+        fn: async () => {
           expect(isOwnedRoute({ tokens: words(line,), table: TABLE, },),).toBe(false,);
         },
       },);
     },),
     it({
       name: 'refuses a route with no tokens, and a route whose value is missing at the end',
-      fn: () => {
+      fn: async () => {
         expect(isOwnedRoute({ tokens: [], table: TABLE, },),).toBe(false,);
         expect(isOwnedRoute({ tokens: ['default', 'table', '52000', 'proto', '201', 'dev',], table: TABLE, },),).toBe(false,);
       },
@@ -135,7 +135,7 @@ await describe({
   children: [
     it({
       name: 'drops what the display adds and keeps what the bypass table carries, in order',
-      fn: () => {
+      fn: async () => {
         expect(projectRoute({ tokens: words('default via 192.168.253.1 dev wlp9s0 src 192.168.253.108 metric 600',), },),).toEqual(words('default via 192.168.253.1 dev wlp9s0 metric 600',),);
         expect(projectRoute({ tokens: words('default via fe80::1 dev wlp9s0 metric 600 pref medium',), },),).toEqual(words('default via fe80::1 dev wlp9s0 metric 600',),);
         expect(projectRoute({ tokens: words('default via 192.0.2.1 dev eth0 onlink linkdown scope global mtu 1400 hoplimit 64',), },),).toEqual(words('default via 192.0.2.1 dev eth0 onlink',),);
@@ -143,7 +143,7 @@ await describe({
     },),
     it({
       name: 'drops the device of the unreachable fallback, and keeps every word it does not know',
-      fn: () => {
+      fn: async () => {
         expect(projectRoute({ tokens: words('unreachable default dev lo metric 42760 pref medium',), },),).toEqual(words('unreachable default metric 42760',),);
         expect(projectRoute({ tokens: words('default table 52000 proto 201 protocol boot',), },),).toEqual(words('default table 52000 proto 201 protocol boot',),);
         expect(projectRoute({ tokens: words('default nexthop via 192.0.2.1',), },),).toEqual(words('default nexthop via 192.0.2.1',),);
@@ -151,7 +151,7 @@ await describe({
     },),
     it({
       name: 'reads the value of a kept keyword as a value even when it spells a dropped keyword',
-      fn: () => {
+      fn: async () => {
         expect(projectRoute({ tokens: words('default dev src metric 5',), },),).toEqual(words('default dev src metric 5',),);
       },
     },),
@@ -163,7 +163,7 @@ await describe({
   children: [
     it({
       name: 'accepts the physical defaults of this machine after the display attributes are dropped, and refuses a form the grammar does not carry',
-      fn: () => {
+      fn: async () => {
         expect(isCopyableDefault({ tokens: projectRoute({ tokens: words('default via 192.168.253.1 dev wlp9s0 src 192.168.253.108 metric 600',), },), },),).toBe(true,);
         expect(isCopyableDefault({ tokens: projectRoute({ tokens: words('default via fe80::1 dev wlp9s0 metric 600 pref medium',), },), },),).toBe(true,);
         expect(isCopyableDefault({ tokens: projectRoute({ tokens: words('default nhid 12',), },), },),).toBe(false,);
