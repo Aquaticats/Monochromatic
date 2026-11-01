@@ -778,6 +778,37 @@ Each line names what the command waits for,
 cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
 ```
 
+## Reading the repository in process
+
+The wrapper starts real Git as rarely as it can.
+For read-only questions it reads the repository itself and falls back to Git for anything it does not fully understand.
+The readers live in `src/native/repo_read_*.rs`; the design, the measurements and the limits are in
+`doc/planning/cli-git-in-process-reads.md`.
+
+What is answered in process, with the standard output, standard error and exit code Git itself would give:
+
+- the repository location every wrapped command asks for (`rev-parse` with the bare, Git directory, common directory,
+  top level and prefix options), and the Git paths and object format the commit path asks for;
+- `ls-files --stage -z` and `ls-files --unmerged -z`;
+- `diff-index --cached` (name-only and raw, with `--diff-filter` and literal pathspecs),
+  `diff --cached --name-only -z`, `diff-tree --root -r -m` for a commit with at most one parent,
+  and `show --no-patch --format=%s`;
+- `config --list -z --show-scope`, `remote get-url`, `for-each-ref` with the wrapper's format,
+  `rev-parse --verify --quiet <ref>^{commit}`, `rev-parse --abbrev-ref --symbolic-full-name @{upstream}`
+  and `symbolic-ref --quiet HEAD`;
+- `cat-file --batch` fed full object names, in the transaction runner.
+
+Every reader answers only after checking what Git would check, and otherwise leaves the question to Git:
+`GIT_*` variables that can move a path, global options other than `-C`, bare repositories, links, other file systems,
+reftable, a worktree-specific config file, conditional includes, unmerged or intent-to-add entries in a diff,
+a file that became a directory, a gitlink, a possible rename, replace refs, shallow or grafted history,
+split or sparse indexes, and configuration keys that can change the output.
+Differential controls run real Git and the readers over the same command lines
+(`src/native/repo_read_*_tests.rs`, `src/native/binary_budget_tests.rs`).
+
+Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
+for a measurement that compares both paths or to rule the readers out when output differs.
+
 ## Operating conditions
 
 This package is one of the few that must keep working under the conditions its host lives in every day,
