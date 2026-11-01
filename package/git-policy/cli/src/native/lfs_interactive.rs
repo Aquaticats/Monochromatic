@@ -22,7 +22,7 @@ use super::lfs_push_precheck::lfs_refusal;
 /// Narrows the plan to the objects the push introduces.
 use super::lfs_object_plan::narrow_plan;
 /// The upload itself.
-use super::lfs_upload::run_upload_interactive;
+use super::lfs_upload::{run_upload_interactive, submodule_notice};
 /// The repository found from the files.
 use super::repo_read_layout::read_layout;
 /// What to upload.
@@ -98,7 +98,15 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         Ok(Some(plan)) => {
             // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
             let layout = read_layout(request.prefix, request.overlay);
-            let narrowed = narrow_plan(plan, layout.as_ref())?;
+            let submodules: bool = plan.submodules;
+            let Some(narrowed) = narrow_plan(plan, layout.as_ref()) else {
+                // Nothing of this repository to upload, but Git still pushes the submodules, whose objects are not covered.
+                if submodules {
+                    // Terminal output error: the notice is advisory.
+                    let _written = std::io::stderr().write_all(submodule_notice().as_bytes());
+                }
+                return None;
+            };
             return run_upload_interactive(
                 &narrowed,
                 request.prefix,
