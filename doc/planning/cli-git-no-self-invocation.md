@@ -96,8 +96,7 @@ in `no_self_invocation_tests.rs` for `main.rs` and `commit_command.rs` go with i
   `Fehler: Fehler beim Versenden einiger Referenzen nach ...`). Neither status nor text identifies the hook.
 - With `GIT_TRACE2_EVENT` naming a file, Git writes for each hook a `child_start` event (`child_class` `hook`,
   `hook_name` `pre-push`, `argv[0]` the command string) and a `child_exit` event with the `code`, in any language.
-  `-c trace2.eventTarget=...` is ignored (Git reads trace2 targets from the environment and the system and global
-  files only).
+  `-c trace2.eventTarget=...` was measured to write nothing on this host; the environment variable is what works.
 - The remote value in the update line is the remote's advertised value for the ref, all zeros for a new ref, not the
   local remote-tracking ref (first push: zeros; second: the advertised old tip).
 
@@ -108,8 +107,8 @@ in `no_self_invocation_tests.rs` for `main.rs` and `commit_command.rs` go with i
 Options, with the ranking required by the repository rules:
 
 - A. Git runs the plain hook command `git-lfs pre-push`; the parent reads Git's trace2 events for the hook
-  and prints the explanation. Pros: Git passes the exact update lines, remote and URL; one config pair and one environment variable;
-  no shell, no wrapper start; exact attribution in every locale. Cons: a caller who sets `GIT_TRACE2_EVENT`
+  and prints the explanation. Pros: Git passes the exact update lines, remote and URL; one config pair and one
+  environment variable; no shell, no wrapper start; exact attribution in every locale. Cons: a caller who sets `GIT_TRACE2_EVENT`
   gets no explanation (the push still stops; their trace holds the evidence); depends on trace2 event fields of Git.
 - B. The parent runs `git-lfs pre-push` itself with update lines it computes, then pushes with the hook off. Pros:
   the parent owns the whole step. Cons: the lines need the remote's advertised values, so a faithful computation
@@ -188,7 +187,8 @@ the wrapper waits for the push tree only through bounded waits.
 ### Experiments
 
 - `binary_lfs_hang_tests.rs`
-  `two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`: two worktrees of one repository commit at the same moment, both with LFS keys and a stand-in `git-lfs` that takes
+  `two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`:
+  two worktrees of one repository commit at the same moment, both with LFS keys and a stand-in `git-lfs` that takes
   its delay. Both exit 0, neither prints a wait notice, both branches reach the origin, nothing is left. Not
   reproduced: no hang.
 - `a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit`: the stand-in starts a helper in a new
@@ -229,12 +229,14 @@ the wrapper waits for the push tree only through bounded waits.
 - `an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing` failed at about 9.4 seconds in four
   containers at once. The panic text was not captured. This host shows 0.5 seconds idle and 1.3 seconds under a
   quarter-CPU cap (`systemd-run --user --property=CPUQuota=25%`), which is not enough slowdown to reproduce.
-  The test has no 10-second bound: the commit is bounded by `COMMIT_BOUND_SECONDS`,
-  the server and tripwire by `DEADLINE_MILLISECONDS`, and
+  No 10-second bound was found in the test: the wrapped commits are bounded by `COMMIT_BOUND_SECONDS`,
+  the server and tripwire by `DEADLINE_MILLISECONDS`, the direct `git` helper calls have no bound, and
   its second commit sets a one-second push deadline, which is also the one-second deadline of every Git query of that
   commit (`query_deadline` is the smaller of the push deadline and `QUERY_CEILING`), so a query slowed past a
-  second under load makes that commit report that it could not run. The next gate failure needs
-  `--failure-output final` to capture the text before this can be decided; it is not explained by a real stall.
+  second under load makes that commit report that it could not run. The closing checks of
+  `assert_nothing_left` (no shadow repository, `garbage: 0` in `count-objects`, no pack leftovers) are also load
+  sensitive candidates. Which of these failed is not determined; the next gate failure needs `--failure-output final`
+  to capture the text. Nothing observed points to a real stall.
 - `an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_started` uses the same one-second
   deadline for the commit and then the second commit; the same remark applies.
 

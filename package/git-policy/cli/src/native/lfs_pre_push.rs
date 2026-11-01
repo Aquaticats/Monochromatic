@@ -33,6 +33,12 @@ pub const HOOK_COMMAND: &str = "git-lfs pre-push";
 /// The program the hook runs, found on `PATH` as the shim `git lfs install` wrote found it.
 pub const LFS_PROGRAM: &str = "git-lfs";
 
+/// The status `wait` reports for a program ended by signal `n` is this base plus `n`.
+pub const SIGNAL_STATUS_BASE: i64 = 128;
+
+/// The highest signal number a status can stand for.
+pub const MAX_SIGNAL: i64 = 64;
+
 /// Key prefixes whose presence means the repository is set up for Git LFS.
 const LFS_KEY_PREFIXES: [&str; 2] = ["filter.lfs.", "lfs."];
 
@@ -120,7 +126,10 @@ pub fn hook_switched_off(global_prefix: &[OsString]) -> bool {
             continue;
         };
         if let Some(value) = setting.strip_prefix(key.as_str()) {
-            off = value.eq_ignore_ascii_case("false") || value == "0" || value.eq_ignore_ascii_case("no");
+            // Git reads these spellings, and an empty value, as false.
+            off = ["false", "no", "off", "0", ""].iter().any(|spelling| {
+                return value.eq_ignore_ascii_case(spelling);
+            });
         }
     }
     return off;
@@ -203,10 +212,10 @@ pub fn failed_message(status: &str) -> String {
 /// code > 128 ? `exited with status ${code} (ended by signal ${code - 128} when it did not exit by itself)` : `exited with status ${code}`
 /// ```
 pub fn status_description(code: i64) -> String {
-    if code > 128 && code < 128 + 65 {
+    if code > SIGNAL_STATUS_BASE && code <= SIGNAL_STATUS_BASE + MAX_SIGNAL {
         return format!(
             "exited with status {code} (that is signal {} when it was ended by one)",
-            code - 128
+            code - SIGNAL_STATUS_BASE
         );
     }
     return format!("exited with status {code}");

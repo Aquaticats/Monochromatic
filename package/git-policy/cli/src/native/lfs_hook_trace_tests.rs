@@ -113,10 +113,15 @@ fn the_explanation_comes_from_the_file_git_wrote() {
     assert_eq!(trace.explanation(), "");
     let (name, path) = trace.entry();
     assert_eq!(name, OsString::from("GIT_TRACE2_EVENT"));
-    let written: String = stream(&[start("a-P1"), hook_start("a-P1", 1, "pre-push", COMMAND), child_exit("a-P1", 1, 143)]);
+    let terminated: i64 = crate::lfs_pre_push::SIGNAL_STATUS_BASE + i64::from(libc::SIGTERM);
+    let written: String =
+        stream(&[start("a-P1"), hook_start("a-P1", 1, "pre-push", COMMAND), child_exit("a-P1", 1, terminated)]);
     std::fs::write(&path, written).expect("trace written");
     let explanation: String = trace.explanation();
-    assert!(explanation.contains("exited with status 143 (that is signal 15"), "{explanation}");
+    assert!(
+        explanation.contains(&format!("exited with status {terminated} (that is signal {}", libc::SIGTERM)),
+        "{explanation}"
+    );
     assert!(explanation.contains("nothing was published"), "{explanation}");
     drop(trace);
     assert!(!std::path::Path::new(&path).exists(), "the trace file is removed with the value");

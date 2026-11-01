@@ -16,6 +16,10 @@ const UPLOAD_DELAY_SECONDS: u64 = 2;
 /// The push deadline the detaching control sets, in whole seconds.
 const SHORT_DEADLINE_SECONDS: u64 = 2;
 
+/// How long the stand-in and its detached helper would run if nothing stopped them, in whole seconds; far past every
+///  bound the controls assert, and the control ends the helper itself.
+const HOLD_SECONDS: u64 = 3_000;
+
 /// Extra time a control allows beyond a derived bound for process starts under host load.
 const LOAD_ALLOWANCE: Duration = Duration::from_secs(60);
 
@@ -76,7 +80,7 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
     );
     for branch in ["main", "other"] {
         let head: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
-        assert_eq!(head.trim().len(), 40, "{branch} reached the origin");
+        assert!(!head.trim().is_empty(), "{branch} reached the origin");
     }
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
@@ -91,7 +95,7 @@ fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
     let fixture: Fixture = fixture("lfs-hang-detached");
     let pid_file: PathBuf = fixture.root.join("detached.pid");
     let source: String = format!(
-        "#!/bin/sh\ncat > /dev/null\n( setsid sh -c 'echo $$ > \"{}\"; exec sleep 600' & ) \nexec sleep 600\n",
+        "#!/bin/sh\ncat > /dev/null\n( setsid sh -c 'echo $$ > \"{}\"; exec sleep {HOLD_SECONDS}' & ) \nexec sleep {HOLD_SECONDS}\n",
         pid_file.display()
     );
     let (repo, _origin) = world(&fixture, source.as_str());

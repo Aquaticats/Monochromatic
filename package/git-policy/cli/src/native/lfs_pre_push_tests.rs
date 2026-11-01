@@ -89,6 +89,8 @@ fn the_callers_switch_off_is_read_from_the_last_setting() {
     assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"])));
     assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=no"])));
     assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=0"])));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=off"])));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled="])));
     assert!(!hook_switched_off(&prefix(&[
         "-c",
         "hook.cli-git-lfs-pre-push.enabled=false",
@@ -160,8 +162,13 @@ fn the_failure_message_says_nothing_was_published_and_names_every_way_forward() 
 /// A plain status reads as an exit status; a status above 128 also names the signal it may stand for.
 #[test]
 fn a_status_above_128_names_the_signal_it_may_stand_for() {
+    let terminated: i64 = SIGNAL_STATUS_BASE + i64::from(libc::SIGTERM);
     assert_eq!(status_description(1), "exited with status 1");
-    assert_eq!(status_description(128), "exited with status 128");
-    assert_eq!(status_description(143), "exited with status 143 (that is signal 15 when it was ended by one)");
-    assert_eq!(status_description(300), "exited with status 300");
+    assert_eq!(status_description(SIGNAL_STATUS_BASE), format!("exited with status {SIGNAL_STATUS_BASE}"));
+    assert_eq!(
+        status_description(terminated),
+        format!("exited with status {terminated} (that is signal {} when it was ended by one)", libc::SIGTERM)
+    );
+    let beyond: i64 = SIGNAL_STATUS_BASE + MAX_SIGNAL + 1;
+    assert_eq!(status_description(beyond), format!("exited with status {beyond}"));
 }
