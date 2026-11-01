@@ -540,7 +540,8 @@ The owner decided on 2026-11-01:
 > It can avoid blocking already-clearnet ones.
 
 So the block does not drop what the routing already sends around the tunnel by design,
-while `down` runs and while a block left by a failed `down` stands.
+while `down` runs and while a block left by a failed `down` stands,
+within the limit on new sockets that this section states.
 It reads that from what the routing itself matches on,
 and adds no rule of its own:
 
@@ -562,6 +563,18 @@ and adds no rule of its own:
   a packet with any other mark,
   and everything forwarded.
 
+The application watcher is stopped before the block is installed,
+and stopping it closes the marker links it holds for the cgroups it watches
+(`MarkerLinks` in `package/wg/cli-quicker-exempt/src/bpf.rs`:
+dropping it detaches the marker).
+From then on a socket that the updates slice or an exempted application opens is no longer given the mark.
+So the mark exception covers the sockets that were marked before the watcher stopped,
+such as connections that are already open,
+and the update-host destinations cover the rest of what the slice reaches by design.
+A new connection of the slice to any other destination is dropped for as long as the block stands,
+which is a few moments in a `down` that succeeds and until the next `down` finishes after a failed one.
+This follows from the code and was not run against the real watcher.
+
 These rules stand ahead of the drop in the output chain of the same nft transaction that installs the block.
 The block is built from the ownership state in `/run/wg-quicker`,
 which is still there when the block is installed.
@@ -576,8 +589,8 @@ A `down` that is run again after a failed one may find that the failed one alrea
 The block of the earlier attempt is then kept as it is,
 with the exceptions it was installed with,
 and not replaced by one that has none.
-Marked traffic of the updates slice keeps passing during that window,
-because the kept block still lets it through.
+Sockets that carry the mark keep passing during that window,
+because the kept block still lets them through.
 The kill switch (`inet wg-quicker-<interface>`) has chains only in the prerouting and postrouting hooks (`src/tunnel-firewall.ts`),
 so it has nothing that drops marked output packets and does not change this.
 
