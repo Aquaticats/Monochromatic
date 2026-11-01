@@ -1448,9 +1448,15 @@ each finished branch is reviewed and merged into `main`):
   (a retried `down` leaves a gap with no block today),
   and a block that fails to lift must be reported
   (`removeTrafficBlock` never throws).
+  Owner 2026-11-01:
+  "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  Sent to the wg agent:
+  the block table accepts traffic the routing already sends to clearnet
+  (matched the way the policy rules match it),
+  during `down` and in a leftover block.
   Cautions for the apply:
   run `down` from the owner's local terminal,
-  since the block drops all non-loopback output during removal;
+  since the block still drops tunnel-bound output during removal;
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
