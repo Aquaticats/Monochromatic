@@ -218,6 +218,33 @@ a subpath import missed,
 and an escaped quote that ends a string literal
 (`bin/planted-dependent-version.ts`).
 
+### `linter_output`
+
+Runs `interpret_embedded_run`,
+the reader of one in-process `monochromatic-lint` fix run that the Markdown policy trusts,
+over two views of every input:
+the bytes mapped to how the run ended
+(a usable run,
+or a failure with status 1,
+status 2 or another status),
+a fixed source and findings,
+and the bytes mapped to findings with one planted corruption
+(another rule,
+no code,
+an error severity,
+no label,
+a code without the `markdown/` prefix,
+or a code with a suffix).
+Only a usable run whose fixed source is not empty for a non-empty file,
+and whose findings are all warnings of the selected rule with a position,
+may be used,
+and then exactly as stated,
+with the position of the first label;
+every other run must be refused with a reason that names the status,
+the finding or the empty source.
+The two size bounds are far above the input limit,
+so a control builds the two oversized runs instead.
+
 ## Controls
 
 `mise run //package/git-policy/cli.fuzz:test` runs the generator controls.

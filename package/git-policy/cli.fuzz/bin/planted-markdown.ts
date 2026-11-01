@@ -9,27 +9,35 @@ import type { Plant } from './planted-table.ts';
  */
 export const markdownPlants: readonly Plant[] = [
   {
-    name: 'a linter record of another severity is accepted',
+    name: 'a linter finding of another severity is accepted',
     file: 'package/git-policy/cli/src/native/markdown_linter_output.rs',
     edits: [{
-      from: 'if required_text(entries, "severity")? != "warn" {',
-      to: 'if required_text(entries, "severity")? == "error" {',
+      from: 'if finding.severity != Severity::Warn {',
+      to: 'if false && finding.severity != Severity::Warn {',
     }],
   },
   {
-    name: 'linter standard error without a final line feed is accepted',
+    name: 'an empty fixed source for a file that is not empty is used',
     file: 'package/git-policy/cli/src/native/markdown_linter_output.rs',
     edits: [{
-      from: String.raw`let Some(body) = text.strip_suffix('\n') else {`,
-      to: String.raw`let Some(body) = text.strip_suffix('\n').or(Some(text)) else {`,
+      from: 'if run.fixed.is_empty() && !input.is_empty() {',
+      to: 'if run.fixed.is_empty() && input.is_empty() {',
     }],
   },
   {
-    name: 'a linter run that exited 1 is used',
+    name: 'a finding of a rule whose name only ends like the selected one is used',
     file: 'package/git-policy/cli/src/native/markdown_linter_output.rs',
     edits: [{
-      from: 'ChildExit::Code(0) => {}',
-      to: 'ChildExit::Code(0) | ChildExit::Code(1) => {}'
+      from: 'if code.strip_prefix("markdown/") == Some(markdown_rule_name(*rule)) {',
+      to: 'if code.ends_with(markdown_rule_name(*rule)) {',
+    }],
+  },
+  {
+    name: 'the last label of a finding gives its position',
+    file: 'package/git-policy/cli/src/native/markdown_linter_output.rs',
+    edits: [{
+      from: 'let Some(label) = finding.labels.first() else {',
+      to: 'let Some(label) = finding.labels.last() else {',
     }],
   },
   {
