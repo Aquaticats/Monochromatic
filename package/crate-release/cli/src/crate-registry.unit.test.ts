@@ -1,0 +1,273 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+
+import {
+  findCrate,
+  loadCrateRegistry,
+  parseCrateRegistry,
+  registryCrateNames,
+} from './crate-registry.ts';
+import { CrateReleaseError } from './error.ts';
+
+/**
+ A valid registry with a full entry and a minimal one.
+ */
+const validRegistry = {
+  'monochromatic-git-policy-cli': {
+    crateDir: 'package/git-policy/cli',
+    scope: 'git-policy/cli',
+    pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
+    checkBins: ['cli-git-native'],
+    lockDirs: ['package/git-policy/cli.fuzz'],
+  },
+  'plain-crate': {
+    crateDir: 'package/plain/cli',
+    scope: 'plain/cli',
+  },
+};
+
+/**
+ Run a parse that must throw and return what it threw.
+
+ @param text - registry text
+ @returns the thrown value
+ */
+function thrownBy(text: string): unknown {
+  try {
+    parseCrateRegistry(text);
+  }
+  catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+/**
+ Expect a registry text to be refused with a message that holds the given text.
+
+ @param registry - registry value, written as JSON
+ @param mention - text the message must hold
+ */
+function expectRefusal({
+  registry,
+  mention,
+}: {
+  readonly registry: unknown;
+  readonly mention: string;
+}): void {
+  const caught = thrownBy(JSON.stringify(registry));
+  expect(caught).toBeInstanceOf(CrateReleaseError);
+  expect((caught as Error).message).toContain(mention);
+}
+
+await describe({
+  name: '',
+  children: [
+    describe({
+      name: parseCrateRegistry.name,
+      children: [
+        it({
+          name: 'reads every field of an entry and keeps the crates in file order',
+          fn: async () => {
+            const registry = parseCrateRegistry(JSON.stringify(validRegistry));
+            expect(registryCrateNames(registry)).toEqual(['monochromatic-git-policy-cli', 'plain-crate']);
+            expect(registry.get('monochromatic-git-policy-cli')).toEqual({
+              crateDirectory: 'package/git-policy/cli',
+              scope: 'git-policy/cli',
+              pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
+              checkBins: ['cli-git-native'],
+              lockDirectories: ['package/git-policy/cli.fuzz'],
+            });
+          },
+        }),
+        it({
+          name: 'reads an entry with only the required fields as one without pins, binaries or lock directories',
+          fn: async () => {
+            expect(parseCrateRegistry(JSON.stringify(validRegistry)).get('plain-crate')).toEqual({
+              crateDirectory: 'package/plain/cli',
+              scope: 'plain/cli',
+              pinFiles: [],
+              checkBins: [],
+              lockDirectories: [],
+            });
+          },
+        }),
+        it({
+          name: 'refuses text that is not JSON and says so',
+          fn: async () => {
+            const caught = thrownBy('{"a":');
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            expect((caught as Error).message).toContain('releasable-crates.json is not JSON');
+          },
+        }),
+        it({
+          name: 'refuses a registry that is not an object of crates',
+          fn: async () => {
+            expectRefusal({ registry: [], mention: 'must be an object of crates by name' });
+            expectRefusal({ registry: 'x', mention: 'must be an object of crates by name' });
+            expectRefusal({ registry: null, mention: 'must be an object of crates by name' });
+          },
+        }),
+        it({
+          name: 'refuses a registry that lists no crate',
+          fn: async () => {
+            expectRefusal({ registry: {}, mention: 'lists no crate' });
+          },
+        }),
+        it({
+          name: 'refuses a crate name that is not a crate name',
+          fn: async () => {
+            expectRefusal({ registry: { 'a b': { crateDir: 'p', scope: 's' } }, mention: 'crate name' });
+          },
+        }),
+        it({
+          name: 'refuses an entry that is not an object, naming the crate',
+          fn: async () => {
+            expectRefusal({ registry: { a: 'p' }, mention: 'crate "a" must be an object' });
+          },
+        }),
+        it({
+          name: 'refuses a missing or non-text crateDir and scope, naming the field',
+          fn: async () => {
+            expectRefusal({ registry: { a: { scope: 's' } }, mention: 'needs "crateDir" as text' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 5 } }, mention: 'needs "scope" as text' });
+          },
+        }),
+        it({
+          name: 'refuses a field the registry does not define and lists the fields it does',
+          fn: async () => {
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', lockTasks: ['x'] } }, mention: '["lockTasks"]' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', lockTasks: ['x'] } }, mention: 'lockDirs' });
+          },
+        }),
+        it({
+          name: 'refuses a list field that is not a list of text',
+          fn: async () => {
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', pinFiles: 'x' } }, mention: '"pinFiles" as a list of text' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', checkBins: [1] } }, mention: '"checkBins" as a list of text' });
+          },
+        }),
+        it({
+          name: 'refuses paths that leave the repository or are not manifests, and binary names with shell syntax',
+          fn: async () => {
+            expectRefusal({ registry: { a: { crateDir: '../x', scope: 's' } }, mention: '"crateDir"' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', pinFiles: ['p/Other.toml'] } }, mention: 'Cargo.toml' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', lockDirs: ['/abs'] } }, mention: '"lockDirs"' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', checkBins: ['a;b'] } }, mention: '"checkBins"' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 'a):b' } }, mention: '"scope"' });
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: findCrate.name,
+      children: [
+        it({
+          name: 'returns the entry of a listed crate',
+          fn: async () => {
+            const registry = parseCrateRegistry(JSON.stringify(validRegistry));
+            expect(findCrate({ registry, name: 'plain-crate' }).scope).toBe('plain/cli');
+          },
+        }),
+        it({
+          name: 'names the crates the registry lists and the file to add the crate to when it is not listed',
+          fn: async () => {
+            const registry = parseCrateRegistry(JSON.stringify(validRegistry));
+            let caught: unknown;
+            try {
+              findCrate({ registry, name: 'nope' });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            expect((caught as Error).message).toContain('"nope"');
+            expect((caught as Error).message).toContain('monochromatic-git-policy-cli, plain-crate');
+            expect((caught as Error).message).toContain('releasable-crates.json');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: loadCrateRegistry.name,
+      children: [
+        it({
+          name: 'reads the registry file that sits in the package directory',
+          fn: async () => {
+            const paths: string[] = [];
+            const registry = loadCrateRegistry({
+              packageDirectory: '/pkg',
+              readText: function readText(path) {
+                paths.push(path);
+                return JSON.stringify(validRegistry);
+              },
+            });
+            expect(paths).toEqual(['/pkg/releasable-crates.json']);
+            expect(registryCrateNames(registry)).toEqual(['monochromatic-git-policy-cli', 'plain-crate']);
+          },
+        }),
+        it({
+          name: 'turns a file that cannot be read into a refusal that names the path',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              loadCrateRegistry({
+                packageDirectory: '/pkg',
+                readText: function readText(): never {
+                  throw new Error('ENOENT');
+                },
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            expect((caught as Error).message).toContain('/pkg/releasable-crates.json could not be read');
+            expect((caught as Error).message).toContain('ENOENT');
+          },
+        }),
+        it({
+          name: 'passes the refusal of an invalid registry through unchanged',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              loadCrateRegistry({
+                packageDirectory: '/pkg',
+                readText: function readText() {
+                  return '{}';
+                },
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).message).toBe('releasable-crates.json lists no crate.');
+          },
+        }),
+        it({
+          name: 'accepts the registry file this package ships and lists the crates the release tasks name',
+          fn: async () => {
+            const registry = loadCrateRegistry({
+              packageDirectory: resolve(import.meta.dirname, '..'),
+              readText: function readText(path) {
+                return readFileSync(path, 'utf8');
+              },
+            });
+            expect(registryCrateNames(registry)).toEqual(['forbidden-strings', 'monochromatic-git-policy-cli']);
+            expect(findCrate({ registry, name: 'forbidden-strings' }).pinFiles).toEqual([
+              'package/git-policy/cli/Cargo.toml',
+              'package/forbidden-strings/cli.fuzz/Cargo.toml',
+              'package/forbidden-strings/core.bench/Cargo.toml',
+            ]);
+          },
+        }),
+      ],
+    }),
+  ],
+});

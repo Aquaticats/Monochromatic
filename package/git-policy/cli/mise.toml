@@ -31,12 +31,12 @@ description = "Record a changed dependency list of the native wrapper in its loc
 run = "cargo update --offline --workspace"
 
 [tasks."native:release"]
-description = "Bump the crate and the fuzz crate's exact pin, check, dry-run the publish and commit: `-- <from> <to> <note>` (quote the note; the shared crate-release options such as --memory-max follow the same --)"
-run = "node ../../crate-release/cli/bin/release.ts --crate-name monochromatic-git-policy-cli --crate-dir package/git-policy/cli --scope git-policy/cli --pin-file package/git-policy/cli.fuzz/Cargo.toml --check-bin cli-git-native --lock-task //package/git-policy/cli.fuzz:lock:members --unit-name cli-git-publish-dry"
+description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-git-policy-cli"
 
 [tasks."native:release:wait"]
-description = "Wait for the cargo-publish run of a pushed release commit, then check crates.io and the GitHub release: `-- <sha> <version>`"
-run = "node ../../crate-release/cli/bin/wait-publish.ts --crate-name monochromatic-git-policy-cli"
+description = "Follow the release run that `native:release` printed, then the cargo-publish run it started, then check crates.io and the GitHub release: `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-git-policy-cli"
 
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
