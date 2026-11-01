@@ -287,7 +287,7 @@ export type ReaskMode = 'other-model' | 'measured-model';
 
  @example
  ```ts
- const seat: ReaskSeat = { role: 'wide-judge', bench: ['minimax-m3', 'gemma-4-26b-a4b-it',], };
+ const seat: ReaskSeat = { role: 'wide-judge', bench: ['minimax-m3', 'gemma-4-26b-a4b-it',], reask: 'other-model', };
  ```
  */
 export type ReaskSeat = {
@@ -297,11 +297,11 @@ export type ReaskSeat = {
   readonly role: SeatRole;
 
   /**
-   Whose answer the re-ask of a runaway may give; absent means another model, which is what a run wants. Every builder of
-   a seat in production code takes the mode from the launch's `StageSettings.reask` and names it, so a measurement that
-   builds a seat through them cannot leave it out (ledger B1141).
+   Whose answer the re-ask of a runaway may give. Required, with no default and no meaning for an absent value: a seat
+   built without it would have asked another model, which a measurement must never do. Every builder of a seat in
+   production code takes the mode from the launch's `StageSettings.reask` and names it (ledger B1141, B1163).
    */
-  readonly reask?: ReaskMode;
+  readonly reask: ReaskMode;
 
   /**
    Every model seated on the question, whose answer recorded as the runaway's would count one model twice.

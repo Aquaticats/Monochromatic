@@ -280,6 +280,8 @@ type CutReask = {
  @param claims - record of the models asked for the readers of this picture, which they share so that no model is
  asked for two of them (ledger B1080); absent for a reader that is alone on its picture
 
+ @param reask - whose answer the re-ask may give; required, so a call cannot leave the mode out (ledger B1163)
+
  @param signal - abort honoured inside the ask
 
  @param perCallTimeoutMs - ceiling on this exchange
@@ -290,7 +292,7 @@ type CutReask = {
 
  @example
  ```ts
- const { reading, } = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', benchModelIds, signal, perCallTimeoutMs, l, },);
+ const { reading, } = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', benchModelIds, reask: 'other-model', signal, perCallTimeoutMs, l, },);
  ```
  */
 async function reaskCut(
@@ -316,7 +318,7 @@ async function reaskCut(
     readonly cutOn?: ProviderName;
     readonly benchModelIds?: readonly RosterModelId[];
     readonly claims?: ReaskClaims;
-    readonly reask?: ReaskMode;
+    readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -358,6 +360,7 @@ async function reaskCut(
     } = otherReadersOf({
       modelId,
       benchModelIds,
+      reask,
       ...((claims === undefined) ? {} : { claims, }),
     },);
 
@@ -457,6 +460,8 @@ async function reaskCut(
 
  @param benchModelIds - every reader of this picture
 
+ @param reask - whose answer the re-ask may give, which the seat carries
+
  @param claims - record of the models asked for the readers of this picture; absent for a reader alone on its picture
 
  @returns Models that read pictures in the order of their runaway shares, the seat the asks are claimed on, and the
@@ -464,17 +469,19 @@ async function reaskCut(
 
  @example
  ```ts
- const others = otherReadersOf({ modelId, benchModelIds, },);
+ const others = otherReadersOf({ modelId, benchModelIds, reask: 'other-model', },);
  ```
  */
 function otherReadersOf(
   {
     modelId,
     benchModelIds,
+    reask,
     claims,
   }: {
     readonly modelId: RosterModelId;
     readonly benchModelIds: readonly RosterModelId[];
+    readonly reask: ReaskMode;
     readonly claims?: ReaskClaims;
   },
 ): {
@@ -488,6 +495,7 @@ function otherReadersOf(
   const seat: ReaskSeat = {
     role: 'reader',
     bench: benchModelIds,
+    reask,
     // Conditional spread keeps the record absent for a reader that is alone on its picture.
     ...((claims === undefined) ? {} : { claims, }),
   };
@@ -551,9 +559,10 @@ function otherReadersOf(
  @param claims - record of the models asked for the readers of this picture, which the readers share so that no model
  is asked for two of them (ledger B1080); absent for a reader that is alone on its picture
 
- @param reask - whose answer a re-ask of a reply the length limit cut may give: `measured-model` asks the reader itself,
- bench and record notwithstanding (ledger B1141); `readImagePair` hands in the launch's mode, and a caller that names
- neither mode nor bench is a measurement of one model and asks the reader itself as well
+ @param reask - whose answer a re-ask of a reply the length limit cut may give; required, with no default, so that a
+ caller cannot leave it out (ledger B1141, B1163): `measured-model` asks the reader itself, bench and record
+ notwithstanding; `readImagePair` hands in the launch's mode, and a measurement of one model names `measured-model`
+ and no bench
 
  @param signal - abort honoured between asks as well as inside them, so a
  stopped run does not keep re-asking
@@ -569,7 +578,7 @@ function otherReadersOf(
 
  @example
  ```ts
- const reading = await readPastRefusal({ client, modelId, bytes, assetName, signal, perCallTimeoutMs, l, },);
+ const reading = await readPastRefusal({ client, modelId, bytes, assetName, reask: 'measured-model', signal, perCallTimeoutMs, l, },);
  ```
  */
 export async function readPastRefusal(
@@ -591,7 +600,7 @@ export async function readPastRefusal(
     readonly assetName: string;
     readonly benchModelIds?: readonly RosterModelId[];
     readonly claims?: ReaskClaims;
-    readonly reask?: ReaskMode;
+    readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -668,7 +677,7 @@ export async function readPastRefusal(
         // Conditional spreads keep the bench and the record absent where the caller names none.
         ...((benchModelIds === undefined) ? {} : { benchModelIds, }),
         ...((claims === undefined) ? {} : { claims, }),
-        ...((reask === undefined) ? {} : { reask, }),
+        reask,
         signal,
         perCallTimeoutMs,
         l: rl,

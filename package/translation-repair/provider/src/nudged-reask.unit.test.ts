@@ -90,7 +90,7 @@ const RUNAWAY_REQUEST: ChatJsonRequest<Cat> = {
   ...REQUEST,
   modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
   // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079): the roster-wide role, no bench.
-  reaskSeat: { role: 'roster', bench: [], },
+  reaskSeat: { role: 'roster', reask: 'other-model', bench: [], },
 };
 
 /**
@@ -414,7 +414,7 @@ await describe({
           const asked: ChatTextRequest[] = [];
           // oxlint-disable-next-line no-await-in-loop -- one runaway at a time, so each re-ask's calls stay apart
           await reaskElsewhereNudged({
-            request: { ...REQUEST, modelId: ranAway, reaskSeat: { role: 'roster', bench: [], }, },
+            request: { ...REQUEST, modelId: ranAway, reaskSeat: { role: 'roster', reask: 'other-model', bench: [], }, },
             first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
             ask: async (nudged,) => {
               asked.push(nudged,);
@@ -632,7 +632,7 @@ await describe({
          */
         const askedOf: string[] = [];
         await reaskElsewhereNudged({
-          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'wide-judge', bench: [], }, },
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'wide-judge', reask: 'other-model', bench: [], }, },
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: async (nudged,) => {
             askedOf.push(nudged.modelId,);
@@ -664,7 +664,7 @@ await describe({
             reaskElsewhereNudged({
               request: {
                 ...RUNAWAY_REQUEST,
-                reaskSeat: { role: 'roster', bench: [SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,], },
+                reaskSeat: { role: 'roster', reask: 'other-model', bench: [SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,], },
               },
               first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
               ask: async (nudged,) => {
@@ -720,7 +720,7 @@ await describe({
         const { logged, } = await infoLinesDuring({
           run: async () =>
             reaskElsewhereNudged({
-              request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: triedForDeepseek(), }, },
+              request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench: triedForDeepseek(), }, },
               first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
               ask: async () => ({ text: '{"spot":"radiator"}', servedBy: 'hyper', }),
             },),
@@ -744,7 +744,7 @@ await describe({
             reaskElsewhereNudged({
               request: {
                 ...RUNAWAY_REQUEST,
-                reaskSeat: { role: 'roster', bench: triedForDeepseek(), },
+                reaskSeat: { role: 'roster', reask: 'other-model', bench: triedForDeepseek(), },
               },
               first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
               ask: async (nudged,) => {
@@ -780,7 +780,7 @@ await describe({
          */
         const asks: ChatTextRequest[] = [];
         const other = await reaskElsewhereNudged({
-          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: [], otherModelMessages, }, },
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench: [], otherModelMessages, }, },
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: async (nudged,) => {
             asks.push(nudged,);
@@ -796,7 +796,7 @@ await describe({
          */
         const fallbackAsks: ChatTextRequest[] = [];
         const own = await reaskElsewhereNudged({
-          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: triedForDeepseek(), otherModelMessages, }, },
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench: triedForDeepseek(), otherModelMessages, }, },
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: async (nudged,) => {
             fallbackAsks.push(nudged,);

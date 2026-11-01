@@ -177,7 +177,7 @@ await describe({
         /**
          Role and bench the stage names.
          */
-        const reaskSeat: ReaskSeat = { role: 'translator', bench: [SEAT_HYPER_OPENROUTER_UNMEASURED,], };
+        const reaskSeat: ReaskSeat = { role: 'translator', reask: 'other-model', bench: [SEAT_HYPER_OPENROUTER_UNMEASURED,], };
         await askRunawaySeat({ client: answeringWith({ seen, outcome: RUNAWAY, },), reaskSeat, },);
         await askRunawaySeat({ client: answeringWith({ seen, outcome: RUNAWAY, },), },);
         expect(seen[0]?.reaskSeat,).toEqual(reaskSeat,);

@@ -20,7 +20,7 @@ import {
 /**
  Seat of a question put to a bench of two models.
  */
-const SEAT: ReaskSeat = { role: 'roster', bench: ['glm-5.3', 'minimax-m3',], };
+const SEAT: ReaskSeat = { role: 'roster', reask: 'other-model', bench: ['glm-5.3', 'minimax-m3',], };
 
 await describe({
   name: measuresModelOf.name,

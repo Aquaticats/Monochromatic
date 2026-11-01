@@ -255,6 +255,7 @@ async function readOnce(
   },
 ): ReturnType<typeof readPastRefusal> {
   return await readPastRefusal({
+    reask: 'other-model',
     client,
     modelId: READER,
     bytes: new Uint8Array(64,),
@@ -450,6 +451,7 @@ await describe({
       fn: async () => {
         const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT, { text: READING, },], }, },);
         const reading = await readPastRefusal({
+          reask: 'measured-model',
           client,
           modelId: READER,
           bytes: new Uint8Array(64,),

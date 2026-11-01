@@ -191,7 +191,7 @@ async function recoverRunaway(
     noProvider,
     // A ROUND NAMES ITS SEAT (ledger B1079): the roster-wide role with no bench is what the cases that care about
     // neither the role nor the bench were written under.
-    reaskSeat = { role: 'roster', bench: [], },
+    reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
     askedInstead,
   }: {
     readonly noProvider: readonly RosterModelId[];
@@ -260,6 +260,7 @@ async function recoverRunaway(
  */
 const WIDE_SEAT: ReaskSeat = {
   role: 'wide-judge' satisfies SeatRole,
+  reask: 'other-model',
   bench: [RUNAWAY_SEAT, SEAT_HYPER_TEXT_BEDROCK,],
 };
 
@@ -367,6 +368,7 @@ await describe({
           noProvider: [],
           reaskSeat: {
             role: 'roster',
+            reask: 'other-model',
             bench: [
               RUNAWAY_SEAT,
               SEAT_HYPER_TEXT_BEDROCK,
@@ -393,7 +395,7 @@ await describe({
       fn: async () => {
         const run = await recoverRunaway({
           noProvider: [],
-          reaskSeat: { role: 'roster', bench: [RUNAWAY_SEAT, SEAT_HYPER_VISION,], },
+          reaskSeat: { role: 'roster', reask: 'other-model', bench: [RUNAWAY_SEAT, SEAT_HYPER_VISION,], },
         },);
         expect(run.lines.filter(function isRunawayLine(line,): boolean {
           return line.includes('reasoning runaway',)
@@ -438,6 +440,7 @@ await describe({
           noProvider: [],
           reaskSeat: {
             role: 'roster',
+            reask: 'other-model',
             bench: [
               RUNAWAY_SEAT,
               SEAT_HYPER_TEXT_BEDROCK,
@@ -463,11 +466,12 @@ await describe({
       fn: async () => {
         const run = await recoverRunaway({
           noProvider: [],
-          reaskSeat: { role: 'wide-judge', bench: [SEAT_BEDROCK_ONLY_TEXT,], },
+          reaskSeat: { role: 'wide-judge', reask: 'other-model', bench: [SEAT_BEDROCK_ONLY_TEXT,], },
         },);
         expect(run.seen[0]?.modelId,).toBe(SEAT_HYPER_TEXT_BEDROCK,);
         expect(run.seen[0]?.reaskSeat,).toEqual({
           role: 'wide-judge',
+          reask: 'other-model',
           bench: [SEAT_BEDROCK_ONLY_TEXT, RUNAWAY_SEAT,],
         },);
       },

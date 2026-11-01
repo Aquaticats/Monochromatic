@@ -67,7 +67,7 @@ await describe({
           findings: ['Your translation lost a heading.',],
           priorMessages: [{ role: 'user', content: 'the sheet', },],
           sourceText: 'x',
-          reaskSeat: { role: 'translator', bench: [SEAT_SYNTHETIC_VISION_WITHHELD,], claims: createReaskClaims(), },
+          reaskSeat: { role: 'translator', reask: 'other-model', bench: [SEAT_SYNTHETIC_VISION_WITHHELD,], claims: createReaskClaims(), },
           signal: new AbortController().signal,
           perCallTimeoutMs: HANG_STOP_MS,
           l: tagged({ tag: 'ask-test', },),

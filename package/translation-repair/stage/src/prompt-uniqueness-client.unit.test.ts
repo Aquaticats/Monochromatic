@@ -363,7 +363,7 @@ await describe({
         };
         const client = promptUniqueClient({ inner, },);
         // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079).
-        const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], }, } as const;
+        const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', reask: 'other-model', bench: [], }, } as const;
         const outcome = await client.chatJson(seated,);
         expect(outcome.kind,).toBe('ok',);
         // THE MODEL THAT ANSWERED RIDES ON THE OUTCOME through the wrapper, so a caller can record its answer as its own

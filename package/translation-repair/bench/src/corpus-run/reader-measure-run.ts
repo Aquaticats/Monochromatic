@@ -187,6 +187,8 @@ export async function measureReader(
       modelId,
       bytes: picture.bytes,
       assetName: picture.assetName,
+      // A MEASUREMENT OF ONE READER, with no bench: a cut reply is re-asked of the reader itself (ledger B1103, B1141, B1163).
+      reask: 'measured-model',
       signal,
       perCallTimeoutMs,
       l,

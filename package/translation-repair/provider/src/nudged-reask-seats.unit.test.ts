@@ -133,7 +133,7 @@ async function runBothSeats(
     run: async () =>
       Promise.all([FIRST_SEAT, SECOND_SEAT,].map(async function runaway(modelId,) {
         return await reaskElsewhereNudged({
-          request: { ...UNSEATED_REQUEST, modelId, reaskSeat: { role: 'roster', bench, claims, }, },
+          request: { ...UNSEATED_REQUEST, modelId, reaskSeat: { role: 'roster', reask: 'other-model', bench, claims, }, },
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: answer,
         },);
@@ -285,7 +285,7 @@ await describe({
          */
         const asked: RosterModelId[] = [];
         const result = await reaskElsewhereNudged({
-          request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', bench, claims: createReaskClaims(), }, },
+          request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench, claims: createReaskClaims(), }, },
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: async (nudged,) => {
             asked.push(nudged.modelId,);
@@ -315,7 +315,7 @@ await describe({
         const result = await warnLinesDuring({
           run: async () =>
             reaskElsewhereNudged({
-              request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', bench, claims: createReaskClaims(), }, },
+              request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench, claims: createReaskClaims(), }, },
               first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
               ask: async (nudged,) => {
                 asked.push(nudged.modelId,);
@@ -354,7 +354,7 @@ await describe({
                 request: {
                   ...UNSEATED_REQUEST,
                   modelId,
-                  reaskSeat: { role: 'roster', bench: [FIRST_SEAT, SECOND_SEAT, ...others,], claims, },
+                  reaskSeat: { role: 'roster', reask: 'other-model', bench: [FIRST_SEAT, SECOND_SEAT, ...others,], claims, },
                 },
                 first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
                 ask: async (nudged,) => {

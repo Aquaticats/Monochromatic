@@ -171,6 +171,7 @@ await describe({
          What the reader made of the picture.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: pictureBytes(),
@@ -200,6 +201,7 @@ await describe({
          What the reader made of the picture on the second ask.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: pictureBytes(),
@@ -227,6 +229,7 @@ await describe({
          Outcome after every ask was declined.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: pictureBytes(),
@@ -254,6 +257,7 @@ await describe({
          Outcome for a reader that said nothing at all.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: pictureBytes(),
@@ -280,6 +284,7 @@ await describe({
          behind it that must never be fetched.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: pictureBytes(),
@@ -307,6 +312,7 @@ await describe({
          Outcome for a text-only model.
          */
         const reading = await readPastRefusal({
+          reask: 'other-model',
           client,
           modelId: TEXT_ONLY,
           bytes: pictureBytes(),
@@ -357,6 +363,7 @@ await describe({
            Outcome a stopped run reached.
            */
           const reading = await readPastRefusal({
+            reask: 'other-model',
             client: stopping,
             modelId: READER,
             bytes: pictureBytes(),

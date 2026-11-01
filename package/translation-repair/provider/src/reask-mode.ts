@@ -11,17 +11,19 @@ import type { ReaskSeat, } from './chat-contract.ts';
 /**
  Whether the seat belongs to a measurement, whose re-ask of a runaway goes to the measured model itself.
 
- @param seat - seat the re-ask stands in; a caller whose request names none has no re-ask to place and does not ask
+ @param seat - seat the re-ask stands in, which every caller has already found: a request that names none has no re-ask
+ to place and asks no other model, so it never reaches this reader
 
  @returns True when the seat names the measured-model mode; false for the run's mode
 
  @example
  ```ts
- const measuring = measuresModelOf({ seat: request.reaskSeat, });
+ const { reaskSeat, } = request;
+ const measuring = (reaskSeat !== undefined) && measuresModelOf({ seat: reaskSeat, });
  ```
  */
 export function measuresModelOf({ seat, }: { readonly seat: ReaskSeat; },): boolean {
-  return seat?.reask === 'measured-model';
+  return seat.reask === 'measured-model';
 }
 
 //endregion Re-ask mode

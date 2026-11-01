@@ -85,6 +85,8 @@ const READING = '走失猫咪 Mittens，虎斑，请电 555 0134。';
 
  @param bench - every reader of the picture, left out of the models a cut reader is re-asked of
 
+ @param reask - whose answer the re-ask may give, the pass's by default
+
  @returns Asks the client saw, as the model and the provider hint of each, in the order made
 
  @example
@@ -95,7 +97,7 @@ const READING = '走失猫咪 Mittens，虎斑，请电 555 0134。';
 async function readWithBothReaders(
   {
     bench,
-    reask,
+    reask = 'other-model',
   }: {
     readonly bench: readonly RosterModelId[];
     readonly reask?: ReaskMode;
@@ -146,7 +148,7 @@ async function readWithBothReaders(
       assetName: 'noticeboard.webp',
       benchModelIds: bench,
       claims,
-      ...((reask === undefined) ? {} : { reask, }),
+      reask,
       signal: AbortSignal.timeout(HANG_STOP_MS,),
       perCallTimeoutMs: HANG_STOP_MS,
       l: tagged({ tag: 'cut-claims-test', },),

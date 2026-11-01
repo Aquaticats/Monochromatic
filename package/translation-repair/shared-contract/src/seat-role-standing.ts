@@ -10,8 +10,9 @@ import type { RosterModelId, } from './roster-id.ts';
 //
 // ONE RECORDED SOURCE, NOT A HAND-ORDERED LIST: the table `ROLE_STANDINGS` holds the shares as the calibration printed them, and the
 // order is derived from them by `standingOrderOf`. A model of the calibration that has since left the roster
-// (`deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`, `hf:openai/gpt-oss-120b`) is not in the table, since no roster model
-// can be asked by it.
+// (`deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`) is not in the table, since no roster model can be asked by it.
+// `hf:openai/gpt-oss-120b` is left out for another reason: it is still carded in `model-cards.ts`, but the owner culled it
+// from every role on 2026-09-24 (the hold `owner-culled`), so no role's pool holds it and no re-ask can ask it.
 
 /**
  One model's share of the disinterested ballots in a role, as the calibration recorded it.
