@@ -876,7 +876,7 @@ A case of the same test pins the reading both ways:
 a helper that calls its parameter `choose` is listed beside the forwarder `choose`,
 and the same helper with `decision` is not.
 That case records the reading,
-and the three cases above name a new collision when one happens.
+and the lists the three failing cases of `claude-schemas.unit.test.ts` compare name a new collision when one happens.
 The search stays fail-closed.
 It cannot tell a parameter that holds the forwarder from one that holds another function,
 and a file that really sends an answer schema through a function it takes as a parameter still fails.
@@ -903,6 +903,10 @@ Slips of the round:
   the article is gone and the describes are one.
   The 3 files then passed alone,
   with oxlint and `lint:types` on `page-check` and `source-scan`.
+- The whole source-scan suite ran a second time,
+  for the `claude-schemas` fix,
+  and found the word "above" in this entry's own text as a reference by position.
+  It is worded by what it names now.
 - `lint:types` of the four dependents first ran with no `dist` of their own,
   and printed `TS2307` and the implicit `any` it causes;
   it passed after their `build`.
