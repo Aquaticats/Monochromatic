@@ -6681,3 +6681,9 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - client side `abf5d1e9f7ca62e6a`: `external-hooks-unsupported` on the service route, one summary line naming the
     landed commit, Git's abbreviation length, masking only URL userinfo in the push notice, and wrapped index-writing
     commands waiting for the service's own `index.lock`.
+  - Added to the client side after a live 0.5.4 notice ("The backup push of your commit 45d1243 failed ... did not
+    finish within 30 seconds ... set CLI_GIT_PUSH_DEADLINE_SECONDS"; `45d12431e7` is another agent's worktree-branch
+    commit): the notice says "your commit" but shows in whichever worktree runs next; and its remediation cannot work
+    on the service route, whose environment a terminal variable never reaches.
+- Bump precondition checked once before the release finished: `.git/cli-git/work/pending` and `claimed` empty; main had
+  0 unpushed commits.
