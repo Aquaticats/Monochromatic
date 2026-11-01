@@ -1139,6 +1139,12 @@ pub mod service_server;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// Which commit command lines the commit service covers, and the message they stand for.
+pub mod service_commit_args;
+
+/// The commit command's path through the commit service.
+pub mod service_commit;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

@@ -209,6 +209,10 @@ mod fault_filesystem;
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
 
+/// The wrapped commit command through the resident service, compared with native Git.
+#[path = "binary_service_commit_tests.rs"]
+mod service_commit;
+
 /// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
 #[path = "binary_service_tests.rs"]
 mod service;
