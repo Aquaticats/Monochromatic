@@ -61,6 +61,11 @@ fn edit_a(repo: &Path) {
     write(repo, "a.txt", "base\nsecond\namended\n");
 }
 
+fn edit_a_and_write_message(repo: &Path) {
+    edit_a(repo);
+    write(repo, "message.txt", "from a file  \n\n\nsecond paragraph\n");
+}
+
 fn edit_a_and_stage(repo: &Path) {
     edit_a(repo);
     let output = std::process::Command::new("/usr/bin/git").current_dir(repo).args(["add", "a.txt"]).output().expect("add");
@@ -133,10 +138,7 @@ fn amends_through_the_service_equal_the_native_amend() {
         landing("message kept, staged index", &["commit", "--no-enforce-only", "--amend", "--no-edit"], edit_a_and_stage),
         landing("message kept, deletion", &["commit", "--amend", "--no-edit", "--", "b.txt"], delete_b),
         landing("only the named file", &["commit", "--amend", "--no-edit", "--", "a.txt"], edit_a_and_leave_b),
-        landing("message from a file", &["commit", "--amend", "-F", "message.txt", "--", "a.txt"], |repo| {
-            edit_a(repo);
-            write(repo, "message.txt", "from a file  \n\n\nsecond paragraph\n");
-        }),
+        landing("message from a file", &["commit", "--amend", "-F", "message.txt", "--", "a.txt"], edit_a_and_write_message),
         landing("sign-off", &["commit", "--amend", "--no-edit", "-s", "--", "a.txt"], edit_a),
         landing("trailer", &["commit", "--amend", "-m", "t", "--trailer", "Fixes: 12", "--", "a.txt"], edit_a),
         landing("author", &["commit", "--amend", "--no-edit", "--author=Other One <other@example.invalid>", "--", "a.txt"], edit_a),

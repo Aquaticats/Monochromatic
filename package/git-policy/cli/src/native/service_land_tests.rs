@@ -214,8 +214,8 @@ fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     git(world.repo.as_path(), &["merge", "--quiet", "--no-ff", "--allow-unrelated-histories", "--message=merge", "fresh"]);
     let parents: String = git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]);
     let amend_merge: CommitRequest = amend_request(&world, "merge", "m.txt", "m\n");
-    let outcomes = land_batch(&world.context, 2, &[amend_merge]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    let merged = land_batch(&world.context, 2, &[amend_merge]).expect("landed");
+    assert!(matches!(merged[0], Outcome::Landed { .. }), "{:?}", merged[0]);
     let after: String = git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]);
     assert_eq!(parents.split_whitespace().skip(1).collect::<Vec<&str>>(), after.split_whitespace().skip(1).collect::<Vec<&str>>());
     remove(world.root.as_path());

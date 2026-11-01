@@ -265,10 +265,7 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
-            if amends {
-                // The tip left its base between the check and the move; an amend cannot be made again on another tip.
-                return Ok(vec![Outcome::BranchMoved]);
-            }
+            // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             if attempts_left == 0 {
                 return Err(FailureCode::BranchKeepsChanging);
