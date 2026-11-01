@@ -96,13 +96,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process',
   },
   {
-    name: 'post-commit stage ignores the invocation PATH for the Markdown linter',
-    file: 'src/native/post_commit.rs',
-    from: '    checks.markdown.linter = Box::new(executable_linter(request.environment));',
-    to: '    checks.markdown.linter = Box::new(executable_linter(&[]));',
-    failing: 'post_commit::tests::the_linter_is_found_on_the_invocations_path',
-  },
-  {
     name: 'post-commit stage ignores the forbidden-strings rules variable',
     file: 'src/native/post_commit.rs',
     from: '    checks.scanner_settings.rules_variable = environment_value(request.environment, RULES_VARIABLE);',

@@ -420,16 +420,12 @@ pub mod policy_forbidden_strings;
 ///  through files instead of pipes.
 pub mod bounded_child;
 
-/// Where the `markdown/autofix` policy finds `monochromatic-lint`:
-///  absolute PATH entries only.
-pub mod markdown_linter_lookup;
-
-/// What one linter run printed:
+/// What one in-process linter run produced:
 ///  the fixed source and the findings left,
 ///  or why it is unusable.
 pub mod markdown_linter_output;
 
-/// The one-rule linter configuration and the private temporary file it is written to.
+/// The one-rule linter configuration document.
 pub mod markdown_linter_config;
 
 /// The gitignore-syntax `exclude` patterns of `markdown/autofix`,
@@ -441,10 +437,13 @@ pub mod markdown_exclude;
 pub mod policy_markdown;
 
 /// The executable's linter for that policy:
-///  `monochromatic-lint` on PATH,
-///  bounded,
+///  `monochromatic-lint` linked in-process,
+///  guarded by a deadline,
 ///  once per candidate.
 pub mod markdown_linter;
+
+/// A job on a thread of its own with a deadline and panic containment.
+pub mod markdown_linter_guard;
 
 /// The executable's panic hook:
 ///  where an internal error happened,

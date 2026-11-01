@@ -9,7 +9,7 @@ use crate::policy_registry::{PolicyId, Severity};
 use crate::repository_facts::RepositoryFacts;
 use crate::config_schema::{ForbiddenStringsOptions, RulesFileEntry};
 use crate::scanner_test_support::{needle, run_isolated};
-use crate::test_support::{executable, fixture, git, remove};
+use crate::test_support::{fixture, git, remove};
 use crate::wrapper_controls::no_controls;
 use std::path::PathBuf;
 
@@ -430,40 +430,32 @@ fn with_markdown() -> PolicyConfig {
     return with_severity(PolicyId::MarkdownAutofix, Severity::Warn);
 }
 
-/// A PATH holding `bin` and the system programs, and a home beside `bin` for the linter's scratch directory.
-fn path_with(bin: &Path) -> Vec<(OsString, OsString)> {
-    let mut path: OsString = bin.as_os_str().to_os_string();
-    path.push(":/usr/bin:/bin");
-    let home: OsString = bin.parent().unwrap_or(bin).join("home").into_os_string();
-    return vec![(OsString::from("PATH"), path), (OsString::from("HOME"), home)];
-}
-
-/// A landed Markdown file is checked by the linter found on the invocation's PATH, not on an empty one.
+/// A landed Markdown file is checked in-process: nothing is looked up on the invocation's PATH,
+/// and a file with nothing to fix passes.
 #[test]
-fn the_linter_is_found_on_the_invocations_path() {
+fn a_landed_markdown_file_is_checked_in_process() {
     let (root, landed) = landed_file("pc-linter", "landed.md", "# T\n\nplain\n");
-    let bin: PathBuf = root.join("linter-bin");
-    std::fs::create_dir(&bin).expect("linter directory");
-    executable(bin.join("monochromatic-lint").as_path(), b"#!/bin/sh\ncat\n");
     let prefix = prefix_for(&root);
     let overlay = fixture_environment();
-    let environment = path_with(bin.as_path());
     let mut asked = request(&landed, &prefix, &overlay, with_markdown(), no_controls());
-    asked.environment = environment.as_slice();
+    asked.environment = &[];
     let outcome = run_post_commit_gate(&asked);
     assert!(!outcome.blocked, "{outcome:?}");
     assert!(outcome.events.is_empty(), "{outcome:?}");
     remove(&root);
 }
 
-/// Without a linter on the invocation's PATH a landed Markdown file is unchecked and blocks the backup, naming the
-/// post-commit trigger; the same file, once the configuration excludes it, needs no linter.
+/// The policy's options reach the post-commit policy: an exclude pattern that does not compile leaves the landed
+/// file unchecked and blocks the backup, naming the post-commit trigger; the same file, once the configuration
+/// excludes it with a valid pattern, is not checked and passes.
 #[test]
 fn the_markdown_options_reach_the_post_commit_policy() {
     let (root, landed) = landed_file("pc-markdown-options", "landed.md", "# T\n\nplain\n");
     let prefix = prefix_for(&root);
     let overlay = fixture_environment();
-    let unchecked = run_post_commit_gate(&request(&landed, &prefix, &overlay, with_markdown(), no_controls()));
+    let mut broken: PolicyConfig = with_markdown();
+    broken.markdown_autofix.exclude = vec![String::from(UNCOMPILABLE_PATTERN)];
+    let unchecked = run_post_commit_gate(&request(&landed, &prefix, &overlay, broken, no_controls()));
     assert!(unchecked.blocked, "{unchecked:?}");
     assert!(
         unchecked.events.iter().any(|event| {
@@ -486,3 +478,6 @@ fn the_markdown_options_reach_the_post_commit_policy() {
     assert!(excluded.events.is_empty(), "{excluded:?}");
     remove(&root);
 }
+
+/// A pattern with an unclosed brace group, which the exclude matcher refuses.
+const UNCOMPILABLE_PATTERN: &str = "a{b";

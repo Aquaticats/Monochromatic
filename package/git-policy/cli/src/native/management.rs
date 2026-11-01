@@ -34,7 +34,7 @@ use super::management_arguments::{
     parse_management_arguments,
 };
 /// The linter the executable gives the Markdown policy.
-use super::markdown_linter::executable_linter;
+use super::markdown_linter::embedded_linter;
 /// The shipped checks and their constructor.
 use super::policy_checks::{ShippedChecks, shipped_checks};
 /// What the direct command offers its content policies.
@@ -493,7 +493,7 @@ pub fn plan_management(
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);
     // The Markdown linter is found on, and runs with, this invocation's environment.
-    checks.markdown.linter = Box::new(executable_linter(environment));
+    checks.markdown.linter = Box::new(embedded_linter());
     let location: RepositoryLocation = match checks.facts.location() {
         Ok(found) => found,
         Err(message) => return failure(message.as_str()),
