@@ -142,7 +142,7 @@ await runCampaign({
         cpus: containerLimits.cpus,
         pids: containerLimits.pidsLimit,
         buildTimeoutSeconds,
-        testTimeoutSeconds: 90,
+        testTimeoutSeconds: timeoutSeconds,
       },
     };
   },
