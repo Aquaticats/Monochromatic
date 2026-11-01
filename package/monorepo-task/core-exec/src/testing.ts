@@ -63,6 +63,7 @@ export {
   TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
   toolchainRootOf,
+  toolchainRootsOf,
   UPGRADE_COMMAND,
 } from './mpm-shadow-lock-read.ts';
 export {

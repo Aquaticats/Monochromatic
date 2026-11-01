@@ -521,8 +521,43 @@ export function checkVersionName(version: string,): void {
 }
 
 /**
- The toolchain root `mpm-shadow` installs into for a worktree: `<data home>/monochromatic-dev/toolchain`, where the data home is
- `$XDG_DATA_HOME`, else `$HOME/.local/share` (`$USERPROFILE` when there is no `$HOME`) (`scope.rs`, `repo_scope`).
+ The data home `mpm-shadow` keeps its toolchain roots in: `$XDG_DATA_HOME`, else `$HOME/.local/share` (`$USERPROFILE` when there
+ is no `$HOME`) (`scope.rs`, `data_home`).
+
+ @param environment - Environment variables
+
+ @returns Absolute path of the data home
+
+ @throws MpmShadowLockError when neither the data home nor a home directory can be found
+
+ @example
+ ```ts
+ const dataHome = dataHomeOf(process.env,);
+ ```
+ */
+function dataHomeOf(environment: Readonly<NodeJS.ProcessEnv>,): string {
+  /**
+   The explicit data home, if the variable is set and not empty.
+   */
+  const explicit = environment.XDG_DATA_HOME;
+  if ((explicit !== undefined) && (explicit !== ''))
+    return explicit;
+  /**
+   The home directory.
+   */
+  const home = environment.HOME ?? environment.USERPROFILE;
+  if ((home === undefined) || (home === ''))
+    throw new MpmShadowLockError('neither HOME nor USERPROFILE nor XDG_DATA_HOME is set, so the toolchain root cannot be found',);
+  return join(
+    home,
+    '.local',
+    'share',
+  );
+}
+
+/**
+ The toolchain root `mpm-shadow install` installs into for a worktree: `<data home>/monochromatic-dev/toolchain`
+ (`scope.rs`, `repo_scope`). A fetched copy is installed here.
 
  @param environment - Environment variables
 
@@ -536,29 +571,47 @@ export function checkVersionName(version: string,): void {
  ```
  */
 export function toolchainRootOf(environment: Readonly<NodeJS.ProcessEnv>,): string {
-  /**
-   The explicit data home, if the variable is set and not empty.
-   */
-  const explicit = environment.XDG_DATA_HOME;
-  if ((explicit !== undefined) && (explicit !== ''))
-    return join(
-      explicit,
-      'monochromatic-dev',
-      'toolchain',
-    );
-  /**
-   The home directory.
-   */
-  const home = environment.HOME ?? environment.USERPROFILE;
-  if ((home === undefined) || (home === ''))
-    throw new MpmShadowLockError('neither HOME nor USERPROFILE nor XDG_DATA_HOME is set, so the toolchain root cannot be found',);
   return join(
-    home,
-    '.local',
-    'share',
+    dataHomeOf(environment,),
     'monochromatic-dev',
     'toolchain',
   );
+}
+
+/**
+ Every toolchain root a copy of this repository's `mpm-shadow` can sit in: the repository root `toolchain` and the machine-global
+ `toolchain-global`, in the order `mpm-shadow` lists them (`scope.rs`, `toolchain_roots`). The owner's rule is that this
+ repository's tools are one set across both roots and the newest copy wins wherever it is.
+
+ @param environment - Environment variables
+
+ @returns Absolute paths of the two roots
+
+ @throws MpmShadowLockError when neither the data home nor a home directory can be found
+
+ @example
+ ```ts
+ const roots = toolchainRootsOf(process.env,); // ['.../monochromatic-dev/toolchain', '.../monochromatic-dev/toolchain-global']
+ ```
+ */
+export function toolchainRootsOf(environment: Readonly<NodeJS.ProcessEnv>,): readonly string[] {
+  /**
+   The directory that holds both roots.
+   */
+  const base = join(
+    dataHomeOf(environment,),
+    'monochromatic-dev',
+  );
+  return [
+    join(
+      base,
+      'toolchain',
+    ),
+    join(
+      base,
+      'toolchain-global',
+    ),
+  ];
 }
 
 //endregion Versions and the toolchain root

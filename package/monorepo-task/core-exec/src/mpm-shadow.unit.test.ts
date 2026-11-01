@@ -35,6 +35,7 @@ import {
   TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
   toolchainRootOf,
+  toolchainRootsOf,
   UPGRADE_COMMAND,
   versionOf,
 } from '../dist/final/node/testing.mjs';
@@ -342,7 +343,11 @@ function makeRepository(
    */
   const dataHome = join(directory, 'data',);
   const toolDirectory = join(toolchainRootOf({ XDG_DATA_HOME: dataHome, },), TOOL_DIRECTORY_NAME,);
-  return { root, pathDirectory, dataHome, toolDirectory, };
+  /**
+   The tool folder of the machine-global toolchain root, which the entry scans too.
+   */
+  const globalToolDirectory = join(toolchainRootsOf({ XDG_DATA_HOME: dataHome, },)[1] ?? '', TOOL_DIRECTORY_NAME,);
+  return { root, pathDirectory, dataHome, toolDirectory, globalToolDirectory, };
 }
 
 /**
@@ -549,6 +554,19 @@ await describe({
           },
         },),
         it({
+          name: 'lists the repository root and the machine-global root, in that order, below the same data home',
+          fn: async () => {
+            expect(toolchainRootsOf({ XDG_DATA_HOME: '/data', },),).toEqual([
+              '/data/monochromatic-dev/toolchain',
+              '/data/monochromatic-dev/toolchain-global',
+            ],);
+            expect(toolchainRootsOf({ HOME: '/home/x', },),).toEqual([
+              '/home/x/.local/share/monochromatic-dev/toolchain',
+              '/home/x/.local/share/monochromatic-dev/toolchain-global',
+            ],);
+          },
+        },),
+        it({
           name: 'throws MpmShadowLockError when no directory can be found',
           fn: async () => {
             expect(function noDirectory() {
@@ -743,6 +761,37 @@ await describe({
             expect(run.exitCode,).toBe(0,);
             expect(run.stdout.trim(),).toBe('locked 0.10.0 ran: outdated',);
             expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.10.0 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(served.requests.length,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'finds a finished copy that sits only in the machine-global toolchain root, and downloads nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, globalToolDirectory, served, } = world;
+            installFolder({ toolDirectory: globalToolDirectory, name: '0.2.3', prints: '0.2.3', finished: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.exitCode,).toBe(0,);
+            expect(run.stdout.trim(),).toBe('locked 0.2.3 ran: list',);
+            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.3 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(served.requests.length,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'treats both toolchain roots as one set: the newest copy wins wherever it is',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: true, },);
+            const { root, pathDirectory, dataHome, toolDirectory, globalToolDirectory, served, } = world;
+            installFolder({ toolDirectory, name: '0.2.3', prints: '0.2.3', finished: true, },);
+            installFolder({ toolDirectory: globalToolDirectory, name: '0.3.0', prints: '0.3.0', finished: true, },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.stdout.trim(),).toBe('locked 0.3.0 ran: list',);
             expect(served.requests.length,).toBe(0,);
           },
         },),

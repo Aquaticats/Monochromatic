@@ -34,6 +34,7 @@ import {
   hostLockPlatformId,
   MpmShadowLockError,
   toolchainRootOf,
+  toolchainRootsOf,
 } from './mpm-shadow-lock-read.ts';
 
 /**
@@ -137,6 +138,7 @@ async function main(args: readonly string[],): Promise<number> {
   const copy = await resolveLockedMpmShadow({
     root: await findRoot(process.cwd(),),
     toolchainRoot: toolchainRootOf(process.env,),
+    scannedRoots: toolchainRootsOf(process.env,),
     platformId: await hostLockPlatformId(),
     download: downloadBytes,
     log(line,) {

@@ -100,9 +100,13 @@ export type ResolveOptions = {
    */
   readonly root: string;
   /**
-   The toolchain root `mpm-shadow install` installs into
+   The toolchain root `mpm-shadow install` installs into, where a fetched copy is installed
    */
   readonly toolchainRoot: string;
+  /**
+   Every toolchain root a copy can sit in (the repository root and the machine-global one); the newest copy wins wherever it is
+   */
+  readonly scannedRoots: readonly string[];
   /**
    The lock's platform id of this machine
    */
@@ -234,22 +238,22 @@ async function askVersion(
 
  @param root - Repository root
 
- @param toolchainRoot - The toolchain root
+ @param scannedRoots - Every toolchain root a copy can sit in
 
  @returns The copies that print a version and the reasons the others were passed over
 
  @example
  ```ts
- const { candidates, notes, } = await gatherCandidates({ root, toolchainRoot, },);
+ const { candidates, notes, } = await gatherCandidates({ root, scannedRoots, },);
  ```
  */
 async function gatherCandidates(
   {
     root,
-    toolchainRoot,
+    scannedRoots,
   }: {
     readonly root: string;
-    readonly toolchainRoot: string;
+    readonly scannedRoots: readonly string[];
   },
 ): Promise<Candidates> {
   /**
@@ -270,42 +274,44 @@ async function gatherCandidates(
     },),]
     : [];
   /**
-   The finished version folders of the toolchain root.
+   What each finished-looking version folder of each root says, as a candidate or as the reason it was passed over.
    */
-  const toolDirectory = join(
-    toolchainRoot,
-    TOOL_DIRECTORY_NAME,
-  );
-  /**
-   Names of the version folders, newest first.
-   */
-  const names = await listVersionNames(toolDirectory,);
-  /**
-   What each version folder says, as a candidate or as the reason it was passed over.
-   */
-  const rootAsked = await Promise.all(names.map(async function askFolder(name,) {
+  const rootAsked = (await Promise.all(scannedRoots.map(async function askRoot(toolchainRoot,) {
     /**
-     The folder's program, when its install finished.
+     The tool folder of this root.
      */
-    const folder = join(
-      toolDirectory,
-      name,
+    const toolDirectory = join(
+      toolchainRoot,
+      TOOL_DIRECTORY_NAME,
     );
     /**
-     Path of the program, empty when the install did not finish.
+     The names of its version folders, newest first.
      */
-    const binary = (await isFinishedVersion(folder,)) ? await findProgramUnder({
-      directory: folder,
-      depth: SEARCH_DEPTH,
-    },) : '';
-    if (binary === '')
-      return { note: `${folder} is not a finished install`, };
-    return await askVersion({
-      binary,
-      label: folder,
-      source: 'toolchain-root',
-    },);
-  },),);
+    const names = await listVersionNames(toolDirectory,);
+    return await Promise.all(names.map(async function askFolder(name,) {
+      /**
+       The version folder.
+       */
+      const folder = join(
+        toolDirectory,
+        name,
+      );
+      /**
+       Path of the program, empty when the install did not finish.
+       */
+      const binary = (await isFinishedVersion(folder,)) ? await findProgramUnder({
+        directory: folder,
+        depth: SEARCH_DEPTH,
+      },) : '';
+      if (binary === '')
+        return { note: `${folder} is not a finished install`, };
+      return await askVersion({
+        binary,
+        label: folder,
+        source: 'toolchain-root',
+      },);
+    },),);
+  },),)).flat();
   /**
    Everything that was asked, the link first.
    */
@@ -331,6 +337,8 @@ async function gatherCandidates(
 
  @param toolchainRoot - The toolchain root `mpm-shadow install` installs into
 
+ @param scannedRoots - Every toolchain root a copy can sit in: the repository root and the machine-global one
+
  @param platformId - The lock's platform id of this machine
 
  @param download - Fetches an archive's bytes
@@ -343,13 +351,14 @@ async function gatherCandidates(
 
  @example
  ```ts
- const copy = await resolveLockedMpmShadow({ root, toolchainRoot, platformId: 'linux-x64', download: downloadBytes, log: console.error, },);
+ const copy = await resolveLockedMpmShadow({ root, toolchainRoot, scannedRoots, platformId: 'linux-x64', download: downloadBytes, log: console.error, },);
  ```
  */
 export async function resolveLockedMpmShadow(
   {
     root,
     toolchainRoot,
+    scannedRoots,
     platformId,
     download,
     log,
@@ -370,7 +379,7 @@ export async function resolveLockedMpmShadow(
     notes,
   } = await gatherCandidates({
     root,
-    toolchainRoot,
+    scannedRoots,
   },);
   /**
    The copies that are at or above the lock's version, the newest first; the exposure link wins a tie because it comes first.
