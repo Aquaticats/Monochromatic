@@ -18,6 +18,11 @@ use std::path::PathBuf;
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
 pub const PROTOCOL_VERSION: u32 = 4;
 
+/// The release of this build: the crate version, which the wrapper and the service program share because they are built
+///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
+///  program its unit names, and the behavior behind the same messages, may differ.
+pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
+
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
 
@@ -165,8 +170,9 @@ pub enum ClientMessage {
 /// What the service sends.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServiceMessage {
-    /// First line of every connection: the service's protocol version.
-    Welcome { version: u32 },
+    /// First line of every connection: the service's protocol version and the release it was built from. Services of
+    ///  releases before the field existed send none, which reads as a release that is not this one.
+    Welcome { version: u32, release: Option<String> },
     /// The request is queued behind others.
     Position { number: usize, of: usize },
     /// The commit is on the branch; `already` when an earlier request with the same identity landed it.
@@ -274,6 +280,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         return Err(String::from("line is too long"));
     }
     let value: Value = serde_json::from_str(line).map_err(|error| { return error.to_string(); })?;
+    // A request to retire carries no data a version could change the meaning of, and it is the one message a client of
+    //  another protocol version must still be able to send, so that service can be replaced.
+    if field(&value, "type")? == "retire" {
+        return Ok(ClientMessage::Retire);
+    }
     if value.get("version").and_then(Value::as_u64) != Some(u64::from(PROTOCOL_VERSION)) {
         return Err(String::from("unsupported version"));
     }
@@ -353,7 +364,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
 /// ```
 pub fn encode_service(message: &ServiceMessage) -> String {
     return match message {
-        ServiceMessage::Welcome { version } => object(vec![("type", Value::from("welcome")), ("version", Value::from(*version))]),
+        ServiceMessage::Welcome { version, release } => {
+            let mut entries: Vec<(&str, Value)> = vec![("type", Value::from("welcome")), ("version", Value::from(*version))];
+            if let Some(text) = release {
+                entries.push(("release", Value::from(text.as_str())));
+            }
+            object(entries)
+        }
         ServiceMessage::Position { number, of } => {
             object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }
@@ -393,6 +410,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
     return match field(&value, "type")? {
         "welcome" => Ok(ServiceMessage::Welcome {
             version: u32::try_from(number("version")?).map_err(|_| { return String::from("version is out of range"); })?,
+            release: value.get("release").and_then(Value::as_str).map(String::from),
         }),
         "position" => Ok(ServiceMessage::Position { number: number("number")?, of: number("of")? }),
         "landed" => Ok(ServiceMessage::Landed {

@@ -44,6 +44,20 @@ impl Running {
     pub(super) fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
         return self.child.wait();
     }
+
+    /// Waits for the process to exit by itself for at most `limit`; nothing when it is still running then.
+    pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {
+        let began: Instant = Instant::now();
+        loop {
+            if let Ok(Some(status)) = self.child.try_wait() {
+                return Some(status);
+            }
+            if began.elapsed() >= limit {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
 }
 
 impl Drop for Running {
@@ -56,11 +70,18 @@ impl Drop for Running {
 
 /// Starts the service on the socket the wrapper looks for in `runtime`, with the settings a service manager would give it.
 pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
+    return start_in_release(root, runtime, None);
+}
+
+/// Starts the service as `start_in` does, announcing `release` to its clients instead of its own, so a test can stand a
+///  service of another release where the manager would have left one from before an upgrade.
+pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
     let socket: PathBuf = runtime.join(SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
     let child: Child = Command::new(SERVICE)
         .args(["--journal", journal.to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+        .args(release.map(|text| { return ["--release", text]; }).into_iter().flatten())
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", root.join("home"))

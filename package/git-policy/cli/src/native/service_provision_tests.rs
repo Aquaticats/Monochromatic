@@ -19,6 +19,11 @@ impl Manager for Recorder {
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
 
+    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
+        self.calls.lock().expect("lock").push(format!("reset-failed {unit}"));
+        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+    }
+
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.lock().expect("lock").push(format!("start {unit}"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
@@ -69,10 +74,10 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     remove(machine.root.as_path());
 }
 
-/// A second provisioning changes no file and does not reload; it only asks again for the start, which is a no-op for a
-///  socket that already listens.
+/// A second provisioning changes no file and does not reload; it clears what a failed start may have left and asks again for
+///  the start, which is a no-op for a socket that already listens.
 #[test]
-fn a_second_provisioning_changes_nothing_and_only_starts() {
+fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_start() {
     let machine: Machine = machine("provision-second-lib");
     let mut first: Recorder = Recorder::default();
     provision_with(&machine.host, &mut first).expect("provisioned");
@@ -81,11 +86,101 @@ fn a_second_provisioning_changes_nothing_and_only_starts() {
         .to_vec();
     let mut second: Recorder = Recorder::default();
     provision_with(&machine.host, &mut second).expect("provisioned again");
-    assert_eq!(second.calls(), vec![format!("start {SOCKET_UNIT_NAME}")]);
+    assert_eq!(
+        second.calls(),
+        vec![format!("reset-failed {SERVICE_UNIT_NAME}"), format!("reset-failed {SOCKET_UNIT_NAME}"), format!("start {SOCKET_UNIT_NAME}")]
+    );
     let after: Vec<std::time::SystemTime> = [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]
         .map(|name| { return std::fs::metadata(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit").modified().expect("time"); })
         .to_vec();
     assert_eq!(stamps, after);
+    remove(machine.root.as_path());
+}
+
+/// The socket the units activate, as the manager would have made it.
+fn add_socket(machine: &Machine) {
+    let socket: PathBuf = machine.host.runtime_dir.join(SOCKET_RELATIVE);
+    std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&socket, b"").expect("socket stand-in");
+}
+
+/// The installed units count as in place only when both match what this wrapper would write and the socket is there:
+///  two small reads and one `stat`, no bus.
+#[test]
+fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
+    let mut machine: Machine = machine("provision-in-place-lib");
+    assert!(!in_place(&machine.host), "nothing installed");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    assert!(!in_place(&machine.host), "units without the socket");
+    add_socket(&machine);
+    assert!(in_place(&machine.host), "units that match and the socket");
+    machine.host.git = PathBuf::from("/opt/other/git");
+    assert!(!in_place(&machine.host), "a different real Git is a different service unit");
+    machine.host.git = PathBuf::from("/usr/bin/git");
+    assert!(in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// A provisioned unit that names a program an upgrade removed is not in place, and provisioning repairs it: the unit is
+///  rewritten with the program that exists, the manager reloaded, failed state cleared, and the socket started.
+#[test]
+fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
+    let machine: Machine = machine("provision-removed-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
+    let removed: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
+    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace(machine.host.service_binary.to_string_lossy().as_ref(), removed)).expect("older unit");
+    assert!(!in_place(&machine.host));
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("repaired");
+    assert!(!written(&machine, SERVICE_UNIT_NAME).contains(removed));
+    assert!(in_place(&machine.host));
+    assert_eq!(
+        recorder.calls(),
+        vec![
+            String::from("reload"),
+            format!("reset-failed {SERVICE_UNIT_NAME}"),
+            format!("reset-failed {SOCKET_UNIT_NAME}"),
+            format!("start {SOCKET_UNIT_NAME}")
+        ]
+    );
+    remove(machine.root.as_path());
+}
+
+/// A unit another release wrote, whose text differs from this release's template and not only in the program path, is
+///  rewritten as well.
+#[test]
+fn a_unit_from_another_release_is_rewritten() {
+    let machine: Machine = machine("provision-release-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    let dir: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    let other: String = written(&machine, SERVICE_UNIT_NAME).replace("Restart=on-failure", "Restart=always").replace("MemoryMax=1G", "MemoryMax=2G");
+    std::fs::write(dir.join(SERVICE_UNIT_NAME), &other).expect("other release's unit");
+    assert!(!in_place(&machine.host));
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("rewritten");
+    assert_eq!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1);
+    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
+    remove(machine.root.as_path());
+}
+
+/// When the manager refuses after a unit was rewritten, the rewrite is withdrawn, so the next commit does not take a file the
+///  manager never reloaded for an installed one.
+#[test]
+fn a_refused_reload_leaves_no_unit_that_looks_installed() {
+    let machine: Machine = machine("provision-withdrawn-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
+    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace("MemoryMax=1G", "MemoryMax=2G")).expect("older unit");
+    let mut refusing: Recorder = Recorder::default();
+    *refusing.failure.lock().expect("lock") = Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::new() });
+    provision_with(&machine.host, &mut refusing).expect_err("refused");
+    assert!(!in_place(&machine.host), "the next commit provisions again");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned again");
+    assert!(in_place(&machine.host));
     remove(machine.root.as_path());
 }
 

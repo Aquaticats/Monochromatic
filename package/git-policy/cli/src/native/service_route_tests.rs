@@ -56,6 +56,23 @@ fn an_existing_socket_is_used_as_it_is() {
     remove(machine.root.as_path());
 }
 
+/// A socket that exists does not end the wrapper's care for the units: the socket is the manager's and outlives an upgrade,
+///  so with the bus and the program the provisioning check is still handed back, and `provision` decides from the files.
+#[test]
+fn an_existing_socket_still_hands_back_the_provisioning_check() {
+    let machine: Machine = machine("route-socket-check");
+    let socket: PathBuf = machine.runtime.join(SOCKET_RELATIVE);
+    std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
+    std::fs::write(&socket, b"").expect("socket stand-in");
+    let address: String = add_bus(&machine);
+    let program: PathBuf = add_program(&machine);
+    let route: Route = choose_route(&inputs(&machine, Some(address.as_str())));
+    let Route::Service { address: bind, provision: Some(host) } = route else { panic!("the provisioning check expected") };
+    assert_eq!(bind, Bind::Path(socket));
+    assert_eq!(host.service_binary, program);
+    remove(machine.root.as_path());
+}
+
 /// The session bus and the service program together mean the wrapper sets the service up itself, from the facts it found.
 #[test]
 fn the_bus_and_the_program_mean_provisioning() {
