@@ -110,6 +110,20 @@ fn env_key_moves_discovery(key: &str) -> bool {
 
 /// Whether the `GIT_CONFIG_COUNT` entries of `variables` (the wrapper injects some) all leave discovery alone.
 fn env_config_is_plain(variables: &[(OsString, OsString)]) -> bool {
+    return env_config_avoids(variables, &env_key_moves_discovery);
+}
+
+/// What:
+///  Whether every environment-supplied configuration entry has a key `declines` does not name;
+///  a malformed set of entries is not plain either.
+/// Why:
+///   The content queries use the same walk with their own key list, so an injected `diff.orderFile` is not missed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// envConfigKeys(variables).every((key) => !declines(key)); // false when malformed
+/// ```
+pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&str) -> bool) -> bool {
     let Some(count_text) = environment_value(variables, COUNT_VARIABLE) else {
         return true;
     };
@@ -124,7 +138,7 @@ fn env_config_is_plain(variables: &[(OsString, OsString)]) -> bool {
             return false;
         };
         match key.to_str() {
-            Some(text) if !env_key_moves_discovery(text) => {}
+            Some(text) if !declines(text) => {}
             _ => return false,
         }
     }

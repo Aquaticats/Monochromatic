@@ -135,6 +135,24 @@ fn the_symbolic_head_equals_git() {
     remove(root.as_path());
 }
 
+/// A key injected through the environment that can change a diff makes the content queries decline,
+///  while an injected key that cannot (the wrapper injects hook settings) leaves them answered.
+#[test]
+fn injected_content_keys_are_declined() {
+    let root = fixture("repo-read-refs-injected");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    let given: Vec<OsString> = ["ls-files", "--stage", "-z", "--full-name"].iter().map(OsString::from).collect();
+    let host = scope(root.as_path());
+    let ask = |key: &str| -> bool {
+        let injected = pairs(&[("GIT_CONFIG_COUNT", "1"), ("GIT_CONFIG_KEY_0", key), ("GIT_CONFIG_VALUE_0", "x")]);
+        return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo.as_path()), variables: injected.as_slice(), input: None }, Vec::new(), &host).is_some();
+    };
+    assert!(ask("core.hooksPath"), "a hook setting is plain");
+    assert!(!ask("diff.orderFile"), "an injected order file");
+    assert!(!ask("Core.IgnoreCase"), "an injected case rule, spelled with capitals");
+    remove(root.as_path());
+}
+
 /// A listing with a ref whose object is missing, and a ref file with an odd spelling, are left to Git.
 #[test]
 fn broken_refs_are_declined() {

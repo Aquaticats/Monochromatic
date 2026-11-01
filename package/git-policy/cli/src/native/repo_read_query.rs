@@ -19,7 +19,7 @@ use super::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_
 use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
 use super::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
 use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, read_layout_with};
+use super::repo_read_layout::{RepoLayout, env_config_avoids, read_layout_with};
 use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
 use super::repo_read_odb::ObjectDatabase;
@@ -345,6 +345,10 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
     let objects: Option<PathBuf> = objects_variable.map(|directory| { return start.join(directory); });
     let content_command: bool = matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show");
     if content_command && !content_config_is_plain(&layout, scope)? {
+        return None;
+    }
+    // Entries injected through the environment are configuration too.
+    if content_command && !env_config_avoids(variables.as_slice(), &|key: &str| { return content_key(key.to_ascii_lowercase().as_str()); }) {
         return None;
     }
     let context: Context = Context { layout, index_path, objects, scope: scope.clone(), variables };
