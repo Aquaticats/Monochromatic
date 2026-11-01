@@ -2,6 +2,8 @@
 
 /// Imports the link helper and the executable-mode helper.
 use std::os::unix::fs::{PermissionsExt, symlink};
+/// Imports `.signal()` on an exit status.
+use std::os::unix::process::ExitStatusExt;
 /// Imports the path types.
 use std::path::{Path, PathBuf};
 /// Imports the child-process builder and its captured output.
@@ -18,6 +20,12 @@ const FAKE_MARKER: &str = "fake-pnpm-ran";
 
 /// The fake pnpm's exit code, taken from the environment variable of this name.
 const EXIT_VARIABLE: &str = "FAKE_PNPM_EXIT";
+
+/// When this variable is `1` the fake pnpm kills itself with SIGTERM after printing.
+const KILL_VARIABLE: &str = "FAKE_PNPM_KILL";
+
+/// The number of the termination signal on Linux and macOS, written once and named.
+const SIGTERM_NUMBER: i32 = 15;
 
 /// An exit code no default maps to, so a pass-through is visible.
 const DISTINCT_EXIT_CODE: i32 = 9;
@@ -43,7 +51,9 @@ fn make_world() -> World {
     symlink(SHADOW_BINARY, shadow_directory.join("pnpm")).expect("link the shadow as pnpm");
 
     let fake: PathBuf = fake_directory.join("pnpm");
-    let script: String = format!("#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n");
+    let script: String = format!(
+        "#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nif [ \"${{{KILL_VARIABLE}:-}}\" = 1 ]; then kill -TERM $$; fi\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n"
+    );
     std::fs::write(&fake, script).expect("write the fake pnpm");
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
     return World { _guard: guard, shadow_directory, fake_directory, workspace };
@@ -164,6 +174,81 @@ fn a_commands_own_help_and_every_ordinary_run_print_exactly_pnpms_text() {
 }
 
 #[test]
+fn a_lone_version_or_help_word_does_no_scan_even_in_a_workspace_with_a_violation() {
+    let world = make_world();
+    write_workspace(&world, LITERAL);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    for word in ["--version", "-v", "--help", "-h", "help"] {
+        let output = run_shadow(&world, &path, &[word], 0);
+
+        assert!(output.stderr.is_empty(), "word {word} must not scan");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("shadowing pnpm at"), "word {word}");
+    }
+}
+
+#[test]
+fn a_commands_own_help_does_no_scan_because_it_installs_nothing() {
+    let world = make_world();
+    write_workspace(&world, LITERAL);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    for command_line in [["install", "--help"], ["add", "-h"]] {
+        let output = run_shadow(&world, &path, &command_line, 0);
+
+        assert!(output.stderr.is_empty(), "{command_line:?} must not scan");
+    }
+}
+
+#[test]
+fn only_commands_that_resolve_or_change_dependencies_warn() {
+    let world = make_world();
+    write_workspace(&world, LITERAL);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let warns: [&[&str]; 7] = [
+        &["add", "x"],
+        &["i"],
+        &["update"],
+        &["remove", "x"],
+        &["--filter", "app", "add", "y"],
+        &["-r", "install"],
+        &["recursive", "install"],
+    ];
+    for command_line in warns {
+        let output = run_shadow(&world, &path, command_line, 0);
+
+        assert!(String::from_utf8_lossy(&output.stderr).contains("left-pad"), "{command_line:?} must warn");
+    }
+
+    let silent: [&[&str]; 6] = [&["run", "build"], &["list"], &["root"], &["exec", "ls"], &["test"], &["--filter", "install", "list"]];
+    for command_line in silent {
+        let output = run_shadow(&world, &path, command_line, 0);
+
+        assert!(output.stderr.is_empty(), "{command_line:?} must not scan");
+    }
+}
+
+#[test]
+fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let output = Command::new(world.shadow_directory.join("pnpm"))
+        .arg("install")
+        .current_dir(&world.workspace)
+        .env("PATH", &path)
+        .env(KILL_VARIABLE, "1")
+        .output()
+        .expect("start the shadow");
+
+    // The shadow replaced itself with pnpm, so the caller sees pnpm's own death by signal and no exit code.
+    assert_eq!(output.status.signal(), Some(SIGTERM_NUMBER));
+    assert_eq!(output.status.code(), None);
+}
+
+#[test]
 fn a_failing_version_run_gets_no_notice() {
     let world = make_world();
     write_workspace(&world, CLEAN);
@@ -192,8 +277,8 @@ fn the_warning_repeats_on_every_run() {
     write_workspace(&world, LITERAL);
     let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
 
-    let first = run_shadow(&world, &path, &["list"], 0);
-    let second = run_shadow(&world, &path, &["list"], 0);
+    let first = run_shadow(&world, &path, &["install"], 0);
+    let second = run_shadow(&world, &path, &["install"], 0);
 
     assert!(String::from_utf8_lossy(&first.stderr).contains("warning:"));
     assert_eq!(first.stderr, second.stderr);

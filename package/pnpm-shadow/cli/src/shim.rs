@@ -40,6 +40,18 @@ use std::io::Write;
 /// ```
 use std::os::unix::process::ExitStatusExt;
 
+/// What:
+/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command: replace this process with the
+/// program instead of starting it as a child.
+/// Why:
+/// A run that needs no notice hands over completely, so the shadow's cost ends before pnpm starts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // No equivalent: Node cannot replace its own process image.
+/// ```
+use std::os::unix::process::CommandExt;
+
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
@@ -56,6 +68,8 @@ use crate::report::render_report;
 use crate::scan::{find_workspace_root, scan_workspace};
 /// Imports the notice that follows pnpm's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
+/// Imports the rule that says whether the manifest warning makes sense for a command line.
+use crate::verb::warning_makes_sense;
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
@@ -148,9 +162,13 @@ pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
-    // The warning comes first and on every run, `pnpm --version` included; it goes to standard error, so pnpm's
-    // standard output stays exactly pnpm's.
-    if let Ok(current) = env::current_dir() {
+    // The scope is the user's: the warning only where it makes sense, which is a command that resolves or changes
+    // dependencies (`verb.rs`). Every other command line, `pnpm --version` and `pnpm run` among them, does no scan at all,
+    // so the wrapper adds only its fixed cost. The warning comes first and goes to standard error, so pnpm's standard
+    // output stays exactly pnpm's.
+    if warning_makes_sense(&arguments)
+        && let Ok(current) = env::current_dir()
+    {
         warn_about_workspace(&current, &mut std::io::stderr());
     }
 
@@ -164,15 +182,32 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         }
     };
     let request: TopLevelRequest = top_level_request(&arguments);
+
+    // What:     `Command::new(&program).args(&arguments).exec()` replaces this process with pnpm: same process id, same
+    //           standard streams, and the exit status and signals are pnpm's own because nothing of the shadow is left to
+    //           report them. `exec()` returns only when it failed, so the value it returns is always an error.
+    // Why:      The shadow adds nothing after a run that needs no notice, so it must not stay resident to wait for pnpm.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
+    // ```
+    if request == TopLevelRequest::Other {
+        let error: std::io::Error = Command::new(&program).args(&arguments).exec();
+        eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
+        return EXEC_FAILED_EXIT_CODE;
+    }
+
+    // A version or help request keeps the shadow alive until pnpm finishes, because the notice follows pnpm's text.
     match run_program(&program, &arguments) {
         Ok(code) => {
             // Like hub after git's version: only after a successful top-level `--version` or `--help` of pnpm itself,
             // so the notice follows pnpm's own text and is the one place the shadow names itself. A closed standard
             // output is ignored on purpose: pnpm's output already went out.
-            if code == 0 {
-                if let Some(text) = notice_text(request, &program) {
-                    let _ = std::io::stdout().write_all(text.as_bytes());
-                }
+            if code == 0
+                && let Some(text) = notice_text(request, &program)
+            {
+                let _ = std::io::stdout().write_all(text.as_bytes());
             }
             return code;
         }

@@ -102,8 +102,9 @@ pub fn version_line(real_pnpm: &Path) -> String {
 /// ```
 pub fn help_section(real_pnpm: &Path) -> String {
     return format!(
-        "\n{}Before every run it warns on standard error about package.json dependency versions that are not `catalog:`, \
-`catalog:<name>` or exactly `workspace:*`, then runs pnpm with the same arguments. It never blocks pnpm.\n",
+        "\n{}Before every run except a lone version or help request it warns on standard error about package.json dependency \
+versions that are not `catalog:`, `catalog:<name>` or exactly `workspace:*`, then runs pnpm with the same arguments. \
+It never blocks pnpm.\n",
         version_line(real_pnpm)
     );
 }
