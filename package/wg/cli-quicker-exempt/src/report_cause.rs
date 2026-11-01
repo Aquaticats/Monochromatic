@@ -6,20 +6,27 @@
 //! counts,
 //! durations)
 //! or in the names a user chose
-//! (absolute paths,
-//! which carry cgroup names,
-//! and unit names).
+//! (cgroup paths and unit names).
 //! A different reason is another cause,
 //! so one error cannot hide another of the same kind.
 //! The whole line counts up to a bound,
 //! because every loud line starts with a fixed phrase of over a hundred characters
 //! that would otherwise use up a short bound before the reason begins.
+//! A name that can contain spaces ends where the line says it ends:
+//! producers put such a name between backticks with `quote_name`,
+//! and the cause replaces everything between the backticks.
+//! A name that is not quoted is replaced word by word,
+//! which is right for names without spaces,
+//! such as unit names.
 
 /// Characters of a normalized line that make up its cause.
 const MAX_CAUSE_CHARS: usize = 1024;
 
 /// What a user-chosen name is replaced with.
 const NAME_PLACEHOLDER: &str = "<name>";
+
+/// The character that delimits a name a user chose.
+const NAME_QUOTE: char = '`';
 
 /// Characters that may surround a word without being part of a name.
 const WORD_EDGE: &[char] = &['(', ')', '[', ']', ',', ';', ':', '\'', '"', '`', '.'];
@@ -37,6 +44,14 @@ const HELD_SUFFIX_TAIL: &str = " more time(s) since the last report)";
 /// so no occurrence is lost from the count.
 pub fn held_suffix(held: u32) -> String {
     return format!("{HELD_SUFFIX_HEAD}{held}{HELD_SUFFIX_TAIL}");
+}
+
+/// A name a user chose,
+/// ready to put in a line:
+/// between backticks,
+/// with a backtick inside the name written as an escape so it cannot end the name early.
+pub fn quote_name(name: &str) -> String {
+    return format!("{NAME_QUOTE}{}{NAME_QUOTE}", name.replace(NAME_QUOTE, "\\u{0060}"));
 }
 
 /// Whether a character is an ASCII digit.
@@ -59,7 +74,7 @@ pub fn without_held_suffix(line: &str) -> &str {
     return line;
 }
 
-/// Whether a word,
+/// Whether a word or a quoted span,
 /// without its surrounding punctuation,
 /// is a name a user chose:
 /// an absolute path or the name of a unit.
@@ -108,19 +123,48 @@ fn push_word(cause: &mut String, word: &str) {
     push_with_alike_numbers(cause, word);
 }
 
+/// Appends text that holds no quoted name,
+/// word by word.
+fn push_words(cause: &mut String, text: &str) {
+    for (index, word) in text.split(' ').enumerate() {
+        if cause.chars().count() >= MAX_CAUSE_CHARS {
+            return;
+        }
+        if index > 0 {
+            cause.push(' ');
+        }
+        push_word(cause, word);
+    }
+}
+
 /// The cause of a failure line:
 /// its text with the numbers made alike and the names a user chose replaced,
 /// at most the first `MAX_CAUSE_CHARS` characters.
 pub fn normalized_cause(line: &str) -> String {
     let mut cause = String::new();
-    for (index, word) in line.split(' ').enumerate() {
-        if cause.chars().count() >= MAX_CAUSE_CHARS {
+    let mut rest = line;
+    while !rest.is_empty() && cause.chars().count() < MAX_CAUSE_CHARS {
+        let Some(open) = rest.find(NAME_QUOTE) else {
+            push_words(&mut cause, rest);
             break;
+        };
+        push_words(&mut cause, &rest[..open]);
+        let after_open = &rest[open + NAME_QUOTE.len_utf8()..];
+        let Some(close) = after_open.find(NAME_QUOTE) else {
+            // No closing backtick: the rest is ordinary text.
+            cause.push(NAME_QUOTE);
+            push_words(&mut cause, after_open);
+            break;
+        };
+        let inside = &after_open[..close];
+        if is_user_chosen_name(inside) {
+            cause.push_str(NAME_PLACEHOLDER);
+        } else {
+            cause.push(NAME_QUOTE);
+            push_with_alike_numbers(&mut cause, inside);
+            cause.push(NAME_QUOTE);
         }
-        if index > 0 {
-            cause.push(' ');
-        }
-        push_word(&mut cause, word);
+        rest = &after_open[close + NAME_QUOTE.len_utf8()..];
     }
     if cause.chars().count() > MAX_CAUSE_CHARS {
         cause = cause.chars().take(MAX_CAUSE_CHARS).collect();

@@ -13,6 +13,9 @@
 
 /// The limits the scope carries.
 use crate::inherited_limits::InheritedLimits;
+/// Names a user chose,
+/// delimited so a cause ends them where the line does.
+use crate::report_cause::quote_name;
 /// The client run as the user.
 use crate::user_client::{ClientError, UserClient};
 /// Syscall and process failures.
@@ -208,7 +211,7 @@ impl Adopter for BusctlAdopter {
         let started = Instant::now();
         while !slice_directory.is_dir() {
             if started.elapsed() > self.confirmation_timeout {
-                return Err(io::Error::other(format!("{slice} was requested but {} never appeared", slice_directory.display())));
+                return Err(io::Error::other(format!("{slice} was requested but {} never appeared", quote_name(&slice_directory.display().to_string()))));
             }
             std::thread::sleep(POLL_INTERVAL);
         }
