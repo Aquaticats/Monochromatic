@@ -249,6 +249,45 @@ Wave-4 third checkpoint (2026-11-01, all rows verified against the tree before r
   `w4-fm-variant-qt` (wg/cli-quicker-exempt, 68 files), `w4-cc-statusline`
   (forbidden-strings/core, 82 files). Batch-3 filing at 773 decisions filed, zero errors.
 
+Wave-4 fourth checkpoint (2026-11-01, batch-3 filing complete; all rows verified against
+the tree before recording):
+
+- Batch-3 filing finished: `rr-file-batch3v3` completed with `created=743 commented=50
+  skipped=883 errors=0` (all 1676 decisions accounted; the skip set was the batch-3v2
+  progress). Reconciliation done: the service re-filed `docs-decisions-41` as `#2716` after
+  my manual `#2681` (error entries do not join the skip set), so `#2716` was closed as a
+  duplicate of `#2681`; all three filed-log error entries now have later successes; the 15
+  filed moot tracker actions landed (6 closes `#2605` to `#2610` as not planned, 9 follow-up
+  comments `#2203` to `#2211`); `issues-all.jsonl` refreshed to 3000 entries, which is the
+  `--limit 3000` cap, so the batch-4 dedupe must paginate past 3000.
+- Returns verified: `w4-fe-core-tests` finished file-enforcer/core-rust (all 63 files; rows
+  `-001` to `-009`; confirmed the TS staleness-lock, glob-absolute-path and non-atomic-write
+  bugs do not reproduce, found the toml scalar-over-table and unre-parsed block-append bugs).
+  `w4-mp-design` rows `w4-cc-source-013` to `-024` (cost-dismissal done; the child now
+  re-reads every quoted line before appending, which caught two concurrent reflows).
+  `w4-cc-statusline` rows `w4-fs-core-001` to `-008` (32 of 82; two rows re-quoted by me
+  after concurrent commits moved their lines: the mutants Containerfile pin drift persists,
+  the rote doc filler persists). `w4-desktop-app` rows `-059` to `-062` (disk_view.rs read;
+  177 files remain). `w4-android-app` rows `-090` to `-093` (RustEngine, PlayerController,
+  SessionStore, PlaybackService, LicensesPage, TrackFingerprint, TrackMenuPopup; the
+  pending-window position reporting adjudicated as designed optimistic handoff).
+  `w4-fm-variant-qt` rows `w4-wg-quicker-exempt-001` to `-004` (53 of 68; `-001` is blocker
+  severity: the Rust cutover landed without this package, so its three guard tests fail by
+  design and the README still describes the pre-cutover world).
+- Concurrent-session churn is now the dominant repair source: commits `b362955545`,
+  `68415aeb53`, `999752b420`, `2b1073678c` and follow-ups moved lines under four children
+  mid-review. All stale rows were re-quoted at current HEAD with a note in `ran`; every
+  finding survived its re-verification.
+- Assignments now running: `w4-desktop-app` turn 7 (feedback_tests onward),
+  `w4-android-app` turn 7 (the last five large top-level Kotlin files), `w4-mp-design`
+  turn 6 (guardrail onward), `w4-cc-statusline` turn 4 (forbidden-strings/core remainder,
+  50 files), `w4-fe-core-tests` (wg/cli-quicker, 110 files), `w4-fm-variant-qt` turn 5
+  (cli-quicker-exempt test files).
+- Unblocked next: the manual queue `manual-b3v2.jsonl` (825 entries) is now actionable;
+  evidence repair first (re-quote against the current tree), then ambiguous adjudication.
+  `w2-throw-async-a-81` should be refuted as deliberate per the recreated
+  `post-batch2-corrections.md`.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -730,14 +769,11 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
 3. Process wave-4 child returns continuously; re-brief from the Assignment queue; keep this
    handover current. Verify each child's claimed coverage against its findings file before
    re-briefing.
-4. In progress (2026-11-01): batch-3 filing runs as `rr-file-batch3v3` over 1676 decisions
-   (`decisions-b3v3-clean.jsonl`, the 1729 minus 53 cutover-moots), log `file-batch3v3.log`.
-   Check progress with `systemctl --user show rr-file-batch3v3.service -p ActiveState` and
-   the log tail. When it completes, refresh `issues-all.jsonl` (the gh command is in the
-   pipeline-state section) and re-verify `filed-log.jsonl` has no error entries. The manual
-   refiling of `docs-decisions-41` (issue `#2681`) sits in `filed-log-fixups.jsonl`; merge it
-   during that reconciliation, close the 15 filed moot issues per `cutover-moot-b3.jsonl`,
-   and remember the run log truncates error text at 300 chars.
+4. Done 2026-11-01: batch-3 filing completed as `rr-file-batch3v3` (1676 decisions, zero
+   errors) and the reconciliation landed: `#2716` closed as duplicate of the manually filed
+   `#2681`, the 15 filed moot actions handled (6 closes, 9 follow-up comments),
+   `issues-all.jsonl` refreshed to the 3000-entry cap (batch-4 dedupe must paginate past
+   it). Remaining from the plan: work the manual queue `manual-b3v2.jsonl`.
 5. Done differently 2026-11-01: rows 80/81 were never filed in batch 2, so there were no
    owning issues to comment on. 87's correction is folded into 80's batch-3 issue body, and 81's
    deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
