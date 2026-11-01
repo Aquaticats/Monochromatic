@@ -6939,10 +6939,21 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Crash and rollback: SIGKILL after the copy, with the lock held before the exchange, and between the exchange and the
   rename; each `--resume` ended with inode 256 and a clean `git status`; `--rollback` restored the original tree and
   kept a file written to the new root.
-- Exact command line (dry run first; the dry run never walks the tree):
-  `node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic`, then
-  `systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G
-  --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
-  --apply`.
+- Exact command lines (dry run first; the dry run never walks the tree):
+
+  ```sh
+  # file: dry run
+  node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
+  ```
+
+  ```sh
+  # file: migration
+  systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G \
+    --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts \
+    --root /var/home/user/Monochromatic --apply
+  ```
+
+- The script is not in Git and lives on the other disk (`~/temp` is `/var/mnt/encrypted/temp`); copy or commit it
+  before any reboot.
 - Not proven: a wrapped (`cli-git`) commit after the migration, because it would go through the production commit
   service; plain Git commits from the main checkout and from a linked worktree worked.
