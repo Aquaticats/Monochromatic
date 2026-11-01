@@ -1,0 +1,135 @@
+name: playwright-image
+
+# Builds playwright.Dockerfile and publishes it as ghcr.io/aquaticats/monochromatic-playwright:<tag>, where <tag> is
+# the first 16 hex digits of the SHA-256 of playwright.Dockerfile. `mise run prepare:playwright` computes the same tag,
+# pulls it, and builds the file locally only when the pull fails (doc/runbook/publish-playwright-image.md).
+#
+# - A tag names one content: when it already exists nothing is built or pushed, so a rerun, or an edit of this file
+#   alone, never replaces an image that people already pulled (the Dockerfile installs bun from its latest installer,
+#   so a rebuild under the same tag would not be the same bytes).
+# - Authentication is the workflow's own GITHUB_TOKEN (packages: write). The first push creates the package, linked to
+#   this repository by the org.opencontainers.image.source label; a new package is private until the owner makes it
+#   public in its package settings (Danger Zone, Change visibility), which GitHub offers nowhere else. While it is
+#   private, the last step of every run says so in a warning.
+# - The image is linux/amd64, the runner's architecture; a machine of another architecture pulls nothing and builds
+#   locally.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'playwright.Dockerfile'
+      - '.github/workflows/playwright-image.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/aquaticats/monochromatic-playwright
+
+concurrency:
+  group: playwright-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compute the tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(sha256sum playwright.Dockerfile | cut --characters=1-16)"
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag $tag"
+
+      - name: Check whether the tag exists
+        id: exists
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          repository="${IMAGE#ghcr.io/}"
+          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          bearer="$(printf '%s' "$GITHUB_TOKEN" | base64 --wrap=0)"
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
+            --header "Authorization: Bearer $bearer" --header "Accept: $accept" \
+            "https://ghcr.io/v2/$repository/manifests/$TAG")"
+          # Only a 200 means the tag exists; a 404 is a tag or a package that does not exist yet, and anything else
+          # goes on to the build, where a real authentication or network fault fails the push with its own message.
+          if [ "$status" = 200 ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG exists (HTTP $status); nothing to build"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG not found (HTTP $status); building it"
+          fi
+
+      - name: Build the image
+        if: steps.exists.outputs.present != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          podman --version
+          podman build \
+            --file playwright.Dockerfile \
+            --label "org.opencontainers.image.source=$REPOSITORY_URL" \
+            --label "org.opencontainers.image.description=Browsers and system libraries for the Playwright tests of the Monochromatic monorepo (playwright.Dockerfile)" \
+            --tag "$IMAGE:$TAG" \
+            .
+
+      - name: Push the image
+        if: steps.exists.outputs.present != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR_NAME: ${{ github.actor }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR_NAME" --password-stdin
+          podman push "$IMAGE:$TAG"
+
+      - name: Check that anyone can pull it
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          repository="${IMAGE#ghcr.io/}"
+          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          # No credentials of ours: this is what a person without a login (or prepare:playwright) sees.
+          token="$(curl --silent "https://ghcr.io/token?scope=repository:$repository:pull" | jq --raw-output '.token // empty')"
+          status=000
+          if [ -n "$token" ]; then
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
+              --header "Authorization: Bearer $token" --header "Accept: $accept" \
+              "https://ghcr.io/v2/$repository/manifests/$TAG")"
+          fi
+          {
+            echo "## Playwright image"
+            echo "- image: \`$IMAGE:$TAG\`"
+            echo "- anonymous pull check: HTTP $status"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" = 200 ]; then
+            echo "anyone can pull $IMAGE:$TAG"
+          else
+            echo "::warning title=Playwright image is not public::An anonymous request for $IMAGE:$TAG answered HTTP $status, so the package is still private. The owner makes it public once: open the package from https://github.com/orgs/Aquaticats/packages, then Package settings, Danger Zone, Change visibility, Public. Until then prepare:playwright falls back to building playwright.Dockerfile locally."
+          fi
