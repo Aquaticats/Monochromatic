@@ -56,6 +56,10 @@ export type ScenarioSetting = {
   readonly root: string;
   readonly directRepository: string;
   readonly wrappedRepository: string;
+  /**
+   Runtime directory of the commit service the wrapped side is pointed at; absent for the route taken without a service.
+   */
+  readonly runtime?: string | undefined;
 };
 
 /**
@@ -92,9 +96,10 @@ async function runSample({
   root,
   directRepository,
   wrappedRepository,
+  runtime,
   wrapped,
   sample,
-}: Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository'> & {
+}: Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime'> & {
   readonly wrapped: boolean;
   readonly sample: number;
 }): Promise<TimedSample> {
@@ -112,6 +117,7 @@ async function runSample({
   const result = await timed({
     root,
     wrapped,
+    runtime,
     directory,
     arguments_: command({ sample }),
   });

@@ -14,7 +14,7 @@
 
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
-use super::service_work::{GitHandlers, drain};
+use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
 };
@@ -110,7 +110,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std::path::PathBuf>) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -135,8 +135,8 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std:
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
         }
-        Ok(ClientMessage::Work { common_dir }) => {
-            let _queued = work.send(common_dir);
+        Ok(ClientMessage::Work { common_dir, review_key }) => {
+            let _queued = work.send((common_dir, review_key));
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
@@ -158,6 +158,11 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
     if fresh.is_empty() {
         return;
     }
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    let _settled = recover(context);
     *seq += 1;
     for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
@@ -180,6 +185,7 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
                         send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                     }
                     Outcome::RetryPrepare { base } => send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base }),
+                    Outcome::BranchMoved => send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved }),
                 }
             }
         }
@@ -201,18 +207,11 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
 /// ```ts
 /// for await (const dir of wakes) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers, busy: &AtomicUsize) {
+fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
     while let Ok(first) = receiver.recv() {
         busy.fetch_add(1, Ordering::SeqCst);
-        let mut directories: Vec<std::path::PathBuf> = vec![first];
-        while let Ok(more) = receiver.try_recv() {
-            if !directories.contains(&more) {
-                directories.push(more);
-            }
-        }
-        for directory in directories {
-            drain(directory.as_path(), handlers, std::time::SystemTime::now());
-        }
+        let wakes: Vec<Wake> = std::iter::once(first).chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
+        run_round(wakes, handlers, std::time::SystemTime::now());
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
@@ -233,15 +232,15 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
-    let (work_sender, work_receiver): (Sender<std::path::PathBuf>, Receiver<std::path::PathBuf>) = channel();
-    let handlers: GitHandlers = GitHandlers { context: context.git.clone() };
+    let (work_sender, work_receiver): (Sender<Wake>, Receiver<Wake>) = channel();
+    let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
-            let work: Sender<std::path::PathBuf> = work_sender.clone();
+            let work: Sender<Wake> = work_sender.clone();
             std::thread::spawn(move || { handle_connection(connection, &queue, &work); });
         }
     });
@@ -262,16 +261,19 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
             }
         }
         // Branches in order of first arrival; within a branch, arrival order.
-        let mut groups: Vec<((std::path::PathBuf, String), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
+        let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
         for job in jobs {
             match job {
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Commit(request, stream) => {
-                    let key = (request.common_dir.clone(), request.reference.clone());
-                    match groups.iter_mut().find(|(existing, _)| { return *existing == key; }) {
-                        Some((_, members)) => members.push((request, stream)),
-                        None => groups.push((key, vec![(request, stream)])),
+                    // An amend is a group of its own, and what arrives after it starts another group, so the order on
+                    //  one branch is the order of arrival.
+                    let key = (request.common_dir.clone(), request.reference.clone(), request.lands_alone());
+                    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
+                    match joins {
+                        Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
+                        _ => groups.push((key, vec![(request, stream)])),
                     }
                 }
             }

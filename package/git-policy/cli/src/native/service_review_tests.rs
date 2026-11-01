@@ -55,8 +55,12 @@ fn commit(fixture: &Fixture, files: &[(&str, &str)], message: &str) -> WorkItem 
 
 /// The options the service builds, with the gateway pointed at `endpoint` and the credential set.
 fn options(item: &WorkItem, endpoint: &str) -> ReviewOptions {
-    let variable = |name: &str| -> Option<String> { return (name == "SHADOW_REVIEW_LLMGATEWAY_API_KEY").then(|| return String::from(KEY)); };
-    let mut built: ReviewOptions = options_for(item, &variable);
+    return options_with(item, endpoint, ReviewKey::new(KEY).as_ref());
+}
+
+/// The options the service builds for a wake message that carried `key` (or none), pointed at `endpoint`.
+fn options_with(item: &WorkItem, endpoint: &str, key: Option<&ReviewKey>) -> ReviewOptions {
+    let mut built: ReviewOptions = options_for(item, &review_variables(key));
     built.endpoint = String::from(endpoint);
     return built;
 }
@@ -184,4 +188,50 @@ fn options_follow_the_item() {
     assert!(CALL_DEADLINE < BUDGET);
     assert_eq!(built.spool, Some(spool_directory(Path::new(item.git_dir.as_str()), item.repository.as_str())));
     remove(fixture.parent.as_path());
+}
+
+/// The key that came in the work message is the bearer credential the gateway sees.
+#[test]
+fn the_key_from_the_message_reaches_the_gateway() {
+    let fixture: Fixture = fixture_with_log("review-key-reaches");
+    let item: WorkItem = commit(&fixture, &[("src/a.ts", "export const a = 1\n")], "feat(a): add a");
+    let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
+    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, mock.url.as_str(), Some(&key)), BUDGET);
+    assert_eq!(verdict, Verdict::Done);
+    let seen: String = mock.finish().to_ascii_lowercase();
+    assert!(seen.contains(&format!("authorization: bearer {KEY}\r\n")), "{seen}");
+    assert!(!log_of(&fixture).contains(KEY), "the credential is never written to the log");
+    remove(fixture.parent.as_path());
+}
+
+/// A review whose message carried no key records the plain "no key" outcome and contacts no one.
+#[test]
+fn a_review_without_a_key_records_no_key() {
+    let fixture: Fixture = fixture_with_log("review-no-key");
+    let item: WorkItem = commit(&fixture, &[("src/a.ts", "export const a = 1\n")], "feat(a): add a");
+    let unused: &str = "http://127.0.0.1:1/unused";
+    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, unused, None), BUDGET);
+    assert_eq!(verdict, Verdict::Done);
+    let log: String = log_of(&fixture);
+    assert!(log.contains(&format!("Luna failed: {}", crate::standards_review_run::NO_KEY_MESSAGE)), "{log}");
+    assert!(log.contains("Named superlinear cost:\n  unjudged\n"));
+    remove(fixture.parent.as_path());
+}
+
+/// The credential variables answer from the message only: with no key they answer nothing, whatever the service's own
+/// environment holds, while any other variable still answers from the environment.
+#[test]
+fn the_service_environment_never_supplies_a_key() {
+    let none = review_variables(None);
+    for name in KEY_VARIABLES {
+        assert_eq!(none(name), None, "{name}");
+    }
+    // A positive control: the lookup does reach the environment for a name that is not a credential.
+    assert_eq!(none("PATH"), std::env::var("PATH").ok());
+    assert!(std::env::var("PATH").is_ok());
+    let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
+    let held = review_variables(Some(&key));
+    assert_eq!(held(KEY_VARIABLES[0]).as_deref(), Some(KEY));
+    assert_eq!(held(KEY_VARIABLES[1]), None);
 }

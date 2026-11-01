@@ -12,10 +12,11 @@
 //! ```
 
 use serde_json::{Map, Value};
+use super::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -75,6 +76,23 @@ pub struct CommitRequest {
     pub author: Option<String>,
     /// `Name <email> seconds zone`.
     pub committer: String,
+    /// Whether the commit replaces the branch tip: its parents are the base commit's parents, and it lands only while
+    ///  the branch tip is still the base.
+    pub amend: bool,
+    /// The tree of an amend, which the client wrote into the repository's object store; nothing for any other request,
+    ///  whose tree the service makes from the base and the changes.
+    pub tree: Option<String>,
+    /// A commit Git built in a scratch repository (an editor, a signature), already in the repository's object store. The
+    ///  service lands it as it is, only while the branch tip is still the base, and ignores the message, the identities
+    ///  and the tree of the request.
+    pub commit: Option<String>,
+}
+
+impl CommitRequest {
+    /// Whether the request lands alone and only while the branch tip equals its base: an amend, or a commit built elsewhere.
+    pub fn lands_alone(&self) -> bool {
+        return self.amend || self.commit.is_some();
+    }
 }
 
 /// The closed list of reasons the service gives for not landing a request.
@@ -90,6 +108,8 @@ pub enum FailureCode {
     Rejected,
     /// The branch moved too often while the request waited.
     BranchKeepsChanging,
+    /// The branch is no longer where the commit was prepared, and the commit cannot be made again on another tip.
+    BranchMoved,
     /// Anything else the service could not resolve.
     Unavailable,
 }
@@ -103,17 +123,19 @@ impl FailureCode {
             Self::IndexInUse => "index-in-use",
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
+            Self::BranchMoved => "branch-moved",
             Self::Unavailable => "unavailable",
         };
     }
 
     /// Every code, so a test reaches all of them.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::IndexInUse,
         Self::Rejected,
         Self::BranchKeepsChanging,
+        Self::BranchMoved,
         Self::Unavailable,
     ];
 
@@ -134,6 +156,9 @@ pub enum ClientMessage {
     Work {
         /// The repository's common Git directory, which holds the work directory.
         common_dir: PathBuf,
+        /// The gateway credential for the standards review of the commits this message announces. It lives only in this
+        /// message and in the service's memory, never in a work item or on disk.
+        review_key: Option<ReviewKey>,
     },
 }
 
@@ -190,11 +215,17 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
-        ClientMessage::Work { common_dir } => object(vec![
-            ("type", Value::from("work")),
-            ("version", Value::from(PROTOCOL_VERSION)),
-            ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
-        ]),
+        ClientMessage::Work { common_dir, review_key } => {
+            let mut entries: Vec<(&str, Value)> = vec![
+                ("type", Value::from("work")),
+                ("version", Value::from(PROTOCOL_VERSION)),
+                ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+            ];
+            if let Some(key) = review_key {
+                entries.push(("reviewKey", Value::from(key.expose())));
+            }
+            object(entries)
+        }
         ClientMessage::Commit(request) => object(vec![
             ("type", Value::from("commit")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -222,6 +253,9 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("message", Value::from(request.message.as_str())),
             ("author", request.author.as_deref().map_or(Value::Null, Value::from)),
             ("committer", Value::from(request.committer.as_str())),
+            ("amend", Value::from(request.amend)),
+            ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
+            ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
         ]),
     };
 }
@@ -250,7 +284,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') {
                 return Err(String::from("work request is not acceptable"));
             }
-            return Ok(ClientMessage::Work { common_dir });
+            let review_key: Option<ReviewKey> = match value.get("reviewKey") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(text)) => ReviewKey::new(text.as_str()),
+                Some(_) => return Err(String::from("work request is not acceptable")),
+            };
+            return Ok(ClientMessage::Work { common_dir, review_key });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
@@ -279,6 +318,9 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         message: field(&value, "message")?.to_string(),
         author: value.get("author").and_then(Value::as_str).map(str::to_string),
         committer: field(&value, "committer")?.to_string(),
+        amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
+        tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
+        commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
     };
     let well_formed: bool = !request.id.is_empty()
         && request.id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
@@ -288,7 +330,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
         && !request.committer.contains(['\0', '\n'])
-        && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); });
+        && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
+        // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
+        //  names neither, so the three cannot be mixed up.
+        && (request.amend && request.commit.is_none()) == request.tree.is_some()
+        && request.tree.as_deref().is_none_or(is_object_name)
+        && request.commit.as_deref().is_none_or(is_object_name);
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }

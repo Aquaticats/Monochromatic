@@ -16,6 +16,7 @@ use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client,
 };
+use super::service_review_key::ReviewKey;
 use super::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -68,6 +69,9 @@ pub enum Submitted {
     Landed { commit: String, already: bool },
     /// A named path changed on the branch: prepare again from this base and submit again with the same identity.
     PrepareAgain { base: String },
+    /// The branch is no longer at the base of a commit that cannot be moved to another tip (an amend, or a commit Git built).
+    ///  The caller decides whether to build it again on the new tip or to stop.
+    Moved,
 }
 
 fn connect(address: &Bind) -> std::io::Result<UnixStream> {
@@ -141,6 +145,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
             branch: request.reference.trim_start_matches("refs/heads/").to_string(),
             times: super::service_land::LANDING_ATTEMPTS,
         },
+        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
 }
@@ -199,6 +204,7 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
                 }
                 Some(ServiceMessage::Landed { commit, already, .. }) => return Ok(Submitted::Landed { commit, already }),
                 Some(ServiceMessage::RetryPrepare { base, .. }) => return Ok(Submitted::PrepareAgain { base }),
+                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => return Ok(Submitted::Moved),
                 Some(ServiceMessage::Failed { code, .. }) => return Err(failure_for(code, request)),
                 Some(ServiceMessage::Welcome { .. }) => {}
                 None => break,
@@ -223,10 +229,10 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await wake(config, commonDir)
+/// await wake(config, commonDir, reviewKey)
 /// ```
-pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf() });
+pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
     let mut replacements: usize = 0;

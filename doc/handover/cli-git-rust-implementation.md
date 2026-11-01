@@ -6385,3 +6385,76 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Residual: a cold isolate costs 5 to 9 ms. Workers Paid is the documented fallback, which is a billing change and
     only reported, never made. Doc: `doc/troubleshooting/lfs-r2-worker-error-1102.md`.
   - The local `lfs.transfer.batchSize=25` relief is removed (unset), since batches of 100 pass now.
+- 0.5.3 PUBLISHED (crates.io 2026-11-01T16:42:45Z, both assets). The lock was bumped by this session (`abed43149b`):
+  "1 installed, 64 unchanged, 0 failed", and `git --version` prints 0.5.3. Its first real commit took 3777 ms including
+  the push.
+- Service pre-4d work READY from `af248a0e1f85cfae6`:
+  - `dd73229ae2` rebuild on a moved tip: `REBUILD_ATTEMPTS = 5`, re-signed by Git; amend never rebuilt; editor message
+    saved to `<git dir>/cli-git-saved-message-<id>` for `-F`.
+  - `4f6ba9db72` `recover` before every batch, and `Drop` for the test `Service`.
+  - `0a2cb398d9` no `git var` before the cheap declines.
+  - `98724c2af4` and `caecdda4ae` harnesses: `CLI_GIT_TEST_SERVICE` opt-in fixture service; `native:perf` has its own
+    service and service and signed arms; the e2e container service (unverified).
+  - `native:perf` medians, added over direct Git: transaction 64.8 ms, service 26.4 ms, signed transaction 64.8 ms,
+    signed service 33.0 ms.
+- 4d condition not met: none of the still-declined lines has a service landing. 4d is split. Part 1 (landings, each
+  compared with native Git, plus the 15 push-in-command tests restated for the service push and its LFS step) goes to
+  the new agent `abebb58839c985773`. Part 2 (deletions) comes after, with its own go-ahead.
+- Review key in memory: sent to `ad02e84404af49107` (resumed).
+- `caecdda4ae` is on `integ-20261101` with main. `lint:types` passes after linking all 215 package `node_modules` into
+  the worktree (`~/temp/agent/mirror-package-node-modules.ts`; the earlier mirror covered only 3). Gate 17 runs (unit
+  `gpc-main-gate17`). When green: merge, release 0.5.4, bump the lock, then measure a real signed commit through the
+  service.
+- Gate 17 GREEN on `caecdda4ae` plus main (the service pre-4d work): 3132 of 3132 passed, 8 skipped. Merged into main
+  and released as 0.5.4 (logs `~/temp/agent/release-054.log` and `-wait.log`). HOLD wrapper merges until its bump lands.
+  - The service's push uploads LFS first, verified from the code only:
+    `GitHandlers::push` -> `push_once` -> `run_push_command` -> `lfs_bounded_push::run_push`, which narrows the plan
+    with the in-process pointer scan when `PushGit.lfs` is set. No binary test covers it through the service yet; that
+    is part of the landings agent's brief (restating the 15 push-in-command tests).
+- Review key in memory READY `54a8610195` from `ad02e84404af49107`:
+  - new `service_review_key.rs` (redacted `Debug`);
+  - optional `reviewKey` in the work message, held per repository for one round and then forgotten;
+  - the review reads both credential names only from the message.
+  It fast-forwarded `integ-20261101`. Gate 18 runs there (unit `gpc-main-gate18`), and so does the e2e container suite
+  with the service (unit `gpc-e2e-service`, log `~/temp/agent/gate/e2e-service.log`), which the service agent could not
+  run. Not covered: an end-to-end review through a real socket, because the review uses the real gateway endpoint.
+- 0.5.4 dispatched: run `41329400261`, from main `93e5746619`.
+- The e2e suite with the service (unit `gpc-e2e-service`) FAILED in its image build: `cargo vendor` could not read
+  `package/linter/monochromatic-lint/Cargo.toml` in the snapshot.
+  - Cause, read from the code: only the gate's `native-test-snapshot.ts` adds `linterSnapshotEntries`, while
+    `e2e-native-container.ts` `copySnapshot` and `native-interop-snapshot.ts` keep their own lists without it. So e2e
+    and interop have not built since the linter became a path dependency. The fault is in the harness, not the
+    service.
+  - Sent to a new agent: one shared entry list for every snapshot, a fast guard against missing path dependencies, and
+    real e2e and interop runs. Those runs also verify the e2e service fixture.
+- Gate 18 GREEN on `54a8610195` (`integ-20261101`, the review key in memory): 3142 of 3142 passed, 8 skipped. Merge into
+  main HELD until the 0.5.4 bump commit lands. Then merge and ship it with the next release.
+- 0.5.4 PUBLISHED (crates.io 17:10:02Z). The lock bump surfaced a production bug: commits through 0.5.4 failed.
+  - The first signed commit after install failed after 10178 ms: "The commit service did not start, so this commit
+    was not made..." The journal had `status=203/EXEC`.
+  - Cause: the unit 0.5.2 provisioned at 11:10 kept `ExecStart=.../monochromatic-git-policy-cli/0.5.2/bin/cli-git-service`,
+    and the 0.5.3 install removed that directory. The wrapper provisions only when the socket path is missing, so it
+    never rewrote the unit. 0.5.3 hid it by declining signed commits.
+  - Repaired by hand (the wrapper's own runtime units, `~/temp/agent/reset-service-units.ts`): stop both units,
+    `reset-failed`, delete the two unit files and the socket path, `daemon-reload`. The next commit (`bcf37dda6c`, the
+    0.5.4 lock bump) provisioned the 0.5.4 path, landed signed (`%G?` = G) in 324 ms including the cold start, and the
+    service pushed it.
+  - Every upgrade breaks the same way until fixed. Hotfix agent `ac5b82d7b213905f9`:
+    - heal on the first commit by comparing the units each service commit;
+    - retire a service from another release (compare the release, not only the protocol number);
+    - repair a 203 start without waiting the restart budget;
+    - explain the 10.2 s first commit under 0.5.2;
+    - GFP tests and a troubleshooting section.
+    It ships as 0.5.5 together with the gated review key. Before every lock bump until then, rerun
+    `reset-service-units.ts`.
+- Real-service review bug seen live (12:19:57): `the review of ba82328884... failed: starting git cat-file failed: cli-git
+  has no repository scratch directory for the input of this Git command` (`transaction_git.rs:257`). The service's
+  `GitContext` has no scratch directory. Audit-only, so no commit was affected. Sent to `ad02e84404af49107`, with a test
+  through the real `GitHandlers`.
+- Review key merged into main as `45cdf3fd68`, with the 0.5.4 bump already landed; it ships in 0.5.5.
+- 4d part 1, group 1 READY `af4564fb1c` (agent `abebb58839c985773`, interim). `-i`/`--include`, `-p`/`--patch`,
+  `--interactive` and `--pathspec-from-file` now have service landings, with twin tests against native Git in
+  `binary_service_landing_selection_tests.rs`. `--dry-run` and the status formats run with no runtime directory and no
+  service. Also protocol v5 `04f91f1d85`: detached-HEAD compare-and-swap, unborn zero-old compare-and-swap, extra
+  parents, and index entries as bytes. Remaining: the other line groups, the 15 push tests, and the full suite with
+  `CLI_GIT_TEST_SERVICE=1`.

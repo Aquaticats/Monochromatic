@@ -119,6 +119,7 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
         commit_index: fixture.commit_index.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
+        object_directory: None,
     };
     return prepare_native_commit(
         &git_context(),
@@ -176,6 +177,7 @@ fn a_nothing_to_commit_failure_removes_the_shadow() {
         commit_index: commit_index_empty.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
+        object_directory: None,
     };
     let error: PreparationError = prepare_native_commit(
         &git_context(),
@@ -207,6 +209,7 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
         commit_index: Path::new("/i"),
         global_args: global.as_slice(),
         commit_args: commit_arguments.as_slice(),
+        object_directory: None,
     };
     assert_eq!(
         native_commit_arguments(&request),

@@ -1711,7 +1711,35 @@ each finished branch is reviewed and merged into `main`):
   Both `buildAndTest` pass;
   the namespace integration scenarios were asked for next,
   with a default route carrying `src` and `pref medium` like this host's.
-  Cross-vendor re-review running (`~/temp/agent/wg-cleanup/sol-review2.txt`).
+  Namespace scenarios on the tip pass:
+  `test:integration:block` (forward requests and replies pass,
+  forged sources dropped)
+  and `test:integration:bypass` with `src` and `pref medium` defaults
+  (`up` copies without them,
+  `main` unchanged after `down`,
+  foreign routes survive);
+  added in `39d8643583`,
+  `65b9132c91`
+  and `43fcf7ed9b`.
+  The cross-vendor re-review timed out with no output (`sol-review2.txt`, exit 124);
+  retried on the narrower security diff `~/temp/agent/wg-cleanup/review3.diff`
+  (output `sol-review3.txt`),
+  with a same-vendor second pass alongside.
+  Second pass:
+  nothing blocks;
+  every adversarial token sequence outside the owned shapes is rejected,
+  interfaces named after keywords still delete only the owned route,
+  and an unknown process state is never counted as gone.
+  Limits:
+  dropped `src` can change an unbound marked socket's source address,
+  IPv6 `pref` becomes `medium`,
+  and a default route with `initcwnd`,
+  `features ecn`,
+  `realm`,
+  `tos`,
+  `nhid`
+  or `nexthop` now refuses the bypass (fails closed);
+  the TSDoc and README wording sent back for that.
   Then merge,
   build,
   and one restart (`down` then `up`).

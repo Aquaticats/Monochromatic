@@ -158,18 +158,40 @@ pub fn create_shadow_repository(
     transaction_id: &str,
     transaction_directory: &Path,
 ) -> Result<PathBuf, GitFailure> {
-    let layout = &capture.layout;
-    let shadow: PathBuf = shadow_repository_path(layout.common_dir.as_path(), transaction_id);
+    let shadow: PathBuf = shadow_repository_path(capture.layout.common_dir.as_path(), transaction_id);
     create_parent(shadow.as_path())
         .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
+    create_shadow_repository_at(context, cwd, capture, shadow.as_path(), transaction_directory)?;
+    return Ok(shadow);
+}
+
+/// What:
+///  Creates a shadow repository at a given path, whose parent directory exists.
+/// Why:
+///   The commit service builds the commits Git must build (an editor, a signature) in a scratch repository inside its own
+///  scratch directory, away from the registry directory that recovery scans, so no other process mistakes it for a dead
+///  transaction's shadow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createShadowRepositoryAt({ gitPath, cwd, capture, shadowPath, transactionDirectory });
+/// ```
+pub fn create_shadow_repository_at(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    shadow: &Path,
+    transaction_directory: &Path,
+) -> Result<(), GitFailure> {
+    let layout = &capture.layout;
     if layout.ref_format == super::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
-        init_with_git(context, layout, shadow.as_path())?;
+        init_with_git(context, layout, shadow)?;
     } else {
-        create_shadow_skeleton(shadow.as_path())
+        create_shadow_skeleton(shadow)
             .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
     }
-    set_private_directory_mode(shadow.as_path())
+    set_private_directory_mode(shadow)
         .map_err(|error| { return GitFailure(format!("protecting {} failed: {error}", shadow.display())); })?;
     let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
         Some(from_snapshot) => from_snapshot,
@@ -184,26 +206,26 @@ pub fn create_shadow_repository(
         format!("{}\n", layout.object_directory.display()).as_bytes(),
     )
     .map_err(|error| { return GitFailure(format!("writing the shadow alternates failed: {error}")); })?;
-    link_shadow_entries(shadow.as_path(), layout.common_dir.as_path(), layout.git_dir.as_path())
+    link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path())
         .map_err(|error| { return GitFailure(format!("linking the shadow entries failed: {error}")); })?;
     copy_conclusion_state(
         context,
         cwd,
         layout.git_dir.as_path(),
-        shadow.as_path(),
+        shadow,
         transaction_directory,
         layout.ref_format,
     )?;
     write_shadow_refs(
         context,
         cwd,
-        shadow.as_path(),
+        shadow,
         layout.ref_format,
         layout.target_ref.as_str(),
         &layout.symbolic_head,
         &capture.base,
     )?;
-    return Ok(shadow);
+    return Ok(());
 }
 
 /// What:

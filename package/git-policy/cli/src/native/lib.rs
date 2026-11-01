@@ -1232,6 +1232,12 @@ pub mod systemd_dbus;
 /// The message and identities of a service commit, made as native `git commit` makes them.
 pub mod service_message;
 
+/// What an amend takes from the commit it replaces: parents, message and author.
+pub mod service_amend;
+
+/// The commits real Git builds for the service: an editor, a signature, and what the service does not embed.
+pub mod service_native;
+
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
@@ -1252,3 +1258,6 @@ pub mod standards_review_append;
 
 /// The service's handler for a review work item, bounded by a call deadline and a total budget.
 pub mod service_review;
+
+/// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
+pub mod service_review_key;

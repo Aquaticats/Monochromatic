@@ -29,7 +29,14 @@ import {
 } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { repository } from './native-perf-git.ts';
+import {
+  enableSshSigning,
+  repository,
+} from './native-perf-git.ts';
+import {
+  makeSigningKey,
+  startService,
+} from './native-perf-service.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import {
   measure,
@@ -209,6 +216,46 @@ const forwarded = [
 ];
 
 /**
+ Throwaway SSH signing key of this run, made in the scratch root; never the person's key.
+ */
+const signing = await makeSigningKey({ root, });
+/**
+ Fixture repositories whose commits are SSH-signed, as the person's commits are, so the signed scenarios measure what the
+ person runs.
+ */
+const directSignedRepository = await repository({
+  root,
+  name: 'direct-signed-repo',
+});
+const wrappedSignedRepository = await repository({
+  root,
+  name: 'wrapped-signed-repo',
+});
+for (const directory of [
+  directSignedRepository,
+  wrappedSignedRepository,
+]) {
+  await enableSshSigning({
+    root,
+    directory,
+    ...signing,
+  });
+}
+/**
+ The commit service this run starts for the service-route scenarios, in a runtime directory of its own. The wrapped samples of
+ the other scenarios get no runtime directory, so they take the route used before the service existed and nothing in the
+ person's own runtime directory or session is read or changed.
+ */
+const service = await startService({
+  program: join(
+    dirname(resolve(values.binary)),
+    'cli-git-service',
+  ),
+  root,
+  scratchParent,
+});
+
+/**
  Failed samples of every scenario, in the order they ran.
  */
 const failures: SampleFailure[] = [];
@@ -249,36 +296,65 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       wrappedRepository,
     });
   }
-  // An explicit-path commit runs the whole transaction, so it is reported but not held to the forwarded-command budget.
-  yield measure({
-    name: 'commit-explicit-path',
-    async prepare({
-      directory,
-      sample,
-    }) {
-      await writeFile(
-        join(
-          directory,
+  // A commit is reported but not held to the forwarded-command budget. Each of the four arms differs from the previous in one
+  // thing: the route (the transaction used before the service, or the service) and whether the repository signs.
+  for (const arm of [
+    {
+      name: 'commit-explicit-path',
+      direct: directRepository,
+      wrapped: wrappedRepository,
+      runtime: undefined,
+    },
+    {
+      name: 'commit-service',
+      direct: directRepository,
+      wrapped: wrappedRepository,
+      runtime: service.runtime,
+    },
+    {
+      name: 'commit-signed',
+      direct: directSignedRepository,
+      wrapped: wrappedSignedRepository,
+      runtime: undefined,
+    },
+    {
+      name: 'commit-signed-service',
+      direct: directSignedRepository,
+      wrapped: wrappedSignedRepository,
+      runtime: service.runtime,
+    },
+  ] as const) {
+    yield measure({
+      name: arm.name,
+      async prepare({
+        directory,
+        sample,
+      }) {
+        await writeFile(
+          join(
+            directory,
+            'file-0.txt',
+          ),
+          `edit ${String(sample)} ${String(Math.random())}\n`,
+        );
+      },
+      command({ sample }) {
+        return [
+          'commit',
+          '--quiet',
+          `--message=perf ${String(sample)}`,
+          '--',
           'file-0.txt',
-        ),
-        `edit ${String(sample)} ${String(Math.random())}\n`,
-      );
-    },
-    command({ sample }) {
-      return [
-        'commit',
-        '--quiet',
-        `--message=perf ${String(sample)}`,
-        '--',
-        'file-0.txt',
-      ];
-    },
-    enforced: false,
-    samples,
-    root,
-    directRepository,
-    wrappedRepository,
-  });
+        ];
+      },
+      enforced: false,
+      samples,
+      root,
+      directRepository: arm.direct,
+      wrappedRepository: arm.wrapped,
+      runtime: arm.runtime,
+    });
+  }
 }
 
 try {
@@ -287,6 +363,8 @@ try {
   }
 }
 finally {
+  // The service writes into the scratch tree, so it stops before the tree is removed.
+  await service.stop();
   // Git detaches maintenance after a commit; cleanup waits for every process that still touches the tree.
   await removeScratchRoot({ root, });
 }

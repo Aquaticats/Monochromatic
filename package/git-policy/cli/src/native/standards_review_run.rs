@@ -33,7 +33,7 @@ pub const SHA_VARIABLE: &str = "SHADOW_REVIEW_SHA";
 pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
 
 /// The credential variable, and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: [&str; 2] = ["SHADOW_REVIEW_LLMGATEWAY_API_KEY", "STOP_REMINDER_LLMGATEWAY_API_KEY"];
+pub const KEY_VARIABLES: [&str; 2] = super::service_review_key::KEY_VARIABLES;
 
 /// The failure line written when no credential is set.
 pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";
