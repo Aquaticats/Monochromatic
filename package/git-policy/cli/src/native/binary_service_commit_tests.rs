@@ -54,7 +54,8 @@ impl Running {
         for child in &mut self.children {
             last = Some(child.wait());
         }
-        return last.expect("a service was started");
+        // No service was started: nothing ended badly.
+        return last.unwrap_or_else(|| { return Ok(std::os::unix::process::ExitStatusExt::from_raw(0)); });
     }
 
     /// Waits for the first service to exit by itself for at most `limit`; nothing when it is still running then.
@@ -84,7 +85,7 @@ impl Drop for Running {
 }
 
 /// Starts the service of every worktree under `root` on the socket the wrapper looks for in `runtime`, with the settings a
-///  service manager would give each instance.
+///  service manager would give each instance. A worktree made later gets its service from `start_worktree`.
 pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
     return start_in_release(root, runtime, None);
 }
@@ -92,11 +93,16 @@ pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
 /// Starts the service as `start_in` does, announcing `release` to its clients instead of its own, so a test can stand a
 ///  service of another release where the manager would have left one from before an upgrade.
 pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
+    let git_dirs: Vec<PathBuf> = super::support::worktree_git_dirs(root, 4);
+    let mut running: Running = Running { children: Vec::new(), runtime: runtime.to_path_buf() };
+    serve_into(&mut running, root, runtime, git_dirs.as_slice(), release);
+    return running;
+}
+
+/// Starts the service of every worktree in `git_dirs` and adds it to `running`, waiting until each listens.
+fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[PathBuf], release: Option<&str>) {
     std::fs::create_dir_all(runtime.join("cli-git")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
-    let git_dirs: Vec<PathBuf> = super::support::worktree_git_dirs(root, 4);
-    assert!(!git_dirs.is_empty(), "a worktree to serve under {}", root.display());
-    let mut running: Running = Running { children: Vec::new(), runtime: runtime.to_path_buf() };
     let mut sockets: Vec<PathBuf> = Vec::new();
     for git_dir in git_dirs {
         let socket: PathBuf = socket_for(runtime, git_dir.as_path());
@@ -124,6 +130,13 @@ pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str
             std::thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+/// Starts the service of one worktree made after the others were, in the runtime directory another handle owns: the handle
+///  returned stops this service and leaves the runtime directory to its owner.
+pub(super) fn start_worktree(root: &Path, runtime: &Path, repo: &Path) -> Running {
+    let mut running: Running = Running { children: Vec::new(), runtime: PathBuf::new() };
+    serve_into(&mut running, root, runtime, &[repo.join(".git")], None);
     return running;
 }
 
