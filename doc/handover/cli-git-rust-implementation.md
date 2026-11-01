@@ -7090,3 +7090,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   "Irreversible Local Destruction". Not worked around. The migration on the real checkout therefore needs the owner:
   either the owner runs the commands (for example with the `!` prefix in the session) or the owner allows it. Asked
   after the 0.5.6 bump, with the pause of agents arranged first.
+- OWNER granted the dry run as one exact call. Result: mount `/dev/dm-1 /var/home btrfs` with `compress=zstd:1` and
+  `user_subvol_rm_allowed` active (runtime), and one refusal only: "Git operation in progress:
+  /var/home/user/Monochromatic/.git/worktrees/agent-acbcd4a30d0c3abf6/MERGE_HEAD" (the 0.5.7 integrator resolving its
+  merge). No other refusal: root not yet a subvolume, enough free space, commit-service queues empty.
+  Rerun the dry run once that merge is committed; the apply needs its own owner grant or the owner running it.
