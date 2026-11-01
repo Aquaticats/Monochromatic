@@ -1321,6 +1321,25 @@ each finished branch is reviewed and merged into `main`):
   and config can only add to the list (`internal/config/load.go:772`).
   The research agent also asked the coordinator to write the file its classifier refused;
   declined.
+- `claude-cpu-watch` IO weight (#41) merged as `168c1f6496`:
+  the daemon writes `io.bfq.weight` (BFQ, 1 to 1000) and `io.weight` (iocost, 1 to 10000, off here).
+  Applying it went wrong first:
+  this session restarted the service right after the merge,
+  before the main checkout linked the new workspace dependency,
+  and the daemon crash-looped about 02:00 to 02:02:44 EST
+  (`Cannot find package '@monochromatic-dev/caught-value-core'`, 70 restarts);
+  `cpu.max` kept `2800000 100000` throughout.
+  Fixed by `mise run prepare:pnpm` in a sized scope
+  (it also ran `file-enforcer write` for all outputs, which wrote nothing).
+  Positive control:
+  the live `io.bfq.weight` was set to `default 100`,
+  and the daemon logged `IO-WEIGHT-APPLIED claude-code-bash io.bfq.weight default 100 -> 10`;
+  it now reads 10.
+  The agent's own test runs had probably written the live value earlier
+  (smoke-test isolation fixed in `fa0dba7b28`).
+  Lesson:
+  after merging a dependency change,
+  run `prepare:pnpm` before restarting any service that runs from the main checkout.
 - goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
   mise's `github:aaif-goose/goose` 1.47.0,
   its alias links and shim,
