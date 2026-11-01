@@ -18,6 +18,9 @@
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
+/// Imports what this module uses from `crate::version`.
+use crate::version::{compare_versions, is_whole_version};
+
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports the model types the resolver builds.
@@ -122,18 +125,22 @@ pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, R
     return hash_download(ctx, url);
 }
 
-/// How many pages of 100 releases the prefix search reads before it gives up.
+/// How many releases one page of the release list holds.
+const RELEASES_PER_PAGE: usize = 100;
+
+/// How many pages of releases the prefix search reads before it gives up.
 const PREFIX_SEARCH_PAGES: u32 = 10;
 
 /// What:
-/// The newest release that is neither a draft nor a prerelease and whose tag starts with `prefix`
-/// and continues with a version (a digit,
-/// or `v` and a digit).
+/// The highest version among the releases that are neither a draft nor a prerelease and whose tag is `prefix`
+/// followed by a version (see `version_after_prefix`).
 /// Why:
-/// One repository can tag the releases of several programs;
-/// the list is newest first,
-/// so the first match is the newest release of the program the prefix names.
-/// A repository whose last 1000 releases hold none is an error that names the prefix.
+/// One repository can tag the releases of several programs.
+/// The list is ordered by creation, not by version, so a backport release made after a newer line can sit first;
+/// the search therefore reads every page (until a short page or the cap) and keeps the highest version,
+/// the earlier one in the list when two are equal.
+/// A repository whose last 1000 releases hold none is an error that names the prefix and says the search stopped at
+/// its cap when it did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,8 +148,10 @@ const PREFIX_SEARCH_PAGES: u32 = 10;
 /// ```
 fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result<Value, ResolveError> {
     let headers: Vec<(String, String)> = api_headers(ctx);
+    let mut best: Option<(String, Value)> = None;
+    let mut stopped_at_cap: bool = false;
     for page in 1..=PREFIX_SEARCH_PAGES {
-        let url: String = format!("https://api.github.com/repos/{repo}/releases?per_page=100&page={page}");
+        let url: String = format!("https://api.github.com/repos/{repo}/releases?per_page={RELEASES_PER_PAGE}&page={page}");
         let list: Value = get_json(ctx, &url, &headers)?;
         let Some(releases) = list.as_array() else {
             return Err(ResolveError::Failed(format!("{url}: the answer is not a list of releases")));
@@ -153,24 +162,50 @@ fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result
             let Some(tag) = text_at(release, &["tag_name"]) else {
                 continue;
             };
-            if !skipped && version_after_prefix(tag, prefix).is_some() {
-                return Ok(release.clone());
+            if skipped {
+                continue;
+            }
+            let Some(version) = version_after_prefix(tag, prefix) else {
+                continue;
+            };
+            let is_higher: bool = match &best {
+                Some((kept, _)) => compare_versions(version, kept).is_gt(),
+                None => true,
+            };
+            if is_higher {
+                best = Some((version.to_string(), release.clone()));
             }
         }
-        if releases.len() < 100 {
+        if releases.len() < RELEASES_PER_PAGE {
             break;
         }
+        stopped_at_cap = page == PREFIX_SEARCH_PAGES;
     }
-    return Err(ResolveError::Failed(format!(
+    if let Some((_, release)) = best {
+        return Ok(release);
+    }
+    let mut message: String = format!(
         "github.com/{repo} has no release (neither draft nor prerelease) whose tag starts with {prefix:?} and continues with a version"
-    )));
+    );
+    if stopped_at_cap {
+        message.push_str(&format!(
+            "; the search stopped at its cap of {PREFIX_SEARCH_PAGES} pages ({} releases), so older releases were not looked at",
+            PREFIX_SEARCH_PAGES as usize * RELEASES_PER_PAGE
+        ));
+    }
+    return Err(ResolveError::Failed(message));
 }
 
 /// What:
-/// The part of `tag` after `prefix` when it starts a version (a digit,
-/// or `v` and a digit).
+/// The version in `tag` after `prefix`,
+/// without a leading `v`,
+/// when everything after the prefix is one whole version (`1.2.3`,
+/// `1.2.3-rc.1`);
+/// a `v` in front of it counts only when the prefix has not spelled the `v` out itself.
 /// Why:
-/// The prefix must not match a longer program name that shares it.
+/// The prefix must not match a tag of a longer program name that shares it:
+/// with the prefix `tool-`,
+/// the tag `tool-2-v1.0.0` belongs to a program called `tool-2` and its tail is not a version.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,11 +213,9 @@ fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result
 /// ```
 fn version_after_prefix<'a>(tag: &'a str, prefix: &str) -> Option<&'a str> {
     let rest: &str = tag.strip_prefix(prefix)?;
-    let bytes: &[u8] = rest.as_bytes();
-    let starts_version: bool = bytes.first().is_some_and(u8::is_ascii_digit)
-        || (bytes.first() == Some(&b'v') && bytes.get(1).is_some_and(u8::is_ascii_digit));
-    if starts_version {
-        return Some(rest);
+    let version: &str = if prefix.ends_with('v') { rest } else { rest.strip_prefix('v').unwrap_or(rest) };
+    if is_whole_version(version) {
+        return Some(version);
     }
     return None;
 }
@@ -258,12 +291,15 @@ pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, want
     if artifacts.is_empty() {
         return Err(ResolveError::Failed(format!("github.com/{repo} {tag} has no Linux asset (platforms looked for: {})", missing.join(", "))));
     }
-    let after_prefix: Option<&str> = match tag_prefix {
-        Some(start) => version_after_prefix(tag, start),
-        None => None,
-    };
-    let version: String = match after_prefix {
-        Some(rest) => normalize_version(rest),
+    let version: String = match tag_prefix {
+        Some(start) => match version_after_prefix(tag, start) {
+            Some(rest) => normalize_version(rest),
+            None => {
+                return Err(ResolveError::Failed(format!(
+                    "the tag {tag:?} of github.com/{repo} does not continue the tagPrefix {start:?} with a version (such as 1.2.3)"
+                )));
+            }
+        },
         None => normalize_version(tag),
     };
     return Ok(Resolution { version, artifacts });

@@ -38,6 +38,7 @@ fn the_newest_release_of_the_named_program_wins_over_newer_releases_of_others() 
         listed("tool-v3.0.0-rc.1", false, true),
         listed("tool-v2.5.0", true, false),
         listed("tool-vnext", false, false),
+        listed("tool-v2.1", false, false),
         listed("tool-v2.1.0", false, false),
         listed("tool-v2.0.0", false, false),
     ];
@@ -47,7 +48,7 @@ fn the_newest_release_of_the_named_program_wins_over_newer_releases_of_others() 
     assert_eq!(resolution.version, "2.1.0", "prerelease, draft, other programs and a non-version tail are skipped");
     let linux_x64 = resolution.artifacts.iter().find(|(platform, _)| return platform == "linux-x64").expect("row");
     assert_eq!(linux_x64.1.url, "https://github.com/o/r/releases/download/tool-v2.1.0/tool-v2.1.0-linux-x64.tar.gz");
-    assert_eq!(rig.http.requests(), vec![url.to_string()], "the first page held a match, so no later page is read");
+    assert_eq!(rig.http.requests(), vec![url.to_string()], "the page was short, so it was the last one");
 }
 
 #[test]
@@ -129,4 +130,115 @@ fn the_plan_accepts_a_tag_prefix_and_refuses_one_that_is_not_the_start_of_a_tag(
         assert_eq!(error.kind, ErrorKind::Config, "{bad:?}");
         assert!(error.message.contains("tagPrefix"), "{error}");
     }
+}
+
+/// The URL of one page of the release list.
+fn page_url(page: u32) -> String {
+    return format!("https://api.github.com/repos/o/r/releases?per_page=100&page={page}");
+}
+
+/// A full page of 100 releases of another program.
+fn full_page_of_other_releases() -> String {
+    let entries: Vec<String> = (0..100).map(|number| return listed(&format!("other-v1.0.{number}"), false, false)).collect();
+    return format!("[{}]", entries.join(", "));
+}
+
+#[test]
+fn the_highest_version_wins_over_a_backport_released_later() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    // The list is ordered by creation: the 1.9.9 backport was made after 2.1.0.
+    let list: Vec<String> = vec![
+        listed("tool-v1.9.9", false, false),
+        listed("other-v9.0.0", false, false),
+        listed("tool-v2.1.0", false, false),
+        listed("tool-v2.0.0", false, false),
+    ];
+    rig.http.serve(&page_url(1), format!("[{}]", list.join(", ")).as_bytes());
+    let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
+    assert_eq!(resolution.version, "2.1.0", "the first match in list order is not the answer");
+    let linux_x64 = resolution.artifacts.iter().find(|(platform, _)| return platform == "linux-x64").expect("row");
+    assert!(linux_x64.1.url.contains("tool-v2.1.0"), "{}", linux_x64.1.url);
+}
+
+#[test]
+fn a_higher_version_on_a_later_page_beats_a_match_on_an_earlier_one() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    let mut first: Vec<String> = vec![listed("tool-v1.0.5", false, false)];
+    for number in 1..100 {
+        first.push(listed(&format!("other-v1.0.{number}"), false, false));
+    }
+    rig.http.serve(&page_url(1), format!("[{}]", first.join(", ")).as_bytes());
+    rig.http.serve(&page_url(2), format!("[{}]", listed("tool-v1.2.0", false, false)).as_bytes());
+    assert_eq!(resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved").version, "1.2.0");
+    assert_eq!(rig.http.requests(), vec![page_url(1), page_url(2)], "a full page is followed by the next, a short page ends it");
+}
+
+#[test]
+fn a_program_whose_name_extends_the_prefix_is_not_matched_and_the_tail_must_be_a_whole_version() {
+    let mut rig = Rig::new();
+    rig.lock.tools[2].declaration.options.tag_prefix = Some("tool-".to_string());
+    let declaration = rig.tool("pnpm").declaration;
+    let list: Vec<String> = vec![
+        listed("tool-2-v9.0.0", false, false),
+        listed("tool-extra-v8.0.0", false, false),
+        listed("tool-v1.0", false, false),
+        listed("tool-v1.0.0.4", false, false),
+        listed("tool-vv7.0.0", false, false),
+        listed("tool-v1.0.0", false, false),
+        listed("tool-0.9.0", false, false),
+    ];
+    rig.http.serve(&page_url(1), format!("[{}]", list.join(", ")).as_bytes());
+    let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
+    assert_eq!(resolution.version, "1.0.0", "a prefix that does not end in v takes an optional v, and nothing else");
+
+    // A prefix that ends in v has spelled it out: no second v is allowed.
+    let mut spelled = Rig::new();
+    let spelled_declaration = prefixed(&mut spelled);
+    spelled.http.serve(&page_url(1), format!("[{}, {}]", listed("tool-vv7.0.0", false, false), listed("tool-v1.0.0", false, false)).as_bytes());
+    assert_eq!(resolve_github(&spelled.context(), &spelled_declaration, "o/r", None).expect("resolved").version, "1.0.0");
+}
+
+#[test]
+fn a_search_that_reaches_its_cap_says_so_and_one_that_finds_a_release_does_not() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    for page in 1..=11 {
+        rig.http.serve(&page_url(page), full_page_of_other_releases().as_bytes());
+    }
+    let error = resolve_github(&rig.context(), &declaration, "o/r", None).expect_err("ten full pages, none of the program");
+    assert!(error.message().contains("stopped at its cap of 10 pages (1000 releases)"), "{error:?}");
+    assert!(error.message().contains("\"tool-v\""), "{error:?}");
+    assert_eq!(rig.http.requests().len(), 10, "page 11 is never asked for");
+
+    // The same ten pages with a release of the program on the last one: found, and no cap is reported.
+    let mut found = Rig::new();
+    let found_declaration = prefixed(&mut found);
+    for page in 1..=9 {
+        found.http.serve(&page_url(page), full_page_of_other_releases().as_bytes());
+    }
+    let mut last: Vec<String> = vec![listed("tool-v3.1.4", false, false)];
+    for number in 1..100 {
+        last.push(listed(&format!("other-v2.0.{number}"), false, false));
+    }
+    found.http.serve(&page_url(10), format!("[{}]", last.join(", ")).as_bytes());
+    assert_eq!(resolve_github(&found.context(), &found_declaration, "o/r", None).expect("resolved").version, "3.1.4");
+
+    // A search that ends on a short page before the cap does not claim the cap.
+    let mut short = Rig::new();
+    let short_declaration = prefixed(&mut short);
+    short.http.serve(&page_url(1), full_page_of_other_releases().as_bytes());
+    short.http.serve(&page_url(2), format!("[{}]", listed("other-v1.0.0", false, false)).as_bytes());
+    let error = resolve_github(&short.context(), &short_declaration, "o/r", None).expect_err("none");
+    assert!(!error.message().contains("cap"), "{error:?}");
+}
+
+#[test]
+fn a_pinned_range_whose_tag_does_not_continue_the_prefix_with_a_version_is_refused() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    rig.http.serve("https://api.github.com/repos/o/r/releases/tags/tool-vnext", listed("tool-vnext", false, false).as_bytes());
+    let error = resolve_github(&rig.context(), &declaration, "o/r", Some("next")).expect_err("not a version");
+    assert!(error.message().contains("does not continue the tagPrefix"), "{error:?}");
 }
