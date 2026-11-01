@@ -11,6 +11,7 @@
  @module
  */
 
+import { existsSync, } from 'node:fs';
 import { readFile, } from 'node:fs/promises';
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
@@ -29,6 +30,7 @@ import {
   UNTRANSLATED_PASSAGE_NOTE,
 } from '../../dist/final/node/index.mjs';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { refusingNope, } from './source-shipped.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
 /**
@@ -45,6 +47,12 @@ const TARGET_DOC = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section 
  Wording a consolidation record settled for the first section.
  */
 const SETTLED_FIRST = '## Section one\n\nThe cat naps on the sill.\n';
+
+/**
+ Wording the grammar of these cases refuses (`refusingNope`), which the page-grammar fallback puts back to the archive.
+ The assembly guard reads no fault in it, so the fallback is what reverts the slice.
+ */
+const REFUSED_WORDING = 'NOPE\n';
 
 /**
  What every consolidation record of these cases shares: a consolidated slice no gate was asked about.
@@ -166,6 +174,119 @@ await describe({
         },).toEqual({
           page: '## Section one\n\nThe cat naps on the sill.\n\n## Section two\n\nThe cat has a bowl.\n',
           counts: [1, prepared.slices.length - 1, 0,],
+        },);
+      },
+    },),
+
+    it({
+      name: 'COUNTS A SLICE THE GRAMMAR PUT BACK TO THE ARCHIVE AS THE ARCHIVE\'S, not as settled (B1246): the counts '
+        + 'are read off the page that was written, where they were read off the source before the fallback reverted '
+        + 'the slice',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-page-', },);
+        const prepared = prepareDocumentPair({
+          sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
+          includeFrontMatter: true,
+          sealArchiveOriginal: true,
+        },);
+        const shipped = await publishInterimPage({
+          stop: {
+            consolidateSlices: [consolidatedAt({
+              sliceIndex: 0,
+              text: REFUSED_WORDING,
+            },),],
+          },
+          slices: prepared.slices,
+          archiveText: prepared.targetText,
+          sourceText: SOURCE_DOC,
+          entryId: 'CatEntry1',
+          publishDir: root.path,
+          l: capturingLogger({ messages: [], },),
+          readGrammar: refusingNope,
+        },);
+        expect({
+          page: shipped.pageText,
+          counts: [shipped.settledSlices, shipped.archiveSlices, shipped.sourceSlices,],
+          kept: shipped.defects.map(function checkOf({ check, },): string {
+            return check;
+          },).includes('page-grammar-archive-kept',),
+        },).toEqual({
+          page: TARGET_DOC,
+          counts: [0, prepared.slices.length, 0,],
+          kept: true,
+        },);
+      },
+    },),
+
+    it({
+      name: 'WRITES NOTHING OVER A SETTLED PAGE OR OVER AN INTERIM PAGE WITH MORE SETTLED SLICES (B1242, B1243), and '
+        + 'says it wrote nothing; a standing page with as many settled slices, or none, is replaced',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-page-', },);
+        const prepared = prepareDocumentPair({
+          sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
+          includeFrontMatter: true,
+          sealArchiveOriginal: true,
+        },);
+        /**
+         Ships the page with one slice settled over the given standing page.
+
+         @param standing - page that stands where this one would go
+         */
+        async function shipOver(
+          { standing, }: { readonly standing?: Parameters<typeof publishInterimPage>[0]['standing']; },
+        ): Promise<Awaited<ReturnType<typeof publishInterimPage>>> {
+          return await publishInterimPage({
+            stop: {
+              consolidateSlices: [consolidatedAt({
+                sliceIndex: 0,
+                text: SETTLED_FIRST,
+              },),],
+            },
+            slices: prepared.slices,
+            archiveText: prepared.targetText,
+            sourceText: SOURCE_DOC,
+            entryId: 'CatEntry1',
+            publishDir: root.path,
+            l: capturingLogger({ messages: [], },),
+            ...((standing === undefined) ? {} : { standing, }),
+          },);
+        }
+        /**
+         Where the page goes.
+         */
+        const path = fixedPagePath({
+          publishDir: root.path,
+          entryId: 'CatEntry1',
+        },);
+        const settledStanding = await shipOver({ standing: { kind: 'settled', }, },);
+        const existsAfterSettled = existsSync(path,);
+        const fuller = await shipOver({
+          standing: {
+            kind: 'interim',
+            settledSlices: 2,
+          },
+        },);
+        const existsAfterFuller = existsSync(path,);
+        const equal = await shipOver({
+          standing: {
+            kind: 'interim',
+            settledSlices: 1,
+          },
+        },);
+        expect({
+          written: [settledStanding.written, fuller.written, equal.written,],
+          existsAfter: [existsAfterSettled, existsAfterFuller,],
+          page: await readFile(
+            path,
+            'utf8',
+          ),
+        },).toEqual({
+          written: [false, false, true,],
+          existsAfter: [false, false,],
+          page: '## Section one\n\nThe cat naps on the sill.\n\n## Section two\n\nThe cat has a bowl.\n',
         },);
       },
     },),

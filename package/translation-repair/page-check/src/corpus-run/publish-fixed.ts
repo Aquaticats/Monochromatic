@@ -174,6 +174,9 @@ export function fixedPagePath(
  when none. A region the page lost is reported as the `carried-evidence`
  defect and the page ships (B1181).
 
+ @param readGrammar - the grammar's reading of a page, the package's by default; a case plants another to make a page
+ the strict grammar refuses
+
  @returns Path written, and what the page carries of the source's destinations
 
  @throws {@link UnansweredContestSliceError} when a slice the contest was
@@ -195,6 +198,7 @@ export async function publishFixedPage(
     l,
     archiveOriginalSpans = [],
     carried = [],
+    readGrammar,
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -205,6 +209,7 @@ export async function publishFixedPage(
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
+    readonly readGrammar?: Parameters<typeof pageThatParses>[0]['readGrammar'];
   },
 ): Promise<{
   readonly path: string;
@@ -236,6 +241,7 @@ export async function publishFixedPage(
     slices,
     archiveText,
     l,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
   },);
   /**
    The page.

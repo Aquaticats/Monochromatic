@@ -320,6 +320,9 @@ export type InterimShip = InterimCounts & {
 
  @param archiveOriginalSpans - spans of the archive sealed as the English original, which the page carries byte for byte
 
+ @param readGrammar - the grammar's reading of a page, the package's by default; a case plants another to make a page
+ the strict grammar refuses
+
  @returns Page as written, what each slice of it carries, and what it carries of the destinations
 
  @example
@@ -337,6 +340,7 @@ export async function publishInterimPage(
     publishDir,
     l,
     archiveOriginalSpans = [],
+    readGrammar,
   }: {
     readonly stop: InterimStop;
     readonly slices: readonly ChunkPair[];
@@ -346,6 +350,7 @@ export async function publishInterimPage(
     readonly publishDir: string;
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
+    readonly readGrammar?: Parameters<typeof publishFixedPage>[0]['readGrammar'];
   },
 ): Promise<InterimShip> {
   /**
@@ -387,6 +392,7 @@ export async function publishInterimPage(
     publishDir,
     l,
     archiveOriginalSpans,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
   },);
   return {
     ...interimCountsOf({ source, },),
