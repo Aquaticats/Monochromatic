@@ -43,7 +43,7 @@ pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 pub const LOCK_WAIT_VARIABLE: &str = "CLI_GIT_PUSH_LOCK_WAIT_SECONDS";
 
 /// How long a push may run when the variable is absent or unusable.
-pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(600);
+pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);

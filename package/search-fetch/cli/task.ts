@@ -20,9 +20,9 @@ export default {
   'test:unit': { extends: 'test:unit', },
   'buildAndTest': {
     description: 'Build the node search-fetch CLI bin, then run unit tests against the built artifact',
-    run: [
-      'node package/monorepo-task/cli/src/run.ts //package/search-fetch/cli:build',
-      'node package/monorepo-task/cli/src/run.ts //package/search-fetch/cli:test:unit',
+    depends: [
+      'build',
+      'test:unit',
     ],
   },
 } satisfies PackageTaskFile;

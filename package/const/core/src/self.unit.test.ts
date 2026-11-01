@@ -1,16 +1,34 @@
 /**
  Self-test entry point for `@monochromatic-dev/const-core`.
  
- Imports each per-category test file so they all execute in sequence when
- the package's `mise run test` task fires.
+ Enumerates every per-category unit-test module beside this entry, so a new
+ category test is executed by the package's `mise run test` task without
+ editing this file.
  
  @module
  */
 
-// oxlint-disable no-unassigned-import -- test files execute on import via top-level await
+import { readdirSync, } from 'node:fs';
 
-import './ascii.unit.test.ts';
-import './time.unit.test.ts';
-import './byte.unit.test.ts';
-import './http-status.unit.test.ts';
-import './fraction.unit.test.ts';
+/**
+ This entry's own file name, excluded so its dynamic imports do not recurse.
+ */
+const SELF_FILE = 'self.unit.test.ts';
+
+/**
+ Sibling unit-test modules, sorted so suites run in the same order every run.
+ */
+const SIBLING_TEST_FILES = readdirSync(import.meta.dirname,)
+  .filter(function isSiblingTest(file,) {
+    return file.endsWith('.unit.test.ts',) && (file !== SELF_FILE);
+  },)
+  .toSorted();
+
+// Sequential on purpose: each module awaits its describe() as it is imported,
+// so awaiting one import before the next keeps the suites in a single ordered
+// stream instead of interleaving them.
+/* oxlint-disable no-await-in-loop */
+for (const file of SIBLING_TEST_FILES) {
+  await import(new URL(file, import.meta.url,).href,);
+}
+/* oxlint-enable no-await-in-loop */

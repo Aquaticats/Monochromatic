@@ -26,6 +26,7 @@ import {
 import type { CostDismissalHit, } from './detect.ts';
 
 import { NOT_PARSED, } from './jsonl.ts';
+import { withShadowLogLock, } from './log-lock.ts';
 
 /**
  Module logger for shadow-record reads and writes.
@@ -208,6 +209,9 @@ async function readRecordedKeys(logPath: string,): Promise<ReadonlySet<string>> 
  Appends one shadow record to the log,
  dropping hits an earlier record already carries.
 
+ The read, deduplicate, and append steps run under the log's cross-process
+ lock, so overlapping asynchronous hook invocations never record one hit twice.
+
  @param record - Record to append
 
  @param logPath - Shadow log to append to
@@ -226,41 +230,46 @@ async function appendShadowRecord(
     readonly logPath: string;
   },
 ): Promise<void> {
-  /**
-   Recorded keys, copied mutable so this run can extend them.
-   */
-  const recorded = new Set(await readRecordedKeys(logPath,),);
-  /**
-   Hits this record contributes, in block order.
-   */
-  const fresh: CostDismissalHit[] = [];
-  for (const hit of record.hits) {
-    /**
-     Deduplication key of the hit under this event,
-     so one event's observation never repeats
-     while the other events keep their own view.
-     */
-    const key = `${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}:${record.hookEvent}`;
-    if (recorded.has(key)) continue;
-    recorded.add(key,);
-    fresh.push(hit,);
-  }
-  /**
-   Record as written: the same metadata with only new hits.
-   */
-  const written: CostDismissalRecord = {
-    ...record,
-    hits: fresh,
-  };
   await mkdir(
     dirname(logPath,),
     { recursive: true, },
   );
-  await appendFile(
+  await withShadowLogLock({
     logPath,
-    `${JSON.stringify(written,)}\n`,
-    'utf8',
-  );
+    work: async function dedupeAndAppend() {
+      /**
+       Recorded keys, copied mutable so this run can extend them.
+       */
+      const recorded = new Set(await readRecordedKeys(logPath,),);
+      /**
+       Hits this record contributes, in block order.
+       */
+      const fresh: CostDismissalHit[] = [];
+      for (const hit of record.hits) {
+        /**
+         Deduplication key of the hit under this event,
+         so one event's observation never repeats
+         while the other events keep their own view.
+         */
+        const key = `${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}:${record.hookEvent}`;
+        if (recorded.has(key)) continue;
+        recorded.add(key,);
+        fresh.push(hit,);
+      }
+      /**
+       Record as written: the same metadata with only new hits.
+       */
+      const written: CostDismissalRecord = {
+        ...record,
+        hits: fresh,
+      };
+      await appendFile(
+        logPath,
+        `${JSON.stringify(written,)}\n`,
+        'utf8',
+      );
+    },
+  },);
 }
 
 export type { CostDismissalRecord, };

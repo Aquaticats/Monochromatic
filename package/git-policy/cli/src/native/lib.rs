@@ -130,6 +130,11 @@ mod command_options_value;
 #[cfg(test)]
 mod command_test_support;
 
+/// Per-case copies of a pristine fixture and worker threads for independent test cases;
+///  never in the release build.
+#[cfg(test)]
+mod command_test_cases;
+
 /// Differential harness over `git rev-parse --parseopt`;
 ///  never in the release build.
 #[cfg(test)]

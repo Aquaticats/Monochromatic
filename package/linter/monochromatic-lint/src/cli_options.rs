@@ -20,7 +20,7 @@
 /// Import the unused-directive settings the two reporting options resolve to.
 use crate::directive_options::{DirectiveOptions, UnusedDirectiveSeverity};
 /// Import the incumbent CLI parser's trait and declaration macro.
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 /// Import the non-zero count type so a worker limit of zero cannot be expressed.
 use std::num::NonZeroUsize;
 /// Import native path storage and a strictly positive worker-count type.
@@ -133,6 +133,35 @@ impl CliOptions {
             self.report_unused_disable_directives_severity,
         );
     }
+}
+
+/// What:
+///  Every long option the command grammar accepts,
+///  in declaration order.
+/// Why:
+///  The help text is the user-facing option surface,
+///  so deriving the names from the parser's own declaration
+///  keeps the help checks from narrowing when an option is added.
+///  `--help` and `--version` are `clap`'s generated options,
+///  not options this struct declares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function longOptions(): string[]
+/// ```
+pub fn long_options() -> Vec<String> {
+    let command: clap::Command = CliOptions::command();
+    let mut options: Vec<String> = Vec::new();
+    for argument in command.get_arguments() {
+        let Some(long) = argument.get_long() else {
+            continue;
+        };
+        if long == "help" || long == "version" {
+            continue;
+        }
+        options.push(format!("--{long}"));
+    }
+    return options;
 }
 
 /// Argument grammar controls do not ship in release code.

@@ -21,7 +21,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool';
-import { parseRecordedTenseCandidates, } from '../../dist/final/node/index.mjs';
+import { parseRecordedTenseCandidates, RECORDED_RULES, } from '../../dist/final/node/index.mjs';
 
 /**
  Path every message under test is built against.
@@ -123,19 +123,14 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'READS groups of candidates as they were written, in recorded order, naming each of the four rules',
+          name: 'READS groups of candidates as they were written, in recorded order, naming every rule the detector writes',
           fn: async () => {
             /**
              A group holding one candidate under each rule the detector writes.
              */
             const group = {
               label: 'CANDIDATE "repair"',
-              found: [
-                'contraction',
-                'copula-or-auxiliary',
-                's-ending-verb',
-                'bare-verb',
-              ].map(function candidateOf(rule,) {
+              found: RECORDED_RULES.map(function candidateOf(rule,) {
                 return {
                   ...NAPS,
                   rule,

@@ -26,6 +26,24 @@
 const FIXTURE: &str = include_str!("../fixtures/jsonc-conformance.json");
 
 /// What:
+///      Every top-level fixture section these tests consume.
+/// Why:
+///       The guard test walks this list,
+/// and `section` refuses lookups outside it,
+///  so a test cannot read a new section without declaring it here first.
+const CONSUMED_SECTIONS: &[&str] = &[
+    "valid",
+    "invalid",
+    "commentOwnership",
+    "numberSpelling",
+    "numberEquality",
+    "depth",
+    "roundTrip",
+    "rootShape",
+    "canonicalLayout",
+];
+
+/// What:
 ///      Import the number identity so fixture equality cases can be checked directly.
 /// Why:
 ///       Mathematical equality is a fixture contract,
@@ -104,6 +122,28 @@ fn member<'a>(value: &'a JsoncValue, key: &str) -> &'a JsoncValue {
         }
     }
     panic!("fixture has no member {key}");
+}
+
+/// What:
+///      Read one top-level fixture section the conformance tests consume.
+/// Why:
+///       Refusing undeclared names keeps the consumed list,
+/// the section guard and
+///  the fixture from drifting:
+/// a test that reads a new section fails until the
+///           section is declared,
+/// and the guard then requires it in the fixture.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function section(document: JsoncValue, wanted: string): JsoncValue;
+/// ```
+fn section<'a>(document: &'a JsoncValue, wanted: &str) -> &'a JsoncValue {
+    assert!(
+        CONSUMED_SECTIONS.iter().any(|declared| return *declared == wanted),
+        "test reads fixture section {wanted}, which CONSUMED_SECTIONS does not declare"
+    );
+    return member(document, wanted);
 }
 
 /// What:
@@ -186,7 +226,7 @@ fn to_path(entries: &[JsoncValue]) -> Vec<JsoncPathSegment> {
 #[test]
 fn valid_sources_parse_with_the_expected_shape() {
     let document = fixture();
-    let cases = member(&document, "valid");
+    let cases = section(&document, "valid");
     for index in 0..cases.elements().expect("valid cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -209,7 +249,7 @@ fn valid_sources_parse_with_the_expected_shape() {
 #[test]
 fn invalid_sources_are_rejected() {
     let document = fixture();
-    let cases = member(&document, "invalid");
+    let cases = section(&document, "invalid");
     for index in 0..cases.elements().expect("invalid cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -223,7 +263,7 @@ fn invalid_sources_are_rejected() {
 #[test]
 fn comment_ownership_matches_the_fixture() {
     let document = fixture();
-    let cases = member(&document, "commentOwnership");
+    let cases = section(&document, "commentOwnership");
     for index in 0..cases.elements().expect("ownership cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -252,7 +292,7 @@ fn comment_ownership_matches_the_fixture() {
 #[test]
 fn number_spellings_survive_emission() {
     let document = fixture();
-    let cases = member(&document, "numberSpelling");
+    let cases = section(&document, "numberSpelling");
     for index in 0..cases.elements().expect("spelling cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -273,7 +313,7 @@ fn number_spellings_survive_emission() {
 #[test]
 fn number_equality_matches_the_fixture() {
     let document = fixture();
-    let cases = member(&document, "numberEquality");
+    let cases = section(&document, "numberEquality");
     for index in 0..cases.elements().expect("equality cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -288,7 +328,7 @@ fn number_equality_matches_the_fixture() {
 #[test]
 fn nesting_boundary_matches_the_fixture() {
     let document = fixture();
-    let depth = member(&document, "depth");
+    let depth = section(&document, "depth");
     let JsoncKind::Number { raw: accepted_raw, .. } = &member(depth, "accepted").kind else {
         panic!("accepted depth must be a number");
     };
@@ -314,8 +354,8 @@ fn fixture_document_has_every_section() {
         .iter()
         .map(|entry| return units_to_string(&entry.key.units).expect("ascii section name"))
         .collect();
-    for required in ["valid", "invalid", "commentOwnership", "numberSpelling", "numberEquality", "depth"] {
-        assert!(names.iter().any(|name| return name == required), "fixture is missing {required}");
+    for required in CONSUMED_SECTIONS {
+        assert!(names.iter().any(|name| return name == *required), "fixture is missing {required}");
     }
 }
 
@@ -391,7 +431,7 @@ fn value_for_kind(kind: &str) -> JsoncValue {
 #[test]
 fn round_trip_cases_keep_their_comment_bodies() {
     let document = fixture();
-    let cases = member(&document, "roundTrip");
+    let cases = section(&document, "roundTrip");
     for index in 0..cases.elements().expect("roundTrip cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
@@ -417,7 +457,7 @@ fn round_trip_cases_keep_their_comment_bodies() {
 #[test]
 fn root_shape_cases_match_the_fixture() {
     let document = fixture();
-    let cases = member(&document, "rootShape");
+    let cases = section(&document, "rootShape");
     let base = parse_jsonc("{\"a\":1}").expect("base document parses");
     for index in 0..cases.elements().expect("rootShape cases").len() {
         let case = element(cases, index);
@@ -437,7 +477,7 @@ fn root_shape_cases_match_the_fixture() {
 #[test]
 fn canonical_layout_matches_the_fixture() {
     let document = fixture();
-    let cases = member(&document, "canonicalLayout");
+    let cases = section(&document, "canonicalLayout");
     for index in 0..cases.elements().expect("layout cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");

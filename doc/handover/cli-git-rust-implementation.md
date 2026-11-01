@@ -4953,3 +4953,172 @@ This block supersedes "State at 2026-10-29 (night, later)".
   also make the container build see the new path dependency. Next: review its report, merge, container gate, mutation
   campaign over the new files, then release (library already published), then lock update through the new toolchain verbs,
   which the user decides (`toolchain:update`), then c0 activates `error` and lands CI.
+
+## No self-invocation: directive, audit start, hang question
+
+- User directive (verbatim): "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that
+  design aggressively." On error text: "There are clean ways to have extensive explanatory error messages even with the
+  ban." Earlier request: "I suspect sometimes the wrapper hangs in post-commit auto-push due to concurrent LFS deadlock.
+  Either fix it or prove me wrong."
+- My first brief put the long explanations into a shell hook; the user vetoed that delegation and pointed at the clean
+  pattern (confirmed with the advisor): the hook does the minimum and the parent wrapper, which already owns the push child
+  and its captured output, prints the explanation.
+- Measured facts (probe `~/temp/agent/path-probe.ts`, real `/usr/bin/git`): a hook run by Git sees `command -v git` =
+  `/usr/libexec/git-core/git` (Git prepends its exec-path to `PATH`), so `git-lfs` started from the hook calls the real Git
+  and never the wrapper; no `PATH` shim is needed. Code reading: `entry.rs:289` runs the `lfs-pre-push` entry after
+  `hooks_off::activate()` and before recovery or any lock, so that nested start takes no lock. `entry.rs:701-719` forwards
+  non-stackable pushes by exec replacement (no parent to explain); stackable pushes and auto-push run a captured child.
+- Inventory so far: (1) LFS pre-push hook (`lfs_pre_push.rs`, call sites `entry.rs` x2, `push_stacking.rs:194`,
+  `auto_push_single_flight.rs:226`, `commit_command.rs:228`): Git starts `'<wrapper>' cli-git lfs-pre-push`; (2) the argv[0]
+  hook dispatcher (`main.rs:56`, `hook_dispatch*.rs`, `commit_conclusion.rs:220`); (3) `current_exe` at `real_git.rs:453` and
+  `push_stacking.rs:211` to classify. 
+- Running (worktrees): agent 1 (`a2c239ccb199db9d8`) audit, hang verdict by reproduction, LFS de-recursion with the
+  parent-owns-the-explanation design (Rust pre-check of `git-lfs` on PATH, hook as a minimal shell function with a marker
+  line the parent parses, exec-forward pushes of LFS repositories become child pushes), clippy `disallowed-methods` for
+  `current_exe`, a source-scan test with an allow-list; agent 2 (`a21d6fec9d0d04797`) removes the argv[0] dispatcher so
+  Git never starts the wrapper for hooks (options (i) wrapper runs `git hook run` itself, (ii) non-wrapper entries; it
+  chooses by experiment). Next: review reports, merge, container gate, mutation campaign on the new files, release.
+- The catalog-specifiers policy agent (`a026a6b10f496cda2`) is still running in parallel on the registry and config files.
+
+### Correction: no shell in the wrapper's design
+
+- User, verbatim: "What the hell, we don't have to use any shell!" My brief to the LFS agent put a shell function in the
+  injected hook (taken from the advisor's variant 2), and the dispatcher brief offered POSIX `sh` entries as option (ii).
+  Both are withdrawn. The wrapper writes no shell text, scripts or shell wrappers, and is never started by Git.
+- Revised direction sent to both running agents: the wrapper, as parent, runs `git-lfs pre-push` itself as a bounded child
+  with the ref-update lines on stdin and pushes with no LFS hook (so it owns the step and prints the Rust explanation without
+  detection); for pushes whose lines cannot be computed faithfully the agent evaluates `git push --dry-run --porcelain` and a
+  plain `hook.cli-git-lfs-pre-push.command=git-lfs pre-push` with no shell constructs. The dispatcher agent runs the
+  configured hooks itself as bounded children (for example the real Git's `hook run`) and finishes the commit with Git's
+  hooks disabled.
+- Proposed `AGENTS.md` rule (not yet written; needs a fresh unique code checked against both forbidden-strings
+  appendixes): the git-policy wrapper never starts itself and never writes shell text or scripts; explanations come from
+  the parent process that owns the child. The user decides whether it is added.
+- Decision (user, answer "B: Package docs only"): the no-self-invocation and no-shell rule is not added to `AGENTS.md`. It
+  lives in `package/git-policy/cli` `SPEC.md`, `README.md`, `doc/planning/cli-git-no-self-invocation.md`, and is enforced
+  mechanically by the clippy `disallowed-methods` ban on `current_exe` and the source-scan test (which must also reject
+  generated shell text and any hook or entry that names the wrapper). Subagent briefs for wrapper work must quote the rule.
+
+### Live evidence for the hang question (observed 2026-11-01)
+
+- A docs-only `git commit` in the main checkout printed `cli-git: waiting for process 663347 to finish pushing
+  refs/heads/main; giving up after 665 seconds (CLI_GIT_PUSH_LOCK_WAIT_SECONDS changes this). The commit is already saved.`
+  The holder pid was gone when checked afterwards. 665 s is the default lock-wait limit (`bounded_push.rs`: push deadline
+  600 s, plus stop grace and margin).
+- This repository has local LFS keys (`lfs.url` at a hosted LFS server) and a global custom transfer (`git-xet transfer`),
+  so every push here runs the LFS pre-push path. The wrapper's own lock graph shows no cycle through the nested hook start
+  (it runs before recovery and locks), so a pure lock deadlock is unlikely; the live candidates sent to the LFS agent are a
+  detached descendant keeping a captured pipe open after the tree kill, an unbounded wait for pipe EOF after a kill,
+  serial queueing of stalled pushes, and holder-liveness checks. Verdict pending the agent's reproductions.
+
+### Retraction: the "665-second wait" was a misreading
+
+- The previous section called a `waiting for process N to finish pushing ...; giving up after 665 seconds` line live
+  evidence of a stall. It is the notice printed when a wait begins (`WaitNotice::waiting`, announced at start) and it names
+  the limit. It shows that a commit's push queued behind another process's push, which is normal with many sessions
+  committing to main; it shows no duration and no hang. The hang question therefore has no live observation; it rests on the
+  LFS agent's lock-graph reading and reproductions, and on the real baseline failure of
+  `an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing` at about 9.4 s under load.
+- Lesson: read a message's tense and where it is emitted before treating it as a measurement (rule NVS).
+- Default push deadline: the user ordered it set to 30 seconds ("Make the push deadline 30s. NOW."); committed on main
+  (`DEFAULT_PUSH_DEADLINE` 30 s, default lock wait 95 s, README and SPEC updated, tests derive from the constants). New
+  repository rule MGN (user): tests never assert magic numbers or magic lists.
+
+### Commit timeouts and the 1800-second child bound (user directive)
+
+- User, verbatim: "Another defect in git wrapper: Some commits can time out. Fix it." and "1800s for git pack-objects is
+  laughably inappropriate." Evidence in this session's commit logs: every Git child of the commit path (shadow
+  `init --bare`, `reset`, `ls-files`, `diff-index`, `pack-objects --revs --local --stdout`, `maintenance run --auto
+  --detach`) prints `still waiting ... after 1 seconds; stopping it after 1800 seconds`. The bound is one default for all
+  (`child_watch.rs` `DEFAULT_CHILD_WAIT`, `CLI_GIT_CHILD_WAIT_SECONDS`); the lock waits in `live_lock.rs` are the other long
+  bound on the commit side. Code reading: a push-phase failure (including its lock wait running out) is caught and never
+  changes the commit's exit status (`auto_push.rs`), so it is not the commit failure the user means.
+- A docs-only commit in the main checkout spent more than a minute in the `pack-objects` child at load average about 57; the
+  suspicion (to be tested, not assumed) is an unbounded history walk because no negative revisions bound it.
+- Agent `a6e4566588e9ec087` (worktree): measure each child, root-cause the slow `pack-objects`, set bounds per class from
+  measured worst cases, fix notice noise, check the lock waits, tests with guard evidence, record in
+  `doc/planning/cli-git-commit-timeouts.md`.
+- Also running: launcher fix (`a8310f4e5df826765`, `--examine` and build timeout), gate image cache (`a36bceb8146ab7688`),
+  LFS and audit (`a2c239ccb199db9d8`), dispatcher (`a21d6fec9d0d04797`). The catalog-specifiers branch
+  (`worktree-agent-a026a6b10f496cda2`, five commits) is reviewed but not merged: 0.4.7 (30-second push deadline) goes out
+  first, then the merge, a gate and 0.4.8; the library `monochromatic-catalog-specifier` 0.1.0 is on crates.io (verified),
+  contrary to the agent's report.
+
+### Directive: invoke real git as rarely as possible (queued part)
+
+- User, verbatim: "Invoke real git as rarely as possible." It extends the commit-timeouts agent (`a6e4566588e9ec087`): it owns
+  the object-moving and write children (`pack-objects`, `index-pack`, shadow `init --bare`, `reset`, `update-ref`,
+  `maintenance`, the commit) and should prefer not starting Git over bounding it, using the `gix-*` crates already in the lock.
+- QUEUED (the concurrent subagent limit of 5 was reached): a read-only query agent for `diff-index`, `ls-files`, `cat-file`,
+  `rev-parse`, `for-each-ref`, `symbolic-ref`, `merge-base`, `config` reads in `repository_facts.rs`, `candidate_*`,
+  `git_facts` and call sites: inventory with the budget harness counts, in-process replacements behind `RepositoryFacts` with
+  differential tests against real Git (packed and loose objects, alternates, linked worktree, unborn branch, detached HEAD,
+  odd and non-UTF-8 paths, corrupt object), guard tests shown failing, budget counts lowered deliberately, no new
+  dependency without justification. The full brief is in the session transcript of the 2026-11-01 work; relaunch it when a
+  slot frees (the owner can raise `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`).
+
+### Why the gate's tests are slow (measured) and the queued fix
+
+- User question: "Why is the test so slow?" Measured with `~/temp/agent/gate-durations.ts` on the running gate (`rel-gate2.log`)
+  against the two earlier gates: the same 681 tests took 347 s now against 80 s (`surv-gate.log`) and 93 s (`conv-gate.log`),
+  a ratio of 4.34 and 3.75, at a host load of about 100 (28 CPUs; mostly other sessions' `translation-repair` node work) against
+  40 to 60 earlier. The gate's own image build took about 16 of 18 minutes in the first gate (see the earlier section).
+- The slowdown is concentrated in tests that start many real Git processes one after another: `command_branch_create::git_tests::
+  paired_branch_options_match_git` 43.6 s (0.5 s earlier), `single_branch_options_match_git` 34.2 s (0.5 s),
+  `auto_push_reconcile::tests::a_busy_remote_is_merged_into_until_it_settles` 39.9 s (1.2 s), `a_failing_signer_publishes_nothing`
+  34.2 s (0.4 s), `candidate_prediction` tests 14 s (0.1 s), `command_add::tests::table_and_bulk_spellings_match_git` 9.5 s (0.0 s).
+  `auto_push::concurrency_tests::takes_over_from_a_pusher_killed_mid_push` is 30.4 s in both gates, so it is a fixed wait, not load.
+- Cause: each case runs `git branch <args>` and then a restore against one shared repository, serially (about 560 cases, one to
+  two Git starts each), and at this load a Git start costs tens of milliseconds. The remedy used before for the same pattern
+  (`replay_reverse_apply`: one `git init`, one `fast-import`, scoped worker threads, 114 starts instead of 1221) applies.
+- QUEUED fix (no slot free; launch when one frees): run the independent cases on scoped worker threads that each own a copy of
+  the fixture (a shared helper in a new test sidecar), batch where Git can answer many cases in one start, replace the
+  fixed 30 s wait in `takes_over_from_a_pusher_killed_mid_push` with an environment override and a derived bound, and
+  replace the literal tallies (`(248, 116, 12)`, `(310, 72, 10)`) with relations derived from the inputs (rule MGN: runs
+  equals the enumerated cases, created and refused each above zero, some case neither). Verify with the same duration
+  comparison script before and after, and with differential tests against real Git still covering every case.
+
+### Hook dispatcher removal: finished on a branch, merge pending a decision
+
+- Branch `worktree-agent-a21d6fec9d0d04797` (commits `7cd936b6bc`, `c80d57f464`, `fb800c83c3`, `9b20e24e56`; comparison with
+  measurements in `doc/planning/cli-git-no-self-invocation-dispatcher.md`). Git runs the configured preparation hooks itself
+  inside the native `git commit` (shadow `core.hooksPath` off, `post-commit` off in the shadow config, no `--work-tree`), the
+  wrapper holds the hook lock around that one child, and the pre-commit re-run after a replay is `git hook run
+  --ignore-missing pre-commit`. Removed: `hook_dispatch.rs`, `hook_dispatch_entries.rs`, the `argv[0]` branch in `main.rs`, the
+  config-parameter restoration. No shell text in production code. Budget: `ONE_CONFIG_HOOK` wrapper syncs 23 to 21 and `hook
+  run` starts 4 to 1; no-hook commit unchanged.
+- Behavior changes to decide before merging (not yet asked of the owner): (1) the hook lock is held around the whole native
+  commit, so an open message editor keeps it (a concurrent commit with hooks waits up to `CLI_GIT_LOCK_WAIT_SECONDS`, 30 min);
+  no finer scope exists without Git calling something of ours per event; mitigation exists (`hooks.concurrentCommits`, inherited
+  lease, lock taken only when a hook can run); (2) hooks no longer see `GIT_WORK_TREE`; (3) `GIT_CONFIG_PARAMETERS` no longer
+  carries the inner run's `hook.<event>.enabled=true` and transaction `core.hooksPath`; (4) a hook orphaned by a SIGKILLed
+  wrapper no longer holds the lock; (5) the Windows `<event>.exe` naming is gone with no gate replacing it.
+- Not in 0.4.7: that release (30-second push deadline, macOS signal fixes, test fixes) is gated separately; this branch gets
+  its own container gate (planted controls in `bin/native-planted-controls-entry.ts` run only in the container gate) and goes
+  in 0.4.8 or later.
+- The agent also reported load-dependent failures of `fault_remote` auto-push cases and `event_path_commit::a_commit_of_a_name_
+  that_is_not_utf8_lands_with_its_exact_bytes` from the generic "still waiting for git maintenance run" notice; the
+  `fault_remote` one is fixed on main (assertion now keys on "giving up after"); check the other for the same assertion shape.
+
+### Independent design review (queued; first question is the user's)
+
+- User, verbatim: "'Git now runs the configured hooks itself inside the native commit' - what is going on? Isn't this poor
+  design?" and "just how many lurking horrors of architectural design are there?" My answer: the hook change itself removes
+  the self-invocation (Git runs the user's hooks, as it always does), but it exposes the coupling to the shadow-repository
+  transaction design (hook lock held across the whole native commit, so an open editor holds it). I have not evaluated that
+  architecture on its merits this session.
+- Documented reasons for it (read, not recalled): `package/git-policy/cli/doc/concurrent-commits-implementation-plan.md`
+  (issue #571) says concurrent commits in linked worktrees collide on one settlement lock, so each transaction prepares
+  privately in a shadow repository `<git-common-dir>/cli-git/shadow/<transaction-id>` (alternates to the real store, private
+  `HEAD`, new objects migrated into the real store as a `.keep` pack at landing) and lands serially; accepted design in
+  `doc/decision/cli-git-concurrent-commits.md`, evidence and rejected options in `doc/planning/cli-git-concurrent-commits.md`,
+  rules in `SPEC.md` (private preparation, object migration, replay, capture order, recovery).
+- Measured costs to weigh against it: dozens of Git starts and about 19 wrapper syncs per commit (see
+  `binary_budget_tests.rs`), a docs-only commit taking 40 to 70 s under load, a 247-cell tearing table plus a recovery
+  protocol to make the multi-step landing crash-safe, replay and subsumption logic for shared paths.
+- Brief for the reviewer (a separate agent that has not seen this reasoning; quote the user's words, the decision documents,
+  the measurements; no conclusion handed in): (1) does the shadow-and-journal design still earn its complexity for the
+  workload (many agent sessions committing explicit paths to one working tree), compared with simpler designs such as a
+  single bounded lock around real `git commit` with policy on the staged index, or per-agent worktrees; measure, do not
+  assert; (2) a list of other architectural defects found by reading and by tracing real commits, each with evidence and the
+  size of the fix, ranked; (3) no code changes. Launch when an agent slot frees.

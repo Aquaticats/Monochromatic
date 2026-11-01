@@ -36,6 +36,18 @@ export const coreCampaignSets: readonly ArgumentSet[] = [
     {}
   ],
   [
+    'build-timeout',
+    [
+      '--build-timeout',
+      '600',
+      '--timeout',
+      '120',
+      '--file',
+      'src/dfa.rs'
+    ],
+    {}
+  ],
+  [
     'container-limits',
     [
       '--memory',
@@ -59,6 +71,14 @@ export const coreCampaignSets: readonly ArgumentSet[] = [
     'reject-timeout-zero',
     [
       '--timeout',
+      '0'
+    ],
+    {}
+  ],
+  [
+    'reject-build-timeout-zero',
+    [
+      '--build-timeout',
       '0'
     ],
     {}

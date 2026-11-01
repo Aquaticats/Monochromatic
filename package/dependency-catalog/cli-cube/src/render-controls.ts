@@ -59,7 +59,7 @@ const DIM_KEYS: readonly DataDimKey[] = [
 /**
  Channels in their dropdown render order.
  */
-const CHANNEL_KEYS: readonly ChannelKey[] = [
+export const CHANNEL_KEYS: readonly ChannelKey[] = [
   'x',
   'y',
   'z',

@@ -216,6 +216,39 @@ against the tree before recording):
   `w4-fe-core-tests` (file-enforcer/core-rust, 63 files), `w4-fm-variant-qt`
   (file-enforcer/cli, 30 files).
 
+Wave-4 third checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Returns: `w4-desktop-app` turn 4 (rows `-056` to `-058`; 14 files; 198 remain).
+  `w4-fm-variant-qt` finished file-enforcer/cli (rows `w4-fe-cli-001` to `-004`, all 30
+  files; it cross-checked the mooted TS findings and verified four of them mooted in the Rust
+  cli, three as engine-side, none CLI-local). `w4-fe-core-tests` on core-rust (rows
+  `w4-fe-core-rust-001` to `-004`; 46 of 63 files; confirmed the TS staleness-lock,
+  glob-absolute-path and non-atomic-write bugs do not reproduce). `w4-mp-design` on
+  claude-code-plugin/source (rows `w4-cc-source-001` to `-012`; 15 full plus 3 partial
+  reads; about 55 remain). `w4-cc-statusline` finished the agent-harness-shared tail (rows
+  `w4-ahs-tail-001` to `-010`, all 68 files with 10 prior-covered skips).
+- Second schema footgun corrected: the severity enum is `blocker|warning|nit`; "bug" is a
+  category value. One row wrote severity "bug" (`w2-async-b1-089`, the SAF trash crash path)
+  and was repaired to `blocker`; a scan of all 54 wave-4 rows found no other out-of-enum
+  severity, category or confidence. The three children that never received the broadcast
+  (harness interrupt) wrote valid values anyway, and all later briefs embed the correct
+  enums.
+- core-rust churn: the concurrent session landed commit `b362955545` (closure refactor) after
+  the child pinned `48a0ca0349d`, moving the lines in `w4-fe-core-rust-001`; the escape-set
+  bug survived the refactor, and the row was re-quoted at current HEAD
+  (`kind_mise_path_list.rs:62`, `:68`, `kinds_tests.rs:170`). Later core-rust briefs review
+  the moving HEAD with no pin.
+- Queue corrections: forbidden-strings lives at `package/forbidden-strings` (core 82, cli
+  96, core.bench 16, core.fuzz 12, cli.fuzz 73 files), not under `package/linter/`; and the
+  `linter/rust` queue item is void: commit `5bc05682ec` (2026-10-06) deleted five linter
+  packages (markdown-lint, linter/rust, rust-linter-plugin/builtin,
+  rust-module/rust-linter-core, rust-module/rust-linter-pattern) before the sweep began.
+- Assignments now running: `w4-desktop-app` turn 5 (ui_settings onward),
+  `w4-android-app` turn 4 (12 top-level Kotlin plus core/), `w4-mp-design` turn 4
+  (claude-code-plugin/source remainder), `w4-fe-core-tests` (core-rust remainder, 17 files),
+  `w4-fm-variant-qt` (wg/cli-quicker-exempt, 68 files), `w4-cc-statusline`
+  (forbidden-strings/core, 82 files). Batch-3 filing at 773 decisions filed, zero errors.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -648,10 +681,11 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    (in flight). Done: dsh-plugin family, search-fetch/cli; mcp/stdio has only its final
    test slice in flight.
 4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` remaining
-   (core in flight, core.bench, core.fuzz, cli.fuzz). Superseded 2026-11-01: the TypeScript
-   `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the Rust
-   replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files, now
-   Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
+   (core under review 2026-11-01 by `w4-cc-statusline`; cli, core.bench, core.fuzz, cli.fuzz
+   still to assign; real root: `package/forbidden-strings`). Superseded 2026-11-01: the
+   TypeScript `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the
+   Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
+   now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
    monochromatic-lint, monorepo-task, mutation-test.
 5. Rust: `git-policy/cli` slices 9+ (in flight), `file-enforcer/core-rust` slices 3+ (in
    flight), `dependency-catalog/*` (no `core` dir exists: core-pnpm done, core-rust in

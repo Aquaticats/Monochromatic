@@ -23,6 +23,7 @@
   "private": true,
   "sideEffects": true,
   "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*"
   }
 }

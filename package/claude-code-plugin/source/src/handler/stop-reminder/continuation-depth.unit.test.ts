@@ -3,6 +3,9 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { readFileSync, } from 'node:fs';
+import { resolve, } from 'node:path';
+
 import {
   continuationDepth,
   CONTINUATION_MARKER,
@@ -13,6 +16,28 @@ import {
   maxContinuationDepth,
   readTranscriptTail,
 } from './continuation-depth.ts';
+
+/**
+ Repository root, resolved from this test file's directory so the document reads
+ follow the checkout rather than the test runner's working directory.
+ */
+const REPO_ROOT = resolve(import.meta.dirname, '../../../../../..',);
+
+/**
+ Operator documentation that tells the user which environment variable to set.
+ */
+const README_PATH = resolve(
+  REPO_ROOT,
+  'package/claude-code-plugin/stop-reminder/README.md',
+);
+
+/**
+ Troubleshooting document that repeats the same variable name as read-only evidence.
+ */
+const TROUBLESHOOTING_PATH = resolve(
+  REPO_ROOT,
+  'doc/troubleshooting/claude-code-opus-5-premature-turn-end.md',
+);
 
 /**
  Transcript line standing for one forced-continuation feedback record.
@@ -73,9 +98,11 @@ await describe({
         it({
           name: 'names the override variable exactly as the README and troubleshooting doc do',
           fn: async () => {
-            // Both documents spell this out for the user to type, so a rename that
-            // missed them would leave a documented control that silently does nothing.
-            expect(MAX_DEPTH_ENV,).toBe('MONOCHROMATIC_STOP_AUTO_CONTINUE_MAX',);
+            // Both documents present the name as a backticked token for the user to type,
+            // so requiring the whole token also fails when a document renames the variable
+            // to a longer identifier that merely starts with the constant.
+            expect(readFileSync(README_PATH, 'utf8',),).toContain(`\`${MAX_DEPTH_ENV}\``,);
+            expect(readFileSync(TROUBLESHOOTING_PATH, 'utf8',),).toContain(`\`${MAX_DEPTH_ENV}\``,);
           },
         },),
         it({

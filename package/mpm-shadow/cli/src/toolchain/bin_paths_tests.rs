@@ -2,10 +2,10 @@
 //! the output shape the IDE launcher pins,
 //! built from a disposable scope.
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fs;
 
-use super::bin_paths::{bin_paths_output, render_bin_paths};
+use super::bin_paths::{bin_paths_output, document_fields, render_bin_paths};
 use super::fixtures::{SAMPLE_PLAN, sample_plan};
 use super::plan::parse_plan;
 use super::scope::{EnvMap, global_scope, repo_scope};
@@ -25,7 +25,11 @@ fn the_output_has_the_three_keys_the_ide_parser_requires_and_lists_only_existing
 
     let document = bin_paths_output(&sample_plan(), &scope, &env).expect("an output");
     let object = document.as_object().expect("an object");
-    assert_eq!(object.keys().collect::<Vec<_>>(), vec!["exposureDir", "pathDirs", "bins"]);
+    let declared_keys: Vec<&str> = document_fields("", Vec::new(), Map::new())
+        .iter()
+        .map(|(key, _)| return *key)
+        .collect();
+    assert_eq!(object.keys().map(String::as_str).collect::<Vec<_>>(), declared_keys);
     assert_eq!(document["exposureDir"], ".cache/toolchain-bin");
     let bins = document["bins"].as_object().expect("an object");
     assert_eq!(bins.keys().collect::<Vec<_>>(), vec!["uv", "node"]);

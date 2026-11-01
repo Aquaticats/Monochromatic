@@ -41,8 +41,16 @@ Start long background runs (emulators,
 every session's Bash commands share one `claude-code-bash` cgroup,
 and `systemd-oomd` kills it whole when other sessions' builds fill it.
 Name the unit so it can be found,
-and cap its memory
-and its CPU (`--property=CPUQuota=<threads>00%`),
+and cap its memory,
+its CPU (`--property=CPUQuota=<threads>00%`),
+its process count (`--property=TasksMax=<count>`)
+and its disk weight (`--property=IOWeight=<10-10000>`,
+lower for disk-heavy work),
+each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
+
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.

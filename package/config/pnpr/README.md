@@ -87,7 +87,7 @@ This package has no entry points,
 
 ## Publishing
 
-`.github/workflows/pnpr-publish.yml` runs `mise run //package/config/pnpr:publish` on pushes to `main`
+`.github/workflows/pnpr-publish.yml` runs `task-run //package/config/pnpr:publish` on pushes to `main`
  that change a manifest,
  `config.yaml`,
  the script,
@@ -96,7 +96,10 @@ This package has no entry points,
 
 1.   reads the trusted names from `config.yaml`,
 2.   reads each package's published versions anonymously,
-3.   builds (`mise run //<dir>:build` when declared),
+3.   builds (`task-run //<dir>:build` when the package's `task.ts` declares `build`;
+      the CI has no mise,
+      so a package that declares `build` only in `mise.toml` fails with a diagnostic
+      instead of publishing a tarball without its `dist`),
       packs with pnpm,
       and rewrites the packed manifest for every missing version in dependency order,
 4.   publishes each tarball with a fresh OIDC workload token,
