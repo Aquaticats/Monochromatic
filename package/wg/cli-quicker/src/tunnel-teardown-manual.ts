@@ -283,9 +283,12 @@ export function manualFinishSteps(
     `  sudo cat ${state}`,
     '  sudo ip -4 rule show',
     '  sudo ip -6 rule show',
-    `if the state file is damaged, move it away and run \`wg-quicker down ${interfaceName}\` again; wg-quicker then forgets the bypass rules and routes the file owned, and the block lets nothing through because no exceptions are known:`,
+    'first stop the route watcher, whichever way you go on: without the state file wg-quicker no longer looks for it, and a watcher left running adds rules again:',
+    '  # the `pid` field of the next record is the route watcher; stop it with `sudo kill` and that number',
+    `  sudo cat ${watcherRecord}`,
+    `then, if the state file is damaged, move it away and run \`wg-quicker down ${interfaceName}\` again; wg-quicker then forgets the bypass rules and routes the file owned, and the block lets nothing through because no exceptions are known:`,
     `  sudo mv ${state} ${shellQuote({ value: `${statePath}.damaged`, },)}`,
-    'to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file).'
+    'or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file).'
       + ' The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing,'
       + ' so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:',
     `  # ${blockNote}`,
@@ -294,8 +297,6 @@ export function manualFinishSteps(
       ...(clearnet === undefined ? {} : { clearnet, }),
     },), },)}`,
     `  sudo ${shellQuote({ value: companionPath, },)} watch-stop ${iface}`,
-    '  # the `pid` field of the next record is the route watcher; stop it with `sudo kill <pid>`',
-    `  sudo cat ${watcherRecord}`,
     ...policyRules,
     '  sudo ip -4 rule delete table main suppress_prefixlength 0',
     '  sudo ip -6 rule delete table main suppress_prefixlength 0',

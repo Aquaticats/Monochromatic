@@ -642,14 +642,15 @@ to look at what could not be read:
   sudo cat /run/wg-quicker/interface-<key>.json
   sudo ip -4 rule show
   sudo ip -6 rule show
-if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
+first stop the route watcher, whichever way you go on: without the state file wg-quicker no longer looks for it, and a watcher left running adds rules again:
+  # the `pid` field of the next record is the route watcher; stop it with `sudo kill` and that number
+  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
+then, if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
   sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
-to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
+or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
   # no exceptions could be read, so this block lets nothing through except loopback, the updates slice included, until the last command of this list lifts it
   sudo nft 'add table inet wg-quicker-fr-par-fr1-blocked; flush table inet wg-quicker-fr-par-fr1-blocked; add chain inet wg-quicker-fr-par-fr1-blocked output { type filter hook output priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked output oifname != "lo" counter drop; add chain inet wg-quicker-fr-par-fr1-blocked forward { type filter hook forward priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked forward counter drop'
   sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
-  # the `pid` field of the next record is the route watcher; stop it with `sudo kill <pid>`
-  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
   sudo ip -4 rule delete table <policy table>
   sudo ip -6 rule delete table <policy table>
   sudo ip -4 rule delete table main suppress_prefixlength 0
@@ -663,6 +664,14 @@ to take the tunnel down by hand instead, run these in order (each is what wg-qui
   # lift the traffic block; the network works again
   sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ```
+
+The route watcher is stopped before anything else,
+for both ways on,
+because `stopRouteWatcher` reads the state file and returns at once when it is absent:
+a `down` that is run after the damaged state file was moved away does not find the watcher,
+which keeps running and adds its rules again.
+The watcher is told apart from other processes by the record next to the state file,
+so the record is shown first and the process is stopped before the state file is touched.
 
 The by-hand list removes routing,
 so it opens with the traffic block and ends by lifting it.

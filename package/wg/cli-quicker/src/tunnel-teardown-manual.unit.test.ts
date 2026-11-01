@@ -150,7 +150,6 @@ await describe({
         expect(commands.slice(start,),).toEqual([
           BLOCK_LINE,
           `  sudo ${COMPANION_PATH} watch-stop ${INTERFACE_NAME}`,
-          `  sudo cat ${STATE_PATH}.watcher.json`,
           `  sudo ip -4 rule delete table ${String(POLICY_TABLE,)}`,
           `  sudo ip -6 rule delete table ${String(POLICY_TABLE,)}`,
           '  sudo ip -4 rule delete table main suppress_prefixlength 0',
@@ -202,6 +201,25 @@ await describe({
         // Without them the block has no accept rule beyond the policy of its chains.
         expect(blockStatements({ interfaceName: INTERFACE_NAME, },).includes('counter accept',),).toBe(false,);
         expect(KNOWN.some((line,) => line.startsWith('  # ',) && line.includes('no exceptions could be read',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'asks for the route watcher to be stopped first, before the state file is moved away and before the by-hand commands, because without the state file wg-quicker no longer looks for it',
+      fn: async () => {
+        /**
+         Position of a line that starts with the given text.
+         */
+        const at = (text: string,): number => KNOWN.findIndex((line,) => line.startsWith(text,),);
+        /**
+         The command that shows the record of the route watcher.
+         */
+        const record = at(`  sudo cat ${STATE_PATH}.watcher.json`,);
+        expect(record,).toBeGreaterThan(-1,);
+        expect(record,).toBeLessThan(at(`  sudo mv ${STATE_PATH} `,),);
+        expect(record,).toBeLessThan(at(BLOCK_LINE,),);
+        // The record is shown once: the by-hand list does not repeat it.
+        expect(KNOWN.filter((line,) => line === `  sudo cat ${STATE_PATH}.watcher.json`,).length,).toBe(1,);
+        expect(KNOWN.some((line,) => line.startsWith('first stop the route watcher, whichever way you go on',) && line.includes('adds rules again',),),).toBe(true,);
       },
     },),
     it({
