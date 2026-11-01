@@ -18,7 +18,7 @@ import type {
 
  @param provider - provider that answered it
 
- @returns The request's providers and then this one, each once
+ @returns Request's providers and then this one, each once
 
  @example
  ```ts

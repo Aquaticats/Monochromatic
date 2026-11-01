@@ -252,7 +252,7 @@ function requestCallsIn({ source, }: { readonly source: string; },): readonly Re
 
  @param properties - properties of the call's argument object
 
- @returns The reading of `namedUnderKey`, or the same text behind the mark of a seat that may be absent where the value
+ @returns Reading of `namedUnderKey`, or the same text behind the mark of a seat that may be absent where the value
  written is `undefined`, a conditional, or a seat read off another object (which is optional on every request)
 
  @example

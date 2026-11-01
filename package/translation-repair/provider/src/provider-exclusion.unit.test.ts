@@ -25,7 +25,7 @@ import {
 const PLAIN: ChatTextRequest = {
   modelId: 'hf:zai-org/GLM-5.3-Flash',
   messages: [{ role: 'user', content: '喵？', },],
-  signal: AbortSignal.timeout(1,),
+  signal: new AbortController().signal,
 };
 
 await describe({

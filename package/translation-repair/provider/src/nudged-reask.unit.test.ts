@@ -289,7 +289,7 @@ await describe({
 
          @param hint - providers the original request is hinted off
 
-         @returns The hint of the re-ask
+         @returns Hint of the re-ask
          */
         async function reaskedOffFor(hint: ExcludedProviders,): Promise<readonly string[]> {
           /**
