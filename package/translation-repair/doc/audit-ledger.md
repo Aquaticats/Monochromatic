@@ -971,8 +971,15 @@ named for that subject and listed here.
   stopping and waiting,
   and docs that grow or go stale.
 - [Audit ledger: where each numbered entry is filed](audit-ledger-entries-by-id.md):
-  Every numbered entry of the recurring code families,
-  the process mistakes and the other numbered findings,
+  Every numbered entry of the B family,
+  the recurring code findings,
+  by id,
+  with the file that holds it.
+- [Audit ledger: where each lettered entry is filed](audit-ledger-entries-by-id-d-l-m-t-and-x.md):
+  Every numbered entry of the D,
+  L,
+  M,
+  T and X families,
   by id,
   with the file that holds it.
 - [Audit ledger: the areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):

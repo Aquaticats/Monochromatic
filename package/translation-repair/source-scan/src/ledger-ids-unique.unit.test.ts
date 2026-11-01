@@ -25,7 +25,10 @@ import {
   readdir,
   readFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  basename,
+  join,
+} from 'node:path';
 
 import {
   describe,
@@ -44,9 +47,15 @@ import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fi
 // The reader of a heading, the two findings, and the read of the real docs.
 
 /**
- File name of the by-id index, which lists entries and defines none.
+ File name of the by-id index of the B family, which lists entries and defines none. The index of the other families
+ is split into a file of its own that starts with the same words, so that no index passes 1,000 lines.
  */
 const INDEX_NAME = 'audit-ledger-entries-by-id.md';
+
+/**
+ Start of the name of every by-id index file: the index of the B family and the files it was split into by id.
+ */
+const INDEX_NAME_START = 'audit-ledger-entries-by-id';
 
 /**
  Letters an entry id opens with: `B` for a finding, `M` for a process mistake.
@@ -434,18 +443,18 @@ function unknownIndexIdFindings(
 }
 
 /**
- The ledger docs of the package, split into the by-id index and the files that hold entries.
+ The ledger docs of the package, split into the by-id index files and the files that hold entries.
 
- @returns Index and other `audit-ledger*.md` files, each with its path from the repository root
+ @returns Index files and other `audit-ledger*.md` files, each with its path from the repository root
 
- @throws {@link Error} when the folder holds no by-id index
+ @throws {@link Error} when the folder holds no by-id index of the B family
 
  @example
  ```ts
- const { index, docs, } = await readLedgerDocs();
+ const { indexes, docs, } = await readLedgerDocs();
  ```
  */
-async function readLedgerDocs(): Promise<{ readonly index: LedgerDoc; readonly docs: readonly LedgerDoc[]; }> {
+async function readLedgerDocs(): Promise<{ readonly indexes: readonly LedgerDoc[]; readonly docs: readonly LedgerDoc[]; }> {
   /**
    Folder of the package's docs, from the repository root.
    */
@@ -465,17 +474,20 @@ async function readLedgerDocs(): Promise<{ readonly index: LedgerDoc; readonly d
     return { path: join(folder, name,), text: await readFile(join(REPOSITORY_ROOT, folder, name,), 'utf8',), };
   },),);
   /**
-   The by-id index, absent when the folder lacks it.
+   The by-id index files: the index of the B family and every file it was split into.
    */
-  const index = all.find(function isIndex(doc,): boolean {
-    return doc.path.endsWith(INDEX_NAME,);
+  const indexes = all.filter(function isIndex(doc,): boolean {
+    return basename(doc.path,)
+      .startsWith(INDEX_NAME_START,);
   },);
-  if (index === undefined)
+  if (!indexes.some(function isBIndex(doc,): boolean {
+    return doc.path.endsWith(INDEX_NAME,);
+  },))
     throw new Error(`${join(folder, INDEX_NAME,)} is not among the ledger files`,);
   return {
-    index,
+    indexes,
     docs: all.filter(function holdsEntries(doc,): boolean {
-      return doc !== index;
+      return !indexes.includes(doc,);
     },),
   };
 }
@@ -580,7 +592,7 @@ await describe({
         /**
          The real ledger docs.
          */
-        const { index, docs, } = await readLedgerDocs();
+        const { indexes, docs, } = await readLedgerDocs();
         /**
          Entry headings of the real docs, to show the reader sees them.
          */
@@ -603,18 +615,23 @@ await describe({
          */
         const repeated = repeatedEntryFindings({ docs, },);
         /**
-         What the scan finds over the real index.
+         What the scan finds over every real index file, which a split by id range must not leave unread: each file is
+         read on its own.
          */
-        const unknown = unknownIndexIdFindings({ index, docs, },);
+        const unknownByIndex = indexes.map(function findingsOf(index,): readonly string[] {
+          return unknownIndexIdFindings({ index, docs, },);
+        },);
         expect(repeatedEntryFindings({
           docs: [...docs, { path: 'doc/cat-copy.md', text: `## ${firstId}: a copy of a real id\n`, },],
         },).length - repeated.length,).toBe(1,);
-        expect(unknownIndexIdFindings({
-          index: { path: index.path, text: `${index.text}\n- [B99999, no such entry](cat.md)\n`, },
-          docs,
-        },).length - unknown.length,).toBe(1,);
         expectNoFindings({ findings: repeated, },);
-        expectNoFindings({ findings: unknown, },);
+        for (const [at, index,] of indexes.entries()) {
+          expect(unknownIndexIdFindings({
+            index: { path: index.path, text: `${index.text}\n- [B99999, no such entry](cat.md)\n`, },
+            docs,
+          },).length - (unknownByIndex[at]?.length ?? Number.NaN),).toBe(1,);
+          expectNoFindings({ findings: unknownByIndex[at] ?? [], },);
+        }
       },
     },),
   ],
