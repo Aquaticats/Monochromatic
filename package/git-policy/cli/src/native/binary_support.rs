@@ -115,7 +115,7 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
         .arg("--path")
         .arg(&socket)
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
         .env("HOME", fixture.root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
@@ -558,6 +558,9 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     // A child that exits without reading its input closes the pipe; that is not a test failure.
     let _ = child.stdin.take().expect("piped stdin").write_all(input);
     let output: Output = child.wait_with_output().expect("process finishes");
+    if let Some(directory) = command.get_current_dir() {
+        settle_service_work(directory);
+    }
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
@@ -571,6 +574,31 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         stdout: output.stdout,
         stderr: output.stderr,
     };
+}
+
+/// How long a control waits for the after-commit work (the push, the upkeep) the commit service runs once the commit returned.
+const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(180);
+
+/// What:
+///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
+/// Why:
+///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
+///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
+///  `claimed`. Only a run that gives every fixture a service waits, and only where a work directory exists.
+pub fn settle_service_work(directory: &Path) {
+    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
+        return;
+    }
+    let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
+        return;
+    };
+    let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
+    let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
+    let began: std::time::Instant = std::time::Instant::now();
+    while open("pending") + open("claimed") > 0 {
+        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}", work.display());
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
 }
 
 /// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native

@@ -17,6 +17,9 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 }
 
 fn main() {
+    // Every Git the service starts (landing, index, push, upkeep) runs with hooks off, as the wrapper's own starts do: a hook
+    //  named by a repository's configuration is the person's, run by their own Git, never by the service.
+    git_policy_cli::hooks_off::activate();
     let arguments: Vec<String> = std::env::args().collect();
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
         eprintln!("cli-git-service: --journal <directory> is required");
