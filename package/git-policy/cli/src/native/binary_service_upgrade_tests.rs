@@ -118,11 +118,11 @@ fn a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted() 
     let bus = fake_bus_many(runtime.as_path(), false, 1, Box::new(|| {}));
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
-    let (exit, current) = replacement.join().expect("replacement");
+    let (exit, started) = replacement.join().expect("replacement");
     let status = exit.expect("the 0.5.4 service retired when the wrapper asked it to");
     assert!(output.status.success(), "{stderr}");
     assert!(status.success(), "the old service retired by itself: {status:?}");
-    let mut current = current.expect("the current service started");
+    let mut current = started.expect("the current service started");
     assert!(current.exited_within(Duration::from_millis(100)).is_none(), "the current service is serving at the end");
     assert!(stderr.contains(UPDATING_NOTICE), "{stderr}");
     assert_eq!(subject(&fixture, &repo), "subject");
