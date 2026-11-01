@@ -159,3 +159,8 @@ pub fn kill_members(_members: &[TreeMember]) {}
 #[cfg(test)]
 #[path = "process_tree_tests.rs"]
 mod tests;
+
+/// Controls for platforms without `/proc`, whose branches the Linux build does not compile.
+#[cfg(all(test, not(target_os = "linux")))]
+#[path = "process_tree_other_tests.rs"]
+mod other_tests;
