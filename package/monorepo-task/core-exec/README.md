@@ -197,7 +197,11 @@ computes the same tag and then:
 - keeps a local `monochromatic-playwright:<tag>` as it is,
 - otherwise pulls the registry image and names it `monochromatic-playwright:<tag>` and `monochromatic-playwright`
   (the name the Playwright tasks run),
+  but only when `podman info` reports `linux/amd64`,
+  the platform CI publishes,
+  because podman pulls a single-platform image of another platform with exit 0 and only a warning,
 - and when the pull fails,
+  or the machine reports another platform or none,
   prints why on one line and builds `playwright.Dockerfile` locally with the same two names.
 
 Podman's own output stays hidden;

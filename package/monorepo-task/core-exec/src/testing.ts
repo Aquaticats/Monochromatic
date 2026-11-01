@@ -27,6 +27,7 @@ export {
 export { RULE_GUIDANCE, } from './oxlint-guidance.ts';
 export {
   ensurePlaywrightImage,
+  PLAYWRIGHT_IMAGE_PLATFORM,
   PLAYWRIGHT_LOCAL_IMAGE,
   PLAYWRIGHT_REGISTRY_IMAGE,
   PLAYWRIGHT_TAG_LENGTH,

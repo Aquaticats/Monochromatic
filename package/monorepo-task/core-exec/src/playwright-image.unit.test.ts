@@ -19,6 +19,7 @@ import {
 
 import {
   ensurePlaywrightImage,
+  PLAYWRIGHT_IMAGE_PLATFORM,
   PLAYWRIGHT_LOCAL_IMAGE,
   PLAYWRIGHT_REGISTRY_IMAGE,
   PlaywrightImageError,
@@ -46,7 +47,13 @@ const REFERENCE = `ghcr.io/aquaticats/monochromatic-playwright:${TAG}`;
 const TAGGED = `monochromatic-playwright:${TAG}`;
 
 /**
- What a scripted podman answers per subcommand; a missing subcommand exits 0 with no output.
+ The platform question the task asks podman before a pull.
+ */
+const INFO = 'info --format {{.Host.OS}}/{{.Host.Arch}}';
+
+/**
+ What a scripted podman answers per subcommand; a missing subcommand exits 0 with no output, except `info`, which reports
+ the published platform.
  */
 type Script = Readonly<Record<string, PodmanResult>>;
 
@@ -106,7 +113,10 @@ function scripted(script: Script,) {
   /**
    The script as a map, so that a subcommand it is silent about is a plain miss.
    */
-  const answers = new Map(Object.entries(script,),);
+  const answers = new Map<string, PodmanResult>([
+    ['info', { exitCode: 0, output: `${PLAYWRIGHT_IMAGE_PLATFORM}\n`, },],
+    ...Object.entries(script,),
+  ],);
   async function podman(args: readonly string[],): Promise<PodmanResult> {
     calls.push(args.join(' ',),);
     return answers.get(args.at(0,) ?? '',) ?? { exitCode: 0, output: '', };
@@ -141,6 +151,7 @@ const calls = join(dirname(process.argv[1]), 'calls.log');
 const args = process.argv.slice(2);
 appendFileSync(calls, args.join(' ') + '\\n');
 const exits = { image: process.env.FAKE_EXISTS_EXIT, pull: process.env.FAKE_PULL_EXIT, build: process.env.FAKE_BUILD_EXIT };
+if (args[0] === 'info') console.log(process.env.FAKE_PLATFORM ?? 'linux/amd64');
 const code = Number(exits[args[0]] ?? '0');
 if (code !== 0) console.error(args[0] === 'pull' ? 'Error: initializing source docker://x: unauthorized' : 'step failed in ' + args[0]);
 process.exit(code);
@@ -302,6 +313,7 @@ await describe({
           fn: async () => {
             expect(PLAYWRIGHT_REGISTRY_IMAGE,).toBe('ghcr.io/aquaticats/monochromatic-playwright',);
             expect(PLAYWRIGHT_LOCAL_IMAGE,).toBe('monochromatic-playwright',);
+            expect(PLAYWRIGHT_IMAGE_PLATFORM,).toBe('linux/amd64',);
           },
         },),
         it({
@@ -322,6 +334,7 @@ await describe({
             expect(source,).toBe('pulled',);
             expect(calls,).toEqual([
               `image exists ${TAGGED}`,
+              INFO,
               `pull ${REFERENCE}`,
               `tag ${REFERENCE} ${TAGGED}`,
               `tag ${REFERENCE} monochromatic-playwright`,
@@ -340,6 +353,7 @@ await describe({
             expect(source,).toBe('built',);
             expect(calls,).toEqual([
               `image exists ${TAGGED}`,
+              INFO,
               `pull ${REFERENCE}`,
               `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
             ],);
@@ -443,6 +457,79 @@ await describe({
           },
         },),
         it({
+          name: 'does not pull on a machine of another platform, prints why, and builds locally with both names',
+          fn: async () => {
+            const { podman, calls, lines, log, } = scripted({
+              image: { exitCode: 1, output: '', },
+              info: { exitCode: 0, output: 'linux/arm64\n', },
+            },);
+            const source = await ensurePlaywrightImage({ dockerfile: DOCKERFILE, dockerfilePath: 'playwright.Dockerfile', podman, log, },);
+            expect(source,).toBe('built',);
+            expect(calls,).toEqual([
+              `image exists ${TAGGED}`,
+              INFO,
+              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
+            ],);
+            expect(lines[0],).toBe(
+              `could not pull ${REFERENCE}: the published image is linux/amd64 and this machine is linux/arm64; building playwright.Dockerfile locally`,
+            );
+          },
+        },),
+        it({
+          name: 'builds locally when podman cannot report the machine platform, whether it fails or prints nothing',
+          fn: async () => {
+            const failing = scripted({
+              image: { exitCode: 1, output: '', },
+              info: { exitCode: 125, output: 'Error: cannot connect to the podman service\n', },
+            },);
+            const failingSource = await ensurePlaywrightImage({
+              dockerfile: DOCKERFILE,
+              dockerfilePath: 'playwright.Dockerfile',
+              podman: failing.podman,
+              log: failing.log,
+            },);
+            expect(failingSource,).toBe('built',);
+            expect(failing.lines[0],).toBe(
+              `could not pull ${REFERENCE}: podman could not report this machine's platform (Error: cannot connect to the podman service); building playwright.Dockerfile locally`,
+            );
+            expect(failing.calls.includes(`pull ${REFERENCE}`,),).toBe(false,);
+
+            const silent = scripted({
+              image: { exitCode: 1, output: '', },
+              info: { exitCode: 0, output: '\n', },
+            },);
+            const silentSource = await ensurePlaywrightImage({
+              dockerfile: DOCKERFILE,
+              dockerfilePath: 'playwright.Dockerfile',
+              podman: silent.podman,
+              log: silent.log,
+            },);
+            expect(silentSource,).toBe('built',);
+            expect(silent.lines[0],).toContain("podman could not report this machine's platform (podman printed nothing)",);
+          },
+        },),
+        it({
+          name: 'names the platform reason in the error when a machine of another platform also fails the local build',
+          fn: async () => {
+            const { podman, log, } = scripted({
+              image: { exitCode: 1, output: '', },
+              info: { exitCode: 0, output: 'linux/arm64\n', },
+              build: { exitCode: 125, output: 'step failed', },
+            },);
+            let caught: unknown;
+            try {
+              await ensurePlaywrightImage({ dockerfile: DOCKERFILE, dockerfilePath: 'playwright.Dockerfile', podman, log, },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(PlaywrightImageError,);
+            expect((caught as Error).message,).toContain(
+              `${REFERENCE} could not be pulled (the published image is linux/amd64 and this machine is linux/arm64)`,
+            );
+          },
+        },),
+        it({
           name: 'treats an exit status other than 0 from image exists as not local, as 1 and 125 both are',
           fn: async () => {
             /**
@@ -456,7 +543,7 @@ await describe({
                 podman,
                 log,
               },);
-              return { source, second: calls[1], };
+              return { source, second: calls[2], };
             },),);
             expect(outcomes,).toEqual(
               [1, 2, 3,].map(function pulledAfterNotLocal() {
@@ -478,9 +565,26 @@ await describe({
             expect(run.output,).toContain(`[prepare:playwright] pulled ${REFERENCE}`,);
             expect(run.calls,).toEqual([
               `image exists ${TAGGED}`,
+              INFO,
               `pull ${REFERENCE}`,
               `tag ${REFERENCE} ${TAGGED}`,
               `tag ${REFERENCE} monochromatic-playwright`,
+            ],);
+          },
+        },),
+        it({
+          name: 'builds locally without pulling when the machine reports another platform, and exits 0',
+          fn: async () => {
+            const run = await runEntry({
+              environment: { FAKE_EXISTS_EXIT: '1', FAKE_PLATFORM: 'linux/arm64', },
+              withPodman: true,
+            },);
+            expect(run.exitCode,).toBe(0,);
+            expect(run.output,).toContain('the published image is linux/amd64 and this machine is linux/arm64',);
+            expect(run.calls,).toEqual([
+              `image exists ${TAGGED}`,
+              INFO,
+              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
             ],);
           },
         },),

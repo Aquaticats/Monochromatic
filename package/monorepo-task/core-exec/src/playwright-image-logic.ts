@@ -4,7 +4,7 @@
  CI publishes `playwright.Dockerfile` as `ghcr.io/aquaticats/monochromatic-playwright:<tag>`, where `<tag>` is the
  first 16 hex digits of the SHA-256 of the file. This module computes the same tag, pulls that image, gives it the
  local names the Playwright tasks run (`monochromatic-playwright`, and `monochromatic-playwright:<tag>`), and builds the
- file locally only when the pull fails. A tag names one content, so a local `monochromatic-playwright:<tag>` is
+ file locally only when the pull fails or the machine is not the platform the image was published for. A tag names one content, so a local `monochromatic-playwright:<tag>` is
  current exactly when the file has not changed since.
 
  Every effect goes through the injected `podman` function, so tests run the decisions without podman.
@@ -35,6 +35,19 @@ export const PLAYWRIGHT_REGISTRY_IMAGE = 'ghcr.io/aquaticats/monochromatic-playw
  ```
  */
 export const PLAYWRIGHT_LOCAL_IMAGE = 'monochromatic-playwright';
+
+/**
+ Platform the published image is built for (the CI runner's: `linux/amd64`), as podman reports a host's.
+
+ The image is a single-platform manifest, and podman pulls such an image of another platform with exit 0 and only a
+ warning, so the pull is attempted only on a host that reports this platform and the local build runs on any other.
+
+ @example
+ ```ts
+ const matches = hostPlatform === PLAYWRIGHT_IMAGE_PLATFORM;
+ ```
+ */
+export const PLAYWRIGHT_IMAGE_PLATFORM = 'linux/amd64';
 
 /**
  Number of leading hex digits of the SHA-256 that make the tag.
@@ -252,10 +265,90 @@ async function podmanOrThrow(
 }
 
 /**
+ Whether the published image was pulled, and why not when it was not.
+
+ @example
+ ```ts
+ const outcome: PullOutcome = { pulled: false, reason: 'Error: unauthorized', };
+ ```
+ */
+type PullOutcome = { readonly pulled: true; } | {
+  readonly pulled: false;
+  readonly reason: string
+};
+
+/**
+ Pulls the published image when this machine is the platform it was published for.
+
+ Asks podman for the host platform first (`podman info`), so that an arm64 machine does not download an amd64 image that
+ podman would accept with only a warning and that could not run; a host that cannot report its platform is a failed pull.
+
+ @param podman - Runs podman
+
+ @param reference - Registry reference of this content
+
+ @returns Pulled, or the reason it was not
+
+ @example
+ ```ts
+ const outcome = await pullPublishedImage({ podman, reference, },);
+ ```
+ */
+async function pullPublishedImage(
+  {
+    podman,
+    reference,
+  }: {
+    readonly podman: Podman;
+    readonly reference: string;
+  },
+): Promise<PullOutcome> {
+  /**
+   The host platform as podman reports it.
+   */
+  const host = await podman([
+    'info',
+    '--format',
+    '{{.Host.OS}}/{{.Host.Arch}}',
+  ],);
+  /**
+   The reported platform without the line ending.
+   */
+  const platform = host.output
+    .trim();
+  if ((host.exitCode !== 0) || (platform === '')) {
+    return {
+      pulled: false,
+      reason: `podman could not report this machine's platform (${reasonFrom(host.output,)})`,
+    };
+  }
+  if (platform !== PLAYWRIGHT_IMAGE_PLATFORM) {
+    return {
+      pulled: false,
+      reason: `the published image is ${PLAYWRIGHT_IMAGE_PLATFORM} and this machine is ${platform}`,
+    };
+  }
+  /**
+   The pull itself.
+   */
+  const pull = await podman([
+    'pull',
+    reference,
+  ],);
+  if (pull.exitCode === 0)
+    return { pulled: true, };
+  return {
+    pulled: false,
+    reason: reasonFrom(pull.output,),
+  };
+}
+
+/**
  Makes `monochromatic-playwright` and `monochromatic-playwright:<tag>` name the image of `playwright.Dockerfile`.
 
- A local image of this tag is kept as it is; otherwise the registry image of this tag is pulled and given the local
- names; and when the pull fails the reason is printed and the file is built locally with the same names.
+ A local image of this tag is kept as it is; otherwise the registry image of this tag is pulled, on a machine of the
+ platform it was published for, and given the local names; and when the pull is not attempted or fails the reason is
+ printed and the file is built locally with the same names.
 
  @param dockerfile - Exact bytes of `playwright.Dockerfile`, which decide the tag
 
@@ -313,13 +406,13 @@ export async function ensurePlaywrightImage(
   }
 
   /**
-   The pull; a failure is explained and answered with a local build, not thrown.
+   The pull; a failure, or a machine of another platform, is explained and answered with a local build, not thrown.
    */
-  const pull = await podman([
-    'pull',
+  const outcome = await pullPublishedImage({
+    podman,
     reference,
-  ],);
-  if (pull.exitCode === 0) {
+  },);
+  if (outcome.pulled) {
     await podmanOrThrow({
       podman,
       args: [
@@ -340,7 +433,7 @@ export async function ensurePlaywrightImage(
     return 'pulled';
   }
 
-  log(`could not pull ${reference}: ${reasonFrom(pull.output,)}; building ${dockerfilePath} locally`,);
+  log(`could not pull ${reference}: ${outcome.reason}; building ${dockerfilePath} locally`,);
   /**
    The local build, with the same two names.
    */
@@ -356,7 +449,7 @@ export async function ensurePlaywrightImage(
   ],);
   if (build.exitCode !== 0) {
     throw new PlaywrightImageError(
-      `${reference} could not be pulled (${reasonFrom(pull.output,)}) and building ${dockerfilePath} locally failed `
+      `${reference} could not be pulled (${outcome.reason}) and building ${dockerfilePath} locally failed `
         + `(podman build exited ${String(build.exitCode,)}):\n${build.output}`,
     );
   }
