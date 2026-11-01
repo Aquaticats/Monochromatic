@@ -96,8 +96,20 @@ pub fn is_process_sender(code: c_int) -> bool {
 #[cfg(target_os = "linux")]
 const PROCESS_SENDER_CODES: [c_int; 3] = [libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
 
+/// `si_code` for a signal sent by `kill`, from macOS `<sys/signal.h>` (the `libc` crate does not export it there).
+#[cfg(target_os = "macos")]
+pub const SI_USER: c_int = 0x10001;
+
+/// `si_code` for a signal sent by `sigqueue`, from macOS `<sys/signal.h>` (the `libc` crate does not export it there).
+#[cfg(target_os = "macos")]
+pub const SI_QUEUE: c_int = 0x10002;
+
+/// Sender codes that mean a process sent the signal, on macOS.
+#[cfg(target_os = "macos")]
+const PROCESS_SENDER_CODES: [c_int; 2] = [SI_USER, SI_QUEUE];
+
 /// Sender codes that mean a process sent the signal, on other Unix systems.
-#[cfg(all(unix, not(target_os = "linux")))]
+#[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
 const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 
 /// What:
