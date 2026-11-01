@@ -226,6 +226,71 @@ fn a_claim_left_by_an_earlier_service_is_run_again_at_once() {
     remove(repo.root.as_path());
 }
 
+/// Handlers whose push is refused for a held reference lock a number of times, then goes through.
+struct LockedThenFree {
+    refusals_left: RefCell<u32>,
+    pushes: RefCell<u32>,
+}
+
+impl WorkHandlers for LockedThenFree {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        *self.pushes.borrow_mut() += 1;
+        let mut left = self.refusals_left.borrow_mut();
+        if *left > 0 {
+            *left -= 1;
+            return Verdict::Failed(String::from("error: update_ref failed for ref 'refs/remotes/origin/main': cannot lock ref 'refs/remotes/origin/main': is at abc but expected def"));
+        }
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+}
+
+/// Another worktree's service may hold a shared reference's lock for a moment (a fetch or a push updating the same
+///  remote-tracking reference): Git's compare-and-swap refuses the loser, and the loser tries again instead of leaving the
+///  person a failed backup.
+#[test]
+fn a_push_refused_for_a_held_reference_lock_is_tried_again() {
+    let repo: Repo = repo("work-lock-retry");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let handlers: LockedThenFree = LockedThenFree { refusals_left: RefCell::new(PUSH_LOCK_RETRIES), pushes: RefCell::new(0) };
+    drain(repo.common.as_path(), &handlers, SystemTime::now());
+    assert_eq!(*handlers.pushes.borrow(), PUSH_LOCK_RETRIES + 1, "tried again until it went through");
+    assert_eq!(names(&repo, DONE).len(), 1);
+    assert!(take_push_failures(repo.common.as_path()).is_empty(), "the person is told of nothing");
+    remove(repo.root.as_path());
+}
+
+/// A lock that stays held past the retries is a failed push like any other: recorded for the person, once.
+#[test]
+fn a_reference_lock_that_stays_held_ends_as_a_failed_push() {
+    let repo: Repo = repo("work-lock-held");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let handlers: LockedThenFree = LockedThenFree { refusals_left: RefCell::new(PUSH_LOCK_RETRIES + 5), pushes: RefCell::new(0) };
+    drain(repo.common.as_path(), &handlers, SystemTime::now());
+    assert_eq!(*handlers.pushes.borrow(), PUSH_LOCK_RETRIES + 1, "the retries are bounded");
+    assert_eq!(names(&repo, FAILED).len(), 1);
+    assert_eq!(take_push_failures(repo.common.as_path()).len(), 1);
+    remove(repo.root.as_path());
+}
+
+/// Any other refusal is not tried again: it would only repeat.
+#[test]
+fn a_refusal_that_is_not_a_lock_is_not_retried() {
+    let repo: Repo = repo("work-no-retry");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from("remote: permission denied")));
+    drain(repo.common.as_path(), &recorder, SystemTime::now());
+    assert_eq!(recorder.pushes.borrow().len(), 1);
+    remove(repo.root.as_path());
+}
+
 /// The credential a wake brought is held for that repository only, and is gone once its round ends.
 #[test]
 fn the_review_key_is_held_per_repository_and_forgotten() {
