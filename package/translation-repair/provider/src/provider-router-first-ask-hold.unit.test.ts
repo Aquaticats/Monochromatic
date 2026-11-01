@@ -34,13 +34,20 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   type BudgetView,
+  type ChatTextReply,
+  createRoutingClient,
   EveryProviderDryError,
   type ReaskSeat,
 } from '../dist/final/node/index.mjs';
 import { routerRecordingProviders, } from './provider-router-recording.test-fixture.ts';
-import { readOlderProvidersWet, } from './provider-router-wet-budgets.test-fixture.ts';
+import {
+  holdNothing,
+  markNothingRefused,
+  readOlderProvidersWet,
+} from './provider-router-wet-budgets.test-fixture.ts';
 
 /**
  Abort signal every routed call carries.
@@ -71,6 +78,20 @@ const SELECT_ROLE: SeatRole = 'select-judge';
  A role the hold of the select seats does not reach.
  */
 const EDITOR_ROLE: SeatRole = 'editor';
+
+/**
+ One Synthetic slot per model, no ceiling elsewhere.
+ */
+const ONE_SYNTHETIC_SLOT = {
+  neuralwatt: Number.POSITIVE_INFINITY,
+  synthetic: 1,
+  hyper: Number.POSITIVE_INFINITY,
+  bedrock: Number.POSITIVE_INFINITY,
+  deepseek: Number.POSITIVE_INFINITY,
+  xiaomi: Number.POSITIVE_INFINITY,
+  anthropic: Number.POSITIVE_INFINITY,
+  openrouter: Number.POSITIVE_INFINITY,
+};
 
 /**
  Seat of a run in a role, asking as a run does.
@@ -298,6 +319,83 @@ await describe({
           modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
         },);
         expect(served.servedBy,).toBe('synthetic',);
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE OVERFLOW OF A HELD SEAT TO HYPER WHEN SYNTHETIC\'S SLOTS ARE SATURATED (ledger B1374): both '
+        + 'providers read wet, the one Synthetic slot of the model is held by another call, the policy overflows the '
+        + 'second to Hyper and the hold refuses it before the slot there is taken; a measurement overflows and is served',
+      fn: async () => {
+        /**
+         Asks twice at once for Qwen3.8-27B with one Synthetic slot, the first call holding the slot until the second has
+         come to its end, and says where each went.
+
+         @param reaskSeat - seat both calls name
+
+         @returns The providers the callers reached and what the second call came to
+         */
+        async function overflowUnder(
+          reaskSeat: ReaskSeat,
+        ): Promise<{ readonly reached: readonly ProviderName[]; readonly second: FirstAsk['servedBy'] | 'refused'; }> {
+          const reached: ProviderName[] = [];
+          const release = Promise.withResolvers<undefined>();
+          /**
+           Builds one provider's caller, the Synthetic one holding its slot until released.
+           */
+          function callerFor(provider: ProviderName,): { readonly chatText: () => Promise<ChatTextReply>; } {
+            return {
+              chatText: async function chatText(): Promise<ChatTextReply> {
+                reached.push(provider,);
+                if (provider === 'synthetic')
+                  await release.promise;
+                return { text: `${provider} answers`, };
+              },
+            };
+          }
+          const client = createRoutingClient({
+            callers: {
+              neuralwatt: callerFor('neuralwatt',),
+              synthetic: callerFor('synthetic',),
+              hyper: callerFor('hyper',),
+              openrouter: callerFor('openrouter',),
+            },
+            budgets: { read: readOlderProvidersWet, markRefused: markNothingRefused, holds: holdNothing, },
+            slotLimits: ONE_SYNTHETIC_SLOT,
+            l: levelCapturingLogger({ lines: [], },),
+          },);
+          /**
+           The request both calls make.
+           */
+          const request = {
+            modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            messages: MESSAGES,
+            signal: SIGNAL,
+            reaskSeat,
+          };
+          const first = client.chatText(request,);
+          /**
+           What the second call, which finds the slot taken, came to.
+           */
+          const second = await client.chatText(request,).then(
+            function served(reply,) {
+              return reply.servedBy;
+            },
+            function refused(error: unknown,) {
+              if (!(error instanceof NoProviderForModelError))
+                throw error;
+              return 'refused' as const;
+            },
+          );
+          release.resolve(undefined,);
+          await first;
+          return { reached, second, };
+        }
+        const seated = await overflowUnder(seatOf({ role: EDITOR_ROLE, },),);
+        const measured = await overflowUnder({ role: EDITOR_ROLE, bench: [], reask: 'measured-model', },);
+        expect(seated,).toEqual({ reached: ['synthetic',], second: 'refused', },);
+        // THE POSITIVE CONTROL: the overflow does happen, and the hold is what stops it.
+        expect(measured,).toEqual({ reached: ['synthetic', 'hyper',], second: 'hyper', },);
       },
     },),
 
