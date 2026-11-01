@@ -9,7 +9,8 @@ use super::service_commit::{Running, runtime_for, start};
 use super::support::{Fixture, fixture, git, repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output, Stdio};
+use std::time::{Duration, Instant};
 
 /// A repository with `a.txt` committed and edited in the worktree, ready for one commit.
 fn edited_repository(fixture: &Fixture) -> PathBuf {
@@ -154,5 +155,130 @@ fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     let lines: Vec<(String, String)> = summaries(&detached);
     assert_eq!(lines.len(), 1, "{:?}", String::from_utf8_lossy(&detached.stdout));
     assert!(lines[0].0.starts_with("[detached HEAD "), "{}", lines[0].0);
+    remove_settled(&fixture);
+}
+
+/// A service process that is stopped, with its runtime directory removed, when the control ends.
+struct Held {
+    child: Child,
+    runtime: PathBuf,
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        let _killed = self.child.kill();
+        let _waited = self.child.wait();
+        let _removed = std::fs::remove_dir_all(&self.runtime);
+    }
+}
+
+/// A service whose Git is the program at `git_program`, listening where the wrapper looks for it under the runtime directory
+///  of `name`.
+fn service_with_git(fixture: &Fixture, name: &str, git_program: &Path) -> Held {
+    let runtime: PathBuf = runtime_for(name);
+    let socket: PathBuf = runtime.join(git_policy_cli::service_route::SOCKET_RELATIVE);
+    std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
+    let child: Child = Command::new(env!("CARGO_BIN_EXE_cli-git-service"))
+        .args(["--journal"])
+        .arg(fixture.root.join("journal"))
+        .arg("--path")
+        .arg(&socket)
+        .arg("--git")
+        .arg(git_program)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("the service starts");
+    let held: Held = Held { child, runtime };
+    let began: Instant = Instant::now();
+    while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+        assert!(began.elapsed() < PATIENCE, "the service never listened");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    return held;
+}
+
+/// How long a control waits for a state it started, far beyond what a healthy run needs.
+const PATIENCE: Duration = Duration::from_secs(60);
+
+/// How long a wrapped command that waits for the service is watched before the stalled landing is released.
+const WATCHED: Duration = Duration::from_millis(1500);
+
+/// A Git for the service that stops the landing at its branch move, with the index held, until the control releases it:
+///  it creates `entered` when the move starts and goes on once `release` exists.
+fn stalling_git(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
+    let entered: PathBuf = fixture.root.join("landing-entered");
+    let release: PathBuf = fixture.root.join("landing-release");
+    let program: PathBuf = fixture.root.join("stalling-git");
+    super::support::executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then\n    : > '{}'\n    while [ ! -e '{}' ]; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+            entered.display(),
+            release.display()
+        )
+        .as_bytes(),
+    );
+    return (program, entered, release);
+}
+
+/// While the service lands a commit it holds the repository's index; a wrapped command that writes the index in the same
+///  worktree waits for it, says what it waits for, and then succeeds, as it would behind a commit that returned.
+#[test]
+fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
+    let fixture: Fixture = fixture("client-index-wait");
+    let repo: PathBuf = edited_repository(&fixture);
+    std::fs::write(repo.join("b.txt"), b"staged by the second command\n").expect("b.txt");
+    let (program, entered, release) = stalling_git(&fixture);
+    let name: String = format!("client-index-wait-{}", std::process::id());
+    let _service: Held = service_with_git(&fixture, name.as_str(), program.as_path());
+    let mut landing: Command = served(&fixture, &repo, name.as_str(), &["commit", "--quiet", "-m", "slow landing", "--", "a.txt"]);
+    let mut landing_child: Child = landing.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
+    let began: Instant = Instant::now();
+    while !entered.exists() {
+        assert!(began.elapsed() < PATIENCE, "the landing never reached the branch move");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let index_lock: PathBuf = repo.join(".git/index.lock");
+    assert!(std::fs::read_to_string(&index_lock).is_ok_and(|text| { return text.starts_with("cli-git-service"); }), "the service holds the index while it lands");
+    let mut adding: Command = served(&fixture, &repo, name.as_str(), &["add", "b.txt"]);
+    adding.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let mut adding_child: Child = adding.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the add starts");
+    std::thread::sleep(WATCHED);
+    let early: Option<std::process::ExitStatus> = adding_child.try_wait().expect("the add can be watched");
+    std::fs::write(&release, b"").expect("release");
+    let added: Output = adding_child.wait_with_output().expect("the add ends");
+    let landed: Output = landing_child.wait_with_output().expect("the commit ends");
+    let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
+    assert_eq!(early, None, "the add did not give up while the service held the index: {stderr}");
+    assert!(added.status.success(), "the add succeeded after the wait: {stderr}");
+    assert!(landed.status.success(), "{}", String::from_utf8_lossy(&landed.stderr));
+    assert!(stderr.contains("commit service") && stderr.contains("git add"), "the wait is named: {stderr}");
+    assert!(!stderr.contains("index.lock"), "no internal file name reaches the person: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]).trim(), "b.txt", "the add staged its file after the landing");
+    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), "slow landing");
+    remove_settled(&fixture);
+}
+
+/// An index lock that is not the service's is a foreign program's, and the wrapped command keeps native Git's behavior with it:
+///  it does not claim to wait for the service.
+#[test]
+fn a_foreign_index_lock_is_not_called_the_commit_service() {
+    let fixture: Fixture = fixture("client-foreign-lock");
+    let repo: PathBuf = edited_repository(&fixture);
+    std::fs::write(repo.join("b.txt"), b"blocked\n").expect("b.txt");
+    std::fs::write(repo.join(".git/index.lock"), b"").expect("a foreign lock");
+    let mut adding: Command = wrapped_commit(&fixture, &repo, &["add", "b.txt"]);
+    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "1").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let added: Output = adding.output().expect("the add runs");
+    let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
+    assert!(!added.status.success(), "{stderr}");
+    assert!(!stderr.contains("commit service"), "{stderr}");
     remove_settled(&fixture);
 }
