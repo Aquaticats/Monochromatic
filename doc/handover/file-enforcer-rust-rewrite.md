@@ -932,6 +932,42 @@ each finished branch is reviewed and merged into `main`):
   and runbook fixes (an MD8 split bold span,
   GitHub's delete and restore limits,
   check 3's preconditions).
+- Switch agent reported 2026-11-01:
+  switch branch tip `254c474ccb` (main merged in `a416790756`;
+  `git diff main -- package/mpm-shadow` empty);
+  `playwright-image-publish` tip `3c7305aeca`.
+  The lock was regenerated with the released 0.2.1 by a named update
+  (mpm-shadow 0.2.0 to 0.2.1,
+  cargo-binstall 1.26.1 to 1.26.2,
+  `cargo:monochromatic-git-policy-cli` 0.4.4 to 0.4.5,
+  `pipx:slopo` 0.9.0 to 0.9.1;
+  Rust held at `main`'s `nightly-2026-10-31`);
+  `install --lockfile-only --frozen-lockfile` reports the lock current (64 tools,
+  digest verified);
+  the `mpm-shadow` musl rows point at the gnu archive,
+  because releases publish gnu archives only.
+  The final no-overlay Dockerfile build exited 0 after 2120 s
+  (bootstrap fetched and checked 0.2.1;
+  `mpm-shadow install --frozen-lockfile` installed 64,
+  failed 0;
+  `prepare:pnpm` ran).
+  Also done:
+  `task-mpm-shadow` runs the lock's exact mpm-shadow for every toolchain task (the owner's "Run the lock's version"),
+  with `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`;
+  the Playwright task pulls only on `linux/amd64`;
+  cutover doc verbs updated;
+  stale docs fixed;
+  drift steps now fail the run;
+  `FILE_ENFORCER_IDLE_SECONDS=2` in CI and the Dockerfile;
+  a `repository` input on `repo-tools-setup` for Depot.
+  On the publish branch:
+  the exists check fails unless it can tell,
+  the job is guarded to `main` (a branch dispatch runs the branch's own file,
+  so the guard stops accidents only),
+  provenance attestation added,
+  runbook corrected.
+  Delta re-checks running for both branches;
+  the switch still waits for mpm-shadow 0.2.2 and a lock regeneration with it.
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."
