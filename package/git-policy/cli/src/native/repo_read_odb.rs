@@ -39,7 +39,7 @@ pub struct ObjectDatabase {
 }
 
 /// The extra object directories `objects/info/alternates` names; `None` when the file cannot be read.
-fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<()> {
+pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<()> {
     if depth > ALTERNATE_DEPTH_LIMIT {
         return None;
     }

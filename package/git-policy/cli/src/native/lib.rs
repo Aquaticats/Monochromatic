@@ -1137,6 +1137,10 @@ pub mod repo_read_pack;
 #[cfg(unix)]
 pub mod repo_read_odb;
 
+/// The abbreviated object name Git prints (`core.abbrev`, the automatic length, uniqueness), computed without starting Git.
+#[cfg(unix)]
+pub mod object_abbreviation;
+
 /// In-process repository reads: trees, flattened trees and commit fields.
 #[cfg(unix)]
 pub mod repo_read_tree;
