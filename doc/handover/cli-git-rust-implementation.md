@@ -7148,3 +7148,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Decision (mine, from the owner's words "should not take 5s longer", which bound every commit): gate the maximum
   paired delta, not the p95. Sent back with: that change, the stale SPEC "Benchmark method" text, the oxlint findings
   that predate it in the touched files, and one clippy run. Then it merges into the 0.5.7 line.
+
+## 2026-11-01: 0.5.6 published and installed
+
+- crates.io 0.5.6 at 2026-11-01T22:43:39Z; release assets for x86_64 and aarch64 Linux (publish run 41358424221).
+- Queues `.git/cli-git/work/pending` and `claimed` were empty before the bump.
+- `bump-and-verify.ts 0.5.6`: lock row moved to 0.5.6 (digest `sha256:38639110be85...`), install exit 0,
+  "monochromatic-git-policy-cli 0.5.6, shadowing git at /usr/bin/git", commit exit 0 in 2478 ms, head `1f73cfaa43` with
+  signature status `G`, pushed (`origin/main...main` 0 0). The service self-healed to the new release:
+  `ExecMainStartTimestamp` moved from 16:11:59 to 17:51:58 EST and `ExecStart` names 0.5.6.
+- Next: migration once the 0.5.7 integrator's merge is committed (its `MERGE_HEAD` blocks the preflight) and agents
+  are paused; the apply needs the owner's grant.
