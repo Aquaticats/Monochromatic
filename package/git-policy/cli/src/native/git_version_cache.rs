@@ -34,9 +34,14 @@ use super::child_environment::environment_value;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The first line of every cache file;
-///  a file in another layout is ignored.
-const FILE_TAG: &str = "cli-git git-version cache 1\n";
+/// The kind of the file that holds the text `git version` prints.
+pub const VERSION_KIND: &str = "git-version";
+
+/// The first line of every cache file of `kind`;
+///  a file in another layout, or of another kind, is ignored.
+fn file_tag(kind: &str) -> String {
+    return format!("cli-git {kind} cache 1\n");
+}
 
 /// The most `git version` bytes the cache keeps;
 ///  a longer answer is not cached.
@@ -162,14 +167,14 @@ pub fn cache_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(directory, `git-version-${hash(identity.path)}`)
+/// join(directory, `${kind}-${hash(identity.path)}`)
 /// ```
-fn cache_file(directory: &Path, identity: &BinaryIdentity) -> PathBuf {
+fn cache_file(directory: &Path, identity: &BinaryIdentity, kind: &str) -> PathBuf {
     // The hashing traits give `.hash` and `.finish`.
     use std::hash::{Hash, Hasher};
     let mut hasher: std::collections::hash_map::DefaultHasher = std::collections::hash_map::DefaultHasher::new();
     identity.path.hash(&mut hasher);
-    return directory.join(format!("git-version-{:016x}", hasher.finish()));
+    return directory.join(format!("{kind}-{:016x}", hasher.finish()));
 }
 
 /// What:
@@ -222,12 +227,29 @@ fn is_private_file_of_this_user(path: &Path) -> bool {
 /// const file = await readFile(cacheFile(dir, identity)); return file.startsWith(TAG + identity.text + '\n') ? file.slice(...) : undefined;
 /// ```
 pub fn read_version_text(directory: &Path, identity: &BinaryIdentity) -> Option<Vec<u8>> {
-    let path: PathBuf = cache_file(directory, identity);
+    return read_cached_text(directory, identity, VERSION_KIND);
+}
+
+/// What:
+///  The text of `kind` recorded for exactly this identity,
+///  or `None` for a missing,
+///  foreign,
+///  unreadable or stale entry.
+/// Why:
+///   Every fact that is a property of the executable's bytes (its version, its compiled-in configuration path)
+///  shares the identity check and the private-file check; only the file name and tag differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = await readFile(cacheFile(dir, identity, kind)); return file.startsWith(tag(kind) + identity.text + '\n') ? file.slice(...) : undefined;
+/// ```
+pub fn read_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str) -> Option<Vec<u8>> {
+    let path: PathBuf = cache_file(directory, identity, kind);
     if !is_private_file_of_this_user(path.as_path()) {
         return None;
     }
     let bytes: Vec<u8> = super::private_storage::read_regular_file(path.as_path(), 4096).ok()?;
-    let rest: &[u8] = bytes.strip_prefix(FILE_TAG.as_bytes())?;
+    let rest: &[u8] = bytes.strip_prefix(file_tag(kind).as_bytes())?;
     let rest_after_identity: &[u8] = rest.strip_prefix(identity.text.as_bytes())?;
     let text: &[u8] = rest_after_identity.strip_prefix(b"\n")?;
     return Some(text.to_vec());
@@ -248,6 +270,11 @@ pub fn read_version_text(directory: &Path, identity: &BinaryIdentity) -> Option<
 /// await mkdir(dir, { recursive: true, mode: 0o700 }); await writeFile(tmp, bytes, { mode: 0o600 }); await rename(tmp, file);
 /// ```
 pub fn store_version_text(directory: &Path, identity: &BinaryIdentity, text: &[u8]) {
+    store_cached_text(directory, identity, VERSION_KIND, text);
+}
+
+/// Record `text` of `kind` for this identity, replacing any earlier entry; see `store_version_text`.
+pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str, text: &[u8]) {
     if text.len() > TEXT_LIMIT {
         return;
     }
@@ -271,8 +298,9 @@ pub fn store_version_text(directory: &Path, identity: &BinaryIdentity, text: &[u
         }
     };
     let temporary: PathBuf = directory.join(format!(".tmp-{unique}"));
-    let mut bytes: Vec<u8> = Vec::with_capacity(FILE_TAG.len() + identity.text.len() + 1 + text.len());
-    bytes.extend_from_slice(FILE_TAG.as_bytes());
+    let tag: String = file_tag(kind);
+    let mut bytes: Vec<u8> = Vec::with_capacity(tag.len() + identity.text.len() + 1 + text.len());
+    bytes.extend_from_slice(tag.as_bytes());
     bytes.extend_from_slice(identity.text.as_bytes());
     bytes.push(b'\n');
     bytes.extend_from_slice(text);
@@ -280,7 +308,7 @@ pub fn store_version_text(directory: &Path, identity: &BinaryIdentity, text: &[u
         debug(TAG, format!("could not write {}: {error}", temporary.display()).as_str());
         return;
     }
-    if let Err(error) = std::fs::rename(&temporary, cache_file(directory, identity)) {
+    if let Err(error) = std::fs::rename(&temporary, cache_file(directory, identity, kind)) {
         debug(TAG, format!("could not publish the cache file: {error}").as_str());
         if let Err(removal) = std::fs::remove_file(&temporary) {
             debug(TAG, format!("could not remove {}: {removal}", temporary.display()).as_str());

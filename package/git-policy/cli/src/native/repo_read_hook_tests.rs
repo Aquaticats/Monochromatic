@@ -100,3 +100,11 @@ fn a_request_reads_its_private_index() {
     assert_eq!(starts(count.as_path()), 0);
     remove(root.as_path());
 }
+
+/// A reader that panics is answered by Git instead: the guard returns nothing, and a quiet reader passes through.
+#[test]
+fn a_panicking_reader_is_left_to_git() {
+    assert_eq!(guarded(|| -> Option<u8> { panic!("a reader defect") }), None);
+    assert_eq!(guarded(|| { return Some(7u8); }), Some(7u8));
+    assert_eq!(guarded(|| -> Option<u8> { return None; }), None);
+}

@@ -1108,11 +1108,17 @@ pub mod worktree_copy;
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
 
+/// The system configuration file a real Git executable reads, learned once per executable identity.
+pub mod git_system_config;
+
 /// In-process repository reads: the plain-text configuration reader that gives up on any spelling it cannot prove.
 pub mod repo_read_config_text;
 
 /// In-process repository reads: proof that no configuration scope sets `core.bare` or `core.worktree`.
 pub mod repo_read_config_scan;
+
+/// In-process repository reads: proof that every configuration value Git types at startup is one Git accepts silently.
+pub mod repo_read_config_typed;
 
 /// In-process repository reads: the location, Git paths and object format found from the file system.
 pub mod repo_read_layout;
