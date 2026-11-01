@@ -2578,6 +2578,28 @@ Wave-4 eighty-fifth checkpoint (2026-11-01, six returns, six fresh slices):
   3 001 rr-mda-005 (201 to 300). All six use absolute ledger paths, private
   append scripts and the 100-file cap.
 
+Wave-4 eighty-sixth checkpoint (2026-11-01, android app complete, six fresh slices):
+
+- Android slice 3 is COMPLETE: rows 014 to 020 close all 72 test paths; ledger
+  20 of 20 clean, no unread. Slice 4 is COMPLETE: rows 001 to 014 cover 52 of 54
+  paths, naming the wrapper jar and Cargo.lock; ledger 14 of 14 clean. The whole
+  android-app package is now complete across slices 1 to 4 (354 files; ledgers
+  at 26, 28, 20 and 14 rows).
+- Desktop slices 2 and 3 are COMPLETE: 12 and 22 rows, 100 of 100 paths each,
+  clean. Slice 4 covers the last 62 paths, id 001, base rr-mda-006.
+- Planning slice 10 added rows 085 to 088 over positions 399 to 418; ledger 88
+  of 88 clean, next id 089, positions 419 to 438, base rr-dp-012.
+- Troubleshooting added rows 182 to 189 over worklist lines 344 to 348; ledger
+  188 of 188 clean, next id 190 at `mpm-toolchain-migration.md`, base rr-ts-391.
+- Three rows were repaired: w2 186/187 cited untracked clone/scratch lines as
+  evidence, so those lines were removed and the external controls remain in
+  `ran`; desktop-3-001 quoted summary lines, so the quotes now use the live
+  enum/struct lines.
+- Live lanes: planning 089 rr-dp-012; troubleshooting 190 rr-ts-391; desktop
+  slice 4 001 rr-mda-006; ide/app non-design slices 1 and 2 at 001 rr-ida-001
+  and rr-ida-002 (548 non-design paths, 586 design paths already reviewed);
+  terminal/app at 001 rr-ta-001 (30 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
