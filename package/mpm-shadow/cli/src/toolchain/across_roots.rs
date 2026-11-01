@@ -23,7 +23,9 @@
 /// Imports `Ordering` from `std::cmp`.
 use std::cmp::Ordering;
 /// Imports `PathBuf` from `std::path`.
-use std::path::PathBuf;
+use std::fs;
+/// Imports what this module uses from `std::path`.
+use std::path::{Path, PathBuf};
 
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
@@ -89,4 +91,25 @@ pub fn winning_version(scope: &Scope, tool: &LockedTool) -> Option<String> {
         Some(winner) => Some(winner.version),
         None => None,
     };
+}
+
+/// What:
+/// Whether the other toolchain root's `current` link of a tool resolves into `directory`,
+/// a version directory of this root:
+/// the other root forwards to it (see `managed_losers.rs`),
+/// so deleting it would leave that root's launchers and links dangling.
+/// Why:
+/// `prune --toolchain` reads only this scope's locks;
+/// the other scope's lock may be the one that needs the version,
+/// and the forward is the evidence that the other scope runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function otherRootForwardsTo(otherCurrent: string, directory: string): boolean
+/// ```
+pub fn other_root_forwards_to(other_current: &Path, directory: &Path) -> bool {
+    let (Ok(resolved), Ok(target)) = (fs::canonicalize(other_current), fs::canonicalize(directory)) else {
+        return false;
+    };
+    return resolved.starts_with(target);
 }

@@ -138,8 +138,14 @@ pub mod old_copy_apply;
 /// and the scan for links to one file.
 pub mod old_copy_places;
 
+/// The removal of an old copy in the cargo bin directory and of an older managed version.
+pub mod old_copy_remove;
+
 /// The older managed copies of this repository's tools in the root that does not hold the newest copy.
 pub mod managed_losers;
+
+/// The worktrees of the repository and the lock file of each.
+pub mod worktrees;
 
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;

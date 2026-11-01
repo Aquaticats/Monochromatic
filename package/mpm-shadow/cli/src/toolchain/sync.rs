@@ -26,6 +26,8 @@
 /// from `std::collections`.
 use std::collections::BTreeSet;
 
+/// Imports `winning_root` from `super::across_roots`.
+use super::across_roots::winning_root;
 /// Imports what this module uses from `super::agree`.
 use super::agree::{Disagreement, compare, refusal};
 /// Imports what this module uses from `super::cargo_installs`.
@@ -212,8 +214,10 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             None => false,
         };
         if current {
+            // The root that holds the winning copy: a `current` left stale there (a run killed between the completion marker
+            // and the link) would make every scope link an older copy.
             if is_repository_published(tool)
-                && let Err(error) = point_current_at_newest_of(&ctx.scope.toolchain_root, tool)
+                && let Err(error) = point_current_at_newest_of(&winning_root(ctx.scope, tool), tool)
             {
                 report.failed.push((tool.declaration.id.clone(), error.message));
             }

@@ -42,6 +42,8 @@ use super::layout::{applies_to_family, find_bin_under, find_tool_bin, tool_insta
 use super::model::LockedTool;
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
+/// Imports `find_tool` from `super::util`.
+use super::util::find_tool;
 /// Imports `Repoint` from `super::old_copies`.
 use super::old_copies::Repoint;
 /// Imports what this module uses from `super::old_copy_places`.
@@ -83,7 +85,8 @@ pub struct LoserPlan {
     /// or `None` when they are removed once the links moved.
     pub kept: Option<String>,
     /// The `current` link of the root and the winner's `current` link it will forward to,
-    /// when removing the older copies leaves the root with no finished version of the tool.
+    /// used when removing the older copies leaves the root with no finished version of the tool
+    /// (`emptied_by` asks again when the plan is applied).
     pub forward: Option<(PathBuf, PathBuf)>,
     /// Whether the tool is a release archive (its downloads go with its versions).
     pub archive: bool,
@@ -201,9 +204,8 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
         reasons.push(format!("{} could not be listed, so links in it are unseen", directory.display()));
     }
     let kept: Option<String> = if reasons.is_empty() { None } else { Some(reasons.join("; ")) };
-    let emptied: bool = finished_versions_of(&root, tool).len() == copies.len();
     let forward: Option<(PathBuf, PathBuf)> = match (current_in(&root, tool), current_in(&winner.root, tool)) {
-        (Some(link), Some(target)) if emptied => Some((link, target)),
+        (Some(link), Some(target)) => Some((link, target)),
         _ => None,
     };
     return LoserPlan {
@@ -222,6 +224,36 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
 /// Orders two re-points by the link they move.
 fn compare_repoints(left: &Repoint, right: &Repoint) -> Ordering {
     return left.link.cmp(&right.link);
+}
+
+/// What:
+/// Whether removing the planned versions leaves the plan's root with no finished version of the tool,
+/// asked again when the plan is applied.
+/// Why:
+/// Another tree can install a newer version into the root between the plan and its application;
+/// that root then owns its `current`,
+/// and a forward would overwrite it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function emptiedBy(ctx: Context, plan: LoserPlan): boolean
+/// ```
+pub fn emptied_by(ctx: &Context, plan: &LoserPlan) -> bool {
+    let Some(tool) = find_tool(ctx.tools, &plan.tool_id) else {
+        return false;
+    };
+    for version in finished_versions_of(&plan.root, tool) {
+        let mut planned: bool = false;
+        for copy in &plan.copies {
+            if copy.version == version {
+                planned = true;
+            }
+        }
+        if !planned {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:

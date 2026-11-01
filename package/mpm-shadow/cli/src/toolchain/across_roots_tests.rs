@@ -340,6 +340,9 @@ fn a_newer_lock_removes_the_other_roots_older_copy_after_moving_its_links_and_th
     assert!(record.real.is_file(), "a launcher record that names the emptied root's current still runs the winner");
     assert!(report.old_copies.iter().any(|line| return line.starts_with("removed ") && line.contains("older managed copy")), "{:?}", report.old_copies);
     assert!(report.old_copies.iter().any(|line| return line.contains("now forwards to")), "{:?}", report.old_copies);
+    let forwarded_at = report.old_copies.iter().position(|line| return line.contains("now forwards to")).expect("a forward line");
+    let removed_at = report.old_copies.iter().position(|line| return line.starts_with("removed ")).expect("a removal line");
+    assert!(forwarded_at < removed_at, "the forward comes before the removal, so no launcher sees a dangling window: {:?}", report.old_copies);
 
     let again = duo.install_repository();
     assert!(again.old_copies.is_empty() && again.warnings.is_empty() && again.failed.is_empty(), "a second run finds nothing: {again:?}");
@@ -393,6 +396,84 @@ fn prune_leaves_a_crate_directory_that_only_forwards_to_the_other_root() {
     duo.rig.runner.answer("git -C", &format!("worktree {}\nHEAD 0000\n\n", duo.rig.scope.root.display()), 0);
     prune_toolchain(&duo.rig.scope, &duo.rig.runner, &[], false).expect("pruned");
     assert!(fs::symlink_metadata(&forward).is_ok(), "nothing was pruned from the crate directory, so the forwarding link stays");
+}
+
+#[test]
+fn a_newer_version_another_tree_installed_into_the_emptied_root_after_the_plan_is_not_overwritten_by_the_forward() {
+    let duo = Duo::new();
+    let lock = duo.lock_repository("0.4.5");
+    duo.install_under(&duo.repository_root(), "0.4.5");
+    duo.install_under(&duo.global_root(), "0.4.4");
+    duo.list_own_worktree();
+    let plans = plan_old_copies(&duo.context(&duo.rig.scope, &lock), &[]);
+    assert_eq!(plans.losers[0].kept, None, "{plans:?}");
+    // Between the plan and its application the global scope installs a version newer than the winner.
+    duo.install_under(&duo.global_root(), "0.4.6");
+    let outcome = apply_old_copies(&duo.context(&duo.rig.scope, &lock), &plans);
+    assert!(outcome.failed.is_empty(), "{outcome:?}");
+    assert!(!version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").exists(), "the older version still goes");
+    assert_eq!(
+        fs::read_link(current_link(&duo.global_root(), GIT_CRATE)).expect("a link"),
+        PathBuf::from("0.4.6"),
+        "the root's own current is not overwritten by a forward to the old winner"
+    );
+    assert!(!outcome.lines.iter().any(|line| return line.contains("now forwards to")), "{outcome:?}");
+}
+
+#[test]
+fn a_version_directory_another_run_removed_first_is_done_and_not_a_failure() {
+    let duo = Duo::new();
+    let lock = duo.lock_repository("0.4.5");
+    duo.install_under(&duo.repository_root(), "0.4.5");
+    duo.install_under(&duo.global_root(), "0.4.4");
+    duo.list_own_worktree();
+    let plans = plan_old_copies(&duo.context(&duo.rig.scope, &lock), &[]);
+    fs::remove_dir_all(version_directory(&duo.global_root(), GIT_CRATE, "0.4.4")).expect("the other run removes it");
+    let outcome = apply_old_copies(&duo.context(&duo.rig.scope, &lock), &plans);
+    assert!(outcome.failed.is_empty(), "{outcome:?}");
+}
+
+#[test]
+fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_the_copy() {
+    let duo = Duo::new();
+    duo.lock_repository("0.4.4");
+    duo.install_under(&duo.global_root(), "0.4.5");
+    // A run killed between the completion marker and the link: 0.4.5 is finished but `current` still names 0.4.4.
+    finish_install(&version_directory(&duo.global_root(), GIT_CRATE, "0.4.4"), GIT_CRATE, "0.4.4", &[GIT_BIN]);
+    fs::remove_file(current_link(&duo.global_root(), GIT_CRATE)).expect("drop the right link");
+    symlink("0.4.4", current_link(&duo.global_root(), GIT_CRATE)).expect("leave the stale link");
+    duo.list_own_worktree();
+    let report = duo.install_repository();
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert_eq!(
+        fs::read_link(current_link(&duo.global_root(), GIT_CRATE)).expect("a link"),
+        PathBuf::from("0.4.5"),
+        "the repository scope's install repaired the winning root's current"
+    );
+    let launcher = fs::read_link(duo.rig.scope.exposure_dir.join(GIT_BIN)).expect("a link");
+    let resolved = fs::canonicalize(launcher_record(&launcher).real).expect("the launcher's program resolves");
+    assert!(resolved.ends_with(Path::new("0.4.5").join("bin").join(GIT_BIN)), "the newest copy runs: {}", resolved.display());
+}
+
+#[test]
+fn prune_never_removes_a_version_the_other_root_forwards_to() {
+    let forwarded = Duo::new();
+    fs::write(&forwarded.rig.scope.lock_file, "{\"schemaVersion\":1,\"tools\":{}}").expect("a lock that names nothing");
+    forwarded.install_under(&forwarded.repository_root(), "0.4.5");
+    fs::create_dir_all(forwarded.global_root().join("cargo").join(GIT_CRATE)).expect("make the global crate directory");
+    symlink(current_link(&forwarded.repository_root(), GIT_CRATE), current_link(&forwarded.global_root(), GIT_CRATE)).expect("forward");
+    forwarded.list_own_worktree();
+    prune_toolchain(&forwarded.rig.scope, &forwarded.rig.runner, &[], false).expect("pruned");
+    assert!(version_directory(&forwarded.repository_root(), GIT_CRATE, "0.4.5").exists(), "the global root runs it through its forward");
+    assert!(fs::metadata(forwarded.copy_in(&forwarded.global_root())).is_ok(), "and still reaches it");
+
+    // Rejected fixture: with no forward the same prune removes the version no lock names.
+    let alone = Duo::new();
+    fs::write(&alone.rig.scope.lock_file, "{\"schemaVersion\":1,\"tools\":{}}").expect("a lock that names nothing");
+    alone.install_under(&alone.repository_root(), "0.4.5");
+    alone.list_own_worktree();
+    prune_toolchain(&alone.rig.scope, &alone.rig.runner, &[], false).expect("pruned");
+    assert!(!version_directory(&alone.repository_root(), GIT_CRATE, "0.4.5").exists());
 }
 
 #[test]

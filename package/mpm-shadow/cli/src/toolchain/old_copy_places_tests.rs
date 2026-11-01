@@ -125,7 +125,8 @@ fn the_places_of_a_repository_run_are_local_bin_the_global_farm_and_every_checko
         assert!(kinds.contains(&(PlaceKind::Checkout, checkout.join(".cache").join("cli-git-bin"))), "{kinds:?}");
         assert!(kinds.contains(&(PlaceKind::Checkout, checkout.join(".cache").join("toolchain-bin"))), "{kinds:?}");
     }
-    assert_eq!(kinds.len(), 6, "no launchers directory and no plain file: {kinds:?}");
+    assert!(kinds.contains(&(PlaceKind::CargoBin, rig.scope.home.join(".cargo").join("bin"))), "the directory the copies sit in: {kinds:?}");
+    assert_eq!(kinds.len(), 7, "no launchers directory and no plain file: {kinds:?}");
     assert_eq!(rig.runner.lines().len(), 1, "git was asked once");
 }
 

@@ -16,6 +16,7 @@ use super::cargo_installs::{current_link, point_current_at_newest, version_direc
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::fakes_cargo::{fake_binstall, fake_uninstall, finish_install};
+use super::runner::RunRequest;
 use super::lock::{Lock, render_lock};
 use super::model::LockedTool;
 use super::old_copies::plan_old_copies;
@@ -441,7 +442,7 @@ fn the_git_wrapper_is_replaced_end_to_end_links_first_and_the_copy_and_its_recor
     assert!(text.contains(&format!("toolchain install: re-pointed {} -> {}", scene.local_git().display(), managed.display())), "{text}");
     assert_eq!(scene.uninstalls(), 1);
     assert!(
-        scene.rig.runner.lines().contains(&format!("cargo uninstall --root {} --bin {GIT_BIN} {GIT_CRATE}", scene.cargo_home().display())),
+        scene.rig.runner.lines().contains(&format!("cargo uninstall --root {} --bin {GIT_BIN} -- {GIT_CRATE}", scene.cargo_home().display())),
         "{:?}",
         scene.rig.runner.lines()
     );
@@ -517,6 +518,87 @@ fn the_old_copy_of_a_release_archive_tool_is_retired_the_same_way_with_or_withou
         let uninstalls = rig.runner.lines().iter().filter(|line| return line.starts_with("cargo uninstall")).count();
         assert_eq!(uninstalls, usize::from(recorded), "cargo is asked only when its record names the bin");
     }
+}
+
+#[test]
+fn a_sibling_link_in_the_cargo_bin_directory_is_re_pointed_so_nothing_dangles() {
+    let scene = Scene::new();
+    scene.write_old_copy();
+    let managed = scene.install_managed("0.4.5");
+    let bin = scene.cargo_home().join("bin");
+    // The probe the review ran: `~/.cargo/bin/git` is a relative link to its sibling, the copy.
+    symlink(GIT_BIN, bin.join("git")).expect("make the sibling link");
+    make_link(&scene.local_git(), &scene.old_copy());
+    // Rejected fixtures: rustup's proxies and a link to another program in the same directory.
+    write_executable(&bin.join("rustup"));
+    symlink("rustup", bin.join("cargo")).expect("make a proxy link");
+    write_executable(&scene.home().join("elsewhere").join("tool"));
+    make_link(&bin.join("other"), &scene.home().join("elsewhere").join("tool"));
+    scene.list_worktrees(&[&scene.rig.scope.root]);
+
+    let outcome = retire_old_copies(&scene.context(), &[]);
+    assert!(outcome.failed.is_empty() && outcome.warnings.is_empty(), "{outcome:?}");
+    assert!(fs::symlink_metadata(scene.old_copy()).is_err(), "the copy is gone");
+    assert_eq!(fs::read_link(bin.join("git")).expect("still a link"), managed, "the sibling link follows the copy to the managed one");
+    assert!(fs::metadata(bin.join("git")).is_ok(), "and does not dangle");
+    assert_eq!(fs::read_link(bin.join("cargo")).expect("a link"), PathBuf::from("rustup"), "rustup's proxy is untouched");
+    assert_eq!(fs::read_link(bin.join("other")).expect("a link"), scene.home().join("elsewhere").join("tool"), "a link to another program is untouched");
+}
+
+#[test]
+fn a_record_rewritten_to_a_hostile_crate_name_after_the_plan_never_reaches_cargo() {
+    let scene = Scene::new();
+    scene.cargo_uninstalls();
+    scene.write_old_copy();
+    scene.write_record("0.4.5");
+    scene.install_managed("0.4.5");
+    scene.list_worktrees(&[&scene.rig.scope.root]);
+    let plans = plan_old_copies(&scene.context(), &[]);
+    assert_eq!(plans.plans[0].kept, None, "{plans:?}");
+    // The file is not ours: between the plan and the removal it names the bin under a crate that looks like an option.
+    fs::write(
+        scene.cargo_home().join(".crates.toml"),
+        "[v1]\n\"--root=/somewhere 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)\" = [\"cli-git-native\"]\n",
+    )
+    .expect("rewrite the record");
+    let outcome = apply_old_copies(&scene.context(), &plans);
+    assert_eq!(scene.uninstalls(), 0, "cargo was never asked: {:?}", scene.rig.runner.lines());
+    assert!(scene.old_copy().exists(), "the copy stays");
+    assert_eq!(outcome.failed.len(), 1, "{outcome:?}");
+    assert!(outcome.failed[0].1.contains("does not publish"), "{outcome:?}");
+}
+
+#[test]
+fn a_copy_another_run_removed_first_is_done_and_not_a_failure() {
+    // Without a record: the file is gone between the plan and the removal.
+    let scene = Scene::new();
+    scene.write_old_copy();
+    scene.install_managed("0.4.5");
+    scene.list_worktrees(&[&scene.rig.scope.root]);
+    let plans = plan_old_copies(&scene.context(), &[]);
+    fs::remove_file(scene.old_copy()).expect("the other run removes it");
+    let outcome = apply_old_copies(&scene.context(), &plans);
+    assert!(outcome.failed.is_empty() && outcome.warnings.is_empty(), "{outcome:?}");
+    assert!(outcome.lines[0].contains("another run had already removed the file"), "{outcome:?}");
+
+    // With a record: the other run finishes while this run's `cargo uninstall` is failing on the lock.
+    let recorded = Scene::new();
+    recorded.write_old_copy();
+    recorded.write_record("0.4.5");
+    recorded.install_managed("0.4.5");
+    recorded.list_worktrees(&[&recorded.rig.scope.root]);
+    let (copy, record) = (recorded.old_copy(), recorded.cargo_home().join(".crates.toml"));
+    recorded.rig.runner.on(
+        "cargo uninstall",
+        Box::new(move |_: &RunRequest| {
+            fs::remove_file(&copy).expect("the other run removes the copy");
+            fs::write(&record, "[v1]\n").expect("and its record");
+        }),
+    );
+    recorded.rig.runner.fail("cargo uninstall", "error: could not acquire package cache lock");
+    let finished = retire_old_copies(&recorded.context(), &[]);
+    assert!(finished.failed.is_empty(), "{finished:?}");
+    assert!(finished.lines.iter().any(|line| return line.contains("another run had already removed it and its record")), "{finished:?}");
 }
 
 #[test]

@@ -23,27 +23,20 @@
 //! export function previewLines(plans: OldCopyPlans): string[]
 //! ```
 
-/// Imports `fs` from `std`.
-use std::fs;
-/// Imports `Path` from `std::path`.
-use std::path::Path;
-
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
-/// Imports what this module uses from `super::cargo_record`.
-use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_installs};
-/// Imports `cargo_home_dir` and `is_executable` from `super::layout`.
-use super::layout::{cargo_home_dir, is_executable};
+/// Imports `is_executable` from `super::layout`.
+use super::layout::is_executable;
 /// Imports what this module uses from `super::old_copies`.
 use super::old_copies::{OldCopyPlan, OldCopyPlans, Repoint, plan_old_copies};
 /// Imports what this module uses from `super::managed_losers`.
-use super::managed_losers::LoserPlan;
+use super::managed_losers::{LoserPlan, emptied_by};
+/// Imports what this module uses from `super::old_copy_remove`.
+use super::old_copy_remove::{remove_copy, remove_version};
 /// Imports `links_to_copy` from `super::old_copy_places`.
 use super::old_copy_places::links_to_copy;
-/// Imports `remove_downloads` from `super::published_archive`.
-use super::published_archive::remove_downloads;
 
 /// What the cleanup did:
 /// the action lines,
@@ -75,46 +68,6 @@ fn kept_warning(plan: &OldCopyPlan, reason: &str) -> String {
 /// The label of a failure about one old copy.
 fn failure_label(plan: &OldCopyPlan) -> String {
     return format!("old copy {}", plan.path.display());
-}
-
-/// What:
-/// Removes the old copy:
-/// `cargo uninstall --root <cargo home> --bin <bin> <crate>` when cargo's record names the bin,
-/// then the file itself when it is still there.
-/// Returns what happened to the record,
-/// as text for the report.
-/// Why:
-/// `cargo uninstall` updates both of cargo's records and removes only the bin named,
-/// so a crate with other bins stays recorded for them.
-/// It decides from `.crates.toml` alone (measured 2026-11-01),
-/// so a bin that file does not name is removed directly.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function removeCopy(ctx: Context, plan: OldCopyPlan): string  // throws
-/// ```
-fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
-    let cargo_home: String = cargo_home_dir(ctx.env, &ctx.scope.home).to_string_lossy().to_string();
-    let installs: Vec<RecordedInstall> = read_recorded_installs(&cargo_home_dir(ctx.env, &ctx.scope.home));
-    let mut record_note: String = "cargo has no record of it".to_string();
-    if let Some(install) = install_naming_bin(&installs, &plan.bin) {
-        let request = ctx.request("cargo", &["uninstall", "--root", &cargo_home, "--bin", &plan.bin, &install.crate_name]);
-        let outcome = ctx.run(&request);
-        if !outcome.succeeded() {
-            return Err(format!(
-                "`{}` failed, so the copy stays (its links already moved); fix what cargo reports and run `mpm-shadow install` again: {}",
-                request.line(),
-                outcome.failure_text()
-            ));
-        }
-        record_note = format!("`cargo uninstall` removed it from cargo's record of {} {}", install.crate_name, install.version);
-    }
-    if fs::symlink_metadata(&plan.path).is_ok()
-        && let Err(error) = fs::remove_file(&plan.path)
-    {
-        return Err(format!("cannot remove the file: {error}"));
-    }
-    return Ok(record_note);
 }
 
 /// Re-points one link,
@@ -189,22 +142,6 @@ fn loser_kept_warning(plan: &LoserPlan, reason: &str) -> String {
     );
 }
 
-/// Removes one older version's directory
-/// (and,
-/// for a release archive,
-/// its downloads).
-fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Result<(), String> {
-    if let Err(error) = fs::remove_dir_all(directory) {
-        return Err(format!("cannot remove {}: {error}", directory.display()));
-    }
-    if plan.archive
-        && let Err(error) = remove_downloads(&plan.root, &plan.tool_id, version)
-    {
-        return Err(error.message);
-    }
-    return Ok(());
-}
-
 /// What:
 /// Applies the plan for the older managed copies of one tool in one root:
 /// moves the links that resolve to them,
@@ -217,7 +154,7 @@ fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Result<(
 /// ```ts
 /// function applyLoser(plans: OldCopyPlans, plan: LoserPlan, outcome: OldCopyOutcome): void
 /// ```
-fn apply_loser(plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
+fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
     for link in &plan.repoints {
         repoint(&loser_label(plan), link, outcome);
     }
@@ -234,6 +171,17 @@ fn apply_loser(plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutc
             }
         }
     }
+    // The forward comes first, so no launcher or link that names this root's `current` ever sees it dangle,
+    // and only while every finished version left in the root is one that goes: a newer version another tree just
+    // installed here owns its `current`.
+    if let Some((link, target)) = &plan.forward
+        && emptied_by(ctx, plan)
+    {
+        match atomic_symlink(link, target) {
+            Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
+            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
+        }
+    }
     for copy in &plan.copies {
         match remove_version(plan, &copy.directory, &copy.version) {
             Ok(()) => outcome.lines.push(format!(
@@ -244,12 +192,6 @@ fn apply_loser(plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutc
                 plan.winner_root.display()
             )),
             Err(message) => outcome.failed.push((loser_label(plan), message)),
-        }
-    }
-    if let Some((link, target)) = &plan.forward {
-        match atomic_symlink(link, target) {
-            Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
-            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
         }
     }
 }
@@ -269,7 +211,7 @@ pub fn apply_old_copies(ctx: &Context, plans: &OldCopyPlans) -> OldCopyOutcome {
         apply_plan(ctx, plans, plan, &mut outcome);
     }
     for loser in &plans.losers {
-        apply_loser(plans, loser, &mut outcome);
+        apply_loser(ctx, plans, loser, &mut outcome);
     }
     return outcome;
 }

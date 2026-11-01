@@ -2,6 +2,7 @@
 //! The places where a link to an old copy of a repository tool can be:
 //! `~/.local/bin`,
 //! the machine-global exposure directory (the global farm),
+//! the shared cargo bin directory the copies sit in (a sibling link there would dangle once the copy is gone),
 //! and the `.cache/*-bin` directories of every checkout of the repository.
 //! Also the scan that finds the links in them that resolve to one given file.
 //! Why:
@@ -28,8 +29,10 @@ use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// Imports `listed_worktrees` from `super::prune_cargo`.
-use super::prune_cargo::listed_worktrees;
+/// Imports `cargo_bin_dir` from `super::layout`.
+use super::layout::cargo_bin_dir;
+/// Imports `listed_worktrees` from `super::worktrees`.
+use super::worktrees::listed_worktrees;
 /// Imports `Runner` from `super::runner`.
 use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
@@ -53,6 +56,9 @@ pub enum PlaceKind {
     LocalBin,
     /// The machine-global exposure directory.
     GlobalFarm,
+    /// The shared cargo bin directory itself,
+    /// where a sibling link to a copy (`git` to `cli-git-native`) can sit beside the copy.
+    CargoBin,
     /// A `.cache/*-bin` directory of one checkout of the repository.
     Checkout,
 }
@@ -207,6 +213,7 @@ pub fn known_places(scope: &Scope, env: &EnvMap, runner: &dyn Runner) -> Places 
         Ok(global) => {
             places.directories.push(Place { kind: PlaceKind::LocalBin, directory: global.link_dir });
             places.directories.push(Place { kind: PlaceKind::GlobalFarm, directory: global.exposure_dir });
+            places.directories.push(Place { kind: PlaceKind::CargoBin, directory: cargo_bin_dir(env, &global.home) });
         }
         Err(error) => places.incomplete.push(error.message),
     }
