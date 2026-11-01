@@ -729,6 +729,19 @@ and the exemption of the scan's own package.
 The cases for the forms exercise them,
 and the mistake-prevention entry says so
 instead of that the scan cannot go blind.
+This list was presented as the whole of what was left,
+and it was not:
+the re-check of round w405 showed four branches that no case protected
+(the leading-flag skip of a git list,
+the guard of a glob against a base that is no chain,
+the check that a URL resolves against `import.meta.url`
+and the check that the object of `cwd()` is `process`),
+and a reading of the reader found more.
+Round w406 switched off every remaining branch,
+added the cases that were missing,
+and named the branches that cannot change what the scan reports (B1327).
+The statement above stays as written,
+since it was true of that round's work.
 
 ## B1314: the listed lock read is pinned by its expression
 
@@ -762,6 +775,13 @@ A climb held in a constant is reported at the constant,
 and what is later joined to the constant is not part of the pin;
 the listed read is written whole,
 and a rewrite of it into a constant changes the expression and so fails.
+The last sentence was false (corrected in place by round w406, B1326):
+the constant's initializer is the same expression as the listed read,
+so it matched the pin,
+and a later `join(LOCK, '..', 'package.json')` was inherited from the constant and reported nowhere,
+so the rewrite passed.
+Round w406 reports the uses of a constant that left the package when the list is applied,
+which catches it.
 
 ## B1315: the nits of the re-check
 

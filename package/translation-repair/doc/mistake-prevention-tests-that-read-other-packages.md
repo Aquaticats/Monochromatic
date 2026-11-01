@@ -71,7 +71,7 @@ and a git read whose folder is the checkout or is not named,
 naming the file,
 the line,
 the kind and the expression.
-It has 82 fixture cases that must be found and 24 controls that must pass
+It has 89 fixture cases that must be found and 33 controls that must pass
 (a folder the test made,
 a corpus clone,
 a package imported by name,
@@ -82,16 +82,29 @@ Each call,
 git command and folder option the scan holds in a list has a case of its own
 that reaches the finding through that name alone,
 and a case fails for a name added to a list with none.
+The names the cases hold are written apart from the scan's lists on purpose,
+although a test usually derives its expectations from the constant under test:
+a case derived from the list would follow the list when a name is dropped from it
+and would pass with the name gone.
 Each of 44 listed names,
 7 further detectors and 30 branches of its reader was switched off in a scratch copy,
-one at a time (ledger B1313);
-a case failed every time but twice,
-and the two branches that survived got a case that fails without them.
-What was not switched off one at a time is the arithmetic of levels,
-the loop that finds held constants and the exemptions of the scan's own package,
-which the cases for the forms exercise.
+one at a time (ledger B1313),
+and 56 more branches of the reader were switched off the same way (ledger B1327).
+A case failed every time but 20 times:
+5 of the 20 got a case that fails without the branch,
+and 15 are branches that cannot change what the scan reports
+(a test of whether a result is a chain, where the result keeps the mark anyway;
+a `continue` the next test of the loop makes redundant;
+a guard against an empty text).
+The termination guard of the loop that finds held constants was not switched off,
+since removing it never ends,
+and the output text of the line number and of the printed expression is held by the case that names them.
 Its header states what it does not read:
 a path built from text another module returns,
 a climb held in a variable,
 a git read whose arguments are built apart from its call,
-and a file read by a child process the test starts.
+a file read by a child process the test starts,
+and a working directory read through a name imported for it.
+A listed read is pinned by its expression,
+the uses of a constant that left the package are reported when the list is applied,
+and a listed read that was rewritten or reformatted says so in the finding (ledger B1326).

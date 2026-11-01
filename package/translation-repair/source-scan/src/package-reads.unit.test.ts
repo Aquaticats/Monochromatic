@@ -36,13 +36,17 @@
 
  OUT OF ITS REACH: a path built from a text another module returns, a climb written in a variable that
  holds the `..` segment, a git read whose arguments are built apart from its call and which has no `-C` argument,
- and a read of a file by a child process the test starts. Reading the package graph itself (which package
+ a read of a file by a child process the test starts, and a working directory read through a name imported for it
+ (`import { cwd } from 'node:process'`), since only `process.cwd()` is an anchor. Reading the package graph itself (which package
  imports which) is another scan's.
 
  THE FILES LISTED are reads the scan finds that belong to no package: each holds its reason, the file, the kind, the
  expression as the scan prints it and the number of findings. The expression names the file the read reaches, so a
  listed read rewritten to reach another file is a finding, and a listed read the source no longer holds as often fails
- the scan, so the list cannot outlive its reasons.
+ the scan, so the list cannot outlive its reasons. For a listed read the scan also reports every expression built from
+ a constant that already left the package (a listed climb put in a constant and joined to another name reaches another
+ file), and a listed read written another way, on several lines for one, is told to have changed its expression (ledger
+ B1326).
 
  THE FIXTURE CASES COME FIRST, so the package-wide case is read against a scan shown able to find each form and to
  leave each control alone (ledger M21). Fixtures are cat-themed; the package case reads the family's own tests.
@@ -51,6 +55,17 @@
  option) HAS A CASE OF ITS OWN, written apart from the list and reaching the finding by that name alone, so dropping a
  name fails its case; a case fails for a name added to a list with none (ledger B1313). The `-c` skip, the `.pathname`
  and `.href` members, the CommonJS file name, `export * from` and the two other ways a call can name git have cases too.
+
+ THE LISTS OF NAMES IN THIS TEST (`READ_CASE_NAMES` and the four after it) REPEAT THE SCAN'S LISTS ON PURPOSE, which
+ reads against the rule that a test derives its expectations from the constant under test (AGENTS MGN). Here the
+ independence is the point: a case derived from the scan's own list would follow the list when a name is dropped from
+ it and would pass with the name gone, and the scan's detectors exist to find reads, so a name leaving the list must
+ leave a case unfound. The case that compares the two lists fails for a name added on either side (ledger B1329).
+
+ EVERY BRANCH OF THE READER WAS SWITCHED OFF IN A SCRATCH COPY, one at a time, and a case fails for each branch but the
+ ones that cannot change what the scan reports (a test on whether a chain is one where the result keeps that mark
+ anyway, a `continue` the next test of the loop makes redundant, a guard against an empty text); the ledger entry
+ B1327 names them.
 
  @module
  */
@@ -1186,7 +1201,12 @@ function loadedSpecifier({ node, }: { readonly node: TreeNode; }): string {
 
  @param file - file read
 
- @returns One read per expression, a constant's chain at the constant and not at each place the constant is read
+ @param reportsHeldUses - whether an expression built from a constant that already left the package is reported where
+ it is read too, which a listed read needs: the constant is listed, and a join of it to another name reaches another
+ file that the listing must not cover
+
+ @returns One read per expression, a constant's chain at the constant and not at each place the constant is read,
+ unless the uses are asked for
 
  @throws {@link Error} when the file does not parse
 
@@ -1195,7 +1215,9 @@ function loadedSpecifier({ node, }: { readonly node: TreeNode; }): string {
  const reads = packageReadsOf({ file, },);
  ```
  */
-function packageReadsOf({ file, }: { readonly file: SourceText; }): readonly PackageRead[] {
+function packageReadsOf(
+  { file, reportsHeldUses = false, }: { readonly file: SourceText; readonly reportsHeldUses?: boolean; },
+): readonly PackageRead[] {
   if ((!file.isTest) || (packageDirectoryOf({ path: file.path, },) === SCAN_PACKAGE))
     return [];
   /**
@@ -1285,7 +1307,7 @@ function packageReadsOf({ file, }: { readonly file: SourceText; }): readonly Pac
         depth,
         held,
       },).isChain;
-      if (reach.isChain && (!insideChain) && (reach.lowest < 0) && (!reach.inherited))
+      if (reach.isChain && (!insideChain) && (reach.lowest < 0) && (reportsHeldUses || (!reach.inherited)))
         note(
           node,
           'climb',
@@ -1410,6 +1432,46 @@ const BOUNDARY_READS: readonly BoundaryRead[] = [
 ];
 
 /**
+ What a read says when its file lists a read of the same kind that the file no longer holds as listed, so a reformatted
+ or rewritten listed read does not read as a read from nowhere.
+
+ @param read - read found and not covered by a listing
+
+ @param listed - reads of files that belong to no package
+
+ @param heldAsListed - for each listed read, how often the files hold it exactly as listed
+
+ @returns Empty text, or a note naming the expression the file lists
+
+ @example
+ ```ts
+ const note = rewrittenNoteFor({ read, listed: BOUNDARY_READS, heldAsListed: [0,], },);
+ ```
+ */
+function rewrittenNoteFor(
+  {
+    read,
+    listed,
+    heldAsListed,
+  }: {
+    readonly read: PackageRead;
+    readonly listed: readonly BoundaryRead[];
+    readonly heldAsListed: readonly number[];
+  },
+): string {
+  /**
+   The listed read of this file and kind that no read matches as listed.
+   */
+  const lost = listed.find(function isLost({ path, kind, }, index,): boolean {
+    return (path === read.path) && (kind === read.kind) && (heldAsListed[index] === 0);
+  },);
+  if (lost === undefined)
+    return '';
+  return ` (this file lists a ${lost.kind} read written as: ${lost.shown}; if this is that read rewritten, its `
+    + 'expression changed and the list wants the owner\'s word on the new one)';
+}
+
+/**
  The reads that stand once the listed ones are taken out.
 
  @param files - files read
@@ -1428,7 +1490,18 @@ function unlistedReads({ files, listed, }: { readonly files: readonly SourceText
    The reads found.
    */
   const reads = files.flatMap(function readsOf(file,): readonly PackageRead[] {
-    return packageReadsOf({ file, },);
+    return packageReadsOf({
+      file,
+      reportsHeldUses: true,
+    },);
+  },);
+  /**
+   How often each listed read is held exactly as listed.
+   */
+  const heldAsListed = listed.map(function heldOf({ path, kind, shown, },): number {
+    return reads.filter(function isListed(read,): boolean {
+      return (read.path === path) && (read.kind === kind) && (read.shown === shown);
+    },).length;
   },);
   /**
    A line for each listed read held more or fewer times than listed.
@@ -1450,7 +1523,13 @@ function unlistedReads({ files, listed, }: { readonly files: readonly SourceText
         },);
       },)
       .map(function lineText(read,): string {
-        return readLine({ read, },);
+        return `${readLine({ read, },)}${
+          rewrittenNoteFor({
+            read,
+            listed,
+            heldAsListed,
+          },)
+        }`;
       },),
     ...miscounted,
   ];
@@ -1883,6 +1962,54 @@ const OFFENDER_CASES: readonly ReadCase[] = [
     text: 'export const dogs = async () => await spawn(gitBinary(), [\'log\', \'HEAD\',],);\n',
     kinds: ['git-cwd',],
   },
+  {
+    label: 'a git read after a leading flag that is no -C and no -c',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await spawn(\'git\', [\'--no-pager\', \'log\', \'HEAD\',],);\n',
+    kinds: ['git-cwd',],
+  },
+  {
+    label: 'a join that climbs after a segment that stays where it is',
+    path: SHALLOW,
+    text: 'export const dogs = join(import.meta.dirname, \'.\', \'..\', \'..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a resolve whose climbs are separated by an empty segment',
+    path: SHALLOW,
+    text: 'export const dogs = resolve(import.meta.dirname, \'..//..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a glob with options that name no folder, read from the working directory',
+    path: SHALLOW,
+    text: 'export const dogs = glob(\'../*/src/**/*.ts\', { dot: true, },);\n',
+    kinds: ['glob',],
+  },
+  {
+    label: 'constants that hold the file\'s folder, declared in an order that no single pass in either direction resolves',
+    path: SHALLOW,
+    text: [
+      'const SECOND = join(FIRST, \'src\',);',
+      'const THIRD = join(SECOND, \'dog\',);',
+      'const FOURTH = join(THIRD, \'..\', \'..\', \'..\', \'..\',);',
+      'const FIRST = import.meta.dirname;',
+      'export const dogs = () => FOURTH;',
+    ].join('\n',),
+    kinds: ['climb',],
+  },
+  {
+    label: 'the file\'s folder under a type assertion, climbed',
+    path: SHALLOW,
+    text: 'export const dogs = join(import.meta.dirname as string, \'..\', \'..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a read of a join of literals that climbs, under a type assertion',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await readFile(join(\'..\', \'dog\', \'src\',) as string, \'utf8\',);\n',
+    kinds: ['literal-read',],
+  },
   ...NAMED_OFFENDER_CASES,
 ];
 
@@ -2047,6 +2174,60 @@ const CONTROL_CASES: readonly ReadCase[] = [
       'export const built = builtDirectoryOf({ packageEntry: import.meta.resolve(\'@monochromatic-dev/translation-repair-dog\',), },);',
       'export const dogs = [bark, howl, sit,];',
     ].join('\n',),
+    kinds: [],
+  },
+  {
+    label: 'a glob whose pattern climbs from a folder the test made',
+    path: SHALLOW,
+    text: 'export const dogs = glob(\'../x/*.ts\', { cwd: scratch.path, },);\n',
+    kinds: [],
+  },
+  {
+    label: 'a URL resolved against a base that is no import.meta.url',
+    path: SHALLOW,
+    text: 'export const dogs = new URL(\'../../dog/src/bark.ts\', scratchUrl,);\n',
+    kinds: [],
+  },
+  {
+    label: 'the cwd method of a value that is no process, climbed',
+    path: SHALLOW,
+    text: 'export const dogs = join(repo.cwd(), \'..\', \'dog\',);\n',
+    kinds: [],
+  },
+  {
+    label: 'a member named dirname of a value that is no import.meta, climbed',
+    path: SHALLOW,
+    text: 'export const dogs = join(paths.dirname, \'..\', \'..\', \'dog\',);\n',
+    kinds: [],
+  },
+  {
+    label: 'a template that starts with text before the file\'s folder',
+    path: SHALLOW,
+    text: 'export const dogs = `cache/@{import.meta.dirname}/../../../../dog`;\n',
+    kinds: [],
+  },
+  {
+    label: 'a call that names no git and is handed a list that starts with a git read command',
+    path: SHALLOW,
+    text: 'export const out = print([\'log\', \'HEAD\',],);\n',
+    kinds: [],
+  },
+  {
+    label: 'import.meta.resolve of a specifier that is a package name',
+    path: SHALLOW,
+    text: 'export const dogs = join(import.meta.resolve(\'dog-package\',), \'..\', \'..\', \'..\',);\n',
+    kinds: [],
+  },
+  {
+    label: 'a path of literals whose variable segment is climbed back out of and no further',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await readFile(join(\'dog\', name, \'..\', \'..\', \'bark.ts\',), \'utf8\',);\n',
+    kinds: [],
+  },
+  {
+    label: 'a git command that writes, given a -C argument that is the working directory',
+    path: SHALLOW,
+    text: 'export const init = async () => await spawn(\'git\', [\'-C\', process.cwd(), \'init\',],);\n',
     kinds: [],
   },
   {
@@ -2281,6 +2462,35 @@ await describe({
           text: 'export const lock = join(import.meta.dirname, \'..\', \'..\', \'package.json\',);\n',
         };
         /**
+         The same file after the listed climb was put in a constant and another file of the repository root was read
+         from it: the constant's initializer is the listed expression and the later join is a different read.
+         */
+        const heldThenJoined: SourceText = {
+          ...holding,
+          text: [
+            'const LOCK = join(import.meta.dirname, \'..\', \'..\', \'toolchain.lock.json\',);',
+            'export const lock = async () => await readFile(LOCK, \'utf8\',);',
+            'export const other = async () => await readFile(join(LOCK, \'..\', \'package.json\',), \'utf8\',);',
+          ].join('\n',),
+        };
+        /**
+         The same file with the constant read whole, as the listed read is.
+         */
+        const heldAndRead: SourceText = {
+          ...holding,
+          text: [
+            'const LOCK = join(import.meta.dirname, \'..\', \'..\', \'toolchain.lock.json\',);',
+            'export const lock = async () => await readFile(LOCK, \'utf8\',);',
+          ].join('\n',),
+        };
+        /**
+         The same file after the listed call was written on several lines, as a formatter may write it.
+         */
+        const reformatted: SourceText = {
+          ...holding,
+          text: 'export const lock = join(\n  import.meta.dirname,\n  \'..\',\n  \'..\',\n  \'toolchain.lock.json\',\n);\n',
+        };
+        /**
          The entry that covers it.
          */
         const entry: BoundaryRead = {
@@ -2290,6 +2500,12 @@ await describe({
           count: 1,
           reason: 'the lock belongs to no package',
         };
+        /**
+         The line a listed read held 0 times gets beside a read of the same file and kind written another way.
+         */
+        const rewrittenNote = ' (this file lists a climb read written as: join(import.meta.dirname, \'..\', \'..\', '
+          + '\'toolchain.lock.json\',); if this is that read rewritten, its expression changed and the list wants the '
+          + 'owner\'s word on the new one)';
 
         expectFindingsAsListed({
           findings: [
@@ -2298,12 +2514,18 @@ await describe({
             ...unlistedReads({ files: [holding,], listed: [], },),
             ...unlistedReads({ files: [holding,], listed: [{ ...entry, count: 2, },], },),
             ...unlistedReads({ files: [rewritten,], listed: [entry,], },),
+            ...unlistedReads({ files: [heldThenJoined,], listed: [entry,], },),
+            ...unlistedReads({ files: [heldAndRead,], listed: [entry,], },),
+            ...unlistedReads({ files: [reformatted,], listed: [entry,], },),
           ],
           listed: [
             'cat/nap.unit.test.ts climb: listed 1 and held 0',
             'cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, \'..\', \'..\', \'toolchain.lock.json\',)',
             'cat/nap.unit.test.ts climb: listed 2 and held 1',
-            'cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, \'..\', \'..\', \'package.json\',)',
+            `cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, '..', '..', 'package.json',)${rewrittenNote}`,
+            'cat/nap.unit.test.ts climb: listed 1 and held 0',
+            'cat/nap.unit.test.ts:3 climb: join(LOCK, \'..\', \'package.json\',)',
+            `cat/nap.unit.test.ts:1 climb: join( import.meta.dirname, '..', '..', 'toolchain.lock.json', )${rewrittenNote}`,
             'cat/nap.unit.test.ts climb: listed 1 and held 0',
           ],
         },);
