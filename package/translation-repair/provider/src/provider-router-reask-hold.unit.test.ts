@@ -295,6 +295,39 @@ await describe({
     },),
 
     it({
+      name: 'KEEPS THE PROVIDER A HINTED JSON EXCHANGE EXCLUDED OUT OF ITS SCHEMA-MISMATCH RE-ASK (ledger B1410): Kimi-K3 '
+        + 'hinted off Synthetic is answered by Hyper with text that is no JSON, and the re-ask has nowhere to go, so the '
+        + 'sequence of providers reached is Hyper alone',
+      fn: async () => {
+        /**
+         Asks a JSON exchange of Kimi-K3 as an editor, hinted off the providers given, and says every provider it reached.
+
+         @param hinted - whether the request carries the hint off Synthetic
+
+         @returns Providers reached, in order
+         */
+        async function reachedByJson(hinted: boolean,): Promise<readonly ProviderName[]> {
+          const { client, reached, } = routerRecordingProviders({ read: readOlderProvidersWet, },);
+          await client.chatJson({
+            modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
+            messages: MESSAGES,
+            signal: SIGNAL,
+            validate: function acceptsNothingParsed(value: unknown,): value is never {
+              return (typeof value) === 'symbol';
+            },
+            reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
+            ...(hinted ? { otherThan: 'synthetic', } : {}),
+          },);
+          return reached;
+        }
+        // THE POSITIVE CONTROL: with no hint the exchange is routed to Synthetic and the schema-mismatch re-ask goes to
+        // Hyper, so the probe reaches the retry and can see which provider it asks.
+        expect(await reachedByJson(false,),).toEqual(['synthetic', 'hyper',],);
+        expect(await reachedByJson(true,),).toEqual(['hyper',],);
+      },
+    },),
+
+    it({
       name: 'MARKS THE REFUSAL OF A RE-ASK THAT REACHED A PROVIDER AS RAISED AFTER AN EXCHANGE (ledger B1380): Kimi-K3 '
         + 're-asked off Hyper, Synthetic the one provider left, answers 429; the call was made, so a reader that gives a '
         + 'claim back only for a refusal before any exchange keeps it, and a re-ask that found nowhere to go does not',
