@@ -12,6 +12,8 @@ import {
 import {
   createExaClient,
   createSearchFetchClient,
+  DEEPSEEK_QUERY_MAX_CODE_POINTS,
+  EXA_SEARCH_NUM_RESULTS,
   exaForwardableBlocklist,
   type GhClient,
   type GhClientFetchOptions,
@@ -168,7 +170,7 @@ await describe({
             expect(firstCall(mock,).url,).toBe(`${EXA_BASE_URL}/search`,);
             expect(requestBody.query,).toBe('docs',);
             expect(requestBody.type,).toBe('fast',);
-            expect(requestBody.numResults,).toBe(10,);
+            expect(requestBody.numResults,).toBe(EXA_SEARCH_NUM_RESULTS,);
             expect(requestBody.excludeDomains,).toEqual(['badwikipedia.invalid',],);
             expect(requestBody.startPublishedDate,).toBe('2026-01-01',);
             expect(requestBody.includeDomains,).toEqual(['example.com',],);
@@ -400,7 +402,7 @@ await describe({
             const [firstStep,] = result.fallbackChain ?? [];
 
             expect(result.provider,).toBe('exa',);
-            expect(firstStep?.reason,).toContain('128',);
+            expect(firstStep?.reason,).toContain(String(DEEPSEEK_QUERY_MAX_CODE_POINTS),);
             expect(mock.calls,).toHaveLength(1,);
             expect(firstCall(mock,).url,).toBe(`${EXA_BASE_URL}/search`,);
           },
