@@ -6,7 +6,7 @@
 //!  caller writes brings a directory back. Real Git started directly is the positive control for every marker.
 
 use super::commit::{remove_settled, run_commit, wrapped_commit};
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, repository, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of, wrapper_first_path};
 use git_policy_cli::doctor::lfs_shim_text;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -227,6 +227,8 @@ fn a_local_remotes_server_side_hook_still_runs() {
 fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
     let fixture: Fixture = fixture("hooks-off-shim-double");
     let world: World = world(&fixture, true);
+    // The repository holds no pointer, so only a scan by `git-lfs` makes the wrapper's own step run the program.
+    decline_in_process_lfs_scan(&fixture, world.repo.as_path());
     executable(world.repo.join(".git/hooks/pre-push").as_path(), lfs_shim_text("pre-push").as_bytes());
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
