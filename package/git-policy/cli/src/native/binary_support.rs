@@ -223,8 +223,8 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     }
     std::fs::create_dir(&created).expect("fresh fixture");
     let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
-    for directory in ["wrapper", "bin", "home"] {
-        std::fs::create_dir(root.join(directory)).expect("fixture directory");
+    for subdirectory in ["wrapper", "bin", "home"] {
+        std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
     }
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
