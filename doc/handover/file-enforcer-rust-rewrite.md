@@ -1462,7 +1462,12 @@ each finished branch is reviewed and merged into `main`):
   `.github/workflows/forbidden-strings.yml` downloads the release matching `Cargo.toml`,
   so no lock bump;
   the runs that failed started before the assets existed;
-  run `41307405996` (12:37) is the first after.
+  run `41307405996` (12:37) is the first after,
+  and it succeeded (`scan=success`):
+  the forbidden-strings check on `main` is green.
+  Of the three red CI workflows,
+  `forbidden-strings` and `env-local-json` are fixed;
+  `pnpr-publish` stays red by the owner's "Hold for the migration".
   The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
   queued:
   send it the result of run `41306407444`.
