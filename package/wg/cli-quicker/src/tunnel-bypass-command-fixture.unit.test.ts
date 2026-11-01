@@ -18,7 +18,7 @@ import { stageWgQuickerCli, } from './tunnel-bypass-command-fixture.ts';
  Resolver module shape loaded from the staged copy.
  */
 type ResolverModule = {
-  readonly resolveApplicationExemptionCommand: () => Promise<string>;
+  readonly resolveApplicationExemptionCommand: () => Promise<{ readonly found: true; readonly path: string; } | { readonly found: false; readonly searched: readonly string[]; }>;
 };
 
 await describe({
@@ -56,7 +56,7 @@ await describe({
          Resolver of the staged copy.
          */
         const resolver = await import(pathToFileURL(join(bundleDirectory, 'application-exemption-command.mjs',),).href,) as ResolverModule;
-        expect(await resolver.resolveApplicationExemptionCommand(),).toBe(standIn,);
+        expect(await resolver.resolveApplicationExemptionCommand(),).toEqual({ found: true, path: standIn, },);
         await staged[Symbol.asyncDispose]();
         await expect(access(staged.cliPath,),).rejects.toThrow();
       },
