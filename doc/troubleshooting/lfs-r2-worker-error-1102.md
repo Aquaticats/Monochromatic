@@ -145,8 +145,13 @@ The committed `.lfsconfig` therefore cannot shrink batches for other clones.
 [config-go]: https://github.com/git-lfs/git-lfs/blob/v3.8.1/config/config.go#L198
 [fetcher]: https://github.com/git-lfs/git-lfs/blob/v3.8.1/config/git_fetcher.go#L182-L191
 
-The links were checked against the downloaded v3.8.1 tarball's line numbers.
-They were not loaded in `agent-browser`.
+The four git-lfs links were loaded in `agent-browser` on 2026-11-01,
+ and the first and last lines of each range read as quoted
+ (`#LC75`, `#LC586`, `#LC610`, `#LC198`, `#LC182`, `#LC191`).
+The Cloudflare limits link is a heading anchor,
+ not a text fragment,
+ and was not loaded in `agent-browser`;
+ its wording was read from the page's Markdown rendering the same day.
 
 ## What was wrong first
 
@@ -252,8 +257,27 @@ The tail for the whole version (59 invocations,
 Version `1a334d2c` had 10 invocations,
  none failing,
  maximum 9 ms.
-A fresh isolate's first request read 9 ms on `1a334d2c` and 5 ms on `8028faf7` (one sample each,
- so the logger change is supported by the probe Worker measurement rather than by this pair).
+A fresh isolate's first request read 9 ms on `1a334d2c`,
+ 5 ms on `8028faf7` and 9 ms on the final version `00c0cac8` (one sample each),
+ so the live data does not show that the console-only logger shortens a cold start.
+It is kept because the probe Worker measured the default logger's first call at 2 to 4 ms,
+ and no unit test guards it,
+ because the sink choice is not observable from the Node test harness.
+
+Final version `00c0cac8-0932-41c2-a778-d0e37cf041d1` (cap of 10 download misses),
+ same probes: 100-object upload x5,
+ 200-object upload x3,
+ 25-object upload x20 back to back,
+ anonymous 100-object download x3,
+ and a real `git-lfs push --all` at batch size 100 (22 batches,
+ exit 0,
+ `100% (2169/2169)`).
+Every response was HTTP 200 and the tail held 28 invocations,
+ all `ok`:
+ 100-object invocations read 1 to 4 ms and one 10 ms,
+ 200-object invocations 3, 5 and 7 ms,
+ 25-object invocations 1 to 2 ms,
+ and the first request of the fresh isolate (1 object) 9 ms.
 
 Real `git-lfs push --all origin refs/heads/main` from the main checkout,
  which uploads nothing because the server holds everything:
