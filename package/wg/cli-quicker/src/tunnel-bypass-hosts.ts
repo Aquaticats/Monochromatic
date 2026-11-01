@@ -42,6 +42,11 @@ export type HostAddress = {
 export type HostLookupResult = {
   readonly addresses: readonly HostAddress[];
   readonly failure?: string;
+
+  /**
+   Whether the failure is that the resolver did not answer within the time limit.
+   */
+  readonly timedOut?: boolean;
 };
 
 /**

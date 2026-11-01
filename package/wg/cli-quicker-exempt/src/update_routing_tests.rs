@@ -9,7 +9,9 @@ use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
 /// The limits a scope carries.
 use crate::inherited_limits::InheritedLimits;
 /// Seam implemented by the scripted fake.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, Joined, LimitRequest};
+/// Names and layout of the scopes.
+use crate::scope_naming::{origin_scope_name, scope_cgroup_directory};
 /// Install roots of the fixture user and the match reasons.
 use crate::install_roots::install_roots;
 /// Why a process matched.
@@ -17,7 +19,7 @@ use crate::update_entry_points::MatchReason;
 /// Outcomes under test.
 use crate::update_report::Outcome;
 /// Policy under test.
-use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock, RETRY_BACKOFF_BASE, RETRY_BACKOFF_MAX};
+use crate::routing_support::{adoptable_cgroup, retry_backoff, NeverStop, StopCheck, SystemClock, RETRY_BACKOFF_BASE, RETRY_BACKOFF_MAX};
 /// Policy under test.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Shared recording between the test and the engine.
@@ -44,8 +46,8 @@ const SCOPE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/app
 /// What the fake adopter was asked to do.
 #[derive(Debug, Eq, PartialEq)]
 struct Recorded {
-    /// Text that makes the scope name unique.
-    scope_label: String,
+    /// Name of the scope of the origin.
+    scope_name: String,
     /// Pids requested.
     pids: Vec<i32>,
     /// Group id passed for the privilege drop.
@@ -60,7 +62,11 @@ struct ScriptedAdopter {
     /// Requests in order.
     requests: Rc<RefCell<Vec<Recorded>>>,
     /// Results for the next adoptions.
-    script: RefCell<VecDeque<Result<(), AdoptError>>>,
+    script: RefCell<VecDeque<Result<Joined, AdoptError>>>,
+    /// The scope and limits of each `apply_limits` call in order.
+    applied: Rc<RefCell<Vec<(String, InheritedLimits)>>>,
+    /// Results for the next `apply_limits` calls.
+    apply_script: Rc<RefCell<VecDeque<Result<(), AdoptError>>>>,
 }
 
 /// The scripted fake.
@@ -71,9 +77,15 @@ impl Adopter for ScriptedAdopter {
     }
 
     /// Records the request and answers from the script.
-    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
-        self.requests.borrow_mut().push(Recorded { scope_label: request.scope_label.to_string(), pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
-        return self.script.borrow_mut().pop_front().unwrap_or(Ok(()));
+    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
+        self.requests.borrow_mut().push(Recorded { scope_name: request.scope_name.to_string(), pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
+        return self.script.borrow_mut().pop_front().unwrap_or(Ok(Joined::Created));
+    }
+
+    /// Records the limits and answers from the script.
+    fn apply_limits(&self, request: &LimitRequest<'_>) -> Result<(), AdoptError> {
+        self.applied.borrow_mut().push((request.scope_name.to_string(), request.limits.clone()));
+        return self.apply_script.borrow_mut().pop_front().unwrap_or(Ok(()));
     }
 }
 
@@ -87,12 +99,16 @@ struct Fixture {
     cgroup_root: PathBuf,
     /// Recording of adoption requests.
     requests: Rc<RefCell<Vec<Recorded>>>,
+    /// Recording of the limits applied to live scopes.
+    applied: Rc<RefCell<Vec<(String, InheritedLimits)>>>,
+    /// Results for the next `apply_limits` calls.
+    apply_script: Rc<RefCell<VecDeque<Result<(), AdoptError>>>>,
     /// Engine under test.
     routing: UpdateRouting,
 }
 
 /// Builds a fixture whose adopter answers from `script`.
-fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
+fn fixture(name: &str, script: Vec<Result<Joined, AdoptError>>) -> Fixture {
     let base = crate::test_scratch::scratch_root().join(format!("wg-quicker-routing-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&base);
     let proc_root = base.join("proc");
@@ -100,7 +116,9 @@ fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
     std::fs::create_dir_all(&proc_root).expect("make the fake procfs");
     std::fs::create_dir_all(&cgroup_root).expect("make the fake cgroup tree");
     let requests = Rc::new(RefCell::new(Vec::new()));
-    let adopter = ScriptedAdopter { requests: Rc::clone(&requests), script: RefCell::new(script.into()) };
+    let applied = Rc::new(RefCell::new(Vec::new()));
+    let apply_script = Rc::new(RefCell::new(VecDeque::new()));
+    let adopter = ScriptedAdopter { requests: Rc::clone(&requests), script: RefCell::new(script.into()), applied: Rc::clone(&applied), apply_script: Rc::clone(&apply_script) };
     let routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
         gid: USER_GID,
@@ -109,7 +127,7 @@ fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
         cgroup_root: cgroup_root.clone(),
         adopter: Box::new(adopter),
     });
-    return Fixture { proc_root, cgroup_root, requests, routing };
+    return Fixture { proc_root, cgroup_root, requests, applied, apply_script, routing };
 }
 
 /// Describes one fake process.
@@ -158,6 +176,14 @@ fn make_process(proc_root: &Path, fake: &Fake<'_>) {
         std::fs::create_dir_all(base.join("ns")).expect("make the namespace directory");
         std::os::unix::fs::symlink(namespace, base.join("ns/pid")).expect("link the namespace");
     }
+}
+
+/// Writes the member list of a cgroup into the fake cgroup tree.
+fn write_members(cgroup_root: &Path, cgroup: &str, pids: &[i32]) {
+    let directory = cgroup_root.join(cgroup.trim_start_matches('/'));
+    std::fs::create_dir_all(&directory).expect("make the cgroup directory");
+    let text: String = pids.iter().map(|pid| return format!("{pid}\n")).collect();
+    std::fs::write(directory.join("cgroup.procs"), text).expect("write the member list");
 }
 
 /// A matching mise process in an adoptable scope.
@@ -270,7 +296,7 @@ fn a_process_in_another_pid_namespace_is_reported_and_not_moved() {
         install_roots: vec![],
         proc_root: fixture.proc_root.clone(),
         cgroup_root: fixture.cgroup_root.clone(),
-        adopter: Box::new(ScriptedAdopter { requests: Rc::clone(&fixture.requests), script: RefCell::new(VecDeque::new()) }),
+        adopter: Box::new(ScriptedAdopter { requests: Rc::clone(&fixture.requests), script: RefCell::new(VecDeque::new()), applied: Rc::clone(&fixture.applied), apply_script: Rc::clone(&fixture.apply_script) }),
     });
     make_process(&fixture.proc_root, &Fake { namespace: Some("pid:[4026533586]"), ..mise(40) });
     make_process(&fixture.proc_root, &Fake { namespace: Some("pid:[4026531836]"), ..mise(41) });
@@ -431,17 +457,81 @@ fn a_rescan_stops_between_processes_when_asked_to() {
     assert_eq!(rest.iter().filter(|outcome| return matches!(outcome, Outcome::Adopted { .. })).count(), 4);
 }
 
-/// The scope name carries the pid and its start time,
-/// so a reused pid never collides with a scope that still holds old descendants.
+/// Processes that leave the same origin cgroup join the scope of that origin,
+/// whatever their pids:
+/// a reused pid of the same origin shares the scope,
+/// where a scope per pid and start time left thousands of scopes behind.
 #[test]
-fn a_reused_pid_gets_a_different_scope_label() {
-    let mut fixture = fixture("label", vec![]);
+fn processes_from_one_origin_share_one_scope() {
+    let mut fixture = fixture("one-scope", vec![]);
     make_process(&fixture.proc_root, &mise(50));
     assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
     make_process(&fixture.proc_root, &Fake { start: 777, ..mise(50) });
     assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
-    let labels: Vec<String> = fixture.requests.borrow().iter().map(|request| return request.scope_label.clone()).collect();
-    assert_eq!(labels, vec!["50-100".to_string(), "50-777".to_string()]);
+    make_process(&fixture.proc_root, &mise(51));
+    assert!(matches!(fixture.routing.consider(51), Outcome::Adopted { .. }));
+    let names: Vec<String> = fixture.requests.borrow().iter().map(|request| return request.scope_name.clone()).collect();
+    assert_eq!(names.len(), 3);
+    assert!(names.iter().all(|name| return *name == origin_scope_name(SCOPE, UID)), "{names:?}");
+}
+
+/// Processes that leave different origin cgroups get different scopes,
+/// so one origin's cap is never shared with another's.
+#[test]
+fn different_origins_get_different_scopes() {
+    let mut fixture = fixture("two-scopes", vec![]);
+    let claude = "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash";
+    make_process(&fixture.proc_root, &mise(50));
+    make_process(&fixture.proc_root, &Fake { cgroup: claude, ..mise(51) });
+    assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
+    assert!(matches!(fixture.routing.consider(51), Outcome::Adopted { .. }));
+    let names: Vec<String> = fixture.requests.borrow().iter().map(|request| return request.scope_name.clone()).collect();
+    assert_ne!(names[0], names[1]);
+    assert_eq!(names[1], "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope");
+}
+
+/// A scope follows its origin:
+/// when the origin's cap changes,
+/// the next rescan applies it to the live scope,
+/// once,
+/// and a scope that was joined by attaching to a running one is given the limits at once.
+#[test]
+fn a_scope_follows_its_origin_at_the_next_rescan() {
+    let mut fixture = fixture("follow", vec![]);
+    make_process(&fixture.proc_root, &mise(80));
+    let origin = fixture.cgroup_root.join(SCOPE.trim_start_matches('/'));
+    std::fs::create_dir_all(&origin).expect("make the origin cgroup");
+    std::fs::write(origin.join("cpu.max"), "800000 100000\n").expect("write cpu.max");
+    let name = origin_scope_name(SCOPE, UID);
+    std::fs::create_dir_all(scope_cgroup_directory(&fixture.cgroup_root, UID, TOOLCHAIN_UPDATES_SLICE, &name)).expect("the scope exists");
+    assert!(matches!(fixture.routing.consider(80), Outcome::Adopted { .. }));
+    assert!(fixture.applied.borrow().is_empty(), "a created scope already has its limits");
+    assert!(fixture.routing.rescan().iter().all(|outcome| return matches!(outcome, Outcome::AlreadyInSlice | Outcome::Adopted { .. })));
+    assert!(fixture.applied.borrow().is_empty(), "an unchanged origin is left alone");
+    std::fs::write(origin.join("cpu.max"), "200000 100000\n").expect("the cap daemon tightens the origin");
+    let _outcomes = fixture.routing.rescan();
+    let applied = fixture.applied.borrow().clone();
+    assert_eq!(applied.len(), 1, "{applied:?}");
+    assert_eq!(applied[0].0, name);
+    assert_eq!(applied[0].1.cpu_quota_per_sec_usec, Some(2_000_000));
+    let _again = fixture.routing.rescan();
+    assert_eq!(fixture.applied.borrow().len(), 1);
+}
+
+/// A move that attached to a scope that was already running gives that scope the origin's limits,
+/// because this watcher cannot know what a scope it did not create was given.
+#[test]
+fn a_scope_joined_by_attaching_is_given_the_limits() {
+    let mut fixture = fixture("attached", vec![Ok(Joined::Attached)]);
+    make_process(&fixture.proc_root, &mise(80));
+    let origin = fixture.cgroup_root.join(SCOPE.trim_start_matches('/'));
+    std::fs::create_dir_all(&origin).expect("make the origin cgroup");
+    std::fs::write(origin.join("cpu.max"), "800000 100000\n").expect("write cpu.max");
+    let name = origin_scope_name(SCOPE, UID);
+    std::fs::create_dir_all(scope_cgroup_directory(&fixture.cgroup_root, UID, TOOLCHAIN_UPDATES_SLICE, &name)).expect("the scope exists");
+    assert!(matches!(fixture.routing.consider(80), Outcome::Adopted { .. }));
+    assert_eq!(fixture.applied.borrow().len(), 1);
+    assert_eq!(fixture.applied.borrow()[0].1.cpu_quota_per_sec_usec, Some(8_000_000));
 }
 
 /// Moves the matched process together with its live descendants of the same user in the same cgroup.
@@ -538,4 +628,110 @@ fn the_moved_scope_carries_the_origin_limits() {
     let refused = fixture.routing.consider(81);
     assert!(matches!(&refused, Outcome::Failed { error, .. } if error.contains("never moved without them")), "{refused:?}");
     assert_eq!(fixture.requests.borrow().len(), 1, "nothing was moved without its limits");
+}
+
+/// The group of a matched process is found among the members of its cgroup,
+/// not among every process of the host:
+/// a hundred processes elsewhere whose files cannot be read are never touched,
+/// while the same fixture without a member list reads them and counts them as left behind.
+#[test]
+fn the_group_is_collected_from_the_member_list_of_the_cgroup() {
+    let mut listed = fixture("members", vec![]);
+    make_process(&listed.proc_root, &mise(10));
+    make_process(&listed.proc_root, &other(11, 10));
+    make_process(&listed.proc_root, &other(12, 11));
+    make_process(&listed.proc_root, &other(13, 10));
+    for decoy in 100..200 {
+        let base = listed.proc_root.join(decoy.to_string());
+        std::fs::create_dir_all(base.join("status")).expect("a status that cannot be read as a file");
+    }
+    write_members(&listed.cgroup_root, SCOPE, &[10, 11, 12]);
+    let outcome = listed.routing.consider(10);
+    assert_eq!(outcome, Outcome::Adopted { pid: 10, reason: MatchReason::MiseTask, count: 3, left_behind: 0 }, "{outcome:?}");
+    assert_eq!(listed.requests.borrow()[0].pids, vec![10, 11, 12], "a process missing from the member list is not collected");
+    let mut scanned = fixture("members-fallback", vec![]);
+    make_process(&scanned.proc_root, &mise(10));
+    make_process(&scanned.proc_root, &other(11, 10));
+    for decoy in 100..200 {
+        std::fs::create_dir_all(scanned.proc_root.join(decoy.to_string()).join("status")).expect("a status that cannot be read as a file");
+    }
+    let fallback = scanned.routing.consider(10);
+    assert!(matches!(&fallback, Outcome::Adopted { count: 2, left_behind, .. } if *left_behind == 100), "{fallback:?}");
+}
+
+/// Members of another user and members that left the cgroup meanwhile are not part of the group.
+#[test]
+fn members_of_another_user_or_gone_are_not_collected() {
+    let mut fixture = fixture("members-foreign", vec![]);
+    make_process(&fixture.proc_root, &mise(10));
+    make_process(&fixture.proc_root, &Fake { uid: 2000, ..other(11, 10) });
+    make_process(&fixture.proc_root, &other(12, 10));
+    write_members(&fixture.cgroup_root, SCOPE, &[10, 11, 12, 13, 14]);
+    assert!(matches!(fixture.routing.consider(10), Outcome::Adopted { count: 2, .. }));
+    assert_eq!(fixture.requests.borrow()[0].pids, vec![10, 12]);
+}
+
+/// A clock that only the test moves.
+struct FixedClock {
+    /// The time now.
+    now: std::cell::Cell<Instant>,
+}
+
+/// The fixed clock.
+impl crate::routing_support::Clock for FixedClock {
+    /// The time the test set.
+    fn now(&self) -> Instant {
+        return self.now.get();
+    }
+}
+
+/// A call to follow an origin that runs past its timeout is reported,
+/// pauses the engine's moves for a while like a hung move does,
+/// and no origin is followed while they are paused.
+#[test]
+fn a_hung_manager_during_the_follow_up_pauses_the_moves_and_the_follow_up() {
+    let mut fixture = fixture("hung-follow", vec![]);
+    make_process(&fixture.proc_root, &mise(80));
+    let origin = fixture.cgroup_root.join(SCOPE.trim_start_matches('/'));
+    std::fs::create_dir_all(&origin).expect("make the origin cgroup");
+    std::fs::write(origin.join("cpu.max"), "800000 100000\n").expect("write cpu.max");
+    let name = origin_scope_name(SCOPE, UID);
+    std::fs::create_dir_all(scope_cgroup_directory(&fixture.cgroup_root, UID, TOOLCHAIN_UPDATES_SLICE, &name)).expect("the scope exists");
+    assert!(matches!(fixture.routing.consider(80), Outcome::Adopted { .. }));
+    std::fs::write(origin.join("cpu.max"), "200000 100000\n").expect("the cap daemon tightens the origin");
+    fixture.apply_script.borrow_mut().push_back(Err(AdoptError::TimedOut("busctl did not finish".to_string())));
+    let clock = FixedClock { now: std::cell::Cell::new(Instant::now()) };
+    let outcomes = fixture.routing.rescan_with(&clock, &NeverStop);
+    assert!(outcomes.iter().any(|outcome| return matches!(outcome, Outcome::ScopeLimits { error, .. } if error.contains("did not finish"))), "{outcomes:?}");
+    assert_eq!(fixture.applied.borrow().len(), 1);
+    // The moves are paused.
+    make_process(&fixture.proc_root, &Fake { start: 101, ..mise(81) });
+    fixture.routing.begin_pass_at(clock.now.get());
+    let deferred = fixture.routing.consider_at(81, clock.now.get());
+    assert!(matches!(&deferred, Outcome::Deferred { why, .. } if why.contains("did not answer in time")), "{deferred:?}");
+    // The follow-up is paused too, even when the backoff of the origin is over.
+    clock.now.set(clock.now.get() + Duration::from_secs(2));
+    let _paused = fixture.routing.rescan_with(&clock, &NeverStop);
+    assert_eq!(fixture.applied.borrow().len(), 1, "the follow-up asked the paused manager");
+    // After the pause both go on;
+    // the deferred process is gone, so only the follow-up asks the manager.
+    std::fs::remove_dir_all(fixture.proc_root.join("81")).expect("the deferred process exits");
+    clock.now.set(clock.now.get() + Duration::from_secs(10));
+    let _resumed = fixture.routing.rescan_with(&clock, &NeverStop);
+    assert_eq!(fixture.applied.borrow().len(), 2, "the follow-up did not resume");
+}
+
+/// An attach to a running scope whose limits call times out pauses the moves,
+/// because the manager is hung even though the attach itself answered.
+#[test]
+fn a_hung_manager_when_a_scope_is_joined_pauses_the_moves() {
+    let mut fixture = fixture("hung-join", vec![Ok(Joined::Attached)]);
+    make_process(&fixture.proc_root, &mise(80));
+    fixture.apply_script.borrow_mut().push_back(Err(AdoptError::TimedOut("busctl did not finish".to_string())));
+    let now = Instant::now();
+    assert!(matches!(fixture.routing.consider_at(80, now), Outcome::Adopted { .. }));
+    make_process(&fixture.proc_root, &Fake { start: 101, ..mise(81) });
+    fixture.routing.begin_pass_at(now);
+    let deferred = fixture.routing.consider_at(81, now + Duration::from_millis(1));
+    assert!(matches!(&deferred, Outcome::Deferred { why, .. } if why.contains("did not answer in time")), "{deferred:?}");
 }

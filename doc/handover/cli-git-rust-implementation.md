@@ -6101,3 +6101,59 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Step 4b-1 merged as `5519b7ed57`, without waiting for gate 11, so that one gate covers everything 0.5.2 ships.
 - Gate 11 GREEN on `75a52f4ae4` (step 4a plus in-process reads): 2979 of 2979 passed, 7 skipped. The 0.5.2 gate runs on
   the hotfix merge commit; its delta over gate 11 is 4b-1, the crate-release fix and the hotfix.
+- Wrapper-store review fixes READY `378e1b6c71`, merged as `f39b1b7e62`. All 8 cross-vendor findings were real, and each
+  fix has a mutation shown failing. Recorded in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, section "The second review". One
+  residual window is documented: between the rename and the link-back during pruning, a caller can publish one extra
+  copy, which no lock-free removal can close.
+- Forward-target planted control: my premise was wrong. With the guard disabled, the test fails, and no second
+  mechanism stops the loop. "NOT noticed" came from a harness build break: `bin/native-planted-controls.ts` copied the
+  host's `entry.rs` into the prebuilt image, whose other files were older, so it did not compile (E0432/E0560 in
+  `planted-3.log`, 2030 bytes). Fixed (READY `af8cda6409`, merged as `536fe058c8`):
+  - plant against the image's own file;
+  - a build that does not compile is its own verdict, `build-failed`, which fails the campaign with its own message;
+  - the control now names `entry::stop_tests::forward_target_naming_this_executable_stops` (8 ms).
+  The agent also noted that an ad hoc `podman run` of the suite needs `--init` plus the pid limit, or thread-spawn
+  failures hide the result.
+- Mutation m048d results:
+  - `child_class.rs`: 0 missed.
+  - `child_watch.rs`: 1 missed (`ChildWatch::end` with nothing).
+  - `process_tree.rs`: 1 missed (`still_running` true) and 1 timeout (`signal_members` with nothing).
+  - `real_index_lock.rs`: 4 missed (`create_exclusive` and `created_identity`).
+  - The index_flags planted-proof unit is still running.
+  Sent to an agent with the pre-existing oxlint errors in `bin/`. That agent first checks whether `real_index_lock.rs`
+  is on step 4d's deletion list; if it is, it writes no tests.
+- Standards-review wiring sent to its port author `ad02e84404af49107` (resumed). It wires review work items into the
+  service, appends to the audit file without clobbering the other session's uncommitted edits, and removes the old
+  hook config, the `shadow-review` task and the runbook trigger. It must not edit the provisioning files `a6e` is
+  changing.
+- Misattributed commit: the handover entry starting "Wrapper-store review fixes READY `378e1b6c71`" (26 lines) is in
+  merge commit `f0589a5f42` ("feat(wg): merge the wg-quicker restart-incident fixes..."), which another session made in
+  the shared main checkout. Cause: I ran `git add` on the handover, and my `git commit -- <path>` was then refused
+  because their merge was in progress with unmerged paths. The staged file stayed in the index, and their merge commit
+  took it. The content is intact and correct; only the commit message omits it. Per rule GCA, never amend: once pushes
+  work again, post a GitHub commit comment on `f0589a5f42` naming the handover lines as mine. My fix: commit tracked
+  files with `git commit -- <paths>` alone, never with a separate `git add` first.
+- Corrective commit comment posted on `f0589a5f42`
+  (https://github.com/Aquaticats/Monochromatic/commit/f0589a5f42612897893076f86aa4065f594fbbad#commitcomment-207630257).
+  The repository also gained rule XSG in `AGENTS.md` (`7cf00b7daa`, owner chose "Tighten CPN"; it is split into its own
+  rule because CPN plus the new sentence exceeds the RLM limit of 200 characters).
+
+### Reboot recovery, 2026-11-01
+
+- The machine rebooted; every agent stopped. The repository was intact, and main was 70 commits ahead of `origin/main`,
+  because every push since 0.5.1 failed on the LFS 503. All agent worktrees survived with uncommitted work:
+  - LFS hotfix `ab7d550ba5af421b8`: 11 files;
+  - reads follow-ups `a7439531e8536aa87`: 5 files;
+  - review wiring `ad02e84404af49107`: 16 files;
+  - service provisioning `a6e4566588e9ec087`: 31 files;
+  - mutation survivors `a0a08ba8c0924f668`: 1 commit, clean.
+  All five were resumed and told to commit their work in progress first.
+- After the reboot the LFS server failed every batch request, even sent one at a time with retries
+  (`~/temp/agent/lfs-missing-check.ts`). So I could not prove it holds the objects, and a skip-upload push of the whole
+  history could not be justified that way.
+- Narrower proof instead: across all 70 unpushed commits, 120 paths were added or changed, and none is LFS-tracked
+  (`git check-attr filter` per path). The positive control flagged known LFS files (`filter: lfs`), and no pointer
+  line was added. So the push needed no new LFS object. Pushed with `GIT_LFS_SKIP_PUSH=1`:
+  `987027a72a..11ad7efdf7`, 0 ahead after. This is not a general workaround: other sessions must still not skip for
+  pushes that add LFS files.

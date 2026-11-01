@@ -380,8 +380,8 @@ Length and modification time were used first and rejected after the cross-vendor
 timestamp share them.
 The hash is SipHash from the standard library, which protects against accidental equality only.
 
-A caller that finds no stored copy writes its own uniquely named partial file in `<fixture root>/wrapper-store/` and
-links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
+A caller that finds no stored copy writes its own partial file, created exclusively (`create_new`, see "The second
+review"), in `<fixture root>/wrapper-store/` and links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
 first; it then removes its partial and uses the winner's file.
 There is no lock: the final name is only ever a complete file, a reader only opens the final name, and the first
 publisher wins.
@@ -408,12 +408,76 @@ the control it should (one build, six controls failed, six passed):
 - `a_stored_copy_that_vanishes_before_the_link_is_made_again`: a single link attempt.
 - `concurrent_callers_end_with_links_to_one_final_file_of_the_build`: pruning every copy at once (the control keeps a
   recent copy of another build and checks that no partial file or second copy stays).
-- `fixtures_share_one_wrapper_file_with_the_built_executables_bytes`: the `EXDEV` branch disabled, so each fixture
-  copies. It also covers a root in `/dev/shm`, which fails the link of the build with `EXDEV` where that is another
-  filesystem, and reports when it is not.
+- `fixtures_are_the_built_executable_or_its_one_stored_copy` and
+  `fixtures_on_another_filesystem_share_the_stored_copy_of_the_build` (named
+  `fixtures_share_one_wrapper_file_with_the_built_executables_bytes` in the first version): the `EXDEV` branch
+  disabled, so each fixture copies. The second covers a root in `/dev/shm`, which fails the link of the build with
+  `EXDEV` where that is another filesystem, and reports when it is not.
 Not covered: a copy of another build removed by a different process between its being found and linked is shown for
 one removal at one moment (the control removes the stored file in `link_stored`'s hook), not under a real second run.
 An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
+
+### The second review
+
+A second cross-vendor review of the store and its controls (OpenAI model, output kept at
+`/var/home/user/temp/agent/ct/pi-review2.out` on the development host) made eight claims; each was checked against the
+code, and all eight held.
+What changed, finding by finding:
+- Partial names (`.partial-<pid>-<counter>`) repeat across process-identifier reuse and PID namespaces that share the
+  store, and a caller that died after linking its partial to the final name leaves the published file under a second
+  name; `cp` into that name truncates the published executable. `reserve_partial` now creates the name with
+  `create_new` and moves to the next counter value when it exists (`RESERVE_ATTEMPTS` tries), then `cp` writes into the
+  empty file and the build's mode is applied afterwards (`cp` into an existing file keeps that file's mode).
+- Pruning decided on a status-change time read earlier than the unlink, so a link made in between was not noticed. Only
+  a copy whose link count is one (no fixture holds it) is a candidate now, and the name is renamed to a reserved
+  partial name and its link count read again before it is deleted; a count that grew means a fixture linked in the
+  window, and the name is linked back. A caller that asks while the name is away publishes another copy, so the
+  remaining window costs one extra copy and never a fixture without its wrapper. A lock-free removal cannot make
+  the check and the unlink one step, so that residual case is accepted and stated.
+- `fixtures_share_one_wrapper_file_with_the_built_executables_bytes` required shared inodes where the factory allows
+  private copies, and compared two fixtures with each other, so an implementation that always used the stored copy
+  passed. `fixtures_are_the_built_executable_or_its_one_stored_copy` probes what the root's filesystem links and then
+  requires the built executable itself, the one stored copy, or (only for a non-`EXDEV` failure) copies with the built
+  bytes. On this development host the default fixture root (Cargo's `build-dir`, relocated to another volume) is on a
+  different filesystem than the final artifacts, so the stored-copy branch is the one the default run exercises; the
+  built-executable branch runs with `CLI_GIT_TEST_ROOT` on the artifacts' filesystem.
+- The relocated-root control assumed `/dev/shm`, removed its directory only on success, and ignored capacity. It
+  now picks the first of `/dev/shm` and `$XDG_RUNTIME_DIR` that is a writable directory, fails the probe link with
+  `EXDEV` and has room for two copies, and otherwise prints why it skipped; a `Scratch` guard removes the directory
+  when the control panics.
+- `a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` slept past the grace; the watcher thread can
+  resume after the signer has ended (`watch_loop` in `child_watch.rs` finds no wait marked), so the notice was lost
+  under load. The signer now waits for a release file that the control creates when it reads the notice. The 5-second
+  bound of the shared binary tests is unchanged.
+- `build_name` hashed the executable before `OnceLock::get_or_init`, so callers that arrived together each read the
+  22 MB file. `name_once` runs the read inside `get_or_init`. The outcome of a failed read is kept for the process (the
+  callers then fall back to private copies), because `OnceLock` cannot keep a failed initialisation open on stable
+  Rust; a read that failed once rarely succeeds later in a test run.
+- The concurrency control used one worker per CPU and the real executable, with nothing forcing overlap. It now runs a
+  named number of callers on a 64 KiB stand-in build, and `shared_copy_named` gives each caller a gate after its
+  checked partial copy and before the link, so every caller publishes against all the others.
+- The pruning control never aged an entry or refreshed one through a link. `remove_idle_builds_at` takes the clock as
+  an argument, so aging is tested at the exact boundary without sleeping; a copy with an ancient modification time
+  and a fresh status-change time must stay, which an implementation that reads the modification time fails.
+
+Each new control was shown failing against a deliberate change (the production code was restored afterwards):
+- `a_partial_name_that_exists_is_never_reused` and `a_copy_never_writes_through_a_leftover_partial_name`: `create(true)`
+  in place of `create_new(true)`.
+- `callers_that_ask_together_for_the_name_of_a_build_read_it_once`: the read moved outside `get_or_init`.
+- `a_copy_with_an_old_modification_time_and_a_recent_link_stays`: `mtime()` in place of `ctime()` (the previous pruning
+  control still passed).
+- `a_copy_leaves_the_store_exactly_when_it_has_been_idle_for_the_idle_age`: `<=` in place of `<` in the age test.
+- `a_link_made_during_the_removal_keeps_the_copy`: a plain removal in place of the set-aside and recheck.
+- `concurrent_callers_end_with_links_to_one_final_file_of_the_build`: copies serialized behind a mutex, which keeps the
+  callers from meeting at the gate. Replacing the link by a `rename` is not caught by this control in every schedule
+  (it passed once), and stays the job of `a_late_publisher_leaves_the_winners_file_in_place`, which orders the two
+  publishers.
+- `fixtures_are_the_built_executable_or_its_one_stored_copy`: a factory that always uses the stored copy, with
+  `CLI_GIT_TEST_ROOT` on the artifacts' filesystem.
+- `a_scratch_directory_goes_with_its_control_and_a_missing_filesystem_is_a_reason`: an empty `Drop`.
+- `a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out`: a 3-second sleep at the start of the
+  watcher thread, which simulates a watcher resuming late. The sleeping version of the control failed (no notice) and
+  the released version passed.
 
 ## A wait notice in a diagnostics comparison
 
@@ -426,8 +490,9 @@ The failing run was reported on 2026-11-01 around 02:14 and the class graces lan
 so the failing branch may still have had the one-second grace; this was not verified, and the run was not kept.
 The controls now compare the diagnostics without wait-notice lines (`without_wait_notices` in `binary_support.rs`,
 used by `run` in `binary_merge_isolation_tests.rs`), and
-`a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` makes a signer stand-in outlast the notice
-interval so the notice is certain, and checks that it is printed and removed.
+`a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` holds a signer stand-in until the control has
+read the notice from the wrapper's standard error, and checks that it is printed and removed.
+Its first version only slept past the grace, which did not make the notice certain: see "The second review".
 Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`, `binary_lfs_hang_tests.rs`) read raw
 bytes and are unchanged.
 

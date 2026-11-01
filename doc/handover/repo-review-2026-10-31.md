@@ -2103,6 +2103,56 @@ recording):
   (w5-cc-plugin-001, rr-ccp-001).
 - Translation-repair remains excluded and quarantined per checkpoint 55.
 
+Wave-4 fifty-seventh checkpoint (2026-11-01, all rows verified against the tree before
+recording; every live lane is inside the 100-file cap):
+
+- Six lanes returned and every ledger verifies clean: `w4-docs.jsonl` 46 of 46
+  (rows 046 to 048 after the quarantine below), `w4-docs-decision.jsonl` 72 of 72
+  (rows 066 to 072; in-place repairs 022, 043, 034 and 050),
+  `w2-logger-src.jsonl` 106 of 106 (rows 105 to 107; row 085 repaired to the
+  186 lockfile line), `w5-fm-app.jsonl` 17 of 17, `w5-docs-planning.jsonl` 14 of
+  14, and `w5-cc-plugin.jsonl` 9 of 9.
+- Scope enforcement: `w4-docs-045` was filed after the exclusion but its subject
+  is the four translation-repair package-audit records, so I quarantined it under
+  `findings-excluded/translation-repair/doc-audit-row-045.jsonl`. The next cc
+  brief must skip translation-repair subjects, including those audit records.
+- Lane milestone: `package/file-manager/app` is COMPLETE. All 30 tracked files are
+  accounted for (27 read end to end, 3 dependency/license artifacts checked);
+  17 rows, one warning bug and four warnings plus 12 nits, with the ten prior
+  files deduped. The freed slot moves to `package/file-manager/variant-gtk-sticky`
+  (20 files, w5-fm-sticky, id 001, base rr-fms-001).
+- doc/planning first 100-path slice: 14 rows, 14 of 14; 12 files read end to end
+  plus targeted passes; last read position 46 (`depot-ci-measurement-targets.md`),
+  positions 47 to 100 include 42 compressed or zip artifacts. Next slice starts at
+  `depot-ci-trial.md`, id 015, base rr-dp-002.
+- claude-code-plugin first 100-file slice: 9 rows, 9 of 9; 84 files read end to
+  end, 16 LICENSES checked by md5, two large minified bundles probed structurally.
+  Last file position 100 (`session-start-housekeeping/README.md`); next slice is
+  positions 101 to 200 from `session-start-housekeeping/bundle/node/index.d.mts`,
+  id 010, base rr-ccp-002.
+- Relaunched under the cap: cc id 049 base rr-gp-340, fm id 073 base rr-fmv-66,
+  troubleshooting id 108 base rr-ts-383, planning id 015 base rr-dp-002,
+  cc-plugin id 010 base rr-ccp-002, and sticky id 001 base rr-fms-001.
+
+Wave-4 fifty-eighth checkpoint (2026-11-01, post-reboot recovery):
+
+- The host rebooted at about 10:03. All six live lanes died with the session and
+  none had appended after checkpoint 57: w4-docs 46, w4-docs-decision 72,
+  w2-logger-src 106, w5-docs-planning 14, w5-cc-plugin 9, and w5-fm-sticky was
+  never created. The findings and the excluded translation-repair quarantine
+  survived on disk; HEAD was and is 9815cb9b08, checkpoint 57.
+- Recovery: the same six slices were relaunched with the same ids and bases under
+  the 100-file cap: cc 049 rr-gp-340; fm 073 rr-fmv-66; troubleshooting 108
+  rr-ts-383; planning 015 rr-dp-002; cc-plugin 010 rr-ccp-002; sticky 001
+  rr-fms-001. The cc brief now explicitly skips translation-repair subjects,
+  including its audit records.
+- Push backlog: `origin/main` is 69 commits behind HEAD because auto-push keeps
+  failing on the LFS server's HTTP 503. The commits and findings are local and
+  intact. Retry `git push` when the LFS server recovers; do not use `--no-verify`
+  or skip LFS, which would publish pointer files whose objects are not uploaded.
+- Next: process the six returns, keep the 100-file cap, and do not claim the
+  review complete until the assignment queue is exhausted and batch 4 is filed.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

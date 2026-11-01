@@ -240,3 +240,142 @@ export class CommandError extends Error {
     this.stderr = stderr;
   }
 }
+
+/**
+ Error raised when `down` stopped before it changed anything,
+ because a step that can fail (stopping a watcher, reading state) failed first.
+ The tunnel is still fully up.
+
+ @example
+ ```ts
+ throw new TeardownRefusedError('down wg0 stopped before changing anything');
+ ```
+ */
+export class TeardownRefusedError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TeardownRefusedError';
+}
+
+/**
+ Error raised when `down` failed after it started removing routing.
+ Traffic is blocked when the block could be installed,
+ and the message says how to finish.
+
+ @example
+ ```ts
+ throw new TeardownIncompleteError('down wg0 failed part way');
+ ```
+ */
+export class TeardownIncompleteError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TeardownIncompleteError';
+}
+
+/**
+ Error raised when the traffic block of an unfinished `down` is still in place, or cannot be shown gone,
+ after the attempt to remove it.
+ While the block stands,
+ everything that leaves the machine is dropped,
+ except the clearnet traffic it was installed to let through,
+ so the message names the nft table and the command that removes it.
+
+ @example
+ ```ts
+ throw new TrafficBlockError('the traffic block is still in place');
+ ```
+ */
+export class TrafficBlockError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TrafficBlockError';
+}
+
+/**
+ Error raised when the traffic block of a `down` cannot learn what the routing sends around the tunnel,
+ because the state of the application bypass or the kernel's rules cannot be read.
+ A block built without that knowledge would cut traffic the routing sends around the tunnel by design,
+ so the `down` stops with the tunnel still up.
+ It carries a marker property instead of relying on `instanceof`,
+ so it is recognized across separately built bundles.
+
+ @example
+ ```ts
+ throw new ClearnetUnreadableError('the state file is damaged');
+ ```
+ */
+export class ClearnetUnreadableError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'ClearnetUnreadableError';
+
+  /**
+   Marker read by {@link isClearnetUnreadable}.
+   */
+  readonly clearnetUnreadable = true as const;
+}
+
+/**
+ Tells whether a caught value is the error of a block that could not read what to let through.
+
+ @param error - Caught value.
+
+ @returns Whether it carries the marker.
+
+ @example
+ ```ts
+ isClearnetUnreadable({ error: new ClearnetUnreadableError('x') }); // true
+ ```
+ */
+export function isClearnetUnreadable({ error, }: { readonly error: unknown; },): boolean {
+  return ((typeof error) === 'object')
+    && (error !== null)
+    && ('clearnetUnreadable' in error)
+    && (error.clearnetUnreadable === true);
+}
+
+/**
+ Error raised when the resolver does not finish answering within the time limit.
+ It carries a marker property instead of relying on `instanceof`,
+ so it is recognized across separately built bundles.
+
+ @example
+ ```ts
+ throw new ResolverTimeoutError('the resolver did not answer');
+ ```
+ */
+export class ResolverTimeoutError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'ResolverTimeoutError';
+
+  /**
+   Marker read by {@link isResolverTimeout}.
+   */
+  readonly resolverTimeout = true as const;
+}
+
+/**
+ Tells whether a caught value is a resolver timeout.
+
+ @param error - Caught value.
+
+ @returns Whether it carries the timeout marker.
+
+ @example
+ ```ts
+ isResolverTimeout({ error: new ResolverTimeoutError('x') }); // true
+ ```
+ */
+export function isResolverTimeout({ error, }: { readonly error: unknown; },): boolean {
+  return ((typeof error) === 'object')
+    && (error !== null)
+    && ('resolverTimeout' in error)
+    && (error.resolverTimeout === true);
+}

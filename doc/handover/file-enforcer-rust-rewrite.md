@@ -1551,10 +1551,48 @@ each finished branch is reviewed and merged into `main`):
   `898c39ffc2` `=` and `+` refused (nft rejects them as table names).
   Tip to merge locally:
   `898c39ffc2`.
-  Queued after the restart:
-  `BypassOwnedRoute.tokens` from the state file reach `ip route del` as root arguments,
-  checked only as non-empty strings;
-  reject a leading `-` at least.
+  Last review:
+  nothing blocks the restart
+  (conntrack active,
+  `nft_ct` loaded,
+  the kill switch uses `ct mark`).
+  Merged into `main` as `f0589a5f42`
+  (conflicts with main's test-constant commits in two Rust test files resolved;
+  package tests run after the commit).
+  Tests on the merge:
+  `wg/cli-quicker-exempt` 4 of 251 failed (`update_entry_points_tests`:
+  "toolchain:sync is on the wg list but no mise task has that name",
+  plus the fetching-task,
+  toolchain-script and mpm-shadow-verb checks),
+  `wg/cli-quicker` failed `update-hosts.unit.test.ts`
+  (`ENOENT ... package/file-enforcer/core/src/toolchain`).
+  Both predate the merge,
+  which left those files unchanged:
+  the cutover renamed tasks and verbs and deleted that directory.
+  Policy effect (corrected after reading the code):
+  `MISE_TASKS` (`update_entry_points.rs:14-22`) already lists `toolchain:install`,
+  `toolchain:update`
+  and `toolchain:outdated` with their `:global` forms,
+  so those are matched;
+  the stale `toolchain:sync` names are harmless extras.
+  The gap is only what `every_fetching_mise_task_is_listed` and the mpm-shadow verb test name;
+  an earlier claim here that `toolchain:install` was unmatched was wrong.
+  The panic messages show the tests' detection reads deleted TypeScript sources
+  (`[]` fetching tasks,
+  "mpm-shadow has no verb install: []",
+  `package/file-enforcer/core/src/toolchain/sync.ts`),
+  so no policy gap is shown;
+  an agent is fixing the tests and dropping the stale entries,
+  and the restart no longer waits for it.
+  Queued after the restart (inert here:
+  `ip_forward` 0,
+  no guests,
+  `/run/wg-quicker` root:root 0700):
+  the forward reply rules also need `iifname` of the physical interfaces,
+  since two forged packets can make a "reply";
+  `BypassOwnedRoute.tokens` must be pinned to `table <state.table> proto 201` and a known route shape
+  (a leading `-` is harmless after `route delete`; any attribute is the exposure);
+  drop the `WG_QUICKER_RUNTIME_DIRECTORY` pass-through for root runs.
   Planned restart:
   merge,
   build both packages,
