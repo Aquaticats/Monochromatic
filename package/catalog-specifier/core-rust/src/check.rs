@@ -192,15 +192,19 @@ fn check_specifier(
             // let text: string | undefined; try { text = unitsToString(units); } catch { text = undefined; }
             // ```
             let decoded = units_to_string(units);
-            // What: `.is_ok_and(|text| ...)` is true when the result is `Ok` and the closure returns true for the inner text.
-            // `|text| ...` is a closure, Rust's arrow function. `&str` comes from `text.as_str()`, a borrow of the `String`.
-            // Why: Accept only a decodable string that the grammar allows.
+            // What: `match &decoded { Ok(text) => ..., Err(_) => false }` picks a branch by the result's case. `&decoded`
+            // borrows it; `Ok(text)` binds the inner `String`; `Err(_)` matches a failure and ignores its detail.
+            // `text.as_str()` borrows the `String` as a `&str`.
+            // Why: Accept only a decodable string that the grammar allows; a lone surrogate is never allowed.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // const allowed = text !== undefined && isAllowedSpecifier(kind, text);
             // ```
-            let allowed: bool = decoded.as_ref().is_ok_and(|text| is_allowed_specifier(kind, text.as_str()));
+            let allowed: bool = match &decoded {
+                Ok(text) => is_allowed_specifier(kind, text.as_str()),
+                Err(_) => false,
+            };
             if allowed {
                 return;
             }

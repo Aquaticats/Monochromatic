@@ -41,9 +41,10 @@ fn vectors() -> Value {
 
 /// What:
 /// `fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String>` reads `vectors[group][side]` as a list of strings.
-/// `.as_array()` returns `Option<&Vec<Value>>`; `.expect(...)` unwraps it; `.iter()` walks the elements by reference;
-/// `.map(|item| ...)` converts each; `.collect()` gathers the results into a `Vec`.
-/// Why: Both specifier groups have the same accepted and rejected lists.
+/// `.as_array()` returns `Option<&Vec<Value>>`; `.expect(...)` unwraps it. The loop walks the elements by reference
+/// (`&Vec` lends the list without moving it) and `.push(...)` appends each converted string to a growable `Vec`.
+/// Why: Both specifier groups have the same accepted and rejected lists. A plain loop is used because the crate's clippy
+/// configuration denies the implicit returns that short closures would need.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,10 +52,11 @@ fn vectors() -> Value {
 /// ```
 fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String> {
     let list = vectors[group][side].as_array().expect("the vector list is an array");
-    return list
-        .iter()
-        .map(|item| item.as_str().expect("each vector is a string").to_string())
-        .collect();
+    let mut collected: Vec<String> = Vec::new();
+    for item in list {
+        collected.push(item.as_str().expect("each vector is a string").to_string());
+    }
+    return collected;
 }
 
 /// What: `#[test]` marks a test function. This one runs the install-section vectors. Why: Both sides of the list must hold.
@@ -91,7 +93,9 @@ fn peer_specifier_vectors_hold() {
 fn path_vectors_hold() {
     let all = vectors();
     for path in texts(&all, "paths", "unsupported") {
-        let finding = check_manifest_path(&path).unwrap_or_else(|| panic!("{path:?} was not refused"));
+        let Some(finding) = check_manifest_path(&path) else {
+            panic!("{path:?} was not refused");
+        };
         assert_eq!(finding.kind, FindingKind::UnsupportedManifestFormat, "wrong kind for {path:?}");
     }
     for path in texts(&all, "paths", "supported") {
@@ -115,16 +119,14 @@ fn manifest_vectors_hold() {
     for case in cases {
         let name = case["name"].as_str().expect("each case has a name");
         let text = case["text"].as_str().expect("each case has text");
-        let expected: Vec<String> = case["kinds"]
-            .as_array()
-            .expect("each case lists kinds")
-            .iter()
-            .map(|kind| kind.as_str().expect("each kind is a string").to_string())
-            .collect();
-        let actual: Vec<String> = check_manifest_bytes("package/x/package.json", text.as_bytes())
-            .iter()
-            .map(|finding| finding.kind.as_str().to_string())
-            .collect();
+        let mut expected: Vec<String> = Vec::new();
+        for kind in case["kinds"].as_array().expect("each case lists kinds") {
+            expected.push(kind.as_str().expect("each kind is a string").to_string());
+        }
+        let mut actual: Vec<String> = Vec::new();
+        for finding in check_manifest_bytes("package/x/package.json", text.as_bytes()) {
+            actual.push(finding.kind.as_str().to_string());
+        }
         assert_eq!(actual, expected, "case {name:?}");
     }
 }

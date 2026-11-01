@@ -14,15 +14,20 @@ use super::{FindingKind, check_manifest, check_manifest_bytes, check_manifest_pa
 
 /// What:
 /// `fn kinds(findings: &[Finding]) -> Vec<&'static str>` maps findings to their kebab-case kind names.
-/// `.iter().map(|finding| ...).collect()` walks the list, converts each element with a closure (Rust's arrow function), and
-/// gathers the results into a `Vec`. Why: Assertions then compare short lists of words.
+/// `&[Finding]` is a borrowed view of a list. The loop reads each element by reference and `.push(...)` appends its kind name
+/// to a growable `Vec`. Why: Assertions then compare short lists of words. A plain loop is used because the crate's clippy
+/// configuration denies the implicit returns that short closures would need.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const kinds = (findings: Finding[]) => findings.map((finding) => finding.kind);
 /// ```
 fn kinds(findings: &[super::Finding]) -> Vec<&'static str> {
-    return findings.iter().map(|finding| finding.kind.as_str()).collect();
+    let mut names: Vec<&'static str> = Vec::new();
+    for finding in findings {
+        names.push(finding.kind.as_str());
+    }
+    return names;
 }
 
 /// What: `#[test]` marks a test function. `vec![0xFF, 0xFE]` builds a `Vec<u8>` of two bytes that are not valid UTF-8.
@@ -122,7 +127,10 @@ fn lone_surrogate_name_prints_with_the_replacement_character() {
 #[test]
 fn findings_follow_source_order_across_sections() {
     let findings = check_manifest_bytes("p.json", b"{\"peerDependencies\":{\"p\":\"1\"},\"dependencies\":{\"d\":\"1\"}}");
-    let sections: Vec<&str> = findings.iter().map(|finding| finding.section.as_deref().unwrap_or("")).collect();
+    let mut sections: Vec<&str> = Vec::new();
+    for finding in &findings {
+        sections.push(finding.section.as_deref().unwrap_or(""));
+    }
     assert_eq!(sections, vec!["peerDependencies", "dependencies"]);
 }
 
