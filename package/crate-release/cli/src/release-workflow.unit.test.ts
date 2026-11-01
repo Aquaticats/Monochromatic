@@ -545,8 +545,12 @@ await describe({
             const pushAt = releaseLines.indexOf('    - name: Push the bump to main as a signed commit');
             expect(pushAt).toBeGreaterThan(-1);
             expect(releaseLines[pushAt + 1]).toBe(`      if: \${{ !inputs.${releaseWorkflowInputs.dryRun} }}`);
+            expect(releaseLines.slice(
+              pushAt,
+              pushAt + 8
+            )).toContain(`        CRATE: \${{ inputs.${releaseWorkflowInputs.crate} }}`);
             expect(releaseLines.join('\n')).toContain(
-              'run: node package/crate-release/cli/bin/push-release.ts --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"',
+              'run: node package/crate-release/cli/bin/push-release.ts --crate "$CRATE" --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"',
             );
             for (const script of runScripts(releaseLines))
               for (const line of script)

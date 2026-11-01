@@ -4,6 +4,7 @@ import {
   defaultCurlMaxTimeSeconds,
   defaultMemoryMax,
   defaultPollIntervalSeconds,
+  defaultPushAttempts,
   defaultReleaseHost,
   defaultRunListLimit,
   defaultTagTemplate,
@@ -73,20 +74,29 @@ Options:
 /**
  Usage text of the push command, written from the defaults so the text and the behavior cannot drift.
  */
-export const pushUsage: string = `Usage: crate-release-push --repo <owner/name> --branch <branch> --scratch-dir <dir> [options]
+export const pushUsage: string = `Usage: crate-release-push --crate <name> --repo <owner/name> --branch <branch> --scratch-dir <dir> [options]
 
 Appends the head commit of this checkout to <branch> on GitHub through the GraphQL API, so that GitHub signs it: a branch
 that requires signed commits refuses the unsigned commit a plain git push would send from a runner. The commit is built
 on the head's parent, which must be the commit that was checked out, from the head's subject and the whole contents of
-the files it changes. GitHub refuses it when the branch has moved since, and then nothing is pushed.
+the files it changes.
+
+GitHub refuses the commit when the branch has moved since the checkout, which a busy branch does during a release. Before
+sending, the command records every path the release depends on: the files of the commit, the directory of the crate, the
+directories whose lockfile the release refreshed, and the path dependencies in the closure that cargo metadata reports
+for them. After a refusal for a moved branch it reads the new head and compares it with the checkout. When none of those
+paths changed, it sends the same commit again on the new head; when one did, it pushes nothing, names the paths and says
+to dispatch the release again. A branch that moves before every allowed send ends the push the same way.
 The environment must hold GH_TOKEN, a token that may write the repository's contents.
 
 Required:
+  --crate <name>        crate that was released, as releasable-crates.json lists it
   --repo <owner/name>   repository to push to
   --branch <branch>     branch to append the commit to
-  --scratch-dir <dir>   absolute directory for the request file, outside the checkout
+  --scratch-dir <dir>   absolute directory for the request files, outside the checkout
 
 Options:
+  --max-attempts <n>    most sends, the first included (default ${String(defaultPushAttempts)})
   --root <dir>          checkout that holds the commit (default: the checkout that holds this package)
   --help                print this text
 `;

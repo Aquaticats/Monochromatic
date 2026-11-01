@@ -15,6 +15,10 @@ import {
 } from 'node:path';
 
 import { runCli } from '../src/cli-main.ts';
+import {
+  type CrateRegistry,
+  loadCrateRegistry,
+} from '../src/crate-registry.ts';
 import { parsePushArguments } from '../src/push-options.ts';
 import { pushRelease } from '../src/push-run.ts';
 import { findRepositoryRoot } from '../src/repository-root.ts';
@@ -37,6 +41,35 @@ function findRoot(): string {
       '..',
     ),
     exists: existsSync,
+  });
+}
+
+/**
+ Read a file as text.
+
+ @param path - absolute path
+
+ @returns the file's text
+ */
+async function readUtf8(path: string): Promise<string> {
+  return await readFile(
+    path,
+    'utf8'
+  );
+}
+
+/**
+ Read the registry of releasable crates that sits in this package.
+
+ @returns the validated registry
+ */
+async function readRegistry(): Promise<CrateRegistry> {
+  return await loadCrateRegistry({
+    packageDirectory: resolve(
+      import.meta.dirname,
+      '..'
+    ),
+    readText: readUtf8,
   });
 }
 
@@ -97,10 +130,17 @@ async function writeText({
  @returns the exit status
  */
 async function execute(argv: readonly string[]): Promise<number> {
+  /**
+   The registry, read before the arguments so the parse can stay synchronous.
+   */
+  const registry = await readRegistry();
   return await pushRelease({
     options: parsePushArguments({
       argv,
       root: findRoot,
+      registry: function knownRegistry() {
+        return registry;
+      },
     }),
     run,
     readBytes,
