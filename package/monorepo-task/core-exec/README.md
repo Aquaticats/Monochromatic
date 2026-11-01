@@ -16,7 +16,7 @@ It checks that tests still run after build failure,
 that either phase failing makes the aggregate fail,
 and that explicitly tolerant tasks remain tolerant.
 
-This suite consumes generated `mise.toml` rather than a bundled TypeScript function:
+This suite consumes the hand-written root `mise.toml` rather than a bundled TypeScript function:
 the configuration is the artifact under test.
 Relative imports supply test-only fixture helpers.
 

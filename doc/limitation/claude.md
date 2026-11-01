@@ -168,7 +168,7 @@ do not merge into the auto-pushing checkout first.
 - Test the largest input a feature accepts (a full-window selection,
 the tallest tile),
 not only a small one.
-- Check whether a file is generated (`file-enforcer.config.ts`) before editing it.
+- Check whether a file is generated (`file-enforcer.config.jsonc`) before editing it.
 - Load the `troubleshooting-doc` skill when a diagnosis of an external tool finishes,
 not when asked.
 - Judge a snapshot with one full test run;
