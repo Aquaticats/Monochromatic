@@ -266,7 +266,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         }
         changes.push(Change { path: path.to_string(), mode, blob });
     }
-    if changes.is_empty() || changes.len() > MAX_CHANGES {
+    if changes.len() > MAX_CHANGES {
         return Err(String::from("number of changes is not acceptable"));
     }
     let request = CommitRequest {

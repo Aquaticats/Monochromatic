@@ -33,17 +33,35 @@ pub struct ServiceCommitArgs {
     pub verbatim: bool,
     /// Whether an empty message is allowed.
     pub allow_empty_message: bool,
+    /// Whether `-s` asks for a `Signed-off-by` trailer of the committer.
+    pub signoff: bool,
+    /// The commit whose message `-C` reuses, with its authorship.
+    pub reuse: Option<String>,
+    /// The commit `--fixup` or `--squash` names, and which of the two.
+    pub fixup: Option<(FixupKind, String)>,
+    /// Whether `--cleanup=strip` also removes comment lines.
+    pub strip: bool,
+    /// Whether `--no-edit` was given.
+    pub no_edit: bool,
+}
+
+/// Which message prefix `--fixup` and `--squash` make.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FixupKind {
+    /// `--fixup=<commit>`: the message is `fixup! <subject>`. (`--squash` always opens an editor, so it is not covered.)
+    Fixup,
 }
 
 /// Short option letters that take no value and change nothing the service must do.
-const FLAG_LETTERS: [char; 4] = ['q', 'n', 'o', 'a'];
+const FLAG_LETTERS: [char; 5] = ['q', 'n', 'o', 'a', 's'];
 
 /// Long options that take no value and change nothing the service must do.
-const FLAG_WORDS: [&str; 8] =
-    ["--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all"];
+const FLAG_WORDS: [&str; 10] = [
+    "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
+];
 
 /// Long options that take one value, with the field they fill.
-const VALUE_WORDS: [&str; 6] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup"];
+const VALUE_WORDS: [&str; 8] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup"];
 
 /// The value of a long option given as `--name=value` or `--name value`; `index` moves past a separate value.
 fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: &mut usize) -> Option<Option<&'a str>> {
@@ -80,6 +98,8 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
         if token.starts_with("--") {
             if FLAG_WORDS.contains(&token) {
                 parsed.quiet |= token == "--quiet";
+                parsed.signoff |= token == "--signoff";
+                parsed.no_edit |= token == "--no-edit";
             } else if token == "--allow-empty-message" {
                 parsed.allow_empty_message = true;
             } else {
@@ -93,9 +113,21 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                         "--author" => parsed.author = Some(value.to_string()),
                         "--date" => parsed.date = Some(value.to_string()),
                         "--trailer" => parsed.trailers.push(value.to_string()),
+                        "--reuse-message" => parsed.reuse = Some(value.to_string()),
+                        "--fixup" => {
+                            // `amend:` and `reword:` open an editor or change parents; only a plain commit name is covered.
+                            if value.contains(':') || value.is_empty() {
+                                return None;
+                            }
+                            parsed.fixup = Some((FixupKind::Fixup, value.to_string()));
+                        }
                         _ => match value {
                             "verbatim" => parsed.verbatim = true,
-                            "whitespace" | "default" => parsed.verbatim = false,
+                            "strip" => parsed.strip = true,
+                            "whitespace" | "default" => {
+                                parsed.verbatim = false;
+                                parsed.strip = false;
+                            }
                             _ => return None,
                         },
                     }
@@ -111,7 +143,7 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
             while at < letters.len() {
                 let letter: char = letters[at];
                 at += 1;
-                if letter == 'm' || letter == 'F' {
+                if letter == 'm' || letter == 'F' || letter == 'C' {
                     let inline: String = letters[at..].iter().collect();
                     let value: String = if inline.is_empty() {
                         index += 1;
@@ -119,14 +151,15 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                     } else {
                         inline
                     };
-                    if letter == 'm' {
-                        parsed.messages.push(value);
-                    } else {
-                        parsed.file = Some(OsString::from(value));
+                    match letter {
+                        'm' => parsed.messages.push(value),
+                        'F' => parsed.file = Some(OsString::from(value)),
+                        _ => parsed.reuse = Some(value),
                     }
                     at = letters.len();
                 } else if FLAG_LETTERS.contains(&letter) {
                     parsed.quiet |= letter == 'q';
+                    parsed.signoff |= letter == 's';
                 } else {
                     return None;
                 }
@@ -134,9 +167,15 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
         }
     }
     // Standard input is read by Git itself; a message from both places is Git's to refuse.
-    let has_text: bool = !parsed.messages.is_empty() != parsed.file.is_some();
+    let sources: usize = usize::from(!parsed.messages.is_empty())
+        + usize::from(parsed.file.is_some())
+        + usize::from(parsed.reuse.is_some())
+        + usize::from(parsed.fixup.is_some());
+    let has_text: bool = sources == 1;
     let author_ok: bool = parsed.author.as_deref().is_none_or(|author| { return author.contains('<') && author.trim_end().ends_with('>'); });
-    return if has_text && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
+    // `-C` takes the author and its date from the reused commit, and `--reset-author` is not covered.
+    let reuse_ok: bool = parsed.reuse.is_none() || (parsed.author.is_none() && parsed.date.is_none());
+    return if has_text && reuse_ok && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
 }
 
 /// What:

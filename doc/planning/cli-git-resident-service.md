@@ -583,3 +583,35 @@ asking the client to prepare again when it is not (a signed commit cannot be reb
 the only author of the message, trailers, signature and amend semantics, takes no lock, and is a smaller piece of code than
 the shadow, replay and recovery machinery it replaces. It does not remove the scratch Git directory; it removes the shadow's
 landing, replay, registry and recovery.
+
+### Decision for the remaining command lines (coordinator, owner veto open)
+
+A hybrid. First, embed every option that is pure message text or parent arithmetic, proved field by field against native
+Git (tree, whole message, author with date, committer, parents, left-behind status), on the owner's rule "Invoke real git as
+rarely as possible." Second, only where Git must run a program (an editor, signing) run real `git commit` against a thin
+scratch Git directory and land the result by compare-and-swap or `retry_prepare`; the wrapper itself never launches the
+editor or the signer, Git does, as it does today. Keeping the old transaction for those lines is out, because it keeps
+the locks the owner banned.
+
+Sub-step 4b-1, built and compared with native: `-s` and `--signoff` (Git's trailer interpreter, with the cases of a
+trailer block before it, the same sign-off already last, another person's sign-off last, a `---` divider in the body),
+`--allow-empty`, `-C <commit>` (message and authorship reused), `--fixup=<commit>` (plain commit names only),
+`--cleanup=strip` (default comment character only; any `core.commentChar` setting declines). `--squash` always opens an
+editor natively, so it is not embedded.
+
+Still declined after 4b-1, each with its reason: `--amend` (parent arithmetic, sub-step 4b-2), `-e`/`--edit`, `-c`,
+`-t`, no message option (an editor opens), `--fixup=amend:` and `--fixup=reword:` (editor), `--squash` (editor), `-S`,
+`--gpg-sign` and `commit.gpgSign` (signer), `--reset-author`, `--author` without an email (history search), `-F -`
+(standard input), `-i`, `-p`, `-u`, `-v`, `--dry-run`, `--pathspec-from-file`, a message from two sources, an unborn or
+detached head, a merge, cherry-pick or revert conclusion, a policy that rewrote a file, an unmerged index, a repository
+configuration that sets a template, a clean-up mode, an encoding, a comment character, trailers or sign-off.
+
+### Owner correction on provisioning (verbatim, adopted)
+
+The owner, asked when to run `git cli-git service install` on this machine, answered: "What is going on? Bazel uses client
+server architecture and Bazel doesn't do this." Their earlier rule: "socket activation (OS starts it) or a loud, clear
+failure - no, never leak internal things that could be resolved to the user." Bazel's client/server page says: "If the
+client cannot find a running server instance, it starts a new one."; the client installs what it needs itself; and on a
+version mismatch "the server is stopped and a new one started". So the install step, the installed-or-not default and the
+`CLI_GIT_COMMIT_SERVICE` switch are internal things the user must never see. Adopted: the wrapper provisions socket
+activation itself the first time a commit needs the service.

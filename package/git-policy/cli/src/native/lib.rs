@@ -1205,6 +1205,9 @@ pub mod service_commit;
 /// Installing, removing and checking the commit service's activation.
 pub mod service_install;
 
+/// The message and identities of a service commit, made as native `git commit` makes them.
+pub mod service_message;
+
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
