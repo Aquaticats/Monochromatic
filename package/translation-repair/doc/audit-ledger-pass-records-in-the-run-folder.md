@@ -489,7 +489,8 @@ the case that ran a pass (`corpus-pass-run.unit.test.ts`) ran `--plan` only,
 and its comparison dropped every message that begins with `[`.
 
 Census at `86c1722f6e`,
-by syntax tree over the production source of every package of the family and under whatever local name a file binds `tagged`:
+by syntax tree over the production source of every package of the family
+and under whatever local name a file binds `tagged`:
 201 calls,
 171 with an `l` and 30 without.
 Of the 30,
@@ -505,6 +506,15 @@ run 2 (`required-providers`,
 The other 19 sit in 17 files of runners that are no pass:
 the bench 7,
 the probe 10 and the coverage census 2.
+One more logger of the pass bypasses the run log,
+and the census at `86c1722f6e` did not count it:
+`lockRunsDir` (`runs-lock.ts`) writes
+`taking over a stale lock in <dir> from gone process <pid> (judged by ...)`
+and `taking over an unreadable lock in <dir>`
+through a logger of its own (`lockLog`) before the run log can open,
+since the lock is what the run log waits for,
+so those two lines reach the console and the unit's journal and no record
+(round w399 re-read the code that B1110 and B1114 had not).
 No other logger of the pass bypasses the run log:
 the default `logger` is imported by name in `bench/.../model-health.ts` and `probe/.../damage-sample.ts` only,
 both runners,
@@ -516,7 +526,8 @@ slice-tagged and rooted on `runLogger`,
 and the 7 corpus pass sites call it;
 the 4 sites of slice cache and run give `tagged` an `l: runLogger`.
 Where no run log is installed the logger writes to the default logger as before.
-The scan `source-scan/src/tagged-parent-scan.unit.test.ts` fails on any call of `tagged` without a parent in the family's source,
+The scan `source-scan/src/tagged-parent-scan.unit.test.ts` fails on any call of `tagged` without a parent
+in the family's source,
 but for the 17 runner files it lists with their counts and the reason of B1099:
 the list can only shrink as those runners move.
 The pass-level case is in `pass-entry.unit.test.ts`:
@@ -531,7 +542,8 @@ because the `runCorpusPassOver` cases script their settlement;
 the cases that run the whole pass over a scripted settlement hold the lines the pass prints itself.
 
 What the scan cannot see:
-a function that receives its `l` from a caller that built it with the default logger is a call the scan has no reason to read,
+a function that receives its `l` from a caller that built it with the default logger
+is a call the scan has no reason to read,
 and a `tagged` called by a name that is neither an import nor a const alias of it.
 The behavioural case sees the first;
 nothing in the family builds the second.
@@ -566,7 +578,8 @@ Three things on that list were reached by a pass and belong in its folder:
   while its log stands,
   after any `the pass stopped` record.
 - The stack frames of an unexpected fault were printed after the log closed.
-  A throw that is neither a stated refusal nor an unreadable run file (`isUnexpectedFault`) records the frames the command
+  A throw that is neither a stated refusal nor an unreadable run file (`isUnexpectedFault`)
+  records the frames the command
   prints (`framesOf`:
   the frames without the message or the cause) as `[corpus-pass] the stack frames of the fault that stopped the pass:`.
 
@@ -624,7 +637,17 @@ and exits with the conventional code,
 130 for SIGINT and 143 for SIGTERM.
 Each step is tried whatever the one before did,
 and a second signal changes nothing.
-The handlers come off when the pass returns.
+The handlers come off when the pass returns,
+before the final flush of the run log:
+`using` disposes in reverse order,
+so the closing record,
+the handlers,
+the install of the run log and the flush follow one another in that order,
+and a signal that arrives after the handlers are off gets the default action.
+Nor are they up while the lock is taken,
+while the log directory guard runs and while the run log opens (`corpus-pass-run.ts`):
+a signal in those windows ends the process with the default action and no record,
+and the lock file is left for the next pass to judge stale (B1114 lists the refusals of the same window).
 The pass does not wait for the entry in flight:
 an artifact is written to a temporary name and renamed,
 so a stop mid-write leaves nothing half-written,
@@ -662,12 +685,17 @@ an environment override that cannot be read (`corpus-pass.ts` reads them all bef
 the runs directory another pass holds,
 a `MONOCHROMATIC_LOG_DIRECTORY` inside the run folder (B1115),
 a run folder the pass cannot write,
-and one that does not answer (B1112).
+and one that does not answer (B1112),
+and the one line of a lock taken over from a gone process,
+`taking over a stale lock in <dir> from gone process <pid> (judged by ...)`,
+or of an unreadable lock,
+which `lockRunsDir` writes before the run log opens (B1110 names it).
 The runbook's detached form sent the console to `/dev/null`,
 so such a refusal was lost,
 and its step said a pass that cannot write the log folder "refuses to start and says so",
 which is true only of the console.
-The runbook (`doc/runbook/translation-repair-corpus-pass.md`) now launches the pass as its own unit with no output property,
+The runbook (`doc/runbook/translation-repair-corpus-pass.md`) now launches the pass as its own unit
+with no output property,
 so the console reaches the journal,
 says where to read it (`journalctl --user --unit=<unit> --output=cat`,
 which keeps the output after `--collect` removes the unit),
@@ -690,7 +718,8 @@ and sweeps it:
 day directories past its age bound go,
 and the oldest files are trimmed by size and count.
 An operator who set the variable to a run folder's `log` directory handed the sweep the run's evidence.
-`refuseLogDirectoryInRunFolder` (`pass-log-directory-guard.ts`) runs after the lock is held and before the run log opens,
+`refuseLogDirectoryInRunFolder` (`pass-log-directory-guard.ts`) runs after the lock is held
+and before the run log opens,
 and refuses in words that name the variable,
 the directory and the run folder when the variable names the run folder or a place in it,
 links resolved and a directory that does not exist yet judged by its nearest parent that does.
@@ -758,7 +787,8 @@ The case writes all 160 characters from NUL to the end of C1 through the real co
 and finds the same text for each.
 
 `run-records` is the new built command and task of the run package:
-`mise run //package/translation-repair/run:run-records -- <run folder or record file>...` prints one line for each record,
+`mise run //package/translation-repair/run:run-records -- <run folder or record file>...`
+prints one line for each record,
 every line through the same function once more,
 so a foreign line is escaped too.
 The two runbooks read the records with it.
@@ -805,7 +835,8 @@ The case reads a record of 500000 characters and stops after two lines with a la
 `spend-report` and `run-timing-report` read lines with it and no longer split a text.
 
 One existing case pinned the old error text:
-the case of `slice-cost-report-run.unit.test.ts` that names a directory for the log still sees the fault escape unwrapped.
+the case of `slice-cost-report-run.unit.test.ts` that names a directory for the log
+still sees the fault escape unwrapped.
 The text of that read failure was `EISDIR: illegal operation on a directory, read '<path>'` from `readFile`,
 and it is `EISDIR: illegal operation on a directory, read` from a stream,
 which no longer quotes the path.

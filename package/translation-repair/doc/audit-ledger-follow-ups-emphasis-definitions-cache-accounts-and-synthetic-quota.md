@@ -3,6 +3,9 @@
 Paths in this record are the layout after 2026-10-18,
 under `package/translation-repair`.
 
+Part of [Audit ledger](audit-ledger.md),
+which lists every file of this record.
+
 Four items were left after the page-definitions work of B665 to B667,
 and the lead had them closed on 2026-10-18 on top of `7c21a56fc2`
 (a clock-zone slip in the account of the third,

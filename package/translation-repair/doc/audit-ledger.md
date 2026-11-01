@@ -839,6 +839,26 @@ named for that subject and listed here.
   the consistency index left unrepointed (B1212),
   the cache versions (B1213),
   and the slips with what stays open (B1214).
+- [Audit ledger: every stop ships a page and names its class](audit-ledger-every-stop-ships-a-page-and-names-its-class.md):
+  The last stop that ended an entry with no page,
+  and the fixes of round w399:
+  the shipper that answers for every error (B1220),
+  the stops before the slicing that ship the archive (B1221),
+  the classes B1207 left open with their reach and their pages (B1222),
+  the error class on every stop record (B1223),
+  the census of what can still end an entry with no page (B1224),
+  how a later run resumes an interim page (B1225),
+  the test tasks that build first (B1226),
+  the recovery round's wait as a stated limit (B1227),
+  the cache versions (B1228),
+  the slips with what stays open (B1229),
+  the refusal raised after an exchange that keeps its claim (B1230),
+  `verify-published` naming the defects the agreement cannot show (B1231),
+  four test and guard nits (B1232 to B1235),
+  the statements and stated limits of round w398 (B1236),
+  the scan that reads `l: undefined` (B1237),
+  the minors of four earlier re-checks (B1238)
+  and the reports with no history before XingZ6023 (B1239).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
@@ -859,8 +879,7 @@ named for that subject and listed here.
   the process mistakes and the other numbered findings,
   by id,
   with the file that holds it.
-- [Audit ledger: the
-  areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):
+- [Audit ledger: the areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):
   The probes of each area of the audit,
   the run it stopped,
   the T8 entry (code no unit test runs) with its census method,

@@ -492,6 +492,12 @@ and each check names what it found:
 `destinations`,
 `front-matter` and `headings`
 are the publish-time content checks,
+`page-footnote-integrity` and `carried-evidence` name the footnote defects the page introduces over its archive and the
+carried passage whose evidence the English lost (ledger B1181),
+`final-naturalness` names the first slice of a body that lacks the naturalness review's approval,
+`page-grammar-archive-kept` names the slices where the archive stayed because the strict grammar refused the wording,
+`page-unparseable` names a page that ships as composed because even the archive's page is refused by the strict grammar
+(the site build will not take it),
 `no-valid-wording` names the slices where the archive's own wording stayed and says why for each:
 no wording passed the deterministic rule,
 the final round could not seat two judges and no wording two judges chose passed it,
@@ -504,7 +510,14 @@ Each defect's message is in the run log at warn,
 under `publish: shipping with defect <check>:`,
 and names ids,
 counts and slice indices only.
-A page that does not parse still refuses.
+A page that does not parse ships too,
+with the archive kept at the slices that break it,
+or as composed with
+`page-unparseable` when even the archive's page is refused (ledger B1207).
+Every other stop of an entry ships a page as well,
+an interim one with a record naming the class of the error,
+and
+the entry stays open (ledger B1220 to B1223).
 The neutral pronoun the sources write as `TA`,
 `Ta` or `ta` renders as singular they:
 the declared-identity pronoun line counts all three spellings (`identity-context.ts`),

@@ -234,11 +234,14 @@ The wider one,
 which the owner may take,
 is a page record for a stop before the slicing:
 ship the archive itself as the entry's interim page and record it.
-It is proposed and not built.
+It was proposed here and not built;
+round w399 built it (B1221).
 
 ## B1184: other throws that can still end an entry with no page
 
-Open for the classes B1207 lists as able to end an entry with nothing written;
+Open for the classes B1207 lists as able to end an entry with nothing written
+(closed in round w399,
+B1220 to B1223 and the census of B1224);
 `NaturalnessCompletenessError` and `UnparseablePageError` ship a page now (B1207).
 
 Outside the brief's list,

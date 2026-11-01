@@ -256,6 +256,14 @@ TODO | DONE
     (`<run folder>/log/<day>/*.log.jsonl`),
     and takes a pass's by the `START tip=` record its first records hold.
     A `.log` capture of a console is no log to it.
+    Since round w387 the census,
+    the meter report and the spend,
+    run-timing and slice-cost reports read only
+    `*.log.jsonl` run records,
+    and every run before XingZ6023 kept its records in a console `.log` capture,
+    so these reports have no history before XingZ6023:
+    a reading that needs an earlier run has no source here
+    (ledger B1239).
 
     Expected:
     a `cap-census:` summary line,
@@ -325,6 +333,7 @@ TODO | DONE
     ```sh
     systemd-run --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --collect \
       --property=MemoryMax=12G \
+      --property=CPUQuota=2400% \
       --working-directory=/var/home/user/worktrees/translation-repair \
       --setenv=TRANSLATION_REPAIR_RUNS_DIR="${RUNDIR}" \
       "$(command -v mise)" run //package/translation-repair/corpus-pass:corpus-pass
@@ -333,6 +342,12 @@ TODO | DONE
     Expected:
     `Running as unit: corpus-pass-<name>.service`,
     and the shell returns at once.
+    The unit caps its memory and its CPU,
+    because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to shell commands
+    (the repository's `CLAUDE.md`);
+    `2400%` is 24 threads of this host's 28 (`nproc`),
+    and the number is the host's thread count less a few,
+    to be read again on another host.
 
     Give the unit no `StandardOutput` or `StandardError` property,
     and never redirect the launch to `/dev/null`:
@@ -379,7 +394,12 @@ TODO | DONE
     and leaves the lock for the next pass to judge stale;
     ledger B1113).
     Where the steps that follow say to kill it by pid,
-    the unit's main pid is `systemctl --user show --property=MainPID --value corpus-pass-<name>`.
+    the unit's main pid is the pid of the `mise` wrapper that started the task:
+    `systemctl --user show --property=MainPID --value corpus-pass-<name>` prints that pid and not the pass's own,
+    which is a descendant of it in the unit's control group (`systemctl --user status corpus-pass-<name>` lists the
+    group).
+    `systemctl --user stop` signals every process of the unit and is the way to stop the pass;
+    a signal sent to the wrapper alone is the wrapper's to forward.
 
     A `--setenv=PATH=` on the unit decides which build tools the task's build runs.
     A session's shell started in the main checkout carries that checkout's `node_modules/.bin` first,
@@ -603,7 +623,8 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     ```
 
     Expected:
-    no output and exit status 1,
+    nothing on standard output,
+    nothing on standard error and exit status 1,
     because `rg --count` prints a count only for an input that matches
     and exits 1 when nothing matches.
     Any number printed is the count of `[error]` records.
@@ -706,7 +727,19 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     Quality rejection and `status=INCOMPLETE` must never produce this line.
 
 -   `TALLY <id> status=INCOMPLETE at=<time> attempt=<n>`,
-    which means stage-local work remains.
+    which carries `class=<ErrorClass>` before its error text,
+    the class name of the error that ended the attempt as one
+    token (`NotAnError` for a thrown value that is no error).
+    The `INTERRUPTED`,
+    `INCOMPLETE` and `STALLED` lines and the `INTERIM` line carry the same field,
+    so the stops of a run are counted by class:
+
+    ```sh
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" \
+      | rg --only-matching ' class=[A-Za-z0-9_.$-]+'
+    ```
+
+    `status=INCOMPLETE` means stage-local work remains.
     It is neither success,
     quality verdict,
     nor publication evidence.
@@ -728,11 +761,17 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     No `TALLY` line says `PARKED`,
     and no `NOT RESUMED` line follows a stop.
 
--   `INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=dry-stop`,
-    printed just before the `TALLY <id> status=INCOMPLETE` line of an entry the dry stop ended in the middle of its page
-    (the owner's answer of 2026-10-29,
+-   `INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=<reason> class=<ErrorClass>`,
+    printed just before the `TALLY` line of an entry any stop ended (the owner's answer of 2026-10-29,
     "Ship interim,
-    resumable").
+    resumable",
+    and "no matter what,
+    we must ship").
+    The reason is `dry-stop` (every provider dry),
+    `provider-unavailable` (a stage heard no voice) or `entry-error` (any other error,
+    including the ones the entry
+    retries within the invocation),
+    and the class names the error.
     The page of that entry in the published tree is interim:
     `settled` slices carry the wording a consolidation record settled,
     `archive` slices carry the archive's text,
@@ -746,7 +785,11 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     it repeats the entry on its caches,
     overwrites the page,
     and removes the record when the entry settles.
-    A stop before the entry is sliced prints no `INTERIM` line and ships no page.
+    A stop before the entry is sliced ships the archive as the page,
+    cut by the deterministic preparation of the two texts,
+    and prints the `INTERIM` line too;
+    a stop after the settled page was written ships nothing more,
+    since the settled page stands (ledger B1220 and B1221).
     `mise run //package/translation-repair/run:verify-published` names the page `INTERIM PAGE` with the counts,
     or `INTERIM PAGE DISAGREES WITH ITS RECORD` when the page on disk is not the one the record was written for.
 

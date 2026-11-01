@@ -216,7 +216,7 @@ which is 2026-10-31 10:04:22 UTC and not 08:24 UTC
   and the caller passes the model that answered for the seat.
 - The tally-withheld model in the list of alternates is the claim of B1201.
 
-## B1206: statements of the earlier records corrected in place
+## B1206: statements of the records of rounds w396 and w397 corrected in place
 
 - B1145 said that no cache version moves and that findings are "no stored key or record".
   B1168 moved translate slice (37) and consolidate (44) for that rewording.
@@ -230,6 +230,13 @@ which is 2026-10-31 10:04:22 UTC and not 08:24 UTC
   The 12 test files of `1b84d1b079` have 38 insertions,
   37 of them added lines that name `reask`.
 - B1160 counted three callers of `assertSeatsHeardOnce` (B1203).
+- B1168 said of the page title stay that no sheet,
+  floor or weight of the stage changes.
+  B1200 shows the tie order of the stage did change (a stand-in voice sorted first),
+  and the entry now says so in place (round w399,
+  B1230).
+- B1164 cited lines 926 to 930 of `consolidate-key.ts` for the picture context in the key;
+  they are lines 941 to 945 at `abb1e953bc`.
 - Two lines of the third re-check file passed 120 columns (the B1165 bullet and a line of B1166) and are wrapped.
 - The main index split the link text of the third re-check file across two lines.
 - `choiceBallotOf` (`4b973d9a5e`) was in no entry:
@@ -318,8 +325,9 @@ and why:
   ship an interim page from the slicing on,
   and write nothing before it (B1183).
 
-The four that can are open,
-for the owner:
+The five that can are open,
+for the owner (round w399 closes them,
+B1220 to B1223):
 the wider reading is a page record for every stop,
 the archive itself shipped as the interim page.
 
@@ -432,7 +440,10 @@ the index was split without repointing the moved files and without running the d
 Fixed as round w391 did for the weight floors:
 19 of the 20 files now say
 `Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),`,
-the twentieth (`...page-definitions-recorded-and-carries-gated.md`) has no part-of line and none is added,
+the twentieth (`...page-definitions-recorded-and-carries-gated.md`) had no part-of line and none was added
+(round w399 added one,
+pointing at the sub-index,
+B1238),
 every file the sub-index lists is one of the 20 files named `audit-ledger-consistency-pass-*`
 and none of them is missing from the list,
 and line 5 of the sub-index is broken at its clause boundaries.
@@ -460,21 +471,32 @@ The other three are consistency 10 (set 2026-10-31T06:36Z),
 page title 9 (2026-10-25T07:01Z) and pairing 3 (2026-09-28T04:30Z).
 
 - Page title 9 stays.
-  The fix of B1200 changes a tie among stand-in voices.
-  The only page title records on disk are those of XingZ6016,
-  XingZ6018 and XingZ6019,
-  written 2026-10-21T06:17Z to 2026-10-22T18:58Z,
-  before the number was set;
-  XingZ6020 to XingZ6023 wrote none.
-  No record stands at 9,
-  so the change rides inside it,
-  beside the namespace of the build.
+  The fix of B1200 changes the order of one stand-in voice against the seats on a tie.
+  The page title records on disk at 9 are those of XingZ6016,
+  XingZ6018 and XingZ6019 only,
+  with times from 2026-10-21T06:17Z to 2026-10-22T18:58Z,
+  before commit `4347b354bb` set the number (2026-10-25T07:01Z).
+  XingZ6023 holds only `page-titles-generation.txt`,
+  and an empty settled directory is no evidence (`doc/mistake-prevention-stored-files-and-cached-decisions.md`,
+  M703),
+  so the argument does not rest on the runs after XingZ6019 writing none.
+  What holds is that no build that wrote at 9 could produce a stand-in voice:
+  `98d5b63eb3` is not an ancestor of `bf5d1f00fa`,
+  and before it a voice's `modelId` was its seat,
+  so the tie order was identical.
+  No record stands at 9 that the new order could contradict,
+  so the change rides inside it.
 - Translate slice 37,
   consolidate 44,
   lane contest 19,
   repair slice 51 and refine 20 stay.
-  B1201 and B1202 change which model is asked after a failure of an ask,
-  and B1202 the bench of a repair ask;
+  B1201 changes which model is asked after a failure of an ask,
+  in the three loops that reach every one of the five,
+  and B1202 the bench of a repair ask,
+  which only translate 37 and consolidate 44 call (`repairInvalidCandidates`,
+  called from `translate-stage/src/translate-produce.ts` and `consolidate/src/consolidate-produce.ts`);
+  lane contest 19,
+  repair slice 51 and refine 20 are reached by B1201 alone;
   the key hashes the version,
   the shape of the run and the texts,
   not the order of the asks,
@@ -519,7 +541,7 @@ Slips in how the work was run:
   It holds the 7 other files (140 insertions and 32 deletions),
   because the new file was staged and left out of the pathspec of the commit (the slip the rule on new files in a
   pathspec names).
-  The next commit adds the file;
+  `abb1e953bc` adds the file;
   the message of `d7db6a1c8c` is not amended.
 - Six edits to one test file were sent in one block,
   where the brief says one edit per file per block.
@@ -547,7 +569,7 @@ Gates:
   page-check,
   corpus-pass and run,
   every one with exit code 0 and no failed case.
-  The test files the later commits changed or added reran once each,
+  The test files `3c8cdd02d6` changed or added reran once each,
   all green.
 - `lint:types` passed for the touched packages and the 16 packages that depend on them,
   the dependents read again on the final tree,
@@ -566,7 +588,8 @@ Gates:
 
 What stays open:
 
-- The four classes of B1207 that can still end an entry with nothing written.
+- The five classes of B1207 that can still end an entry with nothing written (round w399,
+  B1220 to B1223).
 - A merged record that mixes logs from before and after a provider was left off is reported as left off (B1209).
 - The measured count of B1210 is for one artifact and the page on disk,
   which the run's build wrote with the composition of its time.

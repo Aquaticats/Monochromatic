@@ -176,8 +176,10 @@ The groups that follow name the main ones.
   `shippableReplacements`.
   Declared in `corpus-run/shippable-replacements.ts`.
 - Page assembly guards:
-  run the composed page through the guards each lane runs,
-  and refuse a page that does not parse or breaks its footnotes.
+  run the composed page through the guards each lane runs.
+  A page that does not parse or breaks its footnotes is reported as a defect of the page that ships (ledger B1181,
+  B1207);
+  `assertPageParses` has no production caller and is kept as a tested seam.
   Names:
   `guardPageAssembly`,
   `assertPageParses`,

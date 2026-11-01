@@ -186,7 +186,10 @@ then existing structure and fidelity gates run before independent review recheck
 No-op correction,
 thin review,
 rejected correction,
-or second-review defect yields `NaturalnessCompletenessError` before page or artifact persistence.
+or second-review defect yields `NaturalnessCompletenessError` (until round w398;
+since then the shortfall is the defect
+`final-naturalness` and the page and the artifact are written,
+ledger B1207).
 Such settlements are neither cached nor twin-reused.
 Schema 8 stores every seat status,
 review verdict,

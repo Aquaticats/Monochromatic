@@ -221,7 +221,7 @@ That context is in the keys.
 (`translate-slice-settle.ts` passes it at its three sites,
 `translate-slice-key.ts` lines 233 to 237 hash it),
 and the consolidate key hashes the same words (`consolidate-key.ts`,
-lines 926 to 930),
+lines 941 to 945 at `abb1e953bc`),
 so the label is inside the key.
 A slice stored under the old label is therefore not found under the new key,
 for a picture whose cut reply was asked of another model and for no other,
@@ -379,11 +379,13 @@ Stay:
 - Page title 9:
   the commits of this line that touch its stage (`8a1be6c81e`,
   `7179618d23`) name its role and pass the mode,
-  and B1142 has its log lines read the answerer;
-  no sheet,
-  floor or weight of the stage changes.
-  This is read from the commit subjects and the entry of B1142,
-  and no search was made of the weights the stage applies.
+  and B1142 has its log lines read the answerer.
+  This entry said that no sheet,
+  floor or weight of the stage changes;
+  B1200 shows the tie order of the stage did change,
+  because the page title lexicon ordered voices by the model that answered (B1206).
+  It was read from the commit subjects and the entry of B1142,
+  and no search was made of the weights the stage applies or of the order it sorts by.
 - The artifact generation 22:
   B1160 gives the reasons.
 

@@ -116,9 +116,25 @@ which lists every file of these commitments.
   with the archive's page shipping in its place:
   "Ship with the defect".
   The page ships and each failed check is reported,
-  in the run log and on a line a grep over a pass totals;
-  a page that does not parse still refuses,
+  in the run log and on a line a grep over a pass totals.
+  At the time of the ruling a page that does not parse still refused,
   since it would break the site build.
+  That exception is withdrawn.
+  The owner's words are "no matter what,
+  we must ship" and "No valid wording:
+  keep the archive at that slice and ship" (2026-09-27),
+  and the lead applied them on 2026-10-31 to the grammar stop and to the naturalness stop:
+  a page the strict grammar refuses ships with the archive kept at the slices that break it
+  (`page-grammar-archive-kept`),
+  and a body without naturalness approval ships with `final-naturalness` (ledger B1207),
+  where each used to end the entry with no page and no artifact.
+  A stated limit:
+  `page-unparseable` is the defect of a page that ships as composed because even the archive's page is refused by the
+  strict grammar,
+  and the site build will not take that page;
+  it is reported on the defects line and in the log,
+  and nothing else holds it back.
+  Every other stop ships a page too (ledger B1220 to B1223).
   Measured before the ruling:
   seven real entries were refused for one dropped link destination each,
   about 10.3 hours of settling discarded (ledger E1).

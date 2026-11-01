@@ -562,8 +562,7 @@ ballot reason or model text was printed.
   so the slice is in none of these counts,
   and whether it bought a slate there was not read from the run's ledger.
   126 run folders under `~/temp/agent` hold a `ledger` folder and no stored artifact
-  (`~/temp/agent/tr-fan/w394-evidence/recheck/recount.ts`,
-  last lines),
+  (the closing summary the script `~/temp/agent/tr-fan/w394-evidence/recheck/recount.ts` prints),
   17 of them runs of `XingZ6*`,
   `XingZ623` among them;
   what their slices did is unmeasured.
@@ -632,10 +631,10 @@ and generation 15 closed it for every slice that is not syntax-bearing.
 A route the argument misses:
 the closing argument for generation 15 assumes `soleLaneOf` answers for every slice with one applicable lane,
 and it does not.
-- `corpus-pass/src/lane-contest-driver.ts:277-285` at `30f6056f76` keeps a one-lane slice on the roster when it is
+- `corpus-pass/src/lane-contest-driver.ts:274-287` at `30f6056f76` keeps a one-lane slice on the roster when it is
   syntax-bearing (its index is in `frontMatterSlices`),
   so the verdict is not `sole-lane` and the roster is asked.
-- `slice-reading/src/front-matter-slice.ts:99-109` at `30f6056f76` builds the slice of a metadata block with
+- `slice-reading/src/front-matter-slice.ts:100-111` at `30f6056f76` builds the slice of a metadata block with
   `syntax: 'front-matter'`,
   and,
   when the original has front matter and the archive has none,
@@ -736,7 +735,9 @@ and a decline there leaves an empty standing at the exit with no skip.
 No recorded input is on that route (0 of 7,159 rows;
 0 of 92 pinned entries),
 and the sentence of round w394 that no input the stage builds reaches the exit is withdrawn:
-the stage can build one,
+the stage can build one
+(`page-check/src/corpus-run/archive-front-matter.ts:113` decides the authority of the front matter,
+and `corpus-pass/src/corpus-run/pass-prepare.ts:184` calls it),
 and none has been recorded.
 A skip added there could be exercised by no recorded input,
 only by a constructed one.

@@ -3,6 +3,9 @@
 Paths in this record are the layout after 2026-10-18,
 under `package/translation-repair`.
 
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
+which lists every file of this record.
+
 The independent review of the repairs in
 [Audit ledger: the consistency pass, voices lost and places left unlocated](audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md)
 (B656 to B664) left three items open,
