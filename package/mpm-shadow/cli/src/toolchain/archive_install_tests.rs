@@ -303,8 +303,8 @@ fn a_symlinked_or_hidden_directory_is_never_a_version() {
     let rig = rig_with_working_older_release();
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
-    // A finished-looking higher version under a hidden name, and a link to one outside the tool's directory.
-    finish_archive(&root, ".0.9.0");
+    // A finished-looking version that sorts above 0.2.0 under a hidden name, and a link to one outside the tool's directory.
+    finish_archive(&root, ".9.9.9");
     let elsewhere = rig.scope.toolchain_root.join("elsewhere");
     let outside_program = elsewhere.join("9.9.9").join("release-folder").join(BIN);
     write_executable(&outside_program);
@@ -316,7 +316,7 @@ fn a_symlinked_or_hidden_directory_is_never_a_version() {
     rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
     let untouched = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
     assert!(untouched.is_empty(), "{untouched:?}");
-    assert!(tool_dir.join(".0.9.0").is_dir() && outside_program.is_file(), "nothing they point at or hide was touched");
+    assert!(tool_dir.join(".9.9.9").is_dir() && outside_program.is_file(), "nothing they point at or hide was touched");
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.0"));
 
     // Positive control: the link replaced by a real finished directory is the newest and supersedes 0.2.0.
