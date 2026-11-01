@@ -742,6 +742,7 @@ which lists every file of this record.
 - [B1380, a re-ask refused on budget after it reached a provider was marked as a refusal before any exchange][w409]
 - [B1381, the next-alternate case asserts the successor the order names][w409]
 - [B1382, the quorum retry rounds never asked the held seat, and the case reaches one][w409]
+- [B1383, the gates, the slips of the round and what stays open][w409]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md

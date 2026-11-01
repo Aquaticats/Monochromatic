@@ -445,5 +445,125 @@ the held seat is refused twice
 (`red-retry-round-mutant.txt`).
 Commit `0e19cdfb44`.
 
+## B1383: the gates, the slips of the round and what stays open
+
+Gates,
+in the integration tree `tr-i406` with the keyless environment and no shim,
+at the code commit `62d42fe5d0` (the last commit that changes a code line):
+- `coverage-census:build` built every family package with no error line (`gate-build-census.txt`).
+- `lint:types` and `lint:oxlint` passed for `stage`,
+  `provider`,
+  `slice-reading`,
+  `bench`,
+  `repair`,
+  `corpus-pass`,
+  `translate-lane`,
+  `source-scan` and `test-fixture`,
+  the nine packages the round touched,
+  and each oxlint log ends on `Found 0 warnings and 0 errors` (`gate-lint-types-*.txt`,
+  `gate-lint-oxlint-*.txt`).
+- `test:unit` of every family package but `source-scan`,
+  one process and one log for each,
+  with no `[FAIL]` line (`gate-unit-test-unit-*.txt`,
+  counted by `count-gates.ts`):
+  the sum of the `[PASS]` lines is 3,336.
+  Against round w408 (B1369):
+  `stage` has 91 where that round had 90 (the new `stage-recovery-settle` test file),
+  and `provider` 278,
+  `repair` 150,
+  `run` 209,
+  `corpus-pass` 237 and `shared-contract` 65 are the counts of that round.
+  `translate-lane` has 31,
+  and its case "ASKS BEFORE EVERY SLICE OF EITHER LANE" passes (B1370).
+  The `[error]` lines of `corpus-pass`,
+  `run` and `typography` are lines that cases make the code write,
+  not failed cases.
+- The cache account audit (`cache-account-audit.txt`,
+  read-only,
+  no provider called):
+  14,064 records in 433 run folders,
+  the newest 2026-11-01T07:42Z,
+  and 0 of 8 versions set after it.
+  No version moves,
+  for the reasons of B1367 and B1375:
+  the keys hash the roster,
+  the sheets and the floors,
+  and none of them changed;
+  what changed decides which seat is asked,
+  on which provider,
+  and a stored record names the model and no provider;
+  and every change of the round was made after the newest record,
+  which is the exception in the rule of the launch checks.
+- The whole `source-scan` suite is run once after the last commit,
+  and its result is in the hand-back of the round.
+
+The gate found two cases of the round's own work that failed,
+and they are the failure B1370 describes:
+a change in one package reached a suite that the targeted runs had not included.
+- `run-client-create.unit.test.ts:590` of `run`:
+  its cases send Qwen3.8-27B with no seat through the real router and read the waits for a refusing provider,
+  and the flip of B1373 refused the ask on Hyper.
+  The request names a measurement seat now.
+  `run` depends on `provider`,
+  and the targeted runs of the flip covered `provider` and `stage`.
+- `stage-quorum-claims.unit.test.ts:300` of `stage`:
+  its second runaway seat is Qwen3.8-27B in the roster role with a client that has no reading,
+  and B1372 withholds the own-model ask of such a seat.
+  The client carries a reading with Synthetic serving now.
+  The targeted runs of B1372 covered one file of `stage`.
+Commits `d851eaf098` and `62d42fe5d0`.
+
+Slips:
+- A here-document wrote the first scratch edit script (`edit-ledger-1.ts`) on a command line that began outside the
+  keyless wrapper,
+  and a read of that file with `cat` began outside it too.
+  Neither read a key,
+  an `.env*` file,
+  an auth file or anything under `/tmp/claude-1000/`.
+  The scripts after those were written with the file tool and run inside the wrapper.
+- Four listings printed far more than they needed and were not counts:
+  the files of a search for the readers of `unreadable` (over a hundred paths),
+  the whole folder of the lead's `s245`,
+  the per-file counts of the test files that name a request type,
+  and the scratch folder itself.
+  The brief forbids caps on evidence and asks for counts when a count is what is wanted.
+- `test:unit` of the 35 packages was run through a scratch script that runs the tasks one after another
+  (`run-tasks.ts`),
+  one process and one log for each,
+  and not as one tool call for each task.
+  Its first form split `lint:types` on the first colon and ran the `lint` task of the nine packages;
+  that was read from the log names,
+  and `lint:types` and `lint:oxlint` were run properly.
+- The brief named the selector at `s245/split/gate-select.ts`,
+  where it does not exist;
+  it is `branch-only/gate-select.ts` (B1378).
+- The first red log of B1371 failed on a seat the roster leaves unreachable (the decision seat)
+  and not on the lost one,
+  and the case was reworked with a control run;
+  the shown failure is the mutant.
+- The script that put the roster seat into the callers of the stage entry points put the import above the module
+  comment of eight test files,
+  and a second script moved it.
+- The first form of the width fixture had 59 lint warnings and 5 errors
+  (hex ranges as magic numbers,
+  nullish unions,
+  regular expression literals,
+  a `let` at function root and the layout rules),
+  found by the linter after the tests passed,
+  and was rewritten in the repository's style before it was committed.
+- The red logs of B1371 and B1373 were taken before a destructuring edit and a layout edit of the same files.
+- The commit `bb1b749b2a` is typed `fix(stage)` and holds test files beside the module;
+  `a0a6e8141b` and `16e87d22f3` are `fix(*)` with a body per package.
+  No message is amended.
+- A guard shown to fail only by reading its assertions:
+  B1370 (the derived count) and B1381 (the exact successor) were not run against a mutant,
+  and B1379's hint case was shown red on the unfixed code and not against a mutant.
+
+Open:
+- No case drives an alternate asked by `routedJson` through the router with a stale reading (B1374).
+- The width guard cannot refuse a commit that raises a count and its allowance together (B1376).
+- The wide characters of the width scan are the blocks of the annex that the docs can hold,
+  not the whole table (B1376).
+
 [tasks-rules]: mistake-prevention-tasks-builds-and-bulk-output.md
 [seam-rules]: mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md

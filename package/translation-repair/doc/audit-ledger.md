@@ -860,8 +860,9 @@ and this one lists that index in their place
   the withdrawn refiners (B1375),
   the Markdown width scan (B1376),
   the nits and the rule of the suites a change reaches (B1377 and B1378),
-  the JSON hint and the exchange mark (B1379 and B1380)
-  and the two stage cases made exact (B1381 and B1382).
+  the JSON hint and the exchange mark (B1379 and B1380),
+  the two stage cases made exact (B1381 and B1382)
+  and the gates and slips of the round (B1383).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
