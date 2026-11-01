@@ -25,6 +25,10 @@ mod expected;
 #[path = "binary_recovery_tearing_shadow_tests.rs"]
 mod shadow_refs;
 
+/// Records whose directory entry a power loss took.
+#[path = "binary_recovery_tearing_names_tests.rs"]
+mod names;
+
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{Fixture, bounded_for, direct, fixture, git, repository, wrapper_first_path};
 use git_policy_cli::transaction_registry::is_transaction_id;

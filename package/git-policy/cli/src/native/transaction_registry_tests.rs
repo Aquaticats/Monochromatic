@@ -4,7 +4,7 @@
 //!  listing and removal.
 
 use super::*;
-use crate::private_storage::take_directory_syncs;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
 
 /// The canonical transaction ID used by these tests.
@@ -352,5 +352,21 @@ fn a_registry_that_cannot_be_created_is_reported_as_such() {
             .0
             .contains("creating the transaction registry")
     );
+    remove(git_dir.as_path());
+}
+
+/// Publication syncs the owner file and the registry that holds the renamed directory, and never the candidate
+///  directory: the owner file's name in it is made durable by the first sync of the published directory.
+#[test]
+fn publication_syncs_the_owner_file_and_the_registry_and_not_the_candidate() {
+    let git_dir: PathBuf = fixture("registry-publish-sync");
+    let root: PathBuf = git_dir.join(TRANSACTION_ROOT_NAME);
+    ensure_transaction_root(root.as_path()).expect("create");
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    take_directory_syncs();
+    take_file_syncs();
+    publish_transaction_directory(root.as_path(), ID, b"{}\n").expect("publish");
+    assert_eq!(take_directory_syncs(), vec![canonical_root]);
+    assert_eq!(take_file_syncs(), vec![root.join(format!("{ID}{STAGING_SUFFIX}")).join(OWNER_FILENAME)]);
     remove(git_dir.as_path());
 }

@@ -729,7 +729,8 @@ fn advance_target(
         workspace.directory.as_path(),
         REF_UPDATED_FILENAME,
         encode_ref_updated(new_oid).as_bytes(),
-        RecordSync::FileAndDirectory,
+        // A record whose name a power loss took completes in the tearing table, so only the file is synced.
+        RecordSync::FileOnly,
     )?;
     reach(Phase::RefUpdated)?;
     remove_pack_keep(objects, pack_name).map_err(LandingError::Recovery)?;

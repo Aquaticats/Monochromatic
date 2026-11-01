@@ -71,7 +71,7 @@ const NO_HOOKS: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 23,
+    wrapper_syncs: 19,
     git_syncs: &[("index-pack", 3)],
 };
 
@@ -106,7 +106,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 1), ("stat", 0)],
-    wrapper_syncs: 27,
+    wrapper_syncs: 23,
     git_syncs: &[("index-pack", 3)],
 };
 
@@ -140,7 +140,7 @@ const AMEND: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 23,
+    wrapper_syncs: 19,
     git_syncs: &[("index-pack", 3)],
 };
 
@@ -177,7 +177,7 @@ const WARM: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 18,
+    wrapper_syncs: 14,
     git_syncs: &[("index-pack", 3), ("multi-pack-index write", 1), ("pack-objects", 3)],
 };
 //endregion

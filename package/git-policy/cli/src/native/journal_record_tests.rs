@@ -30,11 +30,24 @@ fn a_record_with_the_full_level_syncs_its_file_and_its_directory() {
     remove(root.as_path());
 }
 
-/// Neither level rewrites a record, and the failure names the path.
+/// A record at the file level syncs its file and no directory.
+#[test]
+fn a_record_with_the_file_level_syncs_its_file_and_not_its_directory() {
+    let root: PathBuf = fixture("journal-record-file");
+    take_file_syncs();
+    take_directory_syncs();
+    write_record(root.as_path(), "record.json", b"{}\n", RecordSync::FileOnly).expect("written");
+    assert_eq!(std::fs::read(root.join("record.json")).expect("record"), b"{}\n");
+    assert_eq!(take_file_syncs(), vec![root.join("record.json")]);
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    remove(root.as_path());
+}
+
+/// No level rewrites a record, and the failure names the path.
 #[test]
 fn a_record_is_written_once_at_every_level() {
     let root: PathBuf = fixture("journal-record-once");
-    for sync in [RecordSync::Nothing, RecordSync::FileAndDirectory] {
+    for sync in [RecordSync::Nothing, RecordSync::FileOnly, RecordSync::FileAndDirectory] {
         let name: String = format!("{sync:?}.json");
         write_record(root.as_path(), name.as_str(), b"first", sync).expect("first write");
         let failure: String = write_record(root.as_path(), name.as_str(), b"second", sync).expect_err("second write");

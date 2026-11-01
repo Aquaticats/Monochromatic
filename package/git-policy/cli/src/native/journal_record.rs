@@ -24,12 +24,15 @@ use super::private_storage::{sync_directory, write_private_file, write_private_f
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RecordSync = 'file-and-directory' | 'nothing';
+/// type RecordSync = 'file-and-directory' | 'file' | 'nothing';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RecordSync {
     /// The file's bytes, then its directory entry: the record is a barrier that later steps rely on.
     FileAndDirectory,
+    /// The file's bytes only: a later record's directory sync makes the entry durable before anything depends on it,
+    ///  and a name a power loss took anyway leaves the state of a record that was never written.
+    FileOnly,
     /// Neither: recovery completes or discards the transaction whatever a power loss left of this record.
     Nothing,
 }
@@ -48,7 +51,7 @@ pub enum RecordSync {
 pub fn write_record(directory: &Path, filename: &str, bytes: &[u8], sync: RecordSync) -> Result<(), String> {
     let path: PathBuf = directory.join(filename);
     let written: std::io::Result<()> = match sync {
-        RecordSync::FileAndDirectory => write_private_file(path.as_path(), bytes),
+        RecordSync::FileAndDirectory | RecordSync::FileOnly => write_private_file(path.as_path(), bytes),
         RecordSync::Nothing => write_private_file_unsynced(path.as_path(), bytes),
     };
     if let Err(error) = written {

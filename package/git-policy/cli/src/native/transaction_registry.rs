@@ -469,14 +469,16 @@ pub fn publish_transaction_directory(
 }
 
 /// What:
-///  Protect a fresh candidate and write its owner record durably.
+///  Protect a fresh candidate and write its owner record, syncing the file and not the candidate directory.
 /// Why:
 ///   Everything before the publishing rename,
 ///  so a failure can remove the candidate.
+///  The owner file's name in the directory is made durable by the first directory sync of the published
+///  transaction directory, the one that follows `landing-<n>.json`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await protectPath(staging); await writePrivateFile(owner); await syncDirectory(staging);
+/// await protectPath(staging); await writePrivateFile(owner);
 /// ```
 fn fill_candidate(staging: &Path, owner_bytes: &[u8]) -> Result<(), RecoveryError> {
     if let Err(error) = protect_path(staging, PRIVATE_DIRECTORY_MODE) {
@@ -494,13 +496,9 @@ fn fill_candidate(staging: &Path, owner_bytes: &[u8]) -> Result<(), RecoveryErro
             &error,
         ));
     }
-    if let Err(error) = sync_directory(staging) {
-        return Err(io_failure(
-            "syncing the transaction candidate",
-            staging,
-            &error,
-        ));
-    }
+    // The candidate directory is not synced: the owner file is, and the registry sync after the publishing rename
+    // follows. A filesystem that persisted the rename but not the file's name would publish a directory without
+    // `owner.json` (`binary_recovery_tearing_names_tests.rs` shows what recovery does with that).
     return Ok(());
 }
 

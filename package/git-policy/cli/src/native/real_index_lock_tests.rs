@@ -6,7 +6,7 @@
 //!  and the budget for a dead foreign owner.
 
 use super::*;
-use crate::private_storage::take_file_syncs;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
 
 /// The index path inside a fresh fixture directory.
@@ -146,16 +146,19 @@ fn a_landing_lock_journals_its_identity_and_announces_the_process() {
     remove(root.as_path());
 }
 
-/// The identity record keeps its file sync (a torn one sticks every guarded command), and the PID file has none.
+/// The identity record keeps its file sync (a torn one sticks every guarded command) and loses its directory sync, and
+///  the PID file has no sync at all.
 #[test]
 #[cfg(unix)]
-fn a_landing_lock_syncs_its_record_file_and_not_its_pid_file() {
+fn a_landing_lock_syncs_its_record_file_only() {
     let (root, index): (PathBuf, PathBuf) = index_in("real-lock-sync");
     let directory: PathBuf = transaction_in(root.as_path());
     take_file_syncs();
+    take_directory_syncs();
     let lock: RealIndexLock = acquire_landing_index_lock(index.as_path(), directory.as_path(), 3, 100, "landed nothing")
         .expect("a free index is lockable");
     assert_eq!(take_file_syncs(), vec![directory.join("index-lock-3.json")]);
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
     lock.release_after_landing().expect("release");
     remove(root.as_path());
 }

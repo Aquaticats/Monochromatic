@@ -587,7 +587,9 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
             invoked_at: capture.layout.invoked_at.clone(),
         })
         .as_str(),
-        RecordSync::FileAndDirectory,
+        // The file is synced (a torn record sticks every guarded command); its name is made durable by the directory
+        // sync of `landing-<n>.json`, before the branch moves.
+        RecordSync::FileOnly,
     )?;
     // Before the private index exists, so every object preparation writes lands in the shadow store, which a
     // concurrent real `gc --prune=now` never sees.
